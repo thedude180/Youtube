@@ -14,10 +14,16 @@ function getOAuth2Client() {
     throw new Error("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set");
   }
 
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI
-    || (process.env.REPLIT_DEV_DOMAIN
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/youtube/callback`
-      : "http://localhost:5000/api/youtube/callback");
+  let redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  if (!redirectUri) {
+    if (process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT) {
+      redirectUri = "https://ytautomation.replit.app/api/youtube/callback";
+    } else if (process.env.REPLIT_DEV_DOMAIN) {
+      redirectUri = `https://${process.env.REPLIT_DEV_DOMAIN}/api/youtube/callback`;
+    } else {
+      redirectUri = "http://localhost:5000/api/youtube/callback";
+    }
+  }
 
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
