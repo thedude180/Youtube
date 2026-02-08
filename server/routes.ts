@@ -1464,7 +1464,10 @@ export async function registerRoutes(
 
   app.get("/api/youtube/channel/:channelId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
     try {
+      const channel = await storage.getChannel(Number(req.params.channelId));
+      if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const info = await fetchYouTubeChannelInfo(Number(req.params.channelId));
       res.json(info);
     } catch (error: any) {
@@ -1474,7 +1477,10 @@ export async function registerRoutes(
 
   app.get("/api/youtube/videos/:channelId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
     try {
+      const channel = await storage.getChannel(Number(req.params.channelId));
+      if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const videos = await fetchYouTubeVideos(Number(req.params.channelId), Number(req.query.maxResults) || 50);
       res.json(videos);
     } catch (error: any) {
@@ -1486,6 +1492,8 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = (req.user as any).id;
     try {
+      const channel = await storage.getChannel(Number(req.params.channelId));
+      if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const synced = await syncYouTubeVideosToLibrary(Number(req.params.channelId), userId);
       res.json({ synced: synced.length, videos: synced });
     } catch (error: any) {
@@ -1495,7 +1503,10 @@ export async function registerRoutes(
 
   app.put("/api/youtube/video/:channelId/:videoId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
     try {
+      const channel = await storage.getChannel(Number(req.params.channelId));
+      if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const result = await updateYouTubeVideo(
         Number(req.params.channelId),
         req.params.videoId,

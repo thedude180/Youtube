@@ -144,31 +144,48 @@ export async function fetchYouTubeChannelInfo(channelId: number) {
   };
 }
 
-export async function fetchYouTubeVideos(channelId: number, maxResults = 50) {
+export async function fetchYouTubeVideos(channelId: number, maxResults = 200) {
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
   const channelInfo = await fetchYouTubeChannelInfo(channelId);
   if (!channelInfo.uploadsPlaylistId) return [];
 
-  const playlistResponse = await youtube.playlistItems.list({
-    part: ["snippet", "contentDetails"],
-    playlistId: channelInfo.uploadsPlaylistId,
-    maxResults,
-  });
+  const allVideoIds: string[] = [];
+  let pageToken: string | undefined;
+  const perPage = Math.min(maxResults, 50);
 
-  const videoIds = playlistResponse.data.items
-    ?.map(item => item.contentDetails?.videoId)
-    .filter(Boolean) as string[];
+  do {
+    const playlistResponse = await youtube.playlistItems.list({
+      part: ["contentDetails"],
+      playlistId: channelInfo.uploadsPlaylistId,
+      maxResults: perPage,
+      pageToken,
+    });
 
-  if (!videoIds?.length) return [];
+    const ids = playlistResponse.data.items
+      ?.map(item => item.contentDetails?.videoId)
+      .filter(Boolean) as string[];
+    if (ids?.length) allVideoIds.push(...ids);
 
-  const videosResponse = await youtube.videos.list({
-    part: ["snippet", "statistics", "contentDetails", "status"],
-    id: videoIds,
-  });
+    pageToken = playlistResponse.data.nextPageToken || undefined;
+  } while (pageToken && allVideoIds.length < maxResults);
 
-  return (videosResponse.data.items || []).map(v => ({
+  if (!allVideoIds.length) return [];
+
+  const allVideos: any[] = [];
+  for (let i = 0; i < allVideoIds.length; i += 50) {
+    const batch = allVideoIds.slice(i, i + 50);
+    const videosResponse = await youtube.videos.list({
+      part: ["snippet", "statistics", "contentDetails", "status"],
+      id: batch,
+    });
+    if (videosResponse.data.items) {
+      allVideos.push(...videosResponse.data.items);
+    }
+  }
+
+  return allVideos.map(v => ({
     youtubeId: v.id,
     title: v.snippet?.title || "",
     description: v.snippet?.description || "",
