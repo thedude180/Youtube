@@ -28,7 +28,7 @@ import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
 const sidebarStyle = {
-  "--sidebar-width": "16rem",
+  "--sidebar-width": "14rem",
   "--sidebar-width-icon": "3rem",
 } as React.CSSProperties;
 
@@ -60,10 +60,8 @@ function AuthenticatedApp() {
     <SidebarProvider style={sidebarStyle}>
       <div className="flex min-h-screen w-full bg-background text-foreground font-sans">
         <AppSidebar />
-        <main className="flex-1 relative">
-          <div className="fixed top-0 right-0 -z-10 h-[500px] w-[500px] bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
-          <div className="fixed bottom-0 left-0 -z-10 h-[300px] w-[300px] bg-purple-600/5 blur-[100px] rounded-full pointer-events-none" />
-          <div className="sticky top-0 z-40 flex items-center h-12 px-4 border-b border-border bg-background/80 backdrop-blur-sm md:hidden">
+        <main className="flex-1 overflow-auto">
+          <div className="sticky top-0 z-40 flex items-center h-12 px-4 border-b border-border bg-background md:hidden">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
           </div>
           <Router />
@@ -91,10 +89,7 @@ function AppContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground text-sm">Loading CreatorOS...</p>
-        </div>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }

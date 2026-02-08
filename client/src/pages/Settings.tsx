@@ -8,69 +8,50 @@ import { useState } from "react";
 export default function Settings() {
   const [activePreset, setActivePreset] = useState<"safe" | "normal" | "aggressive">("normal");
 
+  const presets = [
+    { type: "safe" as const, icon: Shield, title: "Safe", desc: "Conservative. Minimal changes." },
+    { type: "normal" as const, icon: Zap, title: "Normal", desc: "Balanced optimization." },
+    { type: "aggressive" as const, icon: AlertTriangle, title: "Aggressive", desc: "Maximum growth." },
+  ];
+
   return (
-    <div className="p-8 max-w-[1200px] mx-auto animate-in fade-in duration-500">
-      <div className="mb-8">
-        <h1 data-testid="text-page-title" className="text-3xl font-display font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">Configure global application behavior and risk tolerance.</p>
-      </div>
+    <div className="p-6 lg:p-8 max-w-3xl mx-auto">
+      <h1 data-testid="text-page-title" className="text-2xl font-display font-bold mb-6">Settings</h1>
 
-      <div className="space-y-8">
-        <section>
-          <h2 className="text-xl font-bold font-display mb-4">Risk Profile</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <RiskCard
-              type="safe"
-              active={activePreset === "safe"}
-              onClick={() => setActivePreset("safe")}
-              icon={Shield}
-              title="Safe Mode"
-              description="Conservative growth. Minimal metadata changes. Strictly follows rate limits."
-            />
-            <RiskCard
-              type="normal"
-              active={activePreset === "normal"}
-              onClick={() => setActivePreset("normal")}
-              icon={Zap}
-              title="Normal Mode"
-              description="Balanced optimization. Daily updates and regular A/B testing."
-            />
-            <RiskCard
-              type="aggressive"
-              active={activePreset === "aggressive"}
-              onClick={() => setActivePreset("aggressive")}
-              icon={AlertTriangle}
-              title="Aggressive Mode"
-              description="Maximum growth. High frequency updates. Experimental features enabled."
-            />
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-sm font-medium text-muted-foreground mb-3">Risk Profile</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {presets.map(({ type, icon: Icon, title, desc }) => (
+              <Card
+                key={type}
+                data-testid={`card-risk-${type}`}
+                onClick={() => setActivePreset(type)}
+                className={cn(
+                  "cursor-pointer",
+                  activePreset === type ? "border-primary" : "hover-elevate"
+                )}
+              >
+                <CardContent className="p-4">
+                  <Icon className={cn("h-5 w-5 mb-2", activePreset === type ? "text-primary" : "text-muted-foreground")} />
+                  <p className="text-sm font-medium">{title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </section>
+        </div>
 
-        <Card className="max-w-2xl">
-          <CardContent className="p-8">
-            <h2 className="text-lg font-bold font-display mb-6">Automation Rules</h2>
-            <div className="space-y-6">
-              <ToggleItem
-                id="auto-upload"
-                title="Auto-Upload Shorts"
-                description="Automatically publish processed shorts to YouTube"
-              />
-              <ToggleItem
-                id="ai-rewrites"
-                title="AI Title Rewrites"
-                description="Allow AI to optimize titles without manual approval"
-              />
-              <ToggleItem
-                id="delete-source"
-                title="Delete Source Files"
-                description="Remove local VOD files after successful upload"
-              />
-            </div>
-
-            <div className="pt-8 mt-8 border-t border-border/50 flex justify-end">
-              <Button data-testid="button-save-settings">
-                <Save className="h-4 w-4 mr-2" />
-                Save Configuration
+        <Card>
+          <CardContent className="p-6 space-y-5">
+            <h2 className="text-sm font-medium text-muted-foreground">Automation</h2>
+            <ToggleItem id="auto-upload" title="Auto-Upload Shorts" desc="Publish processed shorts automatically" />
+            <ToggleItem id="ai-rewrites" title="AI Title Rewrites" desc="Optimize titles without manual approval" />
+            <ToggleItem id="delete-source" title="Delete Source Files" desc="Remove local files after upload" />
+            <div className="pt-4 flex justify-end">
+              <Button data-testid="button-save-settings" size="sm">
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                Save
               </Button>
             </div>
           </CardContent>
@@ -80,71 +61,15 @@ export default function Settings() {
   );
 }
 
-function RiskCard({
-  type,
-  active,
-  onClick,
-  icon: Icon,
-  title,
-  description,
-}: {
-  type: string;
-  active: boolean;
-  onClick: () => void;
-  icon: React.ElementType;
-  title: string;
-  description: string;
-}) {
-  return (
-    <Card
-      data-testid={`card-risk-${type}`}
-      onClick={onClick}
-      className={cn(
-        "cursor-pointer transition-all duration-300",
-        active
-          ? "border-primary shadow-lg shadow-primary/10 scale-[1.02]"
-          : "hover-elevate"
-      )}
-    >
-      <CardContent className="p-6 relative">
-        <div
-          className={cn(
-            "h-12 w-12 rounded-lg flex items-center justify-center mb-4 transition-colors",
-            active ? "bg-primary text-white" : "bg-secondary text-muted-foreground"
-          )}
-        >
-          <Icon className="h-6 w-6" />
-        </div>
-        <h3
-          className={cn(
-            "text-lg font-bold font-display mb-2",
-            active ? "text-primary" : "text-foreground"
-          )}
-        >
-          {title}
-        </h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
-
-        {active && <div className="absolute top-4 right-4 h-3 w-3 rounded-full bg-primary animate-pulse" />}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ToggleItem({ id, title, description }: { id: string; title: string; description: string }) {
+function ToggleItem({ id, title, desc }: { id: string; title: string; desc: string }) {
   const [enabled, setEnabled] = useState(false);
-
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <p className="font-medium text-foreground">{title}</p>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
       </div>
-      <Switch
-        data-testid={`switch-${id}`}
-        checked={enabled}
-        onCheckedChange={setEnabled}
-      />
+      <Switch data-testid={`switch-${id}`} checked={enabled} onCheckedChange={setEnabled} />
     </div>
   );
 }
