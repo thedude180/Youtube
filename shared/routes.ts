@@ -260,6 +260,51 @@ export const api = {
       path: '/api/backlog/status' as const,
       responses: { 200: z.object({ totalVideos: z.number(), optimized: z.number(), pending: z.number(), activeJob: z.any().nullable() }) },
     },
+    autoStart: {
+      method: 'POST' as const,
+      path: '/api/backlog/auto-start' as const,
+      input: z.object({ mode: z.enum(["quick", "deep"]).optional() }),
+      responses: { 200: z.object({ success: z.boolean(), jobId: z.number(), totalVideos: z.number(), alreadyRunning: z.boolean() }) },
+    },
+    engineStatus: {
+      method: 'GET' as const,
+      path: '/api/backlog/engine-status' as const,
+      responses: { 200: z.any() },
+    },
+    pause: {
+      method: 'POST' as const,
+      path: '/api/backlog/pause' as const,
+      input: z.object({}),
+      responses: { 200: z.object({ success: z.boolean() }) },
+    },
+    resume: {
+      method: 'POST' as const,
+      path: '/api/backlog/resume' as const,
+      input: z.object({}),
+      responses: { 200: z.object({ success: z.boolean() }) },
+    },
+    videoScores: {
+      method: 'GET' as const,
+      path: '/api/backlog/video-scores' as const,
+      responses: { 200: z.any() },
+    },
+    bulkOptimize: {
+      method: 'POST' as const,
+      path: '/api/backlog/bulk-optimize' as const,
+      input: z.object({ videoIds: z.array(z.number()), agentIds: z.array(z.string()) }),
+      responses: { 200: z.object({ success: z.boolean(), jobId: z.number(), count: z.number() }) },
+    },
+    autoSchedule: {
+      method: 'POST' as const,
+      path: '/api/backlog/auto-schedule' as const,
+      input: z.object({}),
+      responses: { 200: z.object({ success: z.boolean(), scheduled: z.number() }) },
+    },
+    staleVideos: {
+      method: 'GET' as const,
+      path: '/api/backlog/stale' as const,
+      responses: { 200: z.any() },
+    },
   },
   thumbnails: {
     generate: {

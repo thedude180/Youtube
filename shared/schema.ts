@@ -99,6 +99,11 @@ export const videos = pgTable("videos", {
     crossPostIds?: Record<string, string>;
     aiOptimized?: boolean;
     aiOptimizedAt?: string;
+    chainCompleted?: boolean;
+    chainCompletedAt?: string;
+    optimizationScore?: number;
+    autoScheduled?: boolean;
+    autoScheduledAt?: string;
   }>(),
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),

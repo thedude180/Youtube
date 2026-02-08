@@ -17,6 +17,18 @@ import {
   generateCommunityPost,
 } from "./ai-engine";
 import { AI_AGENTS } from "@shared/schema";
+import {
+  startBacklogProcessing,
+  getBacklogStatus,
+  pauseBacklog,
+  resumeBacklog,
+  getVideosWithScores,
+  bulkOptimize,
+  autoScheduleOptimizedContent,
+  getStaleVideos,
+  pivotToStream,
+  resumeFromStream,
+} from "./backlog-engine";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -571,6 +583,10 @@ export async function registerRoutes(
         startedAt: new Date(),
       });
 
+      pivotToStream(userId, stream.id).catch(err =>
+        console.error("Stream pivot error:", err)
+      );
+
       const tasks = [
         { name: "seo_optimization", status: "pending" },
         { name: "thumbnail_generation", status: "pending" },
@@ -712,6 +728,10 @@ export async function registerRoutes(
         status: 'ended',
         endedAt,
       });
+
+      resumeFromStream(userId, stream.id).catch(err =>
+        console.error("Stream resume error:", err)
+      );
 
       const tasks = [
         { name: "vod_optimization", status: "pending" },
@@ -989,6 +1009,100 @@ export async function registerRoutes(
       pending: allVideos.length - optimized,
       activeJob,
     });
+  });
+
+  app.post(api.backlog.autoStart.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const mode = req.body.mode || "deep";
+      const result = await startBacklogProcessing(userId, mode);
+      
+      if (!result.alreadyRunning) {
+        await storage.createAuditLog({
+          userId,
+          action: "auto_backlog_started",
+          target: `${result.totalVideos} videos queued`,
+          details: { mode, jobId: result.jobId },
+          riskLevel: "low",
+        });
+      }
+
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error("Auto backlog start error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.get(api.backlog.engineStatus.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const status = await getBacklogStatus(userId);
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post(api.backlog.pause.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
+    const success = await pauseBacklog(userId);
+    res.json({ success });
+  });
+
+  app.post(api.backlog.resume.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
+    const success = await resumeBacklog(userId);
+    res.json({ success });
+  });
+
+  app.get(api.backlog.videoScores.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
+    const scores = await getVideosWithScores(userId);
+    res.json(scores);
+  });
+
+  app.post(api.backlog.bulkOptimize.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const { videoIds, agentIds } = req.body;
+      const result = await bulkOptimize(userId, videoIds, agentIds);
+      
+      await storage.createAuditLog({
+        userId,
+        action: "bulk_optimize_started",
+        target: `${videoIds.length} videos with ${agentIds.length} agents`,
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.post(api.backlog.autoSchedule.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const scheduled = await autoScheduleOptimizedContent(userId);
+      res.json({ success: true, scheduled });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.get(api.backlog.staleVideos.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
+    const stale = await getStaleVideos(userId);
+    res.json(stale);
   });
 
   // === THUMBNAILS ===

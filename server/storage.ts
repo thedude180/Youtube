@@ -20,15 +20,17 @@ import {
   type CommunityPost, type InsertCommunityPost,
   type StatsResponse
 } from "@shared/schema";
-import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getChannels(): Promise<Channel[]>;
+  getChannelsByUser(userId: string): Promise<Channel[]>;
   getChannel(id: number): Promise<Channel | undefined>;
   createChannel(channel: InsertChannel): Promise<Channel>;
   updateChannel(id: number, updates: UpdateChannelRequest): Promise<Channel>;
 
   getVideos(): Promise<Video[]>;
+  getVideosByUser(userId: string): Promise<Video[]>;
   getVideo(id: number): Promise<Video | undefined>;
   createVideo(video: InsertVideo): Promise<Video>;
   updateVideo(id: number, updates: UpdateVideoRequest): Promise<Video>;
@@ -99,6 +101,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(channels);
   }
 
+  async getChannelsByUser(userId: string): Promise<Channel[]> {
+    return await db.select().from(channels).where(eq(channels.userId, userId));
+  }
+
   async getChannel(id: number): Promise<Channel | undefined> {
     const [channel] = await db.select().from(channels).where(eq(channels.id, id));
     return channel;
@@ -116,6 +122,15 @@ export class DatabaseStorage implements IStorage {
 
   async getVideos(): Promise<Video[]> {
     return await db.select().from(videos).orderBy(desc(videos.createdAt));
+  }
+
+  async getVideosByUser(userId: string): Promise<Video[]> {
+    const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+    if (userChannels.length === 0) return [];
+    const channelIds = userChannels.map(c => c.id);
+    return await db.select().from(videos)
+      .where(inArray(videos.channelId, channelIds))
+      .orderBy(desc(videos.createdAt));
   }
 
   async getVideo(id: number): Promise<Video | undefined> {
