@@ -7,6 +7,27 @@ const SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
 ];
 
+const pendingOAuthUsers = new Map<string, { userId: string; timestamp: number }>();
+
+export function setPendingOAuthUser(nonce: string, userId: string) {
+  pendingOAuthUsers.set(nonce, { userId, timestamp: Date.now() });
+  const now = Date.now();
+  const keysToDelete: string[] = [];
+  pendingOAuthUsers.forEach((val, key) => {
+    if (now - val.timestamp > 10 * 60 * 1000) keysToDelete.push(key);
+  });
+  keysToDelete.forEach(k => pendingOAuthUsers.delete(k));
+}
+
+export function getPendingOAuthUser(nonce: string): string | null {
+  const entry = pendingOAuthUsers.get(nonce);
+  if (entry) {
+    pendingOAuthUsers.delete(nonce);
+    return entry.userId;
+  }
+  return null;
+}
+
 function getOAuth2Client() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -30,11 +51,13 @@ function getOAuth2Client() {
 
 export function getAuthUrl(userId: string): string {
   const oauth2Client = getOAuth2Client();
+  const nonce = `yt_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  setPendingOAuthUser(nonce, userId);
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
-    state: userId,
+    state: nonce,
   });
 }
 

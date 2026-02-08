@@ -32,6 +32,7 @@ import {
 import {
   getAuthUrl,
   handleCallback,
+  getPendingOAuthUser,
   fetchYouTubeChannelInfo,
   fetchYouTubeVideos,
   updateYouTubeVideo,
@@ -1449,13 +1450,32 @@ export async function registerRoutes(
   });
 
   app.get("/api/youtube/callback", async (req, res) => {
-    const { code, state } = req.query;
-    const userId = state as string || (req.isAuthenticated() ? (req.user as any).id : null);
-    if (!code || !userId) {
-      return res.status(400).send("Missing authorization code or user session");
+    const code = req.query.code as string | undefined;
+    const state = req.query.state as string | undefined;
+    const sessionUserId = req.isAuthenticated() ? (req.user as any).id : null;
+
+    let userId: string | null = null;
+    if (state) {
+      userId = getPendingOAuthUser(state);
+    }
+    if (!userId) {
+      userId = sessionUserId;
+    }
+
+    console.log("YouTube callback:", {
+      hasCode: !!code,
+      hasState: !!state,
+      resolvedUserId: userId || "(none)",
+    });
+
+    if (!code) {
+      return res.redirect("/channels?error=" + encodeURIComponent("Missing authorization code from Google. Please try connecting again."));
+    }
+    if (!userId) {
+      return res.redirect("/channels?error=" + encodeURIComponent("Session expired. Please log in and try connecting YouTube again."));
     }
     try {
-      const result = await handleCallback(code as string, userId);
+      const result = await handleCallback(code, userId);
       res.redirect(`/channels?connected=youtube&channel=${encodeURIComponent(result.ytChannel.title || "")}`);
     } catch (error: any) {
       console.error("YouTube OAuth callback error:", error);
