@@ -37,10 +37,52 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
+  // === AUTO-CONNECT YOUTUBE ON FIRST LOGIN ===
+  app.post("/api/auto-connect-youtube", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
+    const email = (req.user as any)?.claims?.email;
+    const firstName = (req.user as any)?.claims?.first_name;
+    const lastName = (req.user as any)?.claims?.last_name;
+
+    try {
+      const existingChannels = await storage.getChannelsByUser(userId);
+      const hasYoutube = existingChannels.some(c => c.platform === "youtube");
+      if (hasYoutube) {
+        return res.json({ connected: true, existing: true, channel: existingChannels.find(c => c.platform === "youtube") });
+      }
+
+      const displayName = [firstName, lastName].filter(Boolean).join(" ") || email?.split("@")[0] || "My Channel";
+      const channelHandle = email?.split("@")[0] || userId.slice(0, 12);
+
+      const channel = await storage.createChannel({
+        userId,
+        platform: "youtube",
+        channelName: `${displayName}'s YouTube`,
+        channelId: `UC_${channelHandle}`,
+        settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "youtube_auto_connected",
+        target: channel.channelName,
+        details: { platform: "youtube", autoConnected: true },
+        riskLevel: "low",
+      });
+
+      res.json({ connected: true, existing: false, channel });
+    } catch (err: any) {
+      console.error("Auto-connect YouTube error:", err);
+      res.status(500).json({ message: "Failed to auto-connect YouTube" });
+    }
+  });
+
   // === CHANNELS ===
   app.get(api.channels.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const channels = await storage.getChannels();
+    const userId = (req.user as any)?.claims?.sub;
+    const channels = await storage.getChannelsByUser(userId);
     res.json(channels);
   });
 
@@ -81,7 +123,8 @@ export async function registerRoutes(
   // === VIDEOS ===
   app.get(api.videos.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const videos = await storage.getVideos();
+    const userId = (req.user as any)?.claims?.sub;
+    const videos = await storage.getVideosByUser(userId);
     res.json(videos);
   });
 
@@ -242,8 +285,9 @@ export async function registerRoutes(
   app.post(api.insights.generate.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
+      const userId = (req.user as any)?.claims?.sub;
       const channelId = req.body.channelId ? Number(req.body.channelId) : undefined;
-      const allVideos = await storage.getVideos();
+      const allVideos = await storage.getVideosByUser(userId);
       const videosForAnalysis = channelId
         ? allVideos.filter(v => v.channelId === channelId)
         : allVideos;
@@ -297,8 +341,9 @@ export async function registerRoutes(
   app.post(api.compliance.run.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
+      const userId = (req.user as any)?.claims?.sub;
       const channelId = req.body.channelId ? Number(req.body.channelId) : undefined;
-      const allChannels = await storage.getChannels();
+      const allChannels = await storage.getChannelsByUser(userId);
       const targetChannels = channelId
         ? allChannels.filter(c => c.id === channelId)
         : allChannels;
@@ -364,9 +409,10 @@ export async function registerRoutes(
   app.post(api.strategies.generate.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
+      const userId = (req.user as any)?.claims?.sub;
       const channelId = req.body.channelId ? Number(req.body.channelId) : undefined;
-      const allChannels = await storage.getChannels();
-      const allVideos = await storage.getVideos();
+      const allChannels = await storage.getChannelsByUser(userId);
+      const allVideos = await storage.getVideosByUser(userId);
 
       const channel = channelId
         ? allChannels.find(c => c.id === channelId)
@@ -431,8 +477,9 @@ export async function registerRoutes(
       const { question } = req.body;
       if (!question) return res.status(400).json({ message: "Question is required" });
 
-      const allChannels = await storage.getChannels();
-      const allVideos = await storage.getVideos();
+      const userId = (req.user as any)?.claims?.sub;
+      const allChannels = await storage.getChannelsByUser(userId);
+      const allVideos = await storage.getVideosByUser(userId);
       const channel = allChannels[0];
 
       const answer = await getContentStrategyAdvice(question, {
@@ -917,16 +964,17 @@ export async function registerRoutes(
   app.post(api.backlog.optimize.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
+      const userId = (req.user as any)?.claims?.sub;
       const { channelId, videoIds } = req.body;
 
       let videosToOptimize;
       if (videoIds && videoIds.length > 0) {
-        const allVideos = await storage.getVideos();
+        const allVideos = await storage.getVideosByUser(userId);
         videosToOptimize = allVideos.filter(v => videoIds.includes(v.id));
       } else if (channelId) {
         videosToOptimize = await storage.getVideosByChannel(channelId);
       } else {
-        videosToOptimize = await storage.getVideos();
+        videosToOptimize = await storage.getVideosByUser(userId);
       }
 
       const unoptimized = videosToOptimize.filter(v => !v.metadata?.aiOptimized);
@@ -997,8 +1045,8 @@ export async function registerRoutes(
 
   app.get(api.backlog.status.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-
-    const allVideos = await storage.getVideos();
+    const userId = (req.user as any)?.claims?.sub;
+    const allVideos = await storage.getVideosByUser(userId);
     const optimized = allVideos.filter(v => v.metadata?.aiOptimized).length;
     const allJobs = await storage.getJobs();
     const activeJob = allJobs.find(j => j.type === 'backlog_optimize' && j.status === 'processing') || null;
@@ -1353,10 +1401,11 @@ export async function registerRoutes(
   app.post(api.community.create.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const userId = (req.user as any)?.claims?.sub;
+      const input = { ...req.body, userId };
       if (req.body.aiGenerate) {
-        const channels = await storage.getChannels();
-        const videos = await storage.getVideos();
+        const channels = await storage.getChannelsByUser(userId);
+        const videos = await storage.getVideosByUser(userId);
         const generated = await generateCommunityPost({
           platform: input.platform,
           channelName: channels[0]?.channelName || "My Channel",
