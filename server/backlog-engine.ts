@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { generateVideoMetadata, runAgentTask, generateCommunityPost } from "./ai-engine";
+import { generateVideoMetadata, runAgentTask, generateCommunityPost, detectGamingContext } from "./ai-engine";
 import { AI_AGENTS } from "@shared/schema";
 
 type ProcessingState = "idle" | "processing" | "paused" | "stream_active";
@@ -187,6 +187,7 @@ async function processBacklogAsync(
         platform: video.platform || undefined,
       });
 
+      const gamingCtx = detectGamingContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
       const newMetadata = {
         ...video.metadata,
         seoScore: suggestions.seoScore || 0,
@@ -200,6 +201,9 @@ async function processBacklogAsync(
         tags: suggestions.suggestedTags || video.metadata?.tags || [],
         aiOptimized: true,
         aiOptimizedAt: new Date().toISOString(),
+        gameName: video.metadata?.gameName || gamingCtx.gameName || null,
+        contentCategory: video.metadata?.contentCategory || (gamingCtx.isGaming ? "gaming" : null),
+        brandKeywords: video.metadata?.brandKeywords?.length ? video.metadata.brandKeywords : gamingCtx.brandKeywords,
       };
 
       chainResult.steps[0].status = "completed";
@@ -235,6 +239,9 @@ async function processBacklogAsync(
               channelName: userChannels[0]?.channelName || "My Channel",
               videoCount: allVids.length,
               recentTitles: [video.title, ...allVids.slice(0, 4).map(v => v.title)],
+              gameName: video.metadata?.gameName || null,
+              contentCategory: video.metadata?.contentCategory || null,
+              brandKeywords: video.metadata?.brandKeywords || [],
             });
 
             chainResult.steps[stepIndex].status = "completed";
@@ -573,6 +580,9 @@ export async function bulkOptimize(
             channelName: userChannels[0]?.channelName || "My Channel",
             videoCount: allVids.length,
             recentTitles: [video.title, ...allVids.slice(0, 4).map(v => v.title)],
+            gameName: video.metadata?.gameName || null,
+            contentCategory: video.metadata?.contentCategory || null,
+            brandKeywords: video.metadata?.brandKeywords || [],
           });
 
           await storage.createAgentActivity({

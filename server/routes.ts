@@ -1109,13 +1109,28 @@ export async function registerRoutes(
   app.post(api.thumbnails.generate.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const { videoId, streamId, platform, title, description } = req.body;
+      const { videoId, streamId, platform, title, description, gameName, category, brandKeywords } = req.body;
+
+      let resolvedGameName = gameName || null;
+      let resolvedCategory = category || null;
+      let resolvedBrandKeywords = brandKeywords || [];
+      if (videoId) {
+        const video = await storage.getVideo(videoId);
+        if (video?.metadata) {
+          resolvedGameName = resolvedGameName || video.metadata.gameName || null;
+          resolvedCategory = resolvedCategory || video.metadata.contentCategory || null;
+          resolvedBrandKeywords = resolvedBrandKeywords.length ? resolvedBrandKeywords : video.metadata.brandKeywords || [];
+        }
+      }
 
       const thumbnailData = await generateThumbnailPrompt({
         title,
         description,
         platform: platform || 'youtube',
         type: streamId ? 'stream' : 'video',
+        gameName: resolvedGameName,
+        category: resolvedCategory,
+        brandKeywords: resolvedBrandKeywords,
       });
 
       const thumbnail = await storage.createThumbnail({
@@ -1186,12 +1201,19 @@ export async function registerRoutes(
     if (!agent) return res.status(404).json({ message: "Agent not found" });
 
     try {
-      const channels = await storage.getChannels();
-      const videos = await storage.getVideos();
+      const channels = await storage.getChannelsByUser(userId);
+      const videos = await storage.getVideosByUser(userId);
+      const recentVideos = videos.slice(0, 5);
+      const gameName = recentVideos.find(v => v.metadata?.gameName)?.metadata?.gameName || null;
+      const contentCategory = recentVideos.find(v => v.metadata?.contentCategory)?.metadata?.contentCategory || null;
+      const brandKeywords = recentVideos.find(v => v.metadata?.brandKeywords?.length)?.metadata?.brandKeywords || [];
       const result = await runAgentTask(agentId, {
         channelName: channels[0]?.channelName || "My Channel",
         videoCount: videos.length,
-        recentTitles: videos.slice(0, 5).map(v => v.title),
+        recentTitles: recentVideos.map(v => v.title),
+        gameName,
+        contentCategory,
+        brandKeywords,
       });
 
       const activity = await storage.createAgentActivity({

@@ -5,6 +5,88 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+export function detectGamingContext(title: string, description?: string | null, category?: string | null, metadata?: any): {
+  isGaming: boolean;
+  gameName: string | null;
+  brandKeywords: string[];
+} {
+  const text = `${title} ${description || ''} ${category || ''}`.toLowerCase();
+  const explicitGame = metadata?.gameName;
+  if (explicitGame) {
+    return { isGaming: true, gameName: explicitGame, brandKeywords: metadata?.brandKeywords || [] };
+  }
+
+  const gamingSignals = [
+    'gameplay', 'playthrough', 'walkthrough', 'speedrun', 'let\'s play',
+    'gaming', 'stream', 'live stream', 'ranked', 'competitive', 'multiplayer',
+    'co-op', 'boss fight', 'raid', 'pvp', 'pve', 'esports', 'tournament',
+    'highlights', 'montage', 'clutch', 'win', 'victory royale', 'battle royale',
+  ];
+  const isGaming = category?.toLowerCase() === 'gaming' ||
+    gamingSignals.some(s => text.includes(s));
+
+  const knownGames: Record<string, string[]> = {
+    'Fortnite': ['fortnite', 'battle royale fortnite', 'fortnite chapter'],
+    'Call of Duty': ['call of duty', 'cod', 'warzone', 'modern warfare', 'black ops'],
+    'Minecraft': ['minecraft', 'mc server', 'survival minecraft'],
+    'Apex Legends': ['apex legends', 'apex'],
+    'Valorant': ['valorant', 'valo'],
+    'League of Legends': ['league of legends', 'lol ranked', 'league'],
+    'GTA V': ['gta', 'gta v', 'gta 5', 'gta online', 'grand theft auto'],
+    'Elden Ring': ['elden ring', 'lands between'],
+    'Baldur\'s Gate 3': ['baldur\'s gate', 'bg3'],
+    'Helldivers 2': ['helldivers', 'helldivers 2'],
+    'Counter-Strike 2': ['counter-strike', 'cs2', 'csgo', 'cs:go'],
+    'Overwatch 2': ['overwatch', 'ow2'],
+    'Rocket League': ['rocket league'],
+    'Destiny 2': ['destiny 2', 'destiny'],
+    'FIFA': ['fifa', 'ea fc', 'ea sports fc'],
+    'NBA 2K': ['nba 2k', '2k25', '2k24'],
+    'Madden': ['madden'],
+    'Spider-Man 2': ['spider-man', 'spiderman'],
+    'God of War': ['god of war', 'ragnarok'],
+    'Zelda': ['zelda', 'tears of the kingdom', 'breath of the wild', 'totk', 'botw'],
+    'Palworld': ['palworld'],
+    'Roblox': ['roblox'],
+    'Diablo IV': ['diablo', 'diablo iv', 'diablo 4'],
+    'Final Fantasy': ['final fantasy', 'ffxiv', 'ff14', 'ff7'],
+    'Pokemon': ['pokemon', 'pokémon'],
+  };
+
+  let detectedGame: string | null = null;
+  for (const [game, patterns] of Object.entries(knownGames)) {
+    if (patterns.some(p => text.includes(p))) {
+      detectedGame = game;
+      break;
+    }
+  }
+
+  return {
+    isGaming: isGaming || !!detectedGame,
+    gameName: detectedGame,
+    brandKeywords: metadata?.brandKeywords || [],
+  };
+}
+
+function buildGamingPromptSection(ctx: { isGaming: boolean; gameName: string | null; brandKeywords: string[] }): string {
+  if (!ctx.isGaming) return '';
+  let section = '\n\nGAMING CONTENT REQUIREMENTS (CRITICAL):';
+  if (ctx.gameName) {
+    section += `\n- This content features the game "${ctx.gameName}". ALL SEO, tags, titles, descriptions, and thumbnails MUST reference "${ctx.gameName}" by name.`;
+    section += `\n- Use game-specific terminology, characters, maps, weapons, mechanics, and community lingo for "${ctx.gameName}".`;
+    section += `\n- Tags MUST include the game name and related search terms players actually search for.`;
+    section += `\n- Thumbnail should visually reference "${ctx.gameName}" - include recognizable game art style, color palette, characters, or iconic UI elements.`;
+  } else {
+    section += '\n- This appears to be gaming content. Ensure SEO and thumbnails reflect gaming aesthetics and terminology.';
+  }
+  if (ctx.brandKeywords.length > 0) {
+    section += `\n\nBRAND ALIGNMENT: The creator's brand keywords are: ${ctx.brandKeywords.join(', ')}. All output must align with this brand identity - maintain consistent voice, visual style, and messaging.`;
+  }
+  section += '\n- Gaming thumbnails should: use high-energy compositions, include in-game action shots or recognizable game imagery, use bold contrasting colors, feature dramatic moments or reactions.';
+  section += '\n- Gaming SEO should: target game-specific long-tail keywords, include game version/season/update info, reference trending community topics, use gaming community hashtags.';
+  return section;
+}
+
 export async function generateVideoMetadata(video: {
   title: string;
   description?: string | null;
@@ -13,6 +95,9 @@ export async function generateVideoMetadata(video: {
   platform?: string;
 }) {
   const platformName = video.platform || 'youtube';
+  const gamingCtx = detectGamingContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
+  const gamingSection = buildGamingPromptSection(gamingCtx);
+
   const prompt = `You are a ${platformName} SEO expert and content strategist. Analyze this video and provide optimization suggestions.
 
 Video Title: "${video.title}"
@@ -20,16 +105,19 @@ Video Type: ${video.type}
 Platform: ${platformName}
 Current Description: "${video.description || 'None provided'}"
 Current Tags: ${video.metadata?.tags?.join(', ') || 'None'}
+${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
+${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
+${gamingSection}
 
 Provide your response as JSON with exactly these fields:
 {
-  "titleHooks": ["3 alternative title options that are click-worthy but not clickbait, optimized for ${platformName}"],
-  "descriptionTemplate": "An optimized description with timestamps placeholder, relevant keywords, and a call-to-action. Include hashtags at the end.",
-  "thumbnailCritique": "Specific actionable advice for the thumbnail based on what works on ${platformName} - mention contrast, text size, facial expressions, color theory",
-  "seoRecommendations": ["5 specific SEO improvements for discoverability on ${platformName}"],
+  "titleHooks": ["3 alternative title options that are click-worthy but not clickbait, optimized for ${platformName}${gamingCtx.gameName ? ` and referencing ${gamingCtx.gameName}` : ''}"],
+  "descriptionTemplate": "An optimized description with timestamps placeholder, relevant keywords, and a call-to-action. Include hashtags at the end.${gamingCtx.gameName ? ` Must reference ${gamingCtx.gameName} and include game-specific keywords.` : ''}",
+  "thumbnailCritique": "Specific actionable advice for the thumbnail based on what works on ${platformName}${gamingCtx.isGaming ? ' for gaming content' : ''} - mention contrast, text size, facial expressions, color theory${gamingCtx.gameName ? `, and how to visually represent ${gamingCtx.gameName}` : ''}",
+  "seoRecommendations": ["5 specific SEO improvements for discoverability on ${platformName}${gamingCtx.gameName ? ` targeting ${gamingCtx.gameName} audience` : ''}"],
   "complianceNotes": ["Any ${platformName} ToS concerns or best practices to follow"],
-  "suggestedTags": ["10 relevant tags ordered by importance"],
-  "seoScore": 75
+  "suggestedTags": ["10 relevant tags ordered by importance${gamingCtx.gameName ? ` - must include ${gamingCtx.gameName} and related game terms` : ''}"],
+  "seoScore": 75${gamingCtx.gameName ? `,\n  "detectedGame": "${gamingCtx.gameName}"` : ''}
 }`;
 
   const response = await openai.chat.completions.create({
@@ -231,31 +319,38 @@ export async function generateStreamSeo(streamData: {
   description?: string | null;
   category?: string | null;
   platforms: string[];
+  gameName?: string | null;
+  brandKeywords?: string[];
 }) {
   const platformList = streamData.platforms.join(', ');
+  const gamingCtx = detectGamingContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
+  const gamingSection = buildGamingPromptSection(gamingCtx);
+
   const prompt = `You are a live streaming SEO expert. Optimize this stream for maximum discoverability across multiple platforms.
 
 Stream Title: "${streamData.title}"
 Description: "${streamData.description || 'Not provided'}"
 Category: "${streamData.category || 'Gaming'}"
 Target Platforms: ${platformList}
+${gamingCtx.gameName ? `Game Being Played: "${gamingCtx.gameName}"` : ''}
+${gamingSection}
 
 Provide your response as JSON:
 {
-  "optimizedTitle": "An optimized stream title that works across all platforms - attention-grabbing, clear, with relevant keywords",
-  "optimizedDescription": "A compelling description with keywords, call-to-action, schedule info placeholder, and social links placeholder",
-  "tags": ["15 relevant tags for discoverability"],
-  "thumbnailPrompt": "A detailed description for generating an eye-catching stream thumbnail - include colors, composition, text overlay suggestions, and mood",
+  "optimizedTitle": "An optimized stream title that works across all platforms - attention-grabbing, clear, with relevant keywords${gamingCtx.gameName ? `. MUST include ${gamingCtx.gameName} in the title` : ''}",
+  "optimizedDescription": "A compelling description with keywords, call-to-action, schedule info placeholder, and social links placeholder${gamingCtx.gameName ? `. Must reference ${gamingCtx.gameName} and include game-specific details` : ''}",
+  "tags": ["15 relevant tags for discoverability${gamingCtx.gameName ? ` - must include ${gamingCtx.gameName} and game-specific terms` : ''}"],
+  "thumbnailPrompt": "A detailed description for generating an eye-catching stream thumbnail${gamingCtx.gameName ? ` featuring ${gamingCtx.gameName} game elements, characters, or environments` : ''} - include colors, composition, text overlay suggestions, and mood${gamingCtx.isGaming ? '. Use high-energy gaming aesthetic with the game\'s visual identity' : ''}",
   "platformSpecific": {
-${streamData.platforms.map(p => `    "${p}": { "title": "Platform-optimized title for ${p}", "description": "Platform-specific description for ${p}", "tags": ["5 platform-specific tags"] }`).join(',\n')}
+${streamData.platforms.map(p => `    "${p}": { "title": "Platform-optimized title for ${p}${gamingCtx.gameName ? ` featuring ${gamingCtx.gameName}` : ''}", "description": "Platform-specific description for ${p}", "tags": ["5 platform-specific tags${gamingCtx.gameName ? ` related to ${gamingCtx.gameName}` : ''}"] }`).join(',\n')}
   }
 }
 
 Focus on:
-- Click-worthy but honest titles
+- Click-worthy but honest titles${gamingCtx.gameName ? ` that reference ${gamingCtx.gameName}` : ''}
 - Platform-specific SEO best practices
-- Keywords that drive live viewership
-- Urgency/FOMO elements for live content`;
+- Keywords that drive live viewership${gamingCtx.isGaming ? ' in the gaming category' : ''}
+- Urgency/FOMO elements for live content${gamingCtx.gameName ? `\n- Game-specific trending topics and community terms for ${gamingCtx.gameName}` : ''}`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-5-mini",
@@ -276,7 +371,12 @@ export async function postStreamOptimize(streamData: {
   platforms: string[];
   duration?: number;
   stats?: any;
+  gameName?: string | null;
+  brandKeywords?: string[];
 }) {
+  const gamingCtx = detectGamingContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
+  const gamingSection = buildGamingPromptSection(gamingCtx);
+
   const prompt = `You are a VOD optimization expert. This live stream just ended and needs to be optimized for on-demand viewing.
 
 Original Stream Title: "${streamData.title}"
@@ -285,17 +385,19 @@ Category: "${streamData.category || 'Gaming'}"
 Platforms: ${streamData.platforms.join(', ')}
 Duration: ${streamData.duration ? `${Math.round(streamData.duration / 60)} minutes` : 'Unknown'}
 ${streamData.stats ? `Stats: Peak viewers: ${streamData.stats.peakViewers || 'N/A'}, Avg viewers: ${streamData.stats.avgViewers || 'N/A'}` : ''}
+${gamingCtx.gameName ? `Game Played: "${gamingCtx.gameName}"` : ''}
+${gamingSection}
 
 Rewrite and optimize for VOD performance as JSON:
 {
-  "vodTitle": "An optimized title for the VOD version - should be search-friendly and compelling for on-demand viewers",
-  "vodDescription": "A full description with timestamps placeholder (e.g., [Add timestamps here]), keywords, engagement hooks, and calls to action",
-  "tags": ["15 tags optimized for VOD search"],
-  "thumbnailPrompt": "A detailed prompt for generating a click-worthy VOD thumbnail different from the live thumbnail - include composition, text overlay, colors, and emotional hooks",
+  "vodTitle": "An optimized title for the VOD version - should be search-friendly and compelling for on-demand viewers${gamingCtx.gameName ? `. MUST include ${gamingCtx.gameName} in the title` : ''}",
+  "vodDescription": "A full description with timestamps placeholder (e.g., [Add timestamps here]), keywords, engagement hooks, and calls to action${gamingCtx.gameName ? `. Must reference ${gamingCtx.gameName} with game-specific keywords` : ''}",
+  "tags": ["15 tags optimized for VOD search${gamingCtx.gameName ? ` - must include ${gamingCtx.gameName} and related game terms` : ''}"],
+  "thumbnailPrompt": "A detailed prompt for generating a click-worthy VOD thumbnail different from the live thumbnail${gamingCtx.gameName ? ` featuring ${gamingCtx.gameName} game visuals, characters, or epic moments from gameplay` : ''} - include composition, text overlay, colors, and emotional hooks${gamingCtx.isGaming ? '. Match the game\'s visual identity and color palette' : ''}",
   "seoScore": 80,
-  "recommendations": ["5 specific things to do with this VOD to maximize views"],
+  "recommendations": ["5 specific things to do with this VOD to maximize views${gamingCtx.gameName ? ` in the ${gamingCtx.gameName} community` : ''}"],
   "platformSpecific": {
-${streamData.platforms.map(p => `    "${p}": { "title": "VOD title for ${p}", "description": "VOD description for ${p}", "tags": ["5 tags for ${p}"] }`).join(',\n')}
+${streamData.platforms.map(p => `    "${p}": { "title": "VOD title for ${p}${gamingCtx.gameName ? ` referencing ${gamingCtx.gameName}` : ''}", "description": "VOD description for ${p}", "tags": ["5 tags for ${p}${gamingCtx.gameName ? ` including ${gamingCtx.gameName}` : ''}"] }`).join(',\n')}
   }
 }`;
 
@@ -316,20 +418,29 @@ export async function generateThumbnailPrompt(data: {
   description?: string | null;
   platform?: string;
   type?: string;
+  gameName?: string | null;
+  category?: string | null;
+  brandKeywords?: string[];
 }) {
+  const gamingCtx = detectGamingContext(data.title, data.description, data.category, { gameName: data.gameName, brandKeywords: data.brandKeywords });
+  const gamingSection = buildGamingPromptSection(gamingCtx);
+
   const prompt = `You are a thumbnail design expert for ${data.platform || 'YouTube'}. Create a detailed image generation prompt for a high-performing thumbnail.
 
 Content Title: "${data.title}"
 Description: "${data.description || 'Not provided'}"
 Content Type: ${data.type || 'video'}
 Platform: ${data.platform || 'youtube'}
+${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
+${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
+${gamingSection}
 
 Create a detailed, photorealistic image generation prompt as JSON:
 {
-  "prompt": "A detailed, specific image generation prompt that will create a professional, click-worthy thumbnail. Include: specific visual composition, color scheme (high contrast), text overlay suggestions (as visual elements), emotional hooks, facial expressions if applicable, background style, lighting, and any platform-specific sizing considerations. The prompt should produce a thumbnail that stands out in a crowded feed.",
-  "style": "The overall visual style (e.g., cinematic, bold, minimalist, energetic)",
-  "dominantColors": ["3 hex color codes that should dominate the thumbnail"],
-  "textOverlay": "Suggested text to overlay on the thumbnail (keep it to 3-5 words maximum)"
+  "prompt": "A detailed, specific image generation prompt that will create a professional, click-worthy thumbnail.${gamingCtx.gameName ? ` The thumbnail MUST visually reference ${gamingCtx.gameName} - use recognizable game characters, environments, weapons, or visual motifs from the game. The color palette should match ${gamingCtx.gameName}'s aesthetic.` : ''} Include: specific visual composition, color scheme (high contrast), text overlay suggestions (as visual elements), emotional hooks, facial expressions if applicable, background style, lighting, and any platform-specific sizing considerations.${gamingCtx.isGaming ? ' For gaming content: feature dramatic in-game action, use high-energy compositions, show epic moments, victories, or intense gameplay scenes.' : ''} The prompt should produce a thumbnail that stands out in a crowded feed.",
+  "style": "The overall visual style${gamingCtx.isGaming ? ' (should match the game\'s aesthetic - e.g., dark/gritty for horror games, colorful for casual games, tactical for FPS games)' : ' (e.g., cinematic, bold, minimalist, energetic)'}",
+  "dominantColors": ["3 hex color codes that should dominate the thumbnail${gamingCtx.gameName ? ` - should align with ${gamingCtx.gameName}'s brand colors` : ''}"],
+  "textOverlay": "Suggested text to overlay on the thumbnail (keep it to 3-5 words maximum${gamingCtx.gameName ? ` - reference ${gamingCtx.gameName} or game-specific terms` : ''})"
 }`;
 
   const response = await openai.chat.completions.create({
@@ -361,22 +472,49 @@ export async function runAgentTask(agentId: string, context: {
   channelName: string;
   videoCount: number;
   recentTitles: string[];
+  gameName?: string | null;
+  contentCategory?: string | null;
+  brandKeywords?: string[];
 }) {
   const role = AGENT_ROLES[agentId] || "AI assistant";
+  const gamingCtx = detectGamingContext(
+    context.recentTitles.join(' '),
+    null,
+    context.contentCategory,
+    { gameName: context.gameName, brandKeywords: context.brandKeywords }
+  );
+
+  let gamingInstructions = '';
+  if (gamingCtx.isGaming) {
+    gamingInstructions = `\n\nIMPORTANT - GAMING CONTENT CONTEXT:`;
+    if (gamingCtx.gameName) {
+      gamingInstructions += `\n- The channel primarily features "${gamingCtx.gameName}" content.`;
+      gamingInstructions += `\n- All recommendations, titles, tags, thumbnails, and strategies MUST be tailored to "${gamingCtx.gameName}" and its community.`;
+      gamingInstructions += `\n- Use game-specific terminology, meta strategies, character/weapon names, and community trends for "${gamingCtx.gameName}".`;
+    }
+    if (gamingCtx.brandKeywords.length > 0) {
+      gamingInstructions += `\n- Creator's brand identity: ${gamingCtx.brandKeywords.join(', ')}. Ensure all output aligns with this brand voice.`;
+    }
+    gamingInstructions += `\n- Gaming thumbnails should feature in-game visuals, dramatic moments, and the game's color palette.`;
+    gamingInstructions += `\n- Gaming SEO should target game-specific keywords that the community actually searches for.`;
+  }
+
   const prompt = `You are a ${role} working autonomously for the YouTube channel "${context.channelName}".
 
 Channel has ${context.videoCount} videos. Recent titles: ${context.recentTitles.join(', ') || 'None'}
+${gamingCtx.gameName ? `Primary Game: "${gamingCtx.gameName}"` : ''}
+${gamingCtx.isGaming ? 'Content Category: Gaming' : ''}${gamingInstructions}
 
 Perform your most important task right now. Respond as JSON:
 {
   "action": "What you did (e.g., 'Optimized 3 video titles for CTR')",
   "target": "What you worked on (e.g., 'Recent video SEO')",
-  "description": "Detailed description of what you accomplished and why",
+  "description": "Detailed description of what you accomplished and why${gamingCtx.gameName ? ` - must reference ${gamingCtx.gameName} specifics` : ''}",
   "impact": "Expected impact (e.g., '+15% CTR improvement expected')",
-  "recommendations": ["3 specific follow-up recommendations"]
+  "recommendations": ["3 specific follow-up recommendations${gamingCtx.gameName ? ` tailored to ${gamingCtx.gameName} content` : ''}"]
 }
 
-Be specific, actionable, and reference actual content from this channel.`;
+Be specific, actionable, and reference actual content from this channel.${gamingCtx.gameName ? ` All output must be relevant to ${gamingCtx.gameName} and its gaming community.` : ''}`;
 
   const agentResponse = await openai.chat.completions.create({
     model: "gpt-5-mini",

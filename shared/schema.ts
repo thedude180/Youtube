@@ -104,6 +104,9 @@ export const videos = pgTable("videos", {
     optimizationScore?: number;
     autoScheduled?: boolean;
     autoScheduledAt?: string;
+    gameName?: string;
+    contentCategory?: string;
+    brandKeywords?: string[];
   }>(),
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),

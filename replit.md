@@ -105,16 +105,25 @@ YouTube, Twitch, Kick, Facebook Gaming, TikTok, X/Twitter, Rumble, LinkedIn Live
 - `client/src/pages/Dashboard.tsx` - Main dashboard with AI team overview
 
 ## AI Engine Functions
-- `generateVideoMetadata` - Title, description, tags for videos
-- `generateStreamSeo` - Live stream SEO optimization per platform
-- `postStreamOptimize` - Post-stream VOD conversion optimization
-- `generateThumbnailPrompt` - AI thumbnail concept generation
+- `generateVideoMetadata` - Title, description, tags for videos (gaming-aware)
+- `generateStreamSeo` - Live stream SEO optimization per platform (gaming-aware)
+- `postStreamOptimize` - Post-stream VOD conversion optimization (gaming-aware)
+- `generateThumbnailPrompt` - AI thumbnail concept generation (gaming-aware)
 - `generateContentInsights` - Content pattern analysis
 - `checkCompliance` - Platform rule compliance checking
 - `generateGrowthStrategy` - Growth plan generation
 - `askAdvisor` - Strategy advisor chat
-- `runAgentTask` - Autonomous AI agent task execution (10 agent roles)
+- `runAgentTask` - Autonomous AI agent task execution (10 agent roles, gaming-aware)
 - `generateCommunityPost` - AI community post generation
+- `detectGamingContext` - Detects 30+ games from titles/descriptions, extracts game name and brand keywords
+
+## Gaming-Aware AI Pipeline
+- All AI functions receive gaming context (gameName, contentCategory, brandKeywords)
+- Gaming detection uses pattern matching on 30+ known games + gaming signal keywords
+- Thumbnails: Visually reference the game's aesthetic, color palette, and iconic elements
+- SEO: Targets game-specific long-tail keywords the gaming community searches
+- Backlog engine auto-detects gaming content and saves gameName/contentCategory to video metadata
+- Brand alignment enforced across all gaming-specific outputs
 
 ## AI Team Agents
 10 autonomous AI agents: Editor, Social Manager, SEO Director, Analytics Director, Brand Strategist, Ad Buyer, Legal Advisor, Community Manager, Business Manager, Growth Strategist
