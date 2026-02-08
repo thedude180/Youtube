@@ -11,9 +11,14 @@ A comprehensive multi-platform content management and live streaming platform fo
 - Dark theme with purple accent design system
 - Multi-platform streaming support (9 platforms)
 - 10 autonomous AI agents working 24/7
-- Multi-tenant architecture with userId scoping on all tables
+- Multi-tenant architecture with userId scoping on all tables (channels, videos, agents, jobs)
 - Content calendar with automated scheduling
 - Revenue tracking with platform/source breakdowns
+- Auto-backlog processing engine with priority queue, 6-agent collaboration chains, optimization scores (0-100)
+- Stream-aware agent pivot (auto-pause backlog → live support → post-stream VOD → resume backlog)
+- Real-time toast notifications and 5-second auto-refresh on Dashboard and AI Team pages
+- Auto-scheduling of social posts across 4 platforms for fully optimized content
+- Stale video detection (30+ days) and bulk re-optimization triggers
 
 ## Architecture
 - **Frontend**: React + Vite + TanStack Query + wouter routing + Tailwind CSS + shadcn/ui + react-icons
