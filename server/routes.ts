@@ -1449,12 +1449,13 @@ export async function registerRoutes(
   });
 
   app.get("/api/youtube/callback", async (req, res) => {
-    const { code, state: userId } = req.query;
+    const { code, state } = req.query;
+    const userId = state as string || (req.isAuthenticated() ? (req.user as any).id : null);
     if (!code || !userId) {
-      return res.status(400).send("Missing authorization code or user state");
+      return res.status(400).send("Missing authorization code or user session");
     }
     try {
-      const result = await handleCallback(code as string, userId as string);
+      const result = await handleCallback(code as string, userId);
       res.redirect(`/channels?connected=youtube&channel=${encodeURIComponent(result.ytChannel.title || "")}`);
     } catch (error: any) {
       console.error("YouTube OAuth callback error:", error);
