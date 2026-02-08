@@ -70,7 +70,7 @@ export interface IStorage {
   getThumbnails(videoId?: number, streamId?: number): Promise<Thumbnail[]>;
   createThumbnail(thumb: InsertThumbnail): Promise<Thumbnail>;
 
-  getAgentActivities(agentId?: string, limit?: number): Promise<AgentActivity[]>;
+  getAgentActivities(userId?: string, agentId?: string, limit?: number): Promise<AgentActivity[]>;
   createAgentActivity(activity: InsertAgentActivity): Promise<AgentActivity>;
 
   getAutomationRules(userId?: string): Promise<AutomationRule[]>;
@@ -298,9 +298,12 @@ export class DatabaseStorage implements IStorage {
     return newThumb;
   }
 
-  async getAgentActivities(agentId?: string, limit: number = 50): Promise<AgentActivity[]> {
-    if (agentId) {
-      return await db.select().from(aiAgentActivities).where(eq(aiAgentActivities.agentId, agentId)).orderBy(desc(aiAgentActivities.createdAt)).limit(limit);
+  async getAgentActivities(userId?: string, agentId?: string, limit: number = 50): Promise<AgentActivity[]> {
+    const conditions = [];
+    if (userId) conditions.push(eq(aiAgentActivities.userId, userId));
+    if (agentId) conditions.push(eq(aiAgentActivities.agentId, agentId));
+    if (conditions.length > 0) {
+      return await db.select().from(aiAgentActivities).where(and(...conditions)).orderBy(desc(aiAgentActivities.createdAt)).limit(limit);
     }
     return await db.select().from(aiAgentActivities).orderBy(desc(aiAgentActivities.createdAt)).limit(limit);
   }

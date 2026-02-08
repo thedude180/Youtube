@@ -1031,14 +1031,16 @@ export async function registerRoutes(
   // === AI AGENTS ===
   app.get(api.agents.activities.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
     const agentId = req.query.agentId as string | undefined;
-    const activities = await storage.getAgentActivities(agentId, 100);
+    const activities = await storage.getAgentActivities(userId, agentId, 100);
     res.json(activities);
   });
 
   app.get(api.agents.status.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const activities = await storage.getAgentActivities(undefined, 200);
+    const userId = (req.user as any)?.claims?.sub;
+    const activities = await storage.getAgentActivities(userId, undefined, 200);
     const agentStatus = AI_AGENTS.map(agent => {
       const agentActs = activities.filter(a => a.agentId === agent.id);
       const lastActivity = agentActs[0];
@@ -1111,7 +1113,8 @@ export async function registerRoutes(
   // === AUTOMATION RULES ===
   app.get(api.automation.rules.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const rules = await storage.getAutomationRules();
+    const userId = (req.user as any)?.claims?.sub;
+    const rules = await storage.getAutomationRules(userId);
     res.json(rules);
   });
 
@@ -1144,7 +1147,8 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const from = req.query.from ? new Date(req.query.from as string) : undefined;
     const to = req.query.to ? new Date(req.query.to as string) : undefined;
-    const items = await storage.getScheduleItems(undefined, from, to);
+    const userId = (req.user as any)?.claims?.sub;
+    const items = await storage.getScheduleItems(userId, from, to);
     res.json(items);
   });
 
@@ -1182,7 +1186,8 @@ export async function registerRoutes(
   app.get(api.revenue.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const platform = req.query.platform as string | undefined;
-    const records = await storage.getRevenueRecords(undefined, platform);
+    const userId = (req.user as any)?.claims?.sub;
+    const records = await storage.getRevenueRecords(userId, platform);
     res.json(records);
   });
 
@@ -1195,7 +1200,8 @@ export async function registerRoutes(
 
   app.get(api.revenue.summary.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const summary = await storage.getRevenueSummary();
+    const userId = (req.user as any)?.claims?.sub;
+    const summary = await storage.getRevenueSummary(userId);
     res.json(summary);
   });
 
@@ -1203,7 +1209,8 @@ export async function registerRoutes(
   app.get(api.community.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const platform = req.query.platform as string | undefined;
-    const posts = await storage.getCommunityPosts(undefined, platform);
+    const userId = (req.user as any)?.claims?.sub;
+    const posts = await storage.getCommunityPosts(userId, platform);
     res.json(posts);
   });
 
