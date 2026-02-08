@@ -42,7 +42,7 @@ export default function Channels() {
   const onSubmit = (data: AddChannelForm) => {
     // In a real app, this would redirect to Google OAuth
     // Here we simulate adding a channel manually for the MVP
-    createChannel.mutate({ ...data, userId: 1 }); // Mock user ID
+    createChannel.mutate({ ...data, userId: "demo" });
     setOpen(false);
     form.reset();
   };

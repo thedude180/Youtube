@@ -1,6 +1,5 @@
-
 import { z } from 'zod';
-import { insertChannelSchema, insertVideoSchema, insertJobSchema, channels, videos, jobs } from './schema';
+import { insertChannelSchema, insertVideoSchema, insertJobSchema, channels, videos, jobs, auditLogs, contentInsights, complianceRecords, growthStrategies } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -81,15 +80,23 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/videos/:id' as const,
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
     generateMetadata: {
-        method: 'POST' as const,
-        path: '/api/videos/:id/metadata' as const,
-        input: z.object({}), // Trigger generation
-        responses: {
-            200: z.object({ success: z.boolean(), suggestions: z.any() }),
-            404: errorSchemas.notFound
-        }
-    }
+      method: 'POST' as const,
+      path: '/api/videos/:id/metadata' as const,
+      input: z.object({}),
+      responses: {
+        200: z.object({ success: z.boolean(), suggestions: z.any() }),
+        404: errorSchemas.notFound,
+      },
+    },
   },
   jobs: {
     list: {
@@ -115,15 +122,95 @@ export const api = {
       path: '/api/dashboard/stats' as const,
       responses: {
         200: z.object({
-            totalVideos: z.number(),
-            activeJobs: z.number(),
-            uploadedToday: z.number(),
-            nextScheduled: z.string().nullable(),
-            riskScore: z.number(),
+          totalVideos: z.number(),
+          activeJobs: z.number(),
+          uploadedToday: z.number(),
+          nextScheduled: z.string().nullable(),
+          riskScore: z.number(),
+          complianceScore: z.number(),
+          activeStrategies: z.number(),
         }),
       },
     },
-  }
+  },
+  auditLogs: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/audit-logs' as const,
+      responses: {
+        200: z.array(z.custom<typeof auditLogs.$inferSelect>()),
+      },
+    },
+  },
+  insights: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/insights' as const,
+      responses: {
+        200: z.array(z.custom<typeof contentInsights.$inferSelect>()),
+      },
+    },
+    generate: {
+      method: 'POST' as const,
+      path: '/api/insights/generate' as const,
+      input: z.object({ channelId: z.number().optional() }),
+      responses: {
+        200: z.object({ success: z.boolean(), insights: z.any() }),
+      },
+    },
+  },
+  compliance: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/compliance' as const,
+      responses: {
+        200: z.array(z.custom<typeof complianceRecords.$inferSelect>()),
+      },
+    },
+    run: {
+      method: 'POST' as const,
+      path: '/api/compliance/check' as const,
+      input: z.object({ channelId: z.number().optional() }),
+      responses: {
+        200: z.object({ success: z.boolean(), checks: z.any(), overallScore: z.number() }),
+      },
+    },
+  },
+  strategies: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/strategies' as const,
+      responses: {
+        200: z.array(z.custom<typeof growthStrategies.$inferSelect>()),
+      },
+    },
+    generate: {
+      method: 'POST' as const,
+      path: '/api/strategies/generate' as const,
+      input: z.object({ channelId: z.number().optional() }),
+      responses: {
+        200: z.object({ success: z.boolean(), strategies: z.any() }),
+      },
+    },
+    updateStatus: {
+      method: 'PUT' as const,
+      path: '/api/strategies/:id' as const,
+      input: z.object({ status: z.string() }),
+      responses: {
+        200: z.custom<typeof growthStrategies.$inferSelect>(),
+      },
+    },
+  },
+  advisor: {
+    ask: {
+      method: 'POST' as const,
+      path: '/api/advisor/ask' as const,
+      input: z.object({ question: z.string() }),
+      responses: {
+        200: z.object({ answer: z.string() }),
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
