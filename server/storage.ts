@@ -33,6 +33,7 @@ export interface IStorage {
   createJob(job: InsertJob): Promise<Job>;
   updateJobStatus(id: number, status: string, result?: any): Promise<Job>;
   updateJobProgress(id: number, progress: number): Promise<Job>;
+  updateJobPayload(id: number, payload: any): Promise<Job>;
 
   getAuditLogs(): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -133,6 +134,11 @@ export class DatabaseStorage implements IStorage {
 
   async updateJobProgress(id: number, progress: number): Promise<Job> {
     const [updated] = await db.update(jobs).set({ progress }).where(eq(jobs.id, id)).returning();
+    return updated;
+  }
+
+  async updateJobPayload(id: number, payload: any): Promise<Job> {
+    const [updated] = await db.update(jobs).set({ payload }).where(eq(jobs.id, id)).returning();
     return updated;
   }
 

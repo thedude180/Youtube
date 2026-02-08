@@ -298,6 +298,29 @@ export const api = {
         200: z.object({ success: z.boolean(), result: z.any() }),
       },
     },
+    goLive: {
+      method: 'POST' as const,
+      path: '/api/streams/:id/go-live' as const,
+      input: z.object({}),
+      responses: {
+        200: z.object({ success: z.boolean(), stream: z.any(), automationJobId: z.number() }),
+      },
+    },
+    endStream: {
+      method: 'POST' as const,
+      path: '/api/streams/:id/end' as const,
+      input: z.object({}),
+      responses: {
+        200: z.object({ success: z.boolean(), stream: z.any(), postProcessJobId: z.number() }),
+      },
+    },
+    automationStatus: {
+      method: 'GET' as const,
+      path: '/api/streams/:id/automation' as const,
+      responses: {
+        200: z.object({ jobs: z.array(z.any()), tasks: z.array(z.any()) }),
+      },
+    },
   },
   backlog: {
     optimize: {

@@ -552,7 +552,302 @@ export async function registerRoutes(
     }
   });
 
-  // Post-Stream Processing
+  // === GO LIVE - Automated Stream Lifecycle ===
+  app.post(api.streams.goLive.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (stream.status !== 'planned') {
+      return res.status(400).json({ message: `Cannot go live from '${stream.status}' status. Stream must be in 'planned' state.` });
+    }
+
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const updatedStream = await storage.updateStream(stream.id, {
+        status: 'live',
+        startedAt: new Date(),
+      });
+
+      const tasks = [
+        { name: "seo_optimization", status: "pending" },
+        { name: "thumbnail_generation", status: "pending" },
+        { name: "compliance_check", status: "pending" },
+      ];
+
+      const job = await storage.createJob({
+        type: "stream_automation",
+        status: "processing",
+        priority: 1,
+        payload: { streamId: stream.id, platforms: stream.platforms, tasks },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "stream_went_live",
+        target: stream.title,
+        details: { platforms: stream.platforms, automationJobId: job.id },
+        riskLevel: "low",
+      });
+
+      (async () => {
+        const platforms = (stream.platforms as string[]) || ['youtube'];
+
+        const persistTasks = async (progress: number) => {
+          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms: stream.platforms, tasks });
+          await storage.updateJobProgress(job.id, progress);
+        };
+
+        // Task 1: SEO Optimization
+        try {
+          tasks[0].status = "running";
+          await persistTasks(10);
+
+          const seoData = await generateStreamSeo({
+            title: stream.title,
+            description: stream.description,
+            category: stream.category,
+            platforms,
+          });
+
+          await storage.updateStream(stream.id, { seoData });
+          tasks[0].status = "completed";
+          (tasks[0] as any).result = { platformCount: Object.keys(seoData.platformSpecific || {}).length };
+          await persistTasks(40);
+        } catch (err) {
+          console.error("Auto SEO failed:", err);
+          tasks[0].status = "failed";
+          (tasks[0] as any).error = (err as Error).message;
+          await persistTasks(40);
+        }
+
+        // Task 2: Thumbnail Generation
+        try {
+          tasks[1].status = "running";
+          await persistTasks(45);
+
+          const thumbData = await generateThumbnailPrompt({
+            title: stream.title,
+            description: stream.description,
+            platform: platforms[0],
+            type: 'stream',
+          });
+
+          await storage.createThumbnail({
+            videoId: null,
+            streamId: stream.id,
+            prompt: thumbData.prompt,
+            platform: platforms[0],
+            resolution: '1280x720',
+            status: 'generated',
+          });
+          tasks[1].status = "completed";
+          (tasks[1] as any).result = { style: thumbData.style };
+          await persistTasks(70);
+        } catch (err) {
+          console.error("Auto thumbnail failed:", err);
+          tasks[1].status = "failed";
+          (tasks[1] as any).error = (err as Error).message;
+          await persistTasks(70);
+        }
+
+        // Task 3: Compliance Check
+        try {
+          tasks[2].status = "running";
+          await persistTasks(75);
+
+          const recentLogs = await storage.getAuditLogs();
+          const userLogs = recentLogs
+            .filter(l => l.userId === userId)
+            .slice(0, 20)
+            .map(l => ({ action: l.action, target: l.target, details: l.details }));
+
+          const complianceResult = await runComplianceCheck({
+            channelName: stream.title,
+            platform: platforms[0],
+            recentActions: userLogs,
+            settings: { streamType: 'live', category: stream.category },
+          });
+
+          tasks[2].status = "completed";
+          (tasks[2] as any).result = { overallScore: complianceResult.overallScore, checks: complianceResult.checks?.length || 0 };
+          await persistTasks(100);
+        } catch (err) {
+          console.error("Auto compliance failed:", err);
+          tasks[2].status = "failed";
+          (tasks[2] as any).error = (err as Error).message;
+          await persistTasks(100);
+        }
+
+        const anyFailed = tasks.some((t: any) => t.status === 'failed');
+        await storage.updateJobStatus(
+          job.id,
+          anyFailed ? 'completed_with_errors' : 'completed',
+          { tasks, completedAt: new Date().toISOString() }
+        );
+      })();
+
+      res.json({ success: true, stream: updatedStream, automationJobId: job.id });
+    } catch (error: any) {
+      console.error("Go live error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // === END STREAM - Triggers Post-Stream Automation ===
+  app.post(api.streams.endStream.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (stream.status !== 'live') {
+      return res.status(400).json({ message: `Cannot end stream from '${stream.status}' status. Stream must be 'live'.` });
+    }
+
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const endedAt = new Date();
+      const updatedStream = await storage.updateStream(stream.id, {
+        status: 'ended',
+        endedAt,
+      });
+
+      const tasks = [
+        { name: "vod_optimization", status: "pending" },
+        { name: "vod_thumbnail", status: "pending" },
+      ];
+
+      const job = await storage.createJob({
+        type: "post_stream_automation",
+        status: "processing",
+        priority: 1,
+        payload: { streamId: stream.id, platforms: stream.platforms, tasks },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "stream_ended",
+        target: stream.title,
+        details: {
+          platforms: stream.platforms,
+          postProcessJobId: job.id,
+          duration: stream.startedAt ? Math.round((endedAt.getTime() - new Date(stream.startedAt).getTime()) / 1000) : null,
+        },
+        riskLevel: "low",
+      });
+
+      (async () => {
+        const platforms = (stream.platforms as string[]) || ['youtube'];
+        const duration = stream.startedAt
+          ? (endedAt.getTime() - new Date(stream.startedAt).getTime()) / 1000
+          : undefined;
+
+        const persistTasks = async (progress: number) => {
+          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms: stream.platforms, tasks });
+          await storage.updateJobProgress(job.id, progress);
+        };
+
+        // Task 1: VOD Optimization
+        try {
+          tasks[0].status = "running";
+          await persistTasks(10);
+
+          const result = await postStreamOptimize({
+            title: stream.title,
+            description: stream.description,
+            category: stream.category,
+            platforms,
+            duration,
+            stats: stream.streamStats,
+          });
+
+          await storage.updateStream(stream.id, {
+            status: 'processed',
+            seoData: {
+              ...(stream.seoData as any),
+              vodOptimization: result,
+            },
+          });
+
+          tasks[0].status = "completed";
+          (tasks[0] as any).result = { seoScore: result.seoScore };
+          await persistTasks(60);
+        } catch (err) {
+          console.error("Auto VOD optimization failed:", err);
+          tasks[0].status = "failed";
+          (tasks[0] as any).error = (err as Error).message;
+          await persistTasks(60);
+        }
+
+        // Task 2: VOD Thumbnail
+        try {
+          tasks[1].status = "running";
+          await persistTasks(65);
+
+          const thumbData = await generateThumbnailPrompt({
+            title: stream.title,
+            description: stream.description,
+            platform: platforms[0],
+            type: 'vod',
+          });
+
+          await storage.createThumbnail({
+            videoId: null,
+            streamId: stream.id,
+            prompt: thumbData.prompt,
+            platform: platforms[0],
+            resolution: '1280x720',
+            status: 'generated',
+          });
+
+          tasks[1].status = "completed";
+          (tasks[1] as any).result = { style: thumbData.style };
+          await persistTasks(100);
+        } catch (err) {
+          console.error("Auto VOD thumbnail failed:", err);
+          tasks[1].status = "failed";
+          (tasks[1] as any).error = (err as Error).message;
+          await persistTasks(100);
+        }
+
+        const anyFailed = tasks.some((t: any) => t.status === 'failed');
+        await storage.updateJobStatus(
+          job.id,
+          anyFailed ? 'completed_with_errors' : 'completed',
+          { tasks, completedAt: new Date().toISOString() }
+        );
+      })();
+
+      res.json({ success: true, stream: updatedStream, postProcessJobId: job.id });
+    } catch (error: any) {
+      console.error("End stream error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // === STREAM AUTOMATION STATUS ===
+  app.get(api.streams.automationStatus.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const streamId = Number(req.params.id);
+    const allJobs = await storage.getJobs();
+    const streamJobs = allJobs.filter(j =>
+      (j.type === 'stream_automation' || j.type === 'post_stream_automation') &&
+      (j.payload as any)?.streamId === streamId
+    );
+
+    const tasks = streamJobs.flatMap(j => {
+      const payload = j.payload as any;
+      return (payload?.tasks || []).map((t: any) => ({
+        ...t,
+        jobId: j.id,
+        jobType: j.type,
+        jobStatus: j.status,
+        progress: j.progress,
+      }));
+    });
+
+    res.json({ jobs: streamJobs, tasks });
+  });
+
+  // Post-Stream Processing (manual)
   app.post(api.streams.postStreamProcess.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const stream = await storage.getStream(Number(req.params.id));

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,12 @@ import {
   Loader2,
   Globe,
   Image,
+  Play,
+  Square,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Activity,
 } from "lucide-react";
 import {
   SiYoutube,
@@ -68,9 +75,26 @@ function getPlatformColor(platform: string): string {
   return PLATFORM_INFO[platform as Platform]?.color || "#888";
 }
 
+const TASK_LABELS: Record<string, string> = {
+  seo_optimization: "SEO Optimization",
+  thumbnail_generation: "Thumbnail Generation",
+  compliance_check: "Compliance Check",
+  vod_optimization: "VOD Optimization",
+  vod_thumbnail: "VOD Thumbnail",
+};
+
+function TaskStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "completed": return <CheckCircle2 className="h-4 w-4 text-green-400" />;
+    case "failed": return <XCircle className="h-4 w-4 text-red-400" />;
+    case "running": return <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />;
+    default: return <Clock className="h-4 w-4 text-muted-foreground" />;
+  }
+}
+
 export default function StreamCenter() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const [showAddDest, setShowAddDest] = useState(false);
   const [showNewStream, setShowNewStream] = useState(false);
   const [newDest, setNewDest] = useState({ platform: "youtube" as string, label: "", rtmpUrl: "", streamKey: "" });
@@ -84,13 +108,15 @@ export default function StreamCenter() {
     queryKey: ["/api/streams"],
   });
 
+  const liveStream = streamList.find(s => s.status === 'live');
+
   const createDest = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/stream-destinations", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).includes("/api/stream-destinations") });
+      qc.invalidateQueries({ queryKey: ["/api/stream-destinations"] });
       setShowAddDest(false);
       setNewDest({ platform: "youtube", label: "", rtmpUrl: "", streamKey: "" });
       toast({ title: "Destination added" });
@@ -102,7 +128,7 @@ export default function StreamCenter() {
       await apiRequest("DELETE", `/api/stream-destinations/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).includes("/api/stream-destinations") });
+      qc.invalidateQueries({ queryKey: ["/api/stream-destinations"] });
       toast({ title: "Destination removed" });
     },
   });
@@ -113,7 +139,7 @@ export default function StreamCenter() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).includes("/api/stream-destinations") });
+      qc.invalidateQueries({ queryKey: ["/api/stream-destinations"] });
     },
   });
 
@@ -123,10 +149,32 @@ export default function StreamCenter() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).includes("/api/streams") });
+      qc.invalidateQueries({ queryKey: ["/api/streams"] });
       setShowNewStream(false);
       setNewStream({ title: "", description: "", category: "Gaming", platforms: [] });
       toast({ title: "Stream session created" });
+    },
+  });
+
+  const goLive = useMutation({
+    mutationFn: async (streamId: number) => {
+      const res = await apiRequest("POST", `/api/streams/${streamId}/go-live`, {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/streams"] });
+      toast({ title: "You're LIVE! AI automation running in the background..." });
+    },
+  });
+
+  const endStream = useMutation({
+    mutationFn: async (streamId: number) => {
+      const res = await apiRequest("POST", `/api/streams/${streamId}/end`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/streams"] });
+      toast({ title: "Stream ended. Post-stream AI processing started..." });
     },
   });
 
@@ -136,7 +184,7 @@ export default function StreamCenter() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).includes("/api/streams") });
+      qc.invalidateQueries({ queryKey: ["/api/streams"] });
       toast({ title: "SEO optimized across all platforms" });
     },
   });
@@ -147,7 +195,7 @@ export default function StreamCenter() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).includes("/api/streams") });
+      qc.invalidateQueries({ queryKey: ["/api/streams"] });
       toast({ title: "Post-stream optimization complete" });
     },
   });
@@ -172,7 +220,8 @@ export default function StreamCenter() {
   };
 
   const enabledDests = destinations.filter(d => d.enabled);
-  const activeStreams = streamList.filter(s => s.status === 'live' || s.status === 'planned');
+  const plannedStreams = streamList.filter(s => s.status === 'planned');
+  const activeStreams = streamList.filter(s => s.status === 'live');
   const pastStreams = streamList.filter(s => s.status === 'ended' || s.status === 'processed');
 
   return (
@@ -183,12 +232,12 @@ export default function StreamCenter() {
             <Radio className="h-6 w-6 text-red-500" />
             Stream Command Center
           </h1>
-          <p className="text-muted-foreground mt-1">Manage multistreaming destinations, SEO, and post-stream automation</p>
+          <p className="text-muted-foreground mt-1">Go live and let AI handle SEO, thumbnails, and compliance automatically</p>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={showAddDest} onOpenChange={setShowAddDest}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-destination">
+              <Button data-testid="button-add-destination" variant="outline">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Destination
               </Button>
@@ -335,7 +384,63 @@ export default function StreamCenter() {
         </div>
       </div>
 
-      {/* Streaming Destinations */}
+      {liveStream && (
+        <LiveStreamBanner
+          stream={liveStream}
+          onEnd={() => endStream.mutate(liveStream.id)}
+          isEnding={endStream.isPending}
+        />
+      )}
+
+      {plannedStreams.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Ready to Go Live
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {plannedStreams.map(stream => (
+              <Card key={stream.id} data-testid={`card-planned-stream-${stream.id}`} className="hover-elevate">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 data-testid={`text-stream-title-${stream.id}`} className="font-semibold mb-1">{stream.title}</h3>
+                      {stream.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{stream.description}</p>
+                      )}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {((stream.platforms as string[]) || []).map(p => (
+                          <Badge key={p} variant="outline" className="text-[10px]">
+                            <PlatformIcon platform={p} className="h-3 w-3 mr-1" />
+                            {PLATFORM_INFO[p as Platform]?.label || p}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <Button
+                      data-testid={`button-go-live-${stream.id}`}
+                      onClick={() => goLive.mutate(stream.id)}
+                      disabled={goLive.isPending || !!liveStream}
+                      className="bg-red-600 text-white shrink-0"
+                    >
+                      {goLive.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      Go Live
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    When you go live, AI will automatically optimize SEO, generate thumbnails, and run compliance checks across all {((stream.platforms as string[]) || []).length} platforms.
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Monitor className="h-5 w-5" />
@@ -404,7 +509,6 @@ export default function StreamCenter() {
         )}
       </div>
 
-      {/* Platform Resolution Guide */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -429,66 +533,153 @@ export default function StreamCenter() {
         </CardContent>
       </Card>
 
-      {/* Stream Sessions */}
-      <div>
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <Zap className="h-5 w-5" />
-          Stream Sessions
-        </h2>
-        {streamsLoading ? (
-          <div className="text-muted-foreground">Loading streams...</div>
-        ) : streamList.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground mb-2">No stream sessions yet</p>
-              <p className="text-sm text-muted-foreground">Create a new stream to set up SEO, thumbnails, and multistream targets</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {activeStreams.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-2">Active / Planned</h3>
-                <div className="space-y-3">
-                  {activeStreams.map(stream => (
-                    <StreamCard
-                      key={stream.id}
-                      stream={stream}
-                      onOptimize={() => optimizeSeo.mutate(stream.id)}
-                      onPostProcess={() => postProcess.mutate(stream.id)}
-                      onGenerateThumbnail={() => generateThumbnail.mutate({ streamId: stream.id, title: stream.title, description: stream.description || undefined })}
-                      isOptimizing={optimizeSeo.isPending}
-                      isPostProcessing={postProcess.isPending}
-                      isGeneratingThumb={generateThumbnail.isPending}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            {pastStreams.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-2">Past Streams</h3>
-                <div className="space-y-3">
-                  {pastStreams.map(stream => (
-                    <StreamCard
-                      key={stream.id}
-                      stream={stream}
-                      onOptimize={() => optimizeSeo.mutate(stream.id)}
-                      onPostProcess={() => postProcess.mutate(stream.id)}
-                      onGenerateThumbnail={() => generateThumbnail.mutate({ streamId: stream.id, title: stream.title, description: stream.description || undefined })}
-                      isOptimizing={optimizeSeo.isPending}
-                      isPostProcessing={postProcess.isPending}
-                      isGeneratingThumb={generateThumbnail.isPending}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+      {pastStreams.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Zap className="h-5 w-5" />
+            Past Streams
+          </h2>
+          <div className="space-y-3">
+            {pastStreams.map(stream => (
+              <StreamCard
+                key={stream.id}
+                stream={stream}
+                onOptimize={() => optimizeSeo.mutate(stream.id)}
+                onPostProcess={() => postProcess.mutate(stream.id)}
+                onGenerateThumbnail={() => generateThumbnail.mutate({ streamId: stream.id, title: stream.title, description: stream.description || undefined })}
+                isOptimizing={optimizeSeo.isPending}
+                isPostProcessing={postProcess.isPending}
+                isGeneratingThumb={generateThumbnail.isPending}
+              />
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {!streamsLoading && streamList.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground mb-2">No stream sessions yet</p>
+            <p className="text-sm text-muted-foreground">Create a stream, hit Go Live, and AI handles the rest</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
+  );
+}
+
+function LiveStreamBanner({
+  stream,
+  onEnd,
+  isEnding,
+}: {
+  stream: Stream;
+  onEnd: () => void;
+  isEnding: boolean;
+}) {
+  const platforms = (stream.platforms as string[]) || [];
+  const [elapsed, setElapsed] = useState("");
+
+  const { data: automationData } = useQuery<{ jobs: any[]; tasks: any[] }>({
+    queryKey: ["/api/streams", stream.id, "automation"],
+    queryFn: async () => {
+      const res = await fetch(`/api/streams/${stream.id}/automation`, { credentials: 'include' });
+      return res.json();
+    },
+    refetchInterval: 3000,
+  });
+
+  useEffect(() => {
+    if (!stream.startedAt) return;
+    const update = () => {
+      const start = new Date(stream.startedAt!).getTime();
+      const diff = Math.floor((Date.now() - start) / 1000);
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      const s = diff % 60;
+      setElapsed(`${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [stream.startedAt]);
+
+  const tasks = automationData?.tasks || [];
+  const jobs = automationData?.jobs || [];
+  const latestJob = jobs.length > 0 ? jobs[jobs.length - 1] : null;
+  const isAutomationRunning = latestJob && (latestJob.status === 'processing');
+
+  return (
+    <Card className="border-red-500/50 bg-red-950/10" data-testid="card-live-stream">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                <span className="font-bold text-red-400 uppercase text-sm">LIVE</span>
+              </div>
+              <h2 data-testid="text-live-stream-title" className="text-xl font-bold">{stream.title}</h2>
+              {elapsed && (
+                <Badge variant="secondary" className="font-mono">{elapsed}</Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-1 mb-4 flex-wrap">
+              {platforms.map(p => (
+                <Badge key={p} variant="outline" className="text-[10px]">
+                  <PlatformIcon platform={p} className="h-3 w-3 mr-1" />
+                  {PLATFORM_INFO[p as Platform]?.label || p}
+                </Badge>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Background AI Tasks</span>
+                {isAutomationRunning && (
+                  <Badge variant="secondary" className="text-[10px]">Running</Badge>
+                )}
+              </div>
+              {tasks.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {tasks.map((task: any, i: number) => (
+                    <div
+                      key={i}
+                      data-testid={`task-status-${task.name}`}
+                      className="flex items-center gap-2 p-2 rounded-md border border-border text-sm"
+                    >
+                      <TaskStatusIcon status={task.status} />
+                      <span className="flex-1 min-w-0 truncate">{TASK_LABELS[task.name] || task.name}</span>
+                      {task.status === "completed" && task.result && (
+                        <CheckCircle2 className="h-3 w-3 text-green-400 shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Automation tasks will appear here once triggered...</p>
+              )}
+            </div>
+          </div>
+          <Button
+            data-testid="button-end-stream"
+            onClick={onEnd}
+            disabled={isEnding}
+            variant="destructive"
+            className="shrink-0"
+          >
+            {isEnding ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Square className="h-4 w-4 mr-2" />
+            )}
+            End Stream
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -511,12 +702,17 @@ function StreamCard({
 }) {
   const platforms = (stream.platforms as string[]) || [];
   const seo = stream.seoData as any;
-  const statusColors: Record<string, string> = {
-    planned: "text-blue-400",
-    live: "text-red-400",
-    ended: "text-muted-foreground",
-    processed: "text-green-400",
-  };
+
+  const { data: automationData } = useQuery<{ jobs: any[]; tasks: any[] }>({
+    queryKey: ["/api/streams", stream.id, "automation"],
+    queryFn: async () => {
+      const res = await fetch(`/api/streams/${stream.id}/automation`, { credentials: 'include' });
+      return res.json();
+    },
+    refetchInterval: false,
+  });
+
+  const tasks = automationData?.tasks || [];
 
   return (
     <Card data-testid={`card-stream-${stream.id}`} className="hover-elevate">
@@ -525,7 +721,7 @@ function StreamCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <h3 data-testid={`text-stream-title-${stream.id}`} className="font-semibold">{stream.title}</h3>
-              <Badge variant={stream.status === 'live' ? 'destructive' : 'secondary'} className="uppercase text-[10px]">
+              <Badge variant={stream.status === 'live' ? 'destructive' : stream.status === 'processed' ? 'default' : 'secondary'} className="uppercase text-[10px]">
                 {stream.status}
               </Badge>
             </div>
@@ -562,7 +758,7 @@ function StreamCard({
               {isGeneratingThumb ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Image className="h-3 w-3 mr-1" />}
               Thumb
             </Button>
-            {(stream.status === 'ended' || stream.status === 'live') && (
+            {(stream.status === 'ended') && (
               <Button
                 data-testid={`button-postprocess-stream-${stream.id}`}
                 size="sm"
@@ -575,6 +771,21 @@ function StreamCard({
             )}
           </div>
         </div>
+
+        {tasks.length > 0 && (
+          <div className="border-t border-border pt-3 mt-3">
+            <p className="text-xs text-muted-foreground mb-2">AI Automation Results</p>
+            <div className="flex flex-wrap gap-2">
+              {tasks.map((task: any, i: number) => (
+                <div key={i} className="flex items-center gap-1 text-xs">
+                  <TaskStatusIcon status={task.status} />
+                  <span>{TASK_LABELS[task.name] || task.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {seo && (
           <div className="border-t border-border pt-3 mt-3 space-y-2">
             {seo.optimizedTitle && (

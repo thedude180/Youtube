@@ -61,6 +61,9 @@ YouTube, Twitch, Kick, Facebook Gaming, TikTok, X/Twitter, Rumble, LinkedIn Live
 - `/api/advisor/ask` - AI strategy advisor chat
 - `/api/stream-destinations` - CRUD for RTMP streaming destinations
 - `/api/streams` - Stream session management + AI SEO generation
+- `/api/streams/:id/go-live` - Go Live trigger with automatic AI automation
+- `/api/streams/:id/end` - End stream with automatic post-stream processing
+- `/api/streams/:id/automation` - Real-time automation task status
 - `/api/backlog` - Backlog video optimization endpoints
 - `/api/thumbnails` - AI thumbnail generation and management
 
