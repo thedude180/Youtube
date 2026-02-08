@@ -38,6 +38,19 @@ import {
   updateYouTubeVideo,
   syncYouTubeVideosToLibrary,
 } from "./youtube";
+import type { Request, Response } from "express";
+
+function getUserId(req: Request): string {
+  return (req.user as any)?.claims?.sub;
+}
+
+function requireAuth(req: Request, res: Response): string | null {
+  if (!req.isAuthenticated()) {
+    res.sendStatus(401);
+    return null;
+  }
+  return getUserId(req);
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -48,8 +61,8 @@ export async function registerRoutes(
 
   // === AUTO-CONNECT YOUTUBE ON FIRST LOGIN ===
   app.post("/api/auto-connect-youtube", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const email = (req.user as any)?.claims?.email;
     const firstName = (req.user as any)?.claims?.first_name;
     const lastName = (req.user as any)?.claims?.last_name;
@@ -89,19 +102,20 @@ export async function registerRoutes(
 
   // === CHANNELS ===
   app.get(api.channels.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const channels = await storage.getChannelsByUser(userId);
     res.json(channels);
   });
 
   app.post(api.channels.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const input = api.channels.create.input.parse(req.body);
       const channel = await storage.createChannel(input);
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "channel_created",
         target: channel.channelName,
         details: { platform: channel.platform, channelId: channel.channelId },
@@ -117,10 +131,11 @@ export async function registerRoutes(
   });
 
   app.put(api.channels.update.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const channel = await storage.updateChannel(Number(req.params.id), req.body);
     await storage.createAuditLog({
-      userId: (req.user as any)?.claims?.sub,
+      userId,
       action: "channel_updated",
       target: channel.channelName,
       details: req.body,
@@ -130,8 +145,8 @@ export async function registerRoutes(
   });
 
   app.delete("/api/channels/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).id;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const channel = await storage.getChannel(Number(req.params.id));
     if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
     await storage.deleteChannel(Number(req.params.id));
@@ -147,19 +162,20 @@ export async function registerRoutes(
 
   // === VIDEOS ===
   app.get(api.videos.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const videos = await storage.getVideosByUser(userId);
     res.json(videos);
   });
 
   app.post(api.videos.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const input = api.videos.create.input.parse(req.body);
       const video = await storage.createVideo(input);
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "video_created",
         target: video.title,
         details: { type: video.type, status: video.status },
@@ -175,18 +191,20 @@ export async function registerRoutes(
   });
 
   app.get(api.videos.get.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const video = await storage.getVideo(Number(req.params.id));
     if (!video) return res.status(404).json({ message: "Video not found" });
     res.json(video);
   });
 
   app.put(api.videos.update.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const video = await storage.updateVideo(Number(req.params.id), req.body);
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "video_updated",
         target: video.title,
         details: req.body,
@@ -199,12 +217,13 @@ export async function registerRoutes(
   });
 
   app.delete(api.videos.delete.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const video = await storage.getVideo(Number(req.params.id));
     if (!video) return res.status(404).json({ message: "Video not found" });
     await storage.deleteVideo(Number(req.params.id));
     await storage.createAuditLog({
-      userId: (req.user as any)?.claims?.sub,
+      userId,
       action: "video_deleted",
       target: video.title,
       riskLevel: "medium",
@@ -214,7 +233,8 @@ export async function registerRoutes(
 
   // AI Metadata Generation
   app.post(api.videos.generateMetadata.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const videoId = Number(req.params.id);
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
@@ -243,7 +263,7 @@ export async function registerRoutes(
 
       await storage.updateVideo(videoId, { metadata: newMetadata });
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "ai_metadata_generated",
         target: video.title,
         details: { seoScore: suggestions.seoScore },
@@ -259,18 +279,20 @@ export async function registerRoutes(
 
   // === JOBS ===
   app.get(api.jobs.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const jobs = await storage.getJobs();
     res.json(jobs);
   });
 
   app.post(api.jobs.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const input = api.jobs.create.input.parse(req.body);
       const job = await storage.createJob(input);
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "job_created",
         target: job.type,
         details: input.payload,
@@ -287,30 +309,33 @@ export async function registerRoutes(
 
   // === DASHBOARD ===
   app.get(api.dashboard.stats.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stats = await storage.getStats();
     res.json(stats);
   });
 
   // === AUDIT LOGS ===
   app.get(api.auditLogs.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const logs = await storage.getAuditLogs();
     res.json(logs);
   });
 
   // === CONTENT INSIGHTS ===
   app.get(api.insights.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     const insights = await storage.getContentInsights(channelId);
     res.json(insights);
   });
 
   app.post(api.insights.generate.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const channelId = req.body.channelId ? Number(req.body.channelId) : undefined;
       const allVideos = await storage.getVideosByUser(userId);
       const videosForAnalysis = channelId
@@ -342,7 +367,7 @@ export async function registerRoutes(
       }
 
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "insights_generated",
         target: channelId ? `channel_${channelId}` : "all",
         riskLevel: "low",
@@ -357,16 +382,17 @@ export async function registerRoutes(
 
   // === COMPLIANCE ===
   app.get(api.compliance.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     const records = await storage.getComplianceRecords(channelId);
     res.json(records);
   });
 
   app.post(api.compliance.run.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const channelId = req.body.channelId ? Number(req.body.channelId) : undefined;
       const allChannels = await storage.getChannelsByUser(userId);
       const targetChannels = channelId
@@ -409,7 +435,7 @@ export async function registerRoutes(
       }
 
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "compliance_check_run",
         target: channel.channelName,
         details: { overallScore: result.overallScore },
@@ -425,16 +451,17 @@ export async function registerRoutes(
 
   // === GROWTH STRATEGIES ===
   app.get(api.strategies.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     const strategies = await storage.getGrowthStrategies(channelId);
     res.json(strategies);
   });
 
   app.post(api.strategies.generate.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const channelId = req.body.channelId ? Number(req.body.channelId) : undefined;
       const allChannels = await storage.getChannelsByUser(userId);
       const allVideos = await storage.getVideosByUser(userId);
@@ -476,7 +503,7 @@ export async function registerRoutes(
       }
 
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "strategies_generated",
         target: channel.channelName,
         riskLevel: "low",
@@ -490,19 +517,20 @@ export async function registerRoutes(
   });
 
   app.put(api.strategies.updateStatus.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const strategy = await storage.updateGrowthStrategy(Number(req.params.id), { status: req.body.status });
     res.json(strategy);
   });
 
   // === AI ADVISOR ===
   app.post(api.advisor.ask.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const { question } = req.body;
       if (!question) return res.status(400).json({ message: "Question is required" });
 
-      const userId = (req.user as any)?.claims?.sub;
       const allChannels = await storage.getChannelsByUser(userId);
       const allVideos = await storage.getVideosByUser(userId);
       const channel = allChannels[0];
@@ -514,7 +542,7 @@ export async function registerRoutes(
       });
 
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "advisor_consulted",
         target: question.substring(0, 100),
         riskLevel: "low",
@@ -529,19 +557,20 @@ export async function registerRoutes(
 
   // === STREAM DESTINATIONS ===
   app.get(api.streamDestinations.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const destinations = await storage.getStreamDestinations(userId);
     res.json(destinations);
   });
 
   app.post(api.streamDestinations.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const input = { ...req.body, userId: userId };
       const dest = await storage.createStreamDestination(input);
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "stream_destination_created",
         target: dest.label,
         details: { platform: dest.platform },
@@ -557,39 +586,43 @@ export async function registerRoutes(
   });
 
   app.put(api.streamDestinations.update.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const dest = await storage.updateStreamDestination(Number(req.params.id), req.body);
     res.json(dest);
   });
 
   app.delete(api.streamDestinations.delete.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     await storage.deleteStreamDestination(Number(req.params.id));
     res.sendStatus(204);
   });
 
   // === STREAMS ===
   app.get(api.streams.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const streamList = await storage.getStreams(userId);
     res.json(streamList);
   });
 
   app.get(api.streams.get.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
     if (!stream) return res.status(404).json({ message: "Stream not found" });
     res.json(stream);
   });
 
   app.post(api.streams.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const input = { ...req.body, userId: userId };
       const stream = await storage.createStream(input);
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "stream_created",
         target: stream.title,
         details: { platforms: stream.platforms },
@@ -605,14 +638,16 @@ export async function registerRoutes(
   });
 
   app.put(api.streams.update.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stream = await storage.updateStream(Number(req.params.id), req.body);
     res.json(stream);
   });
 
   // Stream SEO Optimization
   app.post(api.streams.optimizeSeo.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
     if (!stream) return res.status(404).json({ message: "Stream not found" });
 
@@ -626,7 +661,7 @@ export async function registerRoutes(
 
       await storage.updateStream(stream.id, { seoData });
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "stream_seo_optimized",
         target: stream.title,
         riskLevel: "low",
@@ -641,7 +676,8 @@ export async function registerRoutes(
 
   // === GO LIVE - Automated Stream Lifecycle ===
   app.post(api.streams.goLive.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
     if (!stream) return res.status(404).json({ message: "Stream not found" });
     if (stream.status !== 'planned') {
@@ -649,7 +685,6 @@ export async function registerRoutes(
     }
 
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const updatedStream = await storage.updateStream(stream.id, {
         status: 'live',
         startedAt: new Date(),
@@ -786,7 +821,8 @@ export async function registerRoutes(
 
   // === END STREAM - Triggers Post-Stream Automation ===
   app.post(api.streams.endStream.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
     if (!stream) return res.status(404).json({ message: "Stream not found" });
     if (stream.status !== 'live') {
@@ -794,7 +830,6 @@ export async function registerRoutes(
     }
 
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const endedAt = new Date();
       const updatedStream = await storage.updateStream(stream.id, {
         status: 'ended',
@@ -920,7 +955,8 @@ export async function registerRoutes(
 
   // === STREAM AUTOMATION STATUS ===
   app.get(api.streams.automationStatus.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const streamId = Number(req.params.id);
     const allJobs = await storage.getJobs();
     const streamJobs = allJobs.filter(j =>
@@ -944,7 +980,8 @@ export async function registerRoutes(
 
   // Post-Stream Processing (manual)
   app.post(api.streams.postStreamProcess.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
     if (!stream) return res.status(404).json({ message: "Stream not found" });
 
@@ -971,7 +1008,7 @@ export async function registerRoutes(
       });
 
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "post_stream_processed",
         target: stream.title,
         details: { seoScore: result.seoScore },
@@ -987,9 +1024,9 @@ export async function registerRoutes(
 
   // === BACKLOG OPTIMIZER ===
   app.post(api.backlog.optimize.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const { channelId, videoIds } = req.body;
 
       let videosToOptimize;
@@ -1055,7 +1092,7 @@ export async function registerRoutes(
       })();
 
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "backlog_optimization_started",
         target: `${unoptimized.length} videos`,
         riskLevel: "low",
@@ -1069,8 +1106,8 @@ export async function registerRoutes(
   });
 
   app.get(api.backlog.status.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const allVideos = await storage.getVideosByUser(userId);
     const optimized = allVideos.filter(v => v.metadata?.aiOptimized).length;
     const allJobs = await storage.getJobs();
@@ -1085,9 +1122,9 @@ export async function registerRoutes(
   });
 
   app.post(api.backlog.autoStart.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const mode = req.body.mode || "deep";
       const result = await startBacklogProcessing(userId, mode);
       
@@ -1109,9 +1146,9 @@ export async function registerRoutes(
   });
 
   app.get(api.backlog.engineStatus.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const status = await getBacklogStatus(userId);
       res.json(status);
     } catch (error: any) {
@@ -1120,30 +1157,30 @@ export async function registerRoutes(
   });
 
   app.post(api.backlog.pause.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const success = await pauseBacklog(userId);
     res.json({ success });
   });
 
   app.post(api.backlog.resume.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const success = await resumeBacklog(userId);
     res.json({ success });
   });
 
   app.get(api.backlog.videoScores.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const scores = await getVideosWithScores(userId);
     res.json(scores);
   });
 
   app.post(api.backlog.bulkOptimize.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const { videoIds, agentIds } = req.body;
       const result = await bulkOptimize(userId, videoIds, agentIds);
       
@@ -1161,9 +1198,9 @@ export async function registerRoutes(
   });
 
   app.post(api.backlog.autoSchedule.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const scheduled = await autoScheduleOptimizedContent(userId);
       res.json({ success: true, scheduled });
     } catch (error: any) {
@@ -1172,15 +1209,16 @@ export async function registerRoutes(
   });
 
   app.get(api.backlog.staleVideos.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const stale = await getStaleVideos(userId);
     res.json(stale);
   });
 
   // === THUMBNAILS ===
   app.post(api.thumbnails.generate.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const { videoId, streamId, platform, title, description, gameName, category, brandKeywords } = req.body;
 
@@ -1216,7 +1254,7 @@ export async function registerRoutes(
       });
 
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "thumbnail_generated",
         target: title,
         details: { platform, style: thumbnailData.style },
@@ -1232,16 +1270,16 @@ export async function registerRoutes(
 
   // === AI AGENTS ===
   app.get(api.agents.activities.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const agentId = req.query.agentId as string | undefined;
     const activities = await storage.getAgentActivities(userId, agentId, 100);
     res.json(activities);
   });
 
   app.get(api.agents.status.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const activities = await storage.getAgentActivities(userId, undefined, 200);
     const agentStatus = AI_AGENTS.map(agent => {
       const agentActs = activities.filter(a => a.agentId === agent.id);
@@ -1267,9 +1305,9 @@ export async function registerRoutes(
   });
 
   app.post(api.agents.trigger.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const { agentId } = req.params;
-    const userId = (req.user as any)?.claims?.sub;
     const agent = AI_AGENTS.find(a => a.id === agentId);
     if (!agent) return res.status(404).json({ message: "Agent not found" });
 
@@ -1321,16 +1359,17 @@ export async function registerRoutes(
 
   // === AUTOMATION RULES ===
   app.get(api.automation.rules.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const rules = await storage.getAutomationRules(userId);
     res.json(rules);
   });
 
   app.post(api.automation.createRule.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const input = { ...req.body, userId: userId };
       const rule = await storage.createAutomationRule(input);
       res.status(201).json(rule);
     } catch (err) {
@@ -1340,34 +1379,37 @@ export async function registerRoutes(
   });
 
   app.put(api.automation.updateRule.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const rule = await storage.updateAutomationRule(Number(req.params.id), req.body);
     res.json(rule);
   });
 
   app.delete(api.automation.deleteRule.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     await storage.deleteAutomationRule(Number(req.params.id));
     res.sendStatus(204);
   });
 
   // === SCHEDULE ===
   app.get(api.schedule.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const from = req.query.from ? new Date(req.query.from as string) : undefined;
     const to = req.query.to ? new Date(req.query.to as string) : undefined;
-    const userId = (req.user as any)?.claims?.sub;
     const items = await storage.getScheduleItems(userId, from, to);
     res.json(items);
   });
 
   app.post(api.schedule.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const input = { ...req.body, userId: userId };
       const item = await storage.createScheduleItem(input);
       await storage.createAuditLog({
-        userId: (req.user as any)?.claims?.sub,
+        userId,
         action: "schedule_item_created",
         target: item.title,
         riskLevel: "low",
@@ -1380,53 +1422,56 @@ export async function registerRoutes(
   });
 
   app.put(api.schedule.update.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const item = await storage.updateScheduleItem(Number(req.params.id), req.body);
     res.json(item);
   });
 
   app.delete(api.schedule.delete.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     await storage.deleteScheduleItem(Number(req.params.id));
     res.sendStatus(204);
   });
 
   // === REVENUE ===
   app.get(api.revenue.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const platform = req.query.platform as string | undefined;
-    const userId = (req.user as any)?.claims?.sub;
     const records = await storage.getRevenueRecords(userId, platform);
     res.json(records);
   });
 
   app.post(api.revenue.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const input = { ...req.body, userId: userId };
     const record = await storage.createRevenueRecord(input);
     res.status(201).json(record);
   });
 
   app.get(api.revenue.summary.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const summary = await storage.getRevenueSummary(userId);
     res.json(summary);
   });
 
   // === COMMUNITY ===
   app.get(api.community.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const platform = req.query.platform as string | undefined;
-    const userId = (req.user as any)?.claims?.sub;
     const posts = await storage.getCommunityPosts(userId, platform);
     res.json(posts);
   });
 
   app.post(api.community.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const userId = (req.user as any)?.claims?.sub;
       const input = { ...req.body, userId };
       if (req.body.aiGenerate) {
         const channels = await storage.getChannelsByUser(userId);
@@ -1449,14 +1494,15 @@ export async function registerRoutes(
   });
 
   app.put(api.community.update.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const post = await storage.updateCommunityPost(Number(req.params.id), req.body);
     res.json(post);
   });
 
   app.get("/api/youtube/auth", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).id;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       (req.session as any).youtubeOAuthUserId = userId;
       req.session.save((err) => {
@@ -1477,7 +1523,7 @@ export async function registerRoutes(
     const state = req.query.state as string | undefined;
 
     const sessionUserId = (req.session as any)?.youtubeOAuthUserId
-      || (req.isAuthenticated() ? (req.user as any).id : null);
+      || (req.isAuthenticated() ? getUserId(req) : null);
 
     let userId: string | null = null;
     if (state) {
@@ -1512,8 +1558,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/youtube/channel/:channelId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).id;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
@@ -1525,8 +1571,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/youtube/videos/:channelId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).id;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
@@ -1538,8 +1584,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/youtube/sync/:channelId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).id;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
@@ -1551,8 +1597,8 @@ export async function registerRoutes(
   });
 
   app.put("/api/youtube/video/:channelId/:videoId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).id;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
@@ -1568,8 +1614,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/youtube/push-optimization/:videoId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).id;
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const video = await storage.getVideo(Number(req.params.videoId));
       if (!video) return res.status(404).json({ error: "Video not found" });

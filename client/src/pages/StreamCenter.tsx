@@ -10,20 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Globe, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight } from "lucide-react";
-import { SiYoutube, SiTwitch, SiKick, SiFacebook, SiTiktok, SiX, SiLinkedin, SiInstagram } from "react-icons/si";
+import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream } from "@shared/schema";
-
-const platformIcons: Record<string, any> = {
-  youtube: SiYoutube, twitch: SiTwitch, kick: SiKick, facebook: SiFacebook,
-  tiktok: SiTiktok, x: SiX, linkedin: SiLinkedin, instagram: SiInstagram, rumble: Globe,
-};
-
-function PlatformIcon({ platform, className = "h-4 w-4" }: { platform: string; className?: string }) {
-  const Icon = platformIcons[platform] || Globe;
-  return <Icon className={className} />;
-}
+import { PlatformIcon } from "@/components/PlatformIcon";
 
 export default function StreamCenter() {
   const { toast } = useToast();

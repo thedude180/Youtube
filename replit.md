@@ -50,22 +50,19 @@ YouTube, Twitch, Kick, Facebook Gaming, TikTok, X/Twitter, Rumble, LinkedIn Live
 - `revenue_records` - Revenue tracking per platform/source (userId-scoped)
 - `community_posts` - AI-generated community posts (userId-scoped)
 
-## Pages
-1. **Dashboard** (`/`) - Overview with metrics, AI team status, revenue, quick links, active jobs, audit log
+## Pages (Sidebar Navigation)
+1. **Dashboard** (`/`) - Overview with metrics, AI team status, revenue, quick links, audit log
 2. **Library** (`/videos`) - Video content management with search/filter
 3. **Video Detail** (`/videos/:id`) - Individual video editing + AI metadata generation
-4. **Stream Center** (`/stream`) - RTMP destination management, stream planning, live SEO optimization, platform resolution guide
-5. **Calendar** (`/schedule`) - Content scheduling with weekly calendar view, upcoming items, date detail
-6. **Operations** (`/jobs`) - Background job monitoring
-7. **Channels** (`/channels`) - Connected platform management (9 platforms with icons)
-8. **AI Team** (`/team`) - 10 autonomous AI agents dashboard with status, activity log, run tasks
-9. **Insights** (`/insights`) - AI content pattern analysis
-10. **Strategy** (`/strategy`) - AI growth plan generator
-11. **Compliance** (`/compliance`) - Platform rule compliance monitor
-12. **Advisor** (`/advisor`) - AI chat for content strategy questions
-13. **Backlog Optimizer** (`/backlog`) - Batch AI optimization for existing videos
-14. **Monetization** (`/monetization`) - Revenue tracking, platform/source breakdowns, record revenue
-15. **Settings** (`/settings`) - Risk profiles and automation config
+4. **Channels** (`/channels`) - Connected platform management (9 platforms with icons)
+5. **Stream Center** (`/stream`) - RTMP destination management, stream planning, live SEO optimization
+6. **Calendar** (`/schedule`) - Content scheduling with weekly calendar view
+7. **AI Team** (`/team`) - 10 autonomous AI agents dashboard with status, activity log, run tasks
+8. **Advisor** (`/advisor`) - AI chat for content strategy questions
+9. **Revenue** (`/monetization`) - Revenue tracking, platform/source breakdowns, record revenue
+10. **Settings** (`/settings`) - Risk profiles and automation config
+
+Note: Insights, Compliance, Strategy, Jobs, and Backlog pages removed from frontend routing (server APIs still exist for AI agents).
 
 ## API Routes
 - `/api/channels` - CRUD for channels
@@ -101,17 +98,21 @@ YouTube, Twitch, Kick, Facebook Gaming, TikTok, X/Twitter, Rumble, LinkedIn Live
 
 ## Key Files
 - `shared/schema.ts` - Database schema, types, PLATFORMS constant, PLATFORM_INFO, AI_AGENTS
-- `shared/routes.ts` - API route definitions with validation
-- `server/routes.ts` - Express route handlers
+- `shared/routes.ts` - API route definitions with validation (used by server only; frontend uses direct paths)
+- `server/routes.ts` - Express route handlers (uses `requireAuth` helper for auth/userId boilerplate)
 - `server/storage.ts` - Database access layer
 - `server/ai-engine.ts` - OpenAI-powered AI functions
 - `server/youtube.ts` - YouTube Data API v3 integration (OAuth2, sync, push-back)
 - `client/src/App.tsx` - Main app with routing
 - `client/src/components/Sidebar.tsx` - Navigation sidebar
-- `client/src/pages/AITeam.tsx` - AI Team dashboard
-- `client/src/pages/Schedule.tsx` - Content calendar
-- `client/src/pages/Monetization.tsx` - Revenue tracking
+- `client/src/components/PlatformIcon.tsx` - Shared platform icon component (used by Channels, StreamCenter)
 - `client/src/pages/Dashboard.tsx` - Main dashboard with AI team overview
+
+## Data Fetching Patterns
+- **Queries**: Use default `queryFn` via `queryKey` (e.g., `queryKey: ['/api/channels']`) - no custom fetch needed
+- **Mutations**: Use `apiRequest` from `@/lib/queryClient` for POST/PUT/DELETE
+- **Cache invalidation**: Always invalidate by queryKey after mutations
+- Hooks are in `client/src/hooks/` - prefer using/creating hooks over inline queries
 
 ## AI Engine Functions
 - `generateVideoMetadata` - Title, description, tags for videos (gaming-aware)

@@ -12,15 +12,10 @@ import { Loader2 } from "lucide-react";
 import Dashboard from "@/pages/Dashboard";
 import Videos from "@/pages/Videos";
 import VideoDetail from "@/pages/VideoDetail";
-import Jobs from "@/pages/Jobs";
 import Channels from "@/pages/Channels";
 import Settings from "@/pages/Settings";
-import Insights from "@/pages/Insights";
-import Compliance from "@/pages/Compliance";
-import Strategy from "@/pages/Strategy";
 import Advisor from "@/pages/Advisor";
 import StreamCenter from "@/pages/StreamCenter";
-import BacklogOptimizer from "@/pages/BacklogOptimizer";
 import AITeam from "@/pages/AITeam";
 import Schedule from "@/pages/Schedule";
 import Monetization from "@/pages/Monetization";
@@ -38,15 +33,10 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/videos" component={Videos} />
       <Route path="/videos/:id" component={VideoDetail} />
-      <Route path="/jobs" component={Jobs} />
       <Route path="/channels" component={Channels} />
       <Route path="/settings" component={Settings} />
-      <Route path="/insights" component={Insights} />
-      <Route path="/compliance" component={Compliance} />
-      <Route path="/strategy" component={Strategy} />
       <Route path="/advisor" component={Advisor} />
       <Route path="/stream" component={StreamCenter} />
-      <Route path="/backlog" component={BacklogOptimizer} />
       <Route path="/team" component={AITeam} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/monetization" component={Monetization} />

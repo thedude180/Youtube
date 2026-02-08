@@ -1,6 +1,7 @@
 import { useChannels } from "@/hooks/use-channels";
 import { format } from "date-fns";
-import { RefreshCw, Trash2, Globe, Loader2 } from "lucide-react";
+import { RefreshCw, Trash2, Loader2, Globe } from "lucide-react";
+import { SiYoutube } from "react-icons/si";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,26 +23,7 @@ import { PLATFORM_INFO, type Platform, type Channel } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
-import {
-  SiYoutube,
-  SiTwitch,
-  SiKick,
-  SiFacebook,
-  SiTiktok,
-  SiX,
-  SiLinkedin,
-  SiInstagram,
-} from "react-icons/si";
-
-function PlatformIcon({ platform, className = "h-4 w-4" }: { platform: string; className?: string }) {
-  const icons: Record<string, any> = {
-    youtube: SiYoutube, twitch: SiTwitch, kick: SiKick,
-    facebook: SiFacebook, tiktok: SiTiktok, x: SiX,
-    linkedin: SiLinkedin, instagram: SiInstagram, rumble: Globe,
-  };
-  const Icon = icons[platform] || Globe;
-  return <Icon className={className} />;
-}
+import { PlatformIcon } from "@/components/PlatformIcon";
 
 export default function Channels() {
   const { data: channels, isLoading } = useChannels();
