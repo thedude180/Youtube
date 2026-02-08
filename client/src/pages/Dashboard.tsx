@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
@@ -12,11 +13,20 @@ import {
   Rocket,
   Lightbulb,
   MessageSquare,
+  DollarSign,
+  Calendar,
+  Users,
+  Zap,
+  Bot,
+  MonitorPlay,
+  CheckCircle2,
+  TrendingUp,
 } from "lucide-react";
 import { useJobs } from "@/hooks/use-jobs";
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
 export default function Dashboard() {
@@ -24,10 +34,13 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: jobs, isLoading: jobsLoading } = useJobs();
   const { data: auditLogs } = useAuditLogs();
+  const { data: agentStatus } = useQuery<any[]>({ queryKey: ['/api/agents/status'] });
 
   const activeJobs =
     jobs?.filter((j) => ["processing", "pending"].includes(j.status)).slice(0, 5) || [];
   const recentLogs = auditLogs?.slice(0, 6) || [];
+  const activeAgents = agentStatus?.filter((a: any) => a.status === 'active') || [];
+  const idleAgents = agentStatus?.filter((a: any) => a.status === 'idle') || [];
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -49,11 +62,17 @@ export default function Dashboard() {
           <h1 data-testid="text-page-title" className="text-3xl font-display font-bold text-foreground">
             {greeting()}, {userName}
           </h1>
-          <p className="text-muted-foreground mt-2">Here's your operational overview and system health.</p>
+          <p className="text-muted-foreground mt-2">Your AI team is working. Here's the overview.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="px-3 py-1.5">
+            <Bot className="w-3.5 h-3.5 mr-1.5" />
+            {activeAgents.length}/10 Agents Active
+          </Badge>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <MetricCard
           title="Total Videos"
           value={stats?.totalVideos || 0}
@@ -85,52 +104,97 @@ export default function Dashboard() {
           data-testid="metric-compliance"
         />
         <MetricCard
-          title="Active Strategies"
-          value={stats?.activeStrategies || 0}
-          icon={Rocket}
-          description="Growth plans in progress"
-          data-testid="metric-strategies"
+          title="Revenue"
+          value={`$${(stats?.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}`}
+          icon={DollarSign}
+          description="Total earnings tracked"
+          data-testid="metric-revenue"
+        />
+        <MetricCard
+          title="Scheduled"
+          value={stats?.scheduledItems || 0}
+          icon={Calendar}
+          description="Upcoming content"
+          data-testid="metric-scheduled"
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Link href="/insights">
-          <Card data-testid="card-quicklink-insights" className="hover-elevate cursor-pointer">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <Lightbulb className="w-5 h-5 text-blue-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">Content Insights</p>
-                <p className="text-xs text-muted-foreground">AI pattern analysis</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/strategy">
-          <Card data-testid="card-quicklink-strategy" className="hover-elevate cursor-pointer">
+      {agentStatus && agentStatus.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-bold font-display">AI Team Status</h2>
+            <Link href="/team" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1 font-medium">
+              Manage Team <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {agentStatus.slice(0, 10).map((agent: any) => (
+              <Card key={agent.id} data-testid={`card-dashboard-agent-${agent.id}`}>
+                <CardContent className="p-3 flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${agent.status === 'active' ? 'bg-green-400' : 'bg-muted-foreground/30'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium truncate">{agent.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{agent.todayActions} today</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <Link href="/team">
+          <Card data-testid="card-quicklink-team" className="hover-elevate cursor-pointer">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="p-2 rounded-lg bg-purple-500/10">
-                <Rocket className="w-5 h-5 text-purple-400" />
+                <Bot className="w-5 h-5 text-purple-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">Growth Strategy</p>
-                <p className="text-xs text-muted-foreground">AI growth plans</p>
+                <p className="font-medium text-sm">AI Team</p>
+                <p className="text-xs text-muted-foreground">10 agents</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </CardContent>
           </Card>
         </Link>
-        <Link href="/compliance">
-          <Card data-testid="card-quicklink-compliance" className="hover-elevate cursor-pointer">
+        <Link href="/schedule">
+          <Card data-testid="card-quicklink-schedule" className="hover-elevate cursor-pointer">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10">
-                <Shield className="w-5 h-5 text-green-400" />
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Calendar className="w-5 h-5 text-blue-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">Compliance</p>
-                <p className="text-xs text-muted-foreground">Platform rules check</p>
+                <p className="font-medium text-sm">Schedule</p>
+                <p className="text-xs text-muted-foreground">Content calendar</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/monetization">
+          <Card data-testid="card-quicklink-monetization" className="hover-elevate cursor-pointer">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <DollarSign className="w-5 h-5 text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">Revenue</p>
+                <p className="text-xs text-muted-foreground">Monetization</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/stream">
+          <Card data-testid="card-quicklink-stream" className="hover-elevate cursor-pointer">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-red-500/10">
+                <MonitorPlay className="w-5 h-5 text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">Stream</p>
+                <p className="text-xs text-muted-foreground">Go live</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </CardContent>
@@ -143,7 +207,7 @@ export default function Dashboard() {
                 <MessageSquare className="w-5 h-5 text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">AI Advisor</p>
+                <p className="font-medium text-sm">Advisor</p>
                 <p className="text-xs text-muted-foreground">Ask anything</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
@@ -259,8 +323,8 @@ function DashboardSkeleton() {
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-10 w-32" />
       </div>
-      <div className="grid grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid grid-cols-5 gap-4">
+        {[1, 2, 3, 4, 5].map((i) => (
           <Skeleton key={i} className="h-32 rounded-xl" />
         ))}
       </div>

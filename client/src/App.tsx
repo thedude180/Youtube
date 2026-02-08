@@ -18,6 +18,9 @@ import Strategy from "@/pages/Strategy";
 import Advisor from "@/pages/Advisor";
 import StreamCenter from "@/pages/StreamCenter";
 import BacklogOptimizer from "@/pages/BacklogOptimizer";
+import AITeam from "@/pages/AITeam";
+import Schedule from "@/pages/Schedule";
+import Monetization from "@/pages/Monetization";
 import NotFound from "@/pages/not-found";
 
 const sidebarStyle = {
@@ -40,6 +43,9 @@ function Router() {
       <Route path="/advisor" component={Advisor} />
       <Route path="/stream" component={StreamCenter} />
       <Route path="/backlog" component={BacklogOptimizer} />
+      <Route path="/team" component={AITeam} />
+      <Route path="/schedule" component={Schedule} />
+      <Route path="/monetization" component={Monetization} />
       <Route component={NotFound} />
     </Switch>
   );

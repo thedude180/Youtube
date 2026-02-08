@@ -14,6 +14,9 @@ import {
   MessageSquare,
   Sparkles,
   MonitorPlay,
+  Bot,
+  Calendar,
+  DollarSign,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,11 +38,13 @@ const contentLinks = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/videos", label: "Library", icon: Video },
   { href: "/stream", label: "Stream Center", icon: MonitorPlay },
+  { href: "/schedule", label: "Calendar", icon: Calendar },
   { href: "/jobs", label: "Operations", icon: Activity },
   { href: "/channels", label: "Channels", icon: Radio },
 ];
 
 const aiLinks = [
+  { href: "/team", label: "AI Team", icon: Bot },
   { href: "/insights", label: "Insights", icon: Lightbulb },
   { href: "/strategy", label: "Strategy", icon: Rocket },
   { href: "/compliance", label: "Compliance", icon: Shield },
@@ -47,7 +52,8 @@ const aiLinks = [
   { href: "/backlog", label: "Backlog Optimizer", icon: Sparkles },
 ];
 
-const settingsLinks = [
+const businessLinks = [
+  { href: "/monetization", label: "Monetization", icon: DollarSign },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -65,7 +71,7 @@ export function AppSidebar() {
         const active = isActive(link.href);
         return (
           <SidebarMenuItem key={link.href}>
-            <SidebarMenuButton asChild isActive={active} data-testid={`link-${link.label.toLowerCase()}`}>
+            <SidebarMenuButton asChild isActive={active} data-testid={`link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}>
               <Link href={link.href}>
                 <Icon className="h-4 w-4" />
                 <span>{link.label}</span>
@@ -113,7 +119,8 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupContent>{renderGroup(settingsLinks)}</SidebarGroupContent>
+          <SidebarGroupLabel>Business</SidebarGroupLabel>
+          <SidebarGroupContent>{renderGroup(businessLinks)}</SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 

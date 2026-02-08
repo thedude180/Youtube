@@ -12,8 +12,11 @@ import {
   getContentStrategyAdvice,
   generateStreamSeo,
   postStreamOptimize,
-  generateThumbnailPrompt
+  generateThumbnailPrompt,
+  runAgentTask,
+  generateCommunityPost,
 } from "./ai-engine";
+import { AI_AGENTS } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1023,6 +1026,215 @@ export async function registerRoutes(
       console.error("Thumbnail generation error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
+  });
+
+  // === AI AGENTS ===
+  app.get(api.agents.activities.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const agentId = req.query.agentId as string | undefined;
+    const activities = await storage.getAgentActivities(agentId, 100);
+    res.json(activities);
+  });
+
+  app.get(api.agents.status.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const activities = await storage.getAgentActivities(undefined, 200);
+    const agentStatus = AI_AGENTS.map(agent => {
+      const agentActs = activities.filter(a => a.agentId === agent.id);
+      const lastActivity = agentActs[0];
+      const todayCount = agentActs.filter(a => {
+        const d = a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const today = new Date(); today.setHours(0,0,0,0);
+        return d >= today;
+      }).length;
+      return {
+        ...agent,
+        status: todayCount > 0 ? 'active' : 'idle',
+        lastActivity: lastActivity ? {
+          action: lastActivity.action,
+          target: lastActivity.target,
+          time: lastActivity.createdAt,
+        } : null,
+        todayActions: todayCount,
+        totalActions: agentActs.length,
+      };
+    });
+    res.json(agentStatus);
+  });
+
+  app.post(api.agents.trigger.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { agentId } = req.params;
+    const userId = (req.user as any)?.claims?.sub;
+    const agent = AI_AGENTS.find(a => a.id === agentId);
+    if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+    try {
+      const channels = await storage.getChannels();
+      const videos = await storage.getVideos();
+      const result = await runAgentTask(agentId, {
+        channelName: channels[0]?.channelName || "My Channel",
+        videoCount: videos.length,
+        recentTitles: videos.slice(0, 5).map(v => v.title),
+      });
+
+      const activity = await storage.createAgentActivity({
+        userId,
+        agentId,
+        action: result.action,
+        target: result.target,
+        status: "completed",
+        details: {
+          description: result.description,
+          impact: result.impact,
+          recommendations: result.recommendations,
+          humanized: true,
+          delayMs: Math.floor(Math.random() * 420000) + 60000,
+        },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: `agent_${agentId}_task`,
+        target: result.target,
+        details: { agentName: agent.name, action: result.action },
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, activity });
+    } catch (error: any) {
+      console.error(`Agent ${agentId} error:`, error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // === AUTOMATION RULES ===
+  app.get(api.automation.rules.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const rules = await storage.getAutomationRules();
+    res.json(rules);
+  });
+
+  app.post(api.automation.createRule.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const rule = await storage.createAutomationRule(input);
+      res.status(201).json(rule);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.put(api.automation.updateRule.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const rule = await storage.updateAutomationRule(Number(req.params.id), req.body);
+    res.json(rule);
+  });
+
+  app.delete(api.automation.deleteRule.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    await storage.deleteAutomationRule(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === SCHEDULE ===
+  app.get(api.schedule.list.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const from = req.query.from ? new Date(req.query.from as string) : undefined;
+    const to = req.query.to ? new Date(req.query.to as string) : undefined;
+    const items = await storage.getScheduleItems(undefined, from, to);
+    res.json(items);
+  });
+
+  app.post(api.schedule.create.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const item = await storage.createScheduleItem(input);
+      await storage.createAuditLog({
+        userId: (req.user as any)?.claims?.sub,
+        action: "schedule_item_created",
+        target: item.title,
+        riskLevel: "low",
+      });
+      res.status(201).json(item);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.put(api.schedule.update.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const item = await storage.updateScheduleItem(Number(req.params.id), req.body);
+    res.json(item);
+  });
+
+  app.delete(api.schedule.delete.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    await storage.deleteScheduleItem(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === REVENUE ===
+  app.get(api.revenue.list.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const platform = req.query.platform as string | undefined;
+    const records = await storage.getRevenueRecords(undefined, platform);
+    res.json(records);
+  });
+
+  app.post(api.revenue.create.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+    const record = await storage.createRevenueRecord(input);
+    res.status(201).json(record);
+  });
+
+  app.get(api.revenue.summary.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const summary = await storage.getRevenueSummary();
+    res.json(summary);
+  });
+
+  // === COMMUNITY ===
+  app.get(api.community.list.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const platform = req.query.platform as string | undefined;
+    const posts = await storage.getCommunityPosts(undefined, platform);
+    res.json(posts);
+  });
+
+  app.post(api.community.create.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      if (req.body.aiGenerate) {
+        const channels = await storage.getChannels();
+        const videos = await storage.getVideos();
+        const generated = await generateCommunityPost({
+          platform: input.platform,
+          channelName: channels[0]?.channelName || "My Channel",
+          recentTitles: videos.slice(0, 5).map(v => v.title),
+          type: input.type || 'engagement',
+        });
+        input.content = generated.content;
+        input.aiGenerated = true;
+      }
+      const post = await storage.createCommunityPost(input);
+      res.status(201).json(post);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.put(api.community.update.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const post = await storage.updateCommunityPost(Number(req.params.id), req.body);
+    res.json(post);
   });
 
   await seedDatabase();

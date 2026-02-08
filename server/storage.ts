@@ -1,7 +1,8 @@
 import { db } from "./db";
 import {
   channels, videos, jobs, auditLogs, contentInsights, complianceRecords, growthStrategies,
-  streamDestinations, streams, thumbnails,
+  streamDestinations, streams, thumbnails, aiAgentActivities, automationRules,
+  scheduleItems, revenueRecords, communityPosts,
   type Channel, type InsertChannel, type UpdateChannelRequest,
   type Video, type InsertVideo, type UpdateVideoRequest,
   type Job, type InsertJob,
@@ -12,9 +13,14 @@ import {
   type StreamDestination, type InsertStreamDestination,
   type Stream, type InsertStream,
   type Thumbnail, type InsertThumbnail,
+  type AgentActivity, type InsertAgentActivity,
+  type AutomationRule, type InsertAutomationRule,
+  type ScheduleItem, type InsertScheduleItem,
+  type RevenueRecord, type InsertRevenueRecord,
+  type CommunityPost, type InsertCommunityPost,
   type StatsResponse
 } from "@shared/schema";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 
 export interface IStorage {
   getChannels(): Promise<Channel[]>;
@@ -63,6 +69,27 @@ export interface IStorage {
 
   getThumbnails(videoId?: number, streamId?: number): Promise<Thumbnail[]>;
   createThumbnail(thumb: InsertThumbnail): Promise<Thumbnail>;
+
+  getAgentActivities(agentId?: string, limit?: number): Promise<AgentActivity[]>;
+  createAgentActivity(activity: InsertAgentActivity): Promise<AgentActivity>;
+
+  getAutomationRules(userId?: string): Promise<AutomationRule[]>;
+  createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule>;
+  updateAutomationRule(id: number, updates: Partial<InsertAutomationRule>): Promise<AutomationRule>;
+  deleteAutomationRule(id: number): Promise<void>;
+
+  getScheduleItems(userId?: string, from?: Date, to?: Date): Promise<ScheduleItem[]>;
+  createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem>;
+  updateScheduleItem(id: number, updates: Partial<InsertScheduleItem>): Promise<ScheduleItem>;
+  deleteScheduleItem(id: number): Promise<void>;
+
+  getRevenueRecords(userId?: string, platform?: string): Promise<RevenueRecord[]>;
+  createRevenueRecord(record: InsertRevenueRecord): Promise<RevenueRecord>;
+  getRevenueSummary(userId?: string): Promise<{ total: number; byPlatform: Record<string, number>; bySource: Record<string, number> }>;
+
+  getCommunityPosts(userId?: string, platform?: string): Promise<CommunityPost[]>;
+  createCommunityPost(post: InsertCommunityPost): Promise<CommunityPost>;
+  updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>): Promise<CommunityPost>;
 
   getStats(): Promise<StatsResponse>;
 }
@@ -271,6 +298,114 @@ export class DatabaseStorage implements IStorage {
     return newThumb;
   }
 
+  async getAgentActivities(agentId?: string, limit: number = 50): Promise<AgentActivity[]> {
+    if (agentId) {
+      return await db.select().from(aiAgentActivities).where(eq(aiAgentActivities.agentId, agentId)).orderBy(desc(aiAgentActivities.createdAt)).limit(limit);
+    }
+    return await db.select().from(aiAgentActivities).orderBy(desc(aiAgentActivities.createdAt)).limit(limit);
+  }
+
+  async createAgentActivity(activity: InsertAgentActivity): Promise<AgentActivity> {
+    const [newActivity] = await db.insert(aiAgentActivities).values(activity).returning();
+    return newActivity;
+  }
+
+  async getAutomationRules(userId?: string): Promise<AutomationRule[]> {
+    if (userId) {
+      return await db.select().from(automationRules).where(eq(automationRules.userId, userId)).orderBy(desc(automationRules.createdAt));
+    }
+    return await db.select().from(automationRules).orderBy(desc(automationRules.createdAt));
+  }
+
+  async createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule> {
+    const [newRule] = await db.insert(automationRules).values(rule).returning();
+    return newRule;
+  }
+
+  async updateAutomationRule(id: number, updates: Partial<InsertAutomationRule>): Promise<AutomationRule> {
+    const [updated] = await db.update(automationRules).set(updates).where(eq(automationRules.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAutomationRule(id: number): Promise<void> {
+    await db.delete(automationRules).where(eq(automationRules.id, id));
+  }
+
+  async getScheduleItems(userId?: string, from?: Date, to?: Date): Promise<ScheduleItem[]> {
+    const conditions = [];
+    if (userId) conditions.push(eq(scheduleItems.userId, userId));
+    if (from) conditions.push(gte(scheduleItems.scheduledAt, from));
+    if (to) conditions.push(lte(scheduleItems.scheduledAt, to));
+
+    if (conditions.length > 0) {
+      return await db.select().from(scheduleItems).where(and(...conditions)).orderBy(scheduleItems.scheduledAt);
+    }
+    return await db.select().from(scheduleItems).orderBy(scheduleItems.scheduledAt);
+  }
+
+  async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
+    const [newItem] = await db.insert(scheduleItems).values(item).returning();
+    return newItem;
+  }
+
+  async updateScheduleItem(id: number, updates: Partial<InsertScheduleItem>): Promise<ScheduleItem> {
+    const [updated] = await db.update(scheduleItems).set(updates).where(eq(scheduleItems.id, id)).returning();
+    return updated;
+  }
+
+  async deleteScheduleItem(id: number): Promise<void> {
+    await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
+  }
+
+  async getRevenueRecords(userId?: string, platform?: string): Promise<RevenueRecord[]> {
+    const conditions = [];
+    if (userId) conditions.push(eq(revenueRecords.userId, userId));
+    if (platform) conditions.push(eq(revenueRecords.platform, platform));
+
+    if (conditions.length > 0) {
+      return await db.select().from(revenueRecords).where(and(...conditions)).orderBy(desc(revenueRecords.recordedAt));
+    }
+    return await db.select().from(revenueRecords).orderBy(desc(revenueRecords.recordedAt));
+  }
+
+  async createRevenueRecord(record: InsertRevenueRecord): Promise<RevenueRecord> {
+    const [newRecord] = await db.insert(revenueRecords).values(record).returning();
+    return newRecord;
+  }
+
+  async getRevenueSummary(userId?: string): Promise<{ total: number; byPlatform: Record<string, number>; bySource: Record<string, number> }> {
+    const records = await this.getRevenueRecords(userId);
+    const total = records.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const byPlatform: Record<string, number> = {};
+    const bySource: Record<string, number> = {};
+    for (const r of records) {
+      byPlatform[r.platform] = (byPlatform[r.platform] || 0) + (r.amount || 0);
+      bySource[r.source] = (bySource[r.source] || 0) + (r.amount || 0);
+    }
+    return { total, byPlatform, bySource };
+  }
+
+  async getCommunityPosts(userId?: string, platform?: string): Promise<CommunityPost[]> {
+    const conditions = [];
+    if (userId) conditions.push(eq(communityPosts.userId, userId));
+    if (platform) conditions.push(eq(communityPosts.platform, platform));
+
+    if (conditions.length > 0) {
+      return await db.select().from(communityPosts).where(and(...conditions)).orderBy(desc(communityPosts.createdAt));
+    }
+    return await db.select().from(communityPosts).orderBy(desc(communityPosts.createdAt));
+  }
+
+  async createCommunityPost(post: InsertCommunityPost): Promise<CommunityPost> {
+    const [newPost] = await db.insert(communityPosts).values(post).returning();
+    return newPost;
+  }
+
+  async updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>): Promise<CommunityPost> {
+    const [updated] = await db.update(communityPosts).set(updates).where(eq(communityPosts.id, id)).returning();
+    return updated;
+  }
+
   async getStats(): Promise<StatsResponse> {
     const totalVideos = (await db.select({ count: sql<number>`count(*)` }).from(videos))[0].count;
     const activeJobs = (await db.select({ count: sql<number>`count(*)` }).from(jobs).where(eq(jobs.status, 'processing')))[0].count;
@@ -294,6 +429,12 @@ export class DatabaseStorage implements IStorage {
       (Number(uploadedToday) > 3 ? 20 : 0)
     ));
 
+    const allRevenue = await db.select({ total: sql<number>`coalesce(sum(amount), 0)` }).from(revenueRecords);
+    const totalRevenue = Number(allRevenue[0]?.total || 0);
+
+    const agentCount = (await db.select({ count: sql<number>`count(distinct agent_id)` }).from(aiAgentActivities))[0].count;
+    const scheduledCount = (await db.select({ count: sql<number>`count(*)` }).from(scheduleItems).where(eq(scheduleItems.status, 'scheduled')))[0].count;
+
     return {
       totalVideos: Number(totalVideos),
       activeJobs: Number(activeJobs),
@@ -302,6 +443,9 @@ export class DatabaseStorage implements IStorage {
       riskScore: Math.round(riskScore),
       complianceScore,
       activeStrategies: Number(activeStrats),
+      totalRevenue,
+      activeAgents: Number(agentCount),
+      scheduledItems: Number(scheduledCount),
     };
   }
 }

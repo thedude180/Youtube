@@ -339,7 +339,83 @@ Create a detailed, photorealistic image generation prompt as JSON:
     max_completion_tokens: 1024,
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from AI");
-  return JSON.parse(content);
+  const thumbContent = response.choices[0]?.message?.content;
+  if (!thumbContent) throw new Error("No response from AI");
+  return JSON.parse(thumbContent);
+}
+
+const AGENT_ROLES: Record<string, string> = {
+  editor: "video editor who cuts highlights, creates shorts, and optimizes VODs for maximum engagement",
+  social_manager: "social media manager who cross-posts content, schedules uploads, and manages community engagement across platforms",
+  seo_director: "SEO expert who optimizes titles, descriptions, tags, and metadata for maximum discoverability",
+  analytics_director: "analytics expert who tracks performance metrics, identifies trends, and generates actionable insights",
+  brand_strategist: "brand strategist who maintains voice consistency, evaluates sponsorship fit, and ensures brand guidelines",
+  ad_buyer: "ad buying specialist who manages ad spend, targets audiences, and optimizes return on ad spend",
+  legal_advisor: "legal advisor who handles copyright checks, compliance monitoring, DMCA protection, and ToS adherence",
+  community_manager: "community manager who moderates comments, engages with fans, handles DMs, and builds community",
+  business_manager: "business manager who tracks revenue, handles invoicing, negotiates sponsorships, and manages finances",
+  growth_strategist: "growth strategist who designs A/B tests, plans collaborations, identifies viral content opportunities, and drives channel growth",
+};
+
+export async function runAgentTask(agentId: string, context: {
+  channelName: string;
+  videoCount: number;
+  recentTitles: string[];
+}) {
+  const role = AGENT_ROLES[agentId] || "AI assistant";
+  const prompt = `You are a ${role} working autonomously for the YouTube channel "${context.channelName}".
+
+Channel has ${context.videoCount} videos. Recent titles: ${context.recentTitles.join(', ') || 'None'}
+
+Perform your most important task right now. Respond as JSON:
+{
+  "action": "What you did (e.g., 'Optimized 3 video titles for CTR')",
+  "target": "What you worked on (e.g., 'Recent video SEO')",
+  "description": "Detailed description of what you accomplished and why",
+  "impact": "Expected impact (e.g., '+15% CTR improvement expected')",
+  "recommendations": ["3 specific follow-up recommendations"]
+}
+
+Be specific, actionable, and reference actual content from this channel.`;
+
+  const agentResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1024,
+  });
+
+  const agentContent = agentResponse.choices[0]?.message?.content;
+  if (!agentContent) throw new Error("No response from AI");
+  return JSON.parse(agentContent);
+}
+
+export async function generateCommunityPost(data: {
+  platform: string;
+  channelName: string;
+  recentTitles: string[];
+  type: string;
+}) {
+  const prompt = `You are a social media expert for the ${data.platform} channel "${data.channelName}".
+
+Recent content: ${data.recentTitles.join(', ') || 'None'}
+Post type: ${data.type}
+
+Create an engaging community post as JSON:
+{
+  "content": "The full post text, engaging and platform-appropriate. Include relevant hashtags. Write in a natural, authentic voice that feels human-written.",
+  "bestTimeToPost": "Recommended posting time (e.g., 'Tuesday 3 PM EST')",
+  "expectedEngagement": "Expected engagement level (high/medium/low)"
+}`;
+
+  const communityResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 512,
+  });
+
+  const communityContent = communityResponse.choices[0]?.message?.content;
+  if (!communityContent) throw new Error("No response from AI");
+  return JSON.parse(communityContent);
 }
