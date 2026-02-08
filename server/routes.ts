@@ -129,6 +129,22 @@ export async function registerRoutes(
     res.json(channel);
   });
 
+  app.delete("/api/channels/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
+    const channel = await storage.getChannel(Number(req.params.id));
+    if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
+    await storage.deleteChannel(Number(req.params.id));
+    await storage.createAuditLog({
+      userId,
+      action: "channel_deleted",
+      target: channel.channelName,
+      details: { platform: channel.platform },
+      riskLevel: "medium",
+    });
+    res.json({ success: true });
+  });
+
   // === VIDEOS ===
   app.get(api.videos.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -1442,8 +1458,15 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = (req.user as any).id;
     try {
-      const authUrl = getAuthUrl(userId);
-      res.json({ url: authUrl });
+      (req.session as any).youtubeOAuthUserId = userId;
+      req.session.save((err) => {
+        if (err) {
+          console.error("Failed to save session before YouTube OAuth:", err);
+          return res.status(500).json({ error: "Failed to prepare authentication" });
+        }
+        const authUrl = getAuthUrl(userId);
+        res.json({ url: authUrl });
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -1452,7 +1475,9 @@ export async function registerRoutes(
   app.get("/api/youtube/callback", async (req, res) => {
     const code = req.query.code as string | undefined;
     const state = req.query.state as string | undefined;
-    const sessionUserId = req.isAuthenticated() ? (req.user as any).id : null;
+
+    const sessionUserId = (req.session as any)?.youtubeOAuthUserId
+      || (req.isAuthenticated() ? (req.user as any).id : null);
 
     let userId: string | null = null;
     if (state) {
@@ -1466,6 +1491,8 @@ export async function registerRoutes(
       hasCode: !!code,
       hasState: !!state,
       resolvedUserId: userId || "(none)",
+      sessionYtUser: (req.session as any)?.youtubeOAuthUserId || "(none)",
+      isAuth: req.isAuthenticated(),
     });
 
     if (!code) {
@@ -1476,6 +1503,7 @@ export async function registerRoutes(
     }
     try {
       const result = await handleCallback(code, userId);
+      delete (req.session as any).youtubeOAuthUserId;
       res.redirect(`/channels?connected=youtube&channel=${encodeURIComponent(result.ytChannel.title || "")}`);
     } catch (error: any) {
       console.error("YouTube OAuth callback error:", error);

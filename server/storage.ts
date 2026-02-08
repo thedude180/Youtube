@@ -28,6 +28,7 @@ export interface IStorage {
   getChannel(id: number): Promise<Channel | undefined>;
   createChannel(channel: InsertChannel): Promise<Channel>;
   updateChannel(id: number, updates: UpdateChannelRequest): Promise<Channel>;
+  deleteChannel(id: number): Promise<void>;
 
   getVideos(): Promise<Video[]>;
   getVideosByUser(userId: string): Promise<Video[]>;
@@ -118,6 +119,11 @@ export class DatabaseStorage implements IStorage {
   async updateChannel(id: number, updates: UpdateChannelRequest): Promise<Channel> {
     const [updated] = await db.update(channels).set(updates).where(eq(channels.id, id)).returning();
     return updated;
+  }
+
+  async deleteChannel(id: number): Promise<void> {
+    await db.delete(videos).where(eq(videos.channelId, id));
+    await db.delete(channels).where(eq(channels.id, id));
   }
 
   async getVideos(): Promise<Video[]> {

@@ -1,32 +1,24 @@
-import { useChannels, useCreateChannel } from "@/hooks/use-channels";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useChannels } from "@/hooks/use-channels";
 import { format } from "date-fns";
-import { Plus, RefreshCw, Trash2, ExternalLink, Globe, Link2, CheckCircle2, AlertCircle, Upload, Loader2 } from "lucide-react";
+import { RefreshCw, Trash2, ExternalLink, Globe, Link2, CheckCircle2, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { insertChannelSchema, PLATFORMS, PLATFORM_INFO, type Platform, type Channel } from "@shared/schema";
+import { PLATFORM_INFO, type Platform, type Channel } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -56,13 +48,6 @@ function PlatformIcon({ platform, className = "h-5 w-5" }: { platform: string; c
   const Icon = icons[platform] || Globe;
   return <Icon className={className} />;
 }
-
-const addChannelSchema = insertChannelSchema.pick({
-  platform: true,
-  channelName: true,
-  channelId: true,
-});
-type AddChannelForm = z.infer<typeof addChannelSchema>;
 
 function YouTubeConnectButton() {
   const [connecting, setConnecting] = useState(false);
@@ -102,6 +87,59 @@ function YouTubeConnectButton() {
       )}
       {connecting ? "Redirecting..." : "Connect YouTube with Google"}
     </Button>
+  );
+}
+
+function DeleteChannelButton({ channel }: { channel: Channel }) {
+  const { toast } = useToast();
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/channels/${channel.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+      toast({
+        title: "Channel Removed",
+        description: `"${channel.channelName}" has been disconnected.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button data-testid={`button-remove-channel-${channel.id}`} variant="ghost" size="icon">
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove Channel</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will disconnect "{channel.channelName}" and remove all synced videos from your library. This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            data-testid={`button-confirm-delete-channel-${channel.id}`}
+            onClick={() => deleteMutation.mutate()}
+            className="bg-destructive text-destructive-foreground"
+          >
+            {deleteMutation.isPending ? "Removing..." : "Remove"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -211,9 +249,7 @@ function YouTubeChannelCard({ channel }: { channel: Channel }) {
               Sync Now
             </Button>
           )}
-          <Button data-testid={`button-remove-channel-${channel.id}`} variant="ghost" size="icon">
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <DeleteChannelButton channel={channel} />
         </div>
       </CardContent>
     </Card>
@@ -266,9 +302,7 @@ function GenericChannelCard({ channel }: { channel: Channel }) {
             <RefreshCw className="h-3.5 w-3.5 mr-2" />
             Sync Now
           </Button>
-          <Button data-testid={`button-remove-channel-${channel.id}`} variant="ghost" size="icon">
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <DeleteChannelButton channel={channel} />
         </div>
       </CardContent>
     </Card>
@@ -277,8 +311,6 @@ function GenericChannelCard({ channel }: { channel: Channel }) {
 
 export default function Channels() {
   const { data: channels, isLoading } = useChannels();
-  const createChannel = useCreateChannel();
-  const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const [location] = useLocation();
 
@@ -305,21 +337,6 @@ export default function Channels() {
     }
   }, [location]);
 
-  const form = useForm<AddChannelForm>({
-    resolver: zodResolver(addChannelSchema),
-    defaultValues: {
-      platform: "youtube",
-      channelName: "",
-      channelId: "",
-    },
-  });
-
-  const onSubmit = (data: AddChannelForm) => {
-    createChannel.mutate({ ...data, userId: "demo" });
-    setOpen(false);
-    form.reset();
-  };
-
   if (isLoading) return <ChannelsSkeleton />;
 
   const youtubeChannels = channels?.filter(c => c.platform === "youtube") || [];
@@ -335,71 +352,6 @@ export default function Channels() {
 
         <div className="flex items-center gap-3 flex-wrap">
           {!hasConnectedYouTube && <YouTubeConnectButton />}
-
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-channel" variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Manual Channel
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add Channel Manually</DialogTitle>
-                <DialogDescription>For platforms without API integration, enter channel details manually.</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Platform</label>
-                  <Select
-                    defaultValue="youtube"
-                    onValueChange={(val) => form.setValue("platform", val)}
-                  >
-                    <SelectTrigger data-testid="select-platform">
-                      <SelectValue placeholder="Select platform" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PLATFORMS.map(p => (
-                        <SelectItem key={p} value={p}>
-                          <span className="flex items-center gap-2">
-                            <PlatformIcon platform={p} className="h-3 w-3" />
-                            {PLATFORM_INFO[p].label}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Channel Name</label>
-                  <Input
-                    data-testid="input-channel-name"
-                    {...form.register("channelName")}
-                    placeholder="e.g. My Awesome Channel"
-                  />
-                  {form.formState.errors.channelName && (
-                    <span className="text-xs text-destructive">{form.formState.errors.channelName.message}</span>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Channel ID</label>
-                  <Input
-                    data-testid="input-channel-id"
-                    {...form.register("channelId")}
-                    placeholder="UC..."
-                  />
-                  {form.formState.errors.channelId && (
-                    <span className="text-xs text-destructive">{form.formState.errors.channelId.message}</span>
-                  )}
-                </div>
-                <div className="pt-4 flex justify-end">
-                  <Button data-testid="button-submit-channel" type="submit" disabled={createChannel.isPending}>
-                    {createChannel.isPending ? "Connecting..." : "Connect"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -428,7 +380,7 @@ export default function Channels() {
             <Globe className="w-12 h-12 text-muted-foreground/40 mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">No channels connected</h3>
             <p className="text-muted-foreground text-sm max-w-md">
-              Connect your YouTube channel with Google to pull real data, or add other platforms manually.
+              Connect your YouTube channel with Google to pull real data and start optimizing.
             </p>
           </CardContent>
         </Card>
