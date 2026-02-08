@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { Youtube, Plus, RefreshCw, Trash2, ExternalLink } from "lucide-react";
+import { Plus, RefreshCw, Trash2, ExternalLink, Globe } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,7 +24,33 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useState } from "react";
-import { insertChannelSchema } from "@shared/schema";
+import { insertChannelSchema, PLATFORMS, PLATFORM_INFO, type Platform } from "@shared/schema";
+import {
+  SiYoutube,
+  SiTwitch,
+  SiKick,
+  SiFacebook,
+  SiTiktok,
+  SiX,
+  SiLinkedin,
+  SiInstagram,
+} from "react-icons/si";
+
+function PlatformIcon({ platform, className = "h-5 w-5" }: { platform: string; className?: string }) {
+  const icons: Record<string, any> = {
+    youtube: SiYoutube,
+    twitch: SiTwitch,
+    kick: SiKick,
+    facebook: SiFacebook,
+    tiktok: SiTiktok,
+    x: SiX,
+    linkedin: SiLinkedin,
+    instagram: SiInstagram,
+    rumble: Globe,
+  };
+  const Icon = icons[platform] || Globe;
+  return <Icon className={className} />;
+}
 
 const addChannelSchema = insertChannelSchema.pick({
   platform: true,
@@ -86,9 +112,14 @@ export default function Channels() {
                     <SelectValue placeholder="Select platform" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="youtube">YouTube</SelectItem>
-                    <SelectItem value="tiktok">TikTok</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
+                    {PLATFORMS.map(p => (
+                      <SelectItem key={p} value={p}>
+                        <span className="flex items-center gap-2">
+                          <PlatformIcon platform={p} className="h-3 w-3" />
+                          {PLATFORM_INFO[p].label}
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -127,10 +158,10 @@ export default function Channels() {
       {(!channels || channels.length === 0) ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Youtube className="w-12 h-12 text-muted-foreground/40 mb-4" />
+            <Globe className="w-12 h-12 text-muted-foreground/40 mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">No channels connected</h3>
             <p className="text-muted-foreground text-sm max-w-md">
-              Connect your YouTube, TikTok, or Instagram channels to get started.
+              Connect your YouTube, Twitch, Kick, TikTok, or other channels to get started.
             </p>
           </CardContent>
         </Card>
@@ -141,12 +172,11 @@ export default function Channels() {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-full bg-secondary flex items-center justify-center border-2 border-border shrink-0">
-                      {channel.platform === "youtube" ? (
-                        <Youtube className="h-7 w-7 text-red-500" />
-                      ) : (
-                        <div className="font-bold text-xl uppercase">{channel.platform[0]}</div>
-                      )}
+                    <div
+                      className="h-14 w-14 rounded-full bg-secondary flex items-center justify-center border-2 border-border shrink-0"
+                      style={{ color: PLATFORM_INFO[channel.platform as Platform]?.color }}
+                    >
+                      <PlatformIcon platform={channel.platform} className="h-7 w-7" />
                     </div>
                     <div className="min-w-0">
                       <h3 data-testid={`text-channel-name-${channel.id}`} className="text-xl font-bold font-display truncate">

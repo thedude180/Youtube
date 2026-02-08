@@ -8,6 +8,32 @@ export { sessions, users } from "./models/auth";
 export type { User, UpsertUser } from "./models/auth";
 export { conversations, messages } from "./models/chat";
 
+// === SUPPORTED PLATFORMS ===
+export const PLATFORMS = [
+  "youtube",
+  "twitch",
+  "kick",
+  "facebook",
+  "tiktok",
+  "x",
+  "rumble",
+  "linkedin",
+  "instagram",
+] as const;
+export type Platform = typeof PLATFORMS[number];
+
+export const PLATFORM_INFO: Record<Platform, { label: string; color: string; maxResolution: string; maxBitrate: string; rtmpUrlTemplate: string }> = {
+  youtube: { label: "YouTube", color: "#FF0000", maxResolution: "4K (2160p)", maxBitrate: "51 Mbps", rtmpUrlTemplate: "rtmp://a.rtmp.youtube.com/live2" },
+  twitch: { label: "Twitch", color: "#9146FF", maxResolution: "1080p60", maxBitrate: "6 Mbps", rtmpUrlTemplate: "rtmp://live.twitch.tv/app" },
+  kick: { label: "Kick", color: "#53FC18", maxResolution: "1080p60", maxBitrate: "8 Mbps", rtmpUrlTemplate: "rtmp://fa723fc1b171.global-contribute.live-video.net/app" },
+  facebook: { label: "Facebook Gaming", color: "#1877F2", maxResolution: "1080p30", maxBitrate: "4 Mbps", rtmpUrlTemplate: "rtmps://live-api-s.facebook.com:443/rtmp" },
+  tiktok: { label: "TikTok Live", color: "#000000", maxResolution: "1080p30", maxBitrate: "6 Mbps", rtmpUrlTemplate: "rtmp://push.tiktok.com/live" },
+  x: { label: "X (Twitter)", color: "#000000", maxResolution: "1280x720", maxBitrate: "9 Mbps", rtmpUrlTemplate: "rtmp://va.pscp.tv:80/x" },
+  rumble: { label: "Rumble", color: "#85C742", maxResolution: "4K (2160p)", maxBitrate: "12 Mbps", rtmpUrlTemplate: "rtmp://live.rumble.com/live" },
+  linkedin: { label: "LinkedIn Live", color: "#0A66C2", maxResolution: "1080p30", maxBitrate: "6 Mbps", rtmpUrlTemplate: "rtmp://live.linkedin.com/live" },
+  instagram: { label: "Instagram Live", color: "#E4405F", maxResolution: "1080p30", maxBitrate: "3.5 Mbps", rtmpUrlTemplate: "rtmps://live-upload.instagram.com:443/rtmp" },
+};
+
 // === CHANNELS (YouTube / Social Accounts) ===
 export const channels = pgTable("channels", {
   id: serial("id").primaryKey(),
@@ -59,9 +85,71 @@ export const videos = pgTable("videos", {
       avgWatchTime: number;
     };
     crossPostIds?: Record<string, string>;
+    aiOptimized?: boolean;
+    aiOptimizedAt?: string;
   }>(),
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === STREAM DESTINATIONS ===
+export const streamDestinations = pgTable("stream_destinations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  platform: text("platform").notNull(),
+  label: text("label").notNull(),
+  rtmpUrl: text("rtmp_url").notNull(),
+  streamKey: text("stream_key"),
+  enabled: boolean("enabled").default(true),
+  settings: jsonb("settings").$type<{
+    resolution: string;
+    bitrate: string;
+    fps: number;
+    autoStart: boolean;
+  }>().default({ resolution: "1080p", bitrate: "6000", fps: 60, autoStart: true }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === STREAMS (Live Sessions) ===
+export const streams = pgTable("streams", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category"),
+  status: text("status").notNull().default("planned"),
+  thumbnailUrl: text("thumbnail_url"),
+  platforms: jsonb("platforms").$type<string[]>().default([]),
+  seoData: jsonb("seo_data").$type<{
+    tags: string[];
+    optimizedTitle?: string;
+    optimizedDescription?: string;
+    thumbnailPrompt?: string;
+    platformSpecific?: Record<string, { title: string; description: string; tags: string[] }>;
+  }>(),
+  streamStats: jsonb("stream_stats").$type<{
+    peakViewers?: number;
+    avgViewers?: number;
+    totalViews?: number;
+    chatMessages?: number;
+    newFollowers?: number;
+  }>(),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === THUMBNAILS (AI-Generated) ===
+export const thumbnails = pgTable("thumbnails", {
+  id: serial("id").primaryKey(),
+  videoId: integer("video_id").references(() => videos.id),
+  streamId: integer("stream_id").references(() => streams.id),
+  imageUrl: text("image_url"),
+  prompt: text("prompt"),
+  platform: text("platform"),
+  resolution: text("resolution"),
+  status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -148,6 +236,9 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: tru
 export const insertContentInsightSchema = createInsertSchema(contentInsights).omit({ id: true, createdAt: true });
 export const insertComplianceRecordSchema = createInsertSchema(complianceRecords).omit({ id: true, createdAt: true });
 export const insertGrowthStrategySchema = createInsertSchema(growthStrategies).omit({ id: true, createdAt: true });
+export const insertStreamDestinationSchema = createInsertSchema(streamDestinations).omit({ id: true, createdAt: true });
+export const insertStreamSchema = createInsertSchema(streams).omit({ id: true, createdAt: true });
+export const insertThumbnailSchema = createInsertSchema(thumbnails).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 export type Channel = typeof channels.$inferSelect;
@@ -157,6 +248,9 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type ContentInsight = typeof contentInsights.$inferSelect;
 export type ComplianceRecord = typeof complianceRecords.$inferSelect;
 export type GrowthStrategy = typeof growthStrategies.$inferSelect;
+export type StreamDestination = typeof streamDestinations.$inferSelect;
+export type Stream = typeof streams.$inferSelect;
+export type Thumbnail = typeof thumbnails.$inferSelect;
 
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
 export type InsertVideo = z.infer<typeof insertVideoSchema>;
@@ -165,6 +259,9 @@ export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type InsertContentInsight = z.infer<typeof insertContentInsightSchema>;
 export type InsertComplianceRecord = z.infer<typeof insertComplianceRecordSchema>;
 export type InsertGrowthStrategy = z.infer<typeof insertGrowthStrategySchema>;
+export type InsertStreamDestination = z.infer<typeof insertStreamDestinationSchema>;
+export type InsertStream = z.infer<typeof insertStreamSchema>;
+export type InsertThumbnail = z.infer<typeof insertThumbnailSchema>;
 
 export type UpdateChannelRequest = Partial<InsertChannel>;
 export type UpdateVideoRequest = Partial<InsertVideo>;

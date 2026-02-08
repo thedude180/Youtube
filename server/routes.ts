@@ -9,7 +9,10 @@ import {
   analyzeChannelGrowth,
   runComplianceCheck,
   generateContentInsights,
-  getContentStrategyAdvice
+  getContentStrategyAdvice,
+  generateStreamSeo,
+  postStreamOptimize,
+  generateThumbnailPrompt
 } from "./ai-engine";
 
 export async function registerRoutes(
@@ -126,7 +129,7 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
-  // AI Metadata Generation (real)
+  // AI Metadata Generation
   app.post(api.videos.generateMetadata.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const videoId = Number(req.params.id);
@@ -139,6 +142,7 @@ export async function registerRoutes(
         description: video.description,
         type: video.type,
         metadata: video.metadata,
+        platform: video.platform || undefined,
       });
 
       const newMetadata = {
@@ -436,6 +440,296 @@ export async function registerRoutes(
     }
   });
 
+  // === STREAM DESTINATIONS ===
+  app.get(api.streamDestinations.list.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
+    const destinations = await storage.getStreamDestinations(userId);
+    res.json(destinations);
+  });
+
+  app.post(api.streamDestinations.create.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const dest = await storage.createStreamDestination(input);
+      await storage.createAuditLog({
+        userId: (req.user as any)?.claims?.sub,
+        action: "stream_destination_created",
+        target: dest.label,
+        details: { platform: dest.platform },
+        riskLevel: "low",
+      });
+      res.status(201).json(dest);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.streamDestinations.update.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const dest = await storage.updateStreamDestination(Number(req.params.id), req.body);
+    res.json(dest);
+  });
+
+  app.delete(api.streamDestinations.delete.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    await storage.deleteStreamDestination(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === STREAMS ===
+  app.get(api.streams.list.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any)?.claims?.sub;
+    const streamList = await storage.getStreams(userId);
+    res.json(streamList);
+  });
+
+  app.get(api.streams.get.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    res.json(stream);
+  });
+
+  app.post(api.streams.create.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const input = { ...req.body, userId: (req.user as any)?.claims?.sub };
+      const stream = await storage.createStream(input);
+      await storage.createAuditLog({
+        userId: (req.user as any)?.claims?.sub,
+        action: "stream_created",
+        target: stream.title,
+        details: { platforms: stream.platforms },
+        riskLevel: "low",
+      });
+      res.status(201).json(stream);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.streams.update.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const stream = await storage.updateStream(Number(req.params.id), req.body);
+    res.json(stream);
+  });
+
+  // Stream SEO Optimization
+  app.post(api.streams.optimizeSeo.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+
+    try {
+      const seoData = await generateStreamSeo({
+        title: stream.title,
+        description: stream.description,
+        category: stream.category,
+        platforms: (stream.platforms as string[]) || ['youtube'],
+      });
+
+      await storage.updateStream(stream.id, { seoData });
+      await storage.createAuditLog({
+        userId: (req.user as any)?.claims?.sub,
+        action: "stream_seo_optimized",
+        target: stream.title,
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, seoData });
+    } catch (error: any) {
+      console.error("Stream SEO error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // Post-Stream Processing
+  app.post(api.streams.postStreamProcess.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+
+    try {
+      const duration = stream.startedAt && stream.endedAt
+        ? (stream.endedAt.getTime() - stream.startedAt.getTime()) / 1000
+        : undefined;
+
+      const result = await postStreamOptimize({
+        title: stream.title,
+        description: stream.description,
+        category: stream.category,
+        platforms: (stream.platforms as string[]) || ['youtube'],
+        duration,
+        stats: stream.streamStats,
+      });
+
+      await storage.updateStream(stream.id, {
+        status: 'processed',
+        seoData: {
+          ...(stream.seoData as any),
+          vodOptimization: result,
+        },
+      });
+
+      await storage.createAuditLog({
+        userId: (req.user as any)?.claims?.sub,
+        action: "post_stream_processed",
+        target: stream.title,
+        details: { seoScore: result.seoScore },
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, result });
+    } catch (error: any) {
+      console.error("Post-stream processing error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // === BACKLOG OPTIMIZER ===
+  app.post(api.backlog.optimize.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { channelId, videoIds } = req.body;
+
+      let videosToOptimize;
+      if (videoIds && videoIds.length > 0) {
+        const allVideos = await storage.getVideos();
+        videosToOptimize = allVideos.filter(v => videoIds.includes(v.id));
+      } else if (channelId) {
+        videosToOptimize = await storage.getVideosByChannel(channelId);
+      } else {
+        videosToOptimize = await storage.getVideos();
+      }
+
+      const unoptimized = videosToOptimize.filter(v => !v.metadata?.aiOptimized);
+
+      const job = await storage.createJob({
+        type: "backlog_optimize",
+        status: "processing",
+        priority: 1,
+        payload: {
+          totalVideos: unoptimized.length,
+          videoIds: unoptimized.map(v => v.id),
+          channelId: channelId || null,
+        },
+      });
+
+      // Process videos asynchronously (but in this request for now)
+      (async () => {
+        let completed = 0;
+        for (const video of unoptimized) {
+          try {
+            const suggestions = await generateVideoMetadata({
+              title: video.title,
+              description: video.description,
+              type: video.type,
+              metadata: video.metadata,
+              platform: video.platform || undefined,
+            });
+
+            const newMetadata = {
+              ...video.metadata,
+              seoScore: suggestions.seoScore || 0,
+              aiSuggestions: {
+                titleHooks: suggestions.titleHooks || [],
+                descriptionTemplate: suggestions.descriptionTemplate || "",
+                thumbnailCritique: suggestions.thumbnailCritique || "",
+                seoRecommendations: suggestions.seoRecommendations || [],
+                complianceNotes: suggestions.complianceNotes || [],
+              },
+              tags: suggestions.suggestedTags || video.metadata?.tags || [],
+              aiOptimized: true,
+              aiOptimizedAt: new Date().toISOString(),
+            };
+
+            await storage.updateVideo(video.id, { metadata: newMetadata });
+            completed++;
+            const progress = Math.round((completed / unoptimized.length) * 100);
+            await storage.updateJobProgress(job.id, progress);
+          } catch (err) {
+            console.error(`Failed to optimize video ${video.id}:`, err);
+          }
+        }
+        await storage.updateJobStatus(job.id, 'completed', { optimized: completed, total: unoptimized.length });
+      })();
+
+      await storage.createAuditLog({
+        userId: (req.user as any)?.claims?.sub,
+        action: "backlog_optimization_started",
+        target: `${unoptimized.length} videos`,
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, jobId: job.id });
+    } catch (error: any) {
+      console.error("Backlog optimization error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.get(api.backlog.status.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const allVideos = await storage.getVideos();
+    const optimized = allVideos.filter(v => v.metadata?.aiOptimized).length;
+    const allJobs = await storage.getJobs();
+    const activeJob = allJobs.find(j => j.type === 'backlog_optimize' && j.status === 'processing') || null;
+
+    res.json({
+      totalVideos: allVideos.length,
+      optimized,
+      pending: allVideos.length - optimized,
+      activeJob,
+    });
+  });
+
+  // === THUMBNAILS ===
+  app.post(api.thumbnails.generate.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { videoId, streamId, platform, title, description } = req.body;
+
+      const thumbnailData = await generateThumbnailPrompt({
+        title,
+        description,
+        platform: platform || 'youtube',
+        type: streamId ? 'stream' : 'video',
+      });
+
+      const thumbnail = await storage.createThumbnail({
+        videoId: videoId || null,
+        streamId: streamId || null,
+        prompt: thumbnailData.prompt,
+        platform: platform || 'youtube',
+        resolution: '1280x720',
+        status: 'generated',
+      });
+
+      await storage.createAuditLog({
+        userId: (req.user as any)?.claims?.sub,
+        action: "thumbnail_generated",
+        target: title,
+        details: { platform, style: thumbnailData.style },
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, thumbnail: { ...thumbnail, aiData: thumbnailData } });
+    } catch (error: any) {
+      console.error("Thumbnail generation error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   await seedDatabase();
 
   return httpServer;
@@ -464,6 +758,14 @@ async function seedDatabase() {
       channelName: "GrowthLab Clips",
       channelId: "tiktok_demo",
       settings: { preset: "aggressive", autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
+    });
+
+    await storage.createChannel({
+      userId: "demo",
+      platform: "twitch",
+      channelName: "GrowthLab_Live",
+      channelId: "twitch_demo",
+      settings: { preset: "normal", autoUpload: false, minShortsPerDay: 0, maxEditsPerDay: 2, cooldownMinutes: 60 },
     });
   } else {
     channelId = existingChannels[0].id;

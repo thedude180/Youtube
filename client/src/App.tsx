@@ -16,6 +16,8 @@ import Insights from "@/pages/Insights";
 import Compliance from "@/pages/Compliance";
 import Strategy from "@/pages/Strategy";
 import Advisor from "@/pages/Advisor";
+import StreamCenter from "@/pages/StreamCenter";
+import BacklogOptimizer from "@/pages/BacklogOptimizer";
 import NotFound from "@/pages/not-found";
 
 const sidebarStyle = {
@@ -36,6 +38,8 @@ function Router() {
       <Route path="/compliance" component={Compliance} />
       <Route path="/strategy" component={Strategy} />
       <Route path="/advisor" component={Advisor} />
+      <Route path="/stream" component={StreamCenter} />
+      <Route path="/backlog" component={BacklogOptimizer} />
       <Route component={NotFound} />
     </Switch>
   );

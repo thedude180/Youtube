@@ -12,6 +12,8 @@ import {
   Shield,
   Rocket,
   MessageSquare,
+  Sparkles,
+  MonitorPlay,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,6 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const contentLinks = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/videos", label: "Library", icon: Video },
+  { href: "/stream", label: "Stream Center", icon: MonitorPlay },
   { href: "/jobs", label: "Operations", icon: Activity },
   { href: "/channels", label: "Channels", icon: Radio },
 ];
@@ -41,6 +44,7 @@ const aiLinks = [
   { href: "/strategy", label: "Strategy", icon: Rocket },
   { href: "/compliance", label: "Compliance", icon: Shield },
   { href: "/advisor", label: "Advisor", icon: MessageSquare },
+  { href: "/backlog", label: "Backlog Optimizer", icon: Sparkles },
 ];
 
 const settingsLinks = [

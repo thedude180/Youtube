@@ -10,21 +10,24 @@ export async function generateVideoMetadata(video: {
   description?: string | null;
   type: string;
   metadata?: any;
+  platform?: string;
 }) {
-  const prompt = `You are a YouTube SEO expert and content strategist. Analyze this video and provide optimization suggestions.
+  const platformName = video.platform || 'youtube';
+  const prompt = `You are a ${platformName} SEO expert and content strategist. Analyze this video and provide optimization suggestions.
 
 Video Title: "${video.title}"
 Video Type: ${video.type}
+Platform: ${platformName}
 Current Description: "${video.description || 'None provided'}"
 Current Tags: ${video.metadata?.tags?.join(', ') || 'None'}
 
 Provide your response as JSON with exactly these fields:
 {
-  "titleHooks": ["3 alternative title options that are click-worthy but not clickbait, using proven YouTube title formulas"],
+  "titleHooks": ["3 alternative title options that are click-worthy but not clickbait, optimized for ${platformName}"],
   "descriptionTemplate": "An optimized description with timestamps placeholder, relevant keywords, and a call-to-action. Include hashtags at the end.",
-  "thumbnailCritique": "Specific actionable advice for the thumbnail based on what works on YouTube - mention contrast, text size, facial expressions, color theory",
-  "seoRecommendations": ["5 specific SEO improvements for discoverability"],
-  "complianceNotes": ["Any YouTube ToS concerns or best practices to follow"],
+  "thumbnailCritique": "Specific actionable advice for the thumbnail based on what works on ${platformName} - mention contrast, text size, facial expressions, color theory",
+  "seoRecommendations": ["5 specific SEO improvements for discoverability on ${platformName}"],
+  "complianceNotes": ["Any ${platformName} ToS concerns or best practices to follow"],
   "suggestedTags": ["10 relevant tags ordered by importance"],
   "seoScore": 75
 }`;
@@ -221,4 +224,122 @@ Provide a detailed, actionable response. Be specific to YouTube/content creation
   });
 
   return response.choices[0]?.message?.content || "Unable to generate advice at this time.";
+}
+
+export async function generateStreamSeo(streamData: {
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  platforms: string[];
+}) {
+  const platformList = streamData.platforms.join(', ');
+  const prompt = `You are a live streaming SEO expert. Optimize this stream for maximum discoverability across multiple platforms.
+
+Stream Title: "${streamData.title}"
+Description: "${streamData.description || 'Not provided'}"
+Category: "${streamData.category || 'Gaming'}"
+Target Platforms: ${platformList}
+
+Provide your response as JSON:
+{
+  "optimizedTitle": "An optimized stream title that works across all platforms - attention-grabbing, clear, with relevant keywords",
+  "optimizedDescription": "A compelling description with keywords, call-to-action, schedule info placeholder, and social links placeholder",
+  "tags": ["15 relevant tags for discoverability"],
+  "thumbnailPrompt": "A detailed description for generating an eye-catching stream thumbnail - include colors, composition, text overlay suggestions, and mood",
+  "platformSpecific": {
+${streamData.platforms.map(p => `    "${p}": { "title": "Platform-optimized title for ${p}", "description": "Platform-specific description for ${p}", "tags": ["5 platform-specific tags"] }`).join(',\n')}
+  }
+}
+
+Focus on:
+- Click-worthy but honest titles
+- Platform-specific SEO best practices
+- Keywords that drive live viewership
+- Urgency/FOMO elements for live content`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 2048,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("No response from AI");
+  return JSON.parse(content);
+}
+
+export async function postStreamOptimize(streamData: {
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  platforms: string[];
+  duration?: number;
+  stats?: any;
+}) {
+  const prompt = `You are a VOD optimization expert. This live stream just ended and needs to be optimized for on-demand viewing.
+
+Original Stream Title: "${streamData.title}"
+Stream Description: "${streamData.description || 'Not provided'}"
+Category: "${streamData.category || 'Gaming'}"
+Platforms: ${streamData.platforms.join(', ')}
+Duration: ${streamData.duration ? `${Math.round(streamData.duration / 60)} minutes` : 'Unknown'}
+${streamData.stats ? `Stats: Peak viewers: ${streamData.stats.peakViewers || 'N/A'}, Avg viewers: ${streamData.stats.avgViewers || 'N/A'}` : ''}
+
+Rewrite and optimize for VOD performance as JSON:
+{
+  "vodTitle": "An optimized title for the VOD version - should be search-friendly and compelling for on-demand viewers",
+  "vodDescription": "A full description with timestamps placeholder (e.g., [Add timestamps here]), keywords, engagement hooks, and calls to action",
+  "tags": ["15 tags optimized for VOD search"],
+  "thumbnailPrompt": "A detailed prompt for generating a click-worthy VOD thumbnail different from the live thumbnail - include composition, text overlay, colors, and emotional hooks",
+  "seoScore": 80,
+  "recommendations": ["5 specific things to do with this VOD to maximize views"],
+  "platformSpecific": {
+${streamData.platforms.map(p => `    "${p}": { "title": "VOD title for ${p}", "description": "VOD description for ${p}", "tags": ["5 tags for ${p}"] }`).join(',\n')}
+  }
+}`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 2048,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("No response from AI");
+  return JSON.parse(content);
+}
+
+export async function generateThumbnailPrompt(data: {
+  title: string;
+  description?: string | null;
+  platform?: string;
+  type?: string;
+}) {
+  const prompt = `You are a thumbnail design expert for ${data.platform || 'YouTube'}. Create a detailed image generation prompt for a high-performing thumbnail.
+
+Content Title: "${data.title}"
+Description: "${data.description || 'Not provided'}"
+Content Type: ${data.type || 'video'}
+Platform: ${data.platform || 'youtube'}
+
+Create a detailed, photorealistic image generation prompt as JSON:
+{
+  "prompt": "A detailed, specific image generation prompt that will create a professional, click-worthy thumbnail. Include: specific visual composition, color scheme (high contrast), text overlay suggestions (as visual elements), emotional hooks, facial expressions if applicable, background style, lighting, and any platform-specific sizing considerations. The prompt should produce a thumbnail that stands out in a crowded feed.",
+  "style": "The overall visual style (e.g., cinematic, bold, minimalist, energetic)",
+  "dominantColors": ["3 hex color codes that should dominate the thumbnail"],
+  "textOverlay": "Suggested text to overlay on the thumbnail (keep it to 3-5 words maximum)"
+}`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1024,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("No response from AI");
+  return JSON.parse(content);
 }

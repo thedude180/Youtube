@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { insertChannelSchema, insertVideoSchema, insertJobSchema, channels, videos, jobs, auditLogs, contentInsights, complianceRecords, growthStrategies } from './schema';
+import {
+  insertChannelSchema, insertVideoSchema, insertJobSchema,
+  insertStreamDestinationSchema, insertStreamSchema,
+  channels, videos, jobs, auditLogs, contentInsights, complianceRecords, growthStrategies,
+  streamDestinations, streams, thumbnails
+} from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -208,6 +213,130 @@ export const api = {
       input: z.object({ question: z.string() }),
       responses: {
         200: z.object({ answer: z.string() }),
+      },
+    },
+  },
+  streamDestinations: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/stream-destinations' as const,
+      responses: {
+        200: z.array(z.custom<typeof streamDestinations.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/stream-destinations' as const,
+      input: insertStreamDestinationSchema,
+      responses: {
+        201: z.custom<typeof streamDestinations.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/stream-destinations/:id' as const,
+      input: insertStreamDestinationSchema.partial(),
+      responses: {
+        200: z.custom<typeof streamDestinations.$inferSelect>(),
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/stream-destinations/:id' as const,
+      responses: {
+        204: z.void(),
+      },
+    },
+  },
+  streams: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/streams' as const,
+      responses: {
+        200: z.array(z.custom<typeof streams.$inferSelect>()),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/streams/:id' as const,
+      responses: {
+        200: z.custom<typeof streams.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/streams' as const,
+      input: insertStreamSchema,
+      responses: {
+        201: z.custom<typeof streams.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/streams/:id' as const,
+      input: insertStreamSchema.partial(),
+      responses: {
+        200: z.custom<typeof streams.$inferSelect>(),
+      },
+    },
+    optimizeSeo: {
+      method: 'POST' as const,
+      path: '/api/streams/:id/optimize' as const,
+      input: z.object({}),
+      responses: {
+        200: z.object({ success: z.boolean(), seoData: z.any() }),
+      },
+    },
+    postStreamProcess: {
+      method: 'POST' as const,
+      path: '/api/streams/:id/post-process' as const,
+      input: z.object({}),
+      responses: {
+        200: z.object({ success: z.boolean(), result: z.any() }),
+      },
+    },
+  },
+  backlog: {
+    optimize: {
+      method: 'POST' as const,
+      path: '/api/backlog/optimize' as const,
+      input: z.object({
+        channelId: z.number().optional(),
+        videoIds: z.array(z.number()).optional(),
+      }),
+      responses: {
+        200: z.object({ success: z.boolean(), jobId: z.number() }),
+      },
+    },
+    status: {
+      method: 'GET' as const,
+      path: '/api/backlog/status' as const,
+      responses: {
+        200: z.object({
+          totalVideos: z.number(),
+          optimized: z.number(),
+          pending: z.number(),
+          activeJob: z.any().nullable(),
+        }),
+      },
+    },
+  },
+  thumbnails: {
+    generate: {
+      method: 'POST' as const,
+      path: '/api/thumbnails/generate' as const,
+      input: z.object({
+        videoId: z.number().optional(),
+        streamId: z.number().optional(),
+        platform: z.string().optional(),
+        title: z.string(),
+        description: z.string().optional(),
+      }),
+      responses: {
+        200: z.object({ success: z.boolean(), thumbnail: z.any() }),
       },
     },
   },
