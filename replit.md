@@ -19,6 +19,7 @@ A comprehensive multi-platform content management and live streaming platform fo
 - Real-time toast notifications and 5-second auto-refresh on Dashboard and AI Team pages
 - Auto-scheduling of social posts across 4 platforms for fully optimized content
 - Stale video detection (30+ days) and bulk re-optimization triggers
+- YouTube Data API v3 integration: OAuth2 connect, video sync, push optimized metadata back to YouTube
 
 ## Architecture
 - **Frontend**: React + Vite + TanStack Query + wouter routing + Tailwind CSS + shadcn/ui + react-icons
@@ -90,6 +91,13 @@ YouTube, Twitch, Kick, Facebook Gaming, TikTok, X/Twitter, Rumble, LinkedIn Live
 - `/api/schedule` - Content calendar CRUD (userId-scoped)
 - `/api/revenue` - Revenue records CRUD + summary (userId-scoped)
 - `/api/community` - Community posts CRUD + AI generation (userId-scoped)
+- `/api/youtube/auth` - Start YouTube OAuth2 flow (redirects to Google)
+- `/api/youtube/callback` - YouTube OAuth2 callback handler
+- `/api/youtube/channel/:channelId` - Fetch real YouTube channel info
+- `/api/youtube/videos/:channelId` - Fetch YouTube video library
+- `/api/youtube/sync/:channelId` - Sync YouTube videos to local library
+- `/api/youtube/video/:channelId/:videoId` - Update video metadata on YouTube
+- `/api/youtube/push-optimization/:videoId` - Push AI-optimized metadata back to YouTube
 
 ## Key Files
 - `shared/schema.ts` - Database schema, types, PLATFORMS constant, PLATFORM_INFO, AI_AGENTS
@@ -97,6 +105,7 @@ YouTube, Twitch, Kick, Facebook Gaming, TikTok, X/Twitter, Rumble, LinkedIn Live
 - `server/routes.ts` - Express route handlers
 - `server/storage.ts` - Database access layer
 - `server/ai-engine.ts` - OpenAI-powered AI functions
+- `server/youtube.ts` - YouTube Data API v3 integration (OAuth2, sync, push-back)
 - `client/src/App.tsx` - Main app with routing
 - `client/src/components/Sidebar.tsx` - Navigation sidebar
 - `client/src/pages/AITeam.tsx` - AI Team dashboard

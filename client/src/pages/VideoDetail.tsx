@@ -6,13 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Sparkles, Save, Calendar, Globe, AlertTriangle, PlayCircle, ArrowLeft } from "lucide-react";
+import { Sparkles, Save, Calendar, Globe, AlertTriangle, PlayCircle, ArrowLeft, Upload, Loader2 } from "lucide-react";
+import { SiYoutube } from "react-icons/si";
 import { useForm } from "react-hook-form";
 import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 
 const schema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -41,6 +46,28 @@ export default function VideoDetail() {
       });
     }
   }, [video, form]);
+
+  const { toast } = useToast();
+
+  const pushToYouTube = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/youtube/push-optimization/${id}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Pushed to YouTube",
+        description: `Updated "${data.title}" on YouTube with optimized metadata.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Push Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const onSubmit = (data: FormData) => {
     updateVideo.mutate({ id, ...data });
@@ -88,6 +115,22 @@ export default function VideoDetail() {
             <Save className="h-4 w-4 mr-2" />
             {updateVideo.isPending ? "Saving..." : "Save Changes"}
           </Button>
+
+          {video.metadata?.youtubeId && (
+            <Button
+              data-testid="button-push-youtube"
+              onClick={() => pushToYouTube.mutate()}
+              disabled={pushToYouTube.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white border-red-700"
+            >
+              {pushToYouTube.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              {pushToYouTube.isPending ? "Pushing..." : "Push to YouTube"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -198,7 +241,32 @@ export default function VideoDetail() {
                 <span data-testid="text-visibility" className="text-sm font-medium">Unlisted</span>
               </div>
 
-              <div className="pt-4 border-t border-border/50">
+              {video.metadata?.youtubeId && (
+                <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                  <div className="flex items-center gap-3">
+                    <SiYoutube className="h-4 w-4 text-red-500" />
+                    <span className="text-sm">YouTube ID</span>
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground">{video.metadata.youtubeId}</span>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-border/50 space-y-3">
+                {video.metadata?.youtubeId && (
+                  <Button
+                    data-testid="button-push-youtube-sidebar"
+                    onClick={() => pushToYouTube.mutate()}
+                    disabled={pushToYouTube.isPending}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white border-red-700"
+                  >
+                    {pushToYouTube.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    {pushToYouTube.isPending ? "Pushing..." : "Push to YouTube"}
+                  </Button>
+                )}
                 <Button data-testid="button-delete-video" variant="destructive" className="w-full">
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   Delete Video

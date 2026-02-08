@@ -29,6 +29,14 @@ import {
   pivotToStream,
   resumeFromStream,
 } from "./backlog-engine";
+import {
+  getAuthUrl,
+  handleCallback,
+  fetchYouTubeChannelInfo,
+  fetchYouTubeVideos,
+  updateYouTubeVideo,
+  syncYouTubeVideosToLibrary,
+} from "./youtube";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1427,6 +1435,107 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const post = await storage.updateCommunityPost(Number(req.params.id), req.body);
     res.json(post);
+  });
+
+  app.get("/api/youtube/auth", (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
+    try {
+      const authUrl = getAuthUrl(userId);
+      res.json({ url: authUrl });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/youtube/callback", async (req, res) => {
+    const { code, state: userId } = req.query;
+    if (!code || !userId) {
+      return res.status(400).send("Missing authorization code or user state");
+    }
+    try {
+      const result = await handleCallback(code as string, userId as string);
+      res.redirect(`/channels?connected=youtube&channel=${encodeURIComponent(result.ytChannel.title || "")}`);
+    } catch (error: any) {
+      console.error("YouTube OAuth callback error:", error);
+      res.redirect(`/channels?error=${encodeURIComponent(error.message)}`);
+    }
+  });
+
+  app.get("/api/youtube/channel/:channelId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const info = await fetchYouTubeChannelInfo(Number(req.params.channelId));
+      res.json(info);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/youtube/videos/:channelId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const videos = await fetchYouTubeVideos(Number(req.params.channelId), Number(req.query.maxResults) || 50);
+      res.json(videos);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/youtube/sync/:channelId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
+    try {
+      const synced = await syncYouTubeVideosToLibrary(Number(req.params.channelId), userId);
+      res.json({ synced: synced.length, videos: synced });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/youtube/video/:channelId/:videoId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const result = await updateYouTubeVideo(
+        Number(req.params.channelId),
+        req.params.videoId,
+        req.body
+      );
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/youtube/push-optimization/:videoId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
+    try {
+      const video = await storage.getVideo(Number(req.params.videoId));
+      if (!video) return res.status(404).json({ error: "Video not found" });
+      if (!video.channelId) return res.status(400).json({ error: "Video has no channel" });
+      if (!video.metadata?.youtubeId) return res.status(400).json({ error: "Video has no YouTube ID" });
+
+      const channel = await storage.getChannel(video.channelId);
+      if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
+
+      const updates: any = {};
+      if (video.title) updates.title = video.title;
+      if (video.description) updates.description = video.description;
+      if (video.metadata?.tags) updates.tags = video.metadata.tags;
+
+      const result = await updateYouTubeVideo(video.channelId, video.metadata.youtubeId, updates);
+      await storage.createAuditLog({
+        action: "youtube_push",
+        target: video.title,
+        riskLevel: "medium",
+        details: { videoId: video.id, youtubeId: video.metadata.youtubeId, updates },
+        userId,
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   await seedDatabase();

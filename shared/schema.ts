@@ -107,6 +107,13 @@ export const videos = pgTable("videos", {
     gameName?: string;
     contentCategory?: string;
     brandKeywords?: string[];
+    youtubeId?: string;
+    viewCount?: number;
+    likeCount?: number;
+    commentCount?: number;
+    publishedAt?: string;
+    duration?: string;
+    privacyStatus?: string;
   }>(),
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),
@@ -385,7 +392,7 @@ export type InsertScheduleItem = z.infer<typeof insertScheduleItemSchema>;
 export type InsertRevenueRecord = z.infer<typeof insertRevenueRecordSchema>;
 export type InsertCommunityPost = z.infer<typeof insertCommunityPostSchema>;
 
-export type UpdateChannelRequest = Partial<InsertChannel>;
+export type UpdateChannelRequest = Partial<InsertChannel> & { lastSyncAt?: Date };
 export type UpdateVideoRequest = Partial<InsertVideo>;
 
 export type StatsResponse = {
