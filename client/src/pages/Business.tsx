@@ -18,10 +18,12 @@ import {
 import {
   Briefcase, Plus, TrendingUp, DollarSign, Target, CheckCircle2, Trash2,
   Sparkles, CalendarDays, Handshake, ChevronDown, Mail,
+  Palette, Users, Eye, Shield, Heart, BookOpen,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useParams, useLocation } from "wouter";
 
-type TabKey = "Ventures" | "Goals" | "Sponsors";
+type TabKey = "ventures" | "goals" | "sponsors" | "brand" | "collabs" | "competitors" | "legal" | "wellness" | "learning";
 
 const ventureTypes = ["All", "Merch", "Courses", "Membership", "Affiliate", "Consulting", "Podcast", "SaaS", "Events", "Licensing"] as const;
 
@@ -764,34 +766,183 @@ function SponsorsTab() {
   );
 }
 
-const TABS: TabKey[] = ["Ventures", "Goals", "Sponsors"];
+function BrandTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Your Brand Kit</h2>
+        <p className="text-sm text-muted-foreground">Define your brand identity, colors, and guidelines</p>
+      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <Palette className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium mb-1" data-testid="text-empty-brand">Define your brand identity, colors, and guidelines</p>
+          <p className="text-xs text-muted-foreground">AI will auto-manage this</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function CollabsTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Collaborations</h2>
+        <p className="text-sm text-muted-foreground">Find and manage creator collaborations</p>
+      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <Users className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium mb-1" data-testid="text-empty-collabs">Find and manage creator collaborations</p>
+          <p className="text-xs text-muted-foreground">AI will auto-manage this</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function CompetitorsTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Competitor Analysis</h2>
+        <p className="text-sm text-muted-foreground">Track competitors and market positioning</p>
+      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <Eye className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium mb-1" data-testid="text-empty-competitors">Track competitors and market positioning</p>
+          <p className="text-xs text-muted-foreground">AI will auto-manage this</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function LegalTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Legal & Formation</h2>
+        <p className="text-sm text-muted-foreground">Manage business formation, trademarks, and legal protections</p>
+      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <Shield className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium mb-1" data-testid="text-empty-legal">Manage business formation, trademarks, and legal protections</p>
+          <p className="text-xs text-muted-foreground">AI will auto-manage this</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function WellnessTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Creator Wellness</h2>
+        <p className="text-sm text-muted-foreground">Track burnout prevention, work-life balance, and mental health</p>
+      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <Heart className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium mb-1" data-testid="text-empty-wellness">Track burnout prevention, work-life balance, and mental health</p>
+          <p className="text-xs text-muted-foreground">AI will auto-manage this</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function LearningTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Learning Hub</h2>
+        <p className="text-sm text-muted-foreground">Courses, certifications, and skill development tracking</p>
+      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <BookOpen className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium mb-1" data-testid="text-empty-learning">Courses, certifications, and skill development tracking</p>
+          <p className="text-xs text-muted-foreground">AI will auto-manage this</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+const VALID_TABS: TabKey[] = ["ventures", "goals", "sponsors", "brand", "collabs", "competitors", "legal", "wellness", "learning"];
+
+const TAB_LABELS: Record<TabKey, string> = {
+  ventures: "Ventures",
+  goals: "Goals",
+  sponsors: "Sponsors",
+  brand: "Brand",
+  collabs: "Collabs",
+  competitors: "Competitors",
+  legal: "Legal",
+  wellness: "Wellness",
+  learning: "Learning",
+};
+
+const TAB_GROUPS: { label: string; tabs: TabKey[] }[] = [
+  { label: "Business", tabs: ["ventures", "goals", "sponsors"] },
+  { label: "Growth", tabs: ["brand", "collabs", "competitors"] },
+  { label: "More", tabs: ["legal", "wellness", "learning"] },
+];
 
 export default function Business() {
-  const [activeTab, setActiveTab] = useState<TabKey>("Ventures");
+  const params = useParams<{ tab?: string }>();
+  const [, setLocation] = useLocation();
+  const activeTab: TabKey = VALID_TABS.includes(params.tab as TabKey) ? (params.tab as TabKey) : "ventures";
+
+  const handleTabClick = (tab: TabKey) => {
+    if (tab === "ventures") {
+      setLocation("/business");
+    } else {
+      setLocation(`/business/${tab}`);
+    }
+  };
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       <div>
-        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Business</h1>
-        <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground">Manage your ventures, goals, and sponsorship deals</p>
+        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Business Hub</h1>
+        <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground">Your ventures, growth, and business operations in one place</p>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {TABS.map((tab) => (
-          <Button
-            key={tab}
-            variant={activeTab === tab ? "default" : "secondary"}
-            onClick={() => setActiveTab(tab)}
-            data-testid={`tab-${tab.toLowerCase()}`}
-          >
-            {tab}
-          </Button>
+      <div className="flex items-center gap-2 flex-wrap">
+        {TAB_GROUPS.map((group, gi) => (
+          <div key={group.label} className="flex items-center gap-2 flex-wrap">
+            {gi > 0 && <span className="text-xs text-muted-foreground mx-1">|</span>}
+            <span className="text-xs text-muted-foreground">{group.label}</span>
+            {group.tabs.map((tab) => (
+              <Button
+                key={tab}
+                variant={activeTab === tab ? "default" : "secondary"}
+                size="sm"
+                onClick={() => handleTabClick(tab)}
+                data-testid={`tab-${tab}`}
+              >
+                {TAB_LABELS[tab]}
+              </Button>
+            ))}
+          </div>
         ))}
       </div>
 
-      {activeTab === "Ventures" && <VenturesTab />}
-      {activeTab === "Goals" && <GoalsTab />}
-      {activeTab === "Sponsors" && <SponsorsTab />}
+      {activeTab === "ventures" && <VenturesTab />}
+      {activeTab === "goals" && <GoalsTab />}
+      {activeTab === "sponsors" && <SponsorsTab />}
+      {activeTab === "brand" && <BrandTab />}
+      {activeTab === "collabs" && <CollabsTab />}
+      {activeTab === "competitors" && <CompetitorsTab />}
+      {activeTab === "legal" && <LegalTab />}
+      {activeTab === "wellness" && <WellnessTab />}
+      {activeTab === "learning" && <LearningTab />}
     </div>
   );
 }
