@@ -4,6 +4,9 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth/index"
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import {
   generateVideoMetadata,
   analyzeChannelGrowth,
@@ -2137,6 +2140,131 @@ export async function registerRoutes(
     if (!userId) return;
     const milestone = await storage.updateKnowledgeMilestone(Number(req.params.id), req.body);
     res.json(milestone);
+  });
+
+  // === STRIPE PAYMENTS ===
+  app.get("/api/stripe/publishable-key", async (_req, res) => {
+    try {
+      const key = await getStripePublishableKey();
+      res.json({ publishableKey: key });
+    } catch (error: any) {
+      console.error("Stripe key error:", error);
+      res.status(500).json({ error: "Failed to get Stripe key" });
+    }
+  });
+
+  app.post("/api/stripe/create-payment-link", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const stripe = await getUncachableStripeClient();
+      const { amount, description, customerEmail } = req.body;
+
+      if (!amount || amount < 100) {
+        return res.status(400).json({ error: "Amount must be at least $1.00 (100 cents)" });
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: description || 'Payment',
+              metadata: { creatorUserId: userId },
+            },
+            unit_amount: amount,
+          },
+          quantity: 1,
+        }],
+        mode: 'payment',
+        customer_email: customerEmail || undefined,
+        success_url: `${req.protocol}://${req.get('host')}/money?payment=success`,
+        cancel_url: `${req.protocol}://${req.get('host')}/money?payment=cancelled`,
+        metadata: { creatorUserId: userId },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "payment_link_created",
+        target: description || "Payment",
+        details: { amount, sessionId: session.id },
+        riskLevel: "low",
+      });
+
+      res.json({ url: session.url, sessionId: session.id });
+    } catch (error: any) {
+      console.error("Create payment link error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/stripe/payments", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await db.execute(
+        sql`SELECT * FROM stripe.payment_intents ORDER BY created DESC LIMIT 50`
+      );
+      res.json(result.rows || []);
+    } catch (error: any) {
+      if (error.message?.includes('relation "stripe.payment_intents" does not exist')) {
+        return res.json([]);
+      }
+      console.error("Fetch payments error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/stripe/balance", async (_req, res) => {
+    try {
+      const stripe = await getUncachableStripeClient();
+      const balance = await stripe.balance.retrieve();
+      res.json(balance);
+    } catch (error: any) {
+      console.error("Balance error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // === CSV IMPORT FOR CHASE ===
+  app.post("/api/expenses/import-csv", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { rows } = req.body;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ error: "No rows provided" });
+      }
+
+      const imported = [];
+      for (const row of rows) {
+        const record = await storage.createExpenseRecord({
+          userId,
+          description: row.description || "Imported expense",
+          amount: String(Math.abs(parseFloat(row.amount) || 0)),
+          category: row.category || "other",
+          date: row.date ? new Date(row.date).toISOString() : new Date().toISOString(),
+          vendor: row.vendor || row.description || "",
+          isDeductible: true,
+          notes: "Imported from Chase CSV",
+        });
+        imported.push(record);
+      }
+
+      await storage.createAuditLog({
+        userId,
+        action: "csv_imported",
+        target: "Chase CSV",
+        details: { count: imported.length },
+        riskLevel: "low",
+      });
+
+      res.json({ imported: imported.length, records: imported });
+    } catch (error: any) {
+      console.error("CSV import error:", error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   await seedDatabase();
