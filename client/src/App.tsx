@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { useEffect, useRef } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -19,19 +19,11 @@ import Advisor from "@/pages/Advisor";
 import StreamCenter from "@/pages/StreamCenter";
 import AITeam from "@/pages/AITeam";
 import Schedule from "@/pages/Schedule";
-import Monetization from "@/pages/Monetization";
-import Expenses from "@/pages/Expenses";
-import TaxCenter from "@/pages/TaxCenter";
-import BusinessFormation from "@/pages/BusinessFormation";
-import Ventures from "@/pages/Ventures";
-import Goals from "@/pages/Goals";
-import Sponsorships from "@/pages/Sponsorships";
-import BrandKit from "@/pages/BrandKit";
-import Collaborations from "@/pages/Collaborations";
-import Competitors from "@/pages/Competitors";
-import Wellness from "@/pages/Wellness";
-import KnowledgeHub from "@/pages/KnowledgeHub";
-import Protections from "@/pages/Protections";
+import Money from "@/pages/Money";
+import Business from "@/pages/Business";
+import Growth from "@/pages/Growth";
+import Legal from "@/pages/Legal";
+import You from "@/pages/You";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
@@ -52,19 +44,24 @@ function Router() {
       <Route path="/stream" component={StreamCenter} />
       <Route path="/team" component={AITeam} />
       <Route path="/schedule" component={Schedule} />
-      <Route path="/monetization" component={Monetization} />
-      <Route path="/expenses" component={Expenses} />
-      <Route path="/tax" component={TaxCenter} />
-      <Route path="/formation" component={BusinessFormation} />
-      <Route path="/ventures" component={Ventures} />
-      <Route path="/goals" component={Goals} />
-      <Route path="/sponsorships" component={Sponsorships} />
-      <Route path="/brand-kit" component={BrandKit} />
-      <Route path="/collaborations" component={Collaborations} />
-      <Route path="/competitors" component={Competitors} />
-      <Route path="/wellness" component={Wellness} />
-      <Route path="/knowledge" component={KnowledgeHub} />
-      <Route path="/protections" component={Protections} />
+      <Route path="/money" component={Money} />
+      <Route path="/business" component={Business} />
+      <Route path="/growth" component={Growth} />
+      <Route path="/legal" component={Legal} />
+      <Route path="/you" component={You} />
+      <Route path="/monetization">{() => <Redirect to="/money" />}</Route>
+      <Route path="/expenses">{() => <Redirect to="/money" />}</Route>
+      <Route path="/tax">{() => <Redirect to="/money" />}</Route>
+      <Route path="/ventures">{() => <Redirect to="/business" />}</Route>
+      <Route path="/goals">{() => <Redirect to="/business" />}</Route>
+      <Route path="/sponsorships">{() => <Redirect to="/business" />}</Route>
+      <Route path="/brand-kit">{() => <Redirect to="/growth" />}</Route>
+      <Route path="/collaborations">{() => <Redirect to="/growth" />}</Route>
+      <Route path="/competitors">{() => <Redirect to="/growth" />}</Route>
+      <Route path="/formation">{() => <Redirect to="/legal" />}</Route>
+      <Route path="/protections">{() => <Redirect to="/legal" />}</Route>
+      <Route path="/wellness">{() => <Redirect to="/you" />}</Route>
+      <Route path="/knowledge">{() => <Redirect to="/you" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );
