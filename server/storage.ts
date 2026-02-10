@@ -7,6 +7,7 @@ import {
   creatorMemory, contentClips, videoVersions, streamChatMessages, chatTopics,
   sponsorshipDeals, platformHealth, collaborationLeads, audienceSegments,
   complianceRules, userFeedback, subscriptions,
+  expenseRecords, businessVentures, businessGoals, taxEstimates, brandAssets, wellnessChecks, competitorTracks, knowledgeMilestones,
   type Channel, type InsertChannel, type UpdateChannelRequest,
   type Video, type InsertVideo, type UpdateVideoRequest,
   type Job, type InsertJob,
@@ -40,6 +41,14 @@ import {
   type ComplianceRule, type InsertComplianceRule,
   type UserFeedbackEntry, type InsertUserFeedback,
   type Subscription, type InsertSubscription,
+  type ExpenseRecord, type InsertExpenseRecord,
+  type BusinessVenture, type InsertBusinessVenture,
+  type BusinessGoal, type InsertBusinessGoal,
+  type TaxEstimate, type InsertTaxEstimate,
+  type BrandAsset, type InsertBrandAsset,
+  type WellnessCheck, type InsertWellnessCheck,
+  type CompetitorTrack, type InsertCompetitorTrack,
+  type KnowledgeMilestone, type InsertKnowledgeMilestone,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -186,6 +195,43 @@ export interface IStorage {
   getSubscription(userId: string): Promise<Subscription | undefined>;
   createSubscription(s: InsertSubscription): Promise<Subscription>;
   updateSubscription(id: number, updates: Partial<InsertSubscription>): Promise<Subscription>;
+
+  getExpenseRecords(userId: string): Promise<ExpenseRecord[]>;
+  createExpenseRecord(r: InsertExpenseRecord): Promise<ExpenseRecord>;
+  updateExpenseRecord(id: number, updates: Partial<InsertExpenseRecord>): Promise<ExpenseRecord>;
+  deleteExpenseRecord(id: number): Promise<void>;
+  getExpenseSummary(userId: string): Promise<{ total: number; byCategory: Record<string, number>; deductible: number }>;
+
+  getBusinessVentures(userId: string): Promise<BusinessVenture[]>;
+  createBusinessVenture(v: InsertBusinessVenture): Promise<BusinessVenture>;
+  updateBusinessVenture(id: number, updates: Partial<InsertBusinessVenture>): Promise<BusinessVenture>;
+  deleteBusinessVenture(id: number): Promise<void>;
+
+  getBusinessGoals(userId: string): Promise<BusinessGoal[]>;
+  createBusinessGoal(g: InsertBusinessGoal): Promise<BusinessGoal>;
+  updateBusinessGoal(id: number, updates: Partial<InsertBusinessGoal>): Promise<BusinessGoal>;
+  deleteBusinessGoal(id: number): Promise<void>;
+
+  getTaxEstimates(userId: string, year?: number): Promise<TaxEstimate[]>;
+  createTaxEstimate(t: InsertTaxEstimate): Promise<TaxEstimate>;
+  updateTaxEstimate(id: number, updates: Partial<InsertTaxEstimate>): Promise<TaxEstimate>;
+
+  getBrandAssets(userId: string): Promise<BrandAsset[]>;
+  createBrandAsset(a: InsertBrandAsset): Promise<BrandAsset>;
+  updateBrandAsset(id: number, updates: Partial<InsertBrandAsset>): Promise<BrandAsset>;
+  deleteBrandAsset(id: number): Promise<void>;
+
+  getWellnessChecks(userId: string, limit?: number): Promise<WellnessCheck[]>;
+  createWellnessCheck(w: InsertWellnessCheck): Promise<WellnessCheck>;
+
+  getCompetitorTracks(userId: string): Promise<CompetitorTrack[]>;
+  createCompetitorTrack(c: InsertCompetitorTrack): Promise<CompetitorTrack>;
+  updateCompetitorTrack(id: number, updates: Partial<InsertCompetitorTrack>): Promise<CompetitorTrack>;
+  deleteCompetitorTrack(id: number): Promise<void>;
+
+  getKnowledgeMilestones(userId: string): Promise<KnowledgeMilestone[]>;
+  createKnowledgeMilestone(m: InsertKnowledgeMilestone): Promise<KnowledgeMilestone>;
+  updateKnowledgeMilestone(id: number, updates: Partial<InsertKnowledgeMilestone>): Promise<KnowledgeMilestone>;
 
   getStats(): Promise<StatsResponse>;
 }
@@ -803,6 +849,150 @@ export class DatabaseStorage implements IStorage {
 
   async updateSubscription(id: number, updates: Partial<InsertSubscription>): Promise<Subscription> {
     const [updated] = await db.update(subscriptions).set(updates).where(eq(subscriptions.id, id)).returning();
+    return updated;
+  }
+
+  async getExpenseRecords(userId: string): Promise<ExpenseRecord[]> {
+    return await db.select().from(expenseRecords).where(eq(expenseRecords.userId, userId)).orderBy(desc(expenseRecords.createdAt));
+  }
+
+  async createExpenseRecord(r: InsertExpenseRecord): Promise<ExpenseRecord> {
+    const [newRecord] = await db.insert(expenseRecords).values(r).returning();
+    return newRecord;
+  }
+
+  async updateExpenseRecord(id: number, updates: Partial<InsertExpenseRecord>): Promise<ExpenseRecord> {
+    const [updated] = await db.update(expenseRecords).set(updates).where(eq(expenseRecords.id, id)).returning();
+    return updated;
+  }
+
+  async deleteExpenseRecord(id: number): Promise<void> {
+    await db.delete(expenseRecords).where(eq(expenseRecords.id, id));
+  }
+
+  async getExpenseSummary(userId: string): Promise<{ total: number; byCategory: Record<string, number>; deductible: number }> {
+    const records = await this.getExpenseRecords(userId);
+    const total = records.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const byCategory: Record<string, number> = {};
+    let deductible = 0;
+    for (const r of records) {
+      const cat = r.category || "uncategorized";
+      byCategory[cat] = (byCategory[cat] || 0) + (r.amount || 0);
+      if (r.taxDeductible) {
+        deductible += (r.amount || 0);
+      }
+    }
+    return { total, byCategory, deductible };
+  }
+
+  async getBusinessVentures(userId: string): Promise<BusinessVenture[]> {
+    return await db.select().from(businessVentures).where(eq(businessVentures.userId, userId)).orderBy(desc(businessVentures.createdAt));
+  }
+
+  async createBusinessVenture(v: InsertBusinessVenture): Promise<BusinessVenture> {
+    const [newVenture] = await db.insert(businessVentures).values(v).returning();
+    return newVenture;
+  }
+
+  async updateBusinessVenture(id: number, updates: Partial<InsertBusinessVenture>): Promise<BusinessVenture> {
+    const [updated] = await db.update(businessVentures).set(updates).where(eq(businessVentures.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBusinessVenture(id: number): Promise<void> {
+    await db.delete(businessVentures).where(eq(businessVentures.id, id));
+  }
+
+  async getBusinessGoals(userId: string): Promise<BusinessGoal[]> {
+    return await db.select().from(businessGoals).where(eq(businessGoals.userId, userId)).orderBy(desc(businessGoals.createdAt));
+  }
+
+  async createBusinessGoal(g: InsertBusinessGoal): Promise<BusinessGoal> {
+    const [newGoal] = await db.insert(businessGoals).values(g).returning();
+    return newGoal;
+  }
+
+  async updateBusinessGoal(id: number, updates: Partial<InsertBusinessGoal>): Promise<BusinessGoal> {
+    const [updated] = await db.update(businessGoals).set(updates).where(eq(businessGoals.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBusinessGoal(id: number): Promise<void> {
+    await db.delete(businessGoals).where(eq(businessGoals.id, id));
+  }
+
+  async getTaxEstimates(userId: string, year?: number): Promise<TaxEstimate[]> {
+    const conditions = [eq(taxEstimates.userId, userId)];
+    if (year) conditions.push(eq(taxEstimates.year, year));
+    return await db.select().from(taxEstimates).where(and(...conditions)).orderBy(desc(taxEstimates.createdAt));
+  }
+
+  async createTaxEstimate(t: InsertTaxEstimate): Promise<TaxEstimate> {
+    const [newEstimate] = await db.insert(taxEstimates).values(t).returning();
+    return newEstimate;
+  }
+
+  async updateTaxEstimate(id: number, updates: Partial<InsertTaxEstimate>): Promise<TaxEstimate> {
+    const [updated] = await db.update(taxEstimates).set(updates).where(eq(taxEstimates.id, id)).returning();
+    return updated;
+  }
+
+  async getBrandAssets(userId: string): Promise<BrandAsset[]> {
+    return await db.select().from(brandAssets).where(eq(brandAssets.userId, userId)).orderBy(desc(brandAssets.createdAt));
+  }
+
+  async createBrandAsset(a: InsertBrandAsset): Promise<BrandAsset> {
+    const [newAsset] = await db.insert(brandAssets).values(a).returning();
+    return newAsset;
+  }
+
+  async updateBrandAsset(id: number, updates: Partial<InsertBrandAsset>): Promise<BrandAsset> {
+    const [updated] = await db.update(brandAssets).set(updates).where(eq(brandAssets.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBrandAsset(id: number): Promise<void> {
+    await db.delete(brandAssets).where(eq(brandAssets.id, id));
+  }
+
+  async getWellnessChecks(userId: string, limit: number = 30): Promise<WellnessCheck[]> {
+    return await db.select().from(wellnessChecks).where(eq(wellnessChecks.userId, userId)).orderBy(desc(wellnessChecks.createdAt)).limit(limit);
+  }
+
+  async createWellnessCheck(w: InsertWellnessCheck): Promise<WellnessCheck> {
+    const [newCheck] = await db.insert(wellnessChecks).values(w).returning();
+    return newCheck;
+  }
+
+  async getCompetitorTracks(userId: string): Promise<CompetitorTrack[]> {
+    return await db.select().from(competitorTracks).where(eq(competitorTracks.userId, userId)).orderBy(desc(competitorTracks.createdAt));
+  }
+
+  async createCompetitorTrack(c: InsertCompetitorTrack): Promise<CompetitorTrack> {
+    const [newTrack] = await db.insert(competitorTracks).values(c).returning();
+    return newTrack;
+  }
+
+  async updateCompetitorTrack(id: number, updates: Partial<InsertCompetitorTrack>): Promise<CompetitorTrack> {
+    const [updated] = await db.update(competitorTracks).set(updates).where(eq(competitorTracks.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCompetitorTrack(id: number): Promise<void> {
+    await db.delete(competitorTracks).where(eq(competitorTracks.id, id));
+  }
+
+  async getKnowledgeMilestones(userId: string): Promise<KnowledgeMilestone[]> {
+    return await db.select().from(knowledgeMilestones).where(eq(knowledgeMilestones.userId, userId)).orderBy(desc(knowledgeMilestones.createdAt));
+  }
+
+  async createKnowledgeMilestone(m: InsertKnowledgeMilestone): Promise<KnowledgeMilestone> {
+    const [newMilestone] = await db.insert(knowledgeMilestones).values(m).returning();
+    return newMilestone;
+  }
+
+  async updateKnowledgeMilestone(id: number, updates: Partial<InsertKnowledgeMilestone>): Promise<KnowledgeMilestone> {
+    const [updated] = await db.update(knowledgeMilestones).set(updates).where(eq(knowledgeMilestones.id, id)).returning();
     return updated;
   }
 

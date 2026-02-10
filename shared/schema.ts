@@ -362,6 +362,7 @@ export const AI_AGENTS = [
   { id: "community_manager", name: "Community Manager", role: "Moderates comments, engages fans, handles DMs", icon: "Users" },
   { id: "business_manager", name: "Business Manager", role: "Revenue tracking, invoicing, sponsorship negotiations", icon: "Briefcase" },
   { id: "growth_strategist", name: "Growth Strategist", role: "A/B testing, collaboration outreach, viral content planning", icon: "TrendingUp" },
+  { id: "tax_strategist", name: "Tax Strategist", role: "Deduction finder, quarterly estimates, entity structure, state compliance", icon: "Calculator" },
 ] as const;
 
 export type AgentId = typeof AI_AGENTS[number]["id"];
@@ -988,6 +989,150 @@ export const subscriptions = pgTable("subscriptions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// === BUSINESS EXPANSION TABLES ===
+
+export const expenseRecords = pgTable("expense_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  amount: real("amount").notNull(),
+  currency: text("currency").default("USD"),
+  vendor: text("vendor"),
+  receiptUrl: text("receipt_url"),
+  taxDeductible: boolean("tax_deductible").default(true),
+  irsCategory: text("irs_category"),
+  platform: text("platform"),
+  recurring: boolean("recurring").default(false),
+  recurringFrequency: text("recurring_frequency"),
+  metadata: jsonb("metadata").$type<{
+    notes?: string;
+    projectName?: string;
+    ventureId?: number;
+    mileage?: number;
+    homeOfficePercent?: number;
+    depreciationYears?: number;
+  }>(),
+  expenseDate: timestamp("expense_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const businessVentures = pgTable("business_ventures", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  status: text("status").notNull().default("planning"),
+  description: text("description"),
+  revenue: real("revenue").default(0),
+  expenses: real("expenses").default(0),
+  launchDate: timestamp("launch_date"),
+  metadata: jsonb("metadata").$type<{
+    platform?: string;
+    url?: string;
+    pricing?: string;
+    targetAudience?: string;
+    milestones?: { name: string; date: string; completed: boolean }[];
+    kpis?: Record<string, number>;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const businessGoals = pgTable("business_goals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  category: text("category").notNull(),
+  targetValue: real("target_value"),
+  currentValue: real("current_value").default(0),
+  unit: text("unit").default("USD"),
+  deadline: timestamp("deadline"),
+  status: text("status").notNull().default("active"),
+  aiRecommendations: jsonb("ai_recommendations").$type<string[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const taxEstimates = pgTable("tax_estimates", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  quarter: text("quarter").notNull(),
+  year: integer("year").notNull(),
+  estimatedIncome: real("estimated_income").default(0),
+  estimatedDeductions: real("estimated_deductions").default(0),
+  estimatedTax: real("estimated_tax").default(0),
+  federalTax: real("federal_tax").default(0),
+  stateTax: real("state_tax").default(0),
+  selfEmploymentTax: real("self_employment_tax").default(0),
+  state: text("state"),
+  entityType: text("entity_type").default("sole_proprietor"),
+  dueDate: timestamp("due_date"),
+  paid: boolean("paid").default(false),
+  paidAmount: real("paid_amount"),
+  metadata: jsonb("metadata").$type<{
+    deductionBreakdown?: Record<string, number>;
+    incomeBreakdown?: Record<string, number>;
+    recommendations?: string[];
+    stateSpecific?: Record<string, any>;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const brandAssets = pgTable("brand_assets", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  assetType: text("asset_type").notNull(),
+  name: text("name").notNull(),
+  value: text("value").notNull(),
+  metadata: jsonb("metadata").$type<{
+    hex?: string;
+    fontFamily?: string;
+    fontWeight?: string;
+    url?: string;
+    usage?: string;
+    variations?: Record<string, string>;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const wellnessChecks = pgTable("wellness_checks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  mood: integer("mood").notNull(),
+  energy: integer("energy").notNull(),
+  stress: integer("stress").notNull(),
+  hoursWorked: real("hours_worked"),
+  notes: text("notes"),
+  aiRecommendation: text("ai_recommendation"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const competitorTracks = pgTable("competitor_tracks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  competitorName: text("competitor_name").notNull(),
+  platform: text("platform").notNull(),
+  channelUrl: text("channel_url"),
+  subscribers: integer("subscribers"),
+  avgViews: integer("avg_views"),
+  uploadFrequency: text("upload_frequency"),
+  strengths: jsonb("strengths").$type<string[]>(),
+  opportunities: jsonb("opportunities").$type<string[]>(),
+  lastAnalyzedAt: timestamp("last_analyzed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const knowledgeMilestones = pgTable("knowledge_milestones", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  topic: text("topic").notNull(),
+  category: text("category").notNull(),
+  progress: integer("progress").default(0),
+  completed: boolean("completed").default(false),
+  resources: jsonb("resources").$type<{ title: string; url?: string; type: string }[]>(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === INSERT SCHEMAS ===
 export const insertChannelSchema = createInsertSchema(channels).omit({ id: true, createdAt: true, lastSyncAt: true });
 export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true });
@@ -1021,6 +1166,14 @@ export const insertAudienceSegmentSchema = createInsertSchema(audienceSegments).
 export const insertComplianceRuleSchema = createInsertSchema(complianceRules).omit({ id: true, createdAt: true });
 export const insertUserFeedbackSchema = createInsertSchema(userFeedback).omit({ id: true, createdAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertExpenseRecordSchema = createInsertSchema(expenseRecords).omit({ id: true, createdAt: true });
+export const insertBusinessVentureSchema = createInsertSchema(businessVentures).omit({ id: true, createdAt: true });
+export const insertBusinessGoalSchema = createInsertSchema(businessGoals).omit({ id: true, createdAt: true });
+export const insertTaxEstimateSchema = createInsertSchema(taxEstimates).omit({ id: true, createdAt: true });
+export const insertBrandAssetSchema = createInsertSchema(brandAssets).omit({ id: true, createdAt: true });
+export const insertWellnessCheckSchema = createInsertSchema(wellnessChecks).omit({ id: true, createdAt: true });
+export const insertCompetitorTrackSchema = createInsertSchema(competitorTracks).omit({ id: true, createdAt: true });
+export const insertKnowledgeMilestoneSchema = createInsertSchema(knowledgeMilestones).omit({ id: true, createdAt: true });
 
 // === SELECT TYPES ===
 export type Channel = typeof channels.$inferSelect;
@@ -1055,6 +1208,14 @@ export type AudienceSegment = typeof audienceSegments.$inferSelect;
 export type ComplianceRule = typeof complianceRules.$inferSelect;
 export type UserFeedbackEntry = typeof userFeedback.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
+export type ExpenseRecord = typeof expenseRecords.$inferSelect;
+export type BusinessVenture = typeof businessVentures.$inferSelect;
+export type BusinessGoal = typeof businessGoals.$inferSelect;
+export type TaxEstimate = typeof taxEstimates.$inferSelect;
+export type BrandAsset = typeof brandAssets.$inferSelect;
+export type WellnessCheck = typeof wellnessChecks.$inferSelect;
+export type CompetitorTrack = typeof competitorTracks.$inferSelect;
+export type KnowledgeMilestone = typeof knowledgeMilestones.$inferSelect;
 
 // === INSERT TYPES ===
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
@@ -1089,6 +1250,15 @@ export type InsertAudienceSegment = z.infer<typeof insertAudienceSegmentSchema>;
 export type InsertComplianceRule = z.infer<typeof insertComplianceRuleSchema>;
 export type InsertUserFeedback = z.infer<typeof insertUserFeedbackSchema>;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+
+export type InsertExpenseRecord = z.infer<typeof insertExpenseRecordSchema>;
+export type InsertBusinessVenture = z.infer<typeof insertBusinessVentureSchema>;
+export type InsertBusinessGoal = z.infer<typeof insertBusinessGoalSchema>;
+export type InsertTaxEstimate = z.infer<typeof insertTaxEstimateSchema>;
+export type InsertBrandAsset = z.infer<typeof insertBrandAssetSchema>;
+export type InsertWellnessCheck = z.infer<typeof insertWellnessCheckSchema>;
+export type InsertCompetitorTrack = z.infer<typeof insertCompetitorTrackSchema>;
+export type InsertKnowledgeMilestone = z.infer<typeof insertKnowledgeMilestoneSchema>;
 
 export type UpdateChannelRequest = Partial<InsertChannel> & { lastSyncAt?: Date };
 export type UpdateVideoRequest = Partial<InsertVideo>;

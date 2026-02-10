@@ -15,6 +15,8 @@ import {
   generateThumbnailPrompt,
   runAgentTask,
   generateCommunityPost,
+  generateTaxStrategy,
+  generateExpenseAnalysis,
 } from "./ai-engine";
 import {
   runStyleScan,
@@ -1899,6 +1901,242 @@ export async function registerRoutes(
     const platform = req.query.platform as string | undefined;
     const rules = await storage.getComplianceRules(platform);
     res.json(rules);
+  });
+
+  // === EXPENSES ===
+  app.get("/api/expenses/summary", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const summary = await storage.getExpenseSummary(userId);
+    res.json(summary);
+  });
+
+  app.get("/api/expenses", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const records = await storage.getExpenseRecords(userId);
+    res.json(records);
+  });
+
+  app.post("/api/expenses", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const record = await storage.createExpenseRecord({ ...req.body, userId });
+    res.status(201).json(record);
+  });
+
+  app.put("/api/expenses/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const record = await storage.updateExpenseRecord(Number(req.params.id), req.body);
+    res.json(record);
+  });
+
+  app.delete("/api/expenses/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteExpenseRecord(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === TAX ANALYZE ===
+  app.post("/api/tax-analyze", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateTaxStrategy(req.body, userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Tax analysis failed" });
+    }
+  });
+
+  app.post("/api/expense-analyze", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateExpenseAnalysis(req.body, userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Expense analysis failed" });
+    }
+  });
+
+  // === BUSINESS VENTURES ===
+  app.get("/api/ventures", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const ventures = await storage.getBusinessVentures(userId);
+    res.json(ventures);
+  });
+
+  app.post("/api/ventures", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const venture = await storage.createBusinessVenture({ ...req.body, userId });
+    res.status(201).json(venture);
+  });
+
+  app.put("/api/ventures/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const venture = await storage.updateBusinessVenture(Number(req.params.id), req.body);
+    res.json(venture);
+  });
+
+  app.delete("/api/ventures/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteBusinessVenture(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === BUSINESS GOALS ===
+  app.get("/api/goals", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const goals = await storage.getBusinessGoals(userId);
+    res.json(goals);
+  });
+
+  app.post("/api/goals", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const goal = await storage.createBusinessGoal({ ...req.body, userId });
+    res.status(201).json(goal);
+  });
+
+  app.put("/api/goals/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const goal = await storage.updateBusinessGoal(Number(req.params.id), req.body);
+    res.json(goal);
+  });
+
+  app.delete("/api/goals/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteBusinessGoal(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === TAX ESTIMATES ===
+  app.get("/api/tax-estimates", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const year = req.query.year ? Number(req.query.year) : undefined;
+    const estimates = await storage.getTaxEstimates(userId, year);
+    res.json(estimates);
+  });
+
+  app.post("/api/tax-estimates", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const estimate = await storage.createTaxEstimate({ ...req.body, userId });
+    res.status(201).json(estimate);
+  });
+
+  app.put("/api/tax-estimates/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const estimate = await storage.updateTaxEstimate(Number(req.params.id), req.body);
+    res.json(estimate);
+  });
+
+  // === BRAND ASSETS ===
+  app.get("/api/brand-assets", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const assets = await storage.getBrandAssets(userId);
+    res.json(assets);
+  });
+
+  app.post("/api/brand-assets", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const asset = await storage.createBrandAsset({ ...req.body, userId });
+    res.status(201).json(asset);
+  });
+
+  app.put("/api/brand-assets/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const asset = await storage.updateBrandAsset(Number(req.params.id), req.body);
+    res.json(asset);
+  });
+
+  app.delete("/api/brand-assets/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteBrandAsset(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === WELLNESS ===
+  app.get("/api/wellness", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+    const checks = await storage.getWellnessChecks(userId, limit);
+    res.json(checks);
+  });
+
+  app.post("/api/wellness", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const check = await storage.createWellnessCheck({ ...req.body, userId });
+    res.status(201).json(check);
+  });
+
+  // === COMPETITORS ===
+  app.get("/api/competitors", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const competitors = await storage.getCompetitorTracks(userId);
+    res.json(competitors);
+  });
+
+  app.post("/api/competitors", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const competitor = await storage.createCompetitorTrack({ ...req.body, userId });
+    res.status(201).json(competitor);
+  });
+
+  app.put("/api/competitors/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const competitor = await storage.updateCompetitorTrack(Number(req.params.id), req.body);
+    res.json(competitor);
+  });
+
+  app.delete("/api/competitors/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteCompetitorTrack(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === KNOWLEDGE ===
+  app.get("/api/knowledge", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const milestones = await storage.getKnowledgeMilestones(userId);
+    res.json(milestones);
+  });
+
+  app.post("/api/knowledge", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const milestone = await storage.createKnowledgeMilestone({ ...req.body, userId });
+    res.status(201).json(milestone);
+  });
+
+  app.put("/api/knowledge/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const milestone = await storage.updateKnowledgeMilestone(Number(req.params.id), req.body);
+    res.json(milestone);
   });
 
   await seedDatabase();

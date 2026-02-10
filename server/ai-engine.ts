@@ -494,6 +494,7 @@ const AGENT_ROLES: Record<string, string> = {
   community_manager: "community manager who moderates comments, engages with fans, handles DMs, and builds community",
   business_manager: "business manager who tracks revenue, handles invoicing, negotiates sponsorships, and manages finances",
   growth_strategist: "growth strategist who designs A/B tests, plans collaborations, identifies viral content opportunities, and drives channel growth",
+  tax_strategist: "tax strategist who finds deductions, calculates quarterly estimates, recommends entity structure changes (sole prop to LLC to S-Corp), monitors state tax obligations, and ensures IRS compliance for content creators",
 };
 
 export async function runAgentTask(agentId: string, context: {
@@ -589,4 +590,111 @@ Create an engaging community post as JSON:
   const communityContent = communityResponse.choices[0]?.message?.content;
   if (!communityContent) throw new Error("No response from AI");
   return JSON.parse(communityContent);
+}
+
+export async function generateTaxStrategy(data: {
+  totalRevenue: number;
+  totalExpenses: number;
+  state: string;
+  entityType: string;
+  expenses: Array<{ category: string; amount: number; description: string }>;
+  platforms: string[];
+  year: number;
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+
+  const expenseBreakdown = data.expenses.map(e =>
+    `- ${e.category}: $${e.amount} (${e.description})`
+  ).join('\n');
+
+  const prompt = `You are a tax strategist specializing in content creators and digital entrepreneurs. Analyze this creator's financial situation and provide comprehensive tax optimization advice.
+
+Total Revenue: $${data.totalRevenue}
+Total Expenses: $${data.totalExpenses}
+Net Income: $${data.totalRevenue - data.totalExpenses}
+State: ${data.state}
+Entity Type: ${data.entityType}
+Tax Year: ${data.year}
+Platforms: ${data.platforms.join(', ')}
+
+Expense Breakdown:
+${expenseBreakdown || 'No expenses provided'}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Provide your analysis as JSON with exactly these fields:
+{
+  "quarterlyEstimate": { "federal": 0, "state": 0, "selfEmployment": 0, "total": 0 },
+  "deductionOpportunities": [{ "category": "", "description": "", "estimatedSavings": 0, "irsCategory": "" }],
+  "entityRecommendation": { "currentType": "", "recommendedType": "", "reason": "", "savingsEstimate": 0, "threshold": "" },
+  "stateSpecific": { "stateTaxRate": 0, "filingRequirements": [], "deadlines": [] },
+  "warnings": [""],
+  "optimizationScore": 75
+}
+
+Focus on:
+- Accurate quarterly estimated tax calculations for federal, state, and self-employment taxes
+- Content creator-specific deductions (equipment, software, home office, internet, travel for events, etc.)
+- Whether the creator should change entity structure based on their income level
+- State-specific tax obligations and filing requirements
+- IRS compliance warnings and common audit triggers for content creators
+- Platform-specific tax considerations (1099 reporting thresholds, international income)`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 2048,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("No response from AI");
+  return JSON.parse(content);
+}
+
+export async function generateExpenseAnalysis(data: {
+  expenses: Array<{ category: string; amount: number; description: string; vendor?: string }>;
+  revenue: number;
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+
+  const expenseList = data.expenses.map(e =>
+    `- ${e.description}: $${e.amount} (Category: ${e.category}${e.vendor ? `, Vendor: ${e.vendor}` : ''})`
+  ).join('\n');
+
+  const prompt = `You are a tax expense analyst specializing in content creators. Review these expenses and suggest better categorization, identify missing deductions, and provide optimization recommendations.
+
+Total Revenue: $${data.revenue}
+Total Expenses: $${data.expenses.reduce((sum, e) => sum + e.amount, 0)}
+Expense-to-Revenue Ratio: ${((data.expenses.reduce((sum, e) => sum + e.amount, 0) / data.revenue) * 100).toFixed(1)}%
+
+Expenses:
+${expenseList || 'No expenses provided'}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Provide your analysis as JSON with exactly these fields:
+{
+  "suggestions": [{ "expense": "", "currentCategory": "", "betterCategory": "", "reason": "" }],
+  "missingDeductions": [{ "category": "", "description": "", "typicalAmount": 0 }],
+  "expenseRatio": 0,
+  "healthScore": 85,
+  "recommendations": [""]
+}
+
+Focus on:
+- Recategorizing expenses into proper IRS-recognized categories for maximum deduction value
+- Identifying commonly missed deductions for content creators (home office, internet, phone, equipment depreciation, software subscriptions, travel for conventions/events, professional development)
+- Calculating expense-to-revenue ratio and whether it is healthy
+- Providing an overall financial health score based on expense management
+- Specific actionable recommendations to improve tax efficiency`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 2048,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("No response from AI");
+  return JSON.parse(content);
 }
