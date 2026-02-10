@@ -1,11 +1,18 @@
-import { Zap, ArrowRight, Bot, Video, Radio } from "lucide-react";
+import { Zap, ArrowRight, Globe, Bot, Send, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+const features = [
+  { icon: Globe, label: "25 Platforms", description: "Distribute content everywhere" },
+  { icon: Bot, label: "10 AI Agents", description: "Automate your workflow" },
+  { icon: Send, label: "Auto-Publish", description: "Schedule and forget" },
+  { icon: DollarSign, label: "Revenue Tracking", description: "Monitor all income streams" },
+];
 
 export default function Landing() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="border-b border-border">
-        <div className="max-w-4xl mx-auto flex items-center justify-between h-14 px-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 h-14 px-4">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
               <Zap className="h-4 w-4 text-primary-foreground" />
@@ -25,50 +32,40 @@ export default function Landing() {
       </nav>
 
       <div className="flex-1 flex items-center">
-        <div className="max-w-4xl mx-auto px-4 py-16 w-full">
-          <div className="max-w-xl">
-            <h1 data-testid="text-hero-heading" className="font-display text-3xl sm:text-4xl font-bold leading-tight">
-              Your YouTube Team,{" "}
-              <span className="text-primary">Powered by AI</span>
+        <div className="max-w-5xl mx-auto px-4 py-20 w-full">
+          <div className="max-w-2xl">
+            <h1 data-testid="text-hero-heading" className="font-display text-4xl sm:text-5xl font-bold leading-tight tracking-tight">
+              Your AI Content Team
             </h1>
-            <p className="mt-4 text-muted-foreground leading-relaxed">
-              10 AI agents handle your content, SEO, thumbnails, and growth strategy.
-              Connect your YouTube channel and let automation do the work.
+            <p data-testid="text-hero-subtitle" className="mt-5 text-lg text-muted-foreground leading-relaxed max-w-xl">
+              CreatorOS runs your entire content business across 25 platforms. Upload, optimize, schedule, publish - all on autopilot.
             </p>
-            <div className="mt-6 flex items-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button
                 data-testid="button-sign-in-hero"
                 onClick={() => { window.location.href = "/api/login"; }}
               >
-                Get Started
+                Sign in with Google
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
-              <span className="text-xs text-muted-foreground">Free to use</span>
+              <span className="text-xs text-muted-foreground">Free to start</span>
             </div>
           </div>
 
-          <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <Bot className="h-5 w-5 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">10 AI Agents</h3>
-              <p className="text-sm text-muted-foreground">Editing, SEO, thumbnails, social media, and growth - all automated.</p>
-            </div>
-            <div className="space-y-2">
-              <Video className="h-5 w-5 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Smart Optimization</h3>
-              <p className="text-sm text-muted-foreground">AI optimizes your entire video library with titles, tags, and descriptions.</p>
-            </div>
-            <div className="space-y-2">
-              <Radio className="h-5 w-5 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Multi-Platform</h3>
-              <p className="text-sm text-muted-foreground">Stream to YouTube, Twitch, Kick, TikTok, and 5 more platforms at once.</p>
-            </div>
+          <div className="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6">
+            {features.map((feature) => (
+              <div key={feature.label} className="space-y-2" data-testid={`feature-${feature.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                <feature.icon className="h-5 w-5 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">{feature.label}</h3>
+                <p className="text-sm text-muted-foreground">{feature.description}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       <footer className="border-t border-border py-4">
-        <div className="max-w-4xl mx-auto px-4 text-xs text-muted-foreground">
+        <div className="max-w-5xl mx-auto px-4 text-xs text-muted-foreground">
           CreatorOS &copy; {new Date().getFullYear()}
         </div>
       </footer>

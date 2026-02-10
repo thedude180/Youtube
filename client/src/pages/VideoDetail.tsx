@@ -7,17 +7,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
-import { Sparkles, Save, Calendar, Globe, AlertTriangle, PlayCircle, ArrowLeft, Upload, Loader2 } from "lucide-react";
+import { Sparkles, Save, Calendar, Globe, AlertTriangle, PlayCircle, ArrowLeft, Upload, Loader2, ThumbsUp, ThumbsDown, History } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { useForm } from "react-hook-form";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type { VideoVersion } from "@shared/schema";
 
 const schema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -32,6 +34,7 @@ export default function VideoDetail() {
   const { data: video, isLoading } = useVideo(id);
   const updateVideo = useUpdateVideo();
   const generateMetadata = useGenerateMetadata();
+  const [feedbackGiven, setFeedbackGiven] = useState<number | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -69,6 +72,50 @@ export default function VideoDetail() {
     },
   });
 
+  const feedbackMutation = useMutation({
+    mutationFn: async (rating: number) => {
+      const res = await apiRequest("POST", "/api/feedback", {
+        targetType: "video",
+        targetId: id,
+        rating,
+        aiFunction: "metadata",
+      });
+      return res.json();
+    },
+    onSuccess: (_, rating) => {
+      setFeedbackGiven(rating);
+      toast({ title: "Feedback recorded", description: "Thank you for your feedback." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Feedback failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const abTestMutation = useMutation({
+    mutationFn: async (title: string) => {
+      const res = await apiRequest("PUT", `/api/videos/${id}`, { title });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/videos', id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/videos'] });
+      toast({ title: "Title Updated", description: "The video title has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { data: versions } = useQuery<VideoVersion[]>({
+    queryKey: ['/api/video-versions', id],
+    queryFn: async () => {
+      const res = await fetch(`/api/video-versions/${id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch version history");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
   const onSubmit = (data: FormData) => {
     updateVideo.mutate({ id, ...data });
   };
@@ -82,6 +129,9 @@ export default function VideoDetail() {
       </Button>
     </div>
   );
+
+  const seoScore = video.metadata?.seoScore;
+  const aiTitle = video.metadata?.aiSuggestions?.titleHooks?.[0];
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto animate-in fade-in duration-500">
@@ -196,14 +246,86 @@ export default function VideoDetail() {
                     </div>
                   )}
                 </div>
+
+                <div className="mt-6 pt-4 border-t border-purple-500/10">
+                  <p className="text-sm text-purple-300 mb-3">Was this AI suggestion helpful?</p>
+                  <div className="flex gap-3">
+                    <Button
+                      data-testid="button-feedback-thumbs-up"
+                      variant="outline"
+                      size="sm"
+                      disabled={feedbackMutation.isPending || feedbackGiven !== null}
+                      onClick={() => feedbackMutation.mutate(1)}
+                      className={cn(
+                        "border-purple-500/20",
+                        feedbackGiven === 1 && "bg-green-500/20 border-green-500/40 text-green-400"
+                      )}
+                    >
+                      <ThumbsUp className="h-4 w-4 mr-2" />
+                      Helpful
+                    </Button>
+                    <Button
+                      data-testid="button-feedback-thumbs-down"
+                      variant="outline"
+                      size="sm"
+                      disabled={feedbackMutation.isPending || feedbackGiven !== null}
+                      onClick={() => feedbackMutation.mutate(-1)}
+                      className={cn(
+                        "border-purple-500/20",
+                        feedbackGiven === -1 && "bg-red-500/20 border-red-500/40 text-red-400"
+                      )}
+                    >
+                      <ThumbsDown className="h-4 w-4 mr-2" />
+                      Not Helpful
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {aiTitle && (
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-4">A/B Test - Test Different Titles</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg bg-secondary/30 border border-border/50 space-y-3">
+                    <Badge variant="secondary" className="text-xs">Original</Badge>
+                    <p data-testid="text-ab-original-title" className="text-sm font-medium">{video.title}</p>
+                    <Button
+                      data-testid="button-ab-use-original"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={abTestMutation.isPending}
+                      onClick={() => abTestMutation.mutate(video.title)}
+                    >
+                      Use Original
+                    </Button>
+                  </div>
+                  <div className="p-4 rounded-lg bg-secondary/30 border border-border/50 space-y-3">
+                    <Badge variant="secondary" className="text-xs">AI Suggested</Badge>
+                    <p data-testid="text-ab-ai-title" className="text-sm font-medium">{aiTitle}</p>
+                    <Button
+                      data-testid="button-ab-use-ai"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={abTestMutation.isPending}
+                      onClick={() => abTestMutation.mutate(aiTitle)}
+                    >
+                      Use AI Title
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
         </div>
 
         <div className="space-y-6">
-          <Card className="overflow-hidden">
-            <div className="aspect-video bg-black relative">
+          <Card className="overflow-visible">
+            <div className="aspect-video bg-black relative rounded-t-md overflow-hidden">
               {video.thumbnailUrl && (
                 <img src={video.thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
               )}
@@ -218,6 +340,41 @@ export default function VideoDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {seoScore !== undefined && seoScore !== null && (
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">SEO Score</h3>
+                <div className="flex items-center gap-3">
+                  <Badge
+                    data-testid="badge-seo-score"
+                    variant="secondary"
+                    className={cn(
+                      "text-sm font-bold",
+                      seoScore >= 80 && "bg-green-500/20 text-green-400 border-green-500/30",
+                      seoScore >= 60 && seoScore < 80 && "bg-amber-500/20 text-amber-400 border-amber-500/30",
+                      seoScore < 60 && "bg-red-500/20 text-red-400 border-red-500/30"
+                    )}
+                  >
+                    {seoScore}/100
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {seoScore >= 80 ? "Excellent" : seoScore >= 60 ? "Good" : "Needs Improvement"}
+                  </span>
+                </div>
+                <Progress
+                  data-testid="progress-seo-score"
+                  value={seoScore}
+                  className={cn(
+                    "h-2",
+                    seoScore >= 80 && "[&>div]:bg-green-500",
+                    seoScore >= 60 && seoScore < 80 && "[&>div]:bg-amber-500",
+                    seoScore < 60 && "[&>div]:bg-red-500"
+                  )}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-6 space-y-4">
@@ -275,6 +432,50 @@ export default function VideoDetail() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <History className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Version History</h3>
+            </div>
+            {!versions || versions.length === 0 ? (
+              <p data-testid="text-no-versions" className="text-sm text-muted-foreground">No version history yet</p>
+            ) : (
+              <div className="space-y-3" data-testid="list-version-history">
+                {versions.map((version) => (
+                  <div
+                    key={version.id}
+                    data-testid={`version-entry-${version.id}`}
+                    className="flex items-start justify-between gap-4 p-3 rounded-lg bg-secondary/30 border border-border/50"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className="text-xs">v{version.versionNumber}</Badge>
+                        <span className="text-sm font-medium">{version.changeType}</span>
+                      </div>
+                      {version.previousData && (
+                        <p className="text-xs text-muted-foreground">
+                          {version.previousData.title && `Previous title: "${version.previousData.title}"`}
+                          {version.previousData.description && !version.previousData.title && "Description changed"}
+                          {version.previousData.tags && !version.previousData.title && !version.previousData.description && "Tags changed"}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-muted-foreground">
+                        {version.createdAt ? format(new Date(version.createdAt), "MMM d, yyyy HH:mm") : "Unknown"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{version.changedBy || "Unknown"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

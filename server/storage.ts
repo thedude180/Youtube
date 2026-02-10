@@ -3,6 +3,10 @@ import {
   channels, videos, jobs, auditLogs, contentInsights, complianceRecords, growthStrategies,
   streamDestinations, streams, thumbnails, aiAgentActivities, automationRules,
   scheduleItems, revenueRecords, communityPosts,
+  notifications, abTests, analyticsSnapshots, learningInsights, contentIdeas,
+  creatorMemory, contentClips, videoVersions, streamChatMessages, chatTopics,
+  sponsorshipDeals, platformHealth, collaborationLeads, audienceSegments,
+  complianceRules, userFeedback, subscriptions,
   type Channel, type InsertChannel, type UpdateChannelRequest,
   type Video, type InsertVideo, type UpdateVideoRequest,
   type Job, type InsertJob,
@@ -18,7 +22,24 @@ import {
   type ScheduleItem, type InsertScheduleItem,
   type RevenueRecord, type InsertRevenueRecord,
   type CommunityPost, type InsertCommunityPost,
-  type StatsResponse
+  type StatsResponse,
+  type Notification, type InsertNotification,
+  type AbTest, type InsertAbTest,
+  type AnalyticsSnapshot, type InsertAnalyticsSnapshot,
+  type LearningInsight, type InsertLearningInsight,
+  type ContentIdea, type InsertContentIdea,
+  type CreatorMemoryEntry, type InsertCreatorMemory,
+  type ContentClip, type InsertContentClip,
+  type VideoVersion, type InsertVideoVersion,
+  type StreamChatMessage, type InsertStreamChatMessage,
+  type ChatTopic, type InsertChatTopic,
+  type SponsorshipDeal, type InsertSponsorshipDeal,
+  type PlatformHealthRecord, type InsertPlatformHealth,
+  type CollaborationLead, type InsertCollaborationLead,
+  type AudienceSegment, type InsertAudienceSegment,
+  type ComplianceRule, type InsertComplianceRule,
+  type UserFeedbackEntry, type InsertUserFeedback,
+  type Subscription, type InsertSubscription,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -93,6 +114,78 @@ export interface IStorage {
   getCommunityPosts(userId?: string, platform?: string): Promise<CommunityPost[]>;
   createCommunityPost(post: InsertCommunityPost): Promise<CommunityPost>;
   updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>): Promise<CommunityPost>;
+
+  getNotifications(userId: string): Promise<Notification[]>;
+  getUnreadCount(userId: string): Promise<number>;
+  createNotification(n: InsertNotification): Promise<Notification>;
+  markRead(id: number): Promise<Notification>;
+  markAllRead(userId: string): Promise<void>;
+
+  getAbTests(userId: string, videoId?: number): Promise<AbTest[]>;
+  getAbTest(id: number): Promise<AbTest | undefined>;
+  createAbTest(t: InsertAbTest): Promise<AbTest>;
+  updateAbTest(id: number, updates: Partial<InsertAbTest>): Promise<AbTest>;
+
+  getAnalyticsSnapshots(userId: string, from?: Date, to?: Date): Promise<AnalyticsSnapshot[]>;
+  createAnalyticsSnapshot(s: InsertAnalyticsSnapshot): Promise<AnalyticsSnapshot>;
+
+  getLearningInsights(userId?: string, isGlobal?: boolean): Promise<LearningInsight[]>;
+  createLearningInsight(i: InsertLearningInsight): Promise<LearningInsight>;
+  updateLearningInsight(id: number, updates: Partial<InsertLearningInsight>): Promise<LearningInsight>;
+
+  getContentIdeas(userId: string, status?: string): Promise<ContentIdea[]>;
+  getContentIdea(id: number): Promise<ContentIdea | undefined>;
+  createContentIdea(i: InsertContentIdea): Promise<ContentIdea>;
+  updateContentIdea(id: number, updates: Partial<InsertContentIdea>): Promise<ContentIdea>;
+  deleteContentIdea(id: number): Promise<void>;
+
+  getCreatorMemory(userId: string, memoryType?: string): Promise<CreatorMemoryEntry[]>;
+  createCreatorMemory(m: InsertCreatorMemory): Promise<CreatorMemoryEntry>;
+  updateCreatorMemory(id: number, updates: Partial<InsertCreatorMemory>): Promise<CreatorMemoryEntry>;
+  getCreatorMemoryByKey(userId: string, key: string): Promise<CreatorMemoryEntry | undefined>;
+
+  getContentClips(userId: string, sourceVideoId?: number): Promise<ContentClip[]>;
+  createContentClip(c: InsertContentClip): Promise<ContentClip>;
+  updateContentClip(id: number, updates: Partial<InsertContentClip>): Promise<ContentClip>;
+
+  getVideoVersions(videoId: number): Promise<VideoVersion[]>;
+  createVideoVersion(v: InsertVideoVersion): Promise<VideoVersion>;
+
+  getStreamChatMessages(streamId: number, limit?: number): Promise<StreamChatMessage[]>;
+  createStreamChatMessage(m: InsertStreamChatMessage): Promise<StreamChatMessage>;
+
+  getChatTopics(streamId: number): Promise<ChatTopic[]>;
+  createChatTopic(t: InsertChatTopic): Promise<ChatTopic>;
+  updateChatTopic(id: number, updates: Partial<InsertChatTopic>): Promise<ChatTopic>;
+
+  getSponsorshipDeals(userId: string, status?: string): Promise<SponsorshipDeal[]>;
+  getSponsorshipDeal(id: number): Promise<SponsorshipDeal | undefined>;
+  createSponsorshipDeal(d: InsertSponsorshipDeal): Promise<SponsorshipDeal>;
+  updateSponsorshipDeal(id: number, updates: Partial<InsertSponsorshipDeal>): Promise<SponsorshipDeal>;
+  deleteSponsorshipDeal(id: number): Promise<void>;
+
+  getPlatformHealth(userId: string, platform?: string): Promise<PlatformHealthRecord[]>;
+  createPlatformHealth(h: InsertPlatformHealth): Promise<PlatformHealthRecord>;
+  updatePlatformHealth(id: number, updates: Partial<InsertPlatformHealth>): Promise<PlatformHealthRecord>;
+
+  getCollaborationLeads(userId: string): Promise<CollaborationLead[]>;
+  createCollaborationLead(l: InsertCollaborationLead): Promise<CollaborationLead>;
+  updateCollaborationLead(id: number, updates: Partial<InsertCollaborationLead>): Promise<CollaborationLead>;
+
+  getAudienceSegments(userId: string): Promise<AudienceSegment[]>;
+  createAudienceSegment(s: InsertAudienceSegment): Promise<AudienceSegment>;
+  updateAudienceSegment(id: number, updates: Partial<InsertAudienceSegment>): Promise<AudienceSegment>;
+
+  getComplianceRules(platform?: string): Promise<ComplianceRule[]>;
+  createComplianceRule(r: InsertComplianceRule): Promise<ComplianceRule>;
+  updateComplianceRule(id: number, updates: Partial<InsertComplianceRule>): Promise<ComplianceRule>;
+
+  getUserFeedback(userId: string, targetType?: string, targetId?: number): Promise<UserFeedbackEntry[]>;
+  createUserFeedback(f: InsertUserFeedback): Promise<UserFeedbackEntry>;
+
+  getSubscription(userId: string): Promise<Subscription | undefined>;
+  createSubscription(s: InsertSubscription): Promise<Subscription>;
+  updateSubscription(id: number, updates: Partial<InsertSubscription>): Promise<Subscription>;
 
   getStats(): Promise<StatsResponse>;
 }
@@ -427,6 +520,289 @@ export class DatabaseStorage implements IStorage {
 
   async updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>): Promise<CommunityPost> {
     const [updated] = await db.update(communityPosts).set(updates).where(eq(communityPosts.id, id)).returning();
+    return updated;
+  }
+
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(notifications).where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+    return Number(result[0].count);
+  }
+
+  async createNotification(n: InsertNotification): Promise<Notification> {
+    const [newNotification] = await db.insert(notifications).values(n).returning();
+    return newNotification;
+  }
+
+  async markRead(id: number): Promise<Notification> {
+    const [updated] = await db.update(notifications).set({ read: true }).where(eq(notifications.id, id)).returning();
+    return updated;
+  }
+
+  async markAllRead(userId: string): Promise<void> {
+    await db.update(notifications).set({ read: true }).where(eq(notifications.userId, userId));
+  }
+
+  async getAbTests(userId: string, videoId?: number): Promise<AbTest[]> {
+    const conditions = [eq(abTests.userId, userId)];
+    if (videoId) conditions.push(eq(abTests.videoId, videoId));
+    return await db.select().from(abTests).where(and(...conditions)).orderBy(desc(abTests.createdAt));
+  }
+
+  async getAbTest(id: number): Promise<AbTest | undefined> {
+    const [test] = await db.select().from(abTests).where(eq(abTests.id, id));
+    return test;
+  }
+
+  async createAbTest(t: InsertAbTest): Promise<AbTest> {
+    const [newTest] = await db.insert(abTests).values(t).returning();
+    return newTest;
+  }
+
+  async updateAbTest(id: number, updates: Partial<InsertAbTest>): Promise<AbTest> {
+    const [updated] = await db.update(abTests).set(updates).where(eq(abTests.id, id)).returning();
+    return updated;
+  }
+
+  async getAnalyticsSnapshots(userId: string, from?: Date, to?: Date): Promise<AnalyticsSnapshot[]> {
+    const conditions = [eq(analyticsSnapshots.userId, userId)];
+    if (from) conditions.push(gte(analyticsSnapshots.snapshotDate, from));
+    if (to) conditions.push(lte(analyticsSnapshots.snapshotDate, to));
+    return await db.select().from(analyticsSnapshots).where(and(...conditions)).orderBy(desc(analyticsSnapshots.createdAt));
+  }
+
+  async createAnalyticsSnapshot(s: InsertAnalyticsSnapshot): Promise<AnalyticsSnapshot> {
+    const [newSnapshot] = await db.insert(analyticsSnapshots).values(s).returning();
+    return newSnapshot;
+  }
+
+  async getLearningInsights(userId?: string, isGlobal?: boolean): Promise<LearningInsight[]> {
+    const conditions = [];
+    if (userId) conditions.push(eq(learningInsights.userId, userId));
+    if (isGlobal !== undefined) conditions.push(eq(learningInsights.isGlobal, isGlobal));
+    if (conditions.length > 0) {
+      return await db.select().from(learningInsights).where(and(...conditions)).orderBy(desc(learningInsights.createdAt));
+    }
+    return await db.select().from(learningInsights).orderBy(desc(learningInsights.createdAt));
+  }
+
+  async createLearningInsight(i: InsertLearningInsight): Promise<LearningInsight> {
+    const [newInsight] = await db.insert(learningInsights).values(i).returning();
+    return newInsight;
+  }
+
+  async updateLearningInsight(id: number, updates: Partial<InsertLearningInsight>): Promise<LearningInsight> {
+    const [updated] = await db.update(learningInsights).set(updates).where(eq(learningInsights.id, id)).returning();
+    return updated;
+  }
+
+  async getContentIdeas(userId: string, status?: string): Promise<ContentIdea[]> {
+    const conditions = [eq(contentIdeas.userId, userId)];
+    if (status) conditions.push(eq(contentIdeas.status, status));
+    return await db.select().from(contentIdeas).where(and(...conditions)).orderBy(desc(contentIdeas.createdAt));
+  }
+
+  async getContentIdea(id: number): Promise<ContentIdea | undefined> {
+    const [idea] = await db.select().from(contentIdeas).where(eq(contentIdeas.id, id));
+    return idea;
+  }
+
+  async createContentIdea(i: InsertContentIdea): Promise<ContentIdea> {
+    const [newIdea] = await db.insert(contentIdeas).values(i).returning();
+    return newIdea;
+  }
+
+  async updateContentIdea(id: number, updates: Partial<InsertContentIdea>): Promise<ContentIdea> {
+    const [updated] = await db.update(contentIdeas).set(updates).where(eq(contentIdeas.id, id)).returning();
+    return updated;
+  }
+
+  async deleteContentIdea(id: number): Promise<void> {
+    await db.delete(contentIdeas).where(eq(contentIdeas.id, id));
+  }
+
+  async getCreatorMemory(userId: string, memoryType?: string): Promise<CreatorMemoryEntry[]> {
+    const conditions = [eq(creatorMemory.userId, userId)];
+    if (memoryType) conditions.push(eq(creatorMemory.memoryType, memoryType));
+    return await db.select().from(creatorMemory).where(and(...conditions)).orderBy(desc(creatorMemory.createdAt));
+  }
+
+  async createCreatorMemory(m: InsertCreatorMemory): Promise<CreatorMemoryEntry> {
+    const [newMemory] = await db.insert(creatorMemory).values(m).returning();
+    return newMemory;
+  }
+
+  async updateCreatorMemory(id: number, updates: Partial<InsertCreatorMemory>): Promise<CreatorMemoryEntry> {
+    const [updated] = await db.update(creatorMemory).set(updates).where(eq(creatorMemory.id, id)).returning();
+    return updated;
+  }
+
+  async getCreatorMemoryByKey(userId: string, key: string): Promise<CreatorMemoryEntry | undefined> {
+    const [entry] = await db.select().from(creatorMemory).where(and(eq(creatorMemory.userId, userId), eq(creatorMemory.key, key)));
+    return entry;
+  }
+
+  async getContentClips(userId: string, sourceVideoId?: number): Promise<ContentClip[]> {
+    const conditions = [eq(contentClips.userId, userId)];
+    if (sourceVideoId) conditions.push(eq(contentClips.sourceVideoId, sourceVideoId));
+    return await db.select().from(contentClips).where(and(...conditions)).orderBy(desc(contentClips.createdAt));
+  }
+
+  async createContentClip(c: InsertContentClip): Promise<ContentClip> {
+    const [newClip] = await db.insert(contentClips).values(c).returning();
+    return newClip;
+  }
+
+  async updateContentClip(id: number, updates: Partial<InsertContentClip>): Promise<ContentClip> {
+    const [updated] = await db.update(contentClips).set(updates).where(eq(contentClips.id, id)).returning();
+    return updated;
+  }
+
+  async getVideoVersions(videoId: number): Promise<VideoVersion[]> {
+    return await db.select().from(videoVersions).where(eq(videoVersions.videoId, videoId)).orderBy(desc(videoVersions.createdAt));
+  }
+
+  async createVideoVersion(v: InsertVideoVersion): Promise<VideoVersion> {
+    const [newVersion] = await db.insert(videoVersions).values(v).returning();
+    return newVersion;
+  }
+
+  async getStreamChatMessages(streamId: number, limit: number = 100): Promise<StreamChatMessage[]> {
+    return await db.select().from(streamChatMessages).where(eq(streamChatMessages.streamId, streamId)).orderBy(desc(streamChatMessages.createdAt)).limit(limit);
+  }
+
+  async createStreamChatMessage(m: InsertStreamChatMessage): Promise<StreamChatMessage> {
+    const [newMessage] = await db.insert(streamChatMessages).values(m).returning();
+    return newMessage;
+  }
+
+  async getChatTopics(streamId: number): Promise<ChatTopic[]> {
+    return await db.select().from(chatTopics).where(eq(chatTopics.streamId, streamId)).orderBy(desc(chatTopics.createdAt));
+  }
+
+  async createChatTopic(t: InsertChatTopic): Promise<ChatTopic> {
+    const [newTopic] = await db.insert(chatTopics).values(t).returning();
+    return newTopic;
+  }
+
+  async updateChatTopic(id: number, updates: Partial<InsertChatTopic>): Promise<ChatTopic> {
+    const [updated] = await db.update(chatTopics).set(updates).where(eq(chatTopics.id, id)).returning();
+    return updated;
+  }
+
+  async getSponsorshipDeals(userId: string, status?: string): Promise<SponsorshipDeal[]> {
+    const conditions = [eq(sponsorshipDeals.userId, userId)];
+    if (status) conditions.push(eq(sponsorshipDeals.status, status));
+    return await db.select().from(sponsorshipDeals).where(and(...conditions)).orderBy(desc(sponsorshipDeals.createdAt));
+  }
+
+  async getSponsorshipDeal(id: number): Promise<SponsorshipDeal | undefined> {
+    const [deal] = await db.select().from(sponsorshipDeals).where(eq(sponsorshipDeals.id, id));
+    return deal;
+  }
+
+  async createSponsorshipDeal(d: InsertSponsorshipDeal): Promise<SponsorshipDeal> {
+    const [newDeal] = await db.insert(sponsorshipDeals).values(d).returning();
+    return newDeal;
+  }
+
+  async updateSponsorshipDeal(id: number, updates: Partial<InsertSponsorshipDeal>): Promise<SponsorshipDeal> {
+    const [updated] = await db.update(sponsorshipDeals).set(updates).where(eq(sponsorshipDeals.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSponsorshipDeal(id: number): Promise<void> {
+    await db.delete(sponsorshipDeals).where(eq(sponsorshipDeals.id, id));
+  }
+
+  async getPlatformHealth(userId: string, platform?: string): Promise<PlatformHealthRecord[]> {
+    const conditions = [eq(platformHealth.userId, userId)];
+    if (platform) conditions.push(eq(platformHealth.platform, platform));
+    return await db.select().from(platformHealth).where(and(...conditions)).orderBy(desc(platformHealth.createdAt));
+  }
+
+  async createPlatformHealth(h: InsertPlatformHealth): Promise<PlatformHealthRecord> {
+    const [newHealth] = await db.insert(platformHealth).values(h).returning();
+    return newHealth;
+  }
+
+  async updatePlatformHealth(id: number, updates: Partial<InsertPlatformHealth>): Promise<PlatformHealthRecord> {
+    const [updated] = await db.update(platformHealth).set(updates).where(eq(platformHealth.id, id)).returning();
+    return updated;
+  }
+
+  async getCollaborationLeads(userId: string): Promise<CollaborationLead[]> {
+    return await db.select().from(collaborationLeads).where(eq(collaborationLeads.userId, userId)).orderBy(desc(collaborationLeads.createdAt));
+  }
+
+  async createCollaborationLead(l: InsertCollaborationLead): Promise<CollaborationLead> {
+    const [newLead] = await db.insert(collaborationLeads).values(l).returning();
+    return newLead;
+  }
+
+  async updateCollaborationLead(id: number, updates: Partial<InsertCollaborationLead>): Promise<CollaborationLead> {
+    const [updated] = await db.update(collaborationLeads).set(updates).where(eq(collaborationLeads.id, id)).returning();
+    return updated;
+  }
+
+  async getAudienceSegments(userId: string): Promise<AudienceSegment[]> {
+    return await db.select().from(audienceSegments).where(eq(audienceSegments.userId, userId)).orderBy(desc(audienceSegments.createdAt));
+  }
+
+  async createAudienceSegment(s: InsertAudienceSegment): Promise<AudienceSegment> {
+    const [newSegment] = await db.insert(audienceSegments).values(s).returning();
+    return newSegment;
+  }
+
+  async updateAudienceSegment(id: number, updates: Partial<InsertAudienceSegment>): Promise<AudienceSegment> {
+    const [updated] = await db.update(audienceSegments).set(updates).where(eq(audienceSegments.id, id)).returning();
+    return updated;
+  }
+
+  async getComplianceRules(platform?: string): Promise<ComplianceRule[]> {
+    if (platform) {
+      return await db.select().from(complianceRules).where(eq(complianceRules.platform, platform)).orderBy(desc(complianceRules.createdAt));
+    }
+    return await db.select().from(complianceRules).orderBy(desc(complianceRules.createdAt));
+  }
+
+  async createComplianceRule(r: InsertComplianceRule): Promise<ComplianceRule> {
+    const [newRule] = await db.insert(complianceRules).values(r).returning();
+    return newRule;
+  }
+
+  async updateComplianceRule(id: number, updates: Partial<InsertComplianceRule>): Promise<ComplianceRule> {
+    const [updated] = await db.update(complianceRules).set(updates).where(eq(complianceRules.id, id)).returning();
+    return updated;
+  }
+
+  async getUserFeedback(userId: string, targetType?: string, targetId?: number): Promise<UserFeedbackEntry[]> {
+    const conditions = [eq(userFeedback.userId, userId)];
+    if (targetType) conditions.push(eq(userFeedback.targetType, targetType));
+    if (targetId) conditions.push(eq(userFeedback.targetId, targetId));
+    return await db.select().from(userFeedback).where(and(...conditions)).orderBy(desc(userFeedback.createdAt));
+  }
+
+  async createUserFeedback(f: InsertUserFeedback): Promise<UserFeedbackEntry> {
+    const [newFeedback] = await db.insert(userFeedback).values(f).returning();
+    return newFeedback;
+  }
+
+  async getSubscription(userId: string): Promise<Subscription | undefined> {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+    return sub;
+  }
+
+  async createSubscription(s: InsertSubscription): Promise<Subscription> {
+    const [newSub] = await db.insert(subscriptions).values(s).returning();
+    return newSub;
+  }
+
+  async updateSubscription(id: number, updates: Partial<InsertSubscription>): Promise<Subscription> {
+    const [updated] = await db.update(subscriptions).set(updates).where(eq(subscriptions.id, id)).returning();
     return updated;
   }
 

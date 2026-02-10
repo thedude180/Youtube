@@ -10,9 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight } from "lucide-react";
+import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
-import type { StreamDestination, Stream } from "@shared/schema";
+import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon } from "@/components/PlatformIcon";
 
 export default function StreamCenter() {
@@ -25,6 +25,7 @@ export default function StreamCenter() {
 
   const { data: destinations = [] } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
   const { data: streamList = [], isLoading: streamsLoading } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
+  const { data: connectedChannels = [] } = useQuery<Channel[]>({ queryKey: ["/api/channels"] });
 
   const liveStream = streamList.find(s => s.status === 'live');
   const plannedStreams = streamList.filter(s => s.status === 'planned');
@@ -155,6 +156,8 @@ export default function StreamCenter() {
 
       {liveStream && <LiveBanner stream={liveStream} onEnd={() => endStream.mutate(liveStream.id)} isEnding={endStream.isPending} />}
 
+      <MultiPlatformStatus channels={connectedChannels} destinations={destinations} />
+
       {plannedStreams.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Ready to Go Live</h2>
@@ -260,6 +263,66 @@ export default function StreamCenter() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+function MultiPlatformStatus({ channels, destinations }: { channels: Channel[]; destinations: StreamDestination[] }) {
+  const platformStatuses = new Map<string, { hasChannel: boolean; hasDestination: boolean; destEnabled: boolean }>();
+
+  channels.forEach((ch) => {
+    const existing = platformStatuses.get(ch.platform) || { hasChannel: false, hasDestination: false, destEnabled: false };
+    existing.hasChannel = true;
+    platformStatuses.set(ch.platform, existing);
+  });
+
+  destinations.forEach((dest) => {
+    const existing = platformStatuses.get(dest.platform) || { hasChannel: false, hasDestination: false, destEnabled: false };
+    existing.hasDestination = true;
+    if (dest.enabled) existing.destEnabled = true;
+    platformStatuses.set(dest.platform, existing);
+  });
+
+  const entries = Array.from(platformStatuses.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-medium text-muted-foreground">Multi-Platform Status</h2>
+      <Card>
+        <div className="divide-y divide-border/50">
+          {entries.map(([platform, status]) => {
+            const info = PLATFORM_INFO[platform as Platform];
+            const ready = status.hasDestination && status.destEnabled;
+            return (
+              <div key={platform} data-testid={`platform-status-${platform}`} className="p-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div style={{ color: info?.color || "#888" }}>
+                    <PlatformIcon platform={platform} className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-medium">{info?.label || platform}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {status.hasChannel && (
+                    <Badge variant="secondary" className="text-xs">Channel</Badge>
+                  )}
+                  {status.hasDestination && (
+                    <Badge variant={status.destEnabled ? "default" : "outline"} className="text-xs">
+                      {status.destEnabled ? "RTMP Ready" : "RTMP Disabled"}
+                    </Badge>
+                  )}
+                  {ready ? (
+                    <Wifi className="h-4 w-4 text-emerald-500" data-testid={`icon-ready-${platform}`} />
+                  ) : (
+                    <WifiOff className="h-4 w-4 text-muted-foreground" data-testid={`icon-not-ready-${platform}`} />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 }

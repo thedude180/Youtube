@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "./creator-intelligence";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -87,16 +88,31 @@ function buildGamingPromptSection(ctx: { isGaming: boolean; gameName: string | n
   return section;
 }
 
+async function getCreatorContext(userId?: string): Promise<string> {
+  if (!userId) return '';
+  try {
+    const [style, learning, humanization] = await Promise.all([
+      getCreatorStyleContext(userId),
+      getLearningContext(userId),
+      buildHumanizationPrompt(userId),
+    ]);
+    return [style, learning, humanization].filter(Boolean).join('\n\n');
+  } catch {
+    return '';
+  }
+}
+
 export async function generateVideoMetadata(video: {
   title: string;
   description?: string | null;
   type: string;
   metadata?: any;
   platform?: string;
-}) {
+}, userId?: string) {
   const platformName = video.platform || 'youtube';
   const gamingCtx = detectGamingContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
   const gamingSection = buildGamingPromptSection(gamingCtx);
+  const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a ${platformName} SEO expert and content strategist. Analyze this video and provide optimization suggestions.
 
@@ -107,7 +123,7 @@ Current Description: "${video.description || 'None provided'}"
 Current Tags: ${video.metadata?.tags?.join(', ') || 'None'}
 ${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
 ${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
-${gamingSection}
+${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Provide your response as JSON with exactly these fields:
 {
@@ -137,10 +153,11 @@ export async function analyzeChannelGrowth(channelData: {
   platform: string;
   videoCount: number;
   videos: Array<{ title: string; type: string; status: string; metadata?: any }>;
-}) {
+}, userId?: string) {
   const videoSummary = channelData.videos.slice(0, 20).map(v =>
     `- "${v.title}" (${v.type}, ${v.status}${v.metadata?.stats ? `, ${v.metadata.stats.views} views` : ''})`
   ).join('\n');
+  const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a YouTube growth strategist. Analyze this channel and create actionable growth strategies.
 
@@ -148,6 +165,7 @@ Channel: "${channelData.channelName}" on ${channelData.platform}
 Total Videos: ${channelData.videoCount}
 Recent Videos:
 ${videoSummary || 'No videos yet'}
+${creatorContext ? `\n${creatorContext}` : ''}
 
 Create 5 growth strategies as JSON array. Each strategy should have:
 {
@@ -188,10 +206,11 @@ export async function runComplianceCheck(channelData: {
   platform: string;
   recentActions: Array<{ action: string; target?: string | null; details?: any }>;
   settings: any;
-}) {
+}, userId?: string) {
   const actionLog = channelData.recentActions.slice(0, 30).map(a =>
     `- ${a.action}: ${a.target || 'N/A'} ${a.details ? JSON.stringify(a.details) : ''}`
   ).join('\n');
+  const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a platform compliance expert for ${channelData.platform}. Review this channel's recent activity and settings for ToS compliance risks.
 
@@ -200,6 +219,7 @@ Platform: ${channelData.platform}
 Settings: ${JSON.stringify(channelData.settings || {})}
 Recent Actions:
 ${actionLog || 'No recent actions'}
+${creatorContext ? `\n${creatorContext}` : ''}
 
 Analyze for compliance risks and provide your response as JSON:
 {
@@ -241,16 +261,18 @@ export async function generateContentInsights(videos: Array<{
   title: string;
   type: string;
   metadata?: any;
-}>) {
+}>, userId?: string) {
   const videoList = videos.slice(0, 30).map(v => {
     const stats = v.metadata?.stats;
     return `- "${v.title}" (${v.type})${stats ? ` | Views: ${stats.views}, Likes: ${stats.likes}, CTR: ${stats.ctr}%` : ''}`;
   }).join('\n');
+  const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a YouTube analytics expert. Analyze these videos and identify patterns for content improvement.
 
 Videos:
 ${videoList || 'No videos to analyze'}
+${creatorContext ? `\n${creatorContext}` : ''}
 
 Identify content patterns and provide insights as JSON:
 {
@@ -290,7 +312,9 @@ export async function getContentStrategyAdvice(question: string, context: {
   channelName?: string;
   videoCount?: number;
   recentTitles?: string[];
-}) {
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+
   const prompt = `You are a YouTube content strategy advisor helping creators grow their channels. 
 
 Channel context:
@@ -299,6 +323,7 @@ Channel context:
 - Recent titles: ${context.recentTitles?.join(', ') || 'None'}
 
 The creator asks: "${question}"
+${creatorContext ? `\n${creatorContext}` : ''}
 
 Provide a detailed, actionable response. Be specific to YouTube/content creation. Include examples where helpful. Keep your response focused and practical - no fluff.`;
 
@@ -321,10 +346,11 @@ export async function generateStreamSeo(streamData: {
   platforms: string[];
   gameName?: string | null;
   brandKeywords?: string[];
-}) {
+}, userId?: string) {
   const platformList = streamData.platforms.join(', ');
   const gamingCtx = detectGamingContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
   const gamingSection = buildGamingPromptSection(gamingCtx);
+  const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a live streaming SEO expert. Optimize this stream for maximum discoverability across multiple platforms.
 
@@ -333,7 +359,7 @@ Description: "${streamData.description || 'Not provided'}"
 Category: "${streamData.category || 'Gaming'}"
 Target Platforms: ${platformList}
 ${gamingCtx.gameName ? `Game Being Played: "${gamingCtx.gameName}"` : ''}
-${gamingSection}
+${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Provide your response as JSON:
 {
@@ -373,9 +399,10 @@ export async function postStreamOptimize(streamData: {
   stats?: any;
   gameName?: string | null;
   brandKeywords?: string[];
-}) {
+}, userId?: string) {
   const gamingCtx = detectGamingContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
   const gamingSection = buildGamingPromptSection(gamingCtx);
+  const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a VOD optimization expert. This live stream just ended and needs to be optimized for on-demand viewing.
 
@@ -386,7 +413,7 @@ Platforms: ${streamData.platforms.join(', ')}
 Duration: ${streamData.duration ? `${Math.round(streamData.duration / 60)} minutes` : 'Unknown'}
 ${streamData.stats ? `Stats: Peak viewers: ${streamData.stats.peakViewers || 'N/A'}, Avg viewers: ${streamData.stats.avgViewers || 'N/A'}` : ''}
 ${gamingCtx.gameName ? `Game Played: "${gamingCtx.gameName}"` : ''}
-${gamingSection}
+${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Rewrite and optimize for VOD performance as JSON:
 {
@@ -421,9 +448,10 @@ export async function generateThumbnailPrompt(data: {
   gameName?: string | null;
   category?: string | null;
   brandKeywords?: string[];
-}) {
+}, userId?: string) {
   const gamingCtx = detectGamingContext(data.title, data.description, data.category, { gameName: data.gameName, brandKeywords: data.brandKeywords });
   const gamingSection = buildGamingPromptSection(gamingCtx);
+  const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a thumbnail design expert for ${data.platform || 'YouTube'}. Create a detailed image generation prompt for a high-performing thumbnail.
 
@@ -433,7 +461,7 @@ Content Type: ${data.type || 'video'}
 Platform: ${data.platform || 'youtube'}
 ${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
 ${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
-${gamingSection}
+${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Create a detailed, photorealistic image generation prompt as JSON:
 {
@@ -475,7 +503,7 @@ export async function runAgentTask(agentId: string, context: {
   gameName?: string | null;
   contentCategory?: string | null;
   brandKeywords?: string[];
-}) {
+}, userId?: string) {
   const role = AGENT_ROLES[agentId] || "AI assistant";
   const gamingCtx = detectGamingContext(
     context.recentTitles.join(' '),
@@ -499,11 +527,13 @@ export async function runAgentTask(agentId: string, context: {
     gamingInstructions += `\n- Gaming SEO should target game-specific keywords that the community actually searches for.`;
   }
 
+  const creatorContext = await getCreatorContext(userId);
+
   const prompt = `You are a ${role} working autonomously for the YouTube channel "${context.channelName}".
 
 Channel has ${context.videoCount} videos. Recent titles: ${context.recentTitles.join(', ') || 'None'}
 ${gamingCtx.gameName ? `Primary Game: "${gamingCtx.gameName}"` : ''}
-${gamingCtx.isGaming ? 'Content Category: Gaming' : ''}${gamingInstructions}
+${gamingCtx.isGaming ? 'Content Category: Gaming' : ''}${gamingInstructions}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Perform your most important task right now. Respond as JSON:
 {
@@ -533,11 +563,14 @@ export async function generateCommunityPost(data: {
   channelName: string;
   recentTitles: string[];
   type: string;
-}) {
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+
   const prompt = `You are a social media expert for the ${data.platform} channel "${data.channelName}".
 
 Recent content: ${data.recentTitles.join(', ') || 'None'}
 Post type: ${data.type}
+${creatorContext ? `\n${creatorContext}` : ''}
 
 Create an engaging community post as JSON:
 {

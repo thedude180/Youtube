@@ -1,5 +1,27 @@
 import { Globe } from "lucide-react";
-import { SiYoutube, SiTwitch, SiKick, SiFacebook, SiTiktok, SiX, SiLinkedin, SiInstagram } from "react-icons/si";
+import {
+  SiYoutube,
+  SiTwitch,
+  SiKick,
+  SiFacebook,
+  SiTiktok,
+  SiX,
+  SiLinkedin,
+  SiInstagram,
+  SiDiscord,
+  SiSnapchat,
+  SiPinterest,
+  SiReddit,
+  SiThreads,
+  SiBluesky,
+  SiMastodon,
+  SiPatreon,
+  SiKofi,
+  SiSubstack,
+  SiSpotify,
+  SiApplepodcasts,
+  SiWhatsapp,
+} from "react-icons/si";
 
 const PLATFORM_ICONS: Record<string, any> = {
   youtube: SiYoutube,
@@ -11,6 +33,22 @@ const PLATFORM_ICONS: Record<string, any> = {
   linkedin: SiLinkedin,
   instagram: SiInstagram,
   rumble: Globe,
+  discord: SiDiscord,
+  snapchat: SiSnapchat,
+  pinterest: SiPinterest,
+  reddit: SiReddit,
+  threads: SiThreads,
+  bluesky: SiBluesky,
+  mastodon: SiMastodon,
+  patreon: SiPatreon,
+  kofi: SiKofi,
+  substack: SiSubstack,
+  spotify: SiSpotify,
+  applepodcasts: SiApplepodcasts,
+  dlive: Globe,
+  trovo: Globe,
+  youtubeshorts: SiYoutube,
+  whatsapp: SiWhatsapp,
 };
 
 export function PlatformIcon({ platform, className = "h-4 w-4" }: { platform: string; className?: string }) {

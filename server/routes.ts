@@ -16,6 +16,12 @@ import {
   runAgentTask,
   generateCommunityPost,
 } from "./ai-engine";
+import {
+  runStyleScan,
+  recordFeedback,
+  getCreatorPreferences,
+  recordLearningSignal,
+} from "./creator-intelligence";
 import { AI_AGENTS } from "@shared/schema";
 import {
   startBacklogProcessing,
@@ -246,7 +252,7 @@ export async function registerRoutes(
         type: video.type,
         metadata: video.metadata,
         platform: video.platform || undefined,
-      });
+      }, userId);
 
       const newMetadata = {
         ...video.metadata,
@@ -539,7 +545,7 @@ export async function registerRoutes(
         channelName: channel?.channelName,
         videoCount: allVideos.length,
         recentTitles: allVideos.slice(0, 10).map(v => v.title),
-      });
+      }, userId);
 
       await storage.createAuditLog({
         userId,
@@ -1325,7 +1331,7 @@ export async function registerRoutes(
         gameName,
         contentCategory,
         brandKeywords,
-      });
+      }, userId);
 
       const activity = await storage.createAgentActivity({
         userId,
@@ -1642,6 +1648,257 @@ export async function registerRoutes(
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // === NOTIFICATIONS ===
+  app.get("/api/notifications", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const notifications = await storage.getNotifications(userId);
+    res.json(notifications);
+  });
+
+  app.get("/api/notifications/unread-count", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const count = await storage.getUnreadCount(userId);
+    res.json({ count });
+  });
+
+  app.post("/api/notifications/:id/read", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.markRead(Number(req.params.id));
+    res.json({ success: true });
+  });
+
+  app.post("/api/notifications/read-all", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.markAllRead(userId);
+    res.json({ success: true });
+  });
+
+  // === CREATOR INTELLIGENCE ===
+  app.post("/api/style-scan/:channelId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channel = await storage.getChannel(Number(req.params.channelId));
+      if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
+      const profile = await runStyleScan(userId, Number(req.params.channelId));
+      await storage.createAuditLog({
+        userId,
+        action: "style_scan_completed",
+        target: channel.channelName,
+        riskLevel: "low",
+      });
+      res.json({ success: true, profile });
+    } catch (error: any) {
+      console.error("Style scan error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.post("/api/feedback", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { targetType, targetId, rating, aiFunction } = req.body;
+      await recordFeedback(userId, targetType, targetId, rating, aiFunction);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.get("/api/creator-memory", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const memoryType = req.query.type as string | undefined;
+    const memories = await storage.getCreatorMemory(userId, memoryType);
+    res.json(memories);
+  });
+
+  app.get("/api/learning-insights", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const insights = await storage.getLearningInsights(userId);
+    res.json(insights);
+  });
+
+  // === CONTENT IDEAS ===
+  app.get("/api/content-ideas", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const status = req.query.status as string | undefined;
+    const ideas = await storage.getContentIdeas(userId, status);
+    res.json(ideas);
+  });
+
+  app.post("/api/content-ideas", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const idea = await storage.createContentIdea({ ...req.body, userId });
+      res.status(201).json(idea);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/content-ideas/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const idea = await storage.updateContentIdea(Number(req.params.id), req.body);
+    res.json(idea);
+  });
+
+  app.delete("/api/content-ideas/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteContentIdea(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  // === SUBSCRIPTIONS ===
+  app.get("/api/subscription", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const sub = await storage.getSubscription(userId);
+    if (!sub) {
+      const newSub = await storage.createSubscription({
+        userId,
+        tier: "free",
+        status: "active",
+        aiUsageCount: 0,
+        aiUsageLimit: 5,
+      });
+      return res.json(newSub);
+    }
+    res.json(sub);
+  });
+
+  // === A/B TESTS ===
+  app.get("/api/ab-tests", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const videoId = req.query.videoId ? Number(req.query.videoId) : undefined;
+    const tests = await storage.getAbTests(userId, videoId);
+    res.json(tests);
+  });
+
+  app.post("/api/ab-tests", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const test = await storage.createAbTest({ ...req.body, userId });
+      res.status(201).json(test);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === SPONSORSHIP DEALS ===
+  app.get("/api/sponsorship-deals", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const status = req.query.status as string | undefined;
+    const deals = await storage.getSponsorshipDeals(userId, status);
+    res.json(deals);
+  });
+
+  app.post("/api/sponsorship-deals", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const deal = await storage.createSponsorshipDeal({ ...req.body, userId });
+      res.status(201).json(deal);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/sponsorship-deals/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const deal = await storage.updateSponsorshipDeal(Number(req.params.id), req.body);
+    res.json(deal);
+  });
+
+  // === ANALYTICS SNAPSHOTS ===
+  app.get("/api/analytics", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const from = req.query.from ? new Date(req.query.from as string) : undefined;
+    const to = req.query.to ? new Date(req.query.to as string) : undefined;
+    const snapshots = await storage.getAnalyticsSnapshots(userId, from, to);
+    res.json(snapshots);
+  });
+
+  // === PLATFORM HEALTH ===
+  app.get("/api/platform-health", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const platform = req.query.platform as string | undefined;
+    const health = await storage.getPlatformHealth(userId, platform);
+    res.json(health);
+  });
+
+  // === VIDEO VERSIONS ===
+  app.get("/api/video-versions/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const versions = await storage.getVideoVersions(Number(req.params.videoId));
+    res.json(versions);
+  });
+
+  // === CONTENT CLIPS ===
+  app.get("/api/content-clips", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const sourceVideoId = req.query.sourceVideoId ? Number(req.query.sourceVideoId) : undefined;
+    const clips = await storage.getContentClips(userId, sourceVideoId);
+    res.json(clips);
+  });
+
+  app.post("/api/content-clips", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const clip = await storage.createContentClip({ ...req.body, userId });
+      res.status(201).json(clip);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === COLLABORATION LEADS ===
+  app.get("/api/collaboration-leads", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const leads = await storage.getCollaborationLeads(userId);
+    res.json(leads);
+  });
+
+  app.post("/api/collaboration-leads", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const lead = await storage.createCollaborationLead({ ...req.body, userId });
+      res.status(201).json(lead);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === COMPLIANCE RULES ===
+  app.get("/api/compliance-rules", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const platform = req.query.platform as string | undefined;
+    const rules = await storage.getComplianceRules(platform);
+    res.json(rules);
   });
 
   await seedDatabase();

@@ -213,6 +213,63 @@ export default function Schedule() {
           )}
         </Card>
       </div>
+      <ContentIdeasSection />
+    </div>
+  );
+}
+
+function ContentIdeasSection() {
+  const { data: ideas, isLoading } = useQuery<any[]>({ queryKey: ['/api/content-ideas'] });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-6 w-40" />
+        <div className="grid gap-2 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-md" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!ideas || ideas.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-display font-bold">Content Ideas</h2>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {ideas.map((idea: any) => (
+          <Card key={idea.id} data-testid={`card-content-idea-${idea.id}`} className="hover-elevate">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p data-testid={`text-idea-title-${idea.id}`} className="text-sm font-medium truncate">{idea.title}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {idea.niche && (
+                      <span className="text-xs text-muted-foreground">{idea.niche}</span>
+                    )}
+                    <Badge variant={idea.status === 'idea' ? 'secondary' : idea.status === 'planned' ? 'default' : 'outline'} className="text-xs capitalize" data-testid={`badge-idea-status-${idea.id}`}>
+                      {idea.status}
+                    </Badge>
+                  </div>
+                  {idea.createdAt && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {format(new Date(idea.createdAt), "MMM d, yyyy")}
+                    </p>
+                  )}
+                </div>
+                <a href="/advisor">
+                  <Button size="sm" variant="outline" data-testid={`button-plan-idea-${idea.id}`}>
+                    Plan This
+                  </Button>
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }

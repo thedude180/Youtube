@@ -6,8 +6,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/Sidebar";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2 } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 
 import Dashboard from "@/pages/Dashboard";
 import Videos from "@/pages/Videos";
@@ -50,12 +51,25 @@ function AuthenticatedApp() {
     <SidebarProvider style={sidebarStyle}>
       <div className="flex min-h-screen w-full bg-background text-foreground font-sans">
         <AppSidebar />
-        <main className="flex-1 overflow-auto">
-          <div className="sticky top-0 z-40 flex items-center h-12 px-4 border-b border-border bg-background md:hidden">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-          </div>
-          <Router />
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-4 border-b border-border bg-background shrink-0">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden" />
+              <div className="hidden md:flex items-center gap-2">
+                <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
+                  <Zap className="h-3 w-3 text-primary-foreground" />
+                </div>
+                <span data-testid="text-header-app-name" className="font-display font-bold text-sm">
+                  Creator<span className="text-primary">OS</span>
+                </span>
+              </div>
+            </div>
+            <NotificationBell />
+          </header>
+          <main className="flex-1 overflow-auto">
+            <Router />
+          </main>
+        </div>
       </div>
     </SidebarProvider>
   );
@@ -92,6 +106,12 @@ function AppContent() {
 }
 
 function App() {
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
