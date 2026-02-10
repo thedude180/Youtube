@@ -8,27 +8,25 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/Sidebar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, Zap } from "lucide-react";
+import { ThemeProvider, useTheme } from "@/hooks/use-theme";
+import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { Loader2, Zap, Sun, Moon, Gauge } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import Dashboard from "@/pages/Dashboard";
-import Videos from "@/pages/Videos";
-import VideoDetail from "@/pages/VideoDetail";
-import Channels from "@/pages/Channels";
+import Content from "@/pages/Content";
 import Settings from "@/pages/Settings";
-import Advisor from "@/pages/Advisor";
 import StreamCenter from "@/pages/StreamCenter";
-import AITeam from "@/pages/AITeam";
-import Schedule from "@/pages/Schedule";
+import AIPage from "@/pages/AIPage";
 import Money from "@/pages/Money";
 import Business from "@/pages/Business";
-import Growth from "@/pages/Growth";
-import Legal from "@/pages/Legal";
-import You from "@/pages/You";
+import Notifications from "@/pages/Notifications";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
 const sidebarStyle = {
-  "--sidebar-width": "14rem",
+  "--sidebar-width": "13rem",
   "--sidebar-width-icon": "3rem",
 } as React.CSSProperties;
 
@@ -36,34 +34,81 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/videos" component={Videos} />
-      <Route path="/videos/:id" component={VideoDetail} />
-      <Route path="/channels" component={Channels} />
+      <Route path="/content" component={Content} />
+      <Route path="/content/:tab" component={Content} />
       <Route path="/settings" component={Settings} />
-      <Route path="/advisor" component={Advisor} />
+      <Route path="/settings/:tab" component={Settings} />
       <Route path="/stream" component={StreamCenter} />
-      <Route path="/team" component={AITeam} />
-      <Route path="/schedule" component={Schedule} />
+      <Route path="/ai" component={AIPage} />
+      <Route path="/ai/:tab" component={AIPage} />
       <Route path="/money" component={Money} />
+      <Route path="/money/:tab" component={Money} />
       <Route path="/business" component={Business} />
-      <Route path="/growth" component={Growth} />
-      <Route path="/legal" component={Legal} />
-      <Route path="/you" component={You} />
+      <Route path="/business/:tab" component={Business} />
+      <Route path="/notifications" component={Notifications} />
+
+      <Route path="/videos">{() => <Redirect to="/content" />}</Route>
+      <Route path="/videos/:id">{() => <Redirect to="/content" />}</Route>
+      <Route path="/channels">{() => <Redirect to="/content/channels" />}</Route>
+      <Route path="/team">{() => <Redirect to="/ai" />}</Route>
+      <Route path="/advisor">{() => <Redirect to="/ai/chat" />}</Route>
+      <Route path="/schedule">{() => <Redirect to="/content/calendar" />}</Route>
       <Route path="/monetization">{() => <Redirect to="/money" />}</Route>
       <Route path="/expenses">{() => <Redirect to="/money" />}</Route>
       <Route path="/tax">{() => <Redirect to="/money" />}</Route>
       <Route path="/ventures">{() => <Redirect to="/business" />}</Route>
       <Route path="/goals">{() => <Redirect to="/business" />}</Route>
       <Route path="/sponsorships">{() => <Redirect to="/business" />}</Route>
-      <Route path="/brand-kit">{() => <Redirect to="/growth" />}</Route>
-      <Route path="/collaborations">{() => <Redirect to="/growth" />}</Route>
-      <Route path="/competitors">{() => <Redirect to="/growth" />}</Route>
-      <Route path="/formation">{() => <Redirect to="/legal" />}</Route>
-      <Route path="/protections">{() => <Redirect to="/legal" />}</Route>
-      <Route path="/wellness">{() => <Redirect to="/you" />}</Route>
-      <Route path="/knowledge">{() => <Redirect to="/you" />}</Route>
+      <Route path="/brand-kit">{() => <Redirect to="/business/brand" />}</Route>
+      <Route path="/collaborations">{() => <Redirect to="/business/collabs" />}</Route>
+      <Route path="/competitors">{() => <Redirect to="/business/competitors" />}</Route>
+      <Route path="/formation">{() => <Redirect to="/business/legal" />}</Route>
+      <Route path="/protections">{() => <Redirect to="/business/legal" />}</Route>
+      <Route path="/wellness">{() => <Redirect to="/business/wellness" />}</Route>
+      <Route path="/knowledge">{() => <Redirect to="/business/learning" />}</Route>
+      <Route path="/growth">{() => <Redirect to="/business/brand" />}</Route>
+      <Route path="/legal">{() => <Redirect to="/business/legal" />}</Route>
+      <Route path="/you">{() => <Redirect to="/business/wellness" />}</Route>
       <Route component={NotFound} />
     </Switch>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          data-testid="button-theme-toggle"
+          size="icon"
+          variant="ghost"
+          onClick={toggleTheme}
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{theme === "dark" ? "Light mode" : "Dark mode"}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function AdvancedToggle() {
+  const { isAdvanced, toggleAdvanced } = useAdvancedMode();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          data-testid="button-advanced-toggle"
+          size="icon"
+          variant={isAdvanced ? "default" : "ghost"}
+          onClick={toggleAdvanced}
+        >
+          <Gauge className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{isAdvanced ? "Switch to Simple Mode" : "Switch to Advanced Mode"}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -85,7 +130,11 @@ function AuthenticatedApp() {
                 </span>
               </div>
             </div>
-            <NotificationBell />
+            <div className="flex items-center gap-1">
+              <AdvancedToggle />
+              <ThemeToggle />
+              <NotificationBell />
+            </div>
           </header>
           <main className="flex-1 overflow-auto">
             <Router />
@@ -127,16 +176,14 @@ function AppContent() {
 }
 
 function App() {
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppContent />
+        <ThemeProvider>
+          <AdvancedModeProvider>
+            <AppContent />
+          </AdvancedModeProvider>
+        </ThemeProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

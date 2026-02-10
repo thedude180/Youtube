@@ -1,21 +1,16 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import {
   LayoutDashboard,
   Video,
   Radio,
   Settings,
   LogOut,
-  MessageSquare,
-  MonitorPlay,
   Bot,
-  Calendar,
   DollarSign,
   Zap,
   Briefcase,
-  TrendingUp,
-  Shield,
-  User,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,26 +26,22 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 const navLinks = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/videos", label: "Library", icon: Video },
-  { href: "/channels", label: "Channels", icon: Radio },
-  { href: "/stream", label: "Stream", icon: MonitorPlay },
-  { href: "/schedule", label: "Calendar", icon: Calendar },
-  { href: "/team", label: "AI Team", icon: Bot },
-  { href: "/advisor", label: "Advisor", icon: MessageSquare },
+  { href: "/", label: "Home", icon: LayoutDashboard },
+  { href: "/content", label: "Content", icon: Video },
+  { href: "/stream", label: "Go Live", icon: Radio },
+  { href: "/ai", label: "AI Team", icon: Bot },
   { href: "/money", label: "Money", icon: DollarSign },
   { href: "/business", label: "Business", icon: Briefcase },
-  { href: "/growth", label: "Growth", icon: TrendingUp },
-  { href: "/legal", label: "Legal", icon: Shield },
-  { href: "/you", label: "You", icon: User },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, isLoading, logout } = useAuth();
+  const { isAdvanced } = useAdvancedMode();
 
   const isActive = (href: string) =>
     href === "/" ? location === "/" : location.startsWith(href);
@@ -70,9 +61,16 @@ export function AppSidebar() {
           <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center shrink-0">
             <Zap className="h-4 w-4 text-primary-foreground" />
           </div>
-          <span data-testid="text-app-name" className="font-display font-bold text-sm">
-            Creator<span className="text-primary">OS</span>
-          </span>
+          <div className="flex flex-col">
+            <span data-testid="text-app-name" className="font-display font-bold text-sm">
+              Creator<span className="text-primary">OS</span>
+            </span>
+            {isAdvanced && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 w-fit">
+                Advanced
+              </Badge>
+            )}
+          </div>
         </div>
       </SidebarHeader>
 
