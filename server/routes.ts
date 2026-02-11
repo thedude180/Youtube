@@ -4,7 +4,7 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth/index"
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { ADMIN_EMAIL } from "@shared/schema";
+import { ADMIN_EMAIL, PLATFORM_INFO, type Platform } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
 import { sql, eq, and } from "drizzle-orm";
@@ -1237,7 +1237,7 @@ export async function registerRoutes(
     if (!userId) return;
     try {
       const input = api.channels.create.input.parse(req.body);
-      const channel = await storage.createChannel(input);
+      const channel = await storage.createChannel({ ...input, userId });
       await storage.createAuditLog({
         userId,
         action: "channel_created",
@@ -7860,6 +7860,26 @@ export async function registerRoutes(
         credentials: req.body.credentials || null,
         followerCount: req.body.followerCount || null,
       }).returning();
+
+      const creds = req.body.credentials || {};
+      const tokenValue = creds.streamKey || creds.apiKey || req.body.username || "";
+      const platformName = req.body.platform;
+      const existingChannels = await storage.getChannelsByUser(userId);
+      const existingForPlatform = existingChannels.find(c => c.platform === platformName);
+      if (!existingForPlatform && tokenValue) {
+        const platformInfo = PLATFORM_INFO[platformName as Platform];
+        await storage.createChannel({
+          userId,
+          platform: platformName,
+          channelName: req.body.username || `${platformInfo?.label || platformName} Account`,
+          channelId: tokenValue,
+          accessToken: tokenValue,
+          refreshToken: null,
+          tokenExpiresAt: null,
+          settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+        });
+      }
+
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);

@@ -4,7 +4,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useVideos } from "@/hooks/use-videos";
-import { useChannels } from "@/hooks/use-channels";
+import { useChannels, useCreateChannel } from "@/hooks/use-channels";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6156,7 +6157,7 @@ function ChannelsTab() {
       </div>
 
       {selectedPlatform && (
-        <PlatformDialog platform={selectedPlatform} onClose={() => setSelectedPlatform(null)} />
+        <PlatformDialog platform={selectedPlatform} onClose={() => setSelectedPlatform(null)} existingChannels={channels} />
       )}
     </div>
   );
@@ -6220,8 +6221,70 @@ function ChannelActions({ channels }: { channels: Channel[] }) {
   );
 }
 
-function PlatformDialog({ platform, onClose }: { platform: Platform; onClose: () => void }) {
+const CONTENT_CRED_LABELS: Record<string, { label: string; placeholder: string; secondaryLabel?: string; secondaryPlaceholder?: string }> = {
+  twitch: { label: "Stream Key", placeholder: "live_xxxxxxxxxxxx" },
+  kick: { label: "Stream Key", placeholder: "sk_live_xxxxxxxxxxxx" },
+  facebook: { label: "Stream Key", placeholder: "FB-xxxxxxxxxxxx" },
+  tiktok: { label: "Stream Key", placeholder: "Your TikTok stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://push.tiktok.com/live" },
+  x: { label: "Stream Key", placeholder: "Your X stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://va.pscp.tv:80/x" },
+  rumble: { label: "Stream Key", placeholder: "Your Rumble stream key" },
+  linkedin: { label: "Stream Key", placeholder: "Your LinkedIn stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://live.linkedin.com/live" },
+  instagram: { label: "Stream Key", placeholder: "Your Instagram stream key" },
+  discord: { label: "Server Invite Link", placeholder: "https://discord.gg/xxxxxxx" },
+  snapchat: { label: "Snapchat Username", placeholder: "@yourusername" },
+  pinterest: { label: "Pinterest Profile URL", placeholder: "https://pinterest.com/yourbrand" },
+  reddit: { label: "Reddit Username", placeholder: "u/yourusername" },
+  threads: { label: "Threads Username", placeholder: "@yourusername" },
+  bluesky: { label: "Bluesky Handle", placeholder: "@you.bsky.social" },
+  mastodon: { label: "Mastodon Handle", placeholder: "@user@mastodon.social" },
+  patreon: { label: "Patreon Page URL", placeholder: "https://patreon.com/yourchannel" },
+  kofi: { label: "Ko-fi Page URL", placeholder: "https://ko-fi.com/yourpage" },
+  substack: { label: "Substack URL", placeholder: "https://yourname.substack.com" },
+  spotify: { label: "Spotify Podcast URL", placeholder: "https://podcasters.spotify.com/..." },
+  applepodcasts: { label: "Apple Podcasts URL", placeholder: "https://podcasts.apple.com/..." },
+  dlive: { label: "Stream Key", placeholder: "Your DLive stream key" },
+  trovo: { label: "Stream Key", placeholder: "Your Trovo stream key" },
+  whatsapp: { label: "WhatsApp Channel Link", placeholder: "https://whatsapp.com/channel/..." },
+};
+
+function PlatformDialog({ platform, onClose, existingChannels }: { platform: Platform; onClose: () => void; existingChannels?: Channel[] }) {
   const info = PLATFORM_INFO[platform];
+  const credConfig = CONTENT_CRED_LABELS[platform];
+  const isAlreadyConnected = existingChannels?.some(c => c.platform === platform);
+  const [credential, setCredential] = useState("");
+  const [secondaryCredential, setSecondaryCredential] = useState("");
+  const [channelName, setChannelName] = useState("");
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const createChannel = useCreateChannel();
+
+  useEffect(() => {
+    setCredential("");
+    setSecondaryCredential("");
+    setChannelName("");
+  }, [platform]);
+
+  const handleConnect = () => {
+    if (!credential.trim()) {
+      toast({ title: "Missing Info", description: `Please enter your ${credConfig?.label || "credential"}`, variant: "destructive" });
+      return;
+    }
+    const name = channelName.trim() || `${info.label} Account`;
+    const tokenValue = secondaryCredential.trim()
+      ? JSON.stringify({ key: credential.trim(), serverUrl: secondaryCredential.trim() })
+      : credential.trim();
+    createChannel.mutate({
+      userId: user?.id || "",
+      platform,
+      channelName: name,
+      channelId: credential.trim(),
+      accessToken: tokenValue,
+      refreshToken: null,
+      tokenExpiresAt: null,
+      settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+    }, { onSuccess: () => onClose() });
+  };
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto" data-testid={`dialog-platform-${platform}`}>
@@ -6252,6 +6315,56 @@ function PlatformDialog({ platform, onClose }: { platform: Platform; onClose: ()
               ))}
             </ol>
           </div>
+
+          {credConfig && !isAlreadyConnected && (
+            <div className="border-t pt-4 space-y-3">
+              <h4 className="text-sm font-semibold">Connect {info.label}</h4>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Display Name (optional)</label>
+                <input
+                  data-testid={`input-channel-name-${platform}`}
+                  type="text"
+                  placeholder={`My ${info.label}`}
+                  value={channelName}
+                  onChange={(e) => setChannelName(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">{credConfig.label}</label>
+                <input
+                  data-testid={`input-credential-${platform}`}
+                  type="password"
+                  placeholder={credConfig.placeholder}
+                  value={credential}
+                  onChange={(e) => setCredential(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
+                />
+              </div>
+              {credConfig.secondaryLabel && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">{credConfig.secondaryLabel}</label>
+                  <input
+                    data-testid={`input-secondary-${platform}`}
+                    type="text"
+                    placeholder={credConfig.secondaryPlaceholder}
+                    value={secondaryCredential}
+                    onChange={(e) => setSecondaryCredential(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono text-xs"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {isAlreadyConnected && (
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2 text-emerald-500">
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="text-sm font-medium">Already connected</span>
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter className="gap-2 mt-2">
           <Button variant="outline" size="sm" asChild>
@@ -6259,7 +6372,18 @@ function PlatformDialog({ platform, onClose }: { platform: Platform; onClose: ()
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Sign Up
             </a>
           </Button>
-          <Button size="sm" onClick={onClose}>Close</Button>
+          {credConfig && !isAlreadyConnected && (
+            <Button
+              data-testid={`button-connect-${platform}`}
+              size="sm"
+              onClick={handleConnect}
+              disabled={createChannel.isPending || !credential.trim()}
+            >
+              {createChannel.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+              {createChannel.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          )}
+          <Button variant={credConfig && !isAlreadyConnected ? "ghost" : "default"} size="sm" onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
