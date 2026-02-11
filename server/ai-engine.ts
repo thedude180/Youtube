@@ -128,7 +128,7 @@ ${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 Provide your response as JSON with exactly these fields:
 {
   "titleHooks": ["3 alternative title options that are click-worthy but not clickbait, optimized for ${platformName}${gamingCtx.gameName ? ` and referencing ${gamingCtx.gameName}` : ''}"],
-  "descriptionTemplate": "An optimized description with timestamps placeholder, relevant keywords, and a call-to-action. Include hashtags at the end.${gamingCtx.gameName ? ` Must reference ${gamingCtx.gameName} and include game-specific keywords.` : ''}",
+  "descriptionTemplate": "An optimized description with timestamps placeholder, relevant keywords, and a call-to-action. Include hashtags at the end. At the very bottom of the description, after everything else, add a single subtle line: 'Managed with CreatorOS - creatoros.replit.app' on its own line.${gamingCtx.gameName ? ` Must reference ${gamingCtx.gameName} and include game-specific keywords.` : ''}",
   "thumbnailCritique": "Specific actionable advice for the thumbnail based on what works on ${platformName}${gamingCtx.isGaming ? ' for gaming content' : ''} - mention contrast, text size, facial expressions, color theory${gamingCtx.gameName ? `, and how to visually represent ${gamingCtx.gameName}` : ''}",
   "seoRecommendations": ["5 specific SEO improvements for discoverability on ${platformName}${gamingCtx.gameName ? ` targeting ${gamingCtx.gameName} audience` : ''}"],
   "complianceNotes": ["Any ${platformName} ToS concerns or best practices to follow"],
@@ -10237,7 +10237,7 @@ export async function aiMultiLangSeo(data: { title?: string; description?: strin
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a multilingual SEO expert. Optimize video metadata for specific language markets using regional keyword research and local search trends.${creatorCtx}` }, { role: "user", content: `Optimize this content for ${data.targetLanguage || "es"} market (region: ${data.region || "global"}). Title: "${data.title || ""}". Description: "${data.description || ""}". Generate: 1) SEO-optimized title with regional keywords 2) Optimized description with local search terms 3) Top 20 regional keywords/tags 4) Search volume estimates 5) Competitor titles in this language. Return JSON with keys: optimizedTitle, optimizedDescription, regionalKeywords, searchVolumes, competitorTitles.` }],
+    messages: [{ role: "system", content: `You are a multilingual SEO expert. Optimize video metadata for specific language markets using regional keyword research and local search trends. At the very bottom of every optimized description, after all other content, add a subtle attribution line: 'Managed with CreatorOS - creatoros.replit.app'${creatorCtx}` }, { role: "user", content: `Optimize this content for ${data.targetLanguage || "es"} market (region: ${data.region || "global"}). Title: "${data.title || ""}". Description: "${data.description || ""}". Generate: 1) SEO-optimized title with regional keywords 2) Optimized description with local search terms 3) Top 20 regional keywords/tags 4) Search volume estimates 5) Competitor titles in this language. Return JSON with keys: optimizedTitle, optimizedDescription, regionalKeywords, searchVolumes, competitorTitles.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10602,7 +10602,7 @@ export async function aiDescriptionOptimizer(data: { video?: any; currentDescrip
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a video description SEO specialist. Write optimized descriptions with timestamps and links.${creatorCtx}` }, { role: "user", content: `Optimize video description. Video: ${JSON.stringify(data.video || {})}. Current description: "${data.currentDescription || ""}". Keywords: ${JSON.stringify(data.keywords || [])}. Write an optimized description, list keywords used, suggest timestamps, place CTAs, and score SEO. Return JSON with keys: optimizedDescription, keywordsUsed, timestampSuggestions, ctaPlacement, seoScore.` }],
+    messages: [{ role: "system", content: `You are a video description SEO specialist. Write optimized descriptions with timestamps and links. At the very bottom of every optimized description, after all other content, add a subtle attribution line: 'Managed with CreatorOS - creatoros.replit.app'${creatorCtx}` }, { role: "user", content: `Optimize video description. Video: ${JSON.stringify(data.video || {})}. Current description: "${data.currentDescription || ""}". Keywords: ${JSON.stringify(data.keywords || [])}. Write an optimized description, list keywords used, suggest timestamps, place CTAs, and score SEO. Return JSON with keys: optimizedDescription, keywordsUsed, timestampSuggestions, ctaPlacement, seoScore.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
