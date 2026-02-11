@@ -4,8 +4,8 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
-export { sessions, users } from "./models/auth";
-export type { User, UpsertUser } from "./models/auth";
+export { sessions, users, SUBSCRIPTION_TIERS, USER_ROLES, TIER_PLATFORM_LIMITS, TIER_LABELS, ADMIN_EMAIL } from "./models/auth";
+export type { User, UpsertUser, SubscriptionTier, UserRole } from "./models/auth";
 export { conversations, messages } from "./models/chat";
 
 export const PLATFORMS = [
@@ -1958,6 +1958,26 @@ export type StatsResponse = {
   activeAgents: number;
   scheduledItems: number;
 };
+
+// === ACCESS CODES (Affiliate Program) ===
+export const accessCodes = pgTable("access_codes", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").unique().notNull(),
+  label: varchar("label"),
+  tier: varchar("tier").notNull().default("ultimate"),
+  createdBy: varchar("created_by").notNull(),
+  redeemedBy: varchar("redeemed_by"),
+  redeemedAt: timestamp("redeemed_at"),
+  maxUses: integer("max_uses").default(1),
+  useCount: integer("use_count").default(0),
+  active: boolean("active").notNull().default(true),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAccessCodeSchema = createInsertSchema(accessCodes).omit({ id: true, createdAt: true, useCount: true });
+export type AccessCode = typeof accessCodes.$inferSelect;
+export type InsertAccessCode = z.infer<typeof insertAccessCodeSchema>;
 
 export const aiResults = pgTable("ai_results", {
   id: serial("id").primaryKey(),

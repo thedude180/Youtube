@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { useUserProfile } from "@/hooks/use-user-profile";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
   LogOut,
   DollarSign,
   Zap,
+  Crown,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import {
@@ -40,6 +42,7 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user, isLoading, logout } = useAuth();
   const { isAdvanced } = useAdvancedMode();
+  const { tier, isPaidUser } = useUserProfile();
   const { t } = useTranslation();
 
   const isActive = (href: string) =>
@@ -111,6 +114,12 @@ export function AppSidebar() {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p data-testid="text-user-name" className="text-sm font-medium truncate">{userName}</p>
+              {isPaidUser && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0" data-testid="badge-user-tier">
+                  <Crown className="w-2.5 h-2.5 mr-0.5" />
+                  {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                </Badge>
+              )}
             </div>
             <Button data-testid="button-logout" size="icon" variant="ghost" onClick={() => logout()}>
               <LogOut className="h-4 w-4" />

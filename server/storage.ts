@@ -6,7 +6,9 @@ import {
   notifications, abTests, analyticsSnapshots, learningInsights, contentIdeas,
   creatorMemory, contentClips, videoVersions, streamChatMessages, chatTopics,
   sponsorshipDeals, platformHealth, collaborationLeads, audienceSegments,
-  complianceRules, userFeedback, subscriptions,
+  complianceRules, userFeedback, subscriptions, accessCodes,
+  users, ADMIN_EMAIL,
+  type User, type AccessCode, type InsertAccessCode,
   expenseRecords, businessVentures, businessGoals, taxEstimates, brandAssets, wellnessChecks, competitorTracks,
   aiResults, cronJobs, aiChains, webhookEvents, knowledgeMilestones,
   type Channel, type InsertChannel, type UpdateChannelRequest,
@@ -267,6 +269,18 @@ export interface IStorage {
 
   getLocalizationRecommendations(userId: string): Promise<LocalizationRecommendation | undefined>;
   upsertLocalizationRecommendations(userId: string, data: InsertLocalizationRecommendation): Promise<LocalizationRecommendation>;
+
+  getUser(userId: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
+  updateUserRole(userId: string, role: string, tier: string): Promise<User>;
+  updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string; tier?: string }): Promise<User>;
+
+  getAccessCodes(createdBy?: string): Promise<AccessCode[]>;
+  getAccessCode(code: string): Promise<AccessCode | undefined>;
+  createAccessCode(c: InsertAccessCode): Promise<AccessCode>;
+  redeemAccessCode(code: string, userId: string): Promise<AccessCode | undefined>;
+  revokeAccessCode(id: number): Promise<AccessCode>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1177,6 +1191,84 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(localizationRecommendations).values({ ...data, userId }).returning();
     return created;
+  }
+  async getUser(userId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async updateUserRole(userId: string, role: string, tier: string): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ role, tier, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string; tier?: string }): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ ...info, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async getAccessCodes(createdBy?: string): Promise<AccessCode[]> {
+    if (createdBy) {
+      return await db.select().from(accessCodes)
+        .where(eq(accessCodes.createdBy, createdBy))
+        .orderBy(desc(accessCodes.createdAt));
+    }
+    return await db.select().from(accessCodes).orderBy(desc(accessCodes.createdAt));
+  }
+
+  async getAccessCode(code: string): Promise<AccessCode | undefined> {
+    const [ac] = await db.select().from(accessCodes).where(eq(accessCodes.code, code));
+    return ac;
+  }
+
+  async createAccessCode(c: InsertAccessCode): Promise<AccessCode> {
+    const [created] = await db.insert(accessCodes).values(c).returning();
+    return created;
+  }
+
+  async redeemAccessCode(code: string, userId: string): Promise<AccessCode | undefined> {
+    const ac = await this.getAccessCode(code);
+    if (!ac || !ac.active) return undefined;
+    if (ac.maxUses && ac.useCount !== null && ac.useCount >= ac.maxUses) return undefined;
+    if (ac.expiresAt && new Date() > ac.expiresAt) return undefined;
+
+    const [updated] = await db.update(accessCodes)
+      .set({
+        redeemedBy: userId,
+        redeemedAt: new Date(),
+        useCount: (ac.useCount || 0) + 1,
+      })
+      .where(eq(accessCodes.code, code))
+      .returning();
+
+    await db.update(users)
+      .set({ role: "premium", tier: ac.tier || "ultimate", accessCodeUsed: code, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+
+    return updated;
+  }
+
+  async revokeAccessCode(id: number): Promise<AccessCode> {
+    const [updated] = await db.update(accessCodes)
+      .set({ active: false })
+      .where(eq(accessCodes.id, id))
+      .returning();
+    return updated;
   }
 }
 

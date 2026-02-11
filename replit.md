@@ -70,5 +70,13 @@ The platform is built as a full-stack application with an Express.js backend and
 - **react-i18next / i18next**: Internationalization framework for 12-language UI support with RTL and browser auto-detection.
 - **PostgreSQL (Neon-backed)**: The primary database solution.
 - **YouTube Data API v3**: For OAuth2 connection, video synchronization, and pushing optimized metadata to YouTube.
-- **Stripe**: Payment processing via Replit connector, with automatic webhook management.
+- **Stripe**: Payment processing via Replit connector, with automatic webhook management. 4 subscription tiers (YouTube $9.99, Starter $29.99, Pro $79.99, Ultimate $149.99/mo). Stripe products auto-seeded on first boot.
 - **node-cron**: Background task scheduling for autonomous AI operations.
+
+## Subscription & Access System
+- **Tiers**: free (0 platforms), youtube (1), starter (3), pro (10), ultimate (25 platforms)
+- **Admin**: Thedude180@gmail.com auto-promoted to admin with ultimate tier on login
+- **Access Codes**: Admin generates codes that grant free premium access (any tier, configurable max uses, optional expiry)
+- **Stripe Checkout**: Per-tier subscription checkout via Stripe, customer portal for billing management
+- **Role-based Access**: `useUserProfile` hook provides tier/role info, `TIER_PLATFORM_LIMITS` constant maps tiers to platform counts
+- **Key Files**: `server/stripe-seed.ts` (auto-creates Stripe products), `client/src/pages/Pricing.tsx` (pricing page), `client/src/hooks/use-user-profile.ts` (tier hook), Settings has Subscription/Admin Codes/Admin Users tabs

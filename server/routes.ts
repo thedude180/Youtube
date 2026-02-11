@@ -4,6 +4,7 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth/index"
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { ADMIN_EMAIL } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
 import { sql, eq, and } from "drizzle-orm";
@@ -967,6 +968,220 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  function requireAdmin(req: Request, res: Response): string | null {
+    const userId = requireAuth(req, res);
+    if (!userId) return null;
+    const email = (req.user as any)?.claims?.email;
+    if (!email || email.toLowerCase() !== ADMIN_EMAIL) {
+      res.status(403).json({ error: "Admin access required" });
+      return null;
+    }
+    return userId;
+  }
+
+  // === USER PROFILE & ROLE ===
+  app.get("/api/user/profile", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const email = (req.user as any)?.claims?.email;
+      let user = await storage.getUser(userId);
+      if (user && email && email.toLowerCase() === ADMIN_EMAIL && user.role !== "admin") {
+        user = await storage.updateUserRole(userId, "admin", "ultimate");
+      }
+      res.json(user || { id: userId, role: "user", tier: "free" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // === ACCESS CODES (Admin Only) ===
+  app.get("/api/admin/access-codes", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const codes = await storage.getAccessCodes();
+      res.json(codes);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/access-codes", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const { label, tier, maxUses, expiresAt } = req.body;
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+      const created = await storage.createAccessCode({
+        code,
+        label: label || null,
+        tier: tier || "ultimate",
+        createdBy: userId,
+        maxUses: maxUses || 1,
+        active: true,
+        redeemedBy: null,
+        redeemedAt: null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      });
+      res.status(201).json(created);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/admin/access-codes/:id", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const revoked = await storage.revokeAccessCode(Number(req.params.id));
+      res.json(revoked);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // === ACCESS CODE REDEMPTION ===
+  app.post("/api/redeem-code", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ error: "Code required" });
+      const result = await storage.redeemAccessCode(code.toUpperCase(), userId);
+      if (!result) return res.status(400).json({ error: "Invalid, expired, or already used code" });
+      const user = await storage.getUser(userId);
+      res.json({ success: true, tier: user?.tier, role: user?.role });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // === ADMIN USER MANAGEMENT ===
+  app.get("/api/admin/users", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/admin/users/:userId/tier", async (req, res) => {
+    const adminId = requireAdmin(req, res);
+    if (!adminId) return;
+    try {
+      const { tier, role } = req.body;
+      const updated = await storage.updateUserRole(req.params.userId, role || "user", tier || "free");
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // === STRIPE SUBSCRIPTION CHECKOUT ===
+  app.post("/api/stripe/create-checkout-session", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const stripe = await getUncachableStripeClient();
+      const { priceId } = req.body;
+      if (!priceId) return res.status(400).json({ error: "priceId required" });
+
+      const user = await storage.getUser(userId);
+      let customerId = user?.stripeCustomerId;
+
+      if (!customerId) {
+        const email = (req.user as any)?.claims?.email;
+        const customer = await stripe.customers.create({
+          email: email || undefined,
+          metadata: { userId },
+        });
+        customerId = customer.id;
+        await storage.updateUserStripeInfo(userId, { stripeCustomerId: customerId });
+      }
+
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: "subscription",
+        success_url: `${baseUrl}/settings?tab=subscription&status=success`,
+        cancel_url: `${baseUrl}/pricing?status=cancelled`,
+      });
+
+      res.json({ url: session.url });
+    } catch (e: any) {
+      console.error("Stripe checkout error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/stripe/customer-portal", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const user = await storage.getUser(userId);
+      if (!user?.stripeCustomerId) return res.status(400).json({ error: "No subscription found" });
+
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const session = await stripe.billingPortal.sessions.create({
+        customer: user.stripeCustomerId,
+        return_url: `${baseUrl}/settings`,
+      });
+      res.json({ url: session.url });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // === STRIPE PRODUCTS/PRICES ===
+  app.get("/api/stripe/products-with-prices", async (_req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT p.id as product_id, p.name as product_name, p.description as product_description,
+               p.metadata as product_metadata, p.active as product_active,
+               pr.id as price_id, pr.unit_amount, pr.currency, pr.recurring, pr.active as price_active
+        FROM stripe.products p
+        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+        WHERE p.active = true
+        ORDER BY pr.unit_amount ASC
+      `);
+      const productsMap = new Map<string, any>();
+      for (const row of result.rows) {
+        const r = row as any;
+        if (!productsMap.has(r.product_id)) {
+          productsMap.set(r.product_id, {
+            id: r.product_id,
+            name: r.product_name,
+            description: r.product_description,
+            metadata: r.product_metadata,
+            prices: [],
+          });
+        }
+        if (r.price_id) {
+          productsMap.get(r.product_id)!.prices.push({
+            id: r.price_id,
+            unit_amount: r.unit_amount,
+            currency: r.currency,
+            recurring: r.recurring,
+          });
+        }
+      }
+      res.json(Array.from(productsMap.values()));
+    } catch (e: any) {
+      if (e.message?.includes("does not exist")) {
+        res.json([]);
+      } else {
+        res.status(500).json({ error: e.message });
+      }
+    }
+  });
 
   // === AUTO-CONNECT YOUTUBE ON FIRST LOGIN ===
   app.post("/api/auto-connect-youtube", async (req, res) => {

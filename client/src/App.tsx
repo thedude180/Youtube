@@ -24,6 +24,7 @@ import Money from "@/pages/Money";
 import Notifications from "@/pages/Notifications";
 import Landing from "@/pages/Landing";
 import Onboarding from "@/pages/Onboarding";
+import Pricing from "@/pages/Pricing";
 import NotFound from "@/pages/not-found";
 import FloatingChat from "@/components/FloatingChat";
 
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/money" component={Money} />
       <Route path="/money/:tab" component={Money} />
       <Route path="/notifications" component={Notifications} />
+      <Route path="/pricing" component={Pricing} />
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>

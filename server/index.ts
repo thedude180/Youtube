@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
+import { seedStripeProducts } from "./stripe-seed";
 
 const app = express();
 const httpServer = createServer(app);
@@ -47,7 +48,10 @@ async function initStripe() {
 
     console.log('Syncing Stripe data...');
     stripeSync.syncBackfill()
-      .then(() => console.log('Stripe data synced'))
+      .then(() => {
+        console.log('Stripe data synced');
+        return seedStripeProducts();
+      })
       .catch((err: any) => console.error('Error syncing Stripe data:', err));
   } catch (error) {
     console.error('Failed to initialize Stripe:', error);
