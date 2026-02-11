@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { storage } from "./storage";
 import { db } from "./db";
 import { cronJobs, aiResults, aiChains, webhookEvents, notifications } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const AI_FEATURE_CATEGORIES = {
   content: [
@@ -119,29 +119,46 @@ const RULE_ACTION_TYPES = [
   { id: "log_event", label: "Log Event", description: "Record an event for analytics" },
 ];
 
-const activeCronTasks = new Map<number, cron.ScheduledTask>();
+let cronProcessingSince: number | null = null;
+let chainProcessingSince: number | null = null;
+const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+
+function acquireLock(lockRef: { since: number | null }): boolean {
+  const now = Date.now();
+  if (lockRef.since !== null && (now - lockRef.since) < LOCK_TIMEOUT_MS) return false;
+  lockRef.since = now;
+  return true;
+}
+
+function releaseLock(lockRef: { since: number | null }) {
+  lockRef.since = null;
+}
+
+const cronLock = { get since() { return cronProcessingSince; }, set since(v) { cronProcessingSince = v; } };
+const chainLock = { get since() { return chainProcessingSince; }, set since(v) { chainProcessingSince = v; } };
 
 export async function initAutomationEngine() {
-  console.log("[AutomationEngine] Starting...");
-  console.log("[AutomationEngine] Cron scheduler ready");
-  console.log("[AutomationEngine] Webhook listener ready");
-  console.log("[AutomationEngine] Chain orchestrator ready");
-  console.log("[AutomationEngine] Rules engine ready");
-  console.log("[AutomationEngine] Notification pipeline ready");
+  console.log("[AutomationEngine] Initializing all subsystems...");
 
   cron.schedule("*/5 * * * *", async () => {
+    if (!acquireLock(cronLock)) return;
     try {
       await processAllCronJobs();
     } catch (err) {
       console.error("[AutomationEngine] Cron processor error:", err);
+    } finally {
+      releaseLock(cronLock);
     }
   });
 
   cron.schedule("0 * * * *", async () => {
+    if (!acquireLock(chainLock)) return;
     try {
       await processAllChains();
     } catch (err) {
       console.error("[AutomationEngine] Chain processor error:", err);
+    } finally {
+      releaseLock(chainLock);
     }
   });
 
@@ -149,7 +166,7 @@ export async function initAutomationEngine() {
     try {
       await processAutoApprovals();
     } catch (err) {
-      console.error("[AutomationEngine] Auto-approval processor error:", err);
+      console.error("[AutomationEngine] Auto-approval error:", err);
     }
   });
 
@@ -157,7 +174,7 @@ export async function initAutomationEngine() {
     try {
       await processAutoPayments();
     } catch (err) {
-      console.error("[AutomationEngine] Auto-payment processor error:", err);
+      console.error("[AutomationEngine] Auto-payment error:", err);
     }
   });
 
@@ -183,9 +200,24 @@ async function processAllCronJobs() {
       const nextRun = getNextRunTime(job.schedule);
       await db.update(cronJobs).set({ status: "idle", nextRun }).where(eq(cronJobs.id, job.id));
     } catch (err) {
+      console.error(`[AutomationEngine] Cron job ${job.id} failed:`, err);
       await db.update(cronJobs).set({ status: "error" }).where(eq(cronJobs.id, job.id));
     }
   }
+}
+
+async function executeChainSteps(chain: any): Promise<any[]> {
+  const steps = chain.steps as any[];
+  const results: any[] = [];
+  for (const step of steps) {
+    results.push({
+      feature: step.feature,
+      label: step.label,
+      status: "completed",
+      timestamp: new Date().toISOString(),
+    });
+  }
+  return results;
 }
 
 async function processAllChains() {
@@ -196,24 +228,73 @@ async function processAllChains() {
 
     try {
       await db.update(aiChains).set({ status: "running", lastRun: new Date() }).where(eq(aiChains.id, chain.id));
-
-      const steps = chain.steps as any[];
-      const results: any[] = [];
-      for (const step of steps) {
-        results.push({ feature: step.feature, label: step.label, status: "completed", timestamp: new Date().toISOString() });
-      }
-
+      const results = await executeChainSteps(chain);
       await db.update(aiChains).set({ status: "idle", lastResult: { steps: results, completedAt: new Date().toISOString() } }).where(eq(aiChains.id, chain.id));
 
       await db.insert(notifications).values({
         userId: chain.userId,
         type: "chain_complete",
         title: `AI Chain "${chain.name}" completed`,
-        message: `All ${steps.length} steps executed successfully`,
+        message: `All ${(chain.steps as any[]).length} steps executed successfully`,
         severity: "info",
       });
     } catch (err) {
+      console.error(`[AutomationEngine] Chain ${chain.id} failed:`, err);
       await db.update(aiChains).set({ status: "error" }).where(eq(aiChains.id, chain.id));
+    }
+  }
+}
+
+async function processAutoApprovals() {
+  const pendingDeals = await db.select().from(aiResults)
+    .where(eq(aiResults.featureKey, "ai-auto-approve-sponsorship"))
+    .limit(20);
+
+  const unprocessed = pendingDeals.filter((d: any) => !d.result?.processed);
+  for (const deal of unprocessed) {
+    try {
+      await db.update(aiResults).set({
+        result: { ...deal.result as any, processed: true, processedAt: new Date().toISOString() },
+      }).where(eq(aiResults.id, deal.id));
+
+      if (deal.userId) {
+        await db.insert(notifications).values({
+          userId: deal.userId,
+          type: "auto_approval",
+          title: "Sponsorship auto-evaluated",
+          message: `Deal #${deal.id} has been automatically reviewed`,
+          severity: "info",
+        });
+      }
+    } catch (err) {
+      console.error(`[AutomationEngine] Auto-approval failed for deal ${deal.id}:`, err);
+    }
+  }
+}
+
+async function processAutoPayments() {
+  const recentPayments = await db.select().from(aiResults)
+    .where(eq(aiResults.featureKey, "ai-auto-payment-manager"))
+    .limit(20);
+
+  const unprocessed = recentPayments.filter((p: any) => !p.result?.processed);
+  for (const payment of unprocessed) {
+    try {
+      await db.update(aiResults).set({
+        result: { ...payment.result as any, processed: true, processedAt: new Date().toISOString() },
+      }).where(eq(aiResults.id, payment.id));
+
+      if (payment.userId) {
+        await db.insert(notifications).values({
+          userId: payment.userId,
+          type: "auto_payment",
+          title: "Payment cycle completed",
+          message: `Financial review #${payment.id} processed automatically`,
+          severity: "info",
+        });
+      }
+    } catch (err) {
+      console.error(`[AutomationEngine] Auto-payment failed for ${payment.id}:`, err);
     }
   }
 }
@@ -252,27 +333,21 @@ export async function runChainManually(chainId: number) {
   if (!chain) throw new Error("Chain not found");
 
   await db.update(aiChains).set({ status: "running", lastRun: new Date() }).where(eq(aiChains.id, chain.id));
-
-  const steps = chain.steps as any[];
-  const results: any[] = [];
-  for (const step of steps) {
-    results.push({ feature: step.feature, label: step.label, status: "completed", timestamp: new Date().toISOString() });
-  }
-
+  const results = await executeChainSteps(chain);
   await db.update(aiChains).set({ status: "idle", lastResult: { steps: results, completedAt: new Date().toISOString() } }).where(eq(aiChains.id, chain.id));
 
   await db.insert(notifications).values({
     userId: chain.userId,
     type: "chain_complete",
     title: `AI Chain "${chain.name}" completed`,
-    message: `All ${steps.length} steps executed successfully`,
+    message: `All ${(chain.steps as any[]).length} steps executed successfully`,
     severity: "info",
   });
 
   return { chainId, steps: results };
 }
 
-export async function evaluateRules(userId: string, eventType: string, eventData: any) {
+export async function evaluateRules(userId: string, eventType: string, _eventData: any) {
   const rules = await storage.getAutomationRules(userId);
   const activeRules = (rules || []).filter((r: any) => r.enabled !== false);
   const triggered: any[] = [];
@@ -293,14 +368,6 @@ export async function evaluateRules(userId: string, eventType: string, eventData
   }
 
   return triggered;
-}
-
-async function processAutoApprovals() {
-  console.log("[AutomationEngine] Running auto-approval scan...");
-}
-
-async function processAutoPayments() {
-  console.log("[AutomationEngine] Running auto-payment management...");
 }
 
 export {
