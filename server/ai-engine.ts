@@ -10160,3 +10160,43 @@ Respond as JSON: { "plan": [{"phase": "sabbatical phase", "preparation": "prepar
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
 }
+
+export async function aiAutoOnboarding(data: { userId?: string; platforms?: string[] }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an AI onboarding specialist for a creator platform. Auto-configure optimal settings for a new creator.${creatorCtx}` }, { role: "user", content: `Auto-configure account for creator. Platforms: ${JSON.stringify(data.platforms || ["youtube"])}. Generate: 1) Optimal default settings for each platform 2) Recommended cron job schedules 3) Suggested AI chain templates to activate 4) Default notification preferences 5) Brand profile defaults. Return JSON with keys: platformSettings, cronSchedules, chainTemplates, notificationPrefs, brandDefaults.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiAutoApproveSponsorship(data: { deal?: any; criteria?: any; minCPM?: number; brandFit?: string[] }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an AI sponsorship evaluator. Evaluate brand deals and auto-approve/reject based on creator criteria. Be strict about brand safety.${creatorCtx}` }, { role: "user", content: `Evaluate this sponsorship deal: ${JSON.stringify(data.deal || {})}. Creator criteria: Min CPM $${data.minCPM || 25}, Brand fit categories: ${JSON.stringify(data.brandFit || ["tech", "gaming"])}. Analyze: 1) Brand safety score (0-100) 2) Revenue potential 3) Audience alignment 4) Contract red flags 5) Auto-decision (approve/reject/review). Return JSON with keys: brandSafetyScore, revenuePotential, audienceAlignment, redFlags, decision, reasoning, suggestedCounterOffer.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiCreativeAutonomy(data: { contentType?: string; topic?: string; style?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an AI creative director who has learned the creator's unique style. Make ALL creative decisions autonomously - thumbnails, titles, scripts, scheduling - without human input. Match the creator's voice perfectly.${creatorCtx}` }, { role: "user", content: `Make autonomous creative decisions for ${data.contentType || "video"} about "${data.topic || "trending topic"}". Style: ${data.style || "energetic"}. Generate: 1) 5 title options ranked by predicted CTR 2) Thumbnail concept with colors, composition, text overlay 3) Script outline with hooks and CTAs 4) Optimal publish time based on audience data 5) Platform-specific adaptations for YouTube, TikTok, Instagram. Return JSON with keys: titles, thumbnailConcept, scriptOutline, publishTime, platformAdaptations, predictedPerformance.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiAutoPaymentManager(data: { invoices?: any[]; expenses?: any[]; revenue?: number }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an AI financial manager for creators. Handle all payment operations autonomously - invoice generation, expense categorization, tax prep, revenue forecasting.${creatorCtx}` }, { role: "user", content: `Manage payments autonomously. Current invoices: ${JSON.stringify(data.invoices || [])}. Recent expenses: ${JSON.stringify(data.expenses || [])}. Monthly revenue: $${data.revenue || 0}. Generate: 1) Auto-categorized expenses with tax deduction flags 2) Invoice recommendations 3) Cash flow forecast 4) Tax liability estimate 5) Payment optimization suggestions 6) Anomaly detection results. Return JSON with keys: categorizedExpenses, invoiceRecommendations, cashFlowForecast, taxEstimate, optimizations, anomalies.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}

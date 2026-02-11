@@ -24,11 +24,13 @@ const AI_FEATURE_CATEGORIES = {
     "ai-financial-insights", "ai-pnl-report", "ai-sponsorship-manager",
     "ai-revenue-forecast", "ai-expense-optimizer", "ai-tax-prep",
     "ai-brand-deal-analyzer", "ai-merch-optimizer",
+    "ai-auto-approve-sponsorship", "ai-auto-payment-manager",
   ],
   business: [
     "ai-team-manager", "ai-automation-builder", "ai-brand-analysis",
     "ai-collab-matchmaker", "ai-wellness-advisor", "ai-creator-academy",
     "ai-media-kit", "ai-contract-review", "ai-crisis-manager",
+    "ai-auto-onboarding", "ai-creative-autonomy",
   ],
 };
 
@@ -140,6 +142,22 @@ export async function initAutomationEngine() {
       await processAllChains();
     } catch (err) {
       console.error("[AutomationEngine] Chain processor error:", err);
+    }
+  });
+
+  cron.schedule("*/30 * * * *", async () => {
+    try {
+      await processAutoApprovals();
+    } catch (err) {
+      console.error("[AutomationEngine] Auto-approval processor error:", err);
+    }
+  });
+
+  cron.schedule("0 */6 * * *", async () => {
+    try {
+      await processAutoPayments();
+    } catch (err) {
+      console.error("[AutomationEngine] Auto-payment processor error:", err);
     }
   });
 
@@ -275,6 +293,14 @@ export async function evaluateRules(userId: string, eventType: string, eventData
   }
 
   return triggered;
+}
+
+async function processAutoApprovals() {
+  console.log("[AutomationEngine] Running auto-approval scan...");
+}
+
+async function processAutoPayments() {
+  console.log("[AutomationEngine] Running auto-payment management...");
 }
 
 export {

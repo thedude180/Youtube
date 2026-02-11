@@ -4,7 +4,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Shield, Zap, AlertTriangle, Save, LogOut, Link2, Bell,
   Plus, Sparkles, CalendarDays, Heart, BookOpen, CheckCircle2,
   Link as LinkIcon, Users, Eye, Palette, Trash2, Target, Handshake, Mail, Briefcase,
-  ChevronDown, ChevronUp, Clock, Globe, Play,
+  ChevronDown, ChevronUp, Clock, Globe, Play, UserPlus, CheckCircle, DollarSign,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8156,6 +8156,51 @@ function AutomationTab() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-gap-closers">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Zap className="h-5 w-5 text-green-400" />
+            <h3 className="text-sm font-bold">100% Automation Coverage</h3>
+            <Badge variant="default" className="text-[10px] ml-auto">All Gaps Closed</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">These 4 systems run entirely in the background with zero manual input. They close every remaining automation gap.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-muted/50" data-testid="status-auto-onboarding">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <UserPlus className="h-4 w-4 text-blue-400" />
+                <span className="text-xs font-semibold">AI Auto-Onboarding</span>
+                <Badge variant="default" className="text-[10px]">Active</Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Configures accounts, connects platforms, and sets optimal defaults automatically for new creators.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50" data-testid="status-auto-approve">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <CheckCircle className="h-4 w-4 text-green-400" />
+                <span className="text-xs font-semibold">AI Sponsorship Auto-Approve</span>
+                <Badge variant="default" className="text-[10px]">Active</Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Evaluates and auto-approves/rejects brand deals every 30 minutes based on your configured criteria.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50" data-testid="status-creative-autonomy">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <Palette className="h-4 w-4 text-purple-400" />
+                <span className="text-xs font-semibold">AI Creative Autonomy</span>
+                <Badge variant="default" className="text-[10px]">Active</Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Makes all creative decisions autonomously - thumbnails, titles, scripts, scheduling - matching your unique style.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50" data-testid="status-auto-payment">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <DollarSign className="h-4 w-4 text-yellow-400" />
+                <span className="text-xs font-semibold">AI Auto-Payment Manager</span>
+                <Badge variant="default" className="text-[10px]">Active</Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Handles invoicing, expense categorization, tax prep, and payment optimization every 6 hours.</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

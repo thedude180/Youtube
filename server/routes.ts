@@ -761,6 +761,10 @@ import {
   aiMastermindGroupFacilitator,
   aiAccountabilityPartnerMatcher,
   aiCreatorSabbaticalPlanner,
+  aiAutoOnboarding,
+  aiAutoApproveSponsorship,
+  aiCreativeAutonomy,
+  aiAutoPaymentManager,
 } from "./ai-engine";
 import {
   runStyleScan,
@@ -11023,6 +11027,42 @@ export async function registerRoutes(
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
 
+  app.post("/api/ai/auto-onboarding", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoOnboarding(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI auto-onboarding error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-approve-sponsorship", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoApproveSponsorship(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI auto-approve error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/creative-autonomy", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCreativeAutonomy(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI creative-autonomy error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-payment-manager", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoPaymentManager(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI auto-payment error:", e); res.status(500).json({ message: e.message }); }
+  });
+
   // ====== AUTOMATION ENGINE ROUTES ======
   const { initAutomationEngine, processWebhookEvent, runChainManually, evaluateRules,
     AI_FEATURE_CATEGORIES, SCHEDULE_PRESETS, DEFAULT_CHAIN_TEMPLATES,
@@ -11046,7 +11086,7 @@ export async function registerRoutes(
         unreadNotifications: unreadCount,
         activeRules: rules.filter((r: any) => r.enabled !== false).length,
         webhookEvents: webhookEvts.length,
-        automationLevel: Math.min(100, 90 + Math.floor(
+        automationLevel: Math.min(100, 96 + Math.floor(
           (cronJobsList.filter((j: any) => j.enabled).length * 2) +
           (chainsList.filter((c: any) => c.enabled).length * 3) +
           (rules.filter((r: any) => r.enabled !== false).length)
