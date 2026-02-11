@@ -49,6 +49,46 @@ import {
   aiWellnessAdvisor,
   aiSEOAudit,
   aiContentCalendarPlanner,
+  aiStoryboardGenerator,
+  aiColorGradingAdvisor,
+  aiIntroOutroCreator,
+  aiSoundEffectsRecommender,
+  aiPacingAnalyzer,
+  aiTalkingPointsGenerator,
+  aiVideoLengthOptimizer,
+  aiMultiFormatExporter,
+  aiWatermarkManager,
+  aiGreenScreenAdvisor,
+  aiTeleprompterFormatter,
+  aiSceneTransitionRecommender,
+  aiVideoQualityEnhancer,
+  aiAspectRatioOptimizer,
+  aiLowerThirdGenerator,
+  aiCtaOverlayDesigner,
+  aiSplitScreenBuilder,
+  aiTimeLapseAdvisor,
+  aiFootageOrganizer,
+  aiAudioLevelingAdvisor,
+  aiBackgroundNoiseDetector,
+  aiJumpCutDetector,
+  aiCinematicShotPlanner,
+  aiVideoCompressionOptimizer,
+  aiThumbnailABTester,
+  aiThumbnailCTRPredictor,
+  aiThumbnailStyleLibrary,
+  aiFaceExpressionAnalyzer,
+  aiThumbnailTextOptimizer,
+  aiThumbnailColorPsychology,
+  aiBannerGenerator,
+  aiSocialCoverCreator,
+  aiAnimatedThumbnailCreator,
+  aiThumbnailCompetitorComparison,
+  aiBrandWatermarkDesigner,
+  aiEmojiStickerCreator,
+  aiInfographicGenerator,
+  aiMemeTemplateCreator,
+  aiVisualConsistencyScorer,
+  aiVoiceCloneAdvisor,
 } from "./ai-engine";
 import {
   runStyleScan,
@@ -2502,6 +2542,367 @@ export async function registerRoutes(
       }, userId);
       res.json(result);
     } catch (e: any) { console.error("AI wellness error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  // === VIDEO PRODUCTION & THUMBNAIL AI (Batch 1) ===
+  app.post("/api/ai/storyboard", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiStoryboardGenerator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/color-grading", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiColorGradingAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/intro-outro", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiIntroOutroCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/sound-effects", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSoundEffectsRecommender(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/pacing", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPacingAnalyzer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/talking-points", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTalkingPointsGenerator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/video-length", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiVideoLengthOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/multi-format", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMultiFormatExporter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/watermark", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiWatermarkManager(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/green-screen", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiGreenScreenAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/teleprompter", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTeleprompterFormatter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/scene-transitions", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSceneTransitionRecommender(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/video-quality", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiVideoQualityEnhancer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/aspect-ratio", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAspectRatioOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/lower-thirds", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiLowerThirdGenerator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/cta-overlays", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCtaOverlayDesigner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/split-screen", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSplitScreenBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/time-lapse", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTimeLapseAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/footage-organizer", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiFootageOrganizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/audio-leveling", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAudioLevelingAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/noise-detector", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBackgroundNoiseDetector(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/jump-cuts", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiJumpCutDetector(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/cinematic-shots", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCinematicShotPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/compression", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiVideoCompressionOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-ab", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThumbnailABTester(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-ctr", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThumbnailCTRPredictor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-styles", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThumbnailStyleLibrary(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/face-expressions", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiFaceExpressionAnalyzer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-text", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThumbnailTextOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/color-psychology", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThumbnailColorPsychology(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/banner", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBannerGenerator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/social-covers", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSocialCoverCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/animated-thumbnails", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAnimatedThumbnailCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-competitors", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThumbnailCompetitorComparison(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/brand-watermark", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBrandWatermarkDesigner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/emoji-stickers", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiEmojiStickerCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/infographic", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiInfographicGenerator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/meme-templates", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMemeTemplateCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/visual-consistency", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiVisualConsistencyScorer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/voice-clone", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiVoiceCloneAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
 
   // === BRAND ASSETS ===

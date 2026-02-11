@@ -1435,3 +1435,710 @@ Respond as JSON:
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
 }
+
+export async function aiStoryboardGenerator(data: { scriptText?: string; videoTitle?: string; scenes?: number }, userId?: string) {
+  const p = `Generate a scene-by-scene storyboard with visual descriptions, camera angles, and transitions.
+${data.videoTitle ? `Video Title: ${data.videoTitle}` : ""}
+${data.scriptText ? `Script: ${data.scriptText}` : ""}
+${data.scenes ? `Number of Scenes: ${data.scenes}` : ""}
+Respond as JSON:
+{
+  "scenes": [{"sceneNumber": 1, "visualDescription": "description", "cameraAngle": "angle", "transition": "cut type", "duration": "seconds", "notes": "additional notes"}],
+  "totalDuration": "estimated total duration",
+  "mood": "overall mood"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiColorGradingAdvisor(data: { genre?: string; mood?: string; platform?: string }, userId?: string) {
+  const p = `Recommend color palettes and grading styles for video content.
+${data.genre ? `Genre: ${data.genre}` : ""}
+${data.mood ? `Mood: ${data.mood}` : ""}
+${data.platform ? `Platform: ${data.platform}` : ""}
+Respond as JSON:
+{
+  "recommendedPalette": {"primary": "#hex", "secondary": "#hex", "accent": "#hex"},
+  "gradingStyle": "style name",
+  "lut": "recommended LUT",
+  "warmth": "warm/cool/neutral",
+  "contrast": "high/medium/low",
+  "examples": [{"style": "style name", "description": "description"}]
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiIntroOutroCreator(data: { channelName?: string; niche?: string; style?: string }, userId?: string) {
+  const p = `Generate branded intro and outro concepts for a video channel.
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.style ? `Style: ${data.style}` : ""}
+Respond as JSON:
+{
+  "intro": {"duration": "seconds", "concept": "description", "music": "music style", "textOverlay": "text content", "animation": "animation type"},
+  "outro": {"duration": "seconds", "concept": "description", "elements": ["element1"], "cta": "call to action"},
+  "brandConsistency": "tips for brand consistency"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSoundEffectsRecommender(data: { videoType?: string; scenes?: string[]; mood?: string }, userId?: string) {
+  const p = `Suggest sound effects timing and placement for video content.
+${data.videoType ? `Video Type: ${data.videoType}` : ""}
+${data.scenes ? `Scenes: ${data.scenes.join(", ")}` : ""}
+${data.mood ? `Mood: ${data.mood}` : ""}
+Respond as JSON:
+{
+  "effects": [{"timestamp": "time", "effect": "effect name", "category": "category", "source": "source suggestion", "purpose": "why this effect"}],
+  "ambientSounds": "ambient sound recommendations",
+  "musicTransitions": "music transition suggestions"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiPacingAnalyzer(data: { videoDuration?: string; genre?: string; avgRetention?: number }, userId?: string) {
+  const p = `Analyze video pacing and suggest improvements for better audience retention.
+${data.videoDuration ? `Video Duration: ${data.videoDuration}` : ""}
+${data.genre ? `Genre: ${data.genre}` : ""}
+${data.avgRetention ? `Average Retention: ${data.avgRetention}%` : ""}
+Respond as JSON:
+{
+  "currentPacing": "assessment of current pacing",
+  "idealPacing": "recommended pacing strategy",
+  "speedUpSections": [{"from": "timestamp", "to": "timestamp", "reason": "why speed up"}],
+  "slowDownSections": "sections to slow down",
+  "hookTiming": "ideal hook timing",
+  "payoffTiming": "ideal payoff timing",
+  "overallScore": 75
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTalkingPointsGenerator(data: { topic?: string; duration?: string; style?: string }, userId?: string) {
+  const p = `Generate bullet-point talking guides for unscripted video content.
+${data.topic ? `Topic: ${data.topic}` : ""}
+${data.duration ? `Target Duration: ${data.duration}` : ""}
+${data.style ? `Style: ${data.style}` : ""}
+Respond as JSON:
+{
+  "talkingPoints": [{"point": "main point", "subPoints": ["sub point 1"], "timing": "suggested timing", "transition": "transition to next point"}],
+  "openingHook": "hook to start with",
+  "closingCta": "closing call to action",
+  "segueIdeas": "ideas for natural segues"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVideoLengthOptimizer(data: { topic?: string; niche?: string; platform?: string; avgRetention?: number }, userId?: string) {
+  const p = `Recommend the ideal video length based on topic, niche, and platform data.
+${data.topic ? `Topic: ${data.topic}` : ""}
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.platform ? `Platform: ${data.platform}` : ""}
+${data.avgRetention ? `Average Retention: ${data.avgRetention}%` : ""}
+Respond as JSON:
+{
+  "idealLength": "recommended length",
+  "reasoning": "why this length",
+  "retentionPrediction": "predicted retention",
+  "platformOptimal": {"youtube": "optimal for youtube", "tiktok": "optimal for tiktok", "instagram": "optimal for instagram"},
+  "segmentBreakdown": "how to structure segments"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiMultiFormatExporter(data: { videoTitle?: string; originalFormat?: string; targetPlatforms?: string[] }, userId?: string) {
+  const p = `Provide auto-resize specifications for exporting video to multiple platforms.
+${data.videoTitle ? `Video Title: ${data.videoTitle}` : ""}
+${data.originalFormat ? `Original Format: ${data.originalFormat}` : ""}
+${data.targetPlatforms ? `Target Platforms: ${data.targetPlatforms.join(", ")}` : ""}
+Respond as JSON:
+{
+  "formats": [{"platform": "platform name", "aspectRatio": "ratio", "resolution": "resolution", "maxDuration": "max duration", "fileSize": "max file size", "captionStyle": "caption style"}],
+  "exportOrder": "recommended export order",
+  "priorities": "prioritization strategy"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiWatermarkManager(data: { channelName?: string; platforms?: string[] }, userId?: string) {
+  const p = `Create a watermark strategy for video distribution across platforms.
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
+Respond as JSON:
+{
+  "watermarkDesign": "design description",
+  "placement": "recommended placement",
+  "opacity": "recommended opacity",
+  "platforms": [{"name": "platform", "required": true, "position": "position"}],
+  "removalStrategy": "when and how to handle removal"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiGreenScreenAdvisor(data: { contentType?: string; mood?: string; genre?: string }, userId?: string) {
+  const p = `Recommend virtual backgrounds and green screen setups for video content.
+${data.contentType ? `Content Type: ${data.contentType}` : ""}
+${data.mood ? `Mood: ${data.mood}` : ""}
+${data.genre ? `Genre: ${data.genre}` : ""}
+Respond as JSON:
+{
+  "backgrounds": [{"name": "background name", "style": "style", "mood": "mood", "colorScheme": "colors", "useCases": "when to use"}],
+  "lightingTips": "lighting recommendations",
+  "keyingAdvice": "chroma key best practices"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTeleprompterFormatter(data: { script?: string; speakingSpeed?: string }, userId?: string) {
+  const p = `Format a script for teleprompter use with timing and emphasis marks.
+${data.script ? `Script: ${data.script}` : ""}
+${data.speakingSpeed ? `Speaking Speed: ${data.speakingSpeed}` : ""}
+Respond as JSON:
+{
+  "formattedScript": "formatted script text",
+  "wordsPerMinute": 150,
+  "estimatedDuration": "estimated duration",
+  "breathMarks": "where to breathe",
+  "emphasisMarks": "words to emphasize",
+  "pausePoints": "where to pause"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSceneTransitionRecommender(data: { videoType?: string; pacing?: string; scenes?: number }, userId?: string) {
+  const p = `Recommend transitions between video scenes based on content type and pacing.
+${data.videoType ? `Video Type: ${data.videoType}` : ""}
+${data.pacing ? `Pacing: ${data.pacing}` : ""}
+${data.scenes ? `Number of Scenes: ${data.scenes}` : ""}
+Respond as JSON:
+{
+  "transitions": [{"fromScene": 1, "toScene": 2, "type": "transition type", "duration": "duration", "reasoning": "why this transition"}],
+  "avoidList": "transitions to avoid",
+  "styleTips": "general style tips"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVideoQualityEnhancer(data: { currentResolution?: string; fps?: number; bitrate?: string }, userId?: string) {
+  const p = `Suggest video quality improvements based on current settings.
+${data.currentResolution ? `Current Resolution: ${data.currentResolution}` : ""}
+${data.fps ? `FPS: ${data.fps}` : ""}
+${data.bitrate ? `Bitrate: ${data.bitrate}` : ""}
+Respond as JSON:
+{
+  "recommendations": [{"setting": "setting name", "current": "current value", "recommended": "recommended value", "impact": "expected impact"}],
+  "exportSettings": "optimal export settings",
+  "platformOptimal": "platform-specific quality tips"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiAspectRatioOptimizer(data: { videoTitle?: string; targetPlatforms?: string[] }, userId?: string) {
+  const p = `Recommend platform-specific aspect ratios and cropping strategies.
+${data.videoTitle ? `Video Title: ${data.videoTitle}` : ""}
+${data.targetPlatforms ? `Target Platforms: ${data.targetPlatforms.join(", ")}` : ""}
+Respond as JSON:
+{
+  "ratios": [{"platform": "platform", "ratio": "aspect ratio", "resolution": "resolution", "cropStrategy": "how to crop"}],
+  "masterFormat": "recommended master format",
+  "reframeNotes": "reframing recommendations"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiLowerThirdGenerator(data: { channelName?: string; style?: string; colors?: string[] }, userId?: string) {
+  const p = `Generate lower third text overlay designs for video content.
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.style ? `Style: ${data.style}` : ""}
+${data.colors ? `Colors: ${data.colors.join(", ")}` : ""}
+Respond as JSON:
+{
+  "designs": [{"name": "design name", "font": "font family", "animation": "animation type", "position": "screen position", "colors": "color scheme", "useCase": "when to use"}],
+  "brandAlignment": "brand alignment tips",
+  "accessibilityScore": 85
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCtaOverlayDesigner(data: { ctaType?: string; placement?: string; videoType?: string }, userId?: string) {
+  const p = `Design call-to-action overlays for video content.
+${data.ctaType ? `CTA Type: ${data.ctaType}` : ""}
+${data.placement ? `Placement: ${data.placement}` : ""}
+${data.videoType ? `Video Type: ${data.videoType}` : ""}
+Respond as JSON:
+{
+  "overlays": [{"type": "overlay type", "text": "CTA text", "position": "position", "timing": "when to show", "animation": "animation style", "design": "design description"}],
+  "bestPractices": "CTA best practices",
+  "abTestIdeas": "A/B testing suggestions"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSplitScreenBuilder(data: { contentType?: string; participants?: number }, userId?: string) {
+  const p = `Recommend split screen layouts for multi-participant or multi-angle video content.
+${data.contentType ? `Content Type: ${data.contentType}` : ""}
+${data.participants ? `Number of Participants: ${data.participants}` : ""}
+Respond as JSON:
+{
+  "layouts": [{"name": "layout name", "grid": "grid description", "sizing": "sizing details", "bestFor": "best use case"}],
+  "audioMixing": "audio mixing recommendations",
+  "transitionTips": "transition tips between layouts"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTimeLapseAdvisor(data: { subject?: string; duration?: string }, userId?: string) {
+  const p = `Provide time-lapse and slow-motion guidance for video production.
+${data.subject ? `Subject: ${data.subject}` : ""}
+${data.duration ? `Duration: ${data.duration}` : ""}
+Respond as JSON:
+{
+  "timeLapse": {"intervalSeconds": 5, "totalDuration": "total duration", "bestSubjects": "best subjects for time-lapse", "tips": "time-lapse tips"},
+  "slowMo": {"fps": 240, "bestMoments": "best moments for slow-mo", "editingTips": "editing tips for slow-mo"}
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFootageOrganizer(data: { clipCount?: number; projectType?: string }, userId?: string) {
+  const p = `Create a strategy for tagging and sorting raw video clips.
+${data.clipCount ? `Number of Clips: ${data.clipCount}` : ""}
+${data.projectType ? `Project Type: ${data.projectType}` : ""}
+Respond as JSON:
+{
+  "folderStructure": "recommended folder structure",
+  "namingConvention": "file naming convention",
+  "tags": [{"category": "tag category", "examples": "example tags"}],
+  "workflow": "organizing workflow",
+  "backupStrategy": "backup recommendations"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiAudioLevelingAdvisor(data: { contentType?: string; platform?: string }, userId?: string) {
+  const p = `Provide audio leveling guidance for video content.
+${data.contentType ? `Content Type: ${data.contentType}` : ""}
+${data.platform ? `Platform: ${data.platform}` : ""}
+Respond as JSON:
+{
+  "targetLUFS": -14,
+  "voiceLevel": "voice level recommendation",
+  "musicLevel": "music level recommendation",
+  "sfxLevel": "SFX level recommendation",
+  "compressionSettings": "compression settings",
+  "normalization": "normalization advice",
+  "platformStandards": "platform-specific audio standards"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBackgroundNoiseDetector(data: { environment?: string; micType?: string }, userId?: string) {
+  const p = `Detect common background noise issues and provide fixes for video audio.
+${data.environment ? `Recording Environment: ${data.environment}` : ""}
+${data.micType ? `Microphone Type: ${data.micType}` : ""}
+Respond as JSON:
+{
+  "commonNoises": [{"type": "noise type", "fix": "how to fix", "prevention": "how to prevent"}],
+  "softwareRecommendations": "software tools to remove noise",
+  "hardwareTips": "hardware recommendations",
+  "idealEnvironment": "ideal recording environment setup"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiJumpCutDetector(data: { editingStyle?: string; genre?: string }, userId?: string) {
+  const p = `Provide jump cut best practices and alternatives for video editing.
+${data.editingStyle ? `Editing Style: ${data.editingStyle}` : ""}
+${data.genre ? `Genre: ${data.genre}` : ""}
+Respond as JSON:
+{
+  "idealFrequency": "ideal jump cut frequency",
+  "alternatives": "alternatives to jump cuts",
+  "whenToUse": "when jump cuts work best",
+  "whenToAvoid": "when to avoid jump cuts",
+  "smoothTransitions": "smooth transition techniques",
+  "bRollSuggestions": "B-roll suggestions to cover cuts"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCinematicShotPlanner(data: { genre?: string; equipment?: string; location?: string }, userId?: string) {
+  const p = `Plan cinematic shots for professional video production.
+${data.genre ? `Genre: ${data.genre}` : ""}
+${data.equipment ? `Equipment: ${data.equipment}` : ""}
+${data.location ? `Location: ${data.location}` : ""}
+Respond as JSON:
+{
+  "shots": [{"name": "shot name", "description": "shot description", "equipment": "equipment needed", "movement": "camera movement", "framing": "framing details", "lighting": "lighting setup"}],
+  "shotList": "complete shot list",
+  "lightingSetup": "overall lighting setup"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVideoCompressionOptimizer(data: { platform?: string; resolution?: string; fileSize?: string }, userId?: string) {
+  const p = `Optimize video compression settings for the best quality-to-size ratio.
+${data.platform ? `Platform: ${data.platform}` : ""}
+${data.resolution ? `Resolution: ${data.resolution}` : ""}
+${data.fileSize ? `Current File Size: ${data.fileSize}` : ""}
+Respond as JSON:
+{
+  "codec": "recommended codec",
+  "bitrate": "recommended bitrate",
+  "preset": "encoding preset",
+  "quality": "quality setting",
+  "estimatedSize": "estimated output size",
+  "platformLimits": "platform upload limits",
+  "exportSettings": "complete export settings"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiThumbnailABTester(data: { videoTitle?: string; currentCTR?: number }, userId?: string) {
+  const p = `Create an A/B test strategy for video thumbnails to improve click-through rate.
+${data.videoTitle ? `Video Title: ${data.videoTitle}` : ""}
+${data.currentCTR ? `Current CTR: ${data.currentCTR}%` : ""}
+Respond as JSON:
+{
+  "variants": [{"concept": "thumbnail concept", "colorScheme": "colors", "textOverlay": "text on thumbnail", "emotionTarget": "target emotion", "predictedCTR": 5.5}],
+  "testDuration": "recommended test duration",
+  "sampleSize": "minimum sample size",
+  "metrics": "metrics to track"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiThumbnailCTRPredictor(data: { thumbnailDescription?: string; title?: string; niche?: string }, userId?: string) {
+  const p = `Predict thumbnail click-through rate and provide improvement suggestions.
+${data.thumbnailDescription ? `Thumbnail Description: ${data.thumbnailDescription}` : ""}
+${data.title ? `Video Title: ${data.title}` : ""}
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON:
+{
+  "predictedCTR": 4.5,
+  "score": 72,
+  "strengths": "thumbnail strengths",
+  "weaknesses": "thumbnail weaknesses",
+  "improvements": [{"change": "suggested change", "expectedLift": "expected CTR improvement"}],
+  "competitorBenchmark": "how it compares to competitors"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiThumbnailStyleLibrary(data: { niche?: string; channelName?: string }, userId?: string) {
+  const p = `Curate thumbnail style templates for a content channel.
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+Respond as JSON:
+{
+  "styles": [{"name": "style name", "description": "style description", "colorPalette": "color palette", "fontStyle": "font style", "layout": "layout description", "bestFor": "best use case"}],
+  "trendingStyles": "currently trending thumbnail styles",
+  "nicheTop": "top performing styles in this niche"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFaceExpressionAnalyzer(data: { emotionTarget?: string; thumbnailType?: string }, userId?: string) {
+  const p = `Analyze facial expressions for thumbnail effectiveness.
+${data.emotionTarget ? `Target Emotion: ${data.emotionTarget}` : ""}
+${data.thumbnailType ? `Thumbnail Type: ${data.thumbnailType}` : ""}
+Respond as JSON:
+{
+  "bestExpressions": [{"emotion": "emotion name", "description": "expression description", "effectiveness": "effectiveness rating"}],
+  "composition": "face composition tips",
+  "eyeDirection": "where eyes should look",
+  "facePlacement": "where to place face in thumbnail"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiThumbnailTextOptimizer(data: { title?: string; thumbnailText?: string }, userId?: string) {
+  const p = `Optimize text placement and styling on video thumbnails.
+${data.title ? `Video Title: ${data.title}` : ""}
+${data.thumbnailText ? `Current Thumbnail Text: ${data.thumbnailText}` : ""}
+Respond as JSON:
+{
+  "optimizedText": "optimized thumbnail text",
+  "fontSize": "recommended font size",
+  "fontStyle": "recommended font style",
+  "placement": "text placement",
+  "maxWords": 4,
+  "readabilityScore": 85,
+  "contrastAdvice": "contrast and readability tips"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiThumbnailColorPsychology(data: { niche?: string; targetEmotion?: string }, userId?: string) {
+  const p = `Apply color psychology principles to thumbnail design.
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.targetEmotion ? `Target Emotion: ${data.targetEmotion}` : ""}
+Respond as JSON:
+{
+  "colors": [{"color": "color name", "emotion": "associated emotion", "bestUse": "when to use", "avoidWith": "colors to avoid pairing with"}],
+  "combinations": "recommended color combinations",
+  "nicheBest": "best colors for this niche",
+  "contrastRules": "contrast rules for thumbnails"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBannerGenerator(data: { channelName?: string; tagline?: string; niche?: string; platforms?: string[] }, userId?: string) {
+  const p = `Generate channel art and banner concepts for multiple platforms.
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.tagline ? `Tagline: ${data.tagline}` : ""}
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
+Respond as JSON:
+{
+  "banners": [{"platform": "platform name", "dimensions": "dimensions", "layout": "layout description", "elements": "design elements", "colorScheme": "color scheme"}],
+  "brandConsistency": "brand consistency tips",
+  "updateFrequency": "how often to update banners"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSocialCoverCreator(data: { platform?: string; channelName?: string; style?: string }, userId?: string) {
+  const p = `Design social media cover image concepts.
+${data.platform ? `Platform: ${data.platform}` : ""}
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.style ? `Style: ${data.style}` : ""}
+Respond as JSON:
+{
+  "covers": [{"platform": "platform name", "dimensions": "dimensions", "designConcept": "design concept", "elements": "design elements", "cta": "call to action"}],
+  "consistency": "cross-platform consistency tips"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiAnimatedThumbnailCreator(data: { videoTitle?: string; style?: string }, userId?: string) {
+  const p = `Create animated thumbnail concepts for video content.
+${data.videoTitle ? `Video Title: ${data.videoTitle}` : ""}
+${data.style ? `Style: ${data.style}` : ""}
+Respond as JSON:
+{
+  "animations": [{"concept": "animation concept", "frames": "number of frames", "duration": "loop duration", "movement": "movement description", "loop": true}],
+  "platformSupport": "which platforms support animated thumbnails",
+  "bestPractices": "animated thumbnail best practices"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiThumbnailCompetitorComparison(data: { niche?: string; topCompetitors?: string[] }, userId?: string) {
+  const p = `Compare thumbnail strategies against competitors in the same niche.
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.topCompetitors ? `Top Competitors: ${data.topCompetitors.join(", ")}` : ""}
+Respond as JSON:
+{
+  "analysis": [{"competitor": "competitor name", "style": "their thumbnail style", "strengths": "their strengths", "weaknesses": "their weaknesses"}],
+  "gaps": "gaps in competitor thumbnails",
+  "opportunities": "opportunities to stand out",
+  "standoutStrategy": "strategy to differentiate"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBrandWatermarkDesigner(data: { channelName?: string; style?: string }, userId?: string) {
+  const p = `Design brand watermark concepts for video content protection.
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.style ? `Style: ${data.style}` : ""}
+Respond as JSON:
+{
+  "designs": [{"type": "watermark type", "opacity": "recommended opacity", "position": "position on screen", "size": "size recommendation", "style": "visual style"}],
+  "doNots": "watermark mistakes to avoid",
+  "platformRules": "platform-specific watermark rules"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiEmojiStickerCreator(data: { channelName?: string; brandColors?: string[]; emotes?: string[] }, userId?: string) {
+  const p = `Create emoji and sticker pack concepts for a content brand.
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.brandColors ? `Brand Colors: ${data.brandColors.join(", ")}` : ""}
+${data.emotes ? `Desired Emotes: ${data.emotes.join(", ")}` : ""}
+Respond as JSON:
+{
+  "stickers": [{"name": "sticker name", "description": "visual description", "emotion": "emotion conveyed", "style": "art style"}],
+  "packTheme": "overall pack theme",
+  "platformUsage": "where to use stickers",
+  "monetization": "monetization opportunities"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInfographicGenerator(data: { topic?: string; dataPoints?: string[] }, userId?: string) {
+  const p = `Create an infographic layout for presenting data visually.
+${data.topic ? `Topic: ${data.topic}` : ""}
+${data.dataPoints ? `Data Points: ${data.dataPoints.join(", ")}` : ""}
+Respond as JSON:
+{
+  "layout": "overall layout description",
+  "sections": [{"title": "section title", "data": "data to display", "visualType": "chart/icon/text type"}],
+  "colorScheme": "recommended color scheme",
+  "dimensions": "recommended dimensions",
+  "shareability": "tips for making it shareable"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiMemeTemplateCreator(data: { niche?: string; channelName?: string }, userId?: string) {
+  const p = `Create meme templates for brand-safe content marketing.
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+Respond as JSON:
+{
+  "templates": [{"name": "meme name", "format": "meme format", "textPlacement": "where text goes", "useCase": "when to use", "viralPotential": "viral potential rating"}],
+  "trendingFormats": "currently trending meme formats",
+  "brandSafe": "brand safety guidelines"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVisualConsistencyScorer(data: { channelName?: string; recentThumbnails?: string[] }, userId?: string) {
+  const p = `Score the visual consistency of a channel's thumbnails and branding.
+${data.channelName ? `Channel Name: ${data.channelName}` : ""}
+${data.recentThumbnails ? `Recent Thumbnails: ${data.recentThumbnails.join(", ")}` : ""}
+Respond as JSON:
+{
+  "overallScore": 75,
+  "colorConsistency": "color consistency assessment",
+  "fontConsistency": "font consistency assessment",
+  "layoutConsistency": "layout consistency assessment",
+  "improvements": [{"area": "improvement area", "suggestion": "specific suggestion"}],
+  "brandRecognition": "brand recognition score and tips"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVoiceCloneAdvisor(data: { useCase?: string; contentType?: string }, userId?: string) {
+  const p = `Provide voice cloning guidance including tools, best practices, and legal considerations.
+${data.useCase ? `Use Case: ${data.useCase}` : ""}
+${data.contentType ? `Content Type: ${data.contentType}` : ""}
+Respond as JSON:
+{
+  "tools": [{"name": "tool name", "quality": "quality rating", "price": "pricing info", "ethicalNotes": "ethical considerations"}],
+  "bestPractices": "voice cloning best practices",
+  "legalConsiderations": "legal requirements and considerations",
+  "useCases": "recommended use cases",
+  "disclosureRequirements": "disclosure and transparency requirements"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}

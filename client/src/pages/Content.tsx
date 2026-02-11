@@ -129,6 +129,98 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [thumbResult, setThumbResult] = useState<any>(null);
   const [thumbLoading, setThumbLoading] = useState(false);
 
+  const [showProductionAI, setShowProductionAI] = useState(false);
+  const [showThumbnailAI, setShowThumbnailAI] = useState(false);
+
+  const [aiStoryboard, setAiStoryboard] = useState<any>(null);
+  const [aiStoryboardLoading, setAiStoryboardLoading] = useState(false);
+  const [aiColorGrading, setAiColorGrading] = useState<any>(null);
+  const [aiColorGradingLoading, setAiColorGradingLoading] = useState(false);
+  const [aiIntroOutro, setAiIntroOutro] = useState<any>(null);
+  const [aiIntroOutroLoading, setAiIntroOutroLoading] = useState(false);
+  const [aiSoundEffects, setAiSoundEffects] = useState<any>(null);
+  const [aiSoundEffectsLoading, setAiSoundEffectsLoading] = useState(false);
+  const [aiPacing, setAiPacing] = useState<any>(null);
+  const [aiPacingLoading, setAiPacingLoading] = useState(false);
+  const [aiTalkingPoints, setAiTalkingPoints] = useState<any>(null);
+  const [aiTalkingPointsLoading, setAiTalkingPointsLoading] = useState(false);
+  const [aiVideoLength, setAiVideoLength] = useState<any>(null);
+  const [aiVideoLengthLoading, setAiVideoLengthLoading] = useState(false);
+  const [aiMultiFormat, setAiMultiFormat] = useState<any>(null);
+  const [aiMultiFormatLoading, setAiMultiFormatLoading] = useState(false);
+  const [aiWatermark, setAiWatermark] = useState<any>(null);
+  const [aiWatermarkLoading, setAiWatermarkLoading] = useState(false);
+  const [aiGreenScreen, setAiGreenScreen] = useState<any>(null);
+  const [aiGreenScreenLoading, setAiGreenScreenLoading] = useState(false);
+  const [aiTeleprompter, setAiTeleprompter] = useState<any>(null);
+  const [aiTeleprompterLoading, setAiTeleprompterLoading] = useState(false);
+  const [aiTransitions, setAiTransitions] = useState<any>(null);
+  const [aiTransitionsLoading, setAiTransitionsLoading] = useState(false);
+  const [aiVideoQuality, setAiVideoQuality] = useState<any>(null);
+  const [aiVideoQualityLoading, setAiVideoQualityLoading] = useState(false);
+  const [aiAspectRatio, setAiAspectRatio] = useState<any>(null);
+  const [aiAspectRatioLoading, setAiAspectRatioLoading] = useState(false);
+  const [aiLowerThirds, setAiLowerThirds] = useState<any>(null);
+  const [aiLowerThirdsLoading, setAiLowerThirdsLoading] = useState(false);
+  const [aiCtaOverlays, setAiCtaOverlays] = useState<any>(null);
+  const [aiCtaOverlaysLoading, setAiCtaOverlaysLoading] = useState(false);
+  const [aiSplitScreen, setAiSplitScreen] = useState<any>(null);
+  const [aiSplitScreenLoading, setAiSplitScreenLoading] = useState(false);
+  const [aiTimeLapse, setAiTimeLapse] = useState<any>(null);
+  const [aiTimeLapseLoading, setAiTimeLapseLoading] = useState(false);
+  const [aiFootageOrg, setAiFootageOrg] = useState<any>(null);
+  const [aiFootageOrgLoading, setAiFootageOrgLoading] = useState(false);
+  const [aiAudioLeveling, setAiAudioLeveling] = useState<any>(null);
+  const [aiAudioLevelingLoading, setAiAudioLevelingLoading] = useState(false);
+  const [aiNoiseDetector, setAiNoiseDetector] = useState<any>(null);
+  const [aiNoiseDetectorLoading, setAiNoiseDetectorLoading] = useState(false);
+  const [aiJumpCuts, setAiJumpCuts] = useState<any>(null);
+  const [aiJumpCutsLoading, setAiJumpCutsLoading] = useState(false);
+  const [aiCinematicShots, setAiCinematicShots] = useState<any>(null);
+  const [aiCinematicShotsLoading, setAiCinematicShotsLoading] = useState(false);
+  const [aiCompression, setAiCompression] = useState<any>(null);
+  const [aiCompressionLoading, setAiCompressionLoading] = useState(false);
+
+  const [aiThumbAB, setAiThumbAB] = useState<any>(null);
+  const [aiThumbABLoading, setAiThumbABLoading] = useState(false);
+  const [aiThumbCTR, setAiThumbCTR] = useState<any>(null);
+  const [aiThumbCTRLoading, setAiThumbCTRLoading] = useState(false);
+  const [aiThumbStyles, setAiThumbStyles] = useState<any>(null);
+  const [aiThumbStylesLoading, setAiThumbStylesLoading] = useState(false);
+  const [aiFaceExpr, setAiFaceExpr] = useState<any>(null);
+  const [aiFaceExprLoading, setAiFaceExprLoading] = useState(false);
+  const [aiThumbText, setAiThumbText] = useState<any>(null);
+  const [aiThumbTextLoading, setAiThumbTextLoading] = useState(false);
+  const [aiColorPsych, setAiColorPsych] = useState<any>(null);
+  const [aiColorPsychLoading, setAiColorPsychLoading] = useState(false);
+  const [aiBanner, setAiBanner] = useState<any>(null);
+  const [aiBannerLoading, setAiBannerLoading] = useState(false);
+  const [aiSocialCovers, setAiSocialCovers] = useState<any>(null);
+  const [aiSocialCoversLoading, setAiSocialCoversLoading] = useState(false);
+  const [aiAnimatedThumb, setAiAnimatedThumb] = useState<any>(null);
+  const [aiAnimatedThumbLoading, setAiAnimatedThumbLoading] = useState(false);
+  const [aiThumbCompetitors, setAiThumbCompetitors] = useState<any>(null);
+  const [aiThumbCompetitorsLoading, setAiThumbCompetitorsLoading] = useState(false);
+  const [aiBrandWatermark, setAiBrandWatermark] = useState<any>(null);
+  const [aiBrandWatermarkLoading, setAiBrandWatermarkLoading] = useState(false);
+  const [aiStickerPack, setAiStickerPack] = useState<any>(null);
+  const [aiStickerPackLoading, setAiStickerPackLoading] = useState(false);
+  const [aiInfographic, setAiInfographic] = useState<any>(null);
+  const [aiInfographicLoading, setAiInfographicLoading] = useState(false);
+  const [aiMemeTemplates, setAiMemeTemplates] = useState<any>(null);
+  const [aiMemeTemplatesLoading, setAiMemeTemplatesLoading] = useState(false);
+  const [aiVisualScore, setAiVisualScore] = useState<any>(null);
+  const [aiVisualScoreLoading, setAiVisualScoreLoading] = useState(false);
+  const [aiVoiceClone, setAiVoiceClone] = useState<any>(null);
+  const [aiVoiceCloneLoading, setAiVoiceCloneLoading] = useState(false);
+
+  const renderAIList = (arr: any[] | undefined, limit = 5) => {
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    return arr.slice(0, limit).map((item: any, i: number) => (
+      <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
+    ));
+  };
+
   useEffect(() => {
     const cached = sessionStorage.getItem("aiContentIdeas");
     if (cached) {
@@ -241,6 +333,247 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   useEffect(() => {
     if (repurposeVideo && repurposePlatform) handleRepurpose();
   }, [repurposeVideo, repurposePlatform]);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_storyboard");
+    if (cached) { try { setAiStoryboard(JSON.parse(cached)); return; } catch {} }
+    setAiStoryboardLoading(true);
+    apiRequest("POST", "/api/ai/storyboard", {}).then(r => r.json()).then(d => { setAiStoryboard(d); sessionStorage.setItem("ai_storyboard", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStoryboardLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_color_grading");
+    if (cached) { try { setAiColorGrading(JSON.parse(cached)); return; } catch {} }
+    setAiColorGradingLoading(true);
+    apiRequest("POST", "/api/ai/color-grading", {}).then(r => r.json()).then(d => { setAiColorGrading(d); sessionStorage.setItem("ai_color_grading", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiColorGradingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_intro_outro");
+    if (cached) { try { setAiIntroOutro(JSON.parse(cached)); return; } catch {} }
+    setAiIntroOutroLoading(true);
+    apiRequest("POST", "/api/ai/intro-outro", {}).then(r => r.json()).then(d => { setAiIntroOutro(d); sessionStorage.setItem("ai_intro_outro", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiIntroOutroLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sound_effects");
+    if (cached) { try { setAiSoundEffects(JSON.parse(cached)); return; } catch {} }
+    setAiSoundEffectsLoading(true);
+    apiRequest("POST", "/api/ai/sound-effects", {}).then(r => r.json()).then(d => { setAiSoundEffects(d); sessionStorage.setItem("ai_sound_effects", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSoundEffectsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_pacing");
+    if (cached) { try { setAiPacing(JSON.parse(cached)); return; } catch {} }
+    setAiPacingLoading(true);
+    apiRequest("POST", "/api/ai/pacing", {}).then(r => r.json()).then(d => { setAiPacing(d); sessionStorage.setItem("ai_pacing", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPacingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_talking_points");
+    if (cached) { try { setAiTalkingPoints(JSON.parse(cached)); return; } catch {} }
+    setAiTalkingPointsLoading(true);
+    apiRequest("POST", "/api/ai/talking-points", {}).then(r => r.json()).then(d => { setAiTalkingPoints(d); sessionStorage.setItem("ai_talking_points", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTalkingPointsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_video_length");
+    if (cached) { try { setAiVideoLength(JSON.parse(cached)); return; } catch {} }
+    setAiVideoLengthLoading(true);
+    apiRequest("POST", "/api/ai/video-length", {}).then(r => r.json()).then(d => { setAiVideoLength(d); sessionStorage.setItem("ai_video_length", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiVideoLengthLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_multi_format");
+    if (cached) { try { setAiMultiFormat(JSON.parse(cached)); return; } catch {} }
+    setAiMultiFormatLoading(true);
+    apiRequest("POST", "/api/ai/multi-format", {}).then(r => r.json()).then(d => { setAiMultiFormat(d); sessionStorage.setItem("ai_multi_format", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMultiFormatLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_watermark");
+    if (cached) { try { setAiWatermark(JSON.parse(cached)); return; } catch {} }
+    setAiWatermarkLoading(true);
+    apiRequest("POST", "/api/ai/watermark", {}).then(r => r.json()).then(d => { setAiWatermark(d); sessionStorage.setItem("ai_watermark", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiWatermarkLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_green_screen");
+    if (cached) { try { setAiGreenScreen(JSON.parse(cached)); return; } catch {} }
+    setAiGreenScreenLoading(true);
+    apiRequest("POST", "/api/ai/green-screen", {}).then(r => r.json()).then(d => { setAiGreenScreen(d); sessionStorage.setItem("ai_green_screen", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiGreenScreenLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_teleprompter");
+    if (cached) { try { setAiTeleprompter(JSON.parse(cached)); return; } catch {} }
+    setAiTeleprompterLoading(true);
+    apiRequest("POST", "/api/ai/teleprompter", {}).then(r => r.json()).then(d => { setAiTeleprompter(d); sessionStorage.setItem("ai_teleprompter", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTeleprompterLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_transitions");
+    if (cached) { try { setAiTransitions(JSON.parse(cached)); return; } catch {} }
+    setAiTransitionsLoading(true);
+    apiRequest("POST", "/api/ai/scene-transitions", {}).then(r => r.json()).then(d => { setAiTransitions(d); sessionStorage.setItem("ai_transitions", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTransitionsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_video_quality");
+    if (cached) { try { setAiVideoQuality(JSON.parse(cached)); return; } catch {} }
+    setAiVideoQualityLoading(true);
+    apiRequest("POST", "/api/ai/video-quality", {}).then(r => r.json()).then(d => { setAiVideoQuality(d); sessionStorage.setItem("ai_video_quality", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiVideoQualityLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_aspect_ratio");
+    if (cached) { try { setAiAspectRatio(JSON.parse(cached)); return; } catch {} }
+    setAiAspectRatioLoading(true);
+    apiRequest("POST", "/api/ai/aspect-ratio", {}).then(r => r.json()).then(d => { setAiAspectRatio(d); sessionStorage.setItem("ai_aspect_ratio", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAspectRatioLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_lower_thirds");
+    if (cached) { try { setAiLowerThirds(JSON.parse(cached)); return; } catch {} }
+    setAiLowerThirdsLoading(true);
+    apiRequest("POST", "/api/ai/lower-thirds", {}).then(r => r.json()).then(d => { setAiLowerThirds(d); sessionStorage.setItem("ai_lower_thirds", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiLowerThirdsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_cta_overlays");
+    if (cached) { try { setAiCtaOverlays(JSON.parse(cached)); return; } catch {} }
+    setAiCtaOverlaysLoading(true);
+    apiRequest("POST", "/api/ai/cta-overlays", {}).then(r => r.json()).then(d => { setAiCtaOverlays(d); sessionStorage.setItem("ai_cta_overlays", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCtaOverlaysLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_split_screen");
+    if (cached) { try { setAiSplitScreen(JSON.parse(cached)); return; } catch {} }
+    setAiSplitScreenLoading(true);
+    apiRequest("POST", "/api/ai/split-screen", {}).then(r => r.json()).then(d => { setAiSplitScreen(d); sessionStorage.setItem("ai_split_screen", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSplitScreenLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_time_lapse");
+    if (cached) { try { setAiTimeLapse(JSON.parse(cached)); return; } catch {} }
+    setAiTimeLapseLoading(true);
+    apiRequest("POST", "/api/ai/time-lapse", {}).then(r => r.json()).then(d => { setAiTimeLapse(d); sessionStorage.setItem("ai_time_lapse", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTimeLapseLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_footage_org");
+    if (cached) { try { setAiFootageOrg(JSON.parse(cached)); return; } catch {} }
+    setAiFootageOrgLoading(true);
+    apiRequest("POST", "/api/ai/footage-organizer", {}).then(r => r.json()).then(d => { setAiFootageOrg(d); sessionStorage.setItem("ai_footage_org", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiFootageOrgLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_audio_leveling");
+    if (cached) { try { setAiAudioLeveling(JSON.parse(cached)); return; } catch {} }
+    setAiAudioLevelingLoading(true);
+    apiRequest("POST", "/api/ai/audio-leveling", {}).then(r => r.json()).then(d => { setAiAudioLeveling(d); sessionStorage.setItem("ai_audio_leveling", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAudioLevelingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_noise_detector");
+    if (cached) { try { setAiNoiseDetector(JSON.parse(cached)); return; } catch {} }
+    setAiNoiseDetectorLoading(true);
+    apiRequest("POST", "/api/ai/noise-detector", {}).then(r => r.json()).then(d => { setAiNoiseDetector(d); sessionStorage.setItem("ai_noise_detector", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiNoiseDetectorLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_jump_cuts");
+    if (cached) { try { setAiJumpCuts(JSON.parse(cached)); return; } catch {} }
+    setAiJumpCutsLoading(true);
+    apiRequest("POST", "/api/ai/jump-cuts", {}).then(r => r.json()).then(d => { setAiJumpCuts(d); sessionStorage.setItem("ai_jump_cuts", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiJumpCutsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_cinematic_shots");
+    if (cached) { try { setAiCinematicShots(JSON.parse(cached)); return; } catch {} }
+    setAiCinematicShotsLoading(true);
+    apiRequest("POST", "/api/ai/cinematic-shots", {}).then(r => r.json()).then(d => { setAiCinematicShots(d); sessionStorage.setItem("ai_cinematic_shots", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCinematicShotsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_compression");
+    if (cached) { try { setAiCompression(JSON.parse(cached)); return; } catch {} }
+    setAiCompressionLoading(true);
+    apiRequest("POST", "/api/ai/compression", {}).then(r => r.json()).then(d => { setAiCompression(d); sessionStorage.setItem("ai_compression", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCompressionLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_thumb_ab");
+    if (cached) { try { setAiThumbAB(JSON.parse(cached)); return; } catch {} }
+    setAiThumbABLoading(true);
+    apiRequest("POST", "/api/ai/thumbnail-ab", {}).then(r => r.json()).then(d => { setAiThumbAB(d); sessionStorage.setItem("ai_thumb_ab", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiThumbABLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_thumb_ctr");
+    if (cached) { try { setAiThumbCTR(JSON.parse(cached)); return; } catch {} }
+    setAiThumbCTRLoading(true);
+    apiRequest("POST", "/api/ai/thumbnail-ctr", {}).then(r => r.json()).then(d => { setAiThumbCTR(d); sessionStorage.setItem("ai_thumb_ctr", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiThumbCTRLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_thumb_styles");
+    if (cached) { try { setAiThumbStyles(JSON.parse(cached)); return; } catch {} }
+    setAiThumbStylesLoading(true);
+    apiRequest("POST", "/api/ai/thumbnail-styles", {}).then(r => r.json()).then(d => { setAiThumbStyles(d); sessionStorage.setItem("ai_thumb_styles", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiThumbStylesLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_face_expr");
+    if (cached) { try { setAiFaceExpr(JSON.parse(cached)); return; } catch {} }
+    setAiFaceExprLoading(true);
+    apiRequest("POST", "/api/ai/face-expressions", {}).then(r => r.json()).then(d => { setAiFaceExpr(d); sessionStorage.setItem("ai_face_expr", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiFaceExprLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_thumb_text");
+    if (cached) { try { setAiThumbText(JSON.parse(cached)); return; } catch {} }
+    setAiThumbTextLoading(true);
+    apiRequest("POST", "/api/ai/thumbnail-text", {}).then(r => r.json()).then(d => { setAiThumbText(d); sessionStorage.setItem("ai_thumb_text", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiThumbTextLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_color_psych");
+    if (cached) { try { setAiColorPsych(JSON.parse(cached)); return; } catch {} }
+    setAiColorPsychLoading(true);
+    apiRequest("POST", "/api/ai/color-psychology", {}).then(r => r.json()).then(d => { setAiColorPsych(d); sessionStorage.setItem("ai_color_psych", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiColorPsychLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_banner");
+    if (cached) { try { setAiBanner(JSON.parse(cached)); return; } catch {} }
+    setAiBannerLoading(true);
+    apiRequest("POST", "/api/ai/banner", {}).then(r => r.json()).then(d => { setAiBanner(d); sessionStorage.setItem("ai_banner", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBannerLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_social_covers");
+    if (cached) { try { setAiSocialCovers(JSON.parse(cached)); return; } catch {} }
+    setAiSocialCoversLoading(true);
+    apiRequest("POST", "/api/ai/social-covers", {}).then(r => r.json()).then(d => { setAiSocialCovers(d); sessionStorage.setItem("ai_social_covers", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSocialCoversLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_animated_thumb");
+    if (cached) { try { setAiAnimatedThumb(JSON.parse(cached)); return; } catch {} }
+    setAiAnimatedThumbLoading(true);
+    apiRequest("POST", "/api/ai/animated-thumbnails", {}).then(r => r.json()).then(d => { setAiAnimatedThumb(d); sessionStorage.setItem("ai_animated_thumb", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAnimatedThumbLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_thumb_competitors");
+    if (cached) { try { setAiThumbCompetitors(JSON.parse(cached)); return; } catch {} }
+    setAiThumbCompetitorsLoading(true);
+    apiRequest("POST", "/api/ai/thumbnail-competitors", {}).then(r => r.json()).then(d => { setAiThumbCompetitors(d); sessionStorage.setItem("ai_thumb_competitors", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiThumbCompetitorsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_brand_watermark");
+    if (cached) { try { setAiBrandWatermark(JSON.parse(cached)); return; } catch {} }
+    setAiBrandWatermarkLoading(true);
+    apiRequest("POST", "/api/ai/brand-watermark", {}).then(r => r.json()).then(d => { setAiBrandWatermark(d); sessionStorage.setItem("ai_brand_watermark", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBrandWatermarkLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sticker_pack");
+    if (cached) { try { setAiStickerPack(JSON.parse(cached)); return; } catch {} }
+    setAiStickerPackLoading(true);
+    apiRequest("POST", "/api/ai/emoji-stickers", {}).then(r => r.json()).then(d => { setAiStickerPack(d); sessionStorage.setItem("ai_sticker_pack", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStickerPackLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_infographic");
+    if (cached) { try { setAiInfographic(JSON.parse(cached)); return; } catch {} }
+    setAiInfographicLoading(true);
+    apiRequest("POST", "/api/ai/infographic", {}).then(r => r.json()).then(d => { setAiInfographic(d); sessionStorage.setItem("ai_infographic", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiInfographicLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_meme_templates");
+    if (cached) { try { setAiMemeTemplates(JSON.parse(cached)); return; } catch {} }
+    setAiMemeTemplatesLoading(true);
+    apiRequest("POST", "/api/ai/meme-templates", {}).then(r => r.json()).then(d => { setAiMemeTemplates(d); sessionStorage.setItem("ai_meme_templates", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMemeTemplatesLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_visual_score");
+    if (cached) { try { setAiVisualScore(JSON.parse(cached)); return; } catch {} }
+    setAiVisualScoreLoading(true);
+    apiRequest("POST", "/api/ai/visual-consistency", {}).then(r => r.json()).then(d => { setAiVisualScore(d); sessionStorage.setItem("ai_visual_score", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiVisualScoreLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_voice_clone");
+    if (cached) { try { setAiVoiceClone(JSON.parse(cached)); return; } catch {} }
+    setAiVoiceCloneLoading(true);
+    apiRequest("POST", "/api/ai/voice-clone", {}).then(r => r.json()).then(d => { setAiVoiceClone(d); sessionStorage.setItem("ai_voice_clone", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiVoiceCloneLoading(false));
+  }, []);
 
   const filteredVideos = useMemo(() => {
     if (!videos) return [];
@@ -733,6 +1066,696 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
           </CardContent>
         </Card>
       )}
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowProductionAI(!showProductionAI)}
+          data-testid="button-toggle-production-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Video Production Suite</span>
+          <Badge variant="outline" className="text-[10px]">24 tools</Badge>
+          {showProductionAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showProductionAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiStoryboardLoading || aiStoryboard) && (
+              <Card data-testid="card-ai-storyboard">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Storyboard</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStoryboardLoading ? <Skeleton className="h-24 w-full" /> : aiStoryboard && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStoryboard.scenes || aiStoryboard.storyboard)}
+                      {aiStoryboard.description && <p>{aiStoryboard.description}</p>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiColorGradingLoading || aiColorGrading) && (
+              <Card data-testid="card-ai-color-grading">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Color Grading</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiColorGradingLoading ? <Skeleton className="h-24 w-full" /> : aiColorGrading && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiColorGrading.style && <p className="font-medium text-foreground">{aiColorGrading.style}</p>}
+                      {aiColorGrading.palette && <p>Palette: {Array.isArray(aiColorGrading.palette) ? aiColorGrading.palette.join(", ") : aiColorGrading.palette}</p>}
+                      {renderAIList(aiColorGrading.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiIntroOutroLoading || aiIntroOutro) && (
+              <Card data-testid="card-ai-intro-outro">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Intro/Outro</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiIntroOutroLoading ? <Skeleton className="h-24 w-full" /> : aiIntroOutro && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiIntroOutro.intro && <p><span className="font-medium text-foreground">Intro:</span> {typeof aiIntroOutro.intro === "string" ? aiIntroOutro.intro : aiIntroOutro.intro.description || aiIntroOutro.intro.concept}</p>}
+                      {aiIntroOutro.outro && <p><span className="font-medium text-foreground">Outro:</span> {typeof aiIntroOutro.outro === "string" ? aiIntroOutro.outro : aiIntroOutro.outro.description || aiIntroOutro.outro.concept}</p>}
+                      {renderAIList(aiIntroOutro.concepts)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSoundEffectsLoading || aiSoundEffects) && (
+              <Card data-testid="card-ai-sound-effects">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Sound Effects</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSoundEffectsLoading ? <Skeleton className="h-24 w-full" /> : aiSoundEffects && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiSoundEffects.effects || aiSoundEffects.sounds)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPacingLoading || aiPacing) && (
+              <Card data-testid="card-ai-pacing">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Pacing Analysis</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPacingLoading ? <Skeleton className="h-24 w-full" /> : aiPacing && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiPacing.score != null && <p className="text-lg font-medium text-foreground">{aiPacing.score}<span className="text-xs text-muted-foreground">/100</span></p>}
+                      {renderAIList(aiPacing.tips || aiPacing.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTalkingPointsLoading || aiTalkingPoints) && (
+              <Card data-testid="card-ai-talking-points">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Talking Points</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTalkingPointsLoading ? <Skeleton className="h-24 w-full" /> : aiTalkingPoints && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiTalkingPoints.points || aiTalkingPoints.talkingPoints)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiVideoLengthLoading || aiVideoLength) && (
+              <Card data-testid="card-ai-video-length">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Video Length</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiVideoLengthLoading ? <Skeleton className="h-24 w-full" /> : aiVideoLength && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiVideoLength.idealLength && <p className="font-medium text-foreground">{aiVideoLength.idealLength}</p>}
+                      {aiVideoLength.reasoning && <p>{aiVideoLength.reasoning}</p>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMultiFormatLoading || aiMultiFormat) && (
+              <Card data-testid="card-ai-multi-format">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Multi-Format</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMultiFormatLoading ? <Skeleton className="h-24 w-full" /> : aiMultiFormat && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiMultiFormat.formats || aiMultiFormat.platforms)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiWatermarkLoading || aiWatermark) && (
+              <Card data-testid="card-ai-watermark">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Watermark Strategy</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiWatermarkLoading ? <Skeleton className="h-24 w-full" /> : aiWatermark && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiWatermark.strategy && <p className="font-medium text-foreground">{aiWatermark.strategy}</p>}
+                      {renderAIList(aiWatermark.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiGreenScreenLoading || aiGreenScreen) && (
+              <Card data-testid="card-ai-green-screen">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Green Screen</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiGreenScreenLoading ? <Skeleton className="h-24 w-full" /> : aiGreenScreen && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiGreenScreen.backgrounds || aiGreenScreen.suggestions)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTeleprompterLoading || aiTeleprompter) && (
+              <Card data-testid="card-ai-teleprompter">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Teleprompter</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTeleprompterLoading ? <Skeleton className="h-24 w-full" /> : aiTeleprompter && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiTeleprompter.script && <p>{typeof aiTeleprompter.script === "string" ? aiTeleprompter.script : aiTeleprompter.script.text || aiTeleprompter.script.content}</p>}
+                      {renderAIList(aiTeleprompter.tips)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTransitionsLoading || aiTransitions) && (
+              <Card data-testid="card-ai-transitions">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Scene Transitions</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTransitionsLoading ? <Skeleton className="h-24 w-full" /> : aiTransitions && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiTransitions.transitions || aiTransitions.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiVideoQualityLoading || aiVideoQuality) && (
+              <Card data-testid="card-ai-video-quality">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Video Quality</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiVideoQualityLoading ? <Skeleton className="h-24 w-full" /> : aiVideoQuality && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiVideoQuality.recommendations || aiVideoQuality.settings)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAspectRatioLoading || aiAspectRatio) && (
+              <Card data-testid="card-ai-aspect-ratio">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Aspect Ratio</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAspectRatioLoading ? <Skeleton className="h-24 w-full" /> : aiAspectRatio && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAspectRatio.ratios || aiAspectRatio.platforms)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiLowerThirdsLoading || aiLowerThirds) && (
+              <Card data-testid="card-ai-lower-thirds">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Lower Thirds</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiLowerThirdsLoading ? <Skeleton className="h-24 w-full" /> : aiLowerThirds && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiLowerThirds.designs || aiLowerThirds.concepts)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCtaOverlaysLoading || aiCtaOverlays) && (
+              <Card data-testid="card-ai-cta-overlays">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI CTA Overlays</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCtaOverlaysLoading ? <Skeleton className="h-24 w-full" /> : aiCtaOverlays && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCtaOverlays.overlays || aiCtaOverlays.designs)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSplitScreenLoading || aiSplitScreen) && (
+              <Card data-testid="card-ai-split-screen">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Split Screen</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSplitScreenLoading ? <Skeleton className="h-24 w-full" /> : aiSplitScreen && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiSplitScreen.layouts)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTimeLapseLoading || aiTimeLapse) && (
+              <Card data-testid="card-ai-time-lapse">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Time-Lapse</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTimeLapseLoading ? <Skeleton className="h-24 w-full" /> : aiTimeLapse && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiTimeLapse.advice && <p>{aiTimeLapse.advice}</p>}
+                      {aiTimeLapse.settings && <p className="font-medium text-foreground">{typeof aiTimeLapse.settings === "string" ? aiTimeLapse.settings : JSON.stringify(aiTimeLapse.settings)}</p>}
+                      {renderAIList(aiTimeLapse.tips || aiTimeLapse.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFootageOrgLoading || aiFootageOrg) && (
+              <Card data-testid="card-ai-footage-org">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Footage Organizer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFootageOrgLoading ? <Skeleton className="h-24 w-full" /> : aiFootageOrg && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiFootageOrg.folders || aiFootageOrg.structure)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAudioLevelingLoading || aiAudioLeveling) && (
+              <Card data-testid="card-ai-audio-leveling">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Audio Leveling</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAudioLevelingLoading ? <Skeleton className="h-24 w-full" /> : aiAudioLeveling && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAudioLeveling.settings || aiAudioLeveling.levels)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiNoiseDetectorLoading || aiNoiseDetector) && (
+              <Card data-testid="card-ai-noise-detector">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Noise Detector</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiNoiseDetectorLoading ? <Skeleton className="h-24 w-full" /> : aiNoiseDetector && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiNoiseDetector.issues || aiNoiseDetector.fixes)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiJumpCutsLoading || aiJumpCuts) && (
+              <Card data-testid="card-ai-jump-cuts">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Jump Cuts</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiJumpCutsLoading ? <Skeleton className="h-24 w-full" /> : aiJumpCuts && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiJumpCuts.cuts || aiJumpCuts.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCinematicShotsLoading || aiCinematicShots) && (
+              <Card data-testid="card-ai-cinematic-shots">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Cinematic Shots</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCinematicShotsLoading ? <Skeleton className="h-24 w-full" /> : aiCinematicShots && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCinematicShots.shots)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCompressionLoading || aiCompression) && (
+              <Card data-testid="card-ai-compression">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Compression</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCompressionLoading ? <Skeleton className="h-24 w-full" /> : aiCompression && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiCompression.format && <p className="font-medium text-foreground">{aiCompression.format}</p>}
+                      {renderAIList(aiCompression.settings || aiCompression.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowThumbnailAI(!showThumbnailAI)}
+          data-testid="button-toggle-thumbnail-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Thumbnail & Visual Suite</span>
+          <Badge variant="outline" className="text-[10px]">16 tools</Badge>
+          {showThumbnailAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showThumbnailAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiThumbABLoading || aiThumbAB) && (
+              <Card data-testid="card-ai-thumb-ab">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Thumbnail A/B Test</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiThumbABLoading ? <Skeleton className="h-24 w-full" /> : aiThumbAB && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiThumbAB.variants || aiThumbAB.tests)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiThumbCTRLoading || aiThumbCTR) && (
+              <Card data-testid="card-ai-thumb-ctr">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Thumbnail CTR Predictor</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiThumbCTRLoading ? <Skeleton className="h-24 w-full" /> : aiThumbCTR && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiThumbCTR.predictedCTR != null && <p className="text-lg font-medium text-foreground">{aiThumbCTR.predictedCTR}% <span className="text-xs text-muted-foreground">predicted CTR</span></p>}
+                      {aiThumbCTR.analysis && <p>{aiThumbCTR.analysis}</p>}
+                      {renderAIList(aiThumbCTR.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiThumbStylesLoading || aiThumbStyles) && (
+              <Card data-testid="card-ai-thumb-styles">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Thumbnail Styles</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiThumbStylesLoading ? <Skeleton className="h-24 w-full" /> : aiThumbStyles && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiThumbStyles.styles || aiThumbStyles.templates)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFaceExprLoading || aiFaceExpr) && (
+              <Card data-testid="card-ai-face-expr">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Face Expressions</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFaceExprLoading ? <Skeleton className="h-24 w-full" /> : aiFaceExpr && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiFaceExpr.tips || aiFaceExpr.expressions)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiThumbTextLoading || aiThumbText) && (
+              <Card data-testid="card-ai-thumb-text">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Thumbnail Text</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiThumbTextLoading ? <Skeleton className="h-24 w-full" /> : aiThumbText && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiThumbText.suggestions || aiThumbText.tips)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiColorPsychLoading || aiColorPsych) && (
+              <Card data-testid="card-ai-color-psych">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Color Psychology</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiColorPsychLoading ? <Skeleton className="h-24 w-full" /> : aiColorPsych && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiColorPsych.colors || aiColorPsych.meanings)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiBannerLoading || aiBanner) && (
+              <Card data-testid="card-ai-banner">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Banner Design</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiBannerLoading ? <Skeleton className="h-24 w-full" /> : aiBanner && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiBanner.banners || aiBanner.concepts)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSocialCoversLoading || aiSocialCovers) && (
+              <Card data-testid="card-ai-social-covers">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Social Covers</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSocialCoversLoading ? <Skeleton className="h-24 w-full" /> : aiSocialCovers && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiSocialCovers.covers || aiSocialCovers.designs)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAnimatedThumbLoading || aiAnimatedThumb) && (
+              <Card data-testid="card-ai-animated-thumb">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Animated Thumbnails</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAnimatedThumbLoading ? <Skeleton className="h-24 w-full" /> : aiAnimatedThumb && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAnimatedThumb.animations || aiAnimatedThumb.concepts)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiThumbCompetitorsLoading || aiThumbCompetitors) && (
+              <Card data-testid="card-ai-thumb-competitors">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Thumbnail Competitors</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiThumbCompetitorsLoading ? <Skeleton className="h-24 w-full" /> : aiThumbCompetitors && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiThumbCompetitors.competitors || aiThumbCompetitors.analysis)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiBrandWatermarkLoading || aiBrandWatermark) && (
+              <Card data-testid="card-ai-brand-watermark">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Brand Watermark</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiBrandWatermarkLoading ? <Skeleton className="h-24 w-full" /> : aiBrandWatermark && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiBrandWatermark.designs || aiBrandWatermark.watermarks)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStickerPackLoading || aiStickerPack) && (
+              <Card data-testid="card-ai-sticker-pack">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Sticker Pack</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStickerPackLoading ? <Skeleton className="h-24 w-full" /> : aiStickerPack && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStickerPack.stickers || aiStickerPack.concepts)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiInfographicLoading || aiInfographic) && (
+              <Card data-testid="card-ai-infographic">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Infographic</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiInfographicLoading ? <Skeleton className="h-24 w-full" /> : aiInfographic && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiInfographic.layouts || aiInfographic.sections)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMemeTemplatesLoading || aiMemeTemplates) && (
+              <Card data-testid="card-ai-meme-templates">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Meme Templates</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMemeTemplatesLoading ? <Skeleton className="h-24 w-full" /> : aiMemeTemplates && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiMemeTemplates.templates || aiMemeTemplates.memes)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiVisualScoreLoading || aiVisualScore) && (
+              <Card data-testid="card-ai-visual-score">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Visual Consistency</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiVisualScoreLoading ? <Skeleton className="h-24 w-full" /> : aiVisualScore && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiVisualScore.score != null && <p className="text-lg font-medium text-foreground">{aiVisualScore.score}<span className="text-xs text-muted-foreground">/100</span></p>}
+                      {renderAIList(aiVisualScore.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiVoiceCloneLoading || aiVoiceClone) && (
+              <Card data-testid="card-ai-voice-clone">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Voice Clone</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiVoiceCloneLoading ? <Skeleton className="h-24 w-full" /> : aiVoiceClone && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {aiVoiceClone.guidance && <p>{aiVoiceClone.guidance}</p>}
+                      {renderAIList(aiVoiceClone.steps || aiVoiceClone.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
