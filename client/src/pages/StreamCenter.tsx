@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
-import { PlatformIcon } from "@/components/PlatformIcon";
+import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 
 export default function StreamCenter() {
   const { toast } = useToast();
@@ -1181,7 +1181,7 @@ export default function StreamCenter() {
                   <div className="space-y-1.5">
                     {aiPostReport.socialRecaps.map((recap: any, i: number) => (
                       <div key={i} data-testid={`text-social-recap-${i}`} className="rounded-md border p-2 text-sm">
-                        {recap.platform && <Badge variant="outline" className="text-[10px] mb-1">{recap.platform}</Badge>}
+                        {recap.platform && <PlatformBadge platform={recap.platform} variant="outline" className="text-[10px] mb-1" />}
                         <p className="text-muted-foreground">{typeof recap === 'string' ? recap : recap.text || recap.content || recap.message || JSON.stringify(recap)}</p>
                       </div>
                     ))}

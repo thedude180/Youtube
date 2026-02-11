@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
+import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 
 type TabKey = "revenue" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors";
 
@@ -2567,7 +2568,8 @@ export default function Money() {
                 .sort((a: any, b: any) => b[1] - a[1])
                 .map(([platform, amount]) => (
                   <Badge key={platform} variant="secondary" className="capitalize" data-testid={`badge-platform-${platform}`}>
-                    {platform}: ${(amount as number).toFixed(0)}
+                    <PlatformIcon platform={platform} className="h-3 w-3 mr-1 shrink-0" />
+                    {platform}: ${Number(amount).toLocaleString()}
                   </Badge>
                 ))}
             </div>
@@ -2590,7 +2592,7 @@ export default function Money() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium capitalize" data-testid={`text-source-${record.id}`}>{record.source}</span>
-                          <Badge variant="secondary" className="text-xs capitalize" data-testid={`badge-record-platform-${record.id}`}>{record.platform}</Badge>
+                          <PlatformBadge platform={record.platform} className="text-xs" data-testid={`badge-record-platform-${record.id}`} />
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5" data-testid={`text-period-${record.id}`}>
                           {record.period || (record.recordedAt ? format(new Date(record.recordedAt), "MMM d, yyyy") : "")}

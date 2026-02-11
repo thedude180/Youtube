@@ -11,6 +11,7 @@ import {
   DollarSign,
   Zap,
 } from "lucide-react";
+import { SiYoutube } from "react-icons/si";
 import {
   Sidebar,
   SidebarContent,
@@ -118,6 +119,7 @@ export function AppSidebar() {
         ) : (
           <div className="p-2">
             <Button data-testid="button-login" variant="default" className="w-full" onClick={() => { window.location.href = "/api/login"; }}>
+              <SiYoutube className="h-4 w-4 mr-1.5" />
               {t("auth.signIn")}
             </Button>
           </div>

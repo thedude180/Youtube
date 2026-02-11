@@ -1,4 +1,5 @@
 import { Zap, ArrowRight, Globe, Bot, Send, DollarSign } from "lucide-react";
+import { SiYoutube } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 
 const features = [
@@ -26,6 +27,7 @@ export default function Landing() {
             size="sm"
             onClick={() => { window.location.href = "/api/login"; }}
           >
+            <SiYoutube className="h-4 w-4 mr-1.5" />
             Sign In
           </Button>
         </div>
@@ -45,7 +47,8 @@ export default function Landing() {
                 data-testid="button-sign-in-hero"
                 onClick={() => { window.location.href = "/api/login"; }}
               >
-                Sign in with Google
+                <SiYoutube className="h-4 w-4 mr-1.5" />
+                Sign in with YouTube
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
               <span className="text-xs text-muted-foreground">Free to start</span>

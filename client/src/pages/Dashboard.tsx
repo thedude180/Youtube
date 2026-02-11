@@ -35,6 +35,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PlatformBadge } from "@/components/PlatformIcon";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
@@ -1730,7 +1731,7 @@ export default function Dashboard() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium">{h.title}</p>
-                            {h.platform && <Badge variant="secondary" className="text-xs">{h.platform}</Badge>}
+                            {h.platform && <PlatformBadge platform={h.platform} className="text-xs" />}
                             {h.urgency && (
                               <Badge variant="outline" className="text-xs capitalize">{h.urgency}</Badge>
                             )}

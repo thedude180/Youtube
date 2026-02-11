@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { PlatformBadge } from "@/components/PlatformIcon";
 import { useAuth } from "@/hooks/use-auth";
 import { useChannels } from "@/hooks/use-channels";
 import { useToast } from "@/hooks/use-toast";
@@ -5762,7 +5763,7 @@ function CompetitorsTab() {
                   <div className="space-y-1">
                     <CardTitle className="text-base" data-testid={`text-competitor-name-${comp.id}`}>{comp.competitorName}</CardTitle>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                      <Badge variant="secondary" className="text-xs">{comp.platform}</Badge>
+                      <PlatformBadge platform={comp.platform} className="text-xs" />
                       {comp.uploadFrequency && <span className="capitalize">{comp.uploadFrequency} uploads</span>}
                     </div>
                   </div>

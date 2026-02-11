@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useParams, useLocation } from "wouter";
+import { PlatformBadge } from "@/components/PlatformIcon";
 
 type TabKey = "ventures" | "goals" | "sponsors" | "brand" | "collabs" | "competitors" | "legal" | "wellness" | "learning";
 
@@ -1292,7 +1293,7 @@ function CompetitorsTab() {
                   <div className="space-y-1">
                     <CardTitle className="text-base" data-testid={`text-competitor-name-${comp.id}`}>{comp.competitorName}</CardTitle>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                      <Badge variant="secondary" className="text-xs">{comp.platform}</Badge>
+                      <PlatformBadge platform={comp.platform} className="text-xs" />
                       {comp.uploadFrequency && <span className="capitalize">{comp.uploadFrequency} uploads</span>}
                     </div>
                   </div>

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { PlatformBadge } from "@/components/PlatformIcon";
 
 type GrowthTab = "Brand" | "Collabs" | "Competitors";
 
@@ -361,9 +362,7 @@ function CollabsTabContent() {
                     <div className="space-y-1">
                       <CardTitle className="text-base" data-testid={`text-lead-name-${lead.id}`}>{lead.creatorName}</CardTitle>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="secondary" className="capitalize" data-testid={`badge-lead-platform-${lead.id}`}>
-                          {lead.platform}
-                        </Badge>
+                        <PlatformBadge platform={lead.platform!} data-testid={`badge-lead-platform-${lead.id}`} />
                         <Badge
                           variant="secondary"
                           className={statusColors[lead.status] || ""}
@@ -575,9 +574,7 @@ function CompetitorsTabContent() {
                   <CardTitle className="text-sm font-medium" data-testid={`text-competitor-name-${comp.id}`}>
                     {comp.competitorName}
                   </CardTitle>
-                  <Badge variant="secondary" className="text-xs capitalize" data-testid={`badge-platform-${comp.id}`}>
-                    {comp.platform}
-                  </Badge>
+                  <PlatformBadge platform={comp.platform} className="text-xs" data-testid={`badge-platform-${comp.id}`} />
                 </div>
                 <Button
                   size="icon"

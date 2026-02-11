@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
-import { PlatformIcon } from "@/components/PlatformIcon";
+import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -6422,7 +6422,7 @@ function CalendarTab() {
                     <p className="text-sm font-medium truncate">{item.title}</p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs text-muted-foreground">{format(new Date(item.scheduledAt), "h:mm a")}</span>
-                      <Badge variant="secondary" className="text-xs capitalize">{item.platform}</Badge>
+                      <PlatformBadge platform={item.platform} className="text-xs" />
                     </div>
                   </div>
                   <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(item.id)}>

@@ -1,4 +1,5 @@
 import { Globe } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   SiYoutube,
   SiTwitch,
@@ -51,7 +52,57 @@ const PLATFORM_ICONS: Record<string, any> = {
   whatsapp: SiWhatsapp,
 };
 
+const PLATFORM_LABELS: Record<string, string> = {
+  youtube: "YouTube",
+  twitch: "Twitch",
+  kick: "Kick",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+  x: "X",
+  linkedin: "LinkedIn",
+  instagram: "Instagram",
+  rumble: "Rumble",
+  discord: "Discord",
+  snapchat: "Snapchat",
+  pinterest: "Pinterest",
+  reddit: "Reddit",
+  threads: "Threads",
+  bluesky: "Bluesky",
+  mastodon: "Mastodon",
+  patreon: "Patreon",
+  kofi: "Ko-fi",
+  substack: "Substack",
+  spotify: "Spotify",
+  applepodcasts: "Apple Podcasts",
+  dlive: "DLive",
+  trovo: "Trovo",
+  youtubeshorts: "YT Shorts",
+  whatsapp: "WhatsApp",
+};
+
 export function PlatformIcon({ platform, className = "h-4 w-4" }: { platform: string; className?: string }) {
   const Icon = PLATFORM_ICONS[platform] || Globe;
   return <Icon className={className} />;
+}
+
+export function PlatformBadge({
+  platform,
+  variant = "secondary",
+  className = "",
+  "data-testid": testId,
+}: {
+  platform: string;
+  variant?: "default" | "secondary" | "outline" | "destructive";
+  className?: string;
+  "data-testid"?: string;
+}) {
+  const key = platform.toLowerCase().replace(/\s+/g, "");
+  const Icon = PLATFORM_ICONS[key] || Globe;
+  const label = PLATFORM_LABELS[key] || platform;
+  return (
+    <Badge variant={variant} className={`capitalize ${className}`} data-testid={testId}>
+      <Icon className="h-3 w-3 mr-1 shrink-0" />
+      {label}
+    </Badge>
+  );
 }

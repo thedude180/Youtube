@@ -8,6 +8,7 @@ import { Calendar, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfWeek, addDays, isToday, isSameDay } from "date-fns";
 import { useState } from "react";
+import { PlatformBadge } from "@/components/PlatformIcon";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -195,7 +196,7 @@ export default function Schedule() {
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(item.scheduledAt), "h:mm a")}
                       </span>
-                      <Badge variant="secondary" className="text-xs capitalize">{item.platform}</Badge>
+                      <PlatformBadge platform={item.platform} className="text-xs" />
                       <Badge variant="outline" className="text-xs capitalize">{item.type}</Badge>
                     </div>
                   </div>
