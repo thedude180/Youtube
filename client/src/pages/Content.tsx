@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -17,7 +17,7 @@ import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/s
 import { useToast } from "@/hooks/use-toast";
 import {
   Search, PlayCircle, Video, Radio, Calendar, Plus, Trash2,
-  RefreshCw, Loader2, CheckCircle2, Circle, ExternalLink,
+  RefreshCw, Loader2, CheckCircle2, Circle, ExternalLink, Sparkles,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
@@ -95,6 +95,27 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const { data: videos, isLoading } = useVideos();
+  const [aiContentIdeas, setAiContentIdeas] = useState<any>(null);
+  const [aiIdeasLoading, setAiIdeasLoading] = useState(false);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiContentIdeas");
+    if (cached) {
+      try {
+        setAiContentIdeas(JSON.parse(cached));
+        return;
+      } catch {}
+    }
+    setAiIdeasLoading(true);
+    apiRequest("POST", "/api/ai/content-ideas")
+      .then((res) => res.json())
+      .then((data) => {
+        setAiContentIdeas(data);
+        sessionStorage.setItem("aiContentIdeas", JSON.stringify(data));
+      })
+      .catch(() => {})
+      .finally(() => setAiIdeasLoading(false));
+  }, []);
 
   const filteredVideos = useMemo(() => {
     if (!videos) return [];
@@ -117,6 +138,66 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
 
   return (
     <div className="space-y-4">
+      {aiIdeasLoading ? (
+        <Skeleton className="h-48 rounded-md" />
+      ) : aiContentIdeas ? (
+        <Card data-testid="card-ai-content-ideas" className="overflow-visible">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">AI Content Ideas</span>
+              <Badge variant="secondary">Auto-generated</Badge>
+            </div>
+
+            {aiContentIdeas.trendAlert && (
+              <div data-testid="text-trend-alert" className="text-xs text-muted-foreground bg-secondary/50 rounded-md p-2">
+                {aiContentIdeas.trendAlert}
+              </div>
+            )}
+
+            {aiContentIdeas.ideas && aiContentIdeas.ideas.length > 0 && (
+              <div className="space-y-2">
+                {aiContentIdeas.ideas.slice(0, 5).map((idea: any, idx: number) => (
+                  <div key={idx} data-testid={`ai-idea-${idx}`} className="flex flex-col gap-1 border-b last:border-b-0 pb-2 last:pb-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{idea.title}</span>
+                      {idea.type && (
+                        <Badge variant={idea.type === "vod" ? "default" : "secondary"} className="text-[10px]">
+                          {idea.type === "vod" ? "VOD" : idea.type === "short" ? "Short" : idea.type}
+                        </Badge>
+                      )}
+                      {idea.viralScore != null && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {idea.viralScore}% viral
+                        </Badge>
+                      )}
+                    </div>
+                    {idea.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{idea.description}</p>
+                    )}
+                    {idea.bestPostTime && (
+                      <span className="text-[11px] text-muted-foreground">Best time: {idea.bestPostTime}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {aiContentIdeas.seriesIdeas && aiContentIdeas.seriesIdeas.length > 0 && (
+              <div data-testid="section-series-ideas" className="pt-2 border-t space-y-1.5">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Series Ideas</span>
+                {aiContentIdeas.seriesIdeas.map((series: any, idx: number) => (
+                  <div key={idx} data-testid={`series-idea-${idx}`} className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{series.title || series.name}</span>
+                    {series.description && <span> — {series.description}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex gap-2 flex-wrap">
           {["all", "vod", "short", "live_replay"].map((t) => (

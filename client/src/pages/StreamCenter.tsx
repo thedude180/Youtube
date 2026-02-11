@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,31 @@ export default function StreamCenter() {
   const [showNewStream, setShowNewStream] = useState(false);
   const [newDest, setNewDest] = useState({ platform: "youtube", label: "", rtmpUrl: "", streamKey: "" });
   const [newStream, setNewStream] = useState({ title: "", description: "", category: "Gaming", platforms: [] as string[] });
+  const [aiStreamRecs, setAiStreamRecs] = useState<any>(null);
+  const [aiStreamRecsLoading, setAiStreamRecsLoading] = useState(true);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiStreamRecs");
+    if (cached) {
+      try {
+        setAiStreamRecs(JSON.parse(cached));
+        setAiStreamRecsLoading(false);
+        return;
+      } catch {}
+    }
+    (async () => {
+      try {
+        const res = await apiRequest("POST", "/api/ai/stream-recommendations");
+        const data = await res.json();
+        setAiStreamRecs(data);
+        sessionStorage.setItem("aiStreamRecs", JSON.stringify(data));
+      } catch {
+        setAiStreamRecs(null);
+      } finally {
+        setAiStreamRecsLoading(false);
+      }
+    })();
+  }, []);
 
   const { data: destinations = [] } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
   const { data: streamList = [], isLoading: streamsLoading } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
@@ -153,6 +179,117 @@ export default function StreamCenter() {
           </Dialog>
         </div>
       </div>
+
+      <Card data-testid="card-ai-stream-recs">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium">AI Stream Advisor</CardTitle>
+            <Badge variant="secondary">Auto-running</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {aiStreamRecsLoading ? (
+            <div className="space-y-3" data-testid="skeleton-ai-stream-recs">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : aiStreamRecs ? (
+            <div className="space-y-5">
+              {aiStreamRecs.optimalTimes?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-best-times-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Best Times to Stream</h3>
+                  <div className="space-y-1.5">
+                    {aiStreamRecs.optimalTimes.map((t: any, i: number) => (
+                      <div key={i} data-testid={`text-optimal-time-${i}`} className="flex items-start gap-2 text-sm">
+                        <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                        <span><span className="font-medium">{t.day}</span> at <span className="font-medium">{t.time}</span> — <span className="text-muted-foreground">{t.reason}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {aiStreamRecs.trendingTopics?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-trending-topics-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trending Topics</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiStreamRecs.trendingTopics.map((topic: any, i: number) => (
+                      <div key={i} data-testid={`text-trending-topic-${i}`}>
+                        <Badge variant="outline">{typeof topic === 'string' ? topic : topic.topic || topic.title}</Badge>
+                        {topic.suggestedTitle && (
+                          <p className="text-xs text-muted-foreground mt-0.5 ml-1">{topic.suggestedTitle}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {aiStreamRecs.schedule && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-schedule-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recommended Schedule</h3>
+                  <div className="text-sm space-y-1">
+                    {aiStreamRecs.schedule.recommendedFrequency && (
+                      <p data-testid="text-recommended-frequency">Frequency: <span className="font-medium">{aiStreamRecs.schedule.recommendedFrequency}</span></p>
+                    )}
+                    {aiStreamRecs.schedule.bestDays?.length > 0 && (
+                      <div data-testid="text-best-days" className="flex items-center gap-1.5 flex-wrap">
+                        <span>Best days:</span>
+                        {aiStreamRecs.schedule.bestDays.map((day: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs">{day}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {aiStreamRecs.streamIdeas?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-stream-ideas-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stream Ideas</h3>
+                  <div className="space-y-2">
+                    {aiStreamRecs.streamIdeas.map((idea: any, i: number) => (
+                      <div key={i} data-testid={`card-stream-idea-${i}`} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                        <div className="min-w-0">
+                          <p data-testid={`text-idea-title-${i}`} className="text-sm font-medium">{idea.title}</p>
+                          {idea.description && <p data-testid={`text-idea-desc-${i}`} className="text-xs text-muted-foreground mt-0.5">{idea.description}</p>}
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            {idea.category && <Badge variant="secondary" className="text-[10px]">{idea.category}</Badge>}
+                            {(idea.platforms || []).map((p: string) => (
+                              <Badge key={p} variant="outline" className="text-[10px]">{PLATFORM_INFO[p as Platform]?.label || p}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <Button
+                          data-testid={`button-create-idea-${i}`}
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={() => createStream.mutate({
+                            title: idea.title,
+                            description: idea.description || "",
+                            category: idea.category || "Gaming",
+                            platforms: idea.platforms || [],
+                          })}
+                          disabled={createStream.isPending}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />Create
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid="text-ai-recs-empty">Unable to load AI recommendations.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {liveStream && <LiveBanner stream={liveStream} onEnd={() => endStream.mutate(liveStream.id)} isEnding={endStream.isPending} />}
 

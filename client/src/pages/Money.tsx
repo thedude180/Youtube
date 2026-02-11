@@ -20,11 +20,12 @@ import {
   Calculator, FileText, AlertTriangle, CheckCircle2, Building2,
   CreditCard, Link2, Copy, Upload,
   Briefcase, Target, Sparkles, Handshake, ChevronDown, Mail, Users, Eye,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 type TabKey = "revenue" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors";
 
@@ -852,6 +853,25 @@ export default function Money() {
   const [selectedState, setSelectedState] = useState("");
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [paymentUrl, setPaymentUrl] = useState("");
+  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== "revenue") return;
+    const cached = sessionStorage.getItem("aiFinancialInsights");
+    if (cached) {
+      try { setAiInsights(JSON.parse(cached)); return; } catch {}
+    }
+    setAiInsightsLoading(true);
+    apiRequest("POST", "/api/ai/financial-insights")
+      .then(res => res.json())
+      .then(data => {
+        setAiInsights(data);
+        sessionStorage.setItem("aiFinancialInsights", JSON.stringify(data));
+      })
+      .catch(() => {})
+      .finally(() => setAiInsightsLoading(false));
+  }, [activeTab]);
 
   const { data: revenueRecords, isLoading: revenueLoading } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
@@ -1192,6 +1212,123 @@ export default function Money() {
               </DialogContent>
             </Dialog>
           </div>
+
+          {aiInsightsLoading && (
+            <Card data-testid="card-ai-financial-insights-loading">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <Skeleton className="h-5 w-48" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Skeleton className="h-16 rounded-md" />
+                  <Skeleton className="h-16 rounded-md" />
+                  <Skeleton className="h-16 rounded-md" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {aiInsights && !aiInsightsLoading && (
+            <Card data-testid="card-ai-financial-insights">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <CardTitle className="text-base">AI Financial Insights</CardTitle>
+                  </div>
+                  {aiInsights.healthScore != null && (
+                    <Badge
+                      variant="secondary"
+                      className={`no-default-hover-elevate no-default-active-elevate ${
+                        aiInsights.healthScore >= 80 ? "bg-emerald-500/10 text-emerald-500" :
+                        aiInsights.healthScore >= 50 ? "bg-amber-500/10 text-amber-500" :
+                        "bg-red-500/10 text-red-500"
+                      }`}
+                      data-testid="badge-health-score"
+                    >
+                      Health Score: {aiInsights.healthScore}/100
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {aiInsights.summary && (
+                  <p className="text-sm text-muted-foreground" data-testid="text-ai-summary">
+                    {aiInsights.summary}
+                  </p>
+                )}
+
+                {aiInsights.insights && aiInsights.insights.length > 0 && (
+                  <div className="space-y-2" data-testid="list-ai-insights">
+                    {aiInsights.insights.map((insight: any, idx: number) => {
+                      const typeColor = insight.type === "positive" ? "bg-emerald-500/10 text-emerald-500" :
+                        insight.type === "warning" ? "bg-amber-500/10 text-amber-500" :
+                        "bg-purple-500/10 text-purple-500";
+                      return (
+                        <div key={idx} className="flex items-start gap-3" data-testid={`insight-item-${idx}`}>
+                          <Badge
+                            variant="secondary"
+                            className={`text-xs capitalize shrink-0 mt-0.5 no-default-hover-elevate no-default-active-elevate ${typeColor}`}
+                            data-testid={`badge-insight-type-${idx}`}
+                          >
+                            {insight.type}
+                          </Badge>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium" data-testid={`text-insight-title-${idx}`}>{insight.title}</p>
+                            <p className="text-xs text-muted-foreground" data-testid={`text-insight-desc-${idx}`}>{insight.description}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {aiInsights.forecast && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="section-forecast">
+                    {aiInsights.forecast.nextMonth != null && (
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground">Next Month</p>
+                        <p className="text-sm font-medium" data-testid="text-forecast-next-month">
+                          ${Number(aiInsights.forecast.nextMonth).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    )}
+                    {aiInsights.forecast.nextQuarter != null && (
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground">Next Quarter</p>
+                        <p className="text-sm font-medium" data-testid="text-forecast-next-quarter">
+                          ${Number(aiInsights.forecast.nextQuarter).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    )}
+                    {aiInsights.forecast.yearEnd != null && (
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground">Year End</p>
+                        <p className="text-sm font-medium" data-testid="text-forecast-year-end">
+                          ${Number(aiInsights.forecast.yearEnd).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {aiInsights.recommendations && aiInsights.recommendations.length > 0 && (
+                  <div className="space-y-1" data-testid="list-recommendations">
+                    <p className="text-xs font-medium text-muted-foreground">Recommendations</p>
+                    {aiInsights.recommendations.map((rec: string, idx: number) => (
+                      <div key={idx} className="flex items-start gap-2" data-testid={`recommendation-item-${idx}`}>
+                        <CheckCircle2 className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
+                        <p className="text-sm text-muted-foreground">{rec}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card>

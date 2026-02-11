@@ -266,6 +266,27 @@ function BrandTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [assetType, setAssetType] = useState<string>("color");
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [aiBrand, setAiBrand] = useState<any>(null);
+  const [aiBrandLoading, setAiBrandLoading] = useState(true);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiBrandAnalysis");
+    if (cached) {
+      try {
+        setAiBrand(JSON.parse(cached));
+        setAiBrandLoading(false);
+        return;
+      } catch {}
+    }
+    apiRequest("POST", "/api/ai/brand-analysis")
+      .then((res) => res.json())
+      .then((data) => {
+        setAiBrand(data);
+        sessionStorage.setItem("aiBrandAnalysis", JSON.stringify(data));
+      })
+      .catch(() => {})
+      .finally(() => setAiBrandLoading(false));
+  }, []);
 
   const { data: assets, isLoading } = useQuery<any[]>({ queryKey: ['/api/brand-assets'] });
 
@@ -315,6 +336,92 @@ function BrandTab() {
 
   return (
     <div className="space-y-6">
+      {aiBrandLoading ? (
+        <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-brand" />
+      ) : aiBrand ? (
+        <Card data-testid="card-ai-brand-analysis">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-2">
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Brand Analysis
+            </CardTitle>
+            {aiBrand.brandStrength != null && (
+              <Badge variant="secondary" data-testid="badge-brand-strength">
+                {aiBrand.brandStrength}/100
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiBrand.brandVoice && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Brand Voice</p>
+                <p className="text-sm" data-testid="text-brand-voice">{aiBrand.brandVoice}</p>
+              </div>
+            )}
+            {aiBrand.targetAudience && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Target Audience</p>
+                <p className="text-sm" data-testid="text-target-audience">{aiBrand.targetAudience}</p>
+              </div>
+            )}
+            {aiBrand.contentPillars?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Content Pillars</p>
+                <div className="flex gap-2 flex-wrap">
+                  {aiBrand.contentPillars.map((pillar: string, i: number) => (
+                    <Badge key={i} variant="secondary" data-testid={`badge-pillar-${i}`}>{pillar}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiBrand.uniqueValueProposition && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Unique Value Proposition</p>
+                <p className="text-sm" data-testid="text-value-proposition">{aiBrand.uniqueValueProposition}</p>
+              </div>
+            )}
+            {aiBrand.suggestedTagline && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Tagline</p>
+                <p className="text-sm italic" data-testid="text-tagline">{aiBrand.suggestedTagline}</p>
+              </div>
+            )}
+            {aiBrand.suggestedColors?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Colors</p>
+                <div className="flex gap-2 flex-wrap">
+                  {aiBrand.suggestedColors.map((color: string, i: number) => (
+                    <div
+                      key={i}
+                      className="w-6 h-6 rounded-full border"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                      data-testid={`color-swatch-${i}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiBrand.competitorAnalysis?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Competitor Analysis</p>
+                <div className="space-y-2">
+                  {aiBrand.competitorAnalysis.map((comp: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-4 flex-wrap text-sm" data-testid={`competitor-${i}`}>
+                      <span className="font-medium">{comp.name}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" data-testid={`badge-similarity-${i}`}>{comp.similarityScore}%</Badge>
+                        <span className="text-xs text-muted-foreground">{comp.differentiator}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-brand-title" className="text-lg font-semibold">Brand Kit</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -20,6 +20,12 @@ import {
   generateCommunityPost,
   generateTaxStrategy,
   generateExpenseAnalysis,
+  aiCategorizeExpenses,
+  aiFinancialInsights,
+  aiStreamRecommendations,
+  aiContentIdeas,
+  aiDashboardActions,
+  aiBrandAnalysis,
 } from "./ai-engine";
 import {
   runStyleScan,
@@ -2086,6 +2092,135 @@ export async function registerRoutes(
     if (!userId) return;
     const estimate = await storage.updateTaxEstimate(Number(req.params.id), req.body);
     res.json(estimate);
+  });
+
+  // === AI ENHANCED FEATURES ===
+  app.post("/api/ai/categorize-expenses", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { expenses } = req.body;
+      if (!expenses || !Array.isArray(expenses)) return res.status(400).json({ message: "expenses array required" });
+      const result = await aiCategorizeExpenses(expenses, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI categorize error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/ai/financial-insights", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const allRevenue = await storage.getRevenueRecords(userId);
+      const allExpenses = await storage.getExpensesByUser(userId);
+      const totalRevenue = allRevenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
+      const totalExpenses = allExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      const byPlatform: Record<string, number> = {};
+      allRevenue.forEach((r: any) => { byPlatform[r.platform || 'other'] = (byPlatform[r.platform || 'other'] || 0) + (r.amount || 0); });
+      const byCat: Record<string, number> = {};
+      allExpenses.forEach((e: any) => { byCat[e.category || 'other'] = (byCat[e.category || 'other'] || 0) + (e.amount || 0); });
+      const now = new Date();
+      const thisMonth = allRevenue.filter((r: any) => {
+        const d = r.recordedAt ? new Date(r.recordedAt) : null;
+        return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).reduce((s: number, r: any) => s + (r.amount || 0), 0);
+
+      const result = await aiFinancialInsights({ totalRevenue, totalExpenses, revenueByPlatform: byPlatform, expensesByCategory: byCat, monthlyRevenue: thisMonth }, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI financial insights error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/ai/stream-recommendations", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const channel = channels[0];
+      const streams = await storage.getStreams(userId);
+      const videos = await storage.getVideosByUser(userId);
+      const result = await aiStreamRecommendations({
+        channelName: channel?.channelName || "My Channel",
+        pastStreams: streams.map((s: any) => ({ title: s.title, category: s.category || "Gaming", platforms: s.platforms || [] })),
+        videoCount: videos.length,
+      }, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI stream rec error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/ai/content-ideas", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const channel = channels[0];
+      const videos = await storage.getVideosByUser(userId);
+      const result = await aiContentIdeas({
+        channelName: channel?.channelName || "My Channel",
+        recentTitles: videos.slice(0, 15).map((v: any) => v.title),
+        videoCount: videos.length,
+        topPerforming: videos.filter((v: any) => v.metadata?.stats?.views > 10000).slice(0, 5).map((v: any) => v.title),
+      }, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI content ideas error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/ai/dashboard-actions", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const channel = channels[0];
+      const videos = await storage.getVideosByUser(userId);
+      const revenue = await storage.getRevenueRecords(userId);
+      const expenses = await storage.getExpensesByUser(userId);
+      const goals = await storage.getGoals(userId);
+      const ventures = await storage.getVentures(userId);
+      const totalRevenue = revenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
+      const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      const result = await aiDashboardActions({
+        channelName: channel?.channelName || "My Channel",
+        videoCount: videos.length,
+        totalRevenue,
+        totalExpenses,
+        recentTitles: videos.slice(0, 10).map((v: any) => v.title),
+        activeGoals: goals.filter((g: any) => g.status === "active").length,
+        activeVentures: ventures.filter((v: any) => v.status === "active").length,
+      }, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI dashboard actions error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/ai/brand-analysis", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const channel = channels[0];
+      const videos = await storage.getVideosByUser(userId);
+      const result = await aiBrandAnalysis({
+        channelName: channel?.channelName || "My Channel",
+        recentTitles: videos.slice(0, 15).map((v: any) => v.title),
+        videoCount: videos.length,
+      }, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI brand analysis error:", error);
+      res.status(500).json({ message: error.message });
+    }
   });
 
   // === BRAND ASSETS ===

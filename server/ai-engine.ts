@@ -694,7 +694,257 @@ Focus on:
     max_completion_tokens: 2048,
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from AI");
-  return JSON.parse(content);
+  const expContent = response.choices[0]?.message?.content;
+  if (!expContent) throw new Error("No response from AI");
+  return JSON.parse(expContent);
+}
+
+export async function aiCategorizeExpenses(expenses: Array<{ description: string; amount: number; vendor?: string }>, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+  const list = expenses.map(e => `- "${e.description}" $${e.amount}${e.vendor ? ` (${e.vendor})` : ''}`).join('\n');
+
+  const prompt = `You are an expense categorization AI for content creators. Automatically categorize these expenses into IRS-recognized categories and determine if they are tax deductible.
+
+Expenses:
+${list}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Respond as JSON:
+{
+  "categorized": [
+    {
+      "description": "original description",
+      "amount": 0,
+      "category": "one of: advertising, equipment, software_subscriptions, travel, home_office, education_training, supplies, meals, internet_phone, insurance, legal_professional, office_expense, other",
+      "irsCategory": "same as category",
+      "taxDeductible": true,
+      "confidence": 0.95,
+      "reason": "why this category"
+    }
+  ]
+}`;
+
+  const catResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 2048,
+  });
+  const catContent = catResponse.choices[0]?.message?.content;
+  if (!catContent) throw new Error("No response from AI");
+  return JSON.parse(catContent);
+}
+
+export async function aiFinancialInsights(data: {
+  totalRevenue: number;
+  totalExpenses: number;
+  revenueByPlatform: Record<string, number>;
+  expensesByCategory: Record<string, number>;
+  monthlyRevenue: number;
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+  const prompt = `You are a financial advisor AI for content creators. Analyze this creator's finances and provide smart insights.
+
+Total Revenue: $${data.totalRevenue}
+Total Expenses: $${data.totalExpenses}
+Net Profit: $${data.totalRevenue - data.totalExpenses}
+Monthly Revenue: $${data.monthlyRevenue}
+Revenue by Platform: ${JSON.stringify(data.revenueByPlatform)}
+Expenses by Category: ${JSON.stringify(data.expensesByCategory)}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Respond as JSON:
+{
+  "insights": [
+    { "title": "short title", "description": "detailed insight", "type": "positive|warning|opportunity", "priority": "high|medium|low" }
+  ],
+  "forecast": { "nextMonth": 0, "nextQuarter": 0, "yearEnd": 0, "growthRate": 0 },
+  "recommendations": [
+    { "action": "what to do", "impact": "expected result", "urgency": "high|medium|low" }
+  ],
+  "healthScore": 85,
+  "summary": "2-3 sentence financial summary"
+}`;
+
+  const finResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1500,
+  });
+  const finContent = finResponse.choices[0]?.message?.content;
+  if (!finContent) throw new Error("No response from AI");
+  return JSON.parse(finContent);
+}
+
+export async function aiStreamRecommendations(data: {
+  channelName: string;
+  pastStreams: Array<{ title: string; category: string; platforms: string[] }>;
+  videoCount: number;
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+  const streamList = data.pastStreams.slice(0, 10).map(s => `- "${s.title}" (${s.category}) on ${s.platforms.join(', ')}`).join('\n');
+
+  const prompt = `You are a live streaming strategist AI. Analyze this creator's streaming habits and recommend optimal streaming strategies.
+
+Channel: "${data.channelName}"
+Total Videos: ${data.videoCount}
+Past Streams:
+${streamList || 'No past streams'}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Respond as JSON:
+{
+  "optimalTimes": [
+    { "day": "Monday", "time": "7:00 PM EST", "reason": "audience peak", "confidence": 0.85 }
+  ],
+  "trendingTopics": [
+    { "topic": "topic name", "relevance": 0.9, "reason": "why trending", "suggestedTitle": "stream title idea" }
+  ],
+  "streamIdeas": [
+    { "title": "auto-generated stream title", "description": "auto-generated description", "category": "Gaming", "platforms": ["youtube", "twitch"], "reason": "why this would work" }
+  ],
+  "schedule": {
+    "recommendedFrequency": "3x per week",
+    "bestDays": ["Tuesday", "Thursday", "Saturday"],
+    "reason": "why this schedule"
+  }
+}`;
+
+  const strmResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1500,
+  });
+  const strmContent = strmResponse.choices[0]?.message?.content;
+  if (!strmContent) throw new Error("No response from AI");
+  return JSON.parse(strmContent);
+}
+
+export async function aiContentIdeas(data: {
+  channelName: string;
+  recentTitles: string[];
+  videoCount: number;
+  topPerforming?: string[];
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+  const prompt = `You are a content strategy AI that generates viral content ideas. Analyze this channel and generate fresh, specific content ideas.
+
+Channel: "${data.channelName}"
+Total Videos: ${data.videoCount}
+Recent Titles: ${data.recentTitles.slice(0, 15).join(', ') || 'None'}
+Top Performing: ${data.topPerforming?.join(', ') || 'Unknown'}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Respond as JSON:
+{
+  "ideas": [
+    {
+      "title": "ready-to-use video title",
+      "description": "full auto-generated description with hashtags",
+      "type": "vod|short",
+      "tags": ["tag1", "tag2"],
+      "reason": "why this will perform well",
+      "viralScore": 85,
+      "bestPostTime": "Tuesday 3PM EST"
+    }
+  ],
+  "seriesIdeas": [
+    { "name": "series name", "description": "series concept", "episodeCount": 5, "reason": "why a series works" }
+  ],
+  "trendAlert": "current trending topic to capitalize on right now"
+}`;
+
+  const ideaResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1500,
+  });
+  const ideaContent = ideaResponse.choices[0]?.message?.content;
+  if (!ideaContent) throw new Error("No response from AI");
+  return JSON.parse(ideaContent);
+}
+
+export async function aiDashboardActions(data: {
+  channelName: string;
+  videoCount: number;
+  totalRevenue: number;
+  totalExpenses: number;
+  recentTitles: string[];
+  activeGoals: number;
+  activeVentures: number;
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+  const prompt = `You are an AI business operations manager for a content creator. Based on their current situation, generate proactive action items and opportunity alerts.
+
+Channel: "${data.channelName}"
+Videos: ${data.videoCount}
+Revenue: $${data.totalRevenue}
+Expenses: $${data.totalExpenses}
+Net Profit: $${data.totalRevenue - data.totalExpenses}
+Active Goals: ${data.activeGoals}
+Active Ventures: ${data.activeVentures}
+Recent Content: ${data.recentTitles.slice(0, 10).join(', ') || 'None'}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Respond as JSON:
+{
+  "actionItems": [
+    { "title": "what AI is doing or recommends", "description": "detailed explanation", "priority": "high|medium|low", "category": "content|revenue|growth|compliance|wellness", "status": "auto_handled|needs_review" }
+  ],
+  "opportunities": [
+    { "title": "opportunity name", "description": "why this is an opportunity", "potentialImpact": "$500/mo or 10K views", "urgency": "act_now|this_week|this_month" }
+  ],
+  "todaySummary": "What AI is working on today - 2-3 sentences"
+}`;
+
+  const actResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1500,
+  });
+  const actContent = actResponse.choices[0]?.message?.content;
+  if (!actContent) throw new Error("No response from AI");
+  return JSON.parse(actContent);
+}
+
+export async function aiBrandAnalysis(data: {
+  channelName: string;
+  recentTitles: string[];
+  videoCount: number;
+}, userId?: string) {
+  const creatorContext = await getCreatorContext(userId);
+  const prompt = `You are a brand analysis AI. Analyze this creator's content to auto-detect their brand identity.
+
+Channel: "${data.channelName}"
+Videos: ${data.videoCount}
+Recent Titles: ${data.recentTitles.slice(0, 15).join(', ') || 'None'}
+${creatorContext ? `\n${creatorContext}` : ''}
+
+Respond as JSON:
+{
+  "brandVoice": "description of detected brand voice/tone",
+  "targetAudience": "who the content targets",
+  "contentPillars": ["3-5 core content themes"],
+  "uniqueValue": "what makes this creator unique",
+  "suggestedColors": ["#hex1", "#hex2", "#hex3"],
+  "suggestedTagline": "a brand tagline suggestion",
+  "competitors": [
+    { "name": "competitor channel name", "similarity": 0.8, "differentiator": "what sets you apart" }
+  ],
+  "brandStrength": 75
+}`;
+
+  const brandResponse = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1024,
+  });
+  const brandContent = brandResponse.choices[0]?.message?.content;
+  if (!brandContent) throw new Error("No response from AI");
+  return JSON.parse(brandContent);
 }
