@@ -1133,6 +1133,578 @@ export const knowledgeMilestones = pgTable("knowledge_milestones", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// === PIPELINE & CLIP TABLES ===
+
+export const pipelineRuns = pgTable("pipeline_runs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  status: text("status").notNull().default("queued"),
+  totalVideos: integer("total_videos").default(0),
+  processedVideos: integer("processed_videos").default(0),
+  clipsFound: integer("clips_found").default(0),
+  mode: text("mode"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata").$type<{
+    errors?: string[];
+    avgClipsPerVideo?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const clipViralityScores = pgTable("clip_virality_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  clipId: integer("clip_id").references(() => contentClips.id),
+  predictedScore: real("predicted_score"),
+  actualScore: real("actual_score"),
+  platform: text("platform"),
+  factors: jsonb("factors").$type<{
+    hookStrength?: number;
+    trendAlignment?: number;
+    audienceMatch?: number;
+    platformFit?: number;
+  }>(),
+  accuracy: real("accuracy"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const optimizationPasses = pgTable("optimization_passes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  engineName: text("engine_name").notNull(),
+  passNumber: integer("pass_number").notNull(),
+  previousScore: real("previous_score"),
+  newScore: real("new_score"),
+  changes: jsonb("changes").$type<{
+    field: string;
+    oldValue: string;
+    newValue: string;
+  }[]>(),
+  status: text("status").notNull().default("completed"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === TREND & ALGORITHM TABLES ===
+
+export const trendingTopics = pgTable("trending_topics", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  topic: text("topic").notNull(),
+  platform: text("platform"),
+  trendScore: real("trend_score"),
+  velocity: text("velocity").default("stable"),
+  category: text("category"),
+  relatedKeywords: jsonb("related_keywords").$type<string[]>(),
+  firstSeenAt: timestamp("first_seen_at"),
+  peakAt: timestamp("peak_at"),
+  metadata: jsonb("metadata").$type<{
+    volume?: number;
+    competition?: number;
+    relevanceScore?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const hashtagHealth = pgTable("hashtag_health", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  hashtag: text("hashtag").notNull(),
+  platform: text("platform"),
+  currentVolume: integer("current_volume"),
+  growthRate: real("growth_rate"),
+  status: text("status").default("stable"),
+  recommendedUse: text("recommended_use"),
+  lastCheckedAt: timestamp("last_checked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const algorithmAlerts = pgTable("algorithm_alerts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  alertType: text("alert_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  impact: text("impact").default("medium"),
+  recommendations: jsonb("recommendations").$type<string[]>(),
+  acknowledged: boolean("acknowledged").default(false),
+  detectedAt: timestamp("detected_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === CONTENT LIFECYCLE TABLES ===
+
+export const contentLifecycle = pgTable("content_lifecycle", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  currentStage: text("current_stage").notNull().default("new"),
+  stageEnteredAt: timestamp("stage_entered_at"),
+  predictedNextStage: text("predicted_next_stage"),
+  daysInStage: integer("days_in_stage").default(0),
+  performanceData: jsonb("performance_data").$type<{
+    views?: number;
+    growth?: number;
+    engagement?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const evergreenClassifications = pgTable("evergreen_classifications", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  isEvergreen: boolean("is_evergreen").default(false),
+  confidence: real("confidence"),
+  reasons: jsonb("reasons").$type<string[]>(),
+  monthlyViews: real("monthly_views"),
+  refreshRecommendation: text("refresh_recommendation"),
+  lastEvaluatedAt: timestamp("last_evaluated_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const cannibalizationAlerts = pgTable("cannibalization_alerts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId1: integer("video_id_1").references(() => videos.id),
+  videoId2: integer("video_id_2").references(() => videos.id),
+  overlapScore: real("overlap_score"),
+  sharedKeywords: jsonb("shared_keywords").$type<string[]>(),
+  recommendation: text("recommendation"),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === PREDICTION & ANALYTICS TABLES ===
+
+export const viralScorePredictions = pgTable("viral_score_predictions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: integer("content_id"),
+  contentType: text("content_type"),
+  predictedViralScore: real("predicted_viral_score"),
+  actualViralScore: real("actual_viral_score"),
+  predictionDate: timestamp("prediction_date"),
+  evaluationDate: timestamp("evaluation_date"),
+  factors: jsonb("factors").$type<Record<string, number>>(),
+  accuracy: real("accuracy"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const commentSentiments = pgTable("comment_sentiments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  platform: text("platform"),
+  totalComments: integer("total_comments").default(0),
+  positivePct: real("positive_pct"),
+  negativePct: real("negative_pct"),
+  neutralPct: real("neutral_pct"),
+  topThemes: jsonb("top_themes").$type<string[]>(),
+  actionableInsights: jsonb("actionable_insights").$type<string[]>(),
+  analyzedAt: timestamp("analyzed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const trendPredictions = pgTable("trend_predictions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  topic: text("topic").notNull(),
+  platform: text("platform"),
+  predictedTrend: text("predicted_trend"),
+  confidence: real("confidence"),
+  timeframe: text("timeframe"),
+  recommendation: text("recommendation"),
+  outcome: text("outcome"),
+  predictedAt: timestamp("predicted_at"),
+  evaluatedAt: timestamp("evaluated_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const contentDnaProfiles = pgTable("content_dna_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  profileData: jsonb("profile_data").$type<{
+    topFormats?: string[];
+    avgLength?: number;
+    bestHooks?: string[];
+    tonalPattern?: string;
+    visualStyle?: string;
+    audienceResponse?: string;
+    bestPostingTimes?: string[];
+    uniqueStrengths?: string[];
+  }>(),
+  confidence: real("confidence"),
+  sampleSize: integer("sample_size").default(0),
+  lastUpdatedAt: timestamp("last_updated_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const ctrOptimizations = pgTable("ctr_optimizations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  originalCtr: real("original_ctr"),
+  optimizedCtr: real("optimized_ctr"),
+  changes: jsonb("changes").$type<{
+    titleChange?: string;
+    thumbnailChange?: string;
+    descriptionChange?: string;
+  }>(),
+  testPeriodDays: integer("test_period_days"),
+  improvement: real("improvement"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === PLAYLIST & CONTENT REPURPOSE TABLES ===
+
+export const managedPlaylists = pgTable("managed_playlists", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  youtubePlaylistId: text("youtube_playlist_id"),
+  title: text("title").notNull(),
+  description: text("description"),
+  strategy: text("strategy").default("topic"),
+  videoCount: integer("video_count").default(0),
+  seoScore: real("seo_score"),
+  autoManaged: boolean("auto_managed").default(false),
+  lastUpdatedAt: timestamp("last_updated_at"),
+  metadata: jsonb("metadata").$type<{
+    ordering?: string;
+    rules?: Record<string, any>;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const playlistItems = pgTable("playlist_items", {
+  id: serial("id").primaryKey(),
+  playlistId: integer("playlist_id").references(() => managedPlaylists.id),
+  videoId: integer("video_id").references(() => videos.id),
+  position: integer("position").default(0),
+  addedAt: timestamp("added_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const repurposedContent = pgTable("repurposed_content", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceVideoId: integer("source_video_id").references(() => videos.id),
+  format: text("format").notNull(),
+  title: text("title"),
+  content: text("content"),
+  platform: text("platform"),
+  status: text("status").default("draft"),
+  publishedAt: timestamp("published_at"),
+  engagement: jsonb("engagement").$type<{
+    views?: number;
+    likes?: number;
+    shares?: number;
+    comments?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const scriptTemplates = pgTable("script_templates", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  category: text("category"),
+  template: text("template").notNull(),
+  variables: jsonb("variables").$type<string[]>(),
+  usageCount: integer("usage_count").default(0),
+  avgPerformance: real("avg_performance"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === AUDIENCE & CONTENT GAP TABLES ===
+
+export const audienceActivityPatterns = pgTable("audience_activity_patterns", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform"),
+  dayOfWeek: integer("day_of_week"),
+  hourOfDay: integer("hour_of_day"),
+  activityLevel: real("activity_level"),
+  sampleSize: integer("sample_size").default(0),
+  lastUpdatedAt: timestamp("last_updated_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const contentGapSuggestions = pgTable("content_gap_suggestions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  topic: text("topic").notNull(),
+  competitorsCovering: integer("competitors_covering").default(0),
+  estimatedDemand: real("estimated_demand"),
+  difficulty: text("difficulty"),
+  suggestedTitle: text("suggested_title"),
+  suggestedAngle: text("suggested_angle"),
+  status: text("status").default("suggested"),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === REVENUE & MONETIZATION TABLES ===
+
+export const revenueForecasts = pgTable("revenue_forecasts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  forecastDate: timestamp("forecast_date"),
+  period: text("period"),
+  predictedRevenue: real("predicted_revenue"),
+  actualRevenue: real("actual_revenue"),
+  confidence: real("confidence"),
+  breakdown: jsonb("breakdown").$type<{
+    adRevenue?: number;
+    sponsors?: number;
+    memberships?: number;
+    merch?: number;
+    tips?: number;
+  }>(),
+  assumptions: jsonb("assumptions").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const fanFunnelEvents = pgTable("fan_funnel_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  eventType: text("event_type").notNull(),
+  platform: text("platform"),
+  count: integer("count").default(0),
+  conversionRate: real("conversion_rate"),
+  period: text("period"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sponsorRates = pgTable("sponsor_rates", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  rateType: text("rate_type"),
+  calculatedRate: real("calculated_rate"),
+  marketAverage: real("market_average"),
+  currency: text("currency").default("USD"),
+  basedOn: jsonb("based_on").$type<{
+    subscribers?: number;
+    avgViews?: number;
+    engagement?: number;
+    niche?: string;
+  }>(),
+  lastCalculatedAt: timestamp("last_calculated_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const equipmentRoi = pgTable("equipment_roi", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  itemName: text("item_name").notNull(),
+  category: text("category"),
+  purchasePrice: real("purchase_price"),
+  purchaseDate: timestamp("purchase_date"),
+  revenueAttributed: real("revenue_attributed").default(0),
+  hoursUsed: real("hours_used").default(0),
+  roiPercent: real("roi_percent"),
+  status: text("status").default("paying-off"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sponsorDealId: integer("sponsor_deal_id").references(() => sponsorshipDeals.id),
+  invoiceNumber: text("invoice_number"),
+  brandName: text("brand_name"),
+  amount: real("amount"),
+  currency: text("currency").default("USD"),
+  dueDate: timestamp("due_date"),
+  status: text("status").default("draft"),
+  lineItems: jsonb("line_items").$type<{
+    description: string;
+    amount: number;
+    quantity?: number;
+  }[]>(),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === COMMUNITY & FAN TABLES ===
+
+export const superfanProfiles = pgTable("superfan_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  fanIdentifier: text("fan_identifier").notNull(),
+  platforms: jsonb("platforms").$type<string[]>(),
+  engagementScore: real("engagement_score"),
+  totalInteractions: integer("total_interactions").default(0),
+  firstSeenAt: timestamp("first_seen_at"),
+  lastSeenAt: timestamp("last_seen_at"),
+  notes: text("notes"),
+  tier: text("tier").default("casual"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === LEGAL & CRM TABLES ===
+
+export const legalDocuments = pgTable("legal_documents", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  docType: text("doc_type").notNull(),
+  title: text("title").notNull(),
+  brandName: text("brand_name"),
+  status: text("status").default("draft"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  value: real("value"),
+  notes: text("notes"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const creatorCrm = pgTable("creator_crm", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contactName: text("contact_name").notNull(),
+  company: text("company"),
+  role: text("role"),
+  email: text("email"),
+  platform: text("platform"),
+  relationshipType: text("relationship_type"),
+  status: text("status").default("lead"),
+  lastContactedAt: timestamp("last_contacted_at"),
+  notes: text("notes"),
+  dealValue: real("deal_value"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === WELLNESS & WORKLOAD TABLES ===
+
+export const workloadLogs = pgTable("workload_logs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: timestamp("date").notNull(),
+  hoursWorked: real("hours_worked"),
+  category: text("category"),
+  energyLevel: integer("energy_level"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const burnoutAlerts = pgTable("burnout_alerts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  riskLevel: text("risk_level").notNull().default("low"),
+  factors: jsonb("factors").$type<string[]>(),
+  recommendation: text("recommendation"),
+  autoThrottleApplied: boolean("auto_throttle_applied").default(false),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === TEAM & OPERATIONS TABLES ===
+
+export const teamTasks = pgTable("team_tasks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  assignedTo: text("assigned_to"),
+  category: text("category"),
+  priority: text("priority").default("medium"),
+  status: text("status").default("todo"),
+  dueDate: timestamp("due_date"),
+  description: text("description"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dailyBriefings = pgTable("daily_briefings", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  briefingDate: timestamp("briefing_date").notNull(),
+  overnightSummary: text("overnight_summary"),
+  trendingNow: text("trending_now"),
+  todaysPlan: text("todays_plan"),
+  actionItems: jsonb("action_items").$type<string[]>(),
+  metadata: jsonb("metadata").$type<{
+    metrics?: Record<string, number>;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const agentScorecards = pgTable("agent_scorecards", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentId: text("agent_id").notNull(),
+  period: text("period"),
+  tasksCompleted: integer("tasks_completed").default(0),
+  accuracy: real("accuracy"),
+  userRating: real("user_rating"),
+  topActions: jsonb("top_actions").$type<string[]>(),
+  improvementAreas: jsonb("improvement_areas").$type<string[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === GROWTH & TEMPLATES TABLES ===
+
+export const growthPredictions = pgTable("growth_predictions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  metric: text("metric").notNull(),
+  currentValue: real("current_value"),
+  predicted30d: real("predicted_30d"),
+  predicted90d: real("predicted_90d"),
+  predicted365d: real("predicted_365d"),
+  confidence: real("confidence"),
+  factors: jsonb("factors").$type<string[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const descriptionTemplates = pgTable("description_templates", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  category: text("category"),
+  content: text("content").notNull(),
+  variables: jsonb("variables").$type<string[]>(),
+  usageCount: integer("usage_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === STREAMING & CHANNEL TABLES ===
+
+export const streamPerformanceLogs = pgTable("stream_performance_logs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: integer("stream_id").references(() => streams.id),
+  grade: text("grade"),
+  peakViewers: integer("peak_viewers"),
+  avgViewers: integer("avg_viewers"),
+  chatRate: real("chat_rate"),
+  followerGain: integer("follower_gain"),
+  revenue: real("revenue"),
+  highlights: jsonb("highlights").$type<string[]>(),
+  improvementTips: jsonb("improvement_tips").$type<string[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const linkedChannels = pgTable("linked_channels", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  username: text("username"),
+  profileUrl: text("profile_url"),
+  isConnected: boolean("is_connected").default(false),
+  connectionType: text("connection_type"),
+  credentials: jsonb("credentials").$type<{
+    streamKey?: string;
+    apiKey?: string;
+  }>(),
+  lastVerifiedAt: timestamp("last_verified_at"),
+  followerCount: integer("follower_count"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === INSERT SCHEMAS ===
 export const insertChannelSchema = createInsertSchema(channels).omit({ id: true, createdAt: true, lastSyncAt: true });
 export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true });
@@ -1174,6 +1746,43 @@ export const insertBrandAssetSchema = createInsertSchema(brandAssets).omit({ id:
 export const insertWellnessCheckSchema = createInsertSchema(wellnessChecks).omit({ id: true, createdAt: true });
 export const insertCompetitorTrackSchema = createInsertSchema(competitorTracks).omit({ id: true, createdAt: true });
 export const insertKnowledgeMilestoneSchema = createInsertSchema(knowledgeMilestones).omit({ id: true, createdAt: true });
+export const insertPipelineRunSchema = createInsertSchema(pipelineRuns).omit({ id: true, createdAt: true });
+export const insertClipViralityScoreSchema = createInsertSchema(clipViralityScores).omit({ id: true, createdAt: true });
+export const insertOptimizationPassSchema = createInsertSchema(optimizationPasses).omit({ id: true, createdAt: true });
+export const insertTrendingTopicSchema = createInsertSchema(trendingTopics).omit({ id: true, createdAt: true });
+export const insertHashtagHealthSchema = createInsertSchema(hashtagHealth).omit({ id: true, createdAt: true });
+export const insertAlgorithmAlertSchema = createInsertSchema(algorithmAlerts).omit({ id: true, createdAt: true });
+export const insertContentLifecycleSchema = createInsertSchema(contentLifecycle).omit({ id: true, createdAt: true });
+export const insertEvergreenClassificationSchema = createInsertSchema(evergreenClassifications).omit({ id: true, createdAt: true });
+export const insertCannibalizationAlertSchema = createInsertSchema(cannibalizationAlerts).omit({ id: true, createdAt: true });
+export const insertViralScorePredictionSchema = createInsertSchema(viralScorePredictions).omit({ id: true, createdAt: true });
+export const insertCommentSentimentSchema = createInsertSchema(commentSentiments).omit({ id: true, createdAt: true });
+export const insertTrendPredictionSchema = createInsertSchema(trendPredictions).omit({ id: true, createdAt: true });
+export const insertContentDnaProfileSchema = createInsertSchema(contentDnaProfiles).omit({ id: true, createdAt: true });
+export const insertCtrOptimizationSchema = createInsertSchema(ctrOptimizations).omit({ id: true, createdAt: true });
+export const insertManagedPlaylistSchema = createInsertSchema(managedPlaylists).omit({ id: true, createdAt: true });
+export const insertPlaylistItemSchema = createInsertSchema(playlistItems).omit({ id: true, createdAt: true });
+export const insertRepurposedContentSchema = createInsertSchema(repurposedContent).omit({ id: true, createdAt: true });
+export const insertScriptTemplateSchema = createInsertSchema(scriptTemplates).omit({ id: true, createdAt: true });
+export const insertAudienceActivityPatternSchema = createInsertSchema(audienceActivityPatterns).omit({ id: true, createdAt: true });
+export const insertContentGapSuggestionSchema = createInsertSchema(contentGapSuggestions).omit({ id: true, createdAt: true });
+export const insertRevenueForecastSchema = createInsertSchema(revenueForecasts).omit({ id: true, createdAt: true });
+export const insertFanFunnelEventSchema = createInsertSchema(fanFunnelEvents).omit({ id: true, createdAt: true });
+export const insertSponsorRateSchema = createInsertSchema(sponsorRates).omit({ id: true, createdAt: true });
+export const insertEquipmentRoiSchema = createInsertSchema(equipmentRoi).omit({ id: true, createdAt: true });
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true });
+export const insertSuperfanProfileSchema = createInsertSchema(superfanProfiles).omit({ id: true, createdAt: true });
+export const insertLegalDocumentSchema = createInsertSchema(legalDocuments).omit({ id: true, createdAt: true });
+export const insertCreatorCrmSchema = createInsertSchema(creatorCrm).omit({ id: true, createdAt: true });
+export const insertWorkloadLogSchema = createInsertSchema(workloadLogs).omit({ id: true, createdAt: true });
+export const insertBurnoutAlertSchema = createInsertSchema(burnoutAlerts).omit({ id: true, createdAt: true });
+export const insertTeamTaskSchema = createInsertSchema(teamTasks).omit({ id: true, createdAt: true });
+export const insertDailyBriefingSchema = createInsertSchema(dailyBriefings).omit({ id: true, createdAt: true });
+export const insertAgentScorecardSchema = createInsertSchema(agentScorecards).omit({ id: true, createdAt: true });
+export const insertGrowthPredictionSchema = createInsertSchema(growthPredictions).omit({ id: true, createdAt: true });
+export const insertDescriptionTemplateSchema = createInsertSchema(descriptionTemplates).omit({ id: true, createdAt: true });
+export const insertStreamPerformanceLogSchema = createInsertSchema(streamPerformanceLogs).omit({ id: true, createdAt: true });
+export const insertLinkedChannelSchema = createInsertSchema(linkedChannels).omit({ id: true, createdAt: true });
 
 // === SELECT TYPES ===
 export type Channel = typeof channels.$inferSelect;
@@ -1216,6 +1825,43 @@ export type BrandAsset = typeof brandAssets.$inferSelect;
 export type WellnessCheck = typeof wellnessChecks.$inferSelect;
 export type CompetitorTrack = typeof competitorTracks.$inferSelect;
 export type KnowledgeMilestone = typeof knowledgeMilestones.$inferSelect;
+export type PipelineRun = typeof pipelineRuns.$inferSelect;
+export type ClipViralityScore = typeof clipViralityScores.$inferSelect;
+export type OptimizationPass = typeof optimizationPasses.$inferSelect;
+export type TrendingTopic = typeof trendingTopics.$inferSelect;
+export type HashtagHealthRecord = typeof hashtagHealth.$inferSelect;
+export type AlgorithmAlert = typeof algorithmAlerts.$inferSelect;
+export type ContentLifecycleRecord = typeof contentLifecycle.$inferSelect;
+export type EvergreenClassification = typeof evergreenClassifications.$inferSelect;
+export type CannibalizationAlert = typeof cannibalizationAlerts.$inferSelect;
+export type ViralScorePrediction = typeof viralScorePredictions.$inferSelect;
+export type CommentSentiment = typeof commentSentiments.$inferSelect;
+export type TrendPrediction = typeof trendPredictions.$inferSelect;
+export type ContentDnaProfile = typeof contentDnaProfiles.$inferSelect;
+export type CtrOptimization = typeof ctrOptimizations.$inferSelect;
+export type ManagedPlaylist = typeof managedPlaylists.$inferSelect;
+export type PlaylistItem = typeof playlistItems.$inferSelect;
+export type RepurposedContentRecord = typeof repurposedContent.$inferSelect;
+export type ScriptTemplate = typeof scriptTemplates.$inferSelect;
+export type AudienceActivityPattern = typeof audienceActivityPatterns.$inferSelect;
+export type ContentGapSuggestion = typeof contentGapSuggestions.$inferSelect;
+export type RevenueForecast = typeof revenueForecasts.$inferSelect;
+export type FanFunnelEvent = typeof fanFunnelEvents.$inferSelect;
+export type SponsorRate = typeof sponsorRates.$inferSelect;
+export type EquipmentRoiRecord = typeof equipmentRoi.$inferSelect;
+export type Invoice = typeof invoices.$inferSelect;
+export type SuperfanProfile = typeof superfanProfiles.$inferSelect;
+export type LegalDocument = typeof legalDocuments.$inferSelect;
+export type CreatorCrmRecord = typeof creatorCrm.$inferSelect;
+export type WorkloadLog = typeof workloadLogs.$inferSelect;
+export type BurnoutAlert = typeof burnoutAlerts.$inferSelect;
+export type TeamTask = typeof teamTasks.$inferSelect;
+export type DailyBriefing = typeof dailyBriefings.$inferSelect;
+export type AgentScorecard = typeof agentScorecards.$inferSelect;
+export type GrowthPrediction = typeof growthPredictions.$inferSelect;
+export type DescriptionTemplate = typeof descriptionTemplates.$inferSelect;
+export type StreamPerformanceLog = typeof streamPerformanceLogs.$inferSelect;
+export type LinkedChannel = typeof linkedChannels.$inferSelect;
 
 // === INSERT TYPES ===
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
@@ -1259,6 +1905,43 @@ export type InsertBrandAsset = z.infer<typeof insertBrandAssetSchema>;
 export type InsertWellnessCheck = z.infer<typeof insertWellnessCheckSchema>;
 export type InsertCompetitorTrack = z.infer<typeof insertCompetitorTrackSchema>;
 export type InsertKnowledgeMilestone = z.infer<typeof insertKnowledgeMilestoneSchema>;
+export type InsertPipelineRun = z.infer<typeof insertPipelineRunSchema>;
+export type InsertClipViralityScore = z.infer<typeof insertClipViralityScoreSchema>;
+export type InsertOptimizationPass = z.infer<typeof insertOptimizationPassSchema>;
+export type InsertTrendingTopic = z.infer<typeof insertTrendingTopicSchema>;
+export type InsertHashtagHealth = z.infer<typeof insertHashtagHealthSchema>;
+export type InsertAlgorithmAlert = z.infer<typeof insertAlgorithmAlertSchema>;
+export type InsertContentLifecycle = z.infer<typeof insertContentLifecycleSchema>;
+export type InsertEvergreenClassification = z.infer<typeof insertEvergreenClassificationSchema>;
+export type InsertCannibalizationAlert = z.infer<typeof insertCannibalizationAlertSchema>;
+export type InsertViralScorePrediction = z.infer<typeof insertViralScorePredictionSchema>;
+export type InsertCommentSentiment = z.infer<typeof insertCommentSentimentSchema>;
+export type InsertTrendPrediction = z.infer<typeof insertTrendPredictionSchema>;
+export type InsertContentDnaProfile = z.infer<typeof insertContentDnaProfileSchema>;
+export type InsertCtrOptimization = z.infer<typeof insertCtrOptimizationSchema>;
+export type InsertManagedPlaylist = z.infer<typeof insertManagedPlaylistSchema>;
+export type InsertPlaylistItem = z.infer<typeof insertPlaylistItemSchema>;
+export type InsertRepurposedContent = z.infer<typeof insertRepurposedContentSchema>;
+export type InsertScriptTemplate = z.infer<typeof insertScriptTemplateSchema>;
+export type InsertAudienceActivityPattern = z.infer<typeof insertAudienceActivityPatternSchema>;
+export type InsertContentGapSuggestion = z.infer<typeof insertContentGapSuggestionSchema>;
+export type InsertRevenueForecast = z.infer<typeof insertRevenueForecastSchema>;
+export type InsertFanFunnelEvent = z.infer<typeof insertFanFunnelEventSchema>;
+export type InsertSponsorRate = z.infer<typeof insertSponsorRateSchema>;
+export type InsertEquipmentRoi = z.infer<typeof insertEquipmentRoiSchema>;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type InsertSuperfanProfile = z.infer<typeof insertSuperfanProfileSchema>;
+export type InsertLegalDocument = z.infer<typeof insertLegalDocumentSchema>;
+export type InsertCreatorCrm = z.infer<typeof insertCreatorCrmSchema>;
+export type InsertWorkloadLog = z.infer<typeof insertWorkloadLogSchema>;
+export type InsertBurnoutAlert = z.infer<typeof insertBurnoutAlertSchema>;
+export type InsertTeamTask = z.infer<typeof insertTeamTaskSchema>;
+export type InsertDailyBriefing = z.infer<typeof insertDailyBriefingSchema>;
+export type InsertAgentScorecard = z.infer<typeof insertAgentScorecardSchema>;
+export type InsertGrowthPrediction = z.infer<typeof insertGrowthPredictionSchema>;
+export type InsertDescriptionTemplate = z.infer<typeof insertDescriptionTemplateSchema>;
+export type InsertStreamPerformanceLog = z.infer<typeof insertStreamPerformanceLogSchema>;
+export type InsertLinkedChannel = z.infer<typeof insertLinkedChannelSchema>;
 
 export type UpdateChannelRequest = Partial<InsertChannel> & { lastSyncAt?: Date };
 export type UpdateVideoRequest = Partial<InsertVideo>;

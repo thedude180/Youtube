@@ -23,6 +23,7 @@ import Money from "@/pages/Money";
 import Business from "@/pages/Business";
 import Notifications from "@/pages/Notifications";
 import Landing from "@/pages/Landing";
+import Onboarding from "@/pages/Onboarding";
 import NotFound from "@/pages/not-found";
 
 const sidebarStyle = {
@@ -146,8 +147,9 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
   const autoConnectCalled = useRef(false);
+  const onboardingChecked = useRef(false);
 
   useEffect(() => {
     if (isAuthenticated && !autoConnectCalled.current) {
@@ -159,6 +161,16 @@ function AppContent() {
       }).catch(() => {});
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && user && !onboardingChecked.current) {
+      onboardingChecked.current = true;
+      const onboarded = localStorage.getItem(`creatoros_onboarded_${user.id}`);
+      if (!onboarded && window.location.pathname !== "/onboarding") {
+        window.location.href = "/onboarding";
+      }
+    }
+  }, [isAuthenticated, user]);
 
   if (isLoading) {
     return (
@@ -172,7 +184,16 @@ function AppContent() {
     return <Landing />;
   }
 
-  return <AuthenticatedApp />;
+  if (window.location.pathname === "/onboarding") {
+    return <Onboarding />;
+  }
+
+  return (
+    <Switch>
+      <Route path="/onboarding" component={Onboarding} />
+      <Route>{() => <AuthenticatedApp />}</Route>
+    </Switch>
+  );
 }
 
 function App() {

@@ -25,6 +25,9 @@ import {
   Sparkles,
   Activity,
   Bell,
+  Scissors,
+  BarChart3,
+  Lightbulb,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +57,10 @@ export default function Dashboard() {
   const { data: goals } = useQuery<any[]>({ queryKey: ['/api/goals'] });
   const { data: wellness } = useQuery<any[]>({ queryKey: ['/api/wellness'] });
   const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
+  const { data: briefing } = useQuery<any>({ queryKey: ['/api/learning/briefing'] });
+  const { data: optHealth } = useQuery<any>({ queryKey: ['/api/optimization/health-score'] });
+  const { data: shortsStatus } = useQuery<any>({ queryKey: ['/api/shorts/status'] });
+  const { data: trendingTopics } = useQuery<any[]>({ queryKey: ['/api/optimization/trending-topics'] });
 
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
     const stored = localStorage.getItem("humanReviewMode");
@@ -292,6 +299,82 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {briefing && (
+        <Card data-testid="card-daily-briefing">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Lightbulb className="w-4 h-4" />
+                Daily Briefing
+              </CardTitle>
+              {briefing.date && (
+                <span className="text-xs text-muted-foreground">{new Date(briefing.date).toLocaleDateString()}</span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {briefing.summary && <p data-testid="text-briefing-summary" className="text-sm text-muted-foreground">{briefing.summary}</p>}
+            {briefing.actionItems && briefing.actionItems.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium">Action Items</p>
+                {briefing.actionItems.slice(0, 4).map((item: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-sm" data-testid={`briefing-action-${i}`}>
+                    <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${item.priority === "high" ? "bg-red-400" : item.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"}`} />
+                    <span className="text-muted-foreground">{item.title || item.description || item}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {advancedMode && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card data-testid="card-optimization-health">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${(optHealth?.score || 0) >= 70 ? "bg-emerald-500/10" : (optHealth?.score || 0) >= 40 ? "bg-amber-500/10" : "bg-red-500/10"}`}>
+                  <BarChart3 className={`h-5 w-5 ${(optHealth?.score || 0) >= 70 ? "text-emerald-400" : (optHealth?.score || 0) >= 40 ? "text-amber-400" : "text-red-400"}`} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-display">{optHealth?.score || 0}</p>
+                  <p className="text-xs text-muted-foreground">Optimization Score</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-shorts-pipeline">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${shortsStatus?.status === "running" ? "bg-blue-500/10" : "bg-muted"}`}>
+                  <Scissors className={`h-5 w-5 ${shortsStatus?.status === "running" ? "text-blue-400" : "text-muted-foreground"}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{shortsStatus?.status === "running" ? "Processing" : shortsStatus?.status || "Idle"}</p>
+                  <p className="text-xs text-muted-foreground">Shorts Pipeline{shortsStatus?.totalClips ? ` (${shortsStatus.totalClips} clips)` : ""}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-trending">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full flex items-center justify-center bg-purple-500/10">
+                  <TrendingUp className="h-5 w-5 text-purple-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Trending</p>
+                  <p className="text-xs text-muted-foreground truncate">{trendingTopics?.[0]?.topic || trendingTopics?.[0]?.name || "Scanning trends..."}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {advancedMode && (activeGoals.length > 0 || activeVentures.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

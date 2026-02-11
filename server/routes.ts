@@ -6,7 +6,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import {
   generateVideoMetadata,
   analyzeChannelGrowth,
@@ -27,7 +27,7 @@ import {
   getCreatorPreferences,
   recordLearningSignal,
 } from "./creator-intelligence";
-import { AI_AGENTS } from "@shared/schema";
+import { AI_AGENTS, linkedChannels } from "@shared/schema";
 import {
   startBacklogProcessing,
   getBacklogStatus,
@@ -50,6 +50,48 @@ import {
   syncYouTubeVideosToLibrary,
 } from "./youtube";
 import type { Request, Response } from "express";
+import {
+  generateDailyBriefing, getHealthScore, processActionItems,
+  updateAgentScorecard, generateGrowthPrediction, getContentDnaProfile,
+} from "./learning-engine";
+import {
+  startShortsPipeline, getShortsPipelineStatus, pauseShortsPipeline,
+  resumeShortsPipeline, extractClipsFromVideo, generateClipHook,
+  predictClipVirality, getClipsByVideo, compileAutoReel, trackClipPerformance,
+} from "./shorts-pipeline-engine";
+import {
+  getOptimizationHealthScore, getSubEngineStatuses, runMetadataOptimizer,
+  runAbTestEngine, injectTrendingTopic, detectPerformanceDecay,
+  predictViralScore, analyzeHashtagHealth, analyzeSentiment,
+  detectAlgorithmChanges, manageContentLifecycle, detectEvergreenContent,
+  detectContentCannibalization, predictTrends, buildContentDna,
+  optimizeCtr, getTrendingTopics, getViralLeaderboard, getDecayAlerts,
+  getContentGaps, getAlgorithmCheatSheet, runFullOptimizationPass,
+} from "./optimization-engine";
+import {
+  createManagedPlaylist, getPlaylists, autoOrganizePlaylists,
+  addToPlaylist, getPlaylistSeoScore, generatePinnedComment,
+  buildDescriptionLinks, generateMultiLanguageMetadata, batchPushOptimizations,
+} from "./youtube-manager";
+import {
+  repurposeVideo, getRepurposedContent, createScriptTemplate,
+  getScriptTemplates, suggestBRoll, getRepurposeFormats,
+} from "./repurpose-engine";
+import {
+  getOptimalPostingTimes, updateActivityPatterns, getUploadCadence,
+  autoScheduleContent, getScheduleRecommendations,
+} from "./smart-scheduler";
+import {
+  suggestAdBreaks, generateRevenueForecast, trackFanFunnel,
+  getFanFunnelData, calculateSponsorRates, getSponsorRates,
+  trackEquipmentRoi, getEquipmentRoi, generateInvoice, getInvoices, analyzeDeal,
+} from "./monetization-engine";
+import {
+  logWorkload, getWorkloadSummary, checkBurnoutRisk, getBurnoutAlerts,
+  acknowledgeBurnoutAlert, suggestDelegation, createTeamTask, getTeamTasks,
+  updateTeamTask, getCreativeBlockSuggestions, scanCompliance,
+  storeLegalDocument, getLegalDocuments, manageCrm,
+} from "./wellness-engine";
 
 function getUserId(req: Request): string {
   return (req.user as any)?.claims?.sub;
@@ -2264,6 +2306,1071 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("CSV import error:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // === LEARNING ENGINE ===
+  app.get("/api/learning/briefing", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateDailyBriefing(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/learning/health-score", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getHealthScore(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/learning/action-items", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await processActionItems(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/learning/agent-scorecard", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await updateAgentScorecard(userId, req.body.agentId, req.body.taskResult);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/learning/growth-predictions", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateGrowthPrediction(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/learning/content-dna", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getContentDnaProfile(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === SHORTS PIPELINE ===
+  app.post("/api/shorts/start", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await startShortsPipeline(userId, req.body.mode);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/shorts/status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getShortsPipelineStatus(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/shorts/pause", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await pauseShortsPipeline(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/shorts/resume", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await resumeShortsPipeline(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/shorts/extract/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await extractClipsFromVideo(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/shorts/hook/:clipId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateClipHook(userId, Number(req.params.clipId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/shorts/virality/:clipId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await predictClipVirality(userId, Number(req.params.clipId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/shorts/clips", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getClipsByVideo(userId, req.query.videoId ? Number(req.query.videoId) : undefined);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/shorts/auto-reel", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await compileAutoReel(userId, req.body.theme);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/shorts/track-performance/:clipId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await trackClipPerformance(userId, Number(req.params.clipId), req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === OPTIMIZATION ENGINE ===
+  app.get("/api/optimization/health-score", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getOptimizationHealthScore(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/sub-engines", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getSubEngineStatuses(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/metadata/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await runMetadataOptimizer(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/ab-test/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await runAbTestEngine(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/inject-trend", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await injectTrendingTopic(userId, req.body.videoId, req.body.topicId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/decay-alerts", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getDecayAlerts(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/viral-score/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await predictViralScore(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/hashtag-health", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await analyzeHashtagHealth(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/sentiment/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await analyzeSentiment(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/algorithm-alerts", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await detectAlgorithmChanges(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/lifecycle/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await manageContentLifecycle(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/evergreen", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await detectEvergreenContent(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/cannibalization", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await detectContentCannibalization(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/trend-predictions", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await predictTrends(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/content-dna", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await buildContentDna(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/ctr/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await optimizeCtr(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/trending-topics", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getTrendingTopics(userId, req.query.platform as string | undefined);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/viral-leaderboard", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getViralLeaderboard(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/content-gaps", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getContentGaps(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/optimization/algorithm-cheatsheet/:platform", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getAlgorithmCheatSheet(userId, req.params.platform);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/optimization/full-pass/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await runFullOptimizationPass(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === YOUTUBE MANAGER ===
+  app.post("/api/youtube-manager/playlist", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await createManagedPlaylist(userId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/youtube-manager/playlists", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getPlaylists(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/youtube-manager/auto-organize", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await autoOrganizePlaylists(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/youtube-manager/playlist/:playlistId/add", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await addToPlaylist(Number(req.params.playlistId), req.body.videoId, req.body.position);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/youtube-manager/playlist/:playlistId/seo", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getPlaylistSeoScore(Number(req.params.playlistId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/youtube-manager/pinned-comment/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generatePinnedComment(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/youtube-manager/description-links", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await buildDescriptionLinks(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/youtube-manager/multi-language/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateMultiLanguageMetadata(userId, Number(req.params.videoId), req.body.languages);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/youtube-manager/batch-push", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await batchPushOptimizations(userId, req.body.videoIds);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === REPURPOSE ENGINE ===
+  app.post("/api/repurpose/generate", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await repurposeVideo(userId, req.body.videoId, req.body.formats);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/repurpose/content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getRepurposedContent(userId, req.query.videoId ? Number(req.query.videoId) : undefined);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/repurpose/template", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await createScriptTemplate(userId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/repurpose/templates", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getScriptTemplates(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/repurpose/b-roll/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await suggestBRoll(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/repurpose/formats", async (_req, res) => {
+    try {
+      const result = getRepurposeFormats();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === SMART SCHEDULER ===
+  app.get("/api/scheduler/optimal-times/:platform", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getOptimalPostingTimes(userId, req.params.platform);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/scheduler/activity-patterns", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await updateActivityPatterns(userId, req.body.platform, req.body.data);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/scheduler/cadence", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getUploadCadence(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/scheduler/auto-schedule", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await autoScheduleContent(userId, req.body.videoId, req.body.platforms);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/scheduler/recommendations", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getScheduleRecommendations(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === MONETIZATION ENGINE ===
+  app.post("/api/monetization/ad-breaks/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await suggestAdBreaks(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/monetization/revenue-forecast", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateRevenueForecast(userId, req.body.period || "monthly");
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/monetization/fan-funnel", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await trackFanFunnel(userId, req.body.eventType, req.body.platform, req.body.count);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/monetization/fan-funnel", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getFanFunnelData(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/monetization/sponsor-rates", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await calculateSponsorRates(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/monetization/sponsor-rates", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getSponsorRates(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/monetization/equipment-roi", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await trackEquipmentRoi(userId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/monetization/equipment-roi", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getEquipmentRoi(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/monetization/invoice/:dealId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await generateInvoice(userId, Number(req.params.dealId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/monetization/invoices", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getInvoices(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/monetization/analyze-deal/:dealId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await analyzeDeal(userId, Number(req.params.dealId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === WELLNESS & COMPLIANCE ===
+  app.post("/api/wellness/workload", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await logWorkload(userId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/workload", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getWorkloadSummary(userId, req.query.days ? Number(req.query.days) : undefined);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/burnout-check", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await checkBurnoutRisk(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/burnout-alerts", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getBurnoutAlerts(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wellness/burnout-acknowledge/:alertId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await acknowledgeBurnoutAlert(userId, Number(req.params.alertId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/delegation", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await suggestDelegation(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wellness/team-task", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await createTeamTask(userId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/team-tasks", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getTeamTasks(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/wellness/team-task/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await updateTeamTask(Number(req.params.id), req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/creative-block", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getCreativeBlockSuggestions(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wellness/compliance-scan/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await scanCompliance(userId, Number(req.params.videoId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wellness/legal-document", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await storeLegalDocument(userId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/legal-documents", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getLegalDocuments(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wellness/crm", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await manageCrm(userId, req.body.action, req.body.data);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wellness/crm", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await manageCrm(userId, "get", {});
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === LINKED CHANNELS ===
+  app.post("/api/linked-channels", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const [result] = await db.insert(linkedChannels).values({
+        userId,
+        platform: req.body.platform,
+        username: req.body.username || null,
+        profileUrl: req.body.profileUrl || null,
+        isConnected: req.body.isConnected ?? true,
+        connectionType: req.body.connectionType || "manual",
+        credentials: req.body.credentials || null,
+        followerCount: req.body.followerCount || null,
+      }).returning();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/linked-channels", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await db.select().from(linkedChannels)
+        .where(eq(linkedChannels.userId, userId));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/linked-channels/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const [result] = await db.update(linkedChannels)
+        .set(req.body)
+        .where(and(eq(linkedChannels.id, Number(req.params.id)), eq(linkedChannels.userId, userId)))
+        .returning();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/linked-channels/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      await db.delete(linkedChannels)
+        .where(and(eq(linkedChannels.id, Number(req.params.id)), eq(linkedChannels.userId, userId)));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
     }
   });
 
