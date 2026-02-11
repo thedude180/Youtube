@@ -2635,7 +2635,12 @@ export async function registerRoutes(
           return res.status(500).json({ error: "Failed to prepare authentication" });
         }
         const authUrl = getAuthUrl(userId);
-        res.json({ url: authUrl });
+        const acceptHeader = req.headers.accept || "";
+        if (acceptHeader.includes("application/json")) {
+          res.json({ url: authUrl });
+        } else {
+          res.redirect(authUrl);
+        }
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

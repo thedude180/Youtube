@@ -108,6 +108,34 @@ export async function handleCallback(code: string, userId: string) {
     channel = await storage.createChannel(channelData);
   }
 
+  const existingShortsChannel = existingChannels.find(c => c.platform === "youtubeshorts");
+  const shortsData = {
+    userId,
+    platform: "youtubeshorts" as const,
+    channelName: `${ytChannel.snippet?.title || "YouTube"} Shorts`,
+    channelId: ytChannel.id || "",
+    accessToken: tokens.access_token || null,
+    refreshToken: tokens.refresh_token || null,
+    tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+    settings: { preset: "normal" as const, autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+  };
+
+  if (existingShortsChannel) {
+    const shortsUpdate: any = {
+      channelName: shortsData.channelName,
+      channelId: shortsData.channelId,
+      accessToken: shortsData.accessToken,
+      tokenExpiresAt: shortsData.tokenExpiresAt,
+      lastSyncAt: new Date(),
+    };
+    if (tokens.refresh_token) {
+      shortsUpdate.refreshToken = tokens.refresh_token;
+    }
+    await storage.updateChannel(existingShortsChannel.id, shortsUpdate);
+  } else {
+    await storage.createChannel(shortsData);
+  }
+
   return {
     channel,
     ytChannel: {
