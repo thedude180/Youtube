@@ -378,6 +378,24 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [aiNiche, setAiNiche] = useState<any>(null);
   const [aiNicheLoading, setAiNicheLoading] = useState(false);
 
+  const [showAudioAI, setShowAudioAI] = useState(false);
+  const [aiPodcastLaunch, setAiPodcastLaunch] = useState<any>(null);
+  const [aiPodcastLaunchLoading, setAiPodcastLaunchLoading] = useState(false);
+  const [aiPodcastEp, setAiPodcastEp] = useState<any>(null);
+  const [aiPodcastEpLoading, setAiPodcastEpLoading] = useState(false);
+  const [aiPodcastSEO, setAiPodcastSEO] = useState<any>(null);
+  const [aiPodcastSEOLoading, setAiPodcastSEOLoading] = useState(false);
+  const [aiAudioBrand, setAiAudioBrand] = useState<any>(null);
+  const [aiAudioBrandLoading, setAiAudioBrandLoading] = useState(false);
+  const [aiMusicComp, setAiMusicComp] = useState<any>(null);
+  const [aiMusicCompLoading, setAiMusicCompLoading] = useState(false);
+  const [aiASMR, setAiASMR] = useState<any>(null);
+  const [aiASMRLoading, setAiASMRLoading] = useState(false);
+  const [aiVoiceTrain, setAiVoiceTrain] = useState<any>(null);
+  const [aiVoiceTrainLoading, setAiVoiceTrainLoading] = useState(false);
+  const [aiAudioMix, setAiAudioMix] = useState<any>(null);
+  const [aiAudioMixLoading, setAiAudioMixLoading] = useState(false);
+
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
     return arr.slice(0, limit).map((item: any, i: number) => (
@@ -1199,6 +1217,54 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
     if (cached) { try { setAiLangPriority(JSON.parse(cached)); return; } catch {} }
     setAiLangPriorityLoading(true);
     apiRequest("POST", "/api/ai/language-priority", {}).then(r => r.json()).then(d => { setAiLangPriority(d); sessionStorage.setItem("ai_lang_priority", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiLangPriorityLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_podcast_launch");
+    if (cached) { try { setAiPodcastLaunch(JSON.parse(cached)); return; } catch {} }
+    setAiPodcastLaunchLoading(true);
+    apiRequest("POST", "/api/ai/podcast-launch", {}).then(r => r.json()).then(d => { setAiPodcastLaunch(d); sessionStorage.setItem("ai_podcast_launch", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPodcastLaunchLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_podcast_ep");
+    if (cached) { try { setAiPodcastEp(JSON.parse(cached)); return; } catch {} }
+    setAiPodcastEpLoading(true);
+    apiRequest("POST", "/api/ai/podcast-episode", {}).then(r => r.json()).then(d => { setAiPodcastEp(d); sessionStorage.setItem("ai_podcast_ep", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPodcastEpLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_podcast_seo2");
+    if (cached) { try { setAiPodcastSEO(JSON.parse(cached)); return; } catch {} }
+    setAiPodcastSEOLoading(true);
+    apiRequest("POST", "/api/ai/podcast-seo", {}).then(r => r.json()).then(d => { setAiPodcastSEO(d); sessionStorage.setItem("ai_podcast_seo2", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPodcastSEOLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_audio_brand");
+    if (cached) { try { setAiAudioBrand(JSON.parse(cached)); return; } catch {} }
+    setAiAudioBrandLoading(true);
+    apiRequest("POST", "/api/ai/audio-branding", {}).then(r => r.json()).then(d => { setAiAudioBrand(d); sessionStorage.setItem("ai_audio_brand", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAudioBrandLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_music_comp");
+    if (cached) { try { setAiMusicComp(JSON.parse(cached)); return; } catch {} }
+    setAiMusicCompLoading(true);
+    apiRequest("POST", "/api/ai/music-composer", {}).then(r => r.json()).then(d => { setAiMusicComp(d); sessionStorage.setItem("ai_music_comp", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMusicCompLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_asmr");
+    if (cached) { try { setAiASMR(JSON.parse(cached)); return; } catch {} }
+    setAiASMRLoading(true);
+    apiRequest("POST", "/api/ai/asmr", {}).then(r => r.json()).then(d => { setAiASMR(d); sessionStorage.setItem("ai_asmr", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiASMRLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_voice_train");
+    if (cached) { try { setAiVoiceTrain(JSON.parse(cached)); return; } catch {} }
+    setAiVoiceTrainLoading(true);
+    apiRequest("POST", "/api/ai/voice-training", {}).then(r => r.json()).then(d => { setAiVoiceTrain(d); sessionStorage.setItem("ai_voice_train", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiVoiceTrainLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_audio_mix");
+    if (cached) { try { setAiAudioMix(JSON.parse(cached)); return; } catch {} }
+    setAiAudioMixLoading(true);
+    apiRequest("POST", "/api/ai/audio-mixing", {}).then(r => r.json()).then(d => { setAiAudioMix(d); sessionStorage.setItem("ai_audio_mix", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAudioMixLoading(false));
   }, []);
 
   const filteredVideos = useMemo(() => {
@@ -3700,6 +3766,151 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
                   {aiLangPriorityLoading ? <Skeleton className="h-24 w-full" /> : aiLangPriority && (
                     <div className="space-y-2 text-xs text-muted-foreground">
                       {renderAIList(aiLangPriority.languages || aiLangPriority.priorities || aiLangPriority.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowAudioAI(!showAudioAI)}
+          data-testid="button-toggle-audio-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Audio & Podcast Suite</span>
+          <Badge variant="outline" className="text-[10px]">8 tools</Badge>
+          {showAudioAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showAudioAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiPodcastLaunchLoading || aiPodcastLaunch) && (
+              <Card data-testid="card-ai-podcast-launch">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Podcast Launch</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPodcastLaunchLoading ? <Skeleton className="h-24 w-full" /> : aiPodcastLaunch && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiPodcastLaunch.steps || aiPodcastLaunch.recommendations || aiPodcastLaunch.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPodcastEpLoading || aiPodcastEp) && (
+              <Card data-testid="card-ai-podcast-ep">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Podcast Episode</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPodcastEpLoading ? <Skeleton className="h-24 w-full" /> : aiPodcastEp && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiPodcastEp.episodes || aiPodcastEp.recommendations || aiPodcastEp.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPodcastSEOLoading || aiPodcastSEO) && (
+              <Card data-testid="card-ai-podcast-seo">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Podcast SEO</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPodcastSEOLoading ? <Skeleton className="h-24 w-full" /> : aiPodcastSEO && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiPodcastSEO.keywords || aiPodcastSEO.recommendations || aiPodcastSEO.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAudioBrandLoading || aiAudioBrand) && (
+              <Card data-testid="card-ai-audio-brand">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Audio Branding</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAudioBrandLoading ? <Skeleton className="h-24 w-full" /> : aiAudioBrand && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAudioBrand.elements || aiAudioBrand.recommendations || aiAudioBrand.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMusicCompLoading || aiMusicComp) && (
+              <Card data-testid="card-ai-music-comp">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Music Composer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMusicCompLoading ? <Skeleton className="h-24 w-full" /> : aiMusicComp && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiMusicComp.tracks || aiMusicComp.recommendations || aiMusicComp.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiASMRLoading || aiASMR) && (
+              <Card data-testid="card-ai-asmr">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI ASMR</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiASMRLoading ? <Skeleton className="h-24 w-full" /> : aiASMR && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiASMR.sounds || aiASMR.recommendations || aiASMR.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiVoiceTrainLoading || aiVoiceTrain) && (
+              <Card data-testid="card-ai-voice-train">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Voice Training</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiVoiceTrainLoading ? <Skeleton className="h-24 w-full" /> : aiVoiceTrain && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiVoiceTrain.exercises || aiVoiceTrain.recommendations || aiVoiceTrain.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAudioMixLoading || aiAudioMix) && (
+              <Card data-testid="card-ai-audio-mix">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Audio Mixing</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAudioMixLoading ? <Skeleton className="h-24 w-full" /> : aiAudioMix && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAudioMix.settings || aiAudioMix.recommendations || aiAudioMix.results)}
                     </div>
                   )}
                 </CardContent>
