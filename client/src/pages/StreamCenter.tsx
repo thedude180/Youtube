@@ -140,6 +140,18 @@ export default function StreamCenter() {
   const [aiStreamElem, setAiStreamElem] = useState<any>(null);
   const [aiStreamElemLoading, setAiStreamElemLoading] = useState(false);
 
+  const [showLiveAdvancedAI, setShowLiveAdvancedAI] = useState(false);
+  const [aiOverlayDesigner, setAiOverlayDesigner] = useState<any>(null);
+  const [aiOverlayDesignerLoading, setAiOverlayDesignerLoading] = useState(false);
+  const [aiRaidOptimizer, setAiRaidOptimizer] = useState<any>(null);
+  const [aiRaidOptimizerLoading, setAiRaidOptimizerLoading] = useState(false);
+  const [aiHighlightClipper, setAiHighlightClipper] = useState<any>(null);
+  const [aiHighlightClipperLoading, setAiHighlightClipperLoading] = useState(false);
+  const [aiDonationGoal, setAiDonationGoal] = useState<any>(null);
+  const [aiDonationGoalLoading, setAiDonationGoalLoading] = useState(false);
+  const [aiChatUnifier, setAiChatUnifier] = useState<any>(null);
+  const [aiChatUnifierLoading, setAiChatUnifierLoading] = useState(false);
+
   useEffect(() => {
     const cached = sessionStorage.getItem("aiStreamRecs");
     if (cached) {
@@ -501,6 +513,36 @@ export default function StreamCenter() {
     if (cached) { try { setAiStreamElem(JSON.parse(cached)); return; } catch {} }
     setAiStreamElemLoading(true);
     apiRequest("POST", "/api/ai/stream-elements", {}).then(r => r.json()).then(d => { setAiStreamElem(d); sessionStorage.setItem("ai_stream_elem", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamElemLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_overlay_designer");
+    if (cached) { try { setAiOverlayDesigner(JSON.parse(cached)); return; } catch {} }
+    setAiOverlayDesignerLoading(true);
+    apiRequest("POST", "/api/ai/stream-overlay-designer", {}).then(r => r.json()).then(d => { setAiOverlayDesigner(d); sessionStorage.setItem("ai_overlay_designer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiOverlayDesignerLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_raid_optimizer");
+    if (cached) { try { setAiRaidOptimizer(JSON.parse(cached)); return; } catch {} }
+    setAiRaidOptimizerLoading(true);
+    apiRequest("POST", "/api/ai/raid-target-optimizer", {}).then(r => r.json()).then(d => { setAiRaidOptimizer(d); sessionStorage.setItem("ai_raid_optimizer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRaidOptimizerLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_highlight_clipper");
+    if (cached) { try { setAiHighlightClipper(JSON.parse(cached)); return; } catch {} }
+    setAiHighlightClipperLoading(true);
+    apiRequest("POST", "/api/ai/stream-highlight-clipper", {}).then(r => r.json()).then(d => { setAiHighlightClipper(d); sessionStorage.setItem("ai_highlight_clipper", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiHighlightClipperLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_donation_goal");
+    if (cached) { try { setAiDonationGoal(JSON.parse(cached)); return; } catch {} }
+    setAiDonationGoalLoading(true);
+    apiRequest("POST", "/api/ai/donation-goal-strategist", {}).then(r => r.json()).then(d => { setAiDonationGoal(d); sessionStorage.setItem("ai_donation_goal", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDonationGoalLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_chat_unifier");
+    if (cached) { try { setAiChatUnifier(JSON.parse(cached)); return; } catch {} }
+    setAiChatUnifierLoading(true);
+    apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiChatUnifierLoading(false));
   }, []);
 
   const { data: destinations = [] } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
@@ -1998,6 +2040,103 @@ export default function StreamCenter() {
                   {aiStreamElemLoading ? <Skeleton className="h-24 w-full" /> : aiStreamElem && (
                     <div className="space-y-2 text-xs text-muted-foreground">
                       {renderAIList(aiStreamElem.setup || aiStreamElem.overlays || aiStreamElem.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowLiveAdvancedAI(!showLiveAdvancedAI)}
+          data-testid="button-toggle-live-advanced-ai"
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-semibold">AI Live Streaming Advanced Suite</span>
+          <Badge variant="outline" className="text-[10px]">5 tools</Badge>
+          {showLiveAdvancedAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showLiveAdvancedAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiOverlayDesignerLoading || aiOverlayDesigner) && (
+              <Card data-testid="card-ai-overlay-designer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Overlay Designer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiOverlayDesignerLoading ? <Skeleton className="h-24 w-full" /> : aiOverlayDesigner && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiOverlayDesigner.overlays || aiOverlayDesigner.designs || aiOverlayDesigner.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiRaidOptimizerLoading || aiRaidOptimizer) && (
+              <Card data-testid="card-ai-raid-optimizer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Raid Target Optimizer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRaidOptimizerLoading ? <Skeleton className="h-24 w-full" /> : aiRaidOptimizer && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiRaidOptimizer.targets || aiRaidOptimizer.channels || aiRaidOptimizer.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiHighlightClipperLoading || aiHighlightClipper) && (
+              <Card data-testid="card-ai-highlight-clipper">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Highlight Clipper</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiHighlightClipperLoading ? <Skeleton className="h-24 w-full" /> : aiHighlightClipper && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiHighlightClipper.highlights || aiHighlightClipper.clips || aiHighlightClipper.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDonationGoalLoading || aiDonationGoal) && (
+              <Card data-testid="card-ai-donation-goal">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Donation Goal Strategist</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDonationGoalLoading ? <Skeleton className="h-24 w-full" /> : aiDonationGoal && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiDonationGoal.goals || aiDonationGoal.strategies || aiDonationGoal.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiChatUnifierLoading || aiChatUnifier) && (
+              <Card data-testid="card-ai-chat-unifier">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Multi-Stream Chat Unifier</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiChatUnifierLoading ? <Skeleton className="h-24 w-full" /> : aiChatUnifier && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiChatUnifier.unified || aiChatUnifier.platforms || aiChatUnifier.recommendations)}
                     </div>
                   )}
                 </CardContent>

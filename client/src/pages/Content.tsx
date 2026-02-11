@@ -634,6 +634,24 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [aiAutumnContent, setAiAutumnContent] = useState<any>(null);
   const [aiAutumnContentLoading, setAiAutumnContentLoading] = useState(false);
 
+  const [showContentQualityAI, setShowContentQualityAI] = useState(false);
+  const [aiScriptCoach, setAiScriptCoach] = useState<any>(null);
+  const [aiScriptCoachLoading, setAiScriptCoachLoading] = useState(false);
+  const [aiThumbCTRPredictor, setAiThumbCTRPredictor] = useState<any>(null);
+  const [aiThumbCTRPredictorLoading, setAiThumbCTRPredictorLoading] = useState(false);
+  const [aiPlatformRepurposer, setAiPlatformRepurposer] = useState<any>(null);
+  const [aiPlatformRepurposerLoading, setAiPlatformRepurposerLoading] = useState(false);
+  const [aiContentDecay, setAiContentDecay] = useState<any>(null);
+  const [aiContentDecayLoading, setAiContentDecayLoading] = useState(false);
+  const [aiTitleABTester, setAiTitleABTester] = useState<any>(null);
+  const [aiTitleABTesterLoading, setAiTitleABTesterLoading] = useState(false);
+  const [aiDescOptimizer, setAiDescOptimizer] = useState<any>(null);
+  const [aiDescOptimizerLoading, setAiDescOptimizerLoading] = useState(false);
+  const [aiContentRoadmap, setAiContentRoadmap] = useState<any>(null);
+  const [aiContentRoadmapLoading, setAiContentRoadmapLoading] = useState(false);
+  const [aiEvergreenIdentifier, setAiEvergreenIdentifier] = useState<any>(null);
+  const [aiEvergreenIdentifierLoading, setAiEvergreenIdentifierLoading] = useState(false);
+
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_camera");
     if (cached) { try { setAiCameraEQ(JSON.parse(cached)); return; } catch {} }
@@ -922,6 +940,62 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
     setAiAutumnContentLoading(true);
     apiRequest("POST", "/api/ai/autumn-content", {}).then(r => r.json()).then(d => { setAiAutumnContent(d); sessionStorage.setItem("ai_autumn_content", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAutumnContentLoading(false));
   }, []);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_script_coach");
+    if (cached) { try { setAiScriptCoach(JSON.parse(cached)); return; } catch {} }
+    setAiScriptCoachLoading(true);
+    apiRequest("POST", "/api/ai/script-coach", {}).then(r => r.json()).then(d => { setAiScriptCoach(d); sessionStorage.setItem("ai_script_coach", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiScriptCoachLoading(false));
+  }, [showContentQualityAI]);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_thumb_ctr_predictor");
+    if (cached) { try { setAiThumbCTRPredictor(JSON.parse(cached)); return; } catch {} }
+    setAiThumbCTRPredictorLoading(true);
+    apiRequest("POST", "/api/ai/thumbnail-ctr-predictor", {}).then(r => r.json()).then(d => { setAiThumbCTRPredictor(d); sessionStorage.setItem("ai_thumb_ctr_predictor", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiThumbCTRPredictorLoading(false));
+  }, [showContentQualityAI]);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_platform_repurposer");
+    if (cached) { try { setAiPlatformRepurposer(JSON.parse(cached)); return; } catch {} }
+    setAiPlatformRepurposerLoading(true);
+    apiRequest("POST", "/api/ai/platform-repurposer", {}).then(r => r.json()).then(d => { setAiPlatformRepurposer(d); sessionStorage.setItem("ai_platform_repurposer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPlatformRepurposerLoading(false));
+  }, [showContentQualityAI]);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_content_decay");
+    if (cached) { try { setAiContentDecay(JSON.parse(cached)); return; } catch {} }
+    setAiContentDecayLoading(true);
+    apiRequest("POST", "/api/ai/content-decay-detector", {}).then(r => r.json()).then(d => { setAiContentDecay(d); sessionStorage.setItem("ai_content_decay", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiContentDecayLoading(false));
+  }, [showContentQualityAI]);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_title_ab_tester");
+    if (cached) { try { setAiTitleABTester(JSON.parse(cached)); return; } catch {} }
+    setAiTitleABTesterLoading(true);
+    apiRequest("POST", "/api/ai/title-ab-tester", {}).then(r => r.json()).then(d => { setAiTitleABTester(d); sessionStorage.setItem("ai_title_ab_tester", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTitleABTesterLoading(false));
+  }, [showContentQualityAI]);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_desc_optimizer");
+    if (cached) { try { setAiDescOptimizer(JSON.parse(cached)); return; } catch {} }
+    setAiDescOptimizerLoading(true);
+    apiRequest("POST", "/api/ai/description-optimizer", {}).then(r => r.json()).then(d => { setAiDescOptimizer(d); sessionStorage.setItem("ai_desc_optimizer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDescOptimizerLoading(false));
+  }, [showContentQualityAI]);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_content_roadmap");
+    if (cached) { try { setAiContentRoadmap(JSON.parse(cached)); return; } catch {} }
+    setAiContentRoadmapLoading(true);
+    apiRequest("POST", "/api/ai/content-roadmap", {}).then(r => r.json()).then(d => { setAiContentRoadmap(d); sessionStorage.setItem("ai_content_roadmap", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiContentRoadmapLoading(false));
+  }, [showContentQualityAI]);
+  useEffect(() => {
+    if (!showContentQualityAI) return;
+    const cached = sessionStorage.getItem("ai_evergreen_identifier");
+    if (cached) { try { setAiEvergreenIdentifier(JSON.parse(cached)); return; } catch {} }
+    setAiEvergreenIdentifierLoading(true);
+    apiRequest("POST", "/api/ai/evergreen-content-identifier", {}).then(r => r.json()).then(d => { setAiEvergreenIdentifier(d); sessionStorage.setItem("ai_evergreen_identifier", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiEvergreenIdentifierLoading(false));
+  }, [showContentQualityAI]);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
@@ -5799,6 +5873,151 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
                   {aiBingeWatchLoading ? <Skeleton className="h-24 w-full" /> : aiBingeWatch && (
                     <div className="space-y-2 text-xs text-muted-foreground">
                       {renderAIList(aiBingeWatch.strategies || aiBingeWatch.series || aiBingeWatch.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-md border">
+        <button
+          className="w-full flex items-center gap-2 p-4 text-left"
+          onClick={() => setShowContentQualityAI(!showContentQualityAI)}
+          data-testid="button-toggle-content-quality-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Content Quality & Cross-Platform Suite</span>
+          <Badge variant="outline" className="text-[10px]">8 tools</Badge>
+          {showContentQualityAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showContentQualityAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiScriptCoachLoading || aiScriptCoach) && (
+              <Card data-testid="card-ai-script-coach">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Script Coach</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiScriptCoachLoading ? <Skeleton className="h-24 w-full" /> : aiScriptCoach && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiScriptCoach.tips || aiScriptCoach.analysis || aiScriptCoach.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiThumbCTRPredictorLoading || aiThumbCTRPredictor) && (
+              <Card data-testid="card-ai-thumb-ctr-predictor">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Thumbnail CTR Predictor</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiThumbCTRPredictorLoading ? <Skeleton className="h-24 w-full" /> : aiThumbCTRPredictor && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiThumbCTRPredictor.predictions || aiThumbCTRPredictor.analysis || aiThumbCTRPredictor.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPlatformRepurposerLoading || aiPlatformRepurposer) && (
+              <Card data-testid="card-ai-platform-repurposer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Platform Repurposer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPlatformRepurposerLoading ? <Skeleton className="h-24 w-full" /> : aiPlatformRepurposer && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiPlatformRepurposer.adaptations || aiPlatformRepurposer.platforms || aiPlatformRepurposer.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiContentDecayLoading || aiContentDecay) && (
+              <Card data-testid="card-ai-content-decay">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Content Decay Detector</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiContentDecayLoading ? <Skeleton className="h-24 w-full" /> : aiContentDecay && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiContentDecay.declining || aiContentDecay.videos || aiContentDecay.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTitleABTesterLoading || aiTitleABTester) && (
+              <Card data-testid="card-ai-title-ab-tester">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Title A/B Tester</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTitleABTesterLoading ? <Skeleton className="h-24 w-full" /> : aiTitleABTester && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiTitleABTester.variations || aiTitleABTester.tests || aiTitleABTester.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDescOptimizerLoading || aiDescOptimizer) && (
+              <Card data-testid="card-ai-desc-optimizer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Description Optimizer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDescOptimizerLoading ? <Skeleton className="h-24 w-full" /> : aiDescOptimizer && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiDescOptimizer.descriptions || aiDescOptimizer.suggestions || aiDescOptimizer.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiContentRoadmapLoading || aiContentRoadmap) && (
+              <Card data-testid="card-ai-content-roadmap">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Content Roadmap</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiContentRoadmapLoading ? <Skeleton className="h-24 w-full" /> : aiContentRoadmap && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiContentRoadmap.milestones || aiContentRoadmap.strategy || aiContentRoadmap.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiEvergreenIdentifierLoading || aiEvergreenIdentifier) && (
+              <Card data-testid="card-ai-evergreen-identifier">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Evergreen Content Identifier</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiEvergreenIdentifierLoading ? <Skeleton className="h-24 w-full" /> : aiEvergreenIdentifier && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiEvergreenIdentifier.ideas || aiEvergreenIdentifier.topics || aiEvergreenIdentifier.recommendations)}
                     </div>
                   )}
                 </CardContent>
