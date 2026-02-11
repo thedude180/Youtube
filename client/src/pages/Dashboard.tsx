@@ -3887,7 +3887,6 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
-    </div>
 
       <div className="border rounded-md overflow-visible">
         <button
@@ -3937,6 +3936,7 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+    </div>
   );
 }
 
