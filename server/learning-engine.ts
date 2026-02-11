@@ -626,7 +626,7 @@ export async function processActionItems(userId: string): Promise<Array<{
       actionItems.push({
         type: "sponsorship_review",
         title: `Review sponsorship: ${deal.brandName}`,
-        description: `${deal.brandName} deal worth $${deal.amount || 0}. Needs your decision.`,
+        description: `${deal.brandName} deal worth $${deal.dealValue || 0}. Needs your decision.`,
         priority: "high",
         source: "sponsorships",
       });

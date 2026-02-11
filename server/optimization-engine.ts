@@ -100,7 +100,7 @@ export async function getSubEngineStatuses(userId: string): Promise<Array<{
       db.select().from(trendPredictions).where(eq(trendPredictions.userId, userId)).orderBy(desc(trendPredictions.createdAt)).limit(1),
     ]);
 
-    function getStatus(records: any[]): { status: "active" | "needs_attention" | "off"; lastRun?: string } {
+    const getStatus = (records: any[]): { status: "active" | "needs_attention" | "off"; lastRun?: string } => {
       if (records.length === 0) return { status: "off" };
       const lastDate = records[0].createdAt;
       if (!lastDate) return { status: "needs_attention" };
@@ -228,7 +228,7 @@ export async function runAbTestEngine(userId: string, videoId: number): Promise<
 
     if (existingTests.length > 0) {
       const test = existingTests[0];
-      const variants = test.variants as any[] || [];
+      const variants = [test.variantA, test.variantB] as any[];
       const hasEnoughData = variants.every((v: any) => (v.impressions || 0) >= 100);
 
       if (hasEnoughData && variants.length >= 2) {
@@ -265,12 +265,15 @@ Respond as JSON:
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
+    const aiVariants = result.variants || [];
+    const variantA = aiVariants[0] || { title: video.title, description: video.description || "", tags: [] };
+    const variantB = aiVariants[1] || { title: video.title, description: video.description || "", tags: [] };
     const test = await storage.createAbTest({
       userId,
       videoId,
-      testType: "title_description",
       status: "active",
-      variants: result.variants || [],
+      variantA: { title: variantA.title, description: variantA.description, tags: variantA.tags || [] },
+      variantB: { title: variantB.title, description: variantB.description, tags: variantB.tags || [] },
     });
 
     return {
@@ -300,7 +303,7 @@ export async function injectTrendingTopic(userId: string, videoId: number, topic
     const topic = topicRecords[0];
     const currentTags = video.metadata?.tags || [];
     const relatedKeywords = topic.relatedKeywords || [];
-    const newTags = [...new Set([...currentTags, topic.topic, ...relatedKeywords.slice(0, 3)])];
+    const newTags = Array.from(new Set([...currentTags, topic.topic, ...relatedKeywords.slice(0, 3)]));
 
     const prompt = `Integrate the trending topic "${topic.topic}" into this video's metadata naturally.
 
@@ -924,7 +927,7 @@ export async function predictTrends(userId: string): Promise<Array<{
 }>> {
   try {
     const userChannels = await storage.getChannelsByUser(userId);
-    const platforms = [...new Set(userChannels.map(c => c.platform))];
+    const platforms = Array.from(new Set(userChannels.map(c => c.platform)));
     const targetPlatform = platforms[0] || "youtube";
 
     const prompt = `You are a trend prediction system. Forecast 5 upcoming content trends for ${targetPlatform} creators.

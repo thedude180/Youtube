@@ -259,6 +259,9 @@ export interface IStorage {
   getWebhookEvents(userId: string, source?: string): Promise<WebhookEvent[]>;
   createWebhookEvent(e: InsertWebhookEvent): Promise<WebhookEvent>;
   markWebhookProcessed(id: number): Promise<void>;
+
+  getGoals(userId: string): Promise<BusinessGoal[]>;
+  getVentures(userId: string): Promise<BusinessVenture[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1140,6 +1143,14 @@ export class DatabaseStorage implements IStorage {
 
   async markWebhookProcessed(id: number): Promise<void> {
     await db.update(webhookEvents).set({ processed: true }).where(eq(webhookEvents.id, id));
+  }
+
+  async getGoals(userId: string): Promise<BusinessGoal[]> {
+    return await db.select().from(businessGoals).where(eq(businessGoals.userId, userId));
+  }
+
+  async getVentures(userId: string): Promise<BusinessVenture[]> {
+    return await db.select().from(businessVentures).where(eq(businessVentures.userId, userId));
   }
 }
 

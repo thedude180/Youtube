@@ -5066,6 +5066,13 @@ function CollabsTab() {
     apiRequest("POST", "/api/ai/network-effect", {}).then(r => r.json()).then(d => { setAiNetworkEff(d); sessionStorage.setItem("ai_network_eff", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiNetworkEffLoading(false));
   }, []);
 
+  const renderAIList = (arr: any[] | undefined, limit = 5) => {
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    return arr.slice(0, limit).map((item: any, i: number) => (
+      <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
+    ));
+  };
+
   const { data: leads, isLoading } = useQuery<any[]>({ queryKey: ['/api/collaboration-leads'] });
 
   const createMutation = useMutation({

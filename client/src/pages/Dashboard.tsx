@@ -50,7 +50,7 @@ const healthAreas = [
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { advancedMode } = useAdvancedMode();
+  const { isAdvanced: advancedMode } = useAdvancedMode();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: agentStatus } = useQuery<any[]>({ queryKey: ['/api/agents/status'] });
   const { data: agentActivities } = useQuery<any[]>({ queryKey: ['/api/agents/activities'] });

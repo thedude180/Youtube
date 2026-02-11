@@ -203,12 +203,12 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
         const item = await storage.createScheduleItem({
           userId,
           title: `${video.title} - ${platform}`,
-          contentType: video.type,
+          type: video.type,
           platform,
           videoId,
           status: "draft",
           scheduledAt: tomorrow,
-          metadata: { autoScheduled: true },
+          metadata: { autoScheduled: true } as any,
         });
         scheduled.push({ platform, scheduledAt: tomorrow, id: item.id });
         continue;
@@ -228,12 +228,12 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
       const item = await storage.createScheduleItem({
         userId,
         title: `${video.title} - ${platform}`,
-        contentType: video.type,
+        type: video.type,
         platform,
         videoId,
         status: "draft",
         scheduledAt: targetDate,
-        metadata: { autoScheduled: true, activityLevel: bestSlot.activityLevel },
+        metadata: { autoScheduled: true, activityLevel: bestSlot.activityLevel } as any,
       });
       scheduled.push({ platform, scheduledAt: targetDate, id: item.id });
     }

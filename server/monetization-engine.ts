@@ -326,7 +326,7 @@ export async function generateInvoice(userId: string, sponsorDealId: number) {
 
 Brand: "${deal.brandName || "Unknown Brand"}"
 Deal Value: $${deal.dealValue || 0}
-Deal Type: ${deal.dealType || "sponsorship"}
+Deal Type: ${"sponsorship"}
 Deliverables: ${JSON.stringify(deal.deliverables || [])}
 Notes: ${deal.notes || "None"}
 
@@ -410,9 +410,9 @@ export async function analyzeDeal(userId: string, dealId: number) {
 DEAL DETAILS:
 - Brand: "${deal.brandName || "Unknown"}"
 - Offered Value: $${deal.dealValue || 0}
-- Deal Type: ${deal.dealType || "sponsorship"}
+- Deal Type: ${"sponsorship"}
 - Deliverables: ${JSON.stringify(deal.deliverables || [])}
-- Timeline: ${deal.deadline ? new Date(deal.deadline).toLocaleDateString() : "No deadline"}
+- Timeline: ${deal.endDate ? new Date(deal.endDate).toLocaleDateString() : "No deadline"}
 
 CREATOR METRICS:
 - Channels: ${userChannels.length}

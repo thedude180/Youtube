@@ -352,10 +352,11 @@ export async function batchPushOptimizations(userId: string, videoIds: number[])
           continue;
         }
 
-        const currentMetadata = video.metadata || {};
+        const currentMetadata = video.metadata || { tags: [] };
         await storage.updateVideo(videoId, {
           metadata: {
             ...currentMetadata,
+            tags: currentMetadata.tags || [],
             aiOptimized: true,
             aiOptimizedAt: new Date().toISOString(),
           },

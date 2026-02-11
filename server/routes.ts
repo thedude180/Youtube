@@ -3040,7 +3040,7 @@ export async function registerRoutes(
       const deals = await storage.getSponsorshipDeals(userId);
       const result = await aiSponsorshipManager({
         channelName: channels[0]?.channelName || "My Channel",
-        niche: channels[0]?.category || undefined,
+        niche: (channels[0] as any)?.category || undefined,
         avgViews: videos.length > 0 ? Math.round(videos.reduce((s: number, v: any) => s + (v.metadata?.stats?.views || 0), 0) / videos.length) : undefined,
         existingSponsors: deals.map((d: any) => d.brandName).filter(Boolean),
       }, userId);
@@ -3056,7 +3056,7 @@ export async function registerRoutes(
       const videos = await storage.getVideosByUser(userId);
       const result = await aiMediaKit({
         channelName: channels[0]?.channelName || "My Channel",
-        niche: channels[0]?.category || undefined,
+        niche: (channels[0] as any)?.category || undefined,
         totalVideos: videos.length,
       }, userId);
       res.json(result);
@@ -3200,7 +3200,7 @@ export async function registerRoutes(
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
-      const result = await aiCollabMatchmaker({ channelName: channels[0]?.channelName || "My Channel", niche: channels[0]?.category || undefined, ...req.body }, userId);
+      const result = await aiCollabMatchmaker({ channelName: channels[0]?.channelName || "My Channel", niche: (channels[0] as any)?.category || undefined, ...req.body }, userId);
       res.json(result);
     } catch (e: any) { console.error("AI collab error:", e); res.status(500).json({ message: e.message }); }
   });
@@ -6478,12 +6478,12 @@ export async function registerRoutes(
         const record = await storage.createExpenseRecord({
           userId,
           description: row.description || "Imported expense",
-          amount: String(Math.abs(parseFloat(row.amount) || 0)),
+          amount: Math.abs(parseFloat(row.amount) || 0),
           category: row.category || "other",
-          date: row.date ? new Date(row.date).toISOString() : new Date().toISOString(),
+          expenseDate: row.date ? new Date(row.date) : new Date(),
           vendor: row.vendor || row.description || "",
-          isDeductible: true,
-          notes: "Imported from Chase CSV",
+          taxDeductible: true,
+          metadata: { notes: "Imported from Chase CSV" },
         });
         imported.push(record);
       }

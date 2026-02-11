@@ -626,7 +626,7 @@ export async function trackClipPerformance(
           actualScore,
         },
         trackedAt: new Date().toISOString(),
-      },
+      } as any,
     });
 
     return { tracked: true, accuracy };
