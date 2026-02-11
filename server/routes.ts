@@ -7845,6 +7845,225 @@ export async function registerRoutes(
     }
   });
 
+  // === GENERIC OAUTH FOR ALL PLATFORMS ===
+  const { OAUTH_CONFIGS, getOAuthRedirectUri, isPlatformOAuthConfigured, getAllOAuthPlatforms } = await import("./oauth-config");
+  const crypto = await import("crypto");
+
+  const pendingOAuthStates = new Map<string, { userId: string; platform: string; timestamp: number; codeVerifier?: string }>();
+
+  function cleanupOAuthStates() {
+    const now = Date.now();
+    for (const [key, val] of pendingOAuthStates.entries()) {
+      if (now - val.timestamp > 10 * 60 * 1000) pendingOAuthStates.delete(key);
+    }
+  }
+
+  app.get("/api/oauth/status", async (_req, res) => {
+    const allOAuth = getAllOAuthPlatforms();
+    const status: Record<string, { hasOAuth: boolean; configured: boolean }> = {};
+    for (const p of allOAuth) {
+      status[p] = { hasOAuth: true, configured: isPlatformOAuthConfigured(p) };
+    }
+    status["youtube"] = { hasOAuth: true, configured: true };
+    status["youtubeshorts"] = { hasOAuth: true, configured: true };
+    res.json(status);
+  });
+
+  app.get("/api/oauth/:platform/auth", (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const platform = req.params.platform as Platform;
+    const config = OAUTH_CONFIGS[platform];
+    if (!config) return res.status(400).json({ error: `No OAuth config for platform: ${platform}` });
+
+    const clientId = process.env[config.clientIdEnv];
+    const clientSecret = process.env[config.clientSecretEnv];
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ error: `OAuth not configured for ${config.label}. Missing ${config.clientIdEnv} and/or ${config.clientSecretEnv}.` });
+    }
+
+    cleanupOAuthStates();
+    const state = crypto.randomBytes(32).toString("hex");
+    let codeVerifier: string | undefined;
+
+    if (config.requiresPKCE) {
+      codeVerifier = crypto.randomBytes(32).toString("base64url");
+    }
+
+    pendingOAuthStates.set(state, { userId, platform, timestamp: Date.now(), codeVerifier });
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: getOAuthRedirectUri(platform),
+      response_type: config.responseType || "code",
+      scope: config.scopes.join(" "),
+      state,
+      ...(config.additionalAuthParams || {}),
+    });
+
+    if (config.usesClientKey) {
+      params.set("client_key", clientId);
+    }
+    if (config.requiresPKCE && codeVerifier) {
+      params.set("code_challenge", codeVerifier);
+      params.set("code_challenge_method", "plain");
+    }
+
+    const authUrl = `${config.authUrl}?${params.toString()}`;
+    const acceptHeader = req.headers.accept || "";
+    if (acceptHeader.includes("application/json")) {
+      res.json({ url: authUrl });
+    } else {
+      res.redirect(authUrl);
+    }
+  });
+
+  app.get("/api/oauth/:platform/callback", async (req, res) => {
+    const platform = req.params.platform as Platform;
+    const code = req.query.code as string | undefined;
+    const state = req.query.state as string | undefined;
+
+    if (!code) {
+      return res.redirect(`/channels?error=${encodeURIComponent("Missing authorization code. Please try again.")}`);
+    }
+
+    let userId: string | null = null;
+    let codeVerifier: string | undefined;
+    if (state && pendingOAuthStates.has(state)) {
+      const entry = pendingOAuthStates.get(state)!;
+      userId = entry.userId;
+      codeVerifier = entry.codeVerifier;
+      pendingOAuthStates.delete(state);
+    }
+
+    if (!userId) {
+      userId = req.isAuthenticated() ? getUserId(req) : null;
+    }
+
+    if (!userId) {
+      return res.redirect(`/channels?error=${encodeURIComponent("Session expired. Please log in and try again.")}`);
+    }
+
+    const config = OAUTH_CONFIGS[platform];
+    if (!config) {
+      return res.redirect(`/channels?error=${encodeURIComponent(`Unknown platform: ${platform}`)}`);
+    }
+
+    const clientId = process.env[config.clientIdEnv]!;
+    const clientSecret = process.env[config.clientSecretEnv]!;
+
+    try {
+      const tokenBody: Record<string, string> = {
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: getOAuthRedirectUri(platform),
+        client_id: clientId,
+        client_secret: clientSecret,
+      };
+
+      if (config.requiresPKCE && codeVerifier) {
+        tokenBody.code_verifier = codeVerifier;
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/x-www-form-urlencoded",
+      };
+
+      if (config.tokenAuthMethod === "header") {
+        headers["Authorization"] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+        delete tokenBody.client_id;
+        delete tokenBody.client_secret;
+      }
+
+      const tokenRes = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers,
+        body: new URLSearchParams(tokenBody).toString(),
+      });
+
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        console.error(`[OAuth ${platform}] Token exchange failed:`, errText);
+        return res.redirect(`/channels?error=${encodeURIComponent(`Failed to connect ${config.label}. Please try again.`)}`);
+      }
+
+      const tokenData = await tokenRes.json() as any;
+      const accessToken = tokenData.access_token;
+      const refreshToken = tokenData.refresh_token || null;
+      const expiresIn = tokenData.expires_in;
+      const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+
+      let channelName = `${config.label} Account`;
+      let channelId = accessToken.substring(0, 20);
+      let profileUrl: string | undefined;
+
+      if (config.userInfoUrl && config.userInfoHeaders && config.parseUserId) {
+        try {
+          const userRes = await fetch(config.userInfoUrl, {
+            headers: config.userInfoHeaders(accessToken),
+          });
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            const parsed = config.parseUserId(userData);
+            channelId = parsed.id;
+            channelName = parsed.displayName || parsed.username;
+            profileUrl = parsed.profileUrl;
+          }
+        } catch (e) {
+          console.error(`[OAuth ${platform}] User info fetch failed:`, e);
+        }
+      }
+
+      const existingChannels = await storage.getChannelsByUser(userId);
+      const existing = existingChannels.find(c => c.platform === platform);
+
+      if (existing) {
+        await storage.updateChannel(existing.id, {
+          accessToken,
+          refreshToken,
+          tokenExpiresAt,
+          channelName,
+          channelId,
+        });
+      } else {
+        await storage.createChannel({
+          userId,
+          platform,
+          channelName,
+          channelId,
+          accessToken,
+          refreshToken,
+          tokenExpiresAt,
+          settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+        });
+      }
+
+      const existingLinked = await db.select().from(linkedChannels).where(
+        and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform))
+      );
+      if (existingLinked.length === 0) {
+        await db.insert(linkedChannels).values({
+          userId,
+          platform,
+          username: channelName,
+          profileUrl: profileUrl || null,
+          isConnected: true,
+          connectionType: "oauth",
+        });
+      } else {
+        await db.update(linkedChannels)
+          .set({ isConnected: true, username: channelName, profileUrl: profileUrl || null, connectionType: "oauth" })
+          .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
+      }
+
+      console.log(`[OAuth ${platform}] Successfully connected for user ${userId}: ${channelName}`);
+      res.redirect(`/channels?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
+    } catch (error: any) {
+      console.error(`[OAuth ${platform}] Callback error:`, error);
+      res.redirect(`/channels?error=${encodeURIComponent(`Failed to connect ${config.label}: ${error.message}`)}`);
+    }
+  });
+
   // === LINKED CHANNELS ===
   app.post("/api/linked-channels", async (req, res) => {
     const userId = requireAuth(req, res);

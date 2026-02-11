@@ -17,6 +17,7 @@ import {
   ArrowRight,
   Zap,
   Loader2,
+  LogIn,
 } from "lucide-react";
 
 const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
@@ -58,23 +59,50 @@ function PlatformCard({
   isConnected,
   onConnect,
   isPending,
+  oauthStatus,
 }: {
   platform: Platform;
   info: (typeof PLATFORM_INFO)[Platform];
   isConnected: boolean;
   onConnect: (data: { value: string }) => void;
   isPending: boolean;
+  oauthStatus?: Record<string, { hasOAuth: boolean; configured: boolean }>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const { toast } = useToast();
 
-  const isOAuth = info.connectionType === "oauth";
+  const isYouTube = platform === "youtube" || platform === "youtubeshorts";
+  const platformOAuth = oauthStatus?.[platform];
+  const hasOAuthConfig = platformOAuth?.configured || false;
+  const canOAuth = isYouTube || hasOAuthConfig;
 
   const inputLabel = (() => {
     if (info.category === "streaming" && info.rtmpUrlTemplate) return "Stream Key";
     if (info.connectionType === "api_key") return "API Key";
     return "Profile URL or Username";
   })();
+
+  const handleOAuthLogin = async () => {
+    setOauthLoading(true);
+    try {
+      if (isYouTube) {
+        const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed");
+        const { url } = await res.json();
+        window.location.href = url;
+      } else {
+        const res = await fetch(`/api/oauth/${platform}/auth`, { credentials: "include", headers: { "Accept": "application/json" } });
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
+        const { url } = await res.json();
+        window.location.href = url;
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setOauthLoading(false);
+    }
+  };
 
   return (
     <Card
@@ -108,7 +136,7 @@ function PlatformCard({
               {info.strategyDescription}
             </p>
           </div>
-          {!isConnected && !isOAuth && (
+          {!isConnected && (
             <Button
               data-testid={`button-expand-${platform}`}
               size="icon"
@@ -120,68 +148,80 @@ function PlatformCard({
           )}
         </div>
 
-        {isOAuth && !isConnected && (
+        {!isConnected && canOAuth && !expanded && (
           <div className="mt-3">
             <Button
-              data-testid={`button-connect-youtube`}
-              onClick={() => { window.location.href = "/api/youtube/auth"; }}
+              data-testid={`button-oauth-${platform}`}
+              onClick={handleOAuthLogin}
+              disabled={oauthLoading}
+              className="w-full"
+              style={{ backgroundColor: info.color === "#000000" ? "#333" : info.color, borderColor: info.color, color: "#fff" }}
             >
-              Connect YouTube
-              <ExternalLink className="h-4 w-4 ml-1" />
+              {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
+              {oauthLoading ? "Redirecting..." : `Login with ${info.label}`}
             </Button>
           </div>
         )}
 
-        {expanded && !isOAuth && !isConnected && (
+        {expanded && !isConnected && (
           <div className="mt-4 space-y-3">
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">Setup Steps</p>
-              <ol className="space-y-1">
-                {info.setupSteps.map((step, i) => (
-                  <li key={i} className="text-xs text-muted-foreground flex gap-2">
-                    <span className="text-foreground font-medium shrink-0">{i + 1}.</span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <Input
-                data-testid={`input-${platform}`}
-                placeholder={inputLabel}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                className="flex-1 min-w-[180px]"
-              />
+            {canOAuth && (
               <Button
-                data-testid={`button-connect-${platform}`}
-                size="sm"
-                disabled={!inputValue.trim() || isPending}
-                onClick={() => onConnect({ value: inputValue.trim() })}
+                data-testid={`button-oauth-expanded-${platform}`}
+                onClick={handleOAuthLogin}
+                disabled={oauthLoading}
+                className="w-full"
+                style={{ backgroundColor: info.color === "#000000" ? "#333" : info.color, borderColor: info.color, color: "#fff" }}
               >
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+                {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
+                {oauthLoading ? "Redirecting..." : `Login with ${info.label}`}
               </Button>
-              <Button
-                data-testid={`button-skip-${platform}`}
-                variant="ghost"
-                size="sm"
-                onClick={() => setExpanded(false)}
-              >
-                Skip
-              </Button>
-            </div>
+            )}
 
-            <a
-              href={info.signupUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              data-testid={`link-signup-${platform}`}
-            >
-              Don't have an account? Sign up
-              <ExternalLink className="h-3 w-3" />
-            </a>
+            {!canOAuth && platformOAuth?.hasOAuth && (
+              <div className="rounded-md bg-muted p-2 text-center">
+                <p className="text-xs text-muted-foreground">OAuth available - add credentials to enable</p>
+              </div>
+            )}
+
+            {!isYouTube && (
+              <>
+                {canOAuth && (
+                  <div className="relative my-1">
+                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or manually</span></div>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Input
+                    data-testid={`input-${platform}`}
+                    placeholder={inputLabel}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    className="flex-1 min-w-[180px]"
+                  />
+                  <Button
+                    data-testid={`button-connect-${platform}`}
+                    size="sm"
+                    disabled={!inputValue.trim() || isPending}
+                    onClick={() => onConnect({ value: inputValue.trim() })}
+                  >
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+                  </Button>
+                </div>
+
+                <a
+                  href={info.signupUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid={`link-signup-${platform}`}
+                >
+                  Don't have an account? Sign up
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </>
+            )}
           </div>
         )}
       </CardContent>
@@ -197,6 +237,10 @@ export default function Onboarding() {
 
   const { data: linkedChannels = [], isLoading } = useQuery<LinkedChannel[]>({
     queryKey: ["/api/linked-channels"],
+  });
+
+  const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
+    queryKey: ["/api/oauth/status"],
   });
 
   const connectMutation = useMutation({
@@ -313,6 +357,7 @@ export default function Onboarding() {
                           isConnected={connectedPlatforms.has(platform)}
                           onConnect={({ value }) => handleConnect(platform, value)}
                           isPending={connectMutation.isPending}
+                          oauthStatus={oauthStatus}
                         />
                       );
                     })}

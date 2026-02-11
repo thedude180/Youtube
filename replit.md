@@ -50,8 +50,17 @@ The platform is built as a full-stack application with an Express.js backend and
 - **AI Auto-Payment Manager**: Handles invoicing, expense categorization, tax prep, and payment optimization every 6 hours.
 - **Traffic-Driven Localization Intelligence**: AI Audience Language Analyzer runs first in the localization cron cycle, determines priority languages from viewer traffic data, stores recommendations in `localization_recommendations` table, then feeds those languages into all 16 other localization AI features (Video Translator, Subtitle Generator, etc.). Settings Language Selector shows traffic-based UI language suggestions. Content Localization tab displays priority languages, viewer distribution, and untapped markets.
 
+## OAuth Platform Integration
+- **Universal OAuth Framework**: `server/oauth-config.ts` contains OAuth2 configs for 23 platforms (Twitch, Discord, Twitter/X, Facebook, Instagram, TikTok, LinkedIn, Reddit, Pinterest, Snapchat, Spotify, Patreon, Kick, Rumble, Threads, Bluesky, Mastodon, Ko-fi, Substack, Apple Podcasts, DLive, Trovo, WhatsApp)
+- **OAuth Routes**: Generic `/api/oauth/:platform/auth` (initiate) and `/api/oauth/:platform/callback` (token exchange + channel creation) routes handle all platforms
+- **OAuth Status API**: `/api/oauth/status` returns which platforms have OAuth configured (Client ID + Secret env vars present)
+- **Credential Env Vars**: Each platform uses `{PLATFORM}_CLIENT_ID` and `{PLATFORM}_CLIENT_SECRET` env vars (e.g., `TWITCH_CLIENT_ID`, `DISCORD_CLIENT_SECRET`)
+- **UI Integration**: Platform dialogs show "Login with [Platform]" OAuth buttons when configured, with manual credential fallback always available
+- **YouTube**: Uses dedicated `/api/youtube/auth` flow via Google OAuth (already configured with GOOGLE_CLIENT_ID/SECRET)
+
 ## Key Files
-- `server/routes.ts` - All API routes including 832 AI endpoints, 17 localization endpoints, automation routes, and Stripe payment endpoints
+- `server/oauth-config.ts` - OAuth2 configuration for all 23 non-YouTube platforms (auth URLs, token URLs, scopes, user info endpoints)
+- `server/routes.ts` - All API routes including 832 AI endpoints, 17 localization endpoints, automation routes, Stripe payment endpoints, and generic OAuth routes
 - `server/storage.ts` - Database storage layer with IStorage interface
 - `server/ai-engine.ts` - 832 AI feature functions organized in 22+ batches + 17 localization AI functions + 110 new upgrade features
 - `server/automation-engine.ts` - Cron scheduler, chain orchestrator, rules engine, webhook processor, notification pipeline, localization auto-processor (every 12h), 10 AI feature categories

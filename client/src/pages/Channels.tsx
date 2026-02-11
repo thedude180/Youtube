@@ -31,8 +31,9 @@ import { useLocation } from "wouter";
 import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { LogIn } from "lucide-react";
 
 const CATEGORIES = [
   { key: "all", label: "All" },
@@ -65,8 +66,9 @@ export default function Channels() {
     const channelName = params.get("channel");
     const error = params.get("error");
 
-    if (connected === "youtube" && channelName) {
-      toast({ title: "YouTube Connected", description: `"${channelName}" is now linked.` });
+    if (connected && channelName) {
+      const platformLabel = PLATFORM_INFO[connected as Platform]?.label || connected;
+      toast({ title: `${platformLabel} Connected`, description: `"${channelName}" is now linked.` });
       window.history.replaceState({}, "", "/channels");
       queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
     } else if (error) {
@@ -385,15 +387,23 @@ function PlatformDetailDialog({
   const [credential, setCredential] = useState("");
   const [secondaryCredential, setSecondaryCredential] = useState("");
   const [channelName, setChannelName] = useState("");
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [showManualFallback, setShowManualFallback] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const createChannel = useCreateChannel();
+
+  const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
+    queryKey: ["/api/oauth/status"],
+  });
 
   useEffect(() => {
     if (platform) {
       setCredential("");
       setSecondaryCredential("");
       setChannelName("");
+      setOauthLoading(false);
+      setShowManualFallback(false);
     }
   }, [platform]);
 
@@ -401,8 +411,41 @@ function PlatformDetailDialog({
   const info = PLATFORM_INFO[platform];
   const credConfig = CREDENTIAL_LABELS[platform];
   const isAlreadyConnected = existingChannels?.some(c => c.platform === platform);
+  const platformOAuth = oauthStatus?.[platform];
+  const hasOAuth = platformOAuth?.hasOAuth || false;
+  const isOAuthConfigured = platformOAuth?.configured || false;
+  const isYouTube = platform === "youtube" || platform === "youtubeshorts";
 
-  const handleConnect = () => {
+  const handleOAuthLogin = async () => {
+    setOauthLoading(true);
+    try {
+      if (isYouTube) {
+        const res = await fetch("/api/youtube/auth", {
+          credentials: "include",
+          headers: { "Accept": "application/json" },
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed");
+        const { url } = await res.json();
+        window.location.href = url;
+      } else {
+        const res = await fetch(`/api/oauth/${platform}/auth`, {
+          credentials: "include",
+          headers: { "Accept": "application/json" },
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed");
+        }
+        const { url } = await res.json();
+        window.location.href = url;
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setOauthLoading(false);
+    }
+  };
+
+  const handleManualConnect = () => {
     if (!credential.trim()) {
       toast({ title: "Missing Info", description: `Please enter your ${credConfig?.label || "credential"}`, variant: "destructive" });
       return;
@@ -440,7 +483,9 @@ function PlatformDetailDialog({
               <DialogTitle data-testid={`dialog-title-${platform}`}>{info.label}</DialogTitle>
               <DialogDescription className="flex items-center gap-2 mt-1 flex-wrap">
                 <Badge variant="secondary">{info.category}</Badge>
-                <Badge variant="outline">{CONNECTION_TYPE_LABELS[info.connectionType] || info.connectionType}</Badge>
+                {hasOAuth && (
+                  <Badge variant="outline">{isOAuthConfigured || isYouTube ? "OAuth Login" : "OAuth Ready"}</Badge>
+                )}
               </DialogDescription>
             </div>
           </div>
@@ -452,18 +497,6 @@ function PlatformDetailDialog({
             <p data-testid={`text-strategy-${platform}`} className="text-sm text-muted-foreground leading-relaxed">
               {info.strategyDescription}
             </p>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold mb-2">Setup Steps</h4>
-            <ol className="space-y-1.5" data-testid={`list-setup-steps-${platform}`}>
-              {info.setupSteps.map((step, i) => (
-                <li key={i} className="flex gap-2 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground shrink-0">{i + 1}.</span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
           </div>
 
           {info.rtmpUrlTemplate && (
@@ -483,56 +516,101 @@ function PlatformDetailDialog({
             </div>
           </div>
 
-          {credConfig && !isAlreadyConnected && (
-            <div className="border-t pt-4 space-y-3">
-              <h4 className="text-sm font-semibold">Connect {info.label}</h4>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground" htmlFor={`input-name-${platform}`}>Display Name (optional)</label>
-                <input
-                  id={`input-name-${platform}`}
-                  data-testid={`input-channel-name-${platform}`}
-                  type="text"
-                  placeholder={`My ${info.label}`}
-                  value={channelName}
-                  onChange={(e) => setChannelName(e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground" htmlFor={`input-cred-${platform}`}>{credConfig.label}</label>
-                <input
-                  id={`input-cred-${platform}`}
-                  data-testid={`input-credential-${platform}`}
-                  type="password"
-                  placeholder={credConfig.placeholder}
-                  value={credential}
-                  onChange={(e) => setCredential(e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
-                />
-              </div>
-              {credConfig.secondaryLabel && (
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground" htmlFor={`input-secondary-${platform}`}>{credConfig.secondaryLabel}</label>
-                  <input
-                    id={`input-secondary-${platform}`}
-                    data-testid={`input-secondary-${platform}`}
-                    type="text"
-                    placeholder={credConfig.secondaryPlaceholder}
-                    value={secondaryCredential}
-                    onChange={(e) => setSecondaryCredential(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono text-xs"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
           {isAlreadyConnected && (
             <div className="border-t pt-4">
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                 <CheckCircle2 className="h-4 w-4" />
-                <span className="text-sm font-medium">Already connected</span>
+                <span className="text-sm font-medium" data-testid={`text-connected-${platform}`}>Already connected</span>
               </div>
+            </div>
+          )}
+
+          {!isAlreadyConnected && (
+            <div className="border-t pt-4 space-y-3">
+              <h4 className="text-sm font-semibold">Connect {info.label}</h4>
+
+              {(isOAuthConfigured || isYouTube) && (
+                <Button
+                  data-testid={`button-oauth-login-${platform}`}
+                  className="w-full"
+                  onClick={handleOAuthLogin}
+                  disabled={oauthLoading}
+                  style={{ backgroundColor: info.color, borderColor: info.color, color: "#fff" }}
+                >
+                  {oauthLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <LogIn className="h-4 w-4 mr-2" />
+                  )}
+                  {oauthLoading ? "Redirecting..." : `Login with ${info.label}`}
+                </Button>
+              )}
+
+              {hasOAuth && !isOAuthConfigured && !isYouTube && (
+                <div className="rounded-md bg-muted p-3 text-center" data-testid={`text-oauth-pending-${platform}`}>
+                  <p className="text-sm text-muted-foreground mb-1">OAuth login available</p>
+                  <p className="text-xs text-muted-foreground">Add your {info.label} app credentials to enable one-click login</p>
+                </div>
+              )}
+
+              {credConfig && (!hasOAuth || !isOAuthConfigured || showManualFallback) && !isYouTube && (
+                <>
+                  {hasOAuth && !isOAuthConfigured && (
+                    <div className="relative my-2">
+                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                      <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or connect manually</span></div>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground" htmlFor={`input-name-${platform}`}>Display Name (optional)</label>
+                    <input
+                      id={`input-name-${platform}`}
+                      data-testid={`input-channel-name-${platform}`}
+                      type="text"
+                      placeholder={`My ${info.label}`}
+                      value={channelName}
+                      onChange={(e) => setChannelName(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground" htmlFor={`input-cred-${platform}`}>{credConfig.label}</label>
+                    <input
+                      id={`input-cred-${platform}`}
+                      data-testid={`input-credential-${platform}`}
+                      type="password"
+                      placeholder={credConfig.placeholder}
+                      value={credential}
+                      onChange={(e) => setCredential(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
+                    />
+                  </div>
+                  {credConfig.secondaryLabel && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground" htmlFor={`input-secondary-${platform}`}>{credConfig.secondaryLabel}</label>
+                      <input
+                        id={`input-secondary-${platform}`}
+                        data-testid={`input-secondary-${platform}`}
+                        type="text"
+                        placeholder={credConfig.secondaryPlaceholder}
+                        value={secondaryCredential}
+                        onChange={(e) => setSecondaryCredential(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono text-xs"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {(isOAuthConfigured || isYouTube) && credConfig && !showManualFallback && (
+                <button
+                  data-testid={`button-manual-fallback-${platform}`}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center"
+                  onClick={() => setShowManualFallback(true)}
+                >
+                  Connect manually with stream key instead
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -549,11 +627,11 @@ function PlatformDetailDialog({
               Sign Up
             </a>
           </Button>
-          {credConfig && !isAlreadyConnected && (
+          {credConfig && !isAlreadyConnected && (!hasOAuth || !isOAuthConfigured || showManualFallback) && !isYouTube && (
             <Button
               data-testid={`button-connect-${platform}`}
               size="sm"
-              onClick={handleConnect}
+              onClick={handleManualConnect}
               disabled={createChannel.isPending || !credential.trim()}
             >
               {createChannel.isPending ? (
@@ -564,7 +642,7 @@ function PlatformDetailDialog({
           )}
           <Button
             data-testid={`button-close-dialog-${platform}`}
-            variant={credConfig && !isAlreadyConnected ? "ghost" : "default"}
+            variant="ghost"
             size="sm"
             onClick={onClose}
           >
