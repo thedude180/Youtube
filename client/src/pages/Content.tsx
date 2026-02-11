@@ -15,10 +15,12 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 import {
   Search, PlayCircle, Video, Radio, Calendar, Plus, Trash2,
   RefreshCw, Loader2, CheckCircle2, Circle, ExternalLink, Sparkles,
   FileText, BarChart3, Hash, Share2, CalendarDays, Image, ListOrdered, ChevronDown, ChevronUp,
+  Globe, Languages, Captions, Megaphone, Mic, Eye, Users, MapPin, MessageSquare, Clock, FlaskConical, ShieldCheck, Briefcase,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
@@ -33,7 +35,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-type ContentTab = "library" | "channels" | "calendar";
+type ContentTab = "library" | "channels" | "calendar" | "localization";
 
 const TYPE_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   vod: "default", short: "secondary", live_replay: "outline",
@@ -53,28 +55,32 @@ type CategoryFilter = typeof CATEGORIES[number]["key"];
 export default function Content() {
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "channels", "calendar"];
+  const validTabs: ContentTab[] = ["library", "channels", "calendar", "localization"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useState<ContentTab>(initialTab);
   const { isAdvanced } = useAdvancedMode();
+  const { t } = useTranslation();
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
       <div>
-        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Content</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage your videos, channels, and schedule</p>
+        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">{t("content.title")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("content.subtitle", "Manage your videos, channels, and schedule")}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContentTab)}>
         <TabsList data-testid="tabs-content">
           <TabsTrigger value="library" data-testid="tab-library">
-            <Video className="h-3.5 w-3.5 mr-1.5" />My Videos
+            <Video className="h-3.5 w-3.5 mr-1.5" />{t("content.library")}
           </TabsTrigger>
           <TabsTrigger value="channels" data-testid="tab-channels">
-            <Radio className="h-3.5 w-3.5 mr-1.5" />Channels
+            <Radio className="h-3.5 w-3.5 mr-1.5" />{t("content.channels")}
           </TabsTrigger>
           <TabsTrigger value="calendar" data-testid="tab-calendar">
-            <Calendar className="h-3.5 w-3.5 mr-1.5" />Calendar
+            <Calendar className="h-3.5 w-3.5 mr-1.5" />{t("content.calendar")}
+          </TabsTrigger>
+          <TabsTrigger value="localization" data-testid="tab-localization">
+            <Globe className="h-3.5 w-3.5 mr-1.5" />{t("content.localization")}
           </TabsTrigger>
         </TabsList>
 
@@ -86,6 +92,9 @@ export default function Content() {
         </TabsContent>
         <TabsContent value="calendar" className="mt-4">
           <CalendarTab />
+        </TabsContent>
+        <TabsContent value="localization" className="mt-4">
+          <LocalizationTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -6205,6 +6214,69 @@ function CalendarTab() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function LocalizationTab() {
+  const { t } = useTranslation();
+
+  const localizationFeatures = [
+    { key: "videoTranslator", featureKey: "ai-video-translator", icon: Languages, color: "text-blue-400" },
+    { key: "subtitleGenerator", featureKey: "ai-subtitle-generator", icon: Captions, color: "text-green-400" },
+    { key: "localizationAdvisor", featureKey: "ai-localization-advisor", icon: Globe, color: "text-purple-400" },
+    { key: "multiLangSeo", featureKey: "ai-multi-lang-seo", icon: BarChart3, color: "text-orange-400" },
+    { key: "dubbingScript", featureKey: "ai-dubbing-script", icon: Mic, color: "text-pink-400" },
+    { key: "culturalAdaptation", featureKey: "ai-cultural-adaptation", icon: Users, color: "text-yellow-400" },
+    { key: "thumbnailLocalizer", featureKey: "ai-thumbnail-localizer", icon: Image, color: "text-indigo-400" },
+    { key: "multiLangHashtags", featureKey: "ai-multi-lang-hashtags", icon: Hash, color: "text-cyan-400" },
+    { key: "translationChecker", featureKey: "ai-translation-checker", icon: CheckCircle2, color: "text-emerald-400" },
+    { key: "audienceLanguage", featureKey: "ai-audience-language-analyzer", icon: Eye, color: "text-violet-400" },
+    { key: "regionalTrends", featureKey: "ai-regional-trends", icon: MapPin, color: "text-rose-400" },
+    { key: "crossLangComments", featureKey: "ai-cross-lang-comments", icon: MessageSquare, color: "text-teal-400" },
+    { key: "localizedCalendar", featureKey: "ai-localized-calendar", icon: Clock, color: "text-amber-400" },
+    { key: "multiLangAbTest", featureKey: "ai-multi-lang-ab-test", icon: FlaskConical, color: "text-lime-400" },
+    { key: "voiceOverFormatter", featureKey: "ai-voice-over-formatter", icon: Megaphone, color: "text-fuchsia-400" },
+    { key: "regionalCompliance", featureKey: "ai-regional-compliance", icon: ShieldCheck, color: "text-red-400" },
+    { key: "multiLangMediaKit", featureKey: "ai-multi-lang-media-kit", icon: Briefcase, color: "text-sky-400" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 data-testid="text-localization-title" className="text-lg font-display font-semibold flex items-center gap-2 flex-wrap">
+          <Globe className="h-5 w-5 text-primary" />
+          {t("localization.title")}
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">{t("localization.subtitle")}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {localizationFeatures.map((feature) => {
+          const Icon = feature.icon;
+          return (
+            <Card key={feature.key} data-testid={`card-ai-${feature.key}`} className="hover-elevate">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Icon className={`h-4 w-4 ${feature.color}`} />
+                    <h3 className="font-semibold text-sm">{t(`localization.${feature.key}`)}</h3>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] shrink-0">
+                    <Sparkles className="h-3 w-3 mr-1" />{t("common.aiPowered")}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {t(`localization.${feature.key}Desc`)}
+                </p>
+                <Badge variant="secondary" className="mt-3 text-[10px]">
+                  {t("common.autoGenerated")}
+                </Badge>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

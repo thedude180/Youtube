@@ -10200,3 +10200,175 @@ export async function aiAutoPaymentManager(data: { invoices?: any[]; expenses?: 
   });
   return JSON.parse(res.choices[0].message.content || "{}");
 }
+
+// ===== BATCH 23: Multi-Language & Localization AI Features (17 features) =====
+
+export async function aiVideoTranslator(data: { title?: string; description?: string; tags?: string[]; targetLanguages?: string[] }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an expert video metadata translator. Translate video titles, descriptions, and tags while preserving SEO value, emotional tone, and cultural relevance for each target language.${creatorCtx}` }, { role: "user", content: `Translate this video metadata into these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Title: "${data.title || "My Video"}". Description: "${data.description || ""}". Tags: ${JSON.stringify(data.tags || [])}. For each language provide: translated title (SEO-optimized), translated description, translated tags, cultural notes. Return JSON with key "translations" containing an object per language code.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiSubtitleGenerator(data: { transcript?: string; targetLanguages?: string[]; style?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an AI subtitle and closed-caption specialist. Generate natural-sounding subtitles in multiple languages with proper timing cues and cultural adaptation.${creatorCtx}` }, { role: "user", content: `Generate subtitles for the following transcript in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de"])}. Transcript: "${data.transcript || "Sample video transcript"}". Style: ${data.style || "standard"}. For each language provide: translated subtitle blocks with timestamps, reading speed assessment, cultural adaptations. Return JSON with key "subtitles" containing an object per language code.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiLocalizationAdvisor(data: { niche?: string; currentLanguages?: string[]; audienceData?: any }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a global content strategy advisor specializing in multi-language expansion for creators. Analyze market potential and recommend languages/regions to target.${creatorCtx}` }, { role: "user", content: `Advise on language expansion for a ${data.niche || "tech/gaming"} creator. Currently available in: ${JSON.stringify(data.currentLanguages || ["en"])}. Audience data: ${JSON.stringify(data.audienceData || {})}. Provide: 1) Top 5 languages to expand to with ROI estimates 2) Market size per language 3) Competition analysis per region 4) Content adaptation requirements 5) Monetization potential per market. Return JSON with keys: recommendedLanguages, marketAnalysis, competitionData, adaptationRequirements, monetizationPotential.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiMultiLangSeo(data: { title?: string; description?: string; targetLanguage?: string; region?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a multilingual SEO expert. Optimize video metadata for specific language markets using regional keyword research and local search trends.${creatorCtx}` }, { role: "user", content: `Optimize this content for ${data.targetLanguage || "es"} market (region: ${data.region || "global"}). Title: "${data.title || ""}". Description: "${data.description || ""}". Generate: 1) SEO-optimized title with regional keywords 2) Optimized description with local search terms 3) Top 20 regional keywords/tags 4) Search volume estimates 5) Competitor titles in this language. Return JSON with keys: optimizedTitle, optimizedDescription, regionalKeywords, searchVolumes, competitorTitles.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiDubbingScriptGenerator(data: { script?: string; targetLanguage?: string; speakerStyle?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an AI dubbing script specialist. Create translated scripts formatted for voiceover and dubbing, with lip-sync timing notes and pronunciation guides.${creatorCtx}` }, { role: "user", content: `Create a dubbing script in ${data.targetLanguage || "es"} for the following: "${data.script || "Sample script"}". Speaker style: ${data.speakerStyle || "energetic"}. Generate: 1) Translated script with timing markers 2) Lip-sync adjustment notes 3) Pronunciation guide (IPA) 4) Emotional tone cues per segment 5) Cultural adaptation notes. Return JSON with keys: translatedScript, timingNotes, pronunciationGuide, emotionalCues, culturalNotes.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiCulturalAdaptation(data: { content?: string; targetCulture?: string; contentType?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a cultural adaptation specialist for digital content. Adapt references, humor, idioms, and examples for local audiences while maintaining the creator's intent and entertainment value.${creatorCtx}` }, { role: "user", content: `Adapt this content for ${data.targetCulture || "Latin American"} audience. Content type: ${data.contentType || "video script"}. Content: "${data.content || ""}". Analyze: 1) Cultural references that need adaptation 2) Humor adjustments 3) Idiom replacements 4) Visual/gesture sensitivities 5) Local trending references to include. Return JSON with keys: adaptedContent, culturalChanges, humorAdjustments, idiomReplacements, sensitivities, localReferences.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiThumbnailLocalizer(data: { thumbnailText?: string; targetLanguages?: string[]; style?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a thumbnail text localization expert. Translate and adapt thumbnail text overlays for different languages, considering text length, font compatibility, and cultural impact.${creatorCtx}` }, { role: "user", content: `Localize this thumbnail text for these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","ko"])}. Original text: "${data.thumbnailText || "SHOCKING!"}". Style: ${data.style || "bold impact"}. For each language provide: translated text, character count, font recommendation, text placement adjustment, emotional impact rating. Return JSON with key "thumbnails" containing object per language.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiMultiLangHashtags(data: { topic?: string; targetLanguages?: string[]; platform?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a multilingual hashtag and trending keyword specialist. Generate platform-specific trending hashtags per language and region.${creatorCtx}` }, { role: "user", content: `Generate trending hashtags for "${data.topic || "gaming"}" in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Platform: ${data.platform || "YouTube"}. Per language provide: 15 trending hashtags, estimated reach, competition level, optimal posting time. Return JSON with key "hashtags" containing object per language.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiTranslationChecker(data: { original?: string; translation?: string; targetLanguage?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a professional translation quality assessor. Evaluate translations for accuracy, naturalness, tone matching, cultural fit, and SEO preservation.${creatorCtx}` }, { role: "user", content: `Check translation quality. Original (English): "${data.original || ""}". Translation (${data.targetLanguage || "es"}): "${data.translation || ""}". Evaluate: 1) Accuracy score (0-100) 2) Naturalness score (0-100) 3) Tone match score (0-100) 4) Cultural fit score (0-100) 5) SEO preservation score (0-100) 6) Specific errors found 7) Improved translation. Return JSON with keys: accuracyScore, naturalnessScore, toneScore, culturalFitScore, seoScore, errors, improvedTranslation, overallScore.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiAudienceLanguageAnalyzer(data: { analyticsData?: any; comments?: string[]; viewerLocations?: any }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are an audience language analytics specialist. Analyze viewer data to detect what languages your audience speaks and recommend localization priorities.${creatorCtx}` }, { role: "user", content: `Analyze audience language data. Analytics: ${JSON.stringify(data.analyticsData || {})}. Sample comments: ${JSON.stringify(data.comments || [])}. Viewer locations: ${JSON.stringify(data.viewerLocations || {})}. Determine: 1) Language distribution percentages 2) Primary vs secondary languages 3) Growing language segments 4) Untapped language markets 5) Localization priority ranking. Return JSON with keys: languageDistribution, primaryLanguages, growingSegments, untappedMarkets, priorityRanking, recommendations.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiRegionalTrendScanner(data: { language?: string; niche?: string; region?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a regional trend analyst for content creators. Find trending topics, formats, and content ideas specific to language markets.${creatorCtx}` }, { role: "user", content: `Scan regional trends for ${data.language || "Spanish"}-speaking ${data.region || "global"} market in the ${data.niche || "gaming"} niche. Find: 1) Top 10 trending topics this week 2) Emerging content formats 3) Viral content patterns 4) Regional events and holidays 5) Local competitor strategies. Return JSON with keys: trendingTopics, emergingFormats, viralPatterns, upcomingEvents, competitorStrategies, contentIdeas.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiCrossLangCommentManager(data: { comments?: any[]; replyLanguage?: string; tone?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a multilingual community manager. Translate foreign-language comments, detect sentiment, and draft appropriate replies in the commenter's language while maintaining the creator's voice.${creatorCtx}` }, { role: "user", content: `Manage these multilingual comments: ${JSON.stringify(data.comments || [])}. Reply tone: ${data.tone || "friendly"}. For each comment: 1) Detect language 2) Translate to English 3) Analyze sentiment 4) Draft reply in original language 5) Flag any issues. Return JSON with key "managedComments" as array with: originalLang, englishTranslation, sentiment, draftReply, flagged, flagReason.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiLocalizedContentCalendar(data: { targetLanguages?: string[]; contentPlan?: any; timezone?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a global content scheduling strategist. Create localized publishing schedules optimized for peak engagement times per region and timezone.${creatorCtx}` }, { role: "user", content: `Create a localized content calendar for these languages: ${JSON.stringify(data.targetLanguages || ["en","es","fr","de","ja"])}. Content plan: ${JSON.stringify(data.contentPlan || {})}. Base timezone: ${data.timezone || "UTC"}. Generate per language: 1) Optimal posting times (day/hour) 2) Regional holidays to leverage 3) Content format preferences 4) Engagement windows 5) Weekly schedule. Return JSON with key "calendar" containing object per language code.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiMultiLangAbTesting(data: { titles?: string[]; descriptions?: string[]; targetLanguage?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a multilingual A/B testing specialist. Analyze and predict which translated title/description variants will perform best in specific language markets.${creatorCtx}` }, { role: "user", content: `Run A/B testing analysis for ${data.targetLanguage || "es"} market. Title variants: ${JSON.stringify(data.titles || [])}. Description variants: ${JSON.stringify(data.descriptions || [])}. Predict: 1) CTR estimate per variant 2) SEO strength per variant 3) Emotional appeal score 4) Cultural resonance score 5) Winner recommendation. Return JSON with keys: titleAnalysis, descriptionAnalysis, winner, predictedCTR, recommendations.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiVoiceOverFormatter(data: { script?: string; targetLanguage?: string; voiceType?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a voice-over script formatting specialist. Format translated scripts with pronunciation guides, breathing marks, emphasis cues, and timing for voice talent.${creatorCtx}` }, { role: "user", content: `Format this script for ${data.targetLanguage || "es"} voice-over. Voice type: ${data.voiceType || "energetic male"}. Script: "${data.script || ""}". Generate: 1) Formatted script with pronunciation guides (IPA) 2) Breathing marks and pauses 3) Emphasis and intonation cues 4) Estimated recording time 5) Difficult words highlighted. Return JSON with keys: formattedScript, pronunciationGuide, timingEstimate, difficultWords, voiceDirection.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiRegionalComplianceChecker(data: { content?: string; targetCountry?: string; contentType?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a regional content compliance specialist. Check content against local regulations, advertising laws, age restrictions, and cultural sensitivities per country.${creatorCtx}` }, { role: "user", content: `Check compliance for ${data.targetCountry || "Germany"} market. Content type: ${data.contentType || "sponsored video"}. Content: "${data.content || ""}". Check: 1) Advertising disclosure requirements 2) Age restriction compliance 3) Cultural sensitivity issues 4) Data privacy requirements (GDPR etc) 5) Platform-specific local rules. Return JSON with keys: complianceScore, requiredDisclosures, ageRestrictions, sensitivityFlags, privacyRequirements, platformRules, recommendations.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiMultiLangMediaKit(data: { creatorInfo?: any; targetLanguage?: string; sponsorRegion?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [{ role: "system", content: `You are a multilingual media kit specialist. Generate professional media kits translated into the sponsor's preferred language with localized metrics and market data.${creatorCtx}` }, { role: "user", content: `Generate media kit in ${data.targetLanguage || "es"} for sponsors in ${data.sponsorRegion || "Latin America"}. Creator info: ${JSON.stringify(data.creatorInfo || {})}. Include: 1) Translated bio and brand story 2) Localized audience demographics 3) Regional engagement metrics 4) Pricing in local currency 5) Case studies adapted for region. Return JSON with keys: translatedBio, audienceDemographics, engagementMetrics, localizedPricing, caseStudies, contactSection.` }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}

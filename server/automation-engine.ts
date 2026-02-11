@@ -3,6 +3,15 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { cronJobs, aiResults, aiChains, webhookEvents, notifications } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import {
+  aiVideoTranslator, aiSubtitleGenerator, aiLocalizationAdvisor,
+  aiMultiLangSeo, aiDubbingScriptGenerator, aiCulturalAdaptation,
+  aiThumbnailLocalizer, aiMultiLangHashtags, aiTranslationChecker,
+  aiAudienceLanguageAnalyzer, aiRegionalTrendScanner,
+  aiCrossLangCommentManager, aiLocalizedContentCalendar,
+  aiMultiLangAbTesting, aiVoiceOverFormatter, aiRegionalComplianceChecker,
+  aiMultiLangMediaKit,
+} from "./ai-engine";
 
 const AI_FEATURE_CATEGORIES = {
   content: [
@@ -178,6 +187,14 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("0 */12 * * *", async () => {
+    try {
+      await processAutoLocalization();
+    } catch (err) {
+      console.error("[AutomationEngine] Auto-localization error:", err);
+    }
+  });
+
   console.log("[AutomationEngine] All systems operational");
 }
 
@@ -297,6 +314,42 @@ async function processAutoPayments() {
       console.error(`[AutomationEngine] Auto-payment failed for ${payment.id}:`, err);
     }
   }
+}
+
+async function processAutoLocalization() {
+  const localizationRunners: Array<{ key: string; fn: (data: any, userId?: string) => Promise<any> }> = [
+    { key: "ai-video-translator", fn: aiVideoTranslator },
+    { key: "ai-subtitle-generator", fn: aiSubtitleGenerator },
+    { key: "ai-localization-advisor", fn: aiLocalizationAdvisor },
+    { key: "ai-multi-lang-seo", fn: aiMultiLangSeo },
+    { key: "ai-dubbing-script", fn: aiDubbingScriptGenerator },
+    { key: "ai-cultural-adaptation", fn: aiCulturalAdaptation },
+    { key: "ai-thumbnail-localizer", fn: aiThumbnailLocalizer },
+    { key: "ai-multi-lang-hashtags", fn: aiMultiLangHashtags },
+    { key: "ai-translation-checker", fn: aiTranslationChecker },
+    { key: "ai-audience-language-analyzer", fn: aiAudienceLanguageAnalyzer },
+    { key: "ai-regional-trends", fn: aiRegionalTrendScanner },
+    { key: "ai-cross-lang-comments", fn: aiCrossLangCommentManager },
+    { key: "ai-localized-calendar", fn: aiLocalizedContentCalendar },
+    { key: "ai-multi-lang-ab-test", fn: aiMultiLangAbTesting },
+    { key: "ai-voice-over-formatter", fn: aiVoiceOverFormatter },
+    { key: "ai-regional-compliance", fn: aiRegionalComplianceChecker },
+    { key: "ai-multi-lang-media-kit", fn: aiMultiLangMediaKit },
+  ];
+
+  for (const runner of localizationRunners) {
+    try {
+      const result = await runner.fn({}, "system");
+      await db.insert(aiResults).values({
+        userId: "system",
+        featureKey: runner.key,
+        result: { ...result, source: "auto-localization", processedAt: new Date().toISOString() },
+      });
+    } catch (err) {
+      console.error(`[AutomationEngine] Auto-localization ${runner.key} failed:`, err);
+    }
+  }
+  console.log("[AutomationEngine] Localization auto-processing cycle complete");
 }
 
 function getNextRunTime(schedule: string): Date {

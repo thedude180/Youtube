@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   Video,
@@ -27,17 +28,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
 const navLinks = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/content", label: "Content", icon: Video },
-  { href: "/stream", label: "Go Live", icon: Radio },
-  { href: "/money", label: "Money", icon: DollarSign },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", labelKey: "nav.home", icon: LayoutDashboard },
+  { href: "/content", labelKey: "nav.content", icon: Video },
+  { href: "/stream", labelKey: "nav.goLive", icon: Radio },
+  { href: "/money", labelKey: "nav.money", icon: DollarSign },
+  { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, isLoading, logout } = useAuth();
   const { isAdvanced } = useAdvancedMode();
+  const { t } = useTranslation();
 
   const isActive = (href: string) =>
     href === "/" ? location === "/" : location.startsWith(href);
@@ -77,12 +79,13 @@ export function AppSidebar() {
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const active = isActive(link.href);
+                const label = t(link.labelKey);
                 return (
                   <SidebarMenuItem key={link.href}>
-                    <SidebarMenuButton asChild isActive={active} data-testid={`link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <SidebarMenuButton asChild isActive={active} data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}>
                       <Link href={link.href}>
                         <Icon className="h-4 w-4" />
-                        <span>{link.label}</span>
+                        <span>{label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -115,7 +118,7 @@ export function AppSidebar() {
         ) : (
           <div className="p-2">
             <Button data-testid="button-login" variant="default" className="w-full" onClick={() => { window.location.href = "/api/login"; }}>
-              Sign In
+              {t("auth.signIn")}
             </Button>
           </div>
         )}

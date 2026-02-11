@@ -10,6 +10,8 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { useTranslation } from "react-i18next";
+import { supportedLanguages } from "@/i18n";
 import { Loader2, Zap, Sun, Moon, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -156,8 +158,16 @@ function AuthenticatedApp() {
 
 function AppContent() {
   const { isLoading, isAuthenticated, user } = useAuth();
+  const { i18n } = useTranslation();
   const autoConnectCalled = useRef(false);
   const onboardingChecked = useRef(false);
+
+  useEffect(() => {
+    const lang = supportedLanguages.find((l) => l.code === i18n.language);
+    const dir = lang?.dir || "ltr";
+    document.documentElement.dir = dir;
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language]);
 
   useEffect(() => {
     if (isAuthenticated && !autoConnectCalled.current) {

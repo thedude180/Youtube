@@ -765,6 +765,23 @@ import {
   aiAutoApproveSponsorship,
   aiCreativeAutonomy,
   aiAutoPaymentManager,
+  aiVideoTranslator,
+  aiSubtitleGenerator,
+  aiLocalizationAdvisor,
+  aiMultiLangSeo,
+  aiDubbingScriptGenerator,
+  aiCulturalAdaptation,
+  aiThumbnailLocalizer,
+  aiMultiLangHashtags,
+  aiTranslationChecker,
+  aiAudienceLanguageAnalyzer,
+  aiRegionalTrendScanner,
+  aiCrossLangCommentManager,
+  aiLocalizedContentCalendar,
+  aiMultiLangAbTesting,
+  aiVoiceOverFormatter,
+  aiRegionalComplianceChecker,
+  aiMultiLangMediaKit,
 } from "./ai-engine";
 import {
   runStyleScan,
@@ -11063,14 +11080,136 @@ export async function registerRoutes(
     } catch (e: any) { console.error("AI auto-payment error:", e); res.status(500).json({ message: e.message }); }
   });
 
+  // ====== MULTI-LANGUAGE & LOCALIZATION AI ROUTES ======
+
+  app.post("/api/ai/video-translator", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiVideoTranslator(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI video-translator error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/subtitle-generator", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiSubtitleGenerator(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI subtitle-generator error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/localization-advisor", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiLocalizationAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI localization-advisor error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/multi-lang-seo", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiMultiLangSeo(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI multi-lang-seo error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/dubbing-script", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiDubbingScriptGenerator(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI dubbing-script error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/cultural-adaptation", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiCulturalAdaptation(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI cultural-adaptation error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-localizer", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiThumbnailLocalizer(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI thumbnail-localizer error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/multi-lang-hashtags", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiMultiLangHashtags(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI multi-lang-hashtags error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/translation-checker", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiTranslationChecker(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI translation-checker error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/audience-language-analyzer", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiAudienceLanguageAnalyzer(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI audience-language error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/regional-trends", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiRegionalTrendScanner(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI regional-trends error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/cross-lang-comments", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiCrossLangCommentManager(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI cross-lang-comments error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/localized-calendar", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiLocalizedContentCalendar(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI localized-calendar error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/multi-lang-ab-test", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiMultiLangAbTesting(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI multi-lang-ab-test error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/voice-over-formatter", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiVoiceOverFormatter(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI voice-over-formatter error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/regional-compliance", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiRegionalComplianceChecker(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI regional-compliance error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/multi-lang-media-kit", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiMultiLangMediaKit(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI multi-lang-media-kit error:", e); res.status(500).json({ message: e.message }); }
+  });
+
   // ====== AUTOMATION ENGINE ROUTES ======
   const { initAutomationEngine, processWebhookEvent, runChainManually, evaluateRules,
     AI_FEATURE_CATEGORIES, SCHEDULE_PRESETS, DEFAULT_CHAIN_TEMPLATES,
     WEBHOOK_SOURCES, RULE_TRIGGER_TYPES, RULE_ACTION_TYPES } = await import("./automation-engine");
 
-  app.get("/api/automation/status", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/status", async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const [cronJobsList, chainsList, notifs, rules, webhookEvts] = await Promise.all([
         storage.getCronJobs(userId),
         storage.getAiChains(userId),
@@ -11103,18 +11242,22 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/automation/cron-jobs", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/cron-jobs", async (req: any, res) => {
     try {
-      const jobs = await storage.getCronJobs(req.user.id);
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const jobs = await storage.getCronJobs(userId);
       res.json(jobs);
     } catch (err) { res.status(500).json({ error: "Failed to get cron jobs" }); }
   });
 
-  app.post("/api/automation/cron-jobs", requireAuth, async (req: any, res) => {
+  app.post("/api/automation/cron-jobs", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const { featureKey, schedule, enabled } = req.body;
       const job = await storage.createCronJob({
-        userId: req.user.id,
+        userId,
         featureKey,
         schedule: schedule || "0 */6 * * *",
         enabled: enabled !== false,
@@ -11124,32 +11267,40 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ error: "Failed to create cron job" }); }
   });
 
-  app.patch("/api/automation/cron-jobs/:id", requireAuth, async (req: any, res) => {
+  app.patch("/api/automation/cron-jobs/:id", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const job = await storage.updateCronJob(parseInt(req.params.id), req.body);
       res.json(job);
     } catch (err) { res.status(500).json({ error: "Failed to update cron job" }); }
   });
 
-  app.delete("/api/automation/cron-jobs/:id", requireAuth, async (req: any, res) => {
+  app.delete("/api/automation/cron-jobs/:id", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       await storage.deleteCronJob(parseInt(req.params.id));
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to delete cron job" }); }
   });
 
-  app.get("/api/automation/chains", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/chains", async (req: any, res) => {
     try {
-      const chains = await storage.getAiChains(req.user.id);
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const chains = await storage.getAiChains(userId);
       res.json({ chains, templates: DEFAULT_CHAIN_TEMPLATES });
     } catch (err) { res.status(500).json({ error: "Failed to get chains" }); }
   });
 
-  app.post("/api/automation/chains", requireAuth, async (req: any, res) => {
+  app.post("/api/automation/chains", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const { name, steps, enabled } = req.body;
       const chain = await storage.createAiChain({
-        userId: req.user.id,
+        userId,
         name,
         steps: steps || [],
         enabled: enabled !== false,
@@ -11159,75 +11310,95 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ error: "Failed to create chain" }); }
   });
 
-  app.post("/api/automation/chains/:id/run", requireAuth, async (req: any, res) => {
+  app.post("/api/automation/chains/:id/run", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const result = await runChainManually(parseInt(req.params.id));
       res.json(result);
     } catch (err: any) { res.status(500).json({ error: err.message || "Failed to run chain" }); }
   });
 
-  app.patch("/api/automation/chains/:id", requireAuth, async (req: any, res) => {
+  app.patch("/api/automation/chains/:id", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const chain = await storage.updateAiChain(parseInt(req.params.id), req.body);
       res.json(chain);
     } catch (err) { res.status(500).json({ error: "Failed to update chain" }); }
   });
 
-  app.delete("/api/automation/chains/:id", requireAuth, async (req: any, res) => {
+  app.delete("/api/automation/chains/:id", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       await storage.deleteAiChain(parseInt(req.params.id));
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to delete chain" }); }
   });
 
-  app.get("/api/automation/notifications", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/notifications", async (req: any, res) => {
     try {
-      const notifs = await storage.getNotifications(req.user.id);
-      const unread = await storage.getUnreadCount(req.user.id);
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const notifs = await storage.getNotifications(userId);
+      const unread = await storage.getUnreadCount(userId);
       res.json({ notifications: notifs, unreadCount: unread });
     } catch (err) { res.status(500).json({ error: "Failed to get notifications" }); }
   });
 
-  app.post("/api/automation/notifications/:id/read", requireAuth, async (req: any, res) => {
+  app.post("/api/automation/notifications/:id/read", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const notif = await storage.markRead(parseInt(req.params.id));
       res.json(notif);
     } catch (err) { res.status(500).json({ error: "Failed to mark read" }); }
   });
 
-  app.post("/api/automation/notifications/read-all", requireAuth, async (req: any, res) => {
+  app.post("/api/automation/notifications/read-all", async (req: any, res) => {
     try {
-      await storage.markAllRead(req.user.id);
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      await storage.markAllRead(userId);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to mark all read" }); }
   });
 
-  app.get("/api/automation/webhook-events", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/webhook-events", async (req: any, res) => {
     try {
-      const events = await storage.getWebhookEvents(req.user.id, req.query.source as string);
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const events = await storage.getWebhookEvents(userId, req.query.source as string);
       res.json(events);
     } catch (err) { res.status(500).json({ error: "Failed to get webhook events" }); }
   });
 
-  app.post("/api/automation/webhooks/:source", requireAuth, async (req: any, res) => {
+  app.post("/api/automation/webhooks/:source", async (req: any, res) => {
     try {
-      const event = await processWebhookEvent(req.user.id, req.params.source, req.body.eventType || "unknown", req.body.payload || req.body);
-      const triggered = await evaluateRules(req.user.id, req.body.eventType || req.params.source, req.body);
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const event = await processWebhookEvent(userId, req.params.source, req.body.eventType || "unknown", req.body.payload || req.body);
+      const triggered = await evaluateRules(userId, req.body.eventType || req.params.source, req.body);
       res.json({ event, triggeredRules: triggered });
     } catch (err) { res.status(500).json({ error: "Failed to process webhook" }); }
   });
 
-  app.get("/api/automation/rules", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/rules", async (req: any, res) => {
     try {
-      const rules = await storage.getAutomationRules(req.user.id);
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const rules = await storage.getAutomationRules(userId);
       res.json({ rules, triggerTypes: RULE_TRIGGER_TYPES, actionTypes: RULE_ACTION_TYPES });
     } catch (err) { res.status(500).json({ error: "Failed to get rules" }); }
   });
 
-  app.post("/api/automation/rules", requireAuth, async (req: any, res) => {
+  app.post("/api/automation/rules", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const rule = await storage.createAutomationRule({
-        userId: req.user.id,
+        userId,
         name: req.body.name,
         trigger: req.body.trigger || req.body.triggerType,
         agentId: req.body.agentId || req.body.actionType || "system",
@@ -11238,30 +11409,38 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ error: "Failed to create rule" }); }
   });
 
-  app.patch("/api/automation/rules/:id", requireAuth, async (req: any, res) => {
+  app.patch("/api/automation/rules/:id", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const rule = await storage.updateAutomationRule(parseInt(req.params.id), req.body);
       res.json(rule);
     } catch (err) { res.status(500).json({ error: "Failed to update rule" }); }
   });
 
-  app.delete("/api/automation/rules/:id", requireAuth, async (req: any, res) => {
+  app.delete("/api/automation/rules/:id", async (req: any, res) => {
     try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       await storage.deleteAutomationRule(parseInt(req.params.id));
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to delete rule" }); }
   });
 
-  app.get("/api/automation/ai-results", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/ai-results", async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const results = await storage.getAiResults(req.user.id, req.query.featureKey as string);
+      const results = await storage.getAiResults(userId, req.query.featureKey as string);
       res.json(results);
     } catch (err) { res.status(500).json({ error: "Failed to get AI results" }); }
   });
 
-  app.get("/api/automation/ai-results/:featureKey/latest", requireAuth, async (req: any, res) => {
+  app.get("/api/automation/ai-results/:featureKey/latest", async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
-      const result = await storage.getLatestAiResult(req.user.id, req.params.featureKey);
+      const result = await storage.getLatestAiResult(userId, req.params.featureKey);
       res.json(result || null);
     } catch (err) { res.status(500).json({ error: "Failed to get latest result" }); }
   });

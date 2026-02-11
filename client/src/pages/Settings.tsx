@@ -23,6 +23,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useChannels } from "@/hooks/use-channels";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useParams, useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
+import { supportedLanguages } from "@/i18n";
 
 type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "wellness" | "learning" | "automation";
 
@@ -56,6 +58,8 @@ const defaultNotificationPrefs: NotificationPrefs = {
 function GeneralTab() {
   const { user, logout, isLoggingOut } = useAuth();
   const { data: channels } = useChannels();
+  const { t, i18n } = useTranslation();
+  const { toast } = useToast();
   const [activePreset, setActivePreset] = useState<"safe" | "normal" | "aggressive">("normal");
   const [aiTeam, setAiTeam] = useState<any>(null);
   const [aiTeamLoading, setAiTeamLoading] = useState(true);
@@ -1676,7 +1680,45 @@ function GeneralTab() {
 
       <Card>
         <CardHeader className="pb-0">
-          <CardTitle className="text-base">Account</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+            <Globe className="h-4 w-4 text-primary" />
+            {t("settings.language")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">{t("settings.selectLanguage")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {supportedLanguages.find((l) => l.code === i18n.language)?.nativeName || "English"}
+              </p>
+            </div>
+            <Select
+              value={i18n.language}
+              onValueChange={(value) => {
+                i18n.changeLanguage(value);
+                const langName = supportedLanguages.find((l) => l.code === value)?.nativeName || value;
+                toast({ title: t("settings.languageChanged", { language: langName }) });
+              }}
+            >
+              <SelectTrigger className="w-48" data-testid="select-language">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {supportedLanguages.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code} data-testid={`option-lang-${lang.code}`}>
+                    {lang.nativeName} ({lang.name})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-0">
+          <CardTitle className="text-base">{t("settings.account") || "Account"}</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <div className="flex items-center justify-between gap-4">
@@ -1694,7 +1736,7 @@ function GeneralTab() {
               disabled={isLoggingOut}
             >
               <LogOut className="h-3.5 w-3.5 mr-1.5" />
-              {isLoggingOut ? "Signing out..." : "Sign Out"}
+              {isLoggingOut ? t("auth.signOut") : t("auth.signOut")}
             </Button>
           </div>
         </CardContent>

@@ -24,6 +24,7 @@ The platform is built as a full-stack application with an Express.js backend and
 - **AI Integration**: OpenAI via Replit AI Integrations (gpt-5-mini model) for all 722 AI-powered features.
 - **Authentication**: Replit Auth (OIDC-based).
 - **Design System**: Dark theme with a purple accent for a "God Tier" power-user aesthetic, emphasizing simplicity and clear status indicators.
+- **Internationalization (i18n)**: react-i18next with 12 languages (English, Spanish, French, Portuguese, German, Japanese, Korean, Chinese, Arabic, Hindi, Russian, Italian). RTL support for Arabic/Hebrew. Browser language auto-detection with localStorage persistence. Language selector in Settings.
 - **Automation Engine**: 6 autonomous systems (Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store) using node-cron for background processing.
 - **Creator Intelligence System**: Comprises a Style Scanner, Creator Memory, Humanization Layer, and Learning Engine to personalize AI outputs.
 - **PWA Support**: Full Progressive Web App capabilities for installability and offline access.
@@ -31,10 +32,10 @@ The platform is built as a full-stack application with an Express.js backend and
 - **State Management**: ThemeProvider and AdvancedModeProvider context providers with localStorage persistence.
 - **Key Features**:
     - **Home**: Dashboard with Activity Feed, Business Health, Daily Briefing, AI Action Center, AI News Feed, AI Milestones, AI Cross-Platform Analytics, AI Comment Manager, plus 67 additional AI features.
-    - **Content**: Library with AI Content Ideas, AI Keyword Research, AI Content Calendar, AI Script Writer, AI Repurpose Hub, AI Chapter Markers, AI SEO Audit, AI Thumbnail Concepts, Channels, Calendar tabs, plus 172 additional AI features.
+    - **Content**: Library, Channels, Calendar, **Localization** tabs. Localization tab includes 17 AI-powered video localization features (Video Translator, Subtitle Generator, Localization Advisor, Multi-Language SEO, Dubbing Script, Cultural Adaptation, Thumbnail Localizer, Multi-Language Hashtags, Translation Checker, Audience Language Analyzer, Regional Trends, Cross-Language Comments, Localized Calendar, Multi-Language A/B Testing, Voice-Over Formatter, Regional Compliance, Multi-Language Media Kit), plus 172 additional AI features.
     - **Go Live**: Stream Center with AI Stream Advisor, AI Chat Bot Builder, AI Stream Checklist, AI Raid Strategy, AI Post-Stream Report, plus 57 additional AI features.
     - **Money**: Revenue with AI Financial Insights, AI P&L Report, Expenses, Taxes, Payments, Ventures, Goals, Sponsors with AI Sponsorship Manager, AI Media Kit, plus 57 additional AI features.
-    - **Settings**: General, Brand, Collabs, Competitors, Legal, Wellness, Learning tabs plus **Automation Hub** tab with Cron Scheduler, AI Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, plus 332 additional AI features.
+    - **Settings**: General (includes Language Selector), Brand, Collabs, Competitors, Legal, Wellness, Learning tabs plus **Automation Hub** tab with Cron Scheduler, AI Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, plus 332 additional AI features.
 
 ## Automation Engine (100% Automation - Zero Gaps)
 - **Cron Job Scheduler**: node-cron based system running AI features on configurable intervals (15min/hourly/6h/12h/daily/weekly/monthly). Persists results to PostgreSQL.
@@ -49,20 +50,23 @@ The platform is built as a full-stack application with an Express.js backend and
 - **AI Auto-Payment Manager**: Handles invoicing, expense categorization, tax prep, and payment optimization every 6 hours.
 
 ## Key Files
-- `server/routes.ts` - All API routes including 722 AI endpoints, automation routes, and Stripe payment endpoints
+- `server/routes.ts` - All API routes including 722 AI endpoints, 17 localization endpoints, automation routes, and Stripe payment endpoints
 - `server/storage.ts` - Database storage layer with IStorage interface
-- `server/ai-engine.ts` - 722 AI feature functions organized in 22 batches
-- `server/automation-engine.ts` - Cron scheduler, chain orchestrator, rules engine, webhook processor, notification pipeline
+- `server/ai-engine.ts` - 722 AI feature functions organized in 22 batches + 17 localization AI functions
+- `server/automation-engine.ts` - Cron scheduler, chain orchestrator, rules engine, webhook processor, notification pipeline, localization auto-processor (every 12h)
 - `shared/schema.ts` - Database schema with 30+ tables including ai_results, cron_jobs, ai_chains, webhook_events
+- `client/src/i18n/index.ts` - i18n initialization with react-i18next, browser detection, 12 languages
+- `client/src/i18n/locales/*.ts` - Translation files for all 12 supported languages
 - `client/src/pages/Dashboard.tsx` - Home dashboard with ~75 AI features
-- `client/src/pages/Content.tsx` - Content management with ~180 AI features
+- `client/src/pages/Content.tsx` - Content management with ~180 AI features + Localization tab (17 AI features)
 - `client/src/pages/StreamCenter.tsx` - Live streaming with ~65 AI features
 - `client/src/pages/Money.tsx` - Monetization with ~65 AI features
-- `client/src/pages/Settings.tsx` - Settings with ~340 AI features + Automation Hub tab
+- `client/src/pages/Settings.tsx` - Settings with ~340 AI features + Automation Hub tab + Language Selector
 
 ## External Dependencies
 - **Replit Auth**: For user authentication and session management.
 - **OpenAI API**: For all AI-driven functionalities using the `gpt-5-mini` model.
+- **react-i18next / i18next**: Internationalization framework for 12-language UI support with RTL and browser auto-detection.
 - **PostgreSQL (Neon-backed)**: The primary database solution.
 - **YouTube Data API v3**: For OAuth2 connection, video synchronization, and pushing optimized metadata to YouTube.
 - **Stripe**: Payment processing via Replit connector, with automatic webhook management.
