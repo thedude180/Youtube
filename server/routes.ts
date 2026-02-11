@@ -634,6 +634,133 @@ import {
   aiGumroadProductOptimizer,
   aiTeachableCoursePlanner,
   aiBuyMeCoffeeOptimizer,
+  aiRetirementPlanner,
+  aiEmergencyFundAdvisor,
+  aiInvestmentAdvisor,
+  aiDebtPayoffPlanner,
+  aiRealEstateInvestor,
+  aiCryptoPortfolioAdvisor,
+  aiFreelancePricingGuide,
+  aiGrantFinder,
+  aiBudgetTrackerSetup,
+  aiFinancialGoalSetter,
+  aiCameraRecommender,
+  aiMicrophoneAdvisor,
+  aiLightingSetupPlanner,
+  aiEditingSoftwareAdvisor,
+  aiStudioDesignPlanner,
+  aiGreenScreenSetup,
+  aiTeleprompterAdvisor,
+  aiBackupStoragePlanner,
+  aiInternetOptimizer,
+  aiVATaskDelegator,
+  aiEditorHiringGuide,
+  aiThumbnailDesignerFinder,
+  aiOutsourcingStrategyBuilder,
+  aiContentModerationPlanner,
+  aiCopyrightClaimResolver,
+  aiSponsorshipDisclosureChecker,
+  aiAgeRestrictionAdvisor,
+  aiDefamationRiskChecker,
+  aiPlagiarismDetector,
+  aiCOPPAComplianceChecker,
+  aiGDPRComplianceAdvisor,
+  aiHateSpeechDetector,
+  aiMisinformationChecker,
+  aiTriggerWarningAdvisor,
+  aiChildSafetyChecker,
+  aiPersonalBrandAuditor,
+  aiElevatorPitchWriter,
+  aiPressKitBuilder,
+  aiSpeakerBioWriter,
+  aiLinkedInProfileOptimizer,
+  aiPersonalWebsiteBuilder,
+  aiThoughtLeadershipPlanner,
+  aiPublicSpeakingCoach,
+  aiNetworkingStrategyBuilder,
+  aiReputationMonitor,
+  aiCrisisResponsePlanner,
+  aiApologyScriptWriter,
+  aiControversyNavigator,
+  aiCancelCultureDefender,
+  aiDiversityInclusionAdvisor,
+  aiMentalHealthContentGuide,
+  aiPoliticalContentNavigator,
+  aiReligiousSensitivityChecker,
+  aiCulturalSensitivityAdvisor,
+  aiBodyImageSensitivityChecker,
+  aiAddictionContentGuide,
+  aiFinancialDisclaimerWriter,
+  aiWorkflowAutomationBuilder,
+  aiZapierIntegrationPlanner,
+  aiIFTTTRecipeCreator,
+  aiMakeScenarioBuilder,
+  aiAutoScheduler,
+  aiAutoResponder,
+  aiAutoModerator,
+  aiAutoBackupper,
+  aiAutoReporter,
+  aiAutoOptimizer,
+  aiBatchProcessor,
+  aiSmartQueueManager,
+  aiContentPipelineBuilder,
+  aiAITrainingDataCollector,
+  aiCrisisDetector,
+  aiDamageControlPlanner,
+  aiPRStatementWriter,
+  aiStakeholderCommunicator,
+  aiRecoveryStrategyBuilder,
+  aiMediaResponsePlanner,
+  aiLegalRiskAssessor,
+  aiSocialMediaCrisisManager,
+  aiInfluencerCrisisAdvisor,
+  aiBrandRecoveryPlanner,
+  aiCommunityTrustRebuilder,
+  aiAlgorithmRecoveryAdvisor,
+  aiRevenueRecoveryPlanner,
+  aiTeamCrisisManager,
+  aiLegalDefensePrepper,
+  aiInsuranceClaimHelper,
+  aiContingencyPlanner,
+  aiDisasterRecoveryPlanner,
+  aiBusinessContinuityPlanner,
+  aiExitStrategyBuilder,
+  aiSummerContentPlanner,
+  aiWinterContentStrategy,
+  aiBackToSchoolPlanner,
+  aiHalloweenContentCreator,
+  aiBlackFridayStrategist,
+  aiChristmasContentPlanner,
+  aiNewYearGoalSetter,
+  aiValentinesDayPlanner,
+  aiEasterContentCreator,
+  aiSuperBowlContentPlanner,
+  aiParentsDayPlanner,
+  aiGraduationContentCreator,
+  aiWorldCupContentPlanner,
+  aiOlympicsContentStrategy,
+  aiAwardsSeasonPlanner,
+  aiMusicFestivalContentGuide,
+  aiGamingEventPlanner,
+  aiProductHuntLaunchGuide,
+  aiErgonomicSetupAdvisor,
+  aiEyeCareAdvisor,
+  aiVocalHealthCoach,
+  aiNutritionForCreators,
+  aiWorkLifeBalanceOptimizer,
+  aiCreatorBurnoutRecovery,
+  aiMeditationGuideForCreators,
+  aiTimeBlockingOptimizer,
+  aiPomodoroCustomizer,
+  aiDigitalDetoxPlanner,
+  aiGratitudeJournalPrompts,
+  aiAffirmationGenerator,
+  aiHabitStackBuilder,
+  aiEnergyManagementAdvisor,
+  aiCreatorCommunityBuilder,
+  aiMastermindGroupFacilitator,
+  aiAccountabilityPartnerMatcher,
+  aiCreatorSabbaticalPlanner,
 } from "./ai-engine";
 import {
   runStyleScan,
@@ -9655,6 +9782,1243 @@ export async function registerRoutes(
     if (!userId) return;
     try {
       const result = await aiBuyMeCoffeeOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  // === FINANCIAL PLANNING & EQUIPMENT AI (Batch 19) ===
+  app.post("/api/ai/retirement", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiRetirementPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/emergency-fund", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiEmergencyFundAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/investment", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiInvestmentAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/debt-payoff", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiDebtPayoffPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/insurance", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiInsuranceAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/real-estate", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiRealEstateInvestor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/crypto-portfolio", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCryptoPortfolioAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/passive-income", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPassiveIncomeBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/freelance-pricing", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiFreelancePricingGuide(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/grant-finder", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiGrantFinder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/crowdfunding", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCrowdfundingAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/revenue-diversify", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiRevenueStreamDiversifier(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/budget-tracker", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBudgetTrackerSetup(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/financial-goals", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiFinancialGoalSetter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/camera-recommend", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCameraRecommender(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/microphone", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMicrophoneAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/lighting-setup", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiLightingSetupPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/editing-software", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiEditingSoftwareAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/studio-design", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiStudioDesignPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/green-screen", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiGreenScreenSetup(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/teleprompter", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTeleprompterAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/backup-storage", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBackupStoragePlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/internet-optimize", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiInternetOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/hiring", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiHiringAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/va-tasks", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiVATaskDelegator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/editor-hiring", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiEditorHiringGuide(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-designer", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThumbnailDesignerFinder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/outsourcing", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiOutsourcingStrategyBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  // === CONTENT SAFETY & PERSONAL BRAND AI (Batch 20) ===
+  app.post("/api/ai/content-moderation", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiContentModerationPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/copyright-claim", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCopyrightClaimResolver(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/sponsorship-disclosure", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSponsorshipDisclosureChecker(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/age-restriction", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAgeRestrictionAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/defamation-risk", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiDefamationRiskChecker(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/plagiarism", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPlagiarismDetector(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/coppa", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCOPPAComplianceChecker(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/gdpr", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiGDPRComplianceAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/community-guidelines", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCommunityGuidelinesWriter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/hate-speech", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiHateSpeechDetector(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/misinformation", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMisinformationChecker(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/trigger-warning", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTriggerWarningAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/child-safety", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiChildSafetyChecker(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/data-retention", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiDataRetentionPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/brand-audit", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPersonalBrandAuditor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/elevator-pitch", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiElevatorPitchWriter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/press-kit", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPressKitBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/speaker-bio", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSpeakerBioWriter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/linkedin-profile", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiLinkedInProfileOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/personal-website", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPersonalWebsiteBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thought-leadership", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiThoughtLeadershipPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/public-speaking", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPublicSpeakingCoach(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/networking-strategy", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiNetworkingStrategyBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/reputation-monitor", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiReputationMonitor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/crisis-response", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCrisisResponsePlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/apology-script", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiApologyScriptWriter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/controversy", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiControversyNavigator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/cancel-culture", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCancelCultureDefender(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/diversity", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiDiversityInclusionAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/mental-health-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMentalHealthContentGuide(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/political-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPoliticalContentNavigator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/religious-sensitivity", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiReligiousSensitivityChecker(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/cultural-sensitivity", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCulturalSensitivityAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/body-image", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBodyImageSensitivityChecker(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/addiction-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAddictionContentGuide(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/financial-disclaimer", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiFinancialDisclaimerWriter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  // === AUTOMATION & CRISIS MANAGEMENT AI (Batch 21) ===
+  app.post("/api/ai/workflow-automation", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiWorkflowAutomationBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/zapier", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiZapierIntegrationPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/ifttt", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiIFTTTRecipeCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/make-scenario", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMakeScenarioBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-scheduler", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoScheduler(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-responder", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoResponder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-moderator", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoModerator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-backup", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoBackupper(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-reporter", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoReporter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/auto-optimizer", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAutoOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/batch-processor", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBatchProcessor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/smart-queue", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSmartQueueManager(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/content-pipeline", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiContentPipelineBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/training-data", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAITrainingDataCollector(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/crisis-detector", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCrisisDetector(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/damage-control", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiDamageControlPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/pr-statement", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPRStatementWriter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/stakeholder-comm", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiStakeholderCommunicator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/recovery-strategy", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiRecoveryStrategyBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/media-response", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMediaResponsePlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/legal-risk", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiLegalRiskAssessor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/social-crisis", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSocialMediaCrisisManager(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/influencer-crisis", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiInfluencerCrisisAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/brand-recovery", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBrandRecoveryPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/trust-rebuild", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCommunityTrustRebuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/algo-recovery", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAlgorithmRecoveryAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/revenue-recovery", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiRevenueRecoveryPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/team-crisis", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTeamCrisisManager(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/legal-defense", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiLegalDefensePrepper(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/insurance-claim", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiInsuranceClaimHelper(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/contingency", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiContingencyPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/disaster-recovery", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiDisasterRecoveryPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/business-continuity", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBusinessContinuityPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/exit-strategy", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiExitStrategyBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  // === SEASONAL & HEALTH CONTENT AI (Batch 22) ===
+  app.post("/api/ai/summer-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSummerContentPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/winter-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiWinterContentStrategy(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/back-to-school", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBackToSchoolPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/halloween-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiHalloweenContentCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/black-friday", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiBlackFridayStrategist(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/christmas-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiChristmasContentPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/new-year-goals", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiNewYearGoalSetter(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/valentines", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiValentinesDayPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/easter-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiEasterContentCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/super-bowl", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSuperBowlContentPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/parents-day", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiParentsDayPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/graduation", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiGraduationContentCreator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/world-cup", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiWorldCupContentPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/olympics", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiOlympicsContentStrategy(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/awards-season", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAwardsSeasonPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/music-festival", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMusicFestivalContentGuide(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/gaming-event", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiGamingEventPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/product-hunt", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiProductHuntLaunchGuide(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/ergonomic-setup", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiErgonomicSetupAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/eye-care", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiEyeCareAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/vocal-health", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiVocalHealthCoach(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/sleep-optimize", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSleepOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/nutrition", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiNutritionForCreators(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/exercise", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiExerciseForCreators(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/stress-management", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiStressManagementCoach(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/work-life-balance", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiWorkLifeBalanceOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/burnout-recovery", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCreatorBurnoutRecovery(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/meditation", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMeditationGuideForCreators(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/time-blocking", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTimeBlockingOptimizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/pomodoro", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPomodoroCustomizer(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/digital-detox", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiDigitalDetoxPlanner(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/gratitude-journal", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiGratitudeJournalPrompts(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/affirmations", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAffirmationGenerator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/habit-stack", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiHabitStackBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/energy-management", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiEnergyManagementAdvisor(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/creator-community", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCreatorCommunityBuilder(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/mastermind-group", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiMastermindGroupFacilitator(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/accountability", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiAccountabilityPartnerMatcher(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/sabbatical", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCreatorSabbaticalPlanner(req.body, userId);
       res.json(result);
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });

@@ -323,6 +323,12 @@ export default function Dashboard() {
   const [aiCrossPromo, setAiCrossPromo] = useState<any>(null);
   const [aiCrossPromoLoading, setAiCrossPromoLoading] = useState(false);
 
+  const [showAccountabilityAI, setShowAccountabilityAI] = useState(false);
+  const [aiAccountability, setAiAccountability] = useState<any>(null);
+  const [aiAccountabilityLoading, setAiAccountabilityLoading] = useState(false);
+  const [aiSabbatical, setAiSabbatical] = useState<any>(null);
+  const [aiSabbaticalLoading, setAiSabbaticalLoading] = useState(false);
+
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
     const stored = localStorage.getItem("humanReviewMode");
     return stored === null ? false : stored === "true";
@@ -1101,6 +1107,19 @@ export default function Dashboard() {
     if (cached) { try { setAiCrossPromo(JSON.parse(cached)); return; } catch {} }
     setAiCrossPromoLoading(true);
     apiRequest("POST", "/api/ai/cross-promo", {}).then(r => r.json()).then(d => { setAiCrossPromo(d); sessionStorage.setItem("ai_cross_promo", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCrossPromoLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_accountability");
+    if (cached) { try { setAiAccountability(JSON.parse(cached)); return; } catch {} }
+    setAiAccountabilityLoading(true);
+    apiRequest("POST", "/api/ai/accountability", {}).then(r => r.json()).then(d => { setAiAccountability(d); sessionStorage.setItem("ai_accountability", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAccountabilityLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sabbatical");
+    if (cached) { try { setAiSabbatical(JSON.parse(cached)); return; } catch {} }
+    setAiSabbaticalLoading(true);
+    apiRequest("POST", "/api/ai/sabbatical", {}).then(r => r.json()).then(d => { setAiSabbatical(d); sessionStorage.setItem("ai_sabbatical", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSabbaticalLoading(false));
   }, []);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
@@ -3869,6 +3888,55 @@ export default function Dashboard() {
         </CardContent>
       </Card>
     </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowAccountabilityAI(!showAccountabilityAI)}
+          data-testid="button-toggle-accountability-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Accountability Suite</span>
+          <Badge variant="outline" className="text-[10px]">2 tools</Badge>
+          {showAccountabilityAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showAccountabilityAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiAccountabilityLoading || aiAccountability) && (
+              <Card data-testid="card-ai-accountability">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Accountability</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAccountabilityLoading ? <Skeleton className="h-24 w-full" /> : aiAccountability && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAccountability.strategies || aiAccountability.tips || aiAccountability.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSabbaticalLoading || aiSabbatical) && (
+              <Card data-testid="card-ai-sabbatical">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Sabbatical</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSabbaticalLoading ? <Skeleton className="h-24 w-full" /> : aiSabbatical && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiSabbatical.strategies || aiSabbatical.tips || aiSabbatical.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
   );
 }
 

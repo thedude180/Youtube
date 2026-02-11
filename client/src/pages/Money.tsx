@@ -1297,6 +1297,36 @@ export default function Money() {
   const [aiShipping, setAiShipping] = useState<any>(null);
   const [aiShippingLoading, setAiShippingLoading] = useState(false);
 
+  const [showFinPlanAI, setShowFinPlanAI] = useState(false);
+  const [aiRetirementFP, setAiRetirementFP] = useState<any>(null);
+  const [aiRetirementFPLoading, setAiRetirementFPLoading] = useState(false);
+  const [aiEmergFund, setAiEmergFund] = useState<any>(null);
+  const [aiEmergFundLoading, setAiEmergFundLoading] = useState(false);
+  const [aiInvestmentFP, setAiInvestmentFP] = useState<any>(null);
+  const [aiInvestmentFPLoading, setAiInvestmentFPLoading] = useState(false);
+  const [aiDebtPayoff, setAiDebtPayoff] = useState<any>(null);
+  const [aiDebtPayoffLoading, setAiDebtPayoffLoading] = useState(false);
+  const [aiInsuranceFP, setAiInsuranceFP] = useState<any>(null);
+  const [aiInsuranceFPLoading, setAiInsuranceFPLoading] = useState(false);
+  const [aiRealEstate, setAiRealEstate] = useState<any>(null);
+  const [aiRealEstateLoading, setAiRealEstateLoading] = useState(false);
+  const [aiCryptoFP, setAiCryptoFP] = useState<any>(null);
+  const [aiCryptoFPLoading, setAiCryptoFPLoading] = useState(false);
+  const [aiPassiveIncFP, setAiPassiveIncFP] = useState<any>(null);
+  const [aiPassiveIncFPLoading, setAiPassiveIncFPLoading] = useState(false);
+  const [aiFreelancePrice, setAiFreelancePrice] = useState<any>(null);
+  const [aiFreelancePriceLoading, setAiFreelancePriceLoading] = useState(false);
+  const [aiGrantFind, setAiGrantFind] = useState<any>(null);
+  const [aiGrantFindLoading, setAiGrantFindLoading] = useState(false);
+  const [aiCrowdfundFP, setAiCrowdfundFP] = useState<any>(null);
+  const [aiCrowdfundFPLoading, setAiCrowdfundFPLoading] = useState(false);
+  const [aiRevDiversify, setAiRevDiversify] = useState<any>(null);
+  const [aiRevDiversifyLoading, setAiRevDiversifyLoading] = useState(false);
+  const [aiBudgetTrack, setAiBudgetTrack] = useState<any>(null);
+  const [aiBudgetTrackLoading, setAiBudgetTrackLoading] = useState(false);
+  const [aiFinGoals, setAiFinGoals] = useState<any>(null);
+  const [aiFinGoalsLoading, setAiFinGoalsLoading] = useState(false);
+
   useEffect(() => {
     if (activeTab !== "revenue") return;
     const cached = sessionStorage.getItem("aiFinancialInsights");
@@ -1938,6 +1968,91 @@ export default function Money() {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
   };
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_retirement");
+    if (cached) { try { setAiRetirementFP(JSON.parse(cached)); return; } catch {} }
+    setAiRetirementFPLoading(true);
+    apiRequest("POST", "/api/ai/retirement", {}).then(r => r.json()).then(d => { setAiRetirementFP(d); sessionStorage.setItem("ai_retirement", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRetirementFPLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_emerg_fund");
+    if (cached) { try { setAiEmergFund(JSON.parse(cached)); return; } catch {} }
+    setAiEmergFundLoading(true);
+    apiRequest("POST", "/api/ai/emergency-fund", {}).then(r => r.json()).then(d => { setAiEmergFund(d); sessionStorage.setItem("ai_emerg_fund", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiEmergFundLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_investment");
+    if (cached) { try { setAiInvestmentFP(JSON.parse(cached)); return; } catch {} }
+    setAiInvestmentFPLoading(true);
+    apiRequest("POST", "/api/ai/investment", {}).then(r => r.json()).then(d => { setAiInvestmentFP(d); sessionStorage.setItem("ai_investment", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiInvestmentFPLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_debt_payoff");
+    if (cached) { try { setAiDebtPayoff(JSON.parse(cached)); return; } catch {} }
+    setAiDebtPayoffLoading(true);
+    apiRequest("POST", "/api/ai/debt-payoff", {}).then(r => r.json()).then(d => { setAiDebtPayoff(d); sessionStorage.setItem("ai_debt_payoff", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDebtPayoffLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_insurance_fp");
+    if (cached) { try { setAiInsuranceFP(JSON.parse(cached)); return; } catch {} }
+    setAiInsuranceFPLoading(true);
+    apiRequest("POST", "/api/ai/insurance", {}).then(r => r.json()).then(d => { setAiInsuranceFP(d); sessionStorage.setItem("ai_insurance_fp", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiInsuranceFPLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_real_estate");
+    if (cached) { try { setAiRealEstate(JSON.parse(cached)); return; } catch {} }
+    setAiRealEstateLoading(true);
+    apiRequest("POST", "/api/ai/real-estate", {}).then(r => r.json()).then(d => { setAiRealEstate(d); sessionStorage.setItem("ai_real_estate", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRealEstateLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_crypto");
+    if (cached) { try { setAiCryptoFP(JSON.parse(cached)); return; } catch {} }
+    setAiCryptoFPLoading(true);
+    apiRequest("POST", "/api/ai/crypto-portfolio", {}).then(r => r.json()).then(d => { setAiCryptoFP(d); sessionStorage.setItem("ai_crypto", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCryptoFPLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_passive_inc_fp");
+    if (cached) { try { setAiPassiveIncFP(JSON.parse(cached)); return; } catch {} }
+    setAiPassiveIncFPLoading(true);
+    apiRequest("POST", "/api/ai/passive-income", {}).then(r => r.json()).then(d => { setAiPassiveIncFP(d); sessionStorage.setItem("ai_passive_inc_fp", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPassiveIncFPLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_freelance_price");
+    if (cached) { try { setAiFreelancePrice(JSON.parse(cached)); return; } catch {} }
+    setAiFreelancePriceLoading(true);
+    apiRequest("POST", "/api/ai/freelance-pricing", {}).then(r => r.json()).then(d => { setAiFreelancePrice(d); sessionStorage.setItem("ai_freelance_price", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiFreelancePriceLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_grant_find");
+    if (cached) { try { setAiGrantFind(JSON.parse(cached)); return; } catch {} }
+    setAiGrantFindLoading(true);
+    apiRequest("POST", "/api/ai/grant-finder", {}).then(r => r.json()).then(d => { setAiGrantFind(d); sessionStorage.setItem("ai_grant_find", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiGrantFindLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_crowdfund_fp");
+    if (cached) { try { setAiCrowdfundFP(JSON.parse(cached)); return; } catch {} }
+    setAiCrowdfundFPLoading(true);
+    apiRequest("POST", "/api/ai/crowdfunding", {}).then(r => r.json()).then(d => { setAiCrowdfundFP(d); sessionStorage.setItem("ai_crowdfund_fp", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCrowdfundFPLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_rev_diversify");
+    if (cached) { try { setAiRevDiversify(JSON.parse(cached)); return; } catch {} }
+    setAiRevDiversifyLoading(true);
+    apiRequest("POST", "/api/ai/revenue-diversify", {}).then(r => r.json()).then(d => { setAiRevDiversify(d); sessionStorage.setItem("ai_rev_diversify", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRevDiversifyLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_budget_track");
+    if (cached) { try { setAiBudgetTrack(JSON.parse(cached)); return; } catch {} }
+    setAiBudgetTrackLoading(true);
+    apiRequest("POST", "/api/ai/budget-tracker", {}).then(r => r.json()).then(d => { setAiBudgetTrack(d); sessionStorage.setItem("ai_budget_track", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBudgetTrackLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_fin_goals");
+    if (cached) { try { setAiFinGoals(JSON.parse(cached)); return; } catch {} }
+    setAiFinGoalsLoading(true);
+    apiRequest("POST", "/api/ai/financial-goals", {}).then(r => r.json()).then(d => { setAiFinGoals(d); sessionStorage.setItem("ai_fin_goals", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiFinGoalsLoading(false));
+  }, []);
 
   const renderMoneyAIList = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
@@ -3984,6 +4099,247 @@ export default function Money() {
                   {aiShippingLoading ? <Skeleton className="h-24 w-full" /> : aiShipping && (
                     <div className="space-y-2 text-xs text-muted-foreground">
                       {renderMoneyAIList(aiShipping.options || aiShipping.rates || aiShipping.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowFinPlanAI(!showFinPlanAI)}
+          data-testid="button-toggle-fin-plan-ai"
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-semibold">AI Financial Planning Suite</span>
+          <Badge variant="outline" className="text-[10px]">14 tools</Badge>
+          {showFinPlanAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showFinPlanAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiRetirementFPLoading || aiRetirementFP) && (
+              <Card data-testid="card-ai-retirement">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Retirement Planning</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRetirementFPLoading ? <Skeleton className="h-24 w-full" /> : aiRetirementFP && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiRetirementFP.strategies || aiRetirementFP.tips || aiRetirementFP.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiEmergFundLoading || aiEmergFund) && (
+              <Card data-testid="card-ai-emerg-fund">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Emergency Fund</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiEmergFundLoading ? <Skeleton className="h-24 w-full" /> : aiEmergFund && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiEmergFund.strategies || aiEmergFund.tips || aiEmergFund.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiInvestmentFPLoading || aiInvestmentFP) && (
+              <Card data-testid="card-ai-investment">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Investment Strategy</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiInvestmentFPLoading ? <Skeleton className="h-24 w-full" /> : aiInvestmentFP && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiInvestmentFP.strategies || aiInvestmentFP.tips || aiInvestmentFP.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDebtPayoffLoading || aiDebtPayoff) && (
+              <Card data-testid="card-ai-debt-payoff">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Debt Payoff</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDebtPayoffLoading ? <Skeleton className="h-24 w-full" /> : aiDebtPayoff && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiDebtPayoff.strategies || aiDebtPayoff.tips || aiDebtPayoff.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiInsuranceFPLoading || aiInsuranceFP) && (
+              <Card data-testid="card-ai-insurance-fp">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Insurance Advisor</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiInsuranceFPLoading ? <Skeleton className="h-24 w-full" /> : aiInsuranceFP && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiInsuranceFP.strategies || aiInsuranceFP.tips || aiInsuranceFP.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiRealEstateLoading || aiRealEstate) && (
+              <Card data-testid="card-ai-real-estate">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Real Estate</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRealEstateLoading ? <Skeleton className="h-24 w-full" /> : aiRealEstate && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiRealEstate.strategies || aiRealEstate.tips || aiRealEstate.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCryptoFPLoading || aiCryptoFP) && (
+              <Card data-testid="card-ai-crypto">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Crypto Portfolio</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCryptoFPLoading ? <Skeleton className="h-24 w-full" /> : aiCryptoFP && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiCryptoFP.strategies || aiCryptoFP.tips || aiCryptoFP.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPassiveIncFPLoading || aiPassiveIncFP) && (
+              <Card data-testid="card-ai-passive-inc-fp">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Passive Income</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPassiveIncFPLoading ? <Skeleton className="h-24 w-full" /> : aiPassiveIncFP && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiPassiveIncFP.strategies || aiPassiveIncFP.tips || aiPassiveIncFP.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFreelancePriceLoading || aiFreelancePrice) && (
+              <Card data-testid="card-ai-freelance-price">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Freelance Pricing</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFreelancePriceLoading ? <Skeleton className="h-24 w-full" /> : aiFreelancePrice && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiFreelancePrice.strategies || aiFreelancePrice.tips || aiFreelancePrice.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiGrantFindLoading || aiGrantFind) && (
+              <Card data-testid="card-ai-grant-find">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Grant Finder</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiGrantFindLoading ? <Skeleton className="h-24 w-full" /> : aiGrantFind && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiGrantFind.strategies || aiGrantFind.tips || aiGrantFind.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCrowdfundFPLoading || aiCrowdfundFP) && (
+              <Card data-testid="card-ai-crowdfund-fp">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Crowdfunding</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCrowdfundFPLoading ? <Skeleton className="h-24 w-full" /> : aiCrowdfundFP && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiCrowdfundFP.strategies || aiCrowdfundFP.tips || aiCrowdfundFP.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiRevDiversifyLoading || aiRevDiversify) && (
+              <Card data-testid="card-ai-rev-diversify">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Revenue Diversify</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRevDiversifyLoading ? <Skeleton className="h-24 w-full" /> : aiRevDiversify && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiRevDiversify.strategies || aiRevDiversify.tips || aiRevDiversify.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiBudgetTrackLoading || aiBudgetTrack) && (
+              <Card data-testid="card-ai-budget-track">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Budget Tracker</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiBudgetTrackLoading ? <Skeleton className="h-24 w-full" /> : aiBudgetTrack && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiBudgetTrack.strategies || aiBudgetTrack.tips || aiBudgetTrack.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFinGoalsLoading || aiFinGoals) && (
+              <Card data-testid="card-ai-fin-goals">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Financial Goals</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFinGoalsLoading ? <Skeleton className="h-24 w-full" /> : aiFinGoals && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiFinGoals.strategies || aiFinGoals.tips || aiFinGoals.recommendations)}
                     </div>
                   )}
                 </CardContent>

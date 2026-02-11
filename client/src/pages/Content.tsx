@@ -522,6 +522,397 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [aiBingeWatch, setAiBingeWatch] = useState<any>(null);
   const [aiBingeWatchLoading, setAiBingeWatchLoading] = useState(false);
 
+  const [showEquipmentAI, setShowEquipmentAI] = useState(false);
+  const [aiCameraEQ, setAiCameraEQ] = useState<any>(null);
+  const [aiCameraEQLoading, setAiCameraEQLoading] = useState(false);
+  const [aiMicEQ, setAiMicEQ] = useState<any>(null);
+  const [aiMicEQLoading, setAiMicEQLoading] = useState(false);
+  const [aiLightingEQ, setAiLightingEQ] = useState<any>(null);
+  const [aiLightingEQLoading, setAiLightingEQLoading] = useState(false);
+  const [aiEditSoft, setAiEditSoft] = useState<any>(null);
+  const [aiEditSoftLoading, setAiEditSoftLoading] = useState(false);
+  const [aiStudioEQ, setAiStudioEQ] = useState<any>(null);
+  const [aiStudioEQLoading, setAiStudioEQLoading] = useState(false);
+  const [aiGreenScrEQ, setAiGreenScrEQ] = useState<any>(null);
+  const [aiGreenScrEQLoading, setAiGreenScrEQLoading] = useState(false);
+  const [aiTeleprompterEQ, setAiTeleprompterEQ] = useState<any>(null);
+  const [aiTeleprompterEQLoading, setAiTeleprompterEQLoading] = useState(false);
+  const [aiBackupStore, setAiBackupStore] = useState<any>(null);
+  const [aiBackupStoreLoading, setAiBackupStoreLoading] = useState(false);
+  const [aiInternetEQ, setAiInternetEQ] = useState<any>(null);
+  const [aiInternetEQLoading, setAiInternetEQLoading] = useState(false);
+  const [aiHiringEQ, setAiHiringEQ] = useState<any>(null);
+  const [aiHiringEQLoading, setAiHiringEQLoading] = useState(false);
+  const [aiVATasks, setAiVATasks] = useState<any>(null);
+  const [aiVATasksLoading, setAiVATasksLoading] = useState(false);
+  const [aiEditorHire, setAiEditorHire] = useState<any>(null);
+  const [aiEditorHireLoading, setAiEditorHireLoading] = useState(false);
+  const [aiThumbDesigner, setAiThumbDesigner] = useState<any>(null);
+  const [aiThumbDesignerLoading, setAiThumbDesignerLoading] = useState(false);
+  const [aiOutsourceEQ, setAiOutsourceEQ] = useState<any>(null);
+  const [aiOutsourceEQLoading, setAiOutsourceEQLoading] = useState(false);
+
+  const [showContentSafetyAI, setShowContentSafetyAI] = useState(false);
+  const [aiContentMod, setAiContentMod] = useState<any>(null);
+  const [aiContentModLoading, setAiContentModLoading] = useState(false);
+  const [aiCopyClaim, setAiCopyClaim] = useState<any>(null);
+  const [aiCopyClaimLoading, setAiCopyClaimLoading] = useState(false);
+  const [aiSponDisclose, setAiSponDisclose] = useState<any>(null);
+  const [aiSponDiscloseLoading, setAiSponDiscloseLoading] = useState(false);
+  const [aiAgeRestrict, setAiAgeRestrict] = useState<any>(null);
+  const [aiAgeRestrictLoading, setAiAgeRestrictLoading] = useState(false);
+  const [aiDefamation, setAiDefamation] = useState<any>(null);
+  const [aiDefamationLoading, setAiDefamationLoading] = useState(false);
+  const [aiPlagiarismCS, setAiPlagiarismCS] = useState<any>(null);
+  const [aiPlagiarismCSLoading, setAiPlagiarismCSLoading] = useState(false);
+  const [aiCOPPA, setAiCOPPA] = useState<any>(null);
+  const [aiCOPPALoading, setAiCOPPALoading] = useState(false);
+  const [aiGDPR, setAiGDPR] = useState<any>(null);
+  const [aiGDPRLoading, setAiGDPRLoading] = useState(false);
+  const [aiCommGuideCS, setAiCommGuideCS] = useState<any>(null);
+  const [aiCommGuideCSLoading, setAiCommGuideCSLoading] = useState(false);
+  const [aiHateSpeech, setAiHateSpeech] = useState<any>(null);
+  const [aiHateSpeechLoading, setAiHateSpeechLoading] = useState(false);
+  const [aiMisinfo, setAiMisinfo] = useState<any>(null);
+  const [aiMisinfoLoading, setAiMisinfoLoading] = useState(false);
+  const [aiTriggerWarn, setAiTriggerWarn] = useState<any>(null);
+  const [aiTriggerWarnLoading, setAiTriggerWarnLoading] = useState(false);
+  const [aiChildSafe, setAiChildSafe] = useState<any>(null);
+  const [aiChildSafeLoading, setAiChildSafeLoading] = useState(false);
+  const [aiDataRetention2, setAiDataRetention2] = useState<any>(null);
+  const [aiDataRetention2Loading, setAiDataRetention2Loading] = useState(false);
+
+  const [showSeasonalAI, setShowSeasonalAI] = useState(false);
+  const [aiSummer, setAiSummer] = useState<any>(null);
+  const [aiSummerLoading, setAiSummerLoading] = useState(false);
+  const [aiWinter, setAiWinter] = useState<any>(null);
+  const [aiWinterLoading, setAiWinterLoading] = useState(false);
+  const [aiBackSchool, setAiBackSchool] = useState<any>(null);
+  const [aiBackSchoolLoading, setAiBackSchoolLoading] = useState(false);
+  const [aiHalloween, setAiHalloween] = useState<any>(null);
+  const [aiHalloweenLoading, setAiHalloweenLoading] = useState(false);
+  const [aiBlackFriday, setAiBlackFriday] = useState<any>(null);
+  const [aiBlackFridayLoading, setAiBlackFridayLoading] = useState(false);
+  const [aiChristmas, setAiChristmas] = useState<any>(null);
+  const [aiChristmasLoading, setAiChristmasLoading] = useState(false);
+  const [aiNewYear, setAiNewYear] = useState<any>(null);
+  const [aiNewYearLoading, setAiNewYearLoading] = useState(false);
+  const [aiValentines, setAiValentines] = useState<any>(null);
+  const [aiValentinesLoading, setAiValentinesLoading] = useState(false);
+  const [aiEaster, setAiEaster] = useState<any>(null);
+  const [aiEasterLoading, setAiEasterLoading] = useState(false);
+  const [aiSuperBowl, setAiSuperBowl] = useState<any>(null);
+  const [aiSuperBowlLoading, setAiSuperBowlLoading] = useState(false);
+  const [aiParentsDay, setAiParentsDay] = useState<any>(null);
+  const [aiParentsDayLoading, setAiParentsDayLoading] = useState(false);
+  const [aiGraduation, setAiGraduation] = useState<any>(null);
+  const [aiGraduationLoading, setAiGraduationLoading] = useState(false);
+  const [aiWorldCup, setAiWorldCup] = useState<any>(null);
+  const [aiWorldCupLoading, setAiWorldCupLoading] = useState(false);
+  const [aiOlympics, setAiOlympics] = useState<any>(null);
+  const [aiOlympicsLoading, setAiOlympicsLoading] = useState(false);
+  const [aiAwardsSeason, setAiAwardsSeason] = useState<any>(null);
+  const [aiAwardsSeasonLoading, setAiAwardsSeasonLoading] = useState(false);
+  const [aiMusicFest, setAiMusicFest] = useState<any>(null);
+  const [aiMusicFestLoading, setAiMusicFestLoading] = useState(false);
+  const [aiGamingEvent, setAiGamingEvent] = useState<any>(null);
+  const [aiGamingEventLoading, setAiGamingEventLoading] = useState(false);
+  const [aiProdHunt, setAiProdHunt] = useState<any>(null);
+  const [aiProdHuntLoading, setAiProdHuntLoading] = useState(false);
+  const [aiSpringContent, setAiSpringContent] = useState<any>(null);
+  const [aiSpringContentLoading, setAiSpringContentLoading] = useState(false);
+  const [aiAutumnContent, setAiAutumnContent] = useState<any>(null);
+  const [aiAutumnContentLoading, setAiAutumnContentLoading] = useState(false);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_camera");
+    if (cached) { try { setAiCameraEQ(JSON.parse(cached)); return; } catch {} }
+    setAiCameraEQLoading(true);
+    apiRequest("POST", "/api/ai/camera-recommend", {}).then(r => r.json()).then(d => { setAiCameraEQ(d); sessionStorage.setItem("ai_camera", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCameraEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_mic");
+    if (cached) { try { setAiMicEQ(JSON.parse(cached)); return; } catch {} }
+    setAiMicEQLoading(true);
+    apiRequest("POST", "/api/ai/microphone", {}).then(r => r.json()).then(d => { setAiMicEQ(d); sessionStorage.setItem("ai_mic", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMicEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_lighting");
+    if (cached) { try { setAiLightingEQ(JSON.parse(cached)); return; } catch {} }
+    setAiLightingEQLoading(true);
+    apiRequest("POST", "/api/ai/lighting-setup", {}).then(r => r.json()).then(d => { setAiLightingEQ(d); sessionStorage.setItem("ai_lighting", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiLightingEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_edit_soft");
+    if (cached) { try { setAiEditSoft(JSON.parse(cached)); return; } catch {} }
+    setAiEditSoftLoading(true);
+    apiRequest("POST", "/api/ai/editing-software", {}).then(r => r.json()).then(d => { setAiEditSoft(d); sessionStorage.setItem("ai_edit_soft", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiEditSoftLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_studio_eq");
+    if (cached) { try { setAiStudioEQ(JSON.parse(cached)); return; } catch {} }
+    setAiStudioEQLoading(true);
+    apiRequest("POST", "/api/ai/studio-design", {}).then(r => r.json()).then(d => { setAiStudioEQ(d); sessionStorage.setItem("ai_studio_eq", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStudioEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_green_scr_eq");
+    if (cached) { try { setAiGreenScrEQ(JSON.parse(cached)); return; } catch {} }
+    setAiGreenScrEQLoading(true);
+    apiRequest("POST", "/api/ai/green-screen", {}).then(r => r.json()).then(d => { setAiGreenScrEQ(d); sessionStorage.setItem("ai_green_scr_eq", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiGreenScrEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_teleprompter_eq");
+    if (cached) { try { setAiTeleprompterEQ(JSON.parse(cached)); return; } catch {} }
+    setAiTeleprompterEQLoading(true);
+    apiRequest("POST", "/api/ai/teleprompter", {}).then(r => r.json()).then(d => { setAiTeleprompterEQ(d); sessionStorage.setItem("ai_teleprompter_eq", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTeleprompterEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_backup_store");
+    if (cached) { try { setAiBackupStore(JSON.parse(cached)); return; } catch {} }
+    setAiBackupStoreLoading(true);
+    apiRequest("POST", "/api/ai/backup-storage", {}).then(r => r.json()).then(d => { setAiBackupStore(d); sessionStorage.setItem("ai_backup_store", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBackupStoreLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_internet");
+    if (cached) { try { setAiInternetEQ(JSON.parse(cached)); return; } catch {} }
+    setAiInternetEQLoading(true);
+    apiRequest("POST", "/api/ai/internet-optimize", {}).then(r => r.json()).then(d => { setAiInternetEQ(d); sessionStorage.setItem("ai_internet", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiInternetEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_hiring_eq");
+    if (cached) { try { setAiHiringEQ(JSON.parse(cached)); return; } catch {} }
+    setAiHiringEQLoading(true);
+    apiRequest("POST", "/api/ai/hiring", {}).then(r => r.json()).then(d => { setAiHiringEQ(d); sessionStorage.setItem("ai_hiring_eq", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiHiringEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_va_tasks");
+    if (cached) { try { setAiVATasks(JSON.parse(cached)); return; } catch {} }
+    setAiVATasksLoading(true);
+    apiRequest("POST", "/api/ai/va-tasks", {}).then(r => r.json()).then(d => { setAiVATasks(d); sessionStorage.setItem("ai_va_tasks", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiVATasksLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_editor_hire");
+    if (cached) { try { setAiEditorHire(JSON.parse(cached)); return; } catch {} }
+    setAiEditorHireLoading(true);
+    apiRequest("POST", "/api/ai/editor-hiring", {}).then(r => r.json()).then(d => { setAiEditorHire(d); sessionStorage.setItem("ai_editor_hire", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiEditorHireLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_thumb_designer");
+    if (cached) { try { setAiThumbDesigner(JSON.parse(cached)); return; } catch {} }
+    setAiThumbDesignerLoading(true);
+    apiRequest("POST", "/api/ai/thumbnail-designer", {}).then(r => r.json()).then(d => { setAiThumbDesigner(d); sessionStorage.setItem("ai_thumb_designer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiThumbDesignerLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_outsource_eq");
+    if (cached) { try { setAiOutsourceEQ(JSON.parse(cached)); return; } catch {} }
+    setAiOutsourceEQLoading(true);
+    apiRequest("POST", "/api/ai/outsourcing", {}).then(r => r.json()).then(d => { setAiOutsourceEQ(d); sessionStorage.setItem("ai_outsource_eq", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiOutsourceEQLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_content_mod");
+    if (cached) { try { setAiContentMod(JSON.parse(cached)); return; } catch {} }
+    setAiContentModLoading(true);
+    apiRequest("POST", "/api/ai/content-moderation", {}).then(r => r.json()).then(d => { setAiContentMod(d); sessionStorage.setItem("ai_content_mod", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiContentModLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_copy_claim");
+    if (cached) { try { setAiCopyClaim(JSON.parse(cached)); return; } catch {} }
+    setAiCopyClaimLoading(true);
+    apiRequest("POST", "/api/ai/copyright-claim", {}).then(r => r.json()).then(d => { setAiCopyClaim(d); sessionStorage.setItem("ai_copy_claim", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCopyClaimLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_spon_disclose");
+    if (cached) { try { setAiSponDisclose(JSON.parse(cached)); return; } catch {} }
+    setAiSponDiscloseLoading(true);
+    apiRequest("POST", "/api/ai/sponsorship-disclosure", {}).then(r => r.json()).then(d => { setAiSponDisclose(d); sessionStorage.setItem("ai_spon_disclose", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSponDiscloseLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_age_restrict");
+    if (cached) { try { setAiAgeRestrict(JSON.parse(cached)); return; } catch {} }
+    setAiAgeRestrictLoading(true);
+    apiRequest("POST", "/api/ai/age-restriction", {}).then(r => r.json()).then(d => { setAiAgeRestrict(d); sessionStorage.setItem("ai_age_restrict", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAgeRestrictLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_defamation");
+    if (cached) { try { setAiDefamation(JSON.parse(cached)); return; } catch {} }
+    setAiDefamationLoading(true);
+    apiRequest("POST", "/api/ai/defamation-risk", {}).then(r => r.json()).then(d => { setAiDefamation(d); sessionStorage.setItem("ai_defamation", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDefamationLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_plagiarism");
+    if (cached) { try { setAiPlagiarismCS(JSON.parse(cached)); return; } catch {} }
+    setAiPlagiarismCSLoading(true);
+    apiRequest("POST", "/api/ai/plagiarism", {}).then(r => r.json()).then(d => { setAiPlagiarismCS(d); sessionStorage.setItem("ai_plagiarism", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPlagiarismCSLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_coppa");
+    if (cached) { try { setAiCOPPA(JSON.parse(cached)); return; } catch {} }
+    setAiCOPPALoading(true);
+    apiRequest("POST", "/api/ai/coppa", {}).then(r => r.json()).then(d => { setAiCOPPA(d); sessionStorage.setItem("ai_coppa", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCOPPALoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_gdpr");
+    if (cached) { try { setAiGDPR(JSON.parse(cached)); return; } catch {} }
+    setAiGDPRLoading(true);
+    apiRequest("POST", "/api/ai/gdpr", {}).then(r => r.json()).then(d => { setAiGDPR(d); sessionStorage.setItem("ai_gdpr", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiGDPRLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_comm_guide");
+    if (cached) { try { setAiCommGuideCS(JSON.parse(cached)); return; } catch {} }
+    setAiCommGuideCSLoading(true);
+    apiRequest("POST", "/api/ai/community-guidelines", {}).then(r => r.json()).then(d => { setAiCommGuideCS(d); sessionStorage.setItem("ai_comm_guide", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCommGuideCSLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_hate_speech");
+    if (cached) { try { setAiHateSpeech(JSON.parse(cached)); return; } catch {} }
+    setAiHateSpeechLoading(true);
+    apiRequest("POST", "/api/ai/hate-speech", {}).then(r => r.json()).then(d => { setAiHateSpeech(d); sessionStorage.setItem("ai_hate_speech", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiHateSpeechLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_misinfo");
+    if (cached) { try { setAiMisinfo(JSON.parse(cached)); return; } catch {} }
+    setAiMisinfoLoading(true);
+    apiRequest("POST", "/api/ai/misinformation", {}).then(r => r.json()).then(d => { setAiMisinfo(d); sessionStorage.setItem("ai_misinfo", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMisinfoLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_trigger_warn");
+    if (cached) { try { setAiTriggerWarn(JSON.parse(cached)); return; } catch {} }
+    setAiTriggerWarnLoading(true);
+    apiRequest("POST", "/api/ai/trigger-warning", {}).then(r => r.json()).then(d => { setAiTriggerWarn(d); sessionStorage.setItem("ai_trigger_warn", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTriggerWarnLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_child_safe");
+    if (cached) { try { setAiChildSafe(JSON.parse(cached)); return; } catch {} }
+    setAiChildSafeLoading(true);
+    apiRequest("POST", "/api/ai/child-safety", {}).then(r => r.json()).then(d => { setAiChildSafe(d); sessionStorage.setItem("ai_child_safe", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiChildSafeLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_data_retention2");
+    if (cached) { try { setAiDataRetention2(JSON.parse(cached)); return; } catch {} }
+    setAiDataRetention2Loading(true);
+    apiRequest("POST", "/api/ai/data-retention", {}).then(r => r.json()).then(d => { setAiDataRetention2(d); sessionStorage.setItem("ai_data_retention2", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDataRetention2Loading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_summer");
+    if (cached) { try { setAiSummer(JSON.parse(cached)); return; } catch {} }
+    setAiSummerLoading(true);
+    apiRequest("POST", "/api/ai/summer-content", {}).then(r => r.json()).then(d => { setAiSummer(d); sessionStorage.setItem("ai_summer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSummerLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_winter");
+    if (cached) { try { setAiWinter(JSON.parse(cached)); return; } catch {} }
+    setAiWinterLoading(true);
+    apiRequest("POST", "/api/ai/winter-content", {}).then(r => r.json()).then(d => { setAiWinter(d); sessionStorage.setItem("ai_winter", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiWinterLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_back_school");
+    if (cached) { try { setAiBackSchool(JSON.parse(cached)); return; } catch {} }
+    setAiBackSchoolLoading(true);
+    apiRequest("POST", "/api/ai/back-to-school", {}).then(r => r.json()).then(d => { setAiBackSchool(d); sessionStorage.setItem("ai_back_school", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBackSchoolLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_halloween");
+    if (cached) { try { setAiHalloween(JSON.parse(cached)); return; } catch {} }
+    setAiHalloweenLoading(true);
+    apiRequest("POST", "/api/ai/halloween-content", {}).then(r => r.json()).then(d => { setAiHalloween(d); sessionStorage.setItem("ai_halloween", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiHalloweenLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_black_friday");
+    if (cached) { try { setAiBlackFriday(JSON.parse(cached)); return; } catch {} }
+    setAiBlackFridayLoading(true);
+    apiRequest("POST", "/api/ai/black-friday", {}).then(r => r.json()).then(d => { setAiBlackFriday(d); sessionStorage.setItem("ai_black_friday", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBlackFridayLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_christmas");
+    if (cached) { try { setAiChristmas(JSON.parse(cached)); return; } catch {} }
+    setAiChristmasLoading(true);
+    apiRequest("POST", "/api/ai/christmas-content", {}).then(r => r.json()).then(d => { setAiChristmas(d); sessionStorage.setItem("ai_christmas", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiChristmasLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_new_year");
+    if (cached) { try { setAiNewYear(JSON.parse(cached)); return; } catch {} }
+    setAiNewYearLoading(true);
+    apiRequest("POST", "/api/ai/new-year-goals", {}).then(r => r.json()).then(d => { setAiNewYear(d); sessionStorage.setItem("ai_new_year", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiNewYearLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_valentines");
+    if (cached) { try { setAiValentines(JSON.parse(cached)); return; } catch {} }
+    setAiValentinesLoading(true);
+    apiRequest("POST", "/api/ai/valentines", {}).then(r => r.json()).then(d => { setAiValentines(d); sessionStorage.setItem("ai_valentines", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiValentinesLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_easter");
+    if (cached) { try { setAiEaster(JSON.parse(cached)); return; } catch {} }
+    setAiEasterLoading(true);
+    apiRequest("POST", "/api/ai/easter-content", {}).then(r => r.json()).then(d => { setAiEaster(d); sessionStorage.setItem("ai_easter", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiEasterLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_super_bowl");
+    if (cached) { try { setAiSuperBowl(JSON.parse(cached)); return; } catch {} }
+    setAiSuperBowlLoading(true);
+    apiRequest("POST", "/api/ai/super-bowl", {}).then(r => r.json()).then(d => { setAiSuperBowl(d); sessionStorage.setItem("ai_super_bowl", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSuperBowlLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_parents_day");
+    if (cached) { try { setAiParentsDay(JSON.parse(cached)); return; } catch {} }
+    setAiParentsDayLoading(true);
+    apiRequest("POST", "/api/ai/parents-day", {}).then(r => r.json()).then(d => { setAiParentsDay(d); sessionStorage.setItem("ai_parents_day", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiParentsDayLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_graduation");
+    if (cached) { try { setAiGraduation(JSON.parse(cached)); return; } catch {} }
+    setAiGraduationLoading(true);
+    apiRequest("POST", "/api/ai/graduation", {}).then(r => r.json()).then(d => { setAiGraduation(d); sessionStorage.setItem("ai_graduation", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiGraduationLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_world_cup");
+    if (cached) { try { setAiWorldCup(JSON.parse(cached)); return; } catch {} }
+    setAiWorldCupLoading(true);
+    apiRequest("POST", "/api/ai/world-cup", {}).then(r => r.json()).then(d => { setAiWorldCup(d); sessionStorage.setItem("ai_world_cup", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiWorldCupLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_olympics");
+    if (cached) { try { setAiOlympics(JSON.parse(cached)); return; } catch {} }
+    setAiOlympicsLoading(true);
+    apiRequest("POST", "/api/ai/olympics", {}).then(r => r.json()).then(d => { setAiOlympics(d); sessionStorage.setItem("ai_olympics", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiOlympicsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_awards_season");
+    if (cached) { try { setAiAwardsSeason(JSON.parse(cached)); return; } catch {} }
+    setAiAwardsSeasonLoading(true);
+    apiRequest("POST", "/api/ai/awards-season", {}).then(r => r.json()).then(d => { setAiAwardsSeason(d); sessionStorage.setItem("ai_awards_season", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAwardsSeasonLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_music_fest");
+    if (cached) { try { setAiMusicFest(JSON.parse(cached)); return; } catch {} }
+    setAiMusicFestLoading(true);
+    apiRequest("POST", "/api/ai/music-festival", {}).then(r => r.json()).then(d => { setAiMusicFest(d); sessionStorage.setItem("ai_music_fest", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMusicFestLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_gaming_event");
+    if (cached) { try { setAiGamingEvent(JSON.parse(cached)); return; } catch {} }
+    setAiGamingEventLoading(true);
+    apiRequest("POST", "/api/ai/gaming-event", {}).then(r => r.json()).then(d => { setAiGamingEvent(d); sessionStorage.setItem("ai_gaming_event", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiGamingEventLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_prod_hunt");
+    if (cached) { try { setAiProdHunt(JSON.parse(cached)); return; } catch {} }
+    setAiProdHuntLoading(true);
+    apiRequest("POST", "/api/ai/product-hunt", {}).then(r => r.json()).then(d => { setAiProdHunt(d); sessionStorage.setItem("ai_prod_hunt", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiProdHuntLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_spring_content");
+    if (cached) { try { setAiSpringContent(JSON.parse(cached)); return; } catch {} }
+    setAiSpringContentLoading(true);
+    apiRequest("POST", "/api/ai/spring-content", {}).then(r => r.json()).then(d => { setAiSpringContent(d); sessionStorage.setItem("ai_spring_content", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSpringContentLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_autumn_content");
+    if (cached) { try { setAiAutumnContent(JSON.parse(cached)); return; } catch {} }
+    setAiAutumnContentLoading(true);
+    apiRequest("POST", "/api/ai/autumn-content", {}).then(r => r.json()).then(d => { setAiAutumnContent(d); sessionStorage.setItem("ai_autumn_content", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAutumnContentLoading(false));
+  }, []);
+
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
     return arr.slice(0, limit).map((item: any, i: number) => (
