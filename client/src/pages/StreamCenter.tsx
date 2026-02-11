@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff } from "lucide-react";
+import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon } from "@/components/PlatformIcon";
@@ -25,6 +25,15 @@ export default function StreamCenter() {
   const [newStream, setNewStream] = useState({ title: "", description: "", category: "Gaming", platforms: [] as string[] });
   const [aiStreamRecs, setAiStreamRecs] = useState<any>(null);
   const [aiStreamRecsLoading, setAiStreamRecsLoading] = useState(true);
+  const [aiChatBot, setAiChatBot] = useState<any>(null);
+  const [aiChatBotLoading, setAiChatBotLoading] = useState(true);
+  const [aiChecklist, setAiChecklist] = useState<any>(null);
+  const [aiChecklistLoading, setAiChecklistLoading] = useState(true);
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [aiRaid, setAiRaid] = useState<any>(null);
+  const [aiRaidLoading, setAiRaidLoading] = useState(true);
+  const [aiPostReport, setAiPostReport] = useState<any>(null);
+  const [aiPostReportLoading, setAiPostReportLoading] = useState(false);
 
   useEffect(() => {
     const cached = sessionStorage.getItem("aiStreamRecs");
@@ -46,6 +55,51 @@ export default function StreamCenter() {
       } finally {
         setAiStreamRecsLoading(false);
       }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiChatBotConfig");
+    if (cached) {
+      try { setAiChatBot(JSON.parse(cached)); setAiChatBotLoading(false); return; } catch {}
+    }
+    (async () => {
+      try {
+        const res = await apiRequest("POST", "/api/ai/chatbot-config", {});
+        const data = await res.json();
+        setAiChatBot(data);
+        sessionStorage.setItem("aiChatBotConfig", JSON.stringify(data));
+      } catch { setAiChatBot(null); } finally { setAiChatBotLoading(false); }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiStreamChecklist");
+    if (cached) {
+      try { setAiChecklist(JSON.parse(cached)); setAiChecklistLoading(false); return; } catch {}
+    }
+    (async () => {
+      try {
+        const res = await apiRequest("POST", "/api/ai/stream-checklist", {});
+        const data = await res.json();
+        setAiChecklist(data);
+        sessionStorage.setItem("aiStreamChecklist", JSON.stringify(data));
+      } catch { setAiChecklist(null); } finally { setAiChecklistLoading(false); }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiRaidStrategy");
+    if (cached) {
+      try { setAiRaid(JSON.parse(cached)); setAiRaidLoading(false); return; } catch {}
+    }
+    (async () => {
+      try {
+        const res = await apiRequest("POST", "/api/ai/raid-strategy", {});
+        const data = await res.json();
+        setAiRaid(data);
+        sessionStorage.setItem("aiRaidStrategy", JSON.stringify(data));
+      } catch { setAiRaid(null); } finally { setAiRaidLoading(false); }
     })();
   }, []);
 
@@ -101,6 +155,31 @@ export default function StreamCenter() {
     mutationFn: async (data: { streamId: number; title: string; description?: string }) => { const res = await apiRequest("POST", "/api/thumbnails/generate", data); return res.json(); },
     onSuccess: () => { toast({ title: "Thumbnail generated" }); },
   });
+
+  const toggleCheckItem = (key: string) => {
+    setCheckedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const generatePostReport = async (stream: Stream) => {
+    setAiPostReportLoading(true);
+    try {
+      const duration = stream.startedAt && stream.endedAt
+        ? `${Math.round((new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()) / 60000)} minutes`
+        : "unknown";
+      const res = await apiRequest("POST", "/api/ai/post-stream-report", { streamTitle: stream.title, duration });
+      const data = await res.json();
+      setAiPostReport(data);
+    } catch {
+      setAiPostReport(null);
+      toast({ title: "Failed to generate report", variant: "destructive" });
+    } finally {
+      setAiPostReportLoading(false);
+    }
+  };
 
   const toggleStreamPlatform = (platform: string) => {
     setNewStream(prev => ({
@@ -287,6 +366,384 @@ export default function StreamCenter() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground" data-testid="text-ai-recs-empty">Unable to load AI recommendations.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-ai-chatbot">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium">AI Chat Bot Builder</CardTitle>
+            <Badge variant="secondary">Auto-running</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {aiChatBotLoading ? (
+            <div className="space-y-3" data-testid="skeleton-ai-chatbot">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : aiChatBot ? (
+            <div className="space-y-5">
+              {aiChatBot.commands?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-chatbot-commands-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Commands</h3>
+                  <div className="space-y-1.5">
+                    {aiChatBot.commands.map((cmd: any, i: number) => (
+                      <div key={i} data-testid={`text-chatbot-command-${i}`} className="rounded-md border p-2 text-sm space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="text-xs font-mono">{cmd.trigger}</Badge>
+                          {cmd.category && <Badge variant="secondary" className="text-[10px]">{cmd.category}</Badge>}
+                          {cmd.cooldown && <span className="text-xs text-muted-foreground">{cmd.cooldown}s cooldown</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{cmd.response}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiChatBot.autoMessages?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-chatbot-auto-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Auto Messages</h3>
+                  <div className="space-y-1.5">
+                    {aiChatBot.autoMessages.map((msg: any, i: number) => (
+                      <div key={i} data-testid={`text-chatbot-auto-${i}`} className="flex items-start gap-2 text-sm">
+                        <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                        <span>{msg.message} <span className="text-xs text-muted-foreground">({msg.interval})</span></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiChatBot.moderationRules?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-chatbot-moderation-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Moderation Rules</h3>
+                  <div className="space-y-1">
+                    {aiChatBot.moderationRules.map((rule: any, i: number) => (
+                      <p key={i} data-testid={`text-chatbot-rule-${i}`} className="text-sm text-muted-foreground">{typeof rule === 'string' ? rule : rule.rule || rule.description || JSON.stringify(rule)}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiChatBot.loyaltySystem && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-chatbot-loyalty-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Loyalty System</h3>
+                  <div className="text-sm space-y-1">
+                    {aiChatBot.loyaltySystem.pointName && <p data-testid="text-loyalty-point-name">Point name: <span className="font-medium">{aiChatBot.loyaltySystem.pointName}</span></p>}
+                    {aiChatBot.loyaltySystem.earnRate && <p data-testid="text-loyalty-earn-rate">Earn rate: <span className="font-medium">{aiChatBot.loyaltySystem.earnRate}</span></p>}
+                    {aiChatBot.loyaltySystem.rewards?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {aiChatBot.loyaltySystem.rewards.map((r: any, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs">{typeof r === 'string' ? r : r.name || r.reward || JSON.stringify(r)}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {(aiChatBot.welcomeMessage || aiChatBot.raidMessage) && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-chatbot-messages-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Welcome / Raid Messages</h3>
+                  <div className="text-sm space-y-1">
+                    {aiChatBot.welcomeMessage && <p data-testid="text-chatbot-welcome"><span className="font-medium">Welcome:</span> <span className="text-muted-foreground">{aiChatBot.welcomeMessage}</span></p>}
+                    {aiChatBot.raidMessage && <p data-testid="text-chatbot-raid"><span className="font-medium">Raid:</span> <span className="text-muted-foreground">{aiChatBot.raidMessage}</span></p>}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid="text-chatbot-empty">Unable to load chatbot config.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-ai-checklist">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium">AI Stream Checklist</CardTitle>
+            <Badge variant="secondary">Auto-running</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {aiChecklistLoading ? (
+            <div className="space-y-3" data-testid="skeleton-ai-checklist">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : aiChecklist ? (
+            <div className="space-y-5">
+              {aiChecklist.preStream?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-checklist-pre-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pre-Stream</h3>
+                  <div className="space-y-1.5">
+                    {aiChecklist.preStream.map((item: any, i: number) => {
+                      const key = `pre-${i}`;
+                      const label = typeof item === 'string' ? item : item.task || item.item || item.label || JSON.stringify(item);
+                      return (
+                        <button key={i} data-testid={`checkbox-pre-${i}`} className="flex items-center gap-2 text-sm w-full text-left" onClick={() => toggleCheckItem(key)}>
+                          {checkedItems.has(key) ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> : <div className="h-4 w-4 rounded-full border border-muted-foreground/30 shrink-0" />}
+                          <span className={checkedItems.has(key) ? "line-through text-muted-foreground" : ""}>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {aiChecklist.duringStream?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-checklist-during-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">During Stream</h3>
+                  <div className="space-y-1">
+                    {aiChecklist.duringStream.map((item: any, i: number) => (
+                      <div key={i} data-testid={`text-during-${i}`} className="flex items-start gap-2 text-sm">
+                        <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                        <span className="text-muted-foreground">{typeof item === 'string' ? item : item.reminder || item.task || item.item || JSON.stringify(item)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiChecklist.postStream?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-checklist-post-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Post-Stream</h3>
+                  <div className="space-y-1.5">
+                    {aiChecklist.postStream.map((item: any, i: number) => {
+                      const key = `post-${i}`;
+                      const label = typeof item === 'string' ? item : item.task || item.item || item.label || JSON.stringify(item);
+                      return (
+                        <button key={i} data-testid={`checkbox-post-${i}`} className="flex items-center gap-2 text-sm w-full text-left" onClick={() => toggleCheckItem(key)}>
+                          {checkedItems.has(key) ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> : <div className="h-4 w-4 rounded-full border border-muted-foreground/30 shrink-0" />}
+                          <span className={checkedItems.has(key) ? "line-through text-muted-foreground" : ""}>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {aiChecklist.emergencyPlan && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-checklist-emergency-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Emergency Plan</h3>
+                  <div className="text-sm text-muted-foreground">
+                    {typeof aiChecklist.emergencyPlan === 'string' ? (
+                      <p data-testid="text-emergency-plan">{aiChecklist.emergencyPlan}</p>
+                    ) : Array.isArray(aiChecklist.emergencyPlan) ? (
+                      aiChecklist.emergencyPlan.map((item: any, i: number) => (
+                        <p key={i} data-testid={`text-emergency-${i}`}>{typeof item === 'string' ? item : item.step || item.action || JSON.stringify(item)}</p>
+                      ))
+                    ) : (
+                      <p data-testid="text-emergency-plan">{JSON.stringify(aiChecklist.emergencyPlan)}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid="text-checklist-empty">Unable to load checklist.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-ai-raid">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium">AI Raid Strategy</CardTitle>
+            <Badge variant="secondary">Auto-running</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {aiRaidLoading ? (
+            <div className="space-y-3" data-testid="skeleton-ai-raid">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : aiRaid ? (
+            <div className="space-y-5">
+              {aiRaid.raidTargets?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-raid-targets-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Raid Targets</h3>
+                  <div className="space-y-1.5">
+                    {aiRaid.raidTargets.map((target: any, i: number) => (
+                      <div key={i} data-testid={`card-raid-target-${i}`} className="rounded-md border p-2 text-sm space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{target.channel || target.name}</span>
+                          {target.audienceOverlap && <Badge variant="secondary" className="text-[10px]">{target.audienceOverlap}</Badge>}
+                        </div>
+                        {target.reason && <p className="text-xs text-muted-foreground">{target.reason}</p>}
+                        {target.bestTiming && <p className="text-xs text-muted-foreground">Best timing: {target.bestTiming}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiRaid.etiquetteTips?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-raid-etiquette-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Raid Etiquette</h3>
+                  <div className="space-y-1">
+                    {aiRaid.etiquetteTips.map((tip: any, i: number) => (
+                      <p key={i} data-testid={`text-etiquette-${i}`} className="text-sm text-muted-foreground">{typeof tip === 'string' ? tip : tip.tip || JSON.stringify(tip)}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiRaid.networkingStrategy && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-raid-networking-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Networking Strategy</h3>
+                  <div className="text-sm text-muted-foreground">
+                    {typeof aiRaid.networkingStrategy === 'string' ? (
+                      <p data-testid="text-networking-strategy">{aiRaid.networkingStrategy}</p>
+                    ) : Array.isArray(aiRaid.networkingStrategy) ? (
+                      aiRaid.networkingStrategy.map((s: any, i: number) => (
+                        <p key={i} data-testid={`text-networking-${i}`}>{typeof s === 'string' ? s : s.strategy || JSON.stringify(s)}</p>
+                      ))
+                    ) : (
+                      <p data-testid="text-networking-strategy">{JSON.stringify(aiRaid.networkingStrategy)}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {aiRaid.incomingRaidPlan && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-raid-incoming-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Incoming Raid Plan</h3>
+                  <div className="text-sm text-muted-foreground">
+                    {typeof aiRaid.incomingRaidPlan === 'string' ? (
+                      <p data-testid="text-incoming-raid">{aiRaid.incomingRaidPlan}</p>
+                    ) : Array.isArray(aiRaid.incomingRaidPlan) ? (
+                      aiRaid.incomingRaidPlan.map((item: any, i: number) => (
+                        <p key={i} data-testid={`text-incoming-raid-${i}`}>{typeof item === 'string' ? item : item.step || item.action || JSON.stringify(item)}</p>
+                      ))
+                    ) : (
+                      <p data-testid="text-incoming-raid">{JSON.stringify(aiRaid.incomingRaidPlan)}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid="text-raid-empty">Unable to load raid strategy.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-ai-post-stream">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium">AI Post-Stream Report</CardTitle>
+          </div>
+          {pastStreams.length > 0 && !aiPostReport && (
+            <Button data-testid="button-generate-report" size="sm" variant="outline" onClick={() => generatePostReport(pastStreams[0])} disabled={aiPostReportLoading}>
+              {aiPostReportLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+              Generate Report
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {aiPostReportLoading ? (
+            <div className="space-y-3" data-testid="skeleton-ai-post-report">
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : aiPostReport ? (
+            <div className="space-y-5">
+              {aiPostReport.grade && (
+                <div className="flex items-center gap-3" data-testid="text-report-grade">
+                  <span className={`text-3xl font-bold ${aiPostReport.grade === 'A' || aiPostReport.grade === 'A+' ? 'text-emerald-500' : aiPostReport.grade === 'B' || aiPostReport.grade === 'B+' ? 'text-blue-500' : aiPostReport.grade === 'C' || aiPostReport.grade === 'C+' ? 'text-amber-500' : 'text-red-500'}`}>
+                    {aiPostReport.grade}
+                  </span>
+                  <span className="text-sm text-muted-foreground">Stream Grade</span>
+                </div>
+              )}
+              {aiPostReport.summary && (
+                <div className="space-y-1">
+                  <h3 data-testid="text-report-summary-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Summary</h3>
+                  <p data-testid="text-report-summary" className="text-sm">{aiPostReport.summary}</p>
+                </div>
+              )}
+              {aiPostReport.highlights?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-report-highlights-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Highlights</h3>
+                  <div className="space-y-1">
+                    {aiPostReport.highlights.map((h: any, i: number) => (
+                      <div key={i} data-testid={`text-highlight-${i}`} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
+                        <span>{typeof h === 'string' ? h : h.highlight || h.description || JSON.stringify(h)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiPostReport.improvements?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-report-improvements-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Improvements</h3>
+                  <div className="space-y-1">
+                    {aiPostReport.improvements.map((imp: any, i: number) => (
+                      <div key={i} data-testid={`text-improvement-${i}`} className="flex items-start gap-2 text-sm">
+                        <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                        <span>{typeof imp === 'string' ? imp : imp.improvement || imp.description || JSON.stringify(imp)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiPostReport.recommendations?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-report-recs-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recommendations</h3>
+                  <div className="space-y-1.5">
+                    {aiPostReport.recommendations.map((rec: any, i: number) => (
+                      <div key={i} data-testid={`text-recommendation-${i}`} className="flex items-start gap-2 text-sm">
+                        <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                        <div>
+                          <span>{typeof rec === 'string' ? rec : rec.recommendation || rec.description || rec.title || JSON.stringify(rec)}</span>
+                          {rec.impact && <Badge variant="secondary" className="ml-1.5 text-[10px]">{rec.impact}</Badge>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiPostReport.clipSuggestions?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-report-clips-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Clip Suggestions</h3>
+                  <div className="space-y-1.5">
+                    {aiPostReport.clipSuggestions.map((clip: any, i: number) => (
+                      <div key={i} data-testid={`text-clip-${i}`} className="rounded-md border p-2 text-sm">
+                        <p className="font-medium">{typeof clip === 'string' ? clip : clip.title || clip.description || JSON.stringify(clip)}</p>
+                        {clip.timestamp && <p className="text-xs text-muted-foreground mt-0.5">{clip.timestamp}</p>}
+                        {clip.reason && <p className="text-xs text-muted-foreground">{clip.reason}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiPostReport.socialRecaps?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 data-testid="text-report-social-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Social Recaps</h3>
+                  <div className="space-y-1.5">
+                    {aiPostReport.socialRecaps.map((recap: any, i: number) => (
+                      <div key={i} data-testid={`text-social-recap-${i}`} className="rounded-md border p-2 text-sm">
+                        {recap.platform && <Badge variant="outline" className="text-[10px] mb-1">{recap.platform}</Badge>}
+                        <p className="text-muted-foreground">{typeof recap === 'string' ? recap : recap.text || recap.content || recap.message || JSON.stringify(recap)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : pastStreams.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="text-post-report-empty">No past streams available for reporting.</p>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid="text-post-report-prompt">Click "Generate Report" to analyze your most recent stream: <span className="font-medium">{pastStreams[0]?.title}</span></p>
           )}
         </CardContent>
       </Card>

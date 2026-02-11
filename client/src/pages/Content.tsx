@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Search, PlayCircle, Video, Radio, Calendar, Plus, Trash2,
   RefreshCw, Loader2, CheckCircle2, Circle, ExternalLink, Sparkles,
+  FileText, BarChart3, Hash, Share2, CalendarDays, Image, ListOrdered, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
@@ -98,6 +99,36 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [aiContentIdeas, setAiContentIdeas] = useState<any>(null);
   const [aiIdeasLoading, setAiIdeasLoading] = useState(false);
 
+  const [kwData, setKwData] = useState<any>(null);
+  const [kwLoading, setKwLoading] = useState(false);
+  const [calData, setCalData] = useState<any>(null);
+  const [calLoading, setCalLoading] = useState(false);
+
+  const [scriptTopic, setScriptTopic] = useState("");
+  const [scriptStyle, setScriptStyle] = useState("educational");
+  const [scriptDuration, setScriptDuration] = useState("10");
+  const [scriptResult, setScriptResult] = useState<any>(null);
+  const [scriptLoading, setScriptLoading] = useState(false);
+  const [scriptExpanded, setScriptExpanded] = useState(false);
+
+  const [repurposeVideo, setRepurposeVideo] = useState("");
+  const [repurposePlatform, setRepurposePlatform] = useState("");
+  const [repurposeResult, setRepurposeResult] = useState<any>(null);
+  const [repurposeLoading, setRepurposeLoading] = useState(false);
+
+  const [chapterTitle, setChapterTitle] = useState("");
+  const [chapterDesc, setChapterDesc] = useState("");
+  const [chapterResult, setChapterResult] = useState<any>(null);
+  const [chapterLoading, setChapterLoading] = useState(false);
+
+  const [seoVideoId, setSeoVideoId] = useState<number | null>(null);
+  const [seoResult, setSeoResult] = useState<any>(null);
+  const [seoLoading, setSeoLoading] = useState(false);
+
+  const [thumbVideoId, setThumbVideoId] = useState<number | null>(null);
+  const [thumbResult, setThumbResult] = useState<any>(null);
+  const [thumbLoading, setThumbLoading] = useState(false);
+
   useEffect(() => {
     const cached = sessionStorage.getItem("aiContentIdeas");
     if (cached) {
@@ -116,6 +147,100 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
       .catch(() => {})
       .finally(() => setAiIdeasLoading(false));
   }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiKeywordResearch");
+    if (cached) {
+      try { setKwData(JSON.parse(cached)); return; } catch {}
+    }
+    setKwLoading(true);
+    apiRequest("POST", "/api/ai/keyword-research", { niche: "content creation" })
+      .then((res) => res.json())
+      .then((data) => {
+        setKwData(data);
+        sessionStorage.setItem("aiKeywordResearch", JSON.stringify(data));
+      })
+      .catch(() => {})
+      .finally(() => setKwLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiContentCalendar");
+    if (cached) {
+      try { setCalData(JSON.parse(cached)); return; } catch {}
+    }
+    setCalLoading(true);
+    apiRequest("POST", "/api/ai/content-calendar", {})
+      .then((res) => res.json())
+      .then((data) => {
+        setCalData(data);
+        sessionStorage.setItem("aiContentCalendar", JSON.stringify(data));
+      })
+      .catch(() => {})
+      .finally(() => setCalLoading(false));
+  }, []);
+
+  const handleScriptSubmit = async () => {
+    if (!scriptTopic.trim()) return;
+    setScriptLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/ai/script-writer", { topic: scriptTopic, style: scriptStyle, duration: scriptDuration });
+      const data = await res.json();
+      setScriptResult(data);
+      setScriptExpanded(true);
+    } catch {}
+    setScriptLoading(false);
+  };
+
+  const handleRepurpose = async () => {
+    if (!repurposeVideo || !repurposePlatform) return;
+    setRepurposeLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/ai/repurpose", { videoTitle: repurposeVideo, platform: repurposePlatform });
+      setRepurposeResult(await res.json());
+    } catch {}
+    setRepurposeLoading(false);
+  };
+
+  const handleChapterSubmit = async () => {
+    if (!chapterTitle.trim()) return;
+    setChapterLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/ai/chapter-markers", { title: chapterTitle, description: chapterDesc });
+      setChapterResult(await res.json());
+    } catch {}
+    setChapterLoading(false);
+  };
+
+  const handleSeoAudit = async (video: any) => {
+    setSeoVideoId(video.id);
+    setSeoLoading(true);
+    setSeoResult(null);
+    try {
+      const res = await apiRequest("POST", "/api/ai/seo-audit", {
+        videoTitle: video.title,
+        description: video.metadata?.description || "",
+        tags: video.metadata?.tags || [],
+      });
+      setSeoResult(await res.json());
+    } catch {}
+    setSeoLoading(false);
+  };
+
+  const handleThumbnails = async (video: any) => {
+    setThumbVideoId(video.id);
+    setThumbLoading(true);
+    setThumbResult(null);
+    try {
+      const res = await apiRequest("POST", "/api/ai/thumbnail-concepts", { videoTitle: video.title });
+      setThumbResult(await res.json());
+    } catch {}
+    setThumbLoading(false);
+  };
+
+  useEffect(() => {
+    if (repurposeVideo && repurposePlatform) handleRepurpose();
+  }, [repurposeVideo, repurposePlatform]);
 
   const filteredVideos = useMemo(() => {
     if (!videos) return [];
@@ -198,6 +323,282 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
         </Card>
       ) : null}
 
+      {kwLoading ? (
+        <Skeleton className="h-36 rounded-md" />
+      ) : kwData ? (
+        <Card data-testid="card-ai-keyword-research" className="overflow-visible">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Hash className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">AI Keyword Research</span>
+              <Badge variant="secondary">Auto-generated</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {kwData.primaryKeywords && kwData.primaryKeywords.length > 0 && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Primary</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {kwData.primaryKeywords.map((kw: any, i: number) => (
+                      <Badge key={i} variant="outline" className="text-[10px]" data-testid={`keyword-primary-${i}`}>
+                        {typeof kw === "string" ? kw : kw.keyword || kw.term}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {kwData.longTailKeywords && kwData.longTailKeywords.length > 0 && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Long-tail</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {kwData.longTailKeywords.map((kw: any, i: number) => (
+                      <Badge key={i} variant="outline" className="text-[10px]" data-testid={`keyword-longtail-${i}`}>
+                        {typeof kw === "string" ? kw : kw.keyword || kw.term}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {kwData.trendingKeywords && kwData.trendingKeywords.length > 0 && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trending</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {kwData.trendingKeywords.map((kw: any, i: number) => (
+                      <Badge key={i} variant="secondary" className="text-[10px]" data-testid={`keyword-trending-${i}`}>
+                        {typeof kw === "string" ? kw : kw.keyword || kw.term}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {kwData.contentGaps && kwData.contentGaps.length > 0 && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Content Gaps</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {kwData.contentGaps.map((gap: any, i: number) => (
+                      <Badge key={i} variant="outline" className="text-[10px]" data-testid={`keyword-gap-${i}`}>
+                        {typeof gap === "string" ? gap : gap.keyword || gap.topic || gap.term}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {calLoading ? (
+        <Skeleton className="h-48 rounded-md" />
+      ) : calData ? (
+        <Card data-testid="card-ai-content-calendar" className="overflow-visible">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">AI Content Calendar</span>
+              <Badge variant="secondary">Auto-generated</Badge>
+            </div>
+            {calData.monthPlan && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                {(Array.isArray(calData.monthPlan) ? calData.monthPlan : Object.entries(calData.monthPlan).map(([k, v]: any) => ({ week: k, ...v }))).map((week: any, i: number) => (
+                  <div key={i} className="border rounded-md p-2 space-y-1" data-testid={`calendar-week-${i}`}>
+                    <span className="text-xs font-semibold">{week.week || week.title || `Week ${i + 1}`}</span>
+                    {(week.topics || week.content || week.items || []).map((item: any, j: number) => (
+                      <p key={j} className="text-xs text-muted-foreground">{typeof item === "string" ? item : item.title || item.topic}</p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-4">
+              {calData.contentMix && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Content Mix</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {Object.entries(calData.contentMix).map(([type, pct]: any) => (
+                      <Badge key={type} variant="outline" className="text-[10px]">{type}: {pct}%</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {calData.seasonalOpportunities && calData.seasonalOpportunities.length > 0 && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Seasonal</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {calData.seasonalOpportunities.map((opp: any, i: number) => (
+                      <Badge key={i} variant="secondary" className="text-[10px]">
+                        {typeof opp === "string" ? opp : opp.title || opp.event || opp.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card data-testid="card-ai-script-writer" className="overflow-visible">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <FileText className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">AI Script Writer</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              data-testid="input-script-topic"
+              placeholder="Video topic..."
+              value={scriptTopic}
+              onChange={(e) => setScriptTopic(e.target.value)}
+            />
+            <Select value={scriptStyle} onValueChange={setScriptStyle}>
+              <SelectTrigger data-testid="select-script-style"><SelectValue placeholder="Style" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="educational">Educational</SelectItem>
+                <SelectItem value="entertaining">Entertaining</SelectItem>
+                <SelectItem value="tutorial">Tutorial</SelectItem>
+                <SelectItem value="vlog">Vlog</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={scriptDuration} onValueChange={setScriptDuration}>
+              <SelectTrigger data-testid="select-script-duration"><SelectValue placeholder="Duration" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5 min</SelectItem>
+                <SelectItem value="10">10 min</SelectItem>
+                <SelectItem value="15">15 min</SelectItem>
+                <SelectItem value="20">20 min</SelectItem>
+                <SelectItem value="30">30 min</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button size="sm" onClick={handleScriptSubmit} disabled={scriptLoading || !scriptTopic.trim()} data-testid="button-generate-script">
+            {scriptLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+            Generate Script
+          </Button>
+          {scriptResult && (
+            <div className="border rounded-md p-3 space-y-2">
+              <button
+                className="flex items-center gap-1 text-sm font-medium w-full text-left"
+                onClick={() => setScriptExpanded(!scriptExpanded)}
+                data-testid="button-toggle-script"
+              >
+                {scriptExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                Script Result
+              </button>
+              {scriptExpanded && (
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  {scriptResult.hook && (
+                    <div><span className="font-semibold text-foreground">Hook:</span> {scriptResult.hook}</div>
+                  )}
+                  {scriptResult.sections && scriptResult.sections.map((sec: any, i: number) => (
+                    <div key={i} data-testid={`script-section-${i}`}>
+                      <span className="font-semibold text-foreground">{sec.title || `Section ${i + 1}`}:</span> {sec.content || sec.description || sec.text}
+                    </div>
+                  ))}
+                  {scriptResult.cta && (
+                    <div><span className="font-semibold text-foreground">CTA:</span> {scriptResult.cta}</div>
+                  )}
+                  {scriptResult.chapters && scriptResult.chapters.length > 0 && (
+                    <div>
+                      <span className="font-semibold text-foreground">Chapters:</span>
+                      <ul className="list-disc list-inside ml-2 mt-0.5">
+                        {scriptResult.chapters.map((ch: any, i: number) => (
+                          <li key={i}>{typeof ch === "string" ? ch : `${ch.timestamp || ch.time || ""} ${ch.title || ch.name || ""}`}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {scriptResult.thumbnailIdea && (
+                    <div><span className="font-semibold text-foreground">Thumbnail Idea:</span> {typeof scriptResult.thumbnailIdea === "string" ? scriptResult.thumbnailIdea : scriptResult.thumbnailIdea.description || JSON.stringify(scriptResult.thumbnailIdea)}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-ai-repurpose" className="overflow-visible">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Share2 className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">AI Repurpose Hub</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select value={repurposeVideo} onValueChange={(v) => setRepurposeVideo(v)}>
+              <SelectTrigger data-testid="select-repurpose-video"><SelectValue placeholder="Select a video" /></SelectTrigger>
+              <SelectContent>
+                {(videos || []).map((v) => (
+                  <SelectItem key={v.id} value={v.title}>{v.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={repurposePlatform} onValueChange={(v) => setRepurposePlatform(v)}>
+              <SelectTrigger data-testid="select-repurpose-platform"><SelectValue placeholder="Target platform" /></SelectTrigger>
+              <SelectContent>
+                {["Twitter", "Instagram", "LinkedIn", "Blog", "Newsletter", "Pinterest", "Podcast"].map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {repurposeLoading && <Skeleton className="h-24 rounded-md" />}
+          {repurposeResult && !repurposeLoading && (
+            <div className="border rounded-md p-3 space-y-2 text-xs text-muted-foreground">
+              {repurposeResult.content && (
+                <div><span className="font-semibold text-foreground">Content:</span> <p className="mt-0.5 whitespace-pre-wrap">{repurposeResult.content}</p></div>
+              )}
+              {repurposeResult.hashtags && repurposeResult.hashtags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {repurposeResult.hashtags.map((tag: string, i: number) => (
+                    <Badge key={i} variant="outline" className="text-[10px]" data-testid={`repurpose-hashtag-${i}`}>{tag}</Badge>
+                  ))}
+                </div>
+              )}
+              {repurposeResult.mediaInstructions && (
+                <div><span className="font-semibold text-foreground">Media:</span> {repurposeResult.mediaInstructions}</div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-ai-chapters" className="overflow-visible">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <ListOrdered className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">AI Chapter Markers</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              data-testid="input-chapter-title"
+              placeholder="Video title..."
+              value={chapterTitle}
+              onChange={(e) => setChapterTitle(e.target.value)}
+            />
+            <Input
+              data-testid="input-chapter-desc"
+              placeholder="Description (optional)..."
+              value={chapterDesc}
+              onChange={(e) => setChapterDesc(e.target.value)}
+            />
+          </div>
+          <Button size="sm" onClick={handleChapterSubmit} disabled={chapterLoading || !chapterTitle.trim()} data-testid="button-generate-chapters">
+            {chapterLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+            Generate Chapters
+          </Button>
+          {chapterResult && (
+            <div className="border rounded-md p-3 space-y-1 text-xs text-muted-foreground">
+              {(chapterResult.chapters || []).map((ch: any, i: number) => (
+                <div key={i} className="flex gap-2" data-testid={`chapter-marker-${i}`}>
+                  <span className="font-mono font-semibold text-foreground shrink-0">{ch.timestamp || ch.time || "0:00"}</span>
+                  <span>{ch.title || ch.name || ch.description}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex gap-2 flex-wrap">
           {["all", "vod", "short", "live_replay"].map((t) => (
@@ -254,10 +655,83 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
                 {video.platform && (
                   <span className="text-[11px] text-muted-foreground capitalize">{video.platform}</span>
                 )}
+                <div className="flex gap-1 mt-1 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={() => handleSeoAudit(video)} disabled={seoLoading && seoVideoId === video.id} data-testid={`button-seo-audit-${video.id}`}>
+                    {seoLoading && seoVideoId === video.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <BarChart3 className="h-3 w-3 mr-1" />}
+                    SEO Audit
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleThumbnails(video)} disabled={thumbLoading && thumbVideoId === video.id} data-testid={`button-thumbnail-ideas-${video.id}`}>
+                    {thumbLoading && thumbVideoId === video.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Image className="h-3 w-3 mr-1" />}
+                    Thumbnail Ideas
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      )}
+
+      {seoResult && seoVideoId !== null && (
+        <Card data-testid="card-ai-seo-audit" className="overflow-visible">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">AI SEO Audit</span>
+              <Badge variant="secondary">Auto-generated</Badge>
+              <Button size="sm" variant="ghost" onClick={() => { setSeoResult(null); setSeoVideoId(null); }} data-testid="button-close-seo">
+                Close
+              </Button>
+            </div>
+            {seoResult.overallScore != null && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="text-2xl font-bold">{seoResult.overallScore}<span className="text-sm font-normal text-muted-foreground">/100</span></div>
+                {seoResult.titleScore != null && <Badge variant="outline" className="text-[10px]">Title: {seoResult.titleScore}/100</Badge>}
+                {seoResult.descriptionScore != null && <Badge variant="outline" className="text-[10px]">Desc: {seoResult.descriptionScore}/100</Badge>}
+                {seoResult.tagScore != null && <Badge variant="outline" className="text-[10px]">Tags: {seoResult.tagScore}/100</Badge>}
+              </div>
+            )}
+            {seoResult.quickWins && seoResult.quickWins.length > 0 && (
+              <div>
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quick Wins</span>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  {seoResult.quickWins.map((win: any, i: number) => (
+                    <li key={i} className="text-xs text-muted-foreground" data-testid={`seo-quickwin-${i}`}>
+                      {typeof win === "string" ? win : win.suggestion || win.title || win.description}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {thumbResult && thumbVideoId !== null && (
+        <Card data-testid="card-ai-thumbnails" className="overflow-visible">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Image className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">AI Thumbnail Concepts</span>
+              <Badge variant="secondary">Auto-generated</Badge>
+              <Button size="sm" variant="ghost" onClick={() => { setThumbResult(null); setThumbVideoId(null); }} data-testid="button-close-thumbnails">
+                Close
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {(thumbResult.concepts || thumbResult.thumbnails || []).slice(0, 3).map((concept: any, i: number) => (
+                <div key={i} className="border rounded-md p-3 space-y-1" data-testid={`thumbnail-concept-${i}`}>
+                  <span className="text-xs font-semibold">Concept {i + 1}</span>
+                  {concept.layout && <p className="text-xs text-muted-foreground">{concept.layout}</p>}
+                  {concept.description && <p className="text-xs text-muted-foreground">{concept.description}</p>}
+                  {concept.textOverlay && <p className="text-xs"><span className="font-medium">Text:</span> {concept.textOverlay}</p>}
+                  {concept.predictedCTR != null && (
+                    <Badge variant="outline" className="text-[10px]">CTR: {concept.predictedCTR}%</Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

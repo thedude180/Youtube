@@ -55,6 +55,33 @@ function GeneralTab() {
   const { user, logout, isLoggingOut } = useAuth();
   const { data: channels } = useChannels();
   const [activePreset, setActivePreset] = useState<"safe" | "normal" | "aggressive">("normal");
+  const [aiTeam, setAiTeam] = useState<any>(null);
+  const [aiTeamLoading, setAiTeamLoading] = useState(true);
+  const [aiAutomations, setAiAutomations] = useState<any>(null);
+  const [aiAutomationsLoading, setAiAutomationsLoading] = useState(true);
+
+  useEffect(() => {
+    const cachedTeam = sessionStorage.getItem("aiTeamManager");
+    if (cachedTeam) {
+      try { setAiTeam(JSON.parse(cachedTeam)); setAiTeamLoading(false); } catch { setAiTeamLoading(false); }
+    } else {
+      apiRequest("POST", "/api/ai/team-manager")
+        .then((res) => res.json())
+        .then((data) => { setAiTeam(data); sessionStorage.setItem("aiTeamManager", JSON.stringify(data)); })
+        .catch(() => {})
+        .finally(() => setAiTeamLoading(false));
+    }
+    const cachedAuto = sessionStorage.getItem("aiAutomationBuilder");
+    if (cachedAuto) {
+      try { setAiAutomations(JSON.parse(cachedAuto)); setAiAutomationsLoading(false); } catch { setAiAutomationsLoading(false); }
+    } else {
+      apiRequest("POST", "/api/ai/automation-builder")
+        .then((res) => res.json())
+        .then((data) => { setAiAutomations(data); sessionStorage.setItem("aiAutomationBuilder", JSON.stringify(data)); })
+        .catch(() => {})
+        .finally(() => setAiAutomationsLoading(false));
+    }
+  }, []);
 
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
     const stored = localStorage.getItem("humanReviewMode");
@@ -253,6 +280,149 @@ function GeneralTab() {
           </div>
         </CardContent>
       </Card>
+
+      {aiTeamLoading ? (
+        <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-team" />
+      ) : aiTeam ? (
+        <Card data-testid="card-ai-team">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-2">
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Team Manager
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiTeam.recommendedRoles?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Recommended Roles</p>
+                <div className="space-y-3">
+                  {aiTeam.recommendedRoles.map((role: any, i: number) => (
+                    <div key={i} className="bg-muted/50 rounded-md p-3 space-y-1" data-testid={`team-role-${i}`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{role.role}</p>
+                        {role.priority && <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{role.priority}</Badge>}
+                      </div>
+                      {role.responsibilities && <p className="text-xs text-muted-foreground">{Array.isArray(role.responsibilities) ? role.responsibilities.join(", ") : role.responsibilities}</p>}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {role.cost && <span className="text-xs text-muted-foreground">Cost: {role.cost}</span>}
+                        {role.roi && <span className="text-xs text-emerald-500">ROI: {role.roi}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiTeam.workflowSteps?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Workflow Steps</p>
+                <ol className="text-xs text-muted-foreground space-y-0.5 pl-4 list-decimal">
+                  {aiTeam.workflowSteps.map((step: any, i: number) => (
+                    <li key={i} data-testid={`workflow-step-${i}`}>{typeof step === "string" ? step : step.name || step.step}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {aiTeam.approvalFlow && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Approval Flow</p>
+                <p className="text-sm" data-testid="text-approval-flow">{typeof aiTeam.approvalFlow === "string" ? aiTeam.approvalFlow : JSON.stringify(aiTeam.approvalFlow)}</p>
+              </div>
+            )}
+            {aiTeam.delegationPlan && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Delegation Plan</p>
+                <p className="text-sm" data-testid="text-delegation-plan">{typeof aiTeam.delegationPlan === "string" ? aiTeam.delegationPlan : JSON.stringify(aiTeam.delegationPlan)}</p>
+              </div>
+            )}
+            {aiTeam.communicationPlan && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Communication Plan</p>
+                <p className="text-sm" data-testid="text-communication-plan">{typeof aiTeam.communicationPlan === "string" ? aiTeam.communicationPlan : JSON.stringify(aiTeam.communicationPlan)}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {aiAutomationsLoading ? (
+        <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-automations" />
+      ) : aiAutomations ? (
+        <Card data-testid="card-ai-automations">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-2">
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Automation Builder
+            </CardTitle>
+            {aiAutomations.totalTimeSaved && (
+              <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate no-default-active-elevate" data-testid="badge-total-time-saved">
+                {aiAutomations.totalTimeSaved} saved
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiAutomations.automations?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Automations</p>
+                <div className="space-y-2">
+                  {aiAutomations.automations.map((auto: any, i: number) => (
+                    <div key={i} className="bg-muted/50 rounded-md p-3 space-y-1" data-testid={`automation-${i}`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{auto.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {auto.timeSaved && <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{auto.timeSaved}</Badge>}
+                          <Switch
+                            checked={auto.enabled !== false}
+                            data-testid={`switch-automation-${i}`}
+                            onCheckedChange={() => {}}
+                          />
+                        </div>
+                      </div>
+                      {auto.trigger && <p className="text-xs text-muted-foreground">Trigger: {auto.trigger}</p>}
+                      {auto.actions && (
+                        <p className="text-xs text-muted-foreground">Actions: {Array.isArray(auto.actions) ? auto.actions.join(", ") : auto.actions}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiAutomations.chains?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Chains</p>
+                <div className="space-y-2">
+                  {aiAutomations.chains.map((chain: any, i: number) => (
+                    <div key={i} className="bg-muted/50 rounded-md p-3" data-testid={`chain-${i}`}>
+                      <p className="text-sm font-medium">{chain.name}</p>
+                      {chain.description && <p className="text-xs text-muted-foreground">{chain.description}</p>}
+                      {chain.steps?.length > 0 && (
+                        <ol className="text-xs text-muted-foreground space-y-0.5 pl-4 list-decimal mt-1">
+                          {chain.steps.map((step: any, j: number) => <li key={j}>{typeof step === "string" ? step : step.name || step.action}</li>)}
+                        </ol>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiAutomations.schedules?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Schedules</p>
+                <div className="space-y-2">
+                  {aiAutomations.schedules.map((sched: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-2 flex-wrap" data-testid={`schedule-${i}`}>
+                      <div>
+                        <p className="text-sm font-medium">{sched.name}</p>
+                        {sched.description && <p className="text-xs text-muted-foreground">{sched.description}</p>}
+                      </div>
+                      {sched.frequency && <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{sched.frequency}</Badge>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
@@ -568,6 +738,20 @@ function CollabsTab() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [aiCollab, setAiCollab] = useState<any>(null);
+  const [aiCollabLoading, setAiCollabLoading] = useState(true);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiCollabMatchmaker");
+    if (cached) {
+      try { setAiCollab(JSON.parse(cached)); setAiCollabLoading(false); return; } catch {}
+    }
+    apiRequest("POST", "/api/ai/collab-matchmaker")
+      .then((res) => res.json())
+      .then((data) => { setAiCollab(data); sessionStorage.setItem("aiCollabMatchmaker", JSON.stringify(data)); })
+      .catch(() => {})
+      .finally(() => setAiCollabLoading(false));
+  }, []);
 
   const { data: leads, isLoading } = useQuery<any[]>({ queryKey: ['/api/collaboration-leads'] });
 
@@ -604,6 +788,78 @@ function CollabsTab() {
 
   return (
     <div className="space-y-6">
+      {aiCollabLoading ? (
+        <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-collab" />
+      ) : aiCollab ? (
+        <Card data-testid="card-ai-collab-matchmaker">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-2">
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Collab Matchmaker
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiCollab.idealPartnerTypes?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Ideal Partner Types</p>
+                <div className="space-y-3">
+                  {aiCollab.idealPartnerTypes.map((p: any, i: number) => (
+                    <div key={i} className="bg-muted/50 rounded-md p-3 space-y-1" data-testid={`partner-type-${i}`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{p.type}</p>
+                        {p.audienceSize && <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{p.audienceSize}</Badge>}
+                      </div>
+                      {p.nicheOverlap && <p className="text-xs text-muted-foreground">Niche Overlap: {p.nicheOverlap}</p>}
+                      {p.collabFormat && <p className="text-xs text-muted-foreground">Format: {p.collabFormat}</p>}
+                      {p.expectedBenefit && <p className="text-xs text-emerald-500">Benefit: {p.expectedBenefit}</p>}
+                      {p.outreachTemplate && (
+                        <div className="mt-1">
+                          <p className="text-xs font-medium text-muted-foreground">Outreach Template</p>
+                          <p className="text-xs text-muted-foreground italic">{p.outreachTemplate}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiCollab.collabFormats?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Collab Formats</p>
+                <div className="grid gap-2">
+                  {aiCollab.collabFormats.map((f: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-2 flex-wrap" data-testid={`collab-format-${i}`}>
+                      <div>
+                        <p className="text-sm font-medium">{f.formatName || f.name}</p>
+                        {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {f.effortLevel && <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{f.effortLevel}</Badge>}
+                        {f.impact && <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate no-default-active-elevate">{f.impact}</Badge>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiCollab.networkingTips?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Networking Tips</p>
+                <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
+                  {aiCollab.networkingTips.map((tip: string, i: number) => <li key={i} data-testid={`networking-tip-${i}`}>{tip}</li>)}
+                </ul>
+              </div>
+            )}
+            {aiCollab.collabCalendar && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Collab Calendar Suggestion</p>
+                <p className="text-sm" data-testid="text-collab-calendar">{typeof aiCollab.collabCalendar === "string" ? aiCollab.collabCalendar : JSON.stringify(aiCollab.collabCalendar)}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <div>
           <h2 data-testid="text-collabs-title" className="text-lg font-semibold">Collaborations</h2>
@@ -1079,6 +1335,20 @@ function WellnessTab() {
   const [energy, setEnergy] = useState(3);
   const [stress, setStress] = useState(2);
   const [showCheckin, setShowCheckin] = useState(false);
+  const [aiWellness, setAiWellness] = useState<any>(null);
+  const [aiWellnessLoading, setAiWellnessLoading] = useState(true);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiWellnessAdvisor");
+    if (cached) {
+      try { setAiWellness(JSON.parse(cached)); setAiWellnessLoading(false); return; } catch {}
+    }
+    apiRequest("POST", "/api/ai/wellness-advisor")
+      .then((res) => res.json())
+      .then((data) => { setAiWellness(data); sessionStorage.setItem("aiWellnessAdvisor", JSON.stringify(data)); })
+      .catch(() => {})
+      .finally(() => setAiWellnessLoading(false));
+  }, []);
 
   const { data: checks, isLoading } = useQuery<any[]>({ queryKey: ['/api/wellness'] });
 
@@ -1131,8 +1401,102 @@ function WellnessTab() {
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-32 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
 
+  const burnoutColor = (level: string) => {
+    const l = level?.toLowerCase();
+    if (l === "low") return "text-emerald-500";
+    if (l === "moderate") return "text-amber-500";
+    return "text-red-500";
+  };
+  const burnoutBg = (level: string) => {
+    const l = level?.toLowerCase();
+    if (l === "low") return "bg-emerald-500";
+    if (l === "moderate") return "bg-amber-500";
+    return "bg-red-500";
+  };
+
   return (
     <div className="space-y-6">
+      {aiWellnessLoading ? (
+        <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-wellness" />
+      ) : aiWellness ? (
+        <Card data-testid="card-ai-wellness">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-2">
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Wellness Advisor
+            </CardTitle>
+            {aiWellness.burnoutRiskLevel && (
+              <Badge variant="secondary" className={`text-xs no-default-hover-elevate no-default-active-elevate ${burnoutColor(aiWellness.burnoutRiskLevel)}`} data-testid="badge-burnout-risk">
+                {aiWellness.burnoutRiskLevel} Risk
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiWellness.burnoutScore != null && (
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-xs font-medium text-muted-foreground">Burnout Score</p>
+                  <span className={`text-xs font-medium ${burnoutColor(aiWellness.burnoutRiskLevel || "")}`} data-testid="text-burnout-score">{aiWellness.burnoutScore}/100</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${burnoutBg(aiWellness.burnoutRiskLevel || "")}`} style={{ width: `${aiWellness.burnoutScore}%` }} data-testid="bar-burnout-score" />
+                </div>
+              </div>
+            )}
+            {aiWellness.assessment && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Assessment</p>
+                <p className="text-sm" data-testid="text-wellness-assessment">{aiWellness.assessment}</p>
+              </div>
+            )}
+            {aiWellness.recommendations?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Recommendations</p>
+                <div className="space-y-2">
+                  {aiWellness.recommendations.map((rec: any, i: number) => (
+                    <div key={i} className="flex items-start justify-between gap-2 flex-wrap" data-testid={`wellness-rec-${i}`}>
+                      <p className="text-sm">{rec.action}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                        {rec.priority && <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{rec.priority}</Badge>}
+                        {rec.category && <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{rec.category}</Badge>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiWellness.breakSuggestion && (
+              <div className="bg-muted/50 rounded-md p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Break Suggestion</p>
+                {aiWellness.breakSuggestion.duration && <p className="text-sm" data-testid="text-break-duration">Duration: {aiWellness.breakSuggestion.duration}</p>}
+                {aiWellness.breakSuggestion.activities?.length > 0 && (
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {aiWellness.breakSuggestion.activities.map((a: string, i: number) => (
+                      <Badge key={i} variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">{a}</Badge>
+                    ))}
+                  </div>
+                )}
+                {aiWellness.breakSuggestion.bestDay && <p className="text-xs text-muted-foreground mt-1">Best day: {aiWellness.breakSuggestion.bestDay}</p>}
+              </div>
+            )}
+            {aiWellness.batchRecordingSchedule && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Batch Recording Schedule</p>
+                <p className="text-sm" data-testid="text-batch-schedule">{typeof aiWellness.batchRecordingSchedule === "string" ? aiWellness.batchRecordingSchedule : JSON.stringify(aiWellness.batchRecordingSchedule)}</p>
+              </div>
+            )}
+            {aiWellness.creativeBlockExercises?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Creative Block Exercises</p>
+                <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
+                  {aiWellness.creativeBlockExercises.map((ex: string, i: number) => <li key={i} data-testid={`creative-exercise-${i}`}>{typeof ex === "string" ? ex : (ex as any).name || JSON.stringify(ex)}</li>)}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-wellness-title" className="text-lg font-semibold">Creator Wellness</h2>
         {!showCheckin && (
@@ -1272,6 +1636,21 @@ const insightCategoryColors: Record<string, string> = {
 };
 
 function LearningTab() {
+  const [aiAcademy, setAiAcademy] = useState<any>(null);
+  const [aiAcademyLoading, setAiAcademyLoading] = useState(true);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("aiCreatorAcademy");
+    if (cached) {
+      try { setAiAcademy(JSON.parse(cached)); setAiAcademyLoading(false); return; } catch {}
+    }
+    apiRequest("POST", "/api/ai/creator-academy")
+      .then((res) => res.json())
+      .then((data) => { setAiAcademy(data); sessionStorage.setItem("aiCreatorAcademy", JSON.stringify(data)); })
+      .catch(() => {})
+      .finally(() => setAiAcademyLoading(false));
+  }, []);
+
   const { data: insights, isLoading } = useQuery<any[]>({ queryKey: ['/api/learning-insights'] });
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
@@ -1287,6 +1666,99 @@ function LearningTab() {
 
   return (
     <div className="space-y-6">
+      {aiAcademyLoading ? (
+        <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-academy" />
+      ) : aiAcademy ? (
+        <Card data-testid="card-ai-academy">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-2">
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Creator Academy
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiAcademy.curriculum?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Curriculum</p>
+                <div className="space-y-3">
+                  {aiAcademy.curriculum.map((mod: any, i: number) => (
+                    <div key={i} className="bg-muted/50 rounded-md p-3" data-testid={`curriculum-module-${i}`}>
+                      <p className="text-sm font-medium mb-1">{mod.moduleName || mod.name || mod.title}</p>
+                      {mod.lessons?.length > 0 && (
+                        <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
+                          {mod.lessons.map((lesson: any, j: number) => (
+                            <li key={j}>{typeof lesson === "string" ? lesson : lesson.title || lesson.name}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiAcademy.skillTree?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Skill Tree</p>
+                <div className="space-y-2">
+                  {aiAcademy.skillTree.map((skill: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-2 flex-wrap" data-testid={`skill-tree-${i}`}>
+                      <p className="text-sm">{skill.skillName || skill.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate">Lv {skill.level}/{skill.max || skill.maxLevel}</Badge>
+                        {skill.impact && <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate no-default-active-elevate">{skill.impact}</Badge>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiAcademy.weeklyPlan?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Weekly Plan</p>
+                <div className="space-y-2">
+                  {aiAcademy.weeklyPlan.map((day: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3" data-testid={`weekly-plan-${i}`}>
+                      <span className="text-xs font-medium w-16 shrink-0">{day.day}</span>
+                      <div>
+                        <p className="text-sm font-medium">{day.focus}</p>
+                        {day.tasks?.length > 0 && (
+                          <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc mt-0.5">
+                            {day.tasks.map((task: string, j: number) => <li key={j}>{task}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiAcademy.milestones?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Milestones</p>
+                <div className="space-y-2">
+                  {aiAcademy.milestones.map((m: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-2 flex-wrap" data-testid={`milestone-${i}`}>
+                      <p className="text-sm font-medium">{m.achievement}</p>
+                      {m.criteria && <span className="text-xs text-muted-foreground">{m.criteria}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiAcademy.recommendedResources?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Recommended Resources</p>
+                <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
+                  {aiAcademy.recommendedResources.map((r: any, i: number) => (
+                    <li key={i} data-testid={`resource-${i}`}>{typeof r === "string" ? r : r.title || r.name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div>
         <h2 data-testid="text-learning-title" className="text-lg font-semibold">Learning Hub</h2>
         <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">

@@ -26,6 +26,29 @@ import {
   aiContentIdeas,
   aiDashboardActions,
   aiBrandAnalysis,
+  aiScriptWriter,
+  aiThumbnailConcepts,
+  aiChapterMarkers,
+  aiKeywordResearch,
+  aiRepurposeContent,
+  aiSponsorshipManager,
+  aiMediaKit,
+  aiStreamChatBot,
+  aiStreamChecklist,
+  aiRaidStrategy,
+  aiPostStreamReport,
+  aiPLReport,
+  aiTeamManager,
+  aiAutomationBuilder,
+  aiCreatorAcademy,
+  aiNewsFeed,
+  aiMilestoneEngine,
+  aiCrossplatformAnalytics,
+  aiCommentManager,
+  aiCollabMatchmaker,
+  aiWellnessAdvisor,
+  aiSEOAudit,
+  aiContentCalendarPlanner,
 } from "./ai-engine";
 import {
   runStyleScan,
@@ -2114,7 +2137,7 @@ export async function registerRoutes(
     if (!userId) return;
     try {
       const allRevenue = await storage.getRevenueRecords(userId);
-      const allExpenses = await storage.getExpensesByUser(userId);
+      const allExpenses = await storage.getExpenseRecords(userId);
       const totalRevenue = allRevenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
       const totalExpenses = allExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
       const byPlatform: Record<string, number> = {};
@@ -2183,7 +2206,7 @@ export async function registerRoutes(
       const channel = channels[0];
       const videos = await storage.getVideosByUser(userId);
       const revenue = await storage.getRevenueRecords(userId);
-      const expenses = await storage.getExpensesByUser(userId);
+      const expenses = await storage.getExpenseRecords(userId);
       const goals = await storage.getGoals(userId);
       const ventures = await storage.getVentures(userId);
       const totalRevenue = revenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
@@ -2221,6 +2244,264 @@ export async function registerRoutes(
       console.error("AI brand analysis error:", error);
       res.status(500).json({ message: error.message });
     }
+  });
+
+  // === EXPANDED AI FEATURES ===
+  app.post("/api/ai/script-writer", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const videos = await storage.getVideosByUser(userId);
+      const result = await aiScriptWriter({ ...req.body, channelName: channels[0]?.channelName || "My Channel", recentTitles: videos.slice(0, 5).map((v: any) => v.title) }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI script error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/thumbnail-concepts", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiThumbnailConcepts({ ...req.body, channelName: channels[0]?.channelName || "My Channel" }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI thumbnail error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/chapter-markers", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiChapterMarkers(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI chapters error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/keyword-research", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiKeywordResearch({ ...req.body, channelName: channels[0]?.channelName || "My Channel" }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI keyword error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/repurpose", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiRepurposeContent(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI repurpose error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/seo-audit", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiSEOAudit(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI SEO error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/content-calendar", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiContentCalendarPlanner({ ...req.body, channelName: channels[0]?.channelName || "My Channel" }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI calendar error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/sponsorship-manager", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const videos = await storage.getVideosByUser(userId);
+      const deals = await storage.getSponsorshipDeals(userId);
+      const result = await aiSponsorshipManager({
+        channelName: channels[0]?.channelName || "My Channel",
+        niche: channels[0]?.category || undefined,
+        avgViews: videos.length > 0 ? Math.round(videos.reduce((s: number, v: any) => s + (v.metadata?.stats?.views || 0), 0) / videos.length) : undefined,
+        existingSponsors: deals.map((d: any) => d.brandName).filter(Boolean),
+      }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI sponsorship error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/media-kit", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const videos = await storage.getVideosByUser(userId);
+      const result = await aiMediaKit({
+        channelName: channels[0]?.channelName || "My Channel",
+        niche: channels[0]?.category || undefined,
+        totalVideos: videos.length,
+      }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI media kit error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/pl-report", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const revenue = await storage.getRevenueRecords(userId);
+      const expenses = await storage.getExpenseRecords(userId);
+      const totalRev = revenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
+      const totalExp = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      const bySource: Record<string, number> = {};
+      revenue.forEach((r: any) => { bySource[r.platform || 'other'] = (bySource[r.platform || 'other'] || 0) + (r.amount || 0); });
+      const byCat: Record<string, number> = {};
+      expenses.forEach((e: any) => { byCat[e.category || 'other'] = (byCat[e.category || 'other'] || 0) + (e.amount || 0); });
+      const result = await aiPLReport({ totalRevenue: totalRev, totalExpenses: totalExp, revenueBySource: bySource, expensesByCategory: byCat }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI P&L error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/chatbot-config", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiStreamChatBot({ channelName: channels[0]?.channelName || "My Channel", ...req.body }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI chatbot error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/stream-checklist", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiStreamChecklist(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI checklist error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/raid-strategy", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiRaidStrategy({ channelName: channels[0]?.channelName || "My Channel", ...req.body }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI raid error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/post-stream-report", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiPostStreamReport(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI post-stream error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/team-manager", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiTeamManager(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI team error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/automation-builder", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiAutomationBuilder({ ...req.body, platforms: channels.map((c: any) => c.platform) }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI automation error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/creator-academy", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiCreatorAcademy(req.body, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI academy error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/news-feed", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiNewsFeed(userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI news error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/milestones", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const videos = await storage.getVideosByUser(userId);
+      const revenue = await storage.getRevenueRecords(userId);
+      const totalRevenue = revenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
+      const result = await aiMilestoneEngine({ totalVideos: videos.length, revenue: totalRevenue, ...req.body }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI milestones error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/crossplatform-analytics", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const videos = await storage.getVideosByUser(userId);
+      const revenue = await storage.getRevenueRecords(userId);
+      const totalRevenue = revenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
+      const result = await aiCrossplatformAnalytics({
+        platforms: channels.map((c: any) => c.platform),
+        videoCount: videos.length,
+        totalRevenue,
+        channelName: channels[0]?.channelName || "My Channel",
+      }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI crossplatform error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/comment-manager", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiCommentManager({ ...req.body, channelName: channels[0]?.channelName || "My Channel" }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI comment error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/collab-matchmaker", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const result = await aiCollabMatchmaker({ channelName: channels[0]?.channelName || "My Channel", niche: channels[0]?.category || undefined, ...req.body }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI collab error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/wellness-advisor", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await aiWellnessAdvisor({
+        hoursWorked: req.body?.hoursWorked,
+        videosThisWeek: req.body?.videosThisWeek,
+        streamsThisWeek: req.body?.streamsThisWeek,
+        lastBreak: req.body?.lastBreak,
+        mood: req.body?.mood,
+      }, userId);
+      res.json(result);
+    } catch (e: any) { console.error("AI wellness error:", e); res.status(500).json({ message: e.message }); }
   });
 
   // === BRAND ASSETS ===

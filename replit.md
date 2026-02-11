@@ -48,19 +48,60 @@ The platform is built as a full-stack application with an Express.js backend and
 - **State Management**: ThemeProvider and AdvancedModeProvider context providers with localStorage persistence.
 
 ## Navigation Structure (5 sidebar items)
-- Home (Dashboard with Activity Feed, Business Health, Daily Briefing)
-- Content (Library / Channels / Calendar tabs)
-- Go Live (Stream Center)
-- Money (Revenue / Expenses / Taxes / Payments / Ventures / Goals / Sponsors tabs)
-- Settings (General / Brand / Collabs / Competitors / Legal / Wellness / Learning tabs)
+- Home (Dashboard with Activity Feed, Business Health, Daily Briefing, AI Action Center, AI News Feed, AI Milestones, AI Cross-Platform Analytics, AI Comment Manager)
+- Content (Library with AI Content Ideas, AI Keyword Research, AI Content Calendar, AI Script Writer, AI Repurpose Hub, AI Chapter Markers, AI SEO Audit, AI Thumbnail Concepts / Channels / Calendar tabs)
+- Go Live (Stream Center with AI Stream Advisor, AI Chat Bot Builder, AI Stream Checklist, AI Raid Strategy, AI Post-Stream Report)
+- Money (Revenue with AI Financial Insights + AI P&L Report / Expenses / Taxes / Payments / Ventures / Goals / Sponsors with AI Sponsorship Manager + AI Media Kit)
+- Settings (General with AI Team Manager + AI Automation Builder / Brand with AI Brand Analysis / Collabs with AI Collab Matchmaker / Competitors / Legal / Wellness with AI Wellness Advisor / Learning with AI Creator Academy)
+
+## AI Features (30+ AI-powered sections across all pages)
+All AI features auto-load on page mount, cache in sessionStorage, show loading skeletons, and operate autonomously with no manual triggers. Each calls a dedicated POST /api/ai/* endpoint.
+
+### Dashboard AI
+- AI Action Center: proactive action items, opportunities, daily summary
+- AI News Feed: creator economy updates, algorithm changes, platform opportunities
+- AI Milestones: achievement tracking, progress bars, streaks
+- AI Cross-Platform Analytics: platform scores, synergies, growth potential
+- AI Comment Manager: sentiment analysis, superfan detection, content ideas from comments
+
+### Content AI
+- AI Content Ideas: viral-scored video ideas, trend alerts, series concepts
+- AI Keyword Research: primary/long-tail/trending keywords, content gaps
+- AI Content Calendar: 30-day month plan, content mix, seasonal opportunities
+- AI Script Writer: full video scripts with hooks, chapters, CTA, thumbnail ideas
+- AI Repurpose Hub: convert videos to Twitter threads, blog posts, newsletters, carousels, LinkedIn articles, Pinterest pins
+- AI SEO Audit: per-video SEO scoring with quick wins
+- AI Thumbnail Concepts: 3 high-CTR thumbnail layouts per video
+- AI Chapter Markers: auto-generated timestamps and chapter descriptions
+
+### Go Live AI
+- AI Stream Advisor: optimal times, trending topics, schedule recommendations
+- AI Chat Bot Builder: commands, auto-messages, moderation rules, loyalty system
+- AI Stream Checklist: pre/during/post-stream checklists with emergency plan
+- AI Raid Strategy: raid targets, etiquette, networking strategy
+- AI Post-Stream Report: performance grades, highlights, improvement recommendations, social recaps
+
+### Money AI
+- AI Financial Insights: health score, forecasts, recommendations
+- AI P&L Report: profit/loss analysis, cost cutting, growth opportunities, quarterly projections
+- AI Sponsorship Manager: rate cards, prospect brands, outreach templates, pricing strategy
+- AI Media Kit: professional bio, metrics, audience demographics, sponsorship packages
+
+### Settings AI
+- AI Brand Analysis: brand voice, content pillars, tagline, colors, competitor analysis
+- AI Collab Matchmaker: ideal partners, collab formats, networking tips
+- AI Wellness Advisor: burnout risk assessment, break scheduling, batch recording plans
+- AI Creator Academy: personalized curriculum, skill tree, weekly plans, milestones
+- AI Team Manager: role recommendations, workflow design, delegation plans
+- AI Automation Builder: automation rules, workflow chains, scheduling, time savings
 
 ## Key Files
 - `server/index.ts` - Express server with Stripe webhook (registered BEFORE express.json())
 - `server/stripeClient.ts` - Stripe credential fetching via Replit connector API
 - `server/webhookHandlers.ts` - Stripe webhook processing
-- `server/routes.ts` - All API routes including Stripe payment endpoints
+- `server/routes.ts` - All API routes including 30+ AI endpoints and Stripe payment endpoints
 - `server/storage.ts` - Database storage layer with IStorage interface
-- `server/ai-engine.ts` - 11 AI agents including Tax Strategist
+- `server/ai-engine.ts` - 11 AI agents + 25 AI feature functions (script writer, keyword research, repurpose, sponsorship, etc.)
 - `client/src/App.tsx` - Main app with routing, providers (QueryClient, Tooltip, Theme, AdvancedMode), sidebar layout, FloatingChat, and legacy route redirects
 - `client/src/components/Sidebar.tsx` - 5-item sidebar with user avatar, Advanced Mode badge
 - `client/src/components/FloatingChat.tsx` - Floating AI chat button and panel (bottom-right)
@@ -69,11 +110,11 @@ The platform is built as a full-stack application with an Express.js backend and
 - `client/src/hooks/use-advanced-mode.tsx` - Advanced Mode provider with localStorage
 - `client/src/hooks/use-auth.ts` - Authentication hook (Replit Auth)
 - `client/src/hooks/use-advisor.ts` - AI advisor mutation hook
-- `client/src/pages/Dashboard.tsx` - Home dashboard with Activity Feed, Business Health, Daily Briefing
-- `client/src/pages/Content.tsx` - Consolidated content page (Library + Channels + Calendar)
-- `client/src/pages/Money.tsx` - Consolidated money & business page (Revenue + Expenses + Taxes + Payments + Ventures + Goals + Sponsors)
-- `client/src/pages/Settings.tsx` - Settings with 7 tabs (General + Brand + Collabs + Competitors + Legal + Wellness + Learning)
-- `client/src/pages/StreamCenter.tsx` - Live streaming page
+- `client/src/pages/Dashboard.tsx` - Home dashboard with AI Action Center, News Feed, Milestones, Cross-Platform Analytics, Comment Manager, Activity Feed, Business Health
+- `client/src/pages/Content.tsx` - Content page with AI Script Writer, Keyword Research, Content Calendar, Repurpose Hub, SEO Audit, Thumbnails, Chapter Markers
+- `client/src/pages/Money.tsx` - Money page with AI Financial Insights, P&L Report, Sponsorship Manager, Media Kit
+- `client/src/pages/Settings.tsx` - Settings with AI Brand Analysis, Collab Matchmaker, Wellness Advisor, Creator Academy, Team Manager, Automation Builder
+- `client/src/pages/StreamCenter.tsx` - Live streaming with AI Stream Advisor, Chat Bot, Checklist, Raid Strategy, Post-Stream Reports
 - `client/src/pages/Notifications.tsx` - Notifications page
 - `client/src/pages/Landing.tsx` - Unauthenticated landing page
 

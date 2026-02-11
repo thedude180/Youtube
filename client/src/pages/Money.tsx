@@ -565,6 +565,41 @@ function SponsorsTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [status, setStatus] = useState("Prospect");
   const [filterStage, setFilterStage] = useState<string | null>(null);
+  const [aiSponsorship, setAiSponsorship] = useState<any>(null);
+  const [aiSponsorshipLoading, setAiSponsorshipLoading] = useState(false);
+  const [aiMediaKit, setAiMediaKit] = useState<any>(null);
+  const [aiMediaKitLoading, setAiMediaKitLoading] = useState(false);
+
+  useEffect(() => {
+    const cachedSponsor = sessionStorage.getItem("aiSponsorshipManager");
+    if (cachedSponsor) {
+      try { setAiSponsorship(JSON.parse(cachedSponsor)); } catch {}
+    } else {
+      setAiSponsorshipLoading(true);
+      apiRequest("POST", "/api/ai/sponsorship-manager", {})
+        .then(res => res.json())
+        .then(data => {
+          setAiSponsorship(data);
+          sessionStorage.setItem("aiSponsorshipManager", JSON.stringify(data));
+        })
+        .catch(() => {})
+        .finally(() => setAiSponsorshipLoading(false));
+    }
+    const cachedKit = sessionStorage.getItem("aiMediaKit");
+    if (cachedKit) {
+      try { setAiMediaKit(JSON.parse(cachedKit)); } catch {}
+    } else {
+      setAiMediaKitLoading(true);
+      apiRequest("POST", "/api/ai/media-kit", {})
+        .then(res => res.json())
+        .then(data => {
+          setAiMediaKit(data);
+          sessionStorage.setItem("aiMediaKit", JSON.stringify(data));
+        })
+        .catch(() => {})
+        .finally(() => setAiMediaKitLoading(false));
+    }
+  }, []);
 
   const { data: deals, isLoading } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"] });
 
@@ -640,8 +675,279 @@ function SponsorsTab() {
     );
   }
 
+  const copyToClipboardSponsors = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied to clipboard" });
+  };
+
   return (
     <div className="space-y-6">
+      {aiSponsorshipLoading && (
+        <Card data-testid="card-ai-sponsorship-loading">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Skeleton className="h-5 w-48" />
+            </div>
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Skeleton className="h-16 rounded-md" />
+              <Skeleton className="h-16 rounded-md" />
+              <Skeleton className="h-16 rounded-md" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {aiSponsorship && !aiSponsorshipLoading && (
+        <Card data-testid="card-ai-sponsorship">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Sparkles className="h-4 w-4 text-purple-400" />
+                <CardTitle className="text-base">AI Sponsorship Manager</CardTitle>
+              </div>
+              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-ai-sponsorship-auto">
+                Auto-generated
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiSponsorship.rateCard && (
+              <div data-testid="section-rate-card">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Rate Card</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {aiSponsorship.rateCard.preRoll != null && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Pre-Roll</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-preroll">${Number(aiSponsorship.rateCard.preRoll).toLocaleString()}</p>
+                    </div>
+                  )}
+                  {aiSponsorship.rateCard.midRoll != null && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Mid-Roll</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-midroll">${Number(aiSponsorship.rateCard.midRoll).toLocaleString()}</p>
+                    </div>
+                  )}
+                  {aiSponsorship.rateCard.dedicated != null && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Dedicated</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-dedicated">${Number(aiSponsorship.rateCard.dedicated).toLocaleString()}</p>
+                    </div>
+                  )}
+                  {aiSponsorship.rateCard.integration != null && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Integration</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-integration">${Number(aiSponsorship.rateCard.integration).toLocaleString()}</p>
+                    </div>
+                  )}
+                  {aiSponsorship.rateCard.shortsMention != null && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Shorts Mention</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-shorts">${Number(aiSponsorship.rateCard.shortsMention).toLocaleString()}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {aiSponsorship.prospectBrands && aiSponsorship.prospectBrands.length > 0 && (
+              <div data-testid="section-prospect-brands">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Prospect Brands</p>
+                <div className="space-y-2">
+                  {aiSponsorship.prospectBrands.map((brand: any, idx: number) => (
+                    <div key={idx} className="flex items-start justify-between gap-2" data-testid={`prospect-brand-${idx}`}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium" data-testid={`text-brand-name-${idx}`}>{brand.brand || brand.name}</p>
+                        <p className="text-xs text-muted-foreground" data-testid={`text-brand-pitch-${idx}`}>{brand.pitchAngle}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 flex-wrap">
+                        {brand.fitLevel && (
+                          <Badge variant="secondary" className={`text-xs no-default-hover-elevate no-default-active-elevate ${
+                            brand.fitLevel === "high" ? "bg-emerald-500/10 text-emerald-500" :
+                            brand.fitLevel === "medium" ? "bg-amber-500/10 text-amber-500" :
+                            "bg-muted-foreground/10 text-muted-foreground"
+                          }`} data-testid={`badge-brand-fit-${idx}`}>
+                            {brand.fitLevel}
+                          </Badge>
+                        )}
+                        {brand.estimatedBudget != null && (
+                          <span className="text-xs text-muted-foreground" data-testid={`text-brand-budget-${idx}`}>
+                            ${Number(brand.estimatedBudget).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {aiSponsorship.outreachTemplate && (
+              <div data-testid="section-outreach-template">
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <p className="text-xs font-medium text-muted-foreground">Outreach Email Template</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboardSponsors(aiSponsorship.outreachTemplate)}
+                    data-testid="button-copy-outreach"
+                  >
+                    <Copy className="w-3 h-3 mr-1" />
+                    Copy
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-md p-3" data-testid="text-outreach-template">
+                  {aiSponsorship.outreachTemplate}
+                </div>
+              </div>
+            )}
+
+            {aiSponsorship.pricingStrategy && (
+              <div data-testid="section-pricing-strategy">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Pricing Strategy</p>
+                <p className="text-sm text-muted-foreground" data-testid="text-pricing-strategy">{aiSponsorship.pricingStrategy}</p>
+              </div>
+            )}
+
+            {aiSponsorship.redFlags && aiSponsorship.redFlags.length > 0 && (
+              <div data-testid="section-red-flags">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Red Flags to Avoid</p>
+                <div className="space-y-1">
+                  {aiSponsorship.redFlags.map((flag: string, idx: number) => (
+                    <div key={idx} className="flex items-start gap-2" data-testid={`red-flag-${idx}`}>
+                      <AlertTriangle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-sm text-muted-foreground">{flag}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {aiMediaKitLoading && (
+        <Card data-testid="card-ai-media-kit-loading">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Skeleton className="h-5 w-40" />
+            </div>
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+            <div className="grid grid-cols-2 gap-3">
+              <Skeleton className="h-16 rounded-md" />
+              <Skeleton className="h-16 rounded-md" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {aiMediaKit && !aiMediaKitLoading && (
+        <Card data-testid="card-ai-media-kit">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Sparkles className="h-4 w-4 text-purple-400" />
+                <CardTitle className="text-base">AI Media Kit</CardTitle>
+              </div>
+              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-ai-media-kit-auto">
+                Auto-generated
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiMediaKit.headline && (
+              <div data-testid="section-media-headline">
+                <p className="text-sm font-semibold" data-testid="text-media-headline">{aiMediaKit.headline}</p>
+                {aiMediaKit.bio && (
+                  <p className="text-xs text-muted-foreground mt-1" data-testid="text-media-bio">{aiMediaKit.bio}</p>
+                )}
+              </div>
+            )}
+
+            {aiMediaKit.keyMetrics && aiMediaKit.keyMetrics.length > 0 && (
+              <div data-testid="section-key-metrics">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Key Metrics</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {aiMediaKit.keyMetrics.map((metric: any, idx: number) => (
+                    <div key={idx} className="space-y-0.5" data-testid={`metric-${idx}`}>
+                      <p className="text-xs text-muted-foreground">{metric.label}</p>
+                      <p className="text-sm font-medium">{metric.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {aiMediaKit.audienceDemographics && (
+              <div data-testid="section-audience-demographics">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Audience Demographics</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {aiMediaKit.audienceDemographics.ageRange && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Age Range</p>
+                      <p className="text-sm font-medium" data-testid="text-audience-age">{aiMediaKit.audienceDemographics.ageRange}</p>
+                    </div>
+                  )}
+                  {aiMediaKit.audienceDemographics.gender && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Gender</p>
+                      <p className="text-sm font-medium" data-testid="text-audience-gender">{aiMediaKit.audienceDemographics.gender}</p>
+                    </div>
+                  )}
+                  {aiMediaKit.audienceDemographics.topCountries && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Top Countries</p>
+                      <p className="text-sm font-medium" data-testid="text-audience-countries">
+                        {Array.isArray(aiMediaKit.audienceDemographics.topCountries)
+                          ? aiMediaKit.audienceDemographics.topCountries.join(", ")
+                          : aiMediaKit.audienceDemographics.topCountries}
+                      </p>
+                    </div>
+                  )}
+                  {aiMediaKit.audienceDemographics.interests && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Interests</p>
+                      <p className="text-sm font-medium" data-testid="text-audience-interests">
+                        {Array.isArray(aiMediaKit.audienceDemographics.interests)
+                          ? aiMediaKit.audienceDemographics.interests.join(", ")
+                          : aiMediaKit.audienceDemographics.interests}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {aiMediaKit.sponsorshipPackages && aiMediaKit.sponsorshipPackages.length > 0 && (
+              <div data-testid="section-sponsorship-packages">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Sponsorship Packages</p>
+                <div className="space-y-2">
+                  {aiMediaKit.sponsorshipPackages.map((pkg: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between gap-2" data-testid={`package-${idx}`}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium" data-testid={`text-package-name-${idx}`}>{pkg.name}</p>
+                        {pkg.description && (
+                          <p className="text-xs text-muted-foreground">{pkg.description}</p>
+                        )}
+                      </div>
+                      {pkg.price != null && (
+                        <span className="text-sm font-semibold text-emerald-400 shrink-0" data-testid={`text-package-price-${idx}`}>
+                          ${Number(pkg.price).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-sponsors-title" className="text-lg font-semibold">Sponsorship Pipeline</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -855,22 +1161,39 @@ export default function Money() {
   const [paymentUrl, setPaymentUrl] = useState("");
   const [aiInsights, setAiInsights] = useState<any>(null);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+  const [aiPLReport, setAiPLReport] = useState<any>(null);
+  const [aiPLReportLoading, setAiPLReportLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab !== "revenue") return;
     const cached = sessionStorage.getItem("aiFinancialInsights");
     if (cached) {
-      try { setAiInsights(JSON.parse(cached)); return; } catch {}
+      try { setAiInsights(JSON.parse(cached)); } catch {}
+    } else {
+      setAiInsightsLoading(true);
+      apiRequest("POST", "/api/ai/financial-insights")
+        .then(res => res.json())
+        .then(data => {
+          setAiInsights(data);
+          sessionStorage.setItem("aiFinancialInsights", JSON.stringify(data));
+        })
+        .catch(() => {})
+        .finally(() => setAiInsightsLoading(false));
     }
-    setAiInsightsLoading(true);
-    apiRequest("POST", "/api/ai/financial-insights")
-      .then(res => res.json())
-      .then(data => {
-        setAiInsights(data);
-        sessionStorage.setItem("aiFinancialInsights", JSON.stringify(data));
-      })
-      .catch(() => {})
-      .finally(() => setAiInsightsLoading(false));
+    const cachedPL = sessionStorage.getItem("aiPLReport");
+    if (cachedPL) {
+      try { setAiPLReport(JSON.parse(cachedPL)); } catch {}
+    } else {
+      setAiPLReportLoading(true);
+      apiRequest("POST", "/api/ai/pl-report", {})
+        .then(res => res.json())
+        .then(data => {
+          setAiPLReport(data);
+          sessionStorage.setItem("aiPLReport", JSON.stringify(data));
+        })
+        .catch(() => {})
+        .finally(() => setAiPLReportLoading(false));
+    }
   }, [activeTab]);
 
   const { data: revenueRecords, isLoading: revenueLoading } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
@@ -1324,6 +1647,146 @@ export default function Money() {
                         <p className="text-sm text-muted-foreground">{rec}</p>
                       </div>
                     ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {aiPLReportLoading && (
+            <Card data-testid="card-ai-pl-report-loading">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <Skeleton className="h-5 w-40" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Skeleton className="h-16 rounded-md" />
+                  <Skeleton className="h-16 rounded-md" />
+                  <Skeleton className="h-16 rounded-md" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {aiPLReport && !aiPLReportLoading && (
+            <Card data-testid="card-ai-pl-report">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <CardTitle className="text-base">AI P&L Report</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {aiPLReport.healthGrade && (
+                      <Badge
+                        variant="secondary"
+                        className={`no-default-hover-elevate no-default-active-elevate ${
+                          ["A", "A+", "A-"].includes(aiPLReport.healthGrade) ? "bg-emerald-500/10 text-emerald-500" :
+                          ["B", "B+", "B-"].includes(aiPLReport.healthGrade) ? "bg-blue-500/10 text-blue-500" :
+                          ["C", "C+", "C-"].includes(aiPLReport.healthGrade) ? "bg-amber-500/10 text-amber-500" :
+                          "bg-red-500/10 text-red-500"
+                        }`}
+                        data-testid="badge-health-grade"
+                      >
+                        Grade: {aiPLReport.healthGrade}
+                      </Badge>
+                    )}
+                    <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-ai-pl-auto">
+                      Auto-generated
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {aiPLReport.executiveSummary && (
+                  <p className="text-sm text-muted-foreground" data-testid="text-pl-executive-summary">
+                    {aiPLReport.executiveSummary}
+                  </p>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {aiPLReport.profitMargin != null && (
+                    <div className="space-y-0.5" data-testid="section-profit-margin">
+                      <p className="text-xs text-muted-foreground">Profit Margin</p>
+                      <p className={`text-sm font-semibold ${Number(aiPLReport.profitMargin) >= 0 ? "text-emerald-400" : "text-red-400"}`} data-testid="text-profit-margin">
+                        {Number(aiPLReport.profitMargin).toFixed(1)}%
+                      </p>
+                    </div>
+                  )}
+                  {aiPLReport.topRevenueStream && (
+                    <div className="space-y-0.5" data-testid="section-top-revenue">
+                      <p className="text-xs text-muted-foreground">Top Revenue Stream</p>
+                      <p className="text-sm font-medium" data-testid="text-top-revenue-stream">{aiPLReport.topRevenueStream}</p>
+                    </div>
+                  )}
+                  {aiPLReport.biggestExpense && (
+                    <div className="space-y-0.5" data-testid="section-biggest-expense">
+                      <p className="text-xs text-muted-foreground">Biggest Expense</p>
+                      <p className="text-sm font-medium" data-testid="text-biggest-expense">{aiPLReport.biggestExpense}</p>
+                    </div>
+                  )}
+                </div>
+
+                {aiPLReport.costCuttingOpportunities && aiPLReport.costCuttingOpportunities.length > 0 && (
+                  <div data-testid="section-cost-cutting">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Cost Cutting Opportunities</p>
+                    <div className="space-y-1">
+                      {aiPLReport.costCuttingOpportunities.map((item: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2" data-testid={`cost-cutting-${idx}`}>
+                          <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                          <p className="text-sm text-muted-foreground">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {aiPLReport.growthOpportunities && aiPLReport.growthOpportunities.length > 0 && (
+                  <div data-testid="section-growth-opportunities">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Growth Opportunities</p>
+                    <div className="space-y-1">
+                      {aiPLReport.growthOpportunities.map((item: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2" data-testid={`growth-opportunity-${idx}`}>
+                          <TrendingUp className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
+                          <p className="text-sm text-muted-foreground">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {aiPLReport.quarterlyProjection && (
+                  <div data-testid="section-quarterly-projection">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Quarterly Projection</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {aiPLReport.quarterlyProjection.q1 != null && (
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Q1</p>
+                          <p className="text-sm font-medium" data-testid="text-projection-q1">${Number(aiPLReport.quarterlyProjection.q1).toLocaleString()}</p>
+                        </div>
+                      )}
+                      {aiPLReport.quarterlyProjection.q2 != null && (
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Q2</p>
+                          <p className="text-sm font-medium" data-testid="text-projection-q2">${Number(aiPLReport.quarterlyProjection.q2).toLocaleString()}</p>
+                        </div>
+                      )}
+                      {aiPLReport.quarterlyProjection.q3 != null && (
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Q3</p>
+                          <p className="text-sm font-medium" data-testid="text-projection-q3">${Number(aiPLReport.quarterlyProjection.q3).toLocaleString()}</p>
+                        </div>
+                      )}
+                      {aiPLReport.quarterlyProjection.q4 != null && (
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Q4</p>
+                          <p className="text-sm font-medium" data-testid="text-projection-q4">${Number(aiPLReport.quarterlyProjection.q4).toLocaleString()}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </CardContent>
