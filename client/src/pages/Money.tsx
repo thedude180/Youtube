@@ -19,7 +19,7 @@ import {
   DollarSign, Plus, TrendingUp, CalendarDays, Receipt, ShieldCheck, Trash2, Tag,
   Calculator, FileText, AlertTriangle, CheckCircle2, Building2,
   CreditCard, Link2, Copy, Upload,
-  Briefcase, Target, Sparkles, Handshake, ChevronDown, Mail, Users, Eye,
+  Briefcase, Target, Sparkles, Handshake, ChevronDown, ChevronUp, Mail, Users, Eye,
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -1164,6 +1164,89 @@ export default function Money() {
   const [aiPLReport, setAiPLReport] = useState<any>(null);
   const [aiPLReportLoading, setAiPLReportLoading] = useState(false);
 
+  const [showMonetizationAI, setShowMonetizationAI] = useState(false);
+  const [showBusinessAI, setShowBusinessAI] = useState(false);
+  const [aiAdRevenue, setAiAdRevenue] = useState<any>(null);
+  const [aiAdRevenueLoading, setAiAdRevenueLoading] = useState(false);
+  const [aiAdPlace, setAiAdPlace] = useState<any>(null);
+  const [aiAdPlaceLoading, setAiAdPlaceLoading] = useState(false);
+  const [aiCPM, setAiCPM] = useState<any>(null);
+  const [aiCPMLoading, setAiCPMLoading] = useState(false);
+  const [aiSponsorPrice, setAiSponsorPrice] = useState<any>(null);
+  const [aiSponsorPriceLoading, setAiSponsorPriceLoading] = useState(false);
+  const [aiSponsorOutreach, setAiSponsorOutreach] = useState<any>(null);
+  const [aiSponsorOutreachLoading, setAiSponsorOutreachLoading] = useState(false);
+  const [aiSponsorNeg, setAiSponsorNeg] = useState<any>(null);
+  const [aiSponsorNegLoading, setAiSponsorNegLoading] = useState(false);
+  const [aiSponsorDeliv, setAiSponsorDeliv] = useState<any>(null);
+  const [aiSponsorDelivLoading, setAiSponsorDelivLoading] = useState(false);
+  const [aiAffiliate, setAiAffiliate] = useState<any>(null);
+  const [aiAffiliateLoading, setAiAffiliateLoading] = useState(false);
+  const [aiMerch, setAiMerch] = useState<any>(null);
+  const [aiMerchLoading, setAiMerchLoading] = useState(false);
+  const [aiMemberTiers, setAiMemberTiers] = useState<any>(null);
+  const [aiMemberTiersLoading, setAiMemberTiersLoading] = useState(false);
+  const [aiDigitalProd, setAiDigitalProd] = useState<any>(null);
+  const [aiDigitalProdLoading, setAiDigitalProdLoading] = useState(false);
+  const [aiCourse, setAiCourse] = useState<any>(null);
+  const [aiCourseLoading, setAiCourseLoading] = useState(false);
+  const [aiPatreon, setAiPatreon] = useState<any>(null);
+  const [aiPatreonLoading, setAiPatreonLoading] = useState(false);
+  const [aiSuperChat, setAiSuperChat] = useState<any>(null);
+  const [aiSuperChatLoading, setAiSuperChatLoading] = useState(false);
+  const [aiMemberGrowth, setAiMemberGrowth] = useState<any>(null);
+  const [aiMemberGrowthLoading, setAiMemberGrowthLoading] = useState(false);
+  const [aiRevStreams, setAiRevStreams] = useState<any>(null);
+  const [aiRevStreamsLoading, setAiRevStreamsLoading] = useState(false);
+  const [aiInvoice, setAiInvoice] = useState<any>(null);
+  const [aiInvoiceLoading, setAiInvoiceLoading] = useState(false);
+  const [aiContract, setAiContract] = useState<any>(null);
+  const [aiContractLoading, setAiContractLoading] = useState(false);
+  const [aiTaxDeduct, setAiTaxDeduct] = useState<any>(null);
+  const [aiTaxDeductLoading, setAiTaxDeductLoading] = useState(false);
+  const [aiQuarterlyTax, setAiQuarterlyTax] = useState<any>(null);
+  const [aiQuarterlyTaxLoading, setAiQuarterlyTaxLoading] = useState(false);
+  const [aiBrandDeal, setAiBrandDeal] = useState<any>(null);
+  const [aiBrandDealLoading, setAiBrandDealLoading] = useState(false);
+  const [aiMediaKitEnh, setAiMediaKitEnh] = useState<any>(null);
+  const [aiMediaKitEnhLoading, setAiMediaKitEnhLoading] = useState(false);
+  const [aiRateCard, setAiRateCard] = useState<any>(null);
+  const [aiRateCardLoading, setAiRateCardLoading] = useState(false);
+  const [aiSponsorROI, setAiSponsorROI] = useState<any>(null);
+  const [aiSponsorROILoading, setAiSponsorROILoading] = useState(false);
+  const [aiPassiveIncome, setAiPassiveIncome] = useState<any>(null);
+  const [aiPassiveIncomeLoading, setAiPassiveIncomeLoading] = useState(false);
+  const [aiPricing, setAiPricing] = useState<any>(null);
+  const [aiPricingLoading, setAiPricingLoading] = useState(false);
+  const [aiRevAttrib, setAiRevAttrib] = useState<any>(null);
+  const [aiRevAttribLoading, setAiRevAttribLoading] = useState(false);
+  const [aiDonation, setAiDonation] = useState<any>(null);
+  const [aiDonationLoading, setAiDonationLoading] = useState(false);
+  const [aiCrowdfund, setAiCrowdfund] = useState<any>(null);
+  const [aiCrowdfundLoading, setAiCrowdfundLoading] = useState(false);
+  const [aiLicensing, setAiLicensing] = useState<any>(null);
+  const [aiLicensingLoading, setAiLicensingLoading] = useState(false);
+  const [aiBookDeal, setAiBookDeal] = useState<any>(null);
+  const [aiBookDealLoading, setAiBookDealLoading] = useState(false);
+  const [aiSpeakFees, setAiSpeakFees] = useState<any>(null);
+  const [aiSpeakFeesLoading, setAiSpeakFeesLoading] = useState(false);
+  const [aiConsulting, setAiConsulting] = useState<any>(null);
+  const [aiConsultingLoading, setAiConsultingLoading] = useState(false);
+  const [aiExpenseAI, setAiExpenseAI] = useState<any>(null);
+  const [aiExpenseAILoading, setAiExpenseAILoading] = useState(false);
+  const [aiProfitMargin, setAiProfitMargin] = useState<any>(null);
+  const [aiProfitMarginLoading, setAiProfitMarginLoading] = useState(false);
+  const [aiCashFlow, setAiCashFlow] = useState<any>(null);
+  const [aiCashFlowLoading, setAiCashFlowLoading] = useState(false);
+  const [aiPayGateway, setAiPayGateway] = useState<any>(null);
+  const [aiPayGatewayLoading, setAiPayGatewayLoading] = useState(false);
+  const [aiSubBox, setAiSubBox] = useState<any>(null);
+  const [aiSubBoxLoading, setAiSubBoxLoading] = useState(false);
+  const [aiNFT, setAiNFT] = useState<any>(null);
+  const [aiNFTLoading, setAiNFTLoading] = useState(false);
+  const [aiRevGoals, setAiRevGoals] = useState<any>(null);
+  const [aiRevGoalsLoading, setAiRevGoalsLoading] = useState(false);
+
   useEffect(() => {
     if (activeTab !== "revenue") return;
     const cached = sessionStorage.getItem("aiFinancialInsights");
@@ -1195,6 +1278,247 @@ export default function Money() {
         .finally(() => setAiPLReportLoading(false));
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_ad_revenue");
+    if (cached) { try { setAiAdRevenue(JSON.parse(cached)); return; } catch {} }
+    setAiAdRevenueLoading(true);
+    apiRequest("POST", "/api/ai/ad-revenue", {}).then(r => r.json()).then(d => { setAiAdRevenue(d); sessionStorage.setItem("ai_ad_revenue", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAdRevenueLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_ad_place");
+    if (cached) { try { setAiAdPlace(JSON.parse(cached)); return; } catch {} }
+    setAiAdPlaceLoading(true);
+    apiRequest("POST", "/api/ai/ad-placement", {}).then(r => r.json()).then(d => { setAiAdPlace(d); sessionStorage.setItem("ai_ad_place", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAdPlaceLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_cpm");
+    if (cached) { try { setAiCPM(JSON.parse(cached)); return; } catch {} }
+    setAiCPMLoading(true);
+    apiRequest("POST", "/api/ai/cpm-maximizer", {}).then(r => r.json()).then(d => { setAiCPM(d); sessionStorage.setItem("ai_cpm", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCPMLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sponsor_price");
+    if (cached) { try { setAiSponsorPrice(JSON.parse(cached)); return; } catch {} }
+    setAiSponsorPriceLoading(true);
+    apiRequest("POST", "/api/ai/sponsor-pricing", {}).then(r => r.json()).then(d => { setAiSponsorPrice(d); sessionStorage.setItem("ai_sponsor_price", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSponsorPriceLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sponsor_outreach");
+    if (cached) { try { setAiSponsorOutreach(JSON.parse(cached)); return; } catch {} }
+    setAiSponsorOutreachLoading(true);
+    apiRequest("POST", "/api/ai/sponsor-outreach", {}).then(r => r.json()).then(d => { setAiSponsorOutreach(d); sessionStorage.setItem("ai_sponsor_outreach", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSponsorOutreachLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sponsor_neg");
+    if (cached) { try { setAiSponsorNeg(JSON.parse(cached)); return; } catch {} }
+    setAiSponsorNegLoading(true);
+    apiRequest("POST", "/api/ai/sponsor-negotiation", {}).then(r => r.json()).then(d => { setAiSponsorNeg(d); sessionStorage.setItem("ai_sponsor_neg", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSponsorNegLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sponsor_deliv");
+    if (cached) { try { setAiSponsorDeliv(JSON.parse(cached)); return; } catch {} }
+    setAiSponsorDelivLoading(true);
+    apiRequest("POST", "/api/ai/sponsor-deliverables", {}).then(r => r.json()).then(d => { setAiSponsorDeliv(d); sessionStorage.setItem("ai_sponsor_deliv", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSponsorDelivLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_affiliate");
+    if (cached) { try { setAiAffiliate(JSON.parse(cached)); return; } catch {} }
+    setAiAffiliateLoading(true);
+    apiRequest("POST", "/api/ai/affiliate-optimizer", {}).then(r => r.json()).then(d => { setAiAffiliate(d); sessionStorage.setItem("ai_affiliate", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAffiliateLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_merch");
+    if (cached) { try { setAiMerch(JSON.parse(cached)); return; } catch {} }
+    setAiMerchLoading(true);
+    apiRequest("POST", "/api/ai/merchandise", {}).then(r => r.json()).then(d => { setAiMerch(d); sessionStorage.setItem("ai_merch", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMerchLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_member_tiers");
+    if (cached) { try { setAiMemberTiers(JSON.parse(cached)); return; } catch {} }
+    setAiMemberTiersLoading(true);
+    apiRequest("POST", "/api/ai/membership-tiers", {}).then(r => r.json()).then(d => { setAiMemberTiers(d); sessionStorage.setItem("ai_member_tiers", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMemberTiersLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_digital_prod");
+    if (cached) { try { setAiDigitalProd(JSON.parse(cached)); return; } catch {} }
+    setAiDigitalProdLoading(true);
+    apiRequest("POST", "/api/ai/digital-products", {}).then(r => r.json()).then(d => { setAiDigitalProd(d); sessionStorage.setItem("ai_digital_prod", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDigitalProdLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_course");
+    if (cached) { try { setAiCourse(JSON.parse(cached)); return; } catch {} }
+    setAiCourseLoading(true);
+    apiRequest("POST", "/api/ai/course-builder", {}).then(r => r.json()).then(d => { setAiCourse(d); sessionStorage.setItem("ai_course", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCourseLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_patreon");
+    if (cached) { try { setAiPatreon(JSON.parse(cached)); return; } catch {} }
+    setAiPatreonLoading(true);
+    apiRequest("POST", "/api/ai/patreon", {}).then(r => r.json()).then(d => { setAiPatreon(d); sessionStorage.setItem("ai_patreon", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPatreonLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_super_chat");
+    if (cached) { try { setAiSuperChat(JSON.parse(cached)); return; } catch {} }
+    setAiSuperChatLoading(true);
+    apiRequest("POST", "/api/ai/super-chat", {}).then(r => r.json()).then(d => { setAiSuperChat(d); sessionStorage.setItem("ai_super_chat", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSuperChatLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_member_growth");
+    if (cached) { try { setAiMemberGrowth(JSON.parse(cached)); return; } catch {} }
+    setAiMemberGrowthLoading(true);
+    apiRequest("POST", "/api/ai/membership-growth", {}).then(r => r.json()).then(d => { setAiMemberGrowth(d); sessionStorage.setItem("ai_member_growth", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMemberGrowthLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_rev_streams");
+    if (cached) { try { setAiRevStreams(JSON.parse(cached)); return; } catch {} }
+    setAiRevStreamsLoading(true);
+    apiRequest("POST", "/api/ai/revenue-streams", {}).then(r => r.json()).then(d => { setAiRevStreams(d); sessionStorage.setItem("ai_rev_streams", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRevStreamsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_invoice");
+    if (cached) { try { setAiInvoice(JSON.parse(cached)); return; } catch {} }
+    setAiInvoiceLoading(true);
+    apiRequest("POST", "/api/ai/invoice", {}).then(r => r.json()).then(d => { setAiInvoice(d); sessionStorage.setItem("ai_invoice", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiInvoiceLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_contract");
+    if (cached) { try { setAiContract(JSON.parse(cached)); return; } catch {} }
+    setAiContractLoading(true);
+    apiRequest("POST", "/api/ai/contract-review", {}).then(r => r.json()).then(d => { setAiContract(d); sessionStorage.setItem("ai_contract", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiContractLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_tax_deduct");
+    if (cached) { try { setAiTaxDeduct(JSON.parse(cached)); return; } catch {} }
+    setAiTaxDeductLoading(true);
+    apiRequest("POST", "/api/ai/tax-deductions", {}).then(r => r.json()).then(d => { setAiTaxDeduct(d); sessionStorage.setItem("ai_tax_deduct", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTaxDeductLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_quarterly_tax");
+    if (cached) { try { setAiQuarterlyTax(JSON.parse(cached)); return; } catch {} }
+    setAiQuarterlyTaxLoading(true);
+    apiRequest("POST", "/api/ai/quarterly-tax", {}).then(r => r.json()).then(d => { setAiQuarterlyTax(d); sessionStorage.setItem("ai_quarterly_tax", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiQuarterlyTaxLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_brand_deal");
+    if (cached) { try { setAiBrandDeal(JSON.parse(cached)); return; } catch {} }
+    setAiBrandDealLoading(true);
+    apiRequest("POST", "/api/ai/brand-deal", {}).then(r => r.json()).then(d => { setAiBrandDeal(d); sessionStorage.setItem("ai_brand_deal", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBrandDealLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_media_kit_enh");
+    if (cached) { try { setAiMediaKitEnh(JSON.parse(cached)); return; } catch {} }
+    setAiMediaKitEnhLoading(true);
+    apiRequest("POST", "/api/ai/media-kit-enhance", {}).then(r => r.json()).then(d => { setAiMediaKitEnh(d); sessionStorage.setItem("ai_media_kit_enh", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMediaKitEnhLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_rate_card");
+    if (cached) { try { setAiRateCard(JSON.parse(cached)); return; } catch {} }
+    setAiRateCardLoading(true);
+    apiRequest("POST", "/api/ai/rate-card", {}).then(r => r.json()).then(d => { setAiRateCard(d); sessionStorage.setItem("ai_rate_card", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRateCardLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sponsor_roi");
+    if (cached) { try { setAiSponsorROI(JSON.parse(cached)); return; } catch {} }
+    setAiSponsorROILoading(true);
+    apiRequest("POST", "/api/ai/sponsor-roi", {}).then(r => r.json()).then(d => { setAiSponsorROI(d); sessionStorage.setItem("ai_sponsor_roi", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSponsorROILoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_passive_income");
+    if (cached) { try { setAiPassiveIncome(JSON.parse(cached)); return; } catch {} }
+    setAiPassiveIncomeLoading(true);
+    apiRequest("POST", "/api/ai/passive-income", {}).then(r => r.json()).then(d => { setAiPassiveIncome(d); sessionStorage.setItem("ai_passive_income", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPassiveIncomeLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_pricing");
+    if (cached) { try { setAiPricing(JSON.parse(cached)); return; } catch {} }
+    setAiPricingLoading(true);
+    apiRequest("POST", "/api/ai/pricing-strategy", {}).then(r => r.json()).then(d => { setAiPricing(d); sessionStorage.setItem("ai_pricing", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPricingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_rev_attrib");
+    if (cached) { try { setAiRevAttrib(JSON.parse(cached)); return; } catch {} }
+    setAiRevAttribLoading(true);
+    apiRequest("POST", "/api/ai/revenue-attribution", {}).then(r => r.json()).then(d => { setAiRevAttrib(d); sessionStorage.setItem("ai_rev_attrib", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRevAttribLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_donation");
+    if (cached) { try { setAiDonation(JSON.parse(cached)); return; } catch {} }
+    setAiDonationLoading(true);
+    apiRequest("POST", "/api/ai/donation-optimizer", {}).then(r => r.json()).then(d => { setAiDonation(d); sessionStorage.setItem("ai_donation", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDonationLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_crowdfund");
+    if (cached) { try { setAiCrowdfund(JSON.parse(cached)); return; } catch {} }
+    setAiCrowdfundLoading(true);
+    apiRequest("POST", "/api/ai/crowdfunding", {}).then(r => r.json()).then(d => { setAiCrowdfund(d); sessionStorage.setItem("ai_crowdfund", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCrowdfundLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_licensing");
+    if (cached) { try { setAiLicensing(JSON.parse(cached)); return; } catch {} }
+    setAiLicensingLoading(true);
+    apiRequest("POST", "/api/ai/licensing", {}).then(r => r.json()).then(d => { setAiLicensing(d); sessionStorage.setItem("ai_licensing", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiLicensingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_book_deal");
+    if (cached) { try { setAiBookDeal(JSON.parse(cached)); return; } catch {} }
+    setAiBookDealLoading(true);
+    apiRequest("POST", "/api/ai/book-deal", {}).then(r => r.json()).then(d => { setAiBookDeal(d); sessionStorage.setItem("ai_book_deal", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiBookDealLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_speak_fees");
+    if (cached) { try { setAiSpeakFees(JSON.parse(cached)); return; } catch {} }
+    setAiSpeakFeesLoading(true);
+    apiRequest("POST", "/api/ai/speaking-fees", {}).then(r => r.json()).then(d => { setAiSpeakFees(d); sessionStorage.setItem("ai_speak_fees", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSpeakFeesLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_consulting");
+    if (cached) { try { setAiConsulting(JSON.parse(cached)); return; } catch {} }
+    setAiConsultingLoading(true);
+    apiRequest("POST", "/api/ai/consulting", {}).then(r => r.json()).then(d => { setAiConsulting(d); sessionStorage.setItem("ai_consulting", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiConsultingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_expense_ai");
+    if (cached) { try { setAiExpenseAI(JSON.parse(cached)); return; } catch {} }
+    setAiExpenseAILoading(true);
+    apiRequest("POST", "/api/ai/expense-tracker-ai", {}).then(r => r.json()).then(d => { setAiExpenseAI(d); sessionStorage.setItem("ai_expense_ai", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiExpenseAILoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_profit_margin");
+    if (cached) { try { setAiProfitMargin(JSON.parse(cached)); return; } catch {} }
+    setAiProfitMarginLoading(true);
+    apiRequest("POST", "/api/ai/profit-margin", {}).then(r => r.json()).then(d => { setAiProfitMargin(d); sessionStorage.setItem("ai_profit_margin", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiProfitMarginLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_cash_flow");
+    if (cached) { try { setAiCashFlow(JSON.parse(cached)); return; } catch {} }
+    setAiCashFlowLoading(true);
+    apiRequest("POST", "/api/ai/cash-flow", {}).then(r => r.json()).then(d => { setAiCashFlow(d); sessionStorage.setItem("ai_cash_flow", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCashFlowLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_pay_gateway");
+    if (cached) { try { setAiPayGateway(JSON.parse(cached)); return; } catch {} }
+    setAiPayGatewayLoading(true);
+    apiRequest("POST", "/api/ai/payment-gateway", {}).then(r => r.json()).then(d => { setAiPayGateway(d); sessionStorage.setItem("ai_pay_gateway", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiPayGatewayLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_sub_box");
+    if (cached) { try { setAiSubBox(JSON.parse(cached)); return; } catch {} }
+    setAiSubBoxLoading(true);
+    apiRequest("POST", "/api/ai/subscription-box", {}).then(r => r.json()).then(d => { setAiSubBox(d); sessionStorage.setItem("ai_sub_box", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSubBoxLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_nft");
+    if (cached) { try { setAiNFT(JSON.parse(cached)); return; } catch {} }
+    setAiNFTLoading(true);
+    apiRequest("POST", "/api/ai/nft-advisor", {}).then(r => r.json()).then(d => { setAiNFT(d); sessionStorage.setItem("ai_nft", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiNFTLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_rev_goals");
+    if (cached) { try { setAiRevGoals(JSON.parse(cached)); return; } catch {} }
+    setAiRevGoalsLoading(true);
+    apiRequest("POST", "/api/ai/revenue-goals", {}).then(r => r.json()).then(d => { setAiRevGoals(d); sessionStorage.setItem("ai_rev_goals", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRevGoalsLoading(false));
+  }, []);
 
   const { data: revenueRecords, isLoading: revenueLoading } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
@@ -1419,6 +1743,13 @@ export default function Money() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
+  };
+
+  const renderMoneyAIList = (arr: any[] | undefined, limit = 5) => {
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    return arr.slice(0, limit).map((item: any, i: number) => (
+      <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
+    ));
   };
 
   const tabs: { key: TabKey; label: string }[] = [
@@ -2392,6 +2723,680 @@ export default function Money() {
       {activeTab === "ventures" && <VenturesTab />}
       {activeTab === "goals" && <GoalsTab />}
       {activeTab === "sponsors" && <SponsorsTab />}
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowMonetizationAI(!showMonetizationAI)}
+          data-testid="button-toggle-monetization-ai"
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-semibold">AI Monetization Engine</span>
+          <Badge variant="outline" className="text-[10px]">20 tools</Badge>
+          {showMonetizationAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showMonetizationAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiAdRevenueLoading || aiAdRevenue) && (
+              <Card data-testid="card-ai-ad-revenue">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Ad Revenue</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAdRevenueLoading ? <Skeleton className="h-24 w-full" /> : aiAdRevenue && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiAdRevenue.strategies || aiAdRevenue.tips || aiAdRevenue.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAdPlaceLoading || aiAdPlace) && (
+              <Card data-testid="card-ai-ad-place">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Ad Placement</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAdPlaceLoading ? <Skeleton className="h-24 w-full" /> : aiAdPlace && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiAdPlace.placements || aiAdPlace.tips || aiAdPlace.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCPMLoading || aiCPM) && (
+              <Card data-testid="card-ai-cpm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI CPM Maximizer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCPMLoading ? <Skeleton className="h-24 w-full" /> : aiCPM && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiCPM.strategies || aiCPM.tips || aiCPM.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSponsorPriceLoading || aiSponsorPrice) && (
+              <Card data-testid="card-ai-sponsor-price">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Sponsor Pricing</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSponsorPriceLoading ? <Skeleton className="h-24 w-full" /> : aiSponsorPrice && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSponsorPrice.pricing || aiSponsorPrice.rates || aiSponsorPrice.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSponsorOutreachLoading || aiSponsorOutreach) && (
+              <Card data-testid="card-ai-sponsor-outreach">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Sponsor Outreach</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSponsorOutreachLoading ? <Skeleton className="h-24 w-full" /> : aiSponsorOutreach && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSponsorOutreach.templates || aiSponsorOutreach.emails || aiSponsorOutreach.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSponsorNegLoading || aiSponsorNeg) && (
+              <Card data-testid="card-ai-sponsor-neg">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Sponsor Negotiation</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSponsorNegLoading ? <Skeleton className="h-24 w-full" /> : aiSponsorNeg && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSponsorNeg.tactics || aiSponsorNeg.tips || aiSponsorNeg.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSponsorDelivLoading || aiSponsorDeliv) && (
+              <Card data-testid="card-ai-sponsor-deliv">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Sponsor Deliverables</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSponsorDelivLoading ? <Skeleton className="h-24 w-full" /> : aiSponsorDeliv && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSponsorDeliv.deliverables || aiSponsorDeliv.checklist || aiSponsorDeliv.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAffiliateLoading || aiAffiliate) && (
+              <Card data-testid="card-ai-affiliate">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Affiliate Optimizer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAffiliateLoading ? <Skeleton className="h-24 w-full" /> : aiAffiliate && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiAffiliate.programs || aiAffiliate.strategies || aiAffiliate.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMerchLoading || aiMerch) && (
+              <Card data-testid="card-ai-merch">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Merchandise</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMerchLoading ? <Skeleton className="h-24 w-full" /> : aiMerch && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiMerch.products || aiMerch.ideas || aiMerch.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMemberTiersLoading || aiMemberTiers) && (
+              <Card data-testid="card-ai-member-tiers">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Membership Tiers</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMemberTiersLoading ? <Skeleton className="h-24 w-full" /> : aiMemberTiers && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiMemberTiers.tiers || aiMemberTiers.plans || aiMemberTiers.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDigitalProdLoading || aiDigitalProd) && (
+              <Card data-testid="card-ai-digital-prod">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Digital Products</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDigitalProdLoading ? <Skeleton className="h-24 w-full" /> : aiDigitalProd && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiDigitalProd.products || aiDigitalProd.ideas || aiDigitalProd.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCourseLoading || aiCourse) && (
+              <Card data-testid="card-ai-course">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Course Builder</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCourseLoading ? <Skeleton className="h-24 w-full" /> : aiCourse && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiCourse.modules || aiCourse.outline || aiCourse.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPatreonLoading || aiPatreon) && (
+              <Card data-testid="card-ai-patreon">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Patreon Optimizer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPatreonLoading ? <Skeleton className="h-24 w-full" /> : aiPatreon && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiPatreon.tiers || aiPatreon.strategies || aiPatreon.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSuperChatLoading || aiSuperChat) && (
+              <Card data-testid="card-ai-super-chat">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Super Chat</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSuperChatLoading ? <Skeleton className="h-24 w-full" /> : aiSuperChat && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSuperChat.strategies || aiSuperChat.tips || aiSuperChat.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMemberGrowthLoading || aiMemberGrowth) && (
+              <Card data-testid="card-ai-member-growth">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Membership Growth</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMemberGrowthLoading ? <Skeleton className="h-24 w-full" /> : aiMemberGrowth && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiMemberGrowth.strategies || aiMemberGrowth.tactics || aiMemberGrowth.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiRevStreamsLoading || aiRevStreams) && (
+              <Card data-testid="card-ai-rev-streams">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Revenue Streams</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRevStreamsLoading ? <Skeleton className="h-24 w-full" /> : aiRevStreams && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiRevStreams.streams || aiRevStreams.ideas || aiRevStreams.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiInvoiceLoading || aiInvoice) && (
+              <Card data-testid="card-ai-invoice">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Invoice Generator</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiInvoiceLoading ? <Skeleton className="h-24 w-full" /> : aiInvoice && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiInvoice.templates || aiInvoice.tips || aiInvoice.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiContractLoading || aiContract) && (
+              <Card data-testid="card-ai-contract">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Contract Review</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiContractLoading ? <Skeleton className="h-24 w-full" /> : aiContract && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiContract.clauses || aiContract.flags || aiContract.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTaxDeductLoading || aiTaxDeduct) && (
+              <Card data-testid="card-ai-tax-deduct">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Tax Deductions</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTaxDeductLoading ? <Skeleton className="h-24 w-full" /> : aiTaxDeduct && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiTaxDeduct.deductions || aiTaxDeduct.categories || aiTaxDeduct.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiQuarterlyTaxLoading || aiQuarterlyTax) && (
+              <Card data-testid="card-ai-quarterly-tax">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Quarterly Tax</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiQuarterlyTaxLoading ? <Skeleton className="h-24 w-full" /> : aiQuarterlyTax && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiQuarterlyTax.estimates || aiQuarterlyTax.schedule || aiQuarterlyTax.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowBusinessAI(!showBusinessAI)}
+          data-testid="button-toggle-business-ai"
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-semibold">AI Business & Revenue Suite</span>
+          <Badge variant="outline" className="text-[10px]">20 tools</Badge>
+          {showBusinessAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showBusinessAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiBrandDealLoading || aiBrandDeal) && (
+              <Card data-testid="card-ai-brand-deal">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Brand Deal</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiBrandDealLoading ? <Skeleton className="h-24 w-full" /> : aiBrandDeal && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiBrandDeal.evaluation || aiBrandDeal.deals || aiBrandDeal.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMediaKitEnhLoading || aiMediaKitEnh) && (
+              <Card data-testid="card-ai-media-kit-enh">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Media Kit Enhance</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMediaKitEnhLoading ? <Skeleton className="h-24 w-full" /> : aiMediaKitEnh && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiMediaKitEnh.sections || aiMediaKitEnh.improvements || aiMediaKitEnh.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiRateCardLoading || aiRateCard) && (
+              <Card data-testid="card-ai-rate-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Rate Card</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRateCardLoading ? <Skeleton className="h-24 w-full" /> : aiRateCard && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiRateCard.rates || aiRateCard.packages || aiRateCard.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSponsorROILoading || aiSponsorROI) && (
+              <Card data-testid="card-ai-sponsor-roi">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Sponsor ROI</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSponsorROILoading ? <Skeleton className="h-24 w-full" /> : aiSponsorROI && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSponsorROI.metrics || aiSponsorROI.analysis || aiSponsorROI.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPassiveIncomeLoading || aiPassiveIncome) && (
+              <Card data-testid="card-ai-passive-income">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Passive Income</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPassiveIncomeLoading ? <Skeleton className="h-24 w-full" /> : aiPassiveIncome && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiPassiveIncome.streams || aiPassiveIncome.ideas || aiPassiveIncome.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPricingLoading || aiPricing) && (
+              <Card data-testid="card-ai-pricing">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Pricing Strategy</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPricingLoading ? <Skeleton className="h-24 w-full" /> : aiPricing && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiPricing.strategies || aiPricing.models || aiPricing.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiRevAttribLoading || aiRevAttrib) && (
+              <Card data-testid="card-ai-rev-attrib">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Revenue Attribution</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRevAttribLoading ? <Skeleton className="h-24 w-full" /> : aiRevAttrib && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiRevAttrib.sources || aiRevAttrib.attribution || aiRevAttrib.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDonationLoading || aiDonation) && (
+              <Card data-testid="card-ai-donation">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Donation Optimizer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDonationLoading ? <Skeleton className="h-24 w-full" /> : aiDonation && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiDonation.strategies || aiDonation.platforms || aiDonation.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCrowdfundLoading || aiCrowdfund) && (
+              <Card data-testid="card-ai-crowdfund">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Crowdfunding</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCrowdfundLoading ? <Skeleton className="h-24 w-full" /> : aiCrowdfund && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiCrowdfund.campaigns || aiCrowdfund.strategies || aiCrowdfund.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiLicensingLoading || aiLicensing) && (
+              <Card data-testid="card-ai-licensing">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Licensing</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiLicensingLoading ? <Skeleton className="h-24 w-full" /> : aiLicensing && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiLicensing.opportunities || aiLicensing.deals || aiLicensing.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiBookDealLoading || aiBookDeal) && (
+              <Card data-testid="card-ai-book-deal">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Book Deal</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiBookDealLoading ? <Skeleton className="h-24 w-full" /> : aiBookDeal && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiBookDeal.proposals || aiBookDeal.publishers || aiBookDeal.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSpeakFeesLoading || aiSpeakFees) && (
+              <Card data-testid="card-ai-speak-fees">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Speaking Fees</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSpeakFeesLoading ? <Skeleton className="h-24 w-full" /> : aiSpeakFees && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSpeakFees.rates || aiSpeakFees.tiers || aiSpeakFees.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiConsultingLoading || aiConsulting) && (
+              <Card data-testid="card-ai-consulting">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Consulting</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiConsultingLoading ? <Skeleton className="h-24 w-full" /> : aiConsulting && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiConsulting.packages || aiConsulting.services || aiConsulting.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiExpenseAILoading || aiExpenseAI) && (
+              <Card data-testid="card-ai-expense-ai">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Expense Tracker</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiExpenseAILoading ? <Skeleton className="h-24 w-full" /> : aiExpenseAI && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiExpenseAI.insights || aiExpenseAI.categories || aiExpenseAI.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiProfitMarginLoading || aiProfitMargin) && (
+              <Card data-testid="card-ai-profit-margin">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Profit Margin</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiProfitMarginLoading ? <Skeleton className="h-24 w-full" /> : aiProfitMargin && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiProfitMargin.analysis || aiProfitMargin.margins || aiProfitMargin.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCashFlowLoading || aiCashFlow) && (
+              <Card data-testid="card-ai-cash-flow">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Cash Flow</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCashFlowLoading ? <Skeleton className="h-24 w-full" /> : aiCashFlow && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiCashFlow.forecast || aiCashFlow.projections || aiCashFlow.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPayGatewayLoading || aiPayGateway) && (
+              <Card data-testid="card-ai-pay-gateway">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Payment Gateway</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPayGatewayLoading ? <Skeleton className="h-24 w-full" /> : aiPayGateway && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiPayGateway.gateways || aiPayGateway.comparison || aiPayGateway.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSubBoxLoading || aiSubBox) && (
+              <Card data-testid="card-ai-sub-box">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Subscription Box</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSubBoxLoading ? <Skeleton className="h-24 w-full" /> : aiSubBox && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiSubBox.concepts || aiSubBox.items || aiSubBox.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiNFTLoading || aiNFT) && (
+              <Card data-testid="card-ai-nft">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI NFT Advisor</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiNFTLoading ? <Skeleton className="h-24 w-full" /> : aiNFT && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiNFT.strategies || aiNFT.collections || aiNFT.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiRevGoalsLoading || aiRevGoals) && (
+              <Card data-testid="card-ai-rev-goals">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Revenue Goals</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiRevGoalsLoading ? <Skeleton className="h-24 w-full" /> : aiRevGoals && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderMoneyAIList(aiRevGoals.goals || aiRevGoals.milestones || aiRevGoals.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check } from "lucide-react";
+import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon } from "@/components/PlatformIcon";
@@ -34,6 +34,47 @@ export default function StreamCenter() {
   const [aiRaidLoading, setAiRaidLoading] = useState(true);
   const [aiPostReport, setAiPostReport] = useState<any>(null);
   const [aiPostReportLoading, setAiPostReportLoading] = useState(false);
+  const [showStreamAI, setShowStreamAI] = useState(false);
+  const [aiStreamTitles, setAiStreamTitles] = useState<any>(null);
+  const [aiStreamTitlesLoading, setAiStreamTitlesLoading] = useState(false);
+  const [aiStreamSchedule, setAiStreamSchedule] = useState<any>(null);
+  const [aiStreamScheduleLoading, setAiStreamScheduleLoading] = useState(false);
+  const [aiStreamOverlays, setAiStreamOverlays] = useState<any>(null);
+  const [aiStreamOverlaysLoading, setAiStreamOverlaysLoading] = useState(false);
+  const [aiStreamAlerts, setAiStreamAlerts] = useState<any>(null);
+  const [aiStreamAlertsLoading, setAiStreamAlertsLoading] = useState(false);
+  const [aiStreamMod, setAiStreamMod] = useState<any>(null);
+  const [aiStreamModLoading, setAiStreamModLoading] = useState(false);
+  const [aiStreamInteract, setAiStreamInteract] = useState<any>(null);
+  const [aiStreamInteractLoading, setAiStreamInteractLoading] = useState(false);
+  const [aiStreamRev, setAiStreamRev] = useState<any>(null);
+  const [aiStreamRevLoading, setAiStreamRevLoading] = useState(false);
+  const [aiStreamClips, setAiStreamClips] = useState<any>(null);
+  const [aiStreamClipsLoading, setAiStreamClipsLoading] = useState(false);
+  const [aiStreamCats, setAiStreamCats] = useState<any>(null);
+  const [aiStreamCatsLoading, setAiStreamCatsLoading] = useState(false);
+  const [aiStreamPanels, setAiStreamPanels] = useState<any>(null);
+  const [aiStreamPanelsLoading, setAiStreamPanelsLoading] = useState(false);
+  const [aiStreamEmotes, setAiStreamEmotes] = useState<any>(null);
+  const [aiStreamEmotesLoading, setAiStreamEmotesLoading] = useState(false);
+  const [aiStreamSubGoals, setAiStreamSubGoals] = useState<any>(null);
+  const [aiStreamSubGoalsLoading, setAiStreamSubGoalsLoading] = useState(false);
+  const [aiStreamNetwork, setAiStreamNetwork] = useState<any>(null);
+  const [aiStreamNetworkLoading, setAiStreamNetworkLoading] = useState(false);
+  const [aiStreamAnalyticsExp, setAiStreamAnalyticsExp] = useState<any>(null);
+  const [aiStreamAnalyticsExpLoading, setAiStreamAnalyticsExpLoading] = useState(false);
+  const [aiMultiStream, setAiMultiStream] = useState<any>(null);
+  const [aiMultiStreamLoading, setAiMultiStreamLoading] = useState(false);
+  const [aiStreamBackup, setAiStreamBackup] = useState<any>(null);
+  const [aiStreamBackupLoading, setAiStreamBackupLoading] = useState(false);
+  const [aiStreamCommunity, setAiStreamCommunity] = useState<any>(null);
+  const [aiStreamCommunityLoading, setAiStreamCommunityLoading] = useState(false);
+  const [aiStreamBranding, setAiStreamBranding] = useState<any>(null);
+  const [aiStreamBrandingLoading, setAiStreamBrandingLoading] = useState(false);
+  const [aiStreamCalendar, setAiStreamCalendar] = useState<any>(null);
+  const [aiStreamCalendarLoading, setAiStreamCalendarLoading] = useState(false);
+  const [aiStreamGrowth, setAiStreamGrowth] = useState<any>(null);
+  const [aiStreamGrowthLoading, setAiStreamGrowthLoading] = useState(false);
 
   useEffect(() => {
     const cached = sessionStorage.getItem("aiStreamRecs");
@@ -101,6 +142,127 @@ export default function StreamCenter() {
         sessionStorage.setItem("aiRaidStrategy", JSON.stringify(data));
       } catch { setAiRaid(null); } finally { setAiRaidLoading(false); }
     })();
+  }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_titles");
+    if (cached) { try { setAiStreamTitles(JSON.parse(cached)); return; } catch {} }
+    setAiStreamTitlesLoading(true);
+    apiRequest("POST", "/api/ai/stream-titles", {}).then(r => r.json()).then(d => { setAiStreamTitles(d); sessionStorage.setItem("ai_stream_titles", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamTitlesLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_schedule");
+    if (cached) { try { setAiStreamSchedule(JSON.parse(cached)); return; } catch {} }
+    setAiStreamScheduleLoading(true);
+    apiRequest("POST", "/api/ai/stream-schedule", {}).then(r => r.json()).then(d => { setAiStreamSchedule(d); sessionStorage.setItem("ai_stream_schedule", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamScheduleLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_overlays");
+    if (cached) { try { setAiStreamOverlays(JSON.parse(cached)); return; } catch {} }
+    setAiStreamOverlaysLoading(true);
+    apiRequest("POST", "/api/ai/stream-overlays", {}).then(r => r.json()).then(d => { setAiStreamOverlays(d); sessionStorage.setItem("ai_stream_overlays", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamOverlaysLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_alerts");
+    if (cached) { try { setAiStreamAlerts(JSON.parse(cached)); return; } catch {} }
+    setAiStreamAlertsLoading(true);
+    apiRequest("POST", "/api/ai/stream-alerts", {}).then(r => r.json()).then(d => { setAiStreamAlerts(d); sessionStorage.setItem("ai_stream_alerts", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamAlertsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_mod");
+    if (cached) { try { setAiStreamMod(JSON.parse(cached)); return; } catch {} }
+    setAiStreamModLoading(true);
+    apiRequest("POST", "/api/ai/stream-moderation", {}).then(r => r.json()).then(d => { setAiStreamMod(d); sessionStorage.setItem("ai_stream_mod", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamModLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_interact");
+    if (cached) { try { setAiStreamInteract(JSON.parse(cached)); return; } catch {} }
+    setAiStreamInteractLoading(true);
+    apiRequest("POST", "/api/ai/stream-interactions", {}).then(r => r.json()).then(d => { setAiStreamInteract(d); sessionStorage.setItem("ai_stream_interact", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamInteractLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_rev");
+    if (cached) { try { setAiStreamRev(JSON.parse(cached)); return; } catch {} }
+    setAiStreamRevLoading(true);
+    apiRequest("POST", "/api/ai/stream-revenue", {}).then(r => r.json()).then(d => { setAiStreamRev(d); sessionStorage.setItem("ai_stream_rev", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamRevLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_clips");
+    if (cached) { try { setAiStreamClips(JSON.parse(cached)); return; } catch {} }
+    setAiStreamClipsLoading(true);
+    apiRequest("POST", "/api/ai/stream-clips", {}).then(r => r.json()).then(d => { setAiStreamClips(d); sessionStorage.setItem("ai_stream_clips", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamClipsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_cats");
+    if (cached) { try { setAiStreamCats(JSON.parse(cached)); return; } catch {} }
+    setAiStreamCatsLoading(true);
+    apiRequest("POST", "/api/ai/stream-categories", {}).then(r => r.json()).then(d => { setAiStreamCats(d); sessionStorage.setItem("ai_stream_cats", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamCatsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_panels");
+    if (cached) { try { setAiStreamPanels(JSON.parse(cached)); return; } catch {} }
+    setAiStreamPanelsLoading(true);
+    apiRequest("POST", "/api/ai/stream-panels", {}).then(r => r.json()).then(d => { setAiStreamPanels(d); sessionStorage.setItem("ai_stream_panels", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamPanelsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_emotes");
+    if (cached) { try { setAiStreamEmotes(JSON.parse(cached)); return; } catch {} }
+    setAiStreamEmotesLoading(true);
+    apiRequest("POST", "/api/ai/stream-emotes", {}).then(r => r.json()).then(d => { setAiStreamEmotes(d); sessionStorage.setItem("ai_stream_emotes", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamEmotesLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_sub_goals");
+    if (cached) { try { setAiStreamSubGoals(JSON.parse(cached)); return; } catch {} }
+    setAiStreamSubGoalsLoading(true);
+    apiRequest("POST", "/api/ai/stream-sub-goals", {}).then(r => r.json()).then(d => { setAiStreamSubGoals(d); sessionStorage.setItem("ai_stream_sub_goals", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamSubGoalsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_network");
+    if (cached) { try { setAiStreamNetwork(JSON.parse(cached)); return; } catch {} }
+    setAiStreamNetworkLoading(true);
+    apiRequest("POST", "/api/ai/stream-networking", {}).then(r => r.json()).then(d => { setAiStreamNetwork(d); sessionStorage.setItem("ai_stream_network", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamNetworkLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_analytics_exp");
+    if (cached) { try { setAiStreamAnalyticsExp(JSON.parse(cached)); return; } catch {} }
+    setAiStreamAnalyticsExpLoading(true);
+    apiRequest("POST", "/api/ai/stream-analytics-explainer", {}).then(r => r.json()).then(d => { setAiStreamAnalyticsExp(d); sessionStorage.setItem("ai_stream_analytics_exp", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamAnalyticsExpLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_multi_stream");
+    if (cached) { try { setAiMultiStream(JSON.parse(cached)); return; } catch {} }
+    setAiMultiStreamLoading(true);
+    apiRequest("POST", "/api/ai/multi-stream", {}).then(r => r.json()).then(d => { setAiMultiStream(d); sessionStorage.setItem("ai_multi_stream", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMultiStreamLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_backup");
+    if (cached) { try { setAiStreamBackup(JSON.parse(cached)); return; } catch {} }
+    setAiStreamBackupLoading(true);
+    apiRequest("POST", "/api/ai/stream-backup", {}).then(r => r.json()).then(d => { setAiStreamBackup(d); sessionStorage.setItem("ai_stream_backup", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamBackupLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_community");
+    if (cached) { try { setAiStreamCommunity(JSON.parse(cached)); return; } catch {} }
+    setAiStreamCommunityLoading(true);
+    apiRequest("POST", "/api/ai/stream-community", {}).then(r => r.json()).then(d => { setAiStreamCommunity(d); sessionStorage.setItem("ai_stream_community", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamCommunityLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_branding");
+    if (cached) { try { setAiStreamBranding(JSON.parse(cached)); return; } catch {} }
+    setAiStreamBrandingLoading(true);
+    apiRequest("POST", "/api/ai/stream-branding", {}).then(r => r.json()).then(d => { setAiStreamBranding(d); sessionStorage.setItem("ai_stream_branding", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamBrandingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_calendar");
+    if (cached) { try { setAiStreamCalendar(JSON.parse(cached)); return; } catch {} }
+    setAiStreamCalendarLoading(true);
+    apiRequest("POST", "/api/ai/stream-content-calendar", {}).then(r => r.json()).then(d => { setAiStreamCalendar(d); sessionStorage.setItem("ai_stream_calendar", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamCalendarLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_stream_growth");
+    if (cached) { try { setAiStreamGrowth(JSON.parse(cached)); return; } catch {} }
+    setAiStreamGrowthLoading(true);
+    apiRequest("POST", "/api/ai/stream-growth", {}).then(r => r.json()).then(d => { setAiStreamGrowth(d); sessionStorage.setItem("ai_stream_growth", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamGrowthLoading(false));
   }, []);
 
   const { data: destinations = [] } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
@@ -186,6 +348,13 @@ export default function StreamCenter() {
       ...prev,
       platforms: prev.platforms.includes(platform) ? prev.platforms.filter(p => p !== platform) : [...prev.platforms, platform],
     }));
+  };
+
+  const renderAIList = (arr: any[] | undefined, limit = 5) => {
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    return arr.slice(0, limit).map((item: any, i: number) => (
+      <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
+    ));
   };
 
   return (
@@ -747,6 +916,343 @@ export default function StreamCenter() {
           )}
         </CardContent>
       </Card>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowStreamAI(!showStreamAI)}
+          data-testid="button-toggle-stream-ai"
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-semibold">AI Stream Mastery Suite</span>
+          <Badge variant="outline" className="text-[10px]">20 tools</Badge>
+          {showStreamAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showStreamAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiStreamTitlesLoading || aiStreamTitles) && (
+              <Card data-testid="card-ai-stream-titles">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Titles</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamTitlesLoading ? <Skeleton className="h-24 w-full" /> : aiStreamTitles && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamTitles.titles || aiStreamTitles.suggestions || aiStreamTitles.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamScheduleLoading || aiStreamSchedule) && (
+              <Card data-testid="card-ai-stream-schedule">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Schedule</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamScheduleLoading ? <Skeleton className="h-24 w-full" /> : aiStreamSchedule && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamSchedule.schedule || aiStreamSchedule.slots || aiStreamSchedule.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamOverlaysLoading || aiStreamOverlays) && (
+              <Card data-testid="card-ai-stream-overlays">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Overlays</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamOverlaysLoading ? <Skeleton className="h-24 w-full" /> : aiStreamOverlays && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamOverlays.overlays || aiStreamOverlays.designs || aiStreamOverlays.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamAlertsLoading || aiStreamAlerts) && (
+              <Card data-testid="card-ai-stream-alerts">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Alerts</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamAlertsLoading ? <Skeleton className="h-24 w-full" /> : aiStreamAlerts && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamAlerts.alerts || aiStreamAlerts.designs || aiStreamAlerts.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamModLoading || aiStreamMod) && (
+              <Card data-testid="card-ai-stream-mod">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Moderation</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamModLoading ? <Skeleton className="h-24 w-full" /> : aiStreamMod && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamMod.rules || aiStreamMod.policies || aiStreamMod.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamInteractLoading || aiStreamInteract) && (
+              <Card data-testid="card-ai-stream-interact">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Interactions</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamInteractLoading ? <Skeleton className="h-24 w-full" /> : aiStreamInteract && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamInteract.interactions || aiStreamInteract.activities || aiStreamInteract.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamRevLoading || aiStreamRev) && (
+              <Card data-testid="card-ai-stream-rev">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Revenue</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamRevLoading ? <Skeleton className="h-24 w-full" /> : aiStreamRev && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamRev.strategies || aiStreamRev.tips || aiStreamRev.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamClipsLoading || aiStreamClips) && (
+              <Card data-testid="card-ai-stream-clips">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Clips</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamClipsLoading ? <Skeleton className="h-24 w-full" /> : aiStreamClips && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamClips.clips || aiStreamClips.highlights || aiStreamClips.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamCatsLoading || aiStreamCats) && (
+              <Card data-testid="card-ai-stream-cats">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Categories</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamCatsLoading ? <Skeleton className="h-24 w-full" /> : aiStreamCats && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamCats.categories || aiStreamCats.suggestions || aiStreamCats.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamPanelsLoading || aiStreamPanels) && (
+              <Card data-testid="card-ai-stream-panels">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Panels</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamPanelsLoading ? <Skeleton className="h-24 w-full" /> : aiStreamPanels && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamPanels.panels || aiStreamPanels.designs || aiStreamPanels.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamEmotesLoading || aiStreamEmotes) && (
+              <Card data-testid="card-ai-stream-emotes">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Emotes</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamEmotesLoading ? <Skeleton className="h-24 w-full" /> : aiStreamEmotes && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamEmotes.emotes || aiStreamEmotes.concepts || aiStreamEmotes.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamSubGoalsLoading || aiStreamSubGoals) && (
+              <Card data-testid="card-ai-stream-sub-goals">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Sub Goals</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamSubGoalsLoading ? <Skeleton className="h-24 w-full" /> : aiStreamSubGoals && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamSubGoals.goals || aiStreamSubGoals.milestones || aiStreamSubGoals.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamNetworkLoading || aiStreamNetwork) && (
+              <Card data-testid="card-ai-stream-network">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Networking</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamNetworkLoading ? <Skeleton className="h-24 w-full" /> : aiStreamNetwork && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamNetwork.connections || aiStreamNetwork.tips || aiStreamNetwork.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamAnalyticsExpLoading || aiStreamAnalyticsExp) && (
+              <Card data-testid="card-ai-stream-analytics-exp">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Analytics Explainer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamAnalyticsExpLoading ? <Skeleton className="h-24 w-full" /> : aiStreamAnalyticsExp && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamAnalyticsExp.explanations || aiStreamAnalyticsExp.insights || aiStreamAnalyticsExp.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMultiStreamLoading || aiMultiStream) && (
+              <Card data-testid="card-ai-multi-stream">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Multi-Stream</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMultiStreamLoading ? <Skeleton className="h-24 w-full" /> : aiMultiStream && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiMultiStream.setup || aiMultiStream.platforms || aiMultiStream.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamBackupLoading || aiStreamBackup) && (
+              <Card data-testid="card-ai-stream-backup">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Backup</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamBackupLoading ? <Skeleton className="h-24 w-full" /> : aiStreamBackup && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamBackup.plans || aiStreamBackup.steps || aiStreamBackup.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamCommunityLoading || aiStreamCommunity) && (
+              <Card data-testid="card-ai-stream-community">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Community Builder</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamCommunityLoading ? <Skeleton className="h-24 w-full" /> : aiStreamCommunity && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamCommunity.strategies || aiStreamCommunity.tips || aiStreamCommunity.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamBrandingLoading || aiStreamBranding) && (
+              <Card data-testid="card-ai-stream-branding">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Branding</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamBrandingLoading ? <Skeleton className="h-24 w-full" /> : aiStreamBranding && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamBranding.kit || aiStreamBranding.elements || aiStreamBranding.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamCalendarLoading || aiStreamCalendar) && (
+              <Card data-testid="card-ai-stream-calendar">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Content Calendar</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamCalendarLoading ? <Skeleton className="h-24 w-full" /> : aiStreamCalendar && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamCalendar.calendar || aiStreamCalendar.schedule || aiStreamCalendar.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiStreamGrowthLoading || aiStreamGrowth) && (
+              <Card data-testid="card-ai-stream-growth">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">AI Stream Growth</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiStreamGrowthLoading ? <Skeleton className="h-24 w-full" /> : aiStreamGrowth && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiStreamGrowth.hacks || aiStreamGrowth.strategies || aiStreamGrowth.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
 
       {liveStream && <LiveBanner stream={liveStream} onEnd={() => endStream.mutate(liveStream.id)} isEnding={endStream.isPending} />}
 

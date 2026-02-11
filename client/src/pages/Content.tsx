@@ -135,6 +135,28 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [showSEOAI, setShowSEOAI] = useState(false);
   const [showStrategyAI, setShowStrategyAI] = useState(false);
   const [showShortsAI, setShowShortsAI] = useState(false);
+  const [showCaptionsAI, setShowCaptionsAI] = useState(false);
+
+  const [aiCaptions, setAiCaptions] = useState<any>(null);
+  const [aiCaptionsLoading, setAiCaptionsLoading] = useState(false);
+  const [aiCaptionStyle, setAiCaptionStyle] = useState<any>(null);
+  const [aiCaptionStyleLoading, setAiCaptionStyleLoading] = useState(false);
+  const [aiSubtitles, setAiSubtitles] = useState<any>(null);
+  const [aiSubtitlesLoading, setAiSubtitlesLoading] = useState(false);
+  const [aiMultiLangSEO, setAiMultiLangSEO] = useState<any>(null);
+  const [aiMultiLangSEOLoading, setAiMultiLangSEOLoading] = useState(false);
+  const [aiLocalization, setAiLocalization] = useState<any>(null);
+  const [aiLocalizationLoading, setAiLocalizationLoading] = useState(false);
+  const [aiDubbing, setAiDubbing] = useState<any>(null);
+  const [aiDubbingLoading, setAiDubbingLoading] = useState(false);
+  const [aiTranscript, setAiTranscript] = useState<any>(null);
+  const [aiTranscriptLoading, setAiTranscriptLoading] = useState(false);
+  const [aiCaptionComp, setAiCaptionComp] = useState<any>(null);
+  const [aiCaptionCompLoading, setAiCaptionCompLoading] = useState(false);
+  const [aiAudioDesc, setAiAudioDesc] = useState<any>(null);
+  const [aiAudioDescLoading, setAiAudioDescLoading] = useState(false);
+  const [aiLangPriority, setAiLangPriority] = useState<any>(null);
+  const [aiLangPriorityLoading, setAiLangPriorityLoading] = useState(false);
 
   const [aiStoryboard, setAiStoryboard] = useState<any>(null);
   const [aiStoryboardLoading, setAiStoryboardLoading] = useState(false);
@@ -1117,6 +1139,66 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
     if (cached) { try { setAiNiche(JSON.parse(cached)); return; } catch {} }
     setAiNicheLoading(true);
     apiRequest("POST", "/api/ai/niche-research", {}).then(r => r.json()).then(d => { setAiNiche(d); sessionStorage.setItem("ai_niche", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiNicheLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_captions");
+    if (cached) { try { setAiCaptions(JSON.parse(cached)); return; } catch {} }
+    setAiCaptionsLoading(true);
+    apiRequest("POST", "/api/ai/caption-generator", {}).then(r => r.json()).then(d => { setAiCaptions(d); sessionStorage.setItem("ai_captions", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCaptionsLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_caption_style");
+    if (cached) { try { setAiCaptionStyle(JSON.parse(cached)); return; } catch {} }
+    setAiCaptionStyleLoading(true);
+    apiRequest("POST", "/api/ai/caption-styler", {}).then(r => r.json()).then(d => { setAiCaptionStyle(d); sessionStorage.setItem("ai_caption_style", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCaptionStyleLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_subtitles");
+    if (cached) { try { setAiSubtitles(JSON.parse(cached)); return; } catch {} }
+    setAiSubtitlesLoading(true);
+    apiRequest("POST", "/api/ai/subtitle-translator", {}).then(r => r.json()).then(d => { setAiSubtitles(d); sessionStorage.setItem("ai_subtitles", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiSubtitlesLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_multi_lang_seo");
+    if (cached) { try { setAiMultiLangSEO(JSON.parse(cached)); return; } catch {} }
+    setAiMultiLangSEOLoading(true);
+    apiRequest("POST", "/api/ai/multi-language-seo", {}).then(r => r.json()).then(d => { setAiMultiLangSEO(d); sessionStorage.setItem("ai_multi_lang_seo", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMultiLangSEOLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_localization");
+    if (cached) { try { setAiLocalization(JSON.parse(cached)); return; } catch {} }
+    setAiLocalizationLoading(true);
+    apiRequest("POST", "/api/ai/localization", {}).then(r => r.json()).then(d => { setAiLocalization(d); sessionStorage.setItem("ai_localization", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiLocalizationLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_dubbing");
+    if (cached) { try { setAiDubbing(JSON.parse(cached)); return; } catch {} }
+    setAiDubbingLoading(true);
+    apiRequest("POST", "/api/ai/dubbing", {}).then(r => r.json()).then(d => { setAiDubbing(d); sessionStorage.setItem("ai_dubbing", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDubbingLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_transcript");
+    if (cached) { try { setAiTranscript(JSON.parse(cached)); return; } catch {} }
+    setAiTranscriptLoading(true);
+    apiRequest("POST", "/api/ai/transcript", {}).then(r => r.json()).then(d => { setAiTranscript(d); sessionStorage.setItem("ai_transcript", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTranscriptLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_caption_comp");
+    if (cached) { try { setAiCaptionComp(JSON.parse(cached)); return; } catch {} }
+    setAiCaptionCompLoading(true);
+    apiRequest("POST", "/api/ai/caption-compliance", {}).then(r => r.json()).then(d => { setAiCaptionComp(d); sessionStorage.setItem("ai_caption_comp", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiCaptionCompLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_audio_desc");
+    if (cached) { try { setAiAudioDesc(JSON.parse(cached)); return; } catch {} }
+    setAiAudioDescLoading(true);
+    apiRequest("POST", "/api/ai/audio-description", {}).then(r => r.json()).then(d => { setAiAudioDesc(d); sessionStorage.setItem("ai_audio_desc", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiAudioDescLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_lang_priority");
+    if (cached) { try { setAiLangPriority(JSON.parse(cached)); return; } catch {} }
+    setAiLangPriorityLoading(true);
+    apiRequest("POST", "/api/ai/language-priority", {}).then(r => r.json()).then(d => { setAiLangPriority(d); sessionStorage.setItem("ai_lang_priority", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiLangPriorityLoading(false));
   }, []);
 
   const filteredVideos = useMemo(() => {
@@ -3441,6 +3523,183 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
                   {aiNicheLoading ? <Skeleton className="h-24 w-full" /> : aiNiche && (
                     <div className="space-y-2 text-xs text-muted-foreground">
                       {renderAIList(aiNiche.niches || aiNiche.opportunities || aiNiche.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowCaptionsAI(!showCaptionsAI)}
+          data-testid="button-toggle-captions-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Captions & Localization Suite</span>
+          <Badge variant="outline" className="text-[10px]">10 tools</Badge>
+          {showCaptionsAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showCaptionsAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiCaptionsLoading || aiCaptions) && (
+              <Card data-testid="card-ai-captions">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Caption Generator</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCaptionsLoading ? <Skeleton className="h-24 w-full" /> : aiCaptions && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCaptions.captions || aiCaptions.suggestions || aiCaptions.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCaptionStyleLoading || aiCaptionStyle) && (
+              <Card data-testid="card-ai-caption-style">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Caption Styler</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCaptionStyleLoading ? <Skeleton className="h-24 w-full" /> : aiCaptionStyle && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCaptionStyle.styles || aiCaptionStyle.templates || aiCaptionStyle.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiSubtitlesLoading || aiSubtitles) && (
+              <Card data-testid="card-ai-subtitles">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Subtitle Translator</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiSubtitlesLoading ? <Skeleton className="h-24 w-full" /> : aiSubtitles && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiSubtitles.translations || aiSubtitles.languages || aiSubtitles.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMultiLangSEOLoading || aiMultiLangSEO) && (
+              <Card data-testid="card-ai-multi-lang-seo">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Multi-Language SEO</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMultiLangSEOLoading ? <Skeleton className="h-24 w-full" /> : aiMultiLangSEO && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiMultiLangSEO.keywords || aiMultiLangSEO.languages || aiMultiLangSEO.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiLocalizationLoading || aiLocalization) && (
+              <Card data-testid="card-ai-localization">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Localization</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiLocalizationLoading ? <Skeleton className="h-24 w-full" /> : aiLocalization && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiLocalization.regions || aiLocalization.strategies || aiLocalization.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDubbingLoading || aiDubbing) && (
+              <Card data-testid="card-ai-dubbing">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Dubbing</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDubbingLoading ? <Skeleton className="h-24 w-full" /> : aiDubbing && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiDubbing.languages || aiDubbing.voices || aiDubbing.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTranscriptLoading || aiTranscript) && (
+              <Card data-testid="card-ai-transcript">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Transcript</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTranscriptLoading ? <Skeleton className="h-24 w-full" /> : aiTranscript && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiTranscript.segments || aiTranscript.transcript || aiTranscript.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCaptionCompLoading || aiCaptionComp) && (
+              <Card data-testid="card-ai-caption-comp">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Caption Compliance</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCaptionCompLoading ? <Skeleton className="h-24 w-full" /> : aiCaptionComp && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCaptionComp.issues || aiCaptionComp.checks || aiCaptionComp.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAudioDescLoading || aiAudioDesc) && (
+              <Card data-testid="card-ai-audio-desc">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Audio Description</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAudioDescLoading ? <Skeleton className="h-24 w-full" /> : aiAudioDesc && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAudioDesc.descriptions || aiAudioDesc.scenes || aiAudioDesc.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiLangPriorityLoading || aiLangPriority) && (
+              <Card data-testid="card-ai-lang-priority">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Language Priority</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiLangPriorityLoading ? <Skeleton className="h-24 w-full" /> : aiLangPriority && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiLangPriority.languages || aiLangPriority.priorities || aiLangPriority.recommendations)}
                     </div>
                   )}
                 </CardContent>
