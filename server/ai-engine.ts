@@ -7620,3 +7620,1270 @@ Respond as JSON: { "optimization": [{"element": "content element", "tvSetting": 
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
 }
+
+export async function aiAchievementSystemBuilder(data: { community?: string }, userId?: string) {
+  const p = `Design a gamification achievement system for a creator community.
+${data.community ? `Community: ${data.community}` : ""}
+Respond as JSON: { "achievements": [{"name": "achievement name", "criteria": "unlock criteria", "reward": "reward given", "rarity": "common/rare/epic/legendary"}], "progression": "progression system overview" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiLeaderboardDesigner(data: { metrics?: string[] }, userId?: string) {
+  const p = `Design engaging leaderboard systems for a content creator platform.
+${data.metrics ? `Metrics to track: ${data.metrics.join(", ")}` : ""}
+Respond as JSON: { "boards": [{"name": "leaderboard name", "metric": "tracked metric", "period": "time period", "prizes": "prize structure"}], "fairness": "fairness mechanisms" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiPointsEconomyBuilder(data: { actions?: string[] }, userId?: string) {
+  const p = `Build a points economy system for a creator community.
+${data.actions ? `Actions to reward: ${data.actions.join(", ")}` : ""}
+Respond as JSON: { "economy": [{"action": "user action", "points": "points awarded", "decay": "point decay rate"}], "rewards": "reward tiers and options", "inflation": "inflation control measures" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBadgeSystemCreator(data: { categories?: string[] }, userId?: string) {
+  const p = `Create a badge system for a content creator platform.
+${data.categories ? `Badge categories: ${data.categories.join(", ")}` : ""}
+Respond as JSON: { "badges": [{"name": "badge name", "category": "badge category", "criteria": "earn criteria", "design": "visual design description"}], "progression": "badge progression path" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiStreakSystemBuilder(data: { activities?: string[] }, userId?: string) {
+  const p = `Build a streak tracking system to encourage consistent creator activity.
+${data.activities ? `Activities to track: ${data.activities.join(", ")}` : ""}
+Respond as JSON: { "streaks": [{"activity": "tracked activity", "milestones": "streak milestones", "rewards": "milestone rewards"}], "recovery": "streak recovery mechanics", "notification": "notification strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiProgressVisualizationEngine(data: { metrics?: string[] }, userId?: string) {
+  const p = `Design progress visualization dashboards for creator metrics.
+${data.metrics ? `Metrics to visualize: ${data.metrics.join(", ")}` : ""}
+Respond as JSON: { "visualizations": [{"metric": "metric name", "chartType": "recommended chart type", "milestones": "visual milestones"}], "dashboard": "dashboard layout recommendation" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiChallengeSystemBuilder(data: { community?: string }, userId?: string) {
+  const p = `Build a challenge system for a creator community to drive engagement.
+${data.community ? `Community: ${data.community}` : ""}
+Respond as JSON: { "challenges": [{"name": "challenge name", "rules": "challenge rules", "duration": "challenge duration", "reward": "reward for completion"}], "seasonal": "seasonal challenge plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiMonthlyReportGenerator(data: { metrics?: any }, userId?: string) {
+  const p = `Generate a comprehensive monthly performance report for a content creator.
+${data.metrics ? `Metrics data: ${JSON.stringify(data.metrics)}` : ""}
+Respond as JSON: { "report": [{"section": "report section", "data": "key data points", "insight": "actionable insight"}], "highlights": "month highlights summary", "goals": "next month goals" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiWeeklyDigestBuilder(data: { activities?: string[] }, userId?: string) {
+  const p = `Build a weekly digest summary for a content creator.
+${data.activities ? `Recent activities: ${data.activities.join(", ")}` : ""}
+Respond as JSON: { "digest": [{"topic": "digest topic", "summary": "brief summary", "action": "recommended action"}], "metrics": "key metrics snapshot", "upcoming": "upcoming priorities" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiQuarterlyBusinessReview(data: { financials?: any }, userId?: string) {
+  const p = `Generate a quarterly business review for a content creator's business.
+${data.financials ? `Financial data: ${JSON.stringify(data.financials)}` : ""}
+Respond as JSON: { "review": [{"area": "business area", "performance": "performance summary", "target": "target vs actual"}], "strategy": "strategic recommendations", "adjustments": "suggested adjustments" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiAnnualStrategyPlanner(data: { goals?: string[] }, userId?: string) {
+  const p = `Create an annual strategy plan for a content creator.
+${data.goals ? `Annual goals: ${data.goals.join(", ")}` : ""}
+Respond as JSON: { "strategy": [{"quarter": "Q1/Q2/Q3/Q4", "focus": "quarterly focus area", "milestones": "key milestones"}], "budget": "budget allocation plan", "risks": "risk assessment" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCompetitorReportGenerator(data: { competitors?: string[] }, userId?: string) {
+  const p = `Generate a competitor analysis report for a content creator.
+${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
+Respond as JSON: { "report": [{"competitor": "competitor name", "analysis": "competitive analysis"}], "opportunities": "identified opportunities", "threats": "competitive threats" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiAudienceReportBuilder(data: { demographics?: any }, userId?: string) {
+  const p = `Build an audience analysis report for a content creator.
+${data.demographics ? `Demographics data: ${JSON.stringify(data.demographics)}` : ""}
+Respond as JSON: { "report": [{"segment": "audience segment", "size": "segment size", "behavior": "behavior patterns"}], "growth": "growth opportunities", "targeting": "targeting recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiContentReportCard(data: { videos?: any[] }, userId?: string) {
+  const p = `Generate a content report card grading a creator's recent content.
+${data.videos ? `Videos: ${JSON.stringify(data.videos.slice(0, 10))}` : ""}
+Respond as JSON: { "grades": [{"category": "grading category", "grade": "letter grade", "feedback": "specific feedback"}], "overall": "overall grade and summary", "improvements": "top improvements needed" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiROIReportGenerator(data: { investments?: any[] }, userId?: string) {
+  const p = `Generate an ROI report for a content creator's investments.
+${data.investments ? `Investments: ${JSON.stringify(data.investments.slice(0, 10))}` : ""}
+Respond as JSON: { "roi": [{"investment": "investment description", "return": "return achieved", "recommendation": "keep/scale/cut"}], "total": "total ROI summary", "optimization": "optimization suggestions" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiGamingNicheOptimizer(data: { games?: string[] }, userId?: string) {
+  const p = `Optimize a gaming content creator's niche strategy.
+${data.games ? `Games covered: ${data.games.join(", ")}` : ""}
+Respond as JSON: { "optimization": [{"game": "game title", "opportunity": "content opportunity", "strategy": "recommended strategy"}], "trending": "trending games to consider", "schedule": "optimal upload schedule" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBeautyNicheAdvisor(data: { subNiche?: string }, userId?: string) {
+  const p = `Provide niche strategy advice for a beauty content creator.
+${data.subNiche ? `Sub-niche: ${data.subNiche}` : ""}
+Respond as JSON: { "advice": [{"area": "content area", "strategy": "recommended strategy", "audience": "target audience"}], "trends": "current beauty trends", "brands": "brand partnership opportunities" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTechReviewOptimizer(data: { category?: string }, userId?: string) {
+  const p = `Optimize a tech review content creator's strategy.
+${data.category ? `Tech category: ${data.category}` : ""}
+Respond as JSON: { "optimization": [{"element": "content element", "strategy": "optimization strategy"}], "seoTips": "tech review SEO tips", "affiliate": "affiliate program recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFoodContentPlanner(data: { cuisine?: string }, userId?: string) {
+  const p = `Plan content strategy for a food content creator.
+${data.cuisine ? `Cuisine focus: ${data.cuisine}` : ""}
+Respond as JSON: { "content": [{"type": "content type", "concept": "content concept", "seasonality": "seasonal relevance"}], "trends": "food content trends", "monetization": "monetization strategies" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFitnessContentStrategy(data: { specialty?: string }, userId?: string) {
+  const p = `Create a content strategy for a fitness content creator.
+${data.specialty ? `Fitness specialty: ${data.specialty}` : ""}
+Respond as JSON: { "strategy": [{"pillar": "content pillar", "content": "content ideas", "audience": "target audience"}], "partnerships": "brand partnership opportunities" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTravelContentOptimizer(data: { style?: string }, userId?: string) {
+  const p = `Optimize content strategy for a travel content creator.
+${data.style ? `Travel style: ${data.style}` : ""}
+Respond as JSON: { "optimization": [{"aspect": "content aspect", "strategy": "optimization strategy"}], "sponsorships": "sponsorship opportunities", "gear": "recommended gear" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiEducationContentPlanner(data: { subject?: string }, userId?: string) {
+  const p = `Plan content strategy for an education content creator.
+${data.subject ? `Subject area: ${data.subject}` : ""}
+Respond as JSON: { "plan": [{"topic": "content topic", "format": "content format", "audience": "target audience"}], "credentials": "credibility building tips", "courses": "course creation opportunities" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFinanceContentAdvisor(data: { specialty?: string }, userId?: string) {
+  const p = `Advise on content strategy for a finance content creator.
+${data.specialty ? `Finance specialty: ${data.specialty}` : ""}
+Respond as JSON: { "advice": [{"topic": "content topic", "compliance": "compliance considerations", "format": "best format"}], "disclaimers": "required disclaimers", "affiliate": "affiliate opportunities" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiParentingContentStrategy(data: { ageGroup?: string }, userId?: string) {
+  const p = `Create a content strategy for a parenting content creator.
+${data.ageGroup ? `Target age group: ${data.ageGroup}` : ""}
+Respond as JSON: { "strategy": [{"topic": "content topic", "approach": "content approach", "safety": "safety considerations"}], "monetization": "monetization strategies" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiPetContentOptimizer(data: { petType?: string }, userId?: string) {
+  const p = `Optimize content strategy for a pet content creator.
+${data.petType ? `Pet type: ${data.petType}` : ""}
+Respond as JSON: { "optimization": [{"content": "content type", "audience": "target audience", "brands": "brand opportunities"}], "viral": "viral content strategies", "products": "product recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiDIYCraftPlanner(data: { category?: string }, userId?: string) {
+  const p = `Plan content strategy for a DIY and crafts content creator.
+${data.category ? `Craft category: ${data.category}` : ""}
+Respond as JSON: { "plan": [{"project": "project idea", "difficulty": "difficulty level", "materials": "materials needed"}], "series": "content series ideas", "monetization": "monetization approaches" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiMusicianContentStrategy(data: { genre?: string }, userId?: string) {
+  const p = `Create a content strategy for a musician content creator.
+${data.genre ? `Music genre: ${data.genre}` : ""}
+Respond as JSON: { "strategy": [{"platform": "target platform", "content": "content type", "promotion": "promotion strategy"}], "distribution": "music distribution plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiComedyContentAdvisor(data: { style?: string }, userId?: string) {
+  const p = `Advise on content strategy for a comedy content creator.
+${data.style ? `Comedy style: ${data.style}` : ""}
+Respond as JSON: { "advice": [{"format": "content format", "platform": "best platform", "timing": "posting timing"}], "trends": "comedy trends", "safety": "content safety guidelines" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSportsContentPlanner(data: { sport?: string }, userId?: string) {
+  const p = `Plan content strategy for a sports content creator.
+${data.sport ? `Sport: ${data.sport}` : ""}
+Respond as JSON: { "plan": [{"content": "content idea", "timing": "optimal timing", "rights": "rights considerations"}], "partnerships": "partnership opportunities", "live": "live content strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiNewsCommentaryPlanner(data: { niche?: string }, userId?: string) {
+  const p = `Plan content strategy for a news commentary content creator.
+${data.niche ? `News niche: ${data.niche}` : ""}
+Respond as JSON: { "plan": [{"approach": "commentary approach", "format": "content format", "frequency": "posting frequency"}], "sourcing": "source verification tips", "liability": "legal liability considerations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiLifestyleContentOptimizer(data: { aesthetic?: string }, userId?: string) {
+  const p = `Optimize content strategy for a lifestyle content creator.
+${data.aesthetic ? `Aesthetic style: ${data.aesthetic}` : ""}
+Respond as JSON: { "optimization": [{"area": "content area", "strategy": "optimization strategy"}], "branding": "personal branding tips", "partnerships": "brand partnership opportunities" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVideoToBookConverter(data: { videos?: string[] }, userId?: string) {
+  const p = `Plan converting video content into a book format.
+${data.videos ? `Videos: ${data.videos.join(", ")}` : ""}
+Respond as JSON: { "book": [{"chapter": "chapter title", "source": "source video", "content": "chapter content outline"}], "publishing": "publishing strategy", "marketing": "book marketing plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVideoToPodcastConverter(data: { videoTitle?: string }, userId?: string) {
+  const p = `Plan converting a video into podcast format.
+${data.videoTitle ? `Video title: ${data.videoTitle}` : ""}
+Respond as JSON: { "conversion": {"audioEdit": "audio editing notes", "intro": "podcast intro script", "chapters": "chapter markers"}, "distribution": "podcast distribution plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiVideoToCourseConverter(data: { videos?: string[] }, userId?: string) {
+  const p = `Plan converting video content into an online course.
+${data.videos ? `Videos: ${data.videos.join(", ")}` : ""}
+Respond as JSON: { "course": [{"module": "module name", "videos": "included videos", "exercises": "practice exercises"}], "platform": "recommended platform", "pricing": "pricing strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBlogToVideoConverter(data: { blogPost?: string }, userId?: string) {
+  const p = `Plan converting a blog post into video content.
+${data.blogPost ? `Blog post: ${data.blogPost}` : ""}
+Respond as JSON: { "video": {"script": "video script outline", "visuals": "visual elements needed", "duration": "estimated duration"}, "seo": "video SEO strategy", "promotion": "promotion plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitterThreadCreator(data: { content?: string }, userId?: string) {
+  const p = `Create an engaging Twitter/X thread from content.
+${data.content ? `Content to adapt: ${data.content}` : ""}
+Respond as JSON: { "thread": [{"tweet": "tweet text", "media": "media suggestion"}], "timing": "optimal posting time", "engagement": "engagement tactics" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiLinkedInContentAdapter(data: { content?: string }, userId?: string) {
+  const p = `Adapt content for LinkedIn platform.
+${data.content ? `Content to adapt: ${data.content}` : ""}
+Respond as JSON: { "adapted": {"post": "LinkedIn post text", "article": "article version", "carousel": "carousel slide ideas"}, "timing": "optimal posting time" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiPinterestPinCreator(data: { content?: string }, userId?: string) {
+  const p = `Create optimized Pinterest pins from content.
+${data.content ? `Content to adapt: ${data.content}` : ""}
+Respond as JSON: { "pins": [{"title": "pin title", "description": "pin description", "design": "design recommendations"}], "boards": "board strategy", "seo": "Pinterest SEO tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiRedditPostOptimizer(data: { content?: string; subreddit?: string }, userId?: string) {
+  const p = `Optimize content for Reddit posting.
+${data.content ? `Content: ${data.content}` : ""}
+${data.subreddit ? `Target subreddit: ${data.subreddit}` : ""}
+Respond as JSON: { "optimized": {"title": "optimized title", "body": "post body", "timing": "best posting time"}, "rules": "subreddit rules to follow", "engagement": "engagement strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiQuoraAnswerWriter(data: { topic?: string }, userId?: string) {
+  const p = `Create strategic Quora answers to drive traffic and authority.
+${data.topic ? `Topic: ${data.topic}` : ""}
+Respond as JSON: { "answers": [{"question": "target question", "answer": "answer outline", "links": "strategic link placement"}], "strategy": "Quora growth strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiMediumArticleAdapter(data: { content?: string }, userId?: string) {
+  const p = `Adapt content for Medium publication.
+${data.content ? `Content to adapt: ${data.content}` : ""}
+Respond as JSON: { "article": {"title": "article title", "body": "article structure", "tags": "recommended tags"}, "distribution": "distribution strategy", "earnings": "Medium earnings optimization" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSlidedeckCreator(data: { topic?: string }, userId?: string) {
+  const p = `Create a slide deck presentation from content.
+${data.topic ? `Topic: ${data.topic}` : ""}
+Respond as JSON: { "slides": [{"title": "slide title", "content": "slide content", "visual": "visual suggestion"}], "design": "design theme recommendation", "sharing": "distribution strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInfographicRepurposer(data: { data?: string }, userId?: string) {
+  const p = `Repurpose content data into infographic format.
+${data.data ? `Data to visualize: ${data.data}` : ""}
+Respond as JSON: { "infographic": {"layout": "layout structure", "sections": "content sections", "design": "design guidelines"}, "platforms": "platform-specific sizing" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCollabMatchScorer(data: { creator1?: any; creator2?: any }, userId?: string) {
+  const p = `Score the collaboration compatibility between two creators.
+${data.creator1 ? `Creator 1: ${JSON.stringify(data.creator1)}` : ""}
+${data.creator2 ? `Creator 2: ${JSON.stringify(data.creator2)}` : ""}
+Respond as JSON: { "score": "compatibility score 0-100", "compatibility": "compatibility analysis", "format": "best collab format", "risks": "potential risks", "benefits": "expected benefits" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCollabContractWriter(data: { terms?: any }, userId?: string) {
+  const p = `Draft collaboration contract terms for content creators.
+${data.terms ? `Terms: ${JSON.stringify(data.terms)}` : ""}
+Respond as JSON: { "contract": [{"clause": "contract clause", "detail": "clause details"}], "negotiation": "negotiation tips", "protection": "creator protection measures" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCollabRevenueCalculator(data: { creators?: any[] }, userId?: string) {
+  const p = `Calculate projected collaboration revenue and split.
+${data.creators ? `Creators: ${JSON.stringify(data.creators.slice(0, 5))}` : ""}
+Respond as JSON: { "revenue": {"split": "revenue split recommendation", "projected": "projected earnings", "terms": "payment terms"}, "negotiation": "negotiation framework" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCollabContentIdeator(data: { creators?: string[]; niches?: string[] }, userId?: string) {
+  const p = `Generate collaboration content ideas for creators.
+${data.creators ? `Creators: ${data.creators.join(", ")}` : ""}
+${data.niches ? `Niches: ${data.niches.join(", ")}` : ""}
+Respond as JSON: { "ideas": [{"concept": "content concept", "format": "content format", "audience": "target audience"}], "distribution": "distribution plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCollabOutreachWriter(data: { target?: string; reason?: string }, userId?: string) {
+  const p = `Write collaboration outreach messages.
+${data.target ? `Target creator: ${data.target}` : ""}
+${data.reason ? `Reason for collab: ${data.reason}` : ""}
+Respond as JSON: { "outreach": {"subject": "message subject", "body": "message body", "followUp": "follow-up message"}, "platform": "best outreach platform", "timing": "optimal timing" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCollabPerformanceTracker(data: { collabs?: any[] }, userId?: string) {
+  const p = `Track and analyze collaboration performance.
+${data.collabs ? `Collaborations: ${JSON.stringify(data.collabs.slice(0, 5))}` : ""}
+Respond as JSON: { "performance": [{"collab": "collaboration name", "metrics": "key metrics", "roi": "return on investment"}], "learnings": "key learnings" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiNetworkEffectCalculator(data: { connections?: number }, userId?: string) {
+  const p = `Calculate network effects and growth potential for a creator.
+${data.connections ? `Current connections: ${data.connections}` : ""}
+Respond as JSON: { "effect": {"current": "current network value", "potential": "growth potential", "strategy": "network growth strategy"}, "growth": "growth projections" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSubMilestoneStrategyBuilder(data: { target?: number; current?: number }, userId?: string) {
+  const p = `Build a subscriber milestone achievement strategy.
+${data.target ? `Target subscribers: ${data.target}` : ""}
+${data.current ? `Current subscribers: ${data.current}` : ""}
+Respond as JSON: { "strategy": [{"milestone": "subscriber milestone", "tactics": "growth tactics", "timeline": "estimated timeline"}], "celebrations": "milestone celebration ideas" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSubRetentionOptimizer(data: { churnRate?: number }, userId?: string) {
+  const p = `Optimize subscriber retention and reduce churn.
+${data.churnRate ? `Current churn rate: ${data.churnRate}%` : ""}
+Respond as JSON: { "optimization": [{"strategy": "retention strategy", "implementation": "implementation steps"}], "notifications": "notification optimization" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiNotificationBellOptimizer(data: { bellClickRate?: number }, userId?: string) {
+  const p = `Optimize notification bell click-through rates.
+${data.bellClickRate ? `Current bell click rate: ${data.bellClickRate}%` : ""}
+Respond as JSON: { "optimization": [{"tactic": "optimization tactic", "implementation": "how to implement"}], "messaging": "notification messaging strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFirstVideoOptimizer(data: { niche?: string }, userId?: string) {
+  const p = `Optimize a creator's first video for maximum impact.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "optimization": [{"element": "video element", "strategy": "optimization strategy"}], "hook": "opening hook strategy", "promotion": "first video promotion plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiChannelMembershipPerks(data: { tiers?: any[] }, userId?: string) {
+  const p = `Design channel membership perks and tiers.
+${data.tiers ? `Current tiers: ${JSON.stringify(data.tiers)}` : ""}
+Respond as JSON: { "perks": [{"tier": "membership tier", "perks": "tier perks", "value": "perceived value"}], "exclusive": "exclusive content ideas", "retention": "member retention strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSubCountdownPlanner(data: { target?: number; current?: number }, userId?: string) {
+  const p = `Plan a subscriber countdown event and campaign.
+${data.target ? `Target subscribers: ${data.target}` : ""}
+${data.current ? `Current subscribers: ${data.current}` : ""}
+Respond as JSON: { "plan": [{"phase": "campaign phase", "actions": "specific actions"}], "content": "special content ideas", "community": "community engagement tactics" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiUnsubscribeAnalyzer(data: { reasons?: string[] }, userId?: string) {
+  const p = `Analyze unsubscribe patterns and provide prevention strategies.
+${data.reasons ? `Known reasons: ${data.reasons.join(", ")}` : ""}
+Respond as JSON: { "analysis": [{"reason": "unsubscribe reason", "percentage": "estimated percentage", "solution": "prevention solution"}], "prevention": "overall prevention strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSubQualityAnalyzer(data: { engagement?: number }, userId?: string) {
+  const p = `Analyze subscriber quality and engagement levels.
+${data.engagement ? `Engagement rate: ${data.engagement}%` : ""}
+Respond as JSON: { "quality": {"active": "active subscriber analysis", "passive": "passive subscriber analysis", "ghost": "ghost subscriber analysis"}, "reEngagement": "re-engagement strategies" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiGrowthHackingPlaybook(data: { niche?: string; stage?: string }, userId?: string) {
+  const p = `Create a growth hacking playbook for a content creator.
+${data.niche ? `Niche: ${data.niche}` : ""}
+${data.stage ? `Growth stage: ${data.stage}` : ""}
+Respond as JSON: { "playbook": [{"hack": "growth hack", "implementation": "implementation steps", "risk": "risk level"}], "priority": "prioritized action plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiViralGrowthEngineBuilder(data: { mechanics?: string[] }, userId?: string) {
+  const p = `Build a viral growth engine for content distribution.
+${data.mechanics ? `Growth mechanics: ${data.mechanics.join(", ")}` : ""}
+Respond as JSON: { "engine": [{"mechanic": "viral mechanic", "trigger": "activation trigger", "amplifier": "amplification method"}], "testing": "A/B testing plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiCrossPromotionPlanner(data: { platforms?: string[] }, userId?: string) {
+  const p = `Plan cross-platform content promotion strategy.
+${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
+Respond as JSON: { "plan": [{"from": "source platform", "to": "target platform", "content": "content adaptation", "timing": "posting timing"}], "automation": "automation recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiWatchTimeBooster(data: { avgDuration?: string }, userId?: string) {
+  const p = `Provide strategies to boost video watch time and retention.
+${data.avgDuration ? `Current average watch duration: ${data.avgDuration}` : ""}
+Respond as JSON: { "boosters": [{"technique": "retention technique", "placement": "where to apply", "impact": "expected impact"}], "structure": "optimal video structure" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiOpenLoopCreator(data: { topic?: string }, userId?: string) {
+  const p = `Create open loop storytelling hooks for video retention.
+${data.topic ? `Topic: ${data.topic}` : ""}
+Respond as JSON: { "loops": [{"setup": "open loop setup", "payoff": "payoff delivery", "timing": "timing in video"}], "retention": "retention impact analysis", "placement": "strategic placement guide" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiPatternInterruptDesigner(data: { frequency?: string }, userId?: string) {
+  const p = `Design pattern interrupts to maintain viewer attention.
+${data.frequency ? `Desired frequency: ${data.frequency}` : ""}
+Respond as JSON: { "interrupts": [{"type": "interrupt type", "timing": "when to use", "execution": "how to execute"}], "variety": "variety recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiReEngagementHookBuilder(data: { dropOffPoints?: string[] }, userId?: string) {
+  const p = `Build re-engagement hooks for video drop-off points.
+${data.dropOffPoints ? `Drop-off points: ${data.dropOffPoints.join(", ")}` : ""}
+Respond as JSON: { "hooks": [{"point": "drop-off point", "hook": "re-engagement hook", "technique": "technique used"}], "testing": "testing methodology" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBingeWatchOptimizer(data: { series?: string[] }, userId?: string) {
+  const p = `Optimize content for binge-watching behavior.
+${data.series ? `Content series: ${data.series.join(", ")}` : ""}
+Respond as JSON: { "optimization": [{"element": "content element", "strategy": "optimization strategy"}], "endScreens": "end screen strategy", "cards": "card placement strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeStudioOptimizer(data: { settings?: string[] }, userId?: string) {
+  const p = `Optimize YouTube Studio settings for maximum channel performance.
+${data.settings ? `Current settings: ${data.settings.join(", ")}` : ""}
+Respond as JSON: { "optimization": [{"setting": "studio setting", "recommended": "recommended value"}], "advanced": "advanced settings tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeShortsAlgorithm(data: { niche?: string }, userId?: string) {
+  const p = `Decode and optimize for the YouTube Shorts algorithm.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "algorithm": [{"signal": "algorithm signal", "weight": "importance weight", "optimization": "how to optimize"}], "testing": "testing strategies" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeCommentsManager(data: { volume?: string }, userId?: string) {
+  const p = `Create a YouTube comments management strategy.
+${data.volume ? `Comment volume: ${data.volume}` : ""}
+Respond as JSON: { "management": [{"type": "comment type", "response": "response template", "automation": "automation option"}], "moderation": "moderation guidelines" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubePlaylistStrategy(data: { categories?: string[] }, userId?: string) {
+  const p = `Design an optimal YouTube playlist strategy.
+${data.categories ? `Content categories: ${data.categories.join(", ")}` : ""}
+Respond as JSON: { "strategy": [{"playlist": "playlist name", "purpose": "playlist purpose", "seo": "SEO optimization"}], "ordering": "video ordering strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubePremierePlanner(data: { videoTitle?: string }, userId?: string) {
+  const p = `Plan a YouTube Premiere event for maximum engagement.
+${data.videoTitle ? `Video title: ${data.videoTitle}` : ""}
+Respond as JSON: { "plan": [{"phase": "premiere phase", "action": "specific action", "timing": "timing"}], "chat": "live chat strategy", "promotion": "pre-premiere promotion" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeMembeshipStrategy(data: { currentMembers?: number }, userId?: string) {
+  const p = `Create a YouTube channel membership growth strategy.
+${data.currentMembers ? `Current members: ${data.currentMembers}` : ""}
+Respond as JSON: { "strategy": [{"tier": "membership tier", "content": "exclusive content", "pricing": "pricing recommendation"}], "retention": "member retention tactics" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeSuperThanksOptimizer(data: { avgThanks?: number }, userId?: string) {
+  const p = `Optimize YouTube Super Thanks revenue.
+${data.avgThanks ? `Average Super Thanks per video: ${data.avgThanks}` : ""}
+Respond as JSON: { "optimization": [{"tactic": "optimization tactic", "implementation": "how to implement"}], "triggers": "Super Thanks triggers" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeHandleOptimizer(data: { currentHandle?: string }, userId?: string) {
+  const p = `Optimize YouTube channel handle for branding and SEO.
+${data.currentHandle ? `Current handle: ${data.currentHandle}` : ""}
+Respond as JSON: { "recommendations": [{"handle": "suggested handle", "reasoning": "why this handle", "availability": "likely availability"}], "seo": "handle SEO impact" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeChannelPageOptimizer(data: { sections?: string[] }, userId?: string) {
+  const p = `Optimize YouTube channel page layout and sections.
+${data.sections ? `Current sections: ${data.sections.join(", ")}` : ""}
+Respond as JSON: { "optimization": [{"section": "page section", "change": "recommended change"}], "layout": "optimal layout order", "branding": "branding consistency tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiYouTubeHashtagStrategy(data: { niche?: string }, userId?: string) {
+  const p = `Create a YouTube hashtag strategy for discoverability.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "strategy": [{"hashtag": "recommended hashtag", "usage": "when to use", "volume": "search volume estimate"}], "trending": "trending hashtag tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchEmoteStrategy(data: { subCount?: number }, userId?: string) {
+  const p = `Design a Twitch emote strategy for community building.
+${data.subCount ? `Current sub count: ${data.subCount}` : ""}
+Respond as JSON: { "strategy": [{"tier": "sub tier", "emotes": "emote ideas", "community": "community impact"}], "creation": "emote creation guidelines" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchBitsOptimizer(data: { avgBits?: number }, userId?: string) {
+  const p = `Optimize Twitch Bits revenue and engagement.
+${data.avgBits ? `Average bits per stream: ${data.avgBits}` : ""}
+Respond as JSON: { "optimization": [{"tactic": "optimization tactic", "implementation": "implementation steps"}], "incentives": "bits incentive ideas" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchRaidOptimizer(data: { avgViewers?: number }, userId?: string) {
+  const p = `Optimize Twitch raid strategy for network growth.
+${data.avgViewers ? `Average viewers: ${data.avgViewers}` : ""}
+Respond as JSON: { "optimization": [{"strategy": "raid strategy", "timing": "optimal timing", "targets": "ideal raid targets"}], "etiquette": "raid etiquette guidelines" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchChannelPointsDesigner(data: { points?: string[] }, userId?: string) {
+  const p = `Design Twitch channel points rewards system.
+${data.points ? `Current rewards: ${data.points.join(", ")}` : ""}
+Respond as JSON: { "design": [{"reward": "reward name", "cost": "point cost", "engagement": "engagement impact"}], "economy": "points economy balance" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchPredictionsCreator(data: { streamType?: string }, userId?: string) {
+  const p = `Create engaging Twitch Predictions for stream interaction.
+${data.streamType ? `Stream type: ${data.streamType}` : ""}
+Respond as JSON: { "predictions": [{"question": "prediction question", "options": "prediction options", "timing": "when to run"}], "engagement": "engagement maximization tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchHypeTrainMaximizer(data: { avgTrain?: number }, userId?: string) {
+  const p = `Maximize Twitch Hype Train frequency and levels.
+${data.avgTrain ? `Average hype trains per stream: ${data.avgTrain}` : ""}
+Respond as JSON: { "maximizer": [{"tactic": "hype train tactic", "timing": "optimal timing"}], "triggers": "hype train triggers", "goals": "level goals strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchClipStrategy(data: { genre?: string }, userId?: string) {
+  const p = `Create a Twitch clip strategy for content promotion.
+${data.genre ? `Content genre: ${data.genre}` : ""}
+Respond as JSON: { "strategy": [{"moment": "clip-worthy moment", "action": "clipping action", "promotion": "clip promotion"}], "compilation": "clip compilation strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchVODOptimizer(data: { avgVODViews?: number }, userId?: string) {
+  const p = `Optimize Twitch VOD performance and discoverability.
+${data.avgVODViews ? `Average VOD views: ${data.avgVODViews}` : ""}
+Respond as JSON: { "optimization": [{"element": "VOD element", "change": "recommended change"}], "highlights": "highlight creation strategy", "youtube": "YouTube repurposing plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTwitchPanelDesigner(data: { style?: string }, userId?: string) {
+  const p = `Design Twitch channel panels for maximum impact.
+${data.style ? `Desired style: ${data.style}` : ""}
+Respond as JSON: { "panels": [{"name": "panel name", "content": "panel content", "design": "design specs"}], "layout": "panel layout order", "links": "strategic link placement" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiKickStreamOptimizer(data: { niche?: string }, userId?: string) {
+  const p = `Optimize streaming strategy for the Kick platform.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "optimization": [{"area": "optimization area", "strategy": "recommended strategy"}], "differences": "Kick vs Twitch differences", "growth": "Kick-specific growth tactics" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiKickMonetizationAdvisor(data: { viewers?: number }, userId?: string) {
+  const p = `Advise on Kick platform monetization strategies.
+${data.viewers ? `Average viewers: ${data.viewers}` : ""}
+Respond as JSON: { "monetization": [{"method": "monetization method", "potential": "earning potential"}], "comparison": "Kick vs Twitch earnings comparison" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiKickCommunityBuilder(data: { category?: string }, userId?: string) {
+  const p = `Build a community on the Kick streaming platform.
+${data.category ? `Content category: ${data.category}` : ""}
+Respond as JSON: { "community": [{"strategy": "community strategy", "implementation": "implementation steps"}], "discord": "Discord integration plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiKickContentDifferentiator(data: { twitchContent?: string }, userId?: string) {
+  const p = `Differentiate Kick content from Twitch content strategy.
+${data.twitchContent ? `Current Twitch content: ${data.twitchContent}` : ""}
+Respond as JSON: { "differentiation": [{"aspect": "content aspect", "approach": "Kick-specific approach"}], "exclusive": "Kick-exclusive content ideas" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiKickDiscoveryOptimizer(data: { category?: string }, userId?: string) {
+  const p = `Optimize discoverability on the Kick platform.
+${data.category ? `Content category: ${data.category}` : ""}
+Respond as JSON: { "discovery": [{"method": "discovery method", "implementation": "how to implement"}], "tags": "tag optimization strategy", "timing": "optimal streaming times" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiMultiPlatformStreamRouter(data: { platforms?: string[] }, userId?: string) {
+  const p = `Design a multi-platform streaming routing strategy.
+${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
+Respond as JSON: { "routing": [{"platform": "platform name", "config": "configuration", "priority": "priority level"}], "sync": "synchronization strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiStreamDeckConfigurer(data: { scenes?: string[] }, userId?: string) {
+  const p = `Configure Stream Deck for optimal streaming workflow.
+${data.scenes ? `Scenes: ${data.scenes.join(", ")}` : ""}
+Respond as JSON: { "config": [{"button": "button assignment", "action": "button action", "scene": "associated scene"}], "profiles": "profile recommendations", "macros": "useful macros" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiOBSOptimizer(data: { system?: string }, userId?: string) {
+  const p = `Optimize OBS settings for best streaming quality.
+${data.system ? `System specs: ${data.system}` : ""}
+Respond as JSON: { "optimization": [{"setting": "OBS setting", "value": "recommended value", "reason": "why this value"}], "scenes": "scene setup recommendations", "filters": "filter recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiStreamLabsConfigurator(data: { features?: string[] }, userId?: string) {
+  const p = `Configure Streamlabs for optimal streaming setup.
+${data.features ? `Features to configure: ${data.features.join(", ")}` : ""}
+Respond as JSON: { "config": [{"feature": "feature name", "setup": "configuration steps"}], "alerts": "alert configuration", "widgets": "widget recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiStreamElementsOptimizer(data: { features?: string[] }, userId?: string) {
+  const p = `Optimize StreamElements configuration for engagement.
+${data.features ? `Features to optimize: ${data.features.join(", ")}` : ""}
+Respond as JSON: { "optimization": [{"feature": "feature name", "config": "optimal configuration"}], "overlays": "overlay recommendations", "commands": "chat command setup" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiChaturbateStreamAdvisor(data: { niche?: string }, userId?: string) {
+  const p = `Provide streaming strategy advice for adult content platforms.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "advice": [{"area": "content area", "strategy": "recommended strategy"}], "moderation": "moderation guidelines", "revenue": "revenue optimization" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokAlgorithmDecoder(data: { niche?: string }, userId?: string) {
+  const p = `Decode and optimize for the TikTok algorithm.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "algorithm": [{"signal": "algorithm signal", "weight": "importance weight", "optimization": "optimization tip"}], "fyp": "For You Page strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokSoundStrategy(data: { niche?: string }, userId?: string) {
+  const p = `Create a TikTok sound and music strategy.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "strategy": [{"sound": "sound type", "trend": "trend alignment", "usage": "usage strategy"}], "original": "original sound creation tips", "timing": "trending sound timing" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokDuetStrategy(data: { niche?: string }, userId?: string) {
+  const p = `Create a TikTok Duet content strategy.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "strategy": [{"target": "duet target type", "angle": "content angle", "value": "value added"}], "etiquette": "duet etiquette guidelines" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokLiveOptimizer(data: { followers?: number }, userId?: string) {
+  const p = `Optimize TikTok Live streaming for engagement and gifts.
+${data.followers ? `Current followers: ${data.followers}` : ""}
+Respond as JSON: { "optimization": [{"element": "live element", "strategy": "optimization strategy"}], "gifts": "gift maximization tactics", "engagement": "live engagement techniques" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokShopAdvisor(data: { products?: string[] }, userId?: string) {
+  const p = `Advise on TikTok Shop strategy and product promotion.
+${data.products ? `Products: ${data.products.join(", ")}` : ""}
+Respond as JSON: { "advice": [{"product": "product type", "strategy": "promotion strategy", "promotion": "content format"}], "affiliate": "affiliate program tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokCreatorFundOptimizer(data: { views?: number }, userId?: string) {
+  const p = `Optimize TikTok Creator Fund earnings.
+${data.views ? `Average views: ${data.views}` : ""}
+Respond as JSON: { "optimization": [{"strategy": "optimization strategy", "impact": "expected impact"}], "eligibility": "eligibility requirements and tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokHashtagResearcher(data: { niche?: string }, userId?: string) {
+  const p = `Research and recommend TikTok hashtags for maximum reach.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "hashtags": [{"tag": "hashtag", "views": "estimated views", "competition": "competition level"}], "trending": "trending hashtag strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTikTokProfileOptimizer(data: { bio?: string }, userId?: string) {
+  const p = `Optimize TikTok profile for maximum conversions.
+${data.bio ? `Current bio: ${data.bio}` : ""}
+Respond as JSON: { "optimization": [{"element": "profile element", "improvement": "suggested improvement"}], "link": "link-in-bio strategy", "branding": "branding consistency tips" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramReelsOptimizer(data: { niche?: string }, userId?: string) {
+  const p = `Optimize Instagram Reels for algorithm performance.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "optimization": [{"element": "reel element", "strategy": "optimization strategy"}], "algorithm": "algorithm insights", "trending": "trending content formats" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramStoriesPlanner(data: { frequency?: string }, userId?: string) {
+  const p = `Plan an Instagram Stories content strategy.
+${data.frequency ? `Posting frequency: ${data.frequency}` : ""}
+Respond as JSON: { "plan": [{"type": "story type", "content": "content idea", "timing": "posting time"}], "stickers": "interactive sticker strategy", "engagement": "engagement tactics" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramCarouselCreator(data: { topic?: string }, userId?: string) {
+  const p = `Create an engaging Instagram carousel post.
+${data.topic ? `Topic: ${data.topic}` : ""}
+Respond as JSON: { "carousel": [{"slide": "slide number", "content": "slide content", "design": "design notes"}], "caption": "carousel caption", "hashtags": "recommended hashtags" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramBioOptimizer(data: { niche?: string }, userId?: string) {
+  const p = `Optimize Instagram bio for maximum profile conversions.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "optimization": [{"element": "bio element", "improvement": "suggested improvement"}], "link": "link-in-bio strategy", "highlights": "story highlights strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramShoppingSetup(data: { products?: string[] }, userId?: string) {
+  const p = `Set up and optimize Instagram Shopping features.
+${data.products ? `Products: ${data.products.join(", ")}` : ""}
+Respond as JSON: { "setup": [{"step": "setup step", "config": "configuration details"}], "catalog": "product catalog strategy", "tagging": "product tagging best practices" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramCollabManager(data: { partners?: string[] }, userId?: string) {
+  const p = `Manage Instagram collaboration partnerships.
+${data.partners ? `Partners: ${data.partners.join(", ")}` : ""}
+Respond as JSON: { "management": [{"partner": "partner name", "format": "collab format", "terms": "partnership terms"}], "tracking": "performance tracking plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramGrowthHacker(data: { followers?: number }, userId?: string) {
+  const p = `Create Instagram growth hacking strategies.
+${data.followers ? `Current followers: ${data.followers}` : ""}
+Respond as JSON: { "hacks": [{"tactic": "growth tactic", "implementation": "implementation steps", "risk": "risk level"}], "organic": "organic growth fundamentals" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiInstagramAestheticPlanner(data: { style?: string }, userId?: string) {
+  const p = `Plan an Instagram aesthetic and visual brand.
+${data.style ? `Desired style: ${data.style}` : ""}
+Respond as JSON: { "plan": [{"element": "aesthetic element", "specification": "design specification"}], "grid": "grid layout strategy", "consistency": "visual consistency guidelines" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiXTwitterGrowthStrategy(data: { followers?: number }, userId?: string) {
+  const p = `Create a growth strategy for X/Twitter.
+${data.followers ? `Current followers: ${data.followers}` : ""}
+Respond as JSON: { "strategy": [{"tactic": "growth tactic", "implementation": "implementation steps"}], "threads": "thread strategy", "spaces": "Twitter Spaces strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiXTwitterThreadWriter(data: { topic?: string }, userId?: string) {
+  const p = `Write an engaging X/Twitter thread.
+${data.topic ? `Topic: ${data.topic}` : ""}
+Respond as JSON: { "thread": [{"tweet": "tweet content", "hook": "engagement hook"}], "timing": "optimal posting time", "engagement": "engagement strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiLinkedInCreatorStrategy(data: { industry?: string }, userId?: string) {
+  const p = `Create a LinkedIn creator content strategy.
+${data.industry ? `Industry: ${data.industry}` : ""}
+Respond as JSON: { "strategy": [{"content": "content type", "format": "content format", "timing": "posting schedule"}], "newsletter": "LinkedIn newsletter strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiLinkedInArticleWriter(data: { topic?: string }, userId?: string) {
+  const p = `Write an optimized LinkedIn article.
+${data.topic ? `Topic: ${data.topic}` : ""}
+Respond as JSON: { "article": {"title": "article title", "outline": "article outline", "cta": "call to action"}, "seo": "LinkedIn SEO tips", "distribution": "article distribution strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFacebookGroupManager(data: { community?: string }, userId?: string) {
+  const p = `Create a Facebook Group management strategy.
+${data.community ? `Community focus: ${data.community}` : ""}
+Respond as JSON: { "management": [{"area": "management area", "strategy": "management strategy"}], "engagement": "engagement tactics", "rules": "group rules framework" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiFacebookReelsOptimizer(data: { niche?: string }, userId?: string) {
+  const p = `Optimize Facebook Reels for maximum reach.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "optimization": [{"element": "reel element", "strategy": "optimization strategy"}], "algorithm": "Facebook Reels algorithm insights" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSnapchatSpotlightAdvisor(data: { niche?: string }, userId?: string) {
+  const p = `Advise on Snapchat Spotlight content strategy.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "advice": [{"strategy": "content strategy", "content": "content ideas", "timing": "posting timing"}], "earnings": "Spotlight earnings optimization" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiThreadsStrategy(data: { niche?: string }, userId?: string) {
+  const p = `Create a Threads platform content strategy.
+${data.niche ? `Niche: ${data.niche}` : ""}
+Respond as JSON: { "strategy": [{"approach": "content approach", "content": "content type", "timing": "posting timing"}], "growth": "Threads growth tactics" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiDiscordServerOptimizer(data: { members?: number }, userId?: string) {
+  const p = `Optimize a Discord server for community engagement.
+${data.members ? `Current members: ${data.members}` : ""}
+Respond as JSON: { "optimization": [{"area": "server area", "change": "recommended change"}], "bots": "bot recommendations", "events": "community event ideas" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiPatreonContentPlanner(data: { tiers?: any[] }, userId?: string) {
+  const p = `Plan Patreon content strategy across tiers.
+${data.tiers ? `Current tiers: ${JSON.stringify(data.tiers)}` : ""}
+Respond as JSON: { "plan": [{"tier": "tier name", "content": "exclusive content", "schedule": "content schedule"}], "exclusive": "exclusive content ideas", "retention": "patron retention strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSubstackOptimizer(data: { subscribers?: number }, userId?: string) {
+  const p = `Optimize Substack newsletter for growth and monetization.
+${data.subscribers ? `Current subscribers: ${data.subscribers}` : ""}
+Respond as JSON: { "optimization": [{"element": "newsletter element", "strategy": "optimization strategy"}], "growth": "subscriber growth tactics", "paid": "paid subscription strategy" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiGumroadProductOptimizer(data: { products?: string[] }, userId?: string) {
+  const p = `Optimize Gumroad product listings and sales.
+${data.products ? `Products: ${data.products.join(", ")}` : ""}
+Respond as JSON: { "optimization": [{"product": "product name", "improvement": "suggested improvement"}], "pricing": "pricing strategy", "marketing": "marketing recommendations" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiTeachableCoursePlanner(data: { topic?: string }, userId?: string) {
+  const p = `Plan an online course on Teachable platform.
+${data.topic ? `Course topic: ${data.topic}` : ""}
+Respond as JSON: { "plan": [{"module": "module name", "content": "module content", "pricing": "module pricing"}], "marketing": "course marketing strategy", "launch": "launch plan" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiBuyMeCoffeeOptimizer(data: { supporters?: number }, userId?: string) {
+  const p = `Optimize Buy Me a Coffee page for supporter growth.
+${data.supporters ? `Current supporters: ${data.supporters}` : ""}
+Respond as JSON: { "optimization": [{"strategy": "optimization strategy", "implementation": "implementation steps"}], "perks": "supporter perks ideas", "growth": "supporter growth tactics" }`;
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
