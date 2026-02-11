@@ -54,6 +54,8 @@ import {
   type CronJob, type InsertCronJob,
   type AiChain, type InsertAiChain,
   type WebhookEvent, type InsertWebhookEvent,
+  localizationRecommendations,
+  type LocalizationRecommendation, type InsertLocalizationRecommendation,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -262,6 +264,9 @@ export interface IStorage {
 
   getGoals(userId: string): Promise<BusinessGoal[]>;
   getVentures(userId: string): Promise<BusinessVenture[]>;
+
+  getLocalizationRecommendations(userId: string): Promise<LocalizationRecommendation | undefined>;
+  upsertLocalizationRecommendations(userId: string, data: InsertLocalizationRecommendation): Promise<LocalizationRecommendation>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1151,6 +1156,27 @@ export class DatabaseStorage implements IStorage {
 
   async getVentures(userId: string): Promise<BusinessVenture[]> {
     return await db.select().from(businessVentures).where(eq(businessVentures.userId, userId));
+  }
+
+  async getLocalizationRecommendations(userId: string): Promise<LocalizationRecommendation | undefined> {
+    const [rec] = await db.select().from(localizationRecommendations)
+      .where(eq(localizationRecommendations.userId, userId))
+      .orderBy(desc(localizationRecommendations.updatedAt))
+      .limit(1);
+    return rec;
+  }
+
+  async upsertLocalizationRecommendations(userId: string, data: InsertLocalizationRecommendation): Promise<LocalizationRecommendation> {
+    const existing = await this.getLocalizationRecommendations(userId);
+    if (existing) {
+      const [updated] = await db.update(localizationRecommendations)
+        .set({ recommendedLanguages: data.recommendedLanguages, trafficData: data.trafficData, source: data.source, updatedAt: new Date() })
+        .where(eq(localizationRecommendations.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(localizationRecommendations).values({ ...data, userId }).returning();
+    return created;
   }
 }
 

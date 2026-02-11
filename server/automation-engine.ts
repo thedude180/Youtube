@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import { storage } from "./storage";
 import { db } from "./db";
-import { cronJobs, aiResults, aiChains, webhookEvents, notifications } from "@shared/schema";
+import { cronJobs, aiResults, aiChains, webhookEvents, notifications, channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import {
   aiVideoTranslator, aiSubtitleGenerator, aiLocalizationAdvisor,
@@ -317,39 +317,79 @@ async function processAutoPayments() {
 }
 
 async function processAutoLocalization() {
-  const localizationRunners: Array<{ key: string; fn: (data: any, userId?: string) => Promise<any> }> = [
-    { key: "ai-video-translator", fn: aiVideoTranslator },
-    { key: "ai-subtitle-generator", fn: aiSubtitleGenerator },
-    { key: "ai-localization-advisor", fn: aiLocalizationAdvisor },
-    { key: "ai-multi-lang-seo", fn: aiMultiLangSeo },
-    { key: "ai-dubbing-script", fn: aiDubbingScriptGenerator },
-    { key: "ai-cultural-adaptation", fn: aiCulturalAdaptation },
-    { key: "ai-thumbnail-localizer", fn: aiThumbnailLocalizer },
-    { key: "ai-multi-lang-hashtags", fn: aiMultiLangHashtags },
-    { key: "ai-translation-checker", fn: aiTranslationChecker },
-    { key: "ai-audience-language-analyzer", fn: aiAudienceLanguageAnalyzer },
-    { key: "ai-regional-trends", fn: aiRegionalTrendScanner },
-    { key: "ai-cross-lang-comments", fn: aiCrossLangCommentManager },
-    { key: "ai-localized-calendar", fn: aiLocalizedContentCalendar },
-    { key: "ai-multi-lang-ab-test", fn: aiMultiLangAbTesting },
-    { key: "ai-voice-over-formatter", fn: aiVoiceOverFormatter },
-    { key: "ai-regional-compliance", fn: aiRegionalComplianceChecker },
-    { key: "ai-multi-lang-media-kit", fn: aiMultiLangMediaKit },
-  ];
+  const allChannels = await db.select().from(channels);
+  const userIds = [...new Set(allChannels.map((c) => c.userId))];
+  if (userIds.length === 0) userIds.push("system");
 
-  for (const runner of localizationRunners) {
+  for (const userId of userIds) {
+    let trafficDrivenLangs: string[] = ["es", "fr", "de", "ja", "pt"];
+
     try {
-      const result = await runner.fn({}, "system");
-      await db.insert(aiResults).values({
-        userId: "system",
-        featureKey: runner.key,
-        result: { ...result, source: "auto-localization", processedAt: new Date().toISOString() },
+      const userChannels = allChannels.filter((c) => c.userId === userId);
+      const channelAnalytics = userChannels.map((ch) => ({
+        platform: ch.platform,
+        channelName: ch.channelName,
+        subscriberCount: ch.subscriberCount,
+        videoCount: ch.videoCount,
+      }));
+
+      const analyzerResult = await aiAudienceLanguageAnalyzer(
+        { analyticsData: channelAnalytics, viewerLocations: { channels: channelAnalytics.length } },
+        userId,
+      );
+      const priority = analyzerResult.priorityRanking || analyzerResult.primaryLanguages || [];
+      if (Array.isArray(priority) && priority.length > 0) {
+        trafficDrivenLangs = priority.map((p: any) => (typeof p === "string" ? p : p.code || p.language || "es")).slice(0, 8);
+      }
+      await storage.upsertLocalizationRecommendations(userId, {
+        userId,
+        recommendedLanguages: trafficDrivenLangs,
+        trafficData: analyzerResult,
+        source: "ai-audience-analyzer",
       });
+      await db.insert(aiResults).values({
+        userId,
+        featureKey: "ai-audience-language-analyzer",
+        result: { ...analyzerResult, source: "auto-localization", processedAt: new Date().toISOString() },
+      });
+      console.log(`[AutomationEngine] Traffic analysis complete for user ${userId}. Priority languages: ${trafficDrivenLangs.join(", ")}`);
     } catch (err) {
-      console.error(`[AutomationEngine] Auto-localization ${runner.key} failed:`, err);
+      console.error(`[AutomationEngine] Audience language analysis failed for user ${userId}, using defaults:`, err);
+    }
+
+    const langAwareRunners: Array<{ key: string; fn: (data: any, userId?: string) => Promise<any>; dataBuilder: () => any }> = [
+      { key: "ai-video-translator", fn: aiVideoTranslator, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-subtitle-generator", fn: aiSubtitleGenerator, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-localization-advisor", fn: aiLocalizationAdvisor, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-multi-lang-seo", fn: aiMultiLangSeo, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-dubbing-script", fn: aiDubbingScriptGenerator, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-cultural-adaptation", fn: aiCulturalAdaptation, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-thumbnail-localizer", fn: aiThumbnailLocalizer, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-multi-lang-hashtags", fn: aiMultiLangHashtags, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-translation-checker", fn: aiTranslationChecker, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-regional-trends", fn: aiRegionalTrendScanner, dataBuilder: () => ({ language: trafficDrivenLangs[0] }) },
+      { key: "ai-cross-lang-comments", fn: aiCrossLangCommentManager, dataBuilder: () => ({}) },
+      { key: "ai-localized-calendar", fn: aiLocalizedContentCalendar, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-multi-lang-ab-test", fn: aiMultiLangAbTesting, dataBuilder: () => ({ targetLanguage: trafficDrivenLangs[0] }) },
+      { key: "ai-voice-over-formatter", fn: aiVoiceOverFormatter, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-regional-compliance", fn: aiRegionalComplianceChecker, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+      { key: "ai-multi-lang-media-kit", fn: aiMultiLangMediaKit, dataBuilder: () => ({ targetLanguages: trafficDrivenLangs }) },
+    ];
+
+    for (const runner of langAwareRunners) {
+      try {
+        const result = await runner.fn(runner.dataBuilder(), userId);
+        await db.insert(aiResults).values({
+          userId,
+          featureKey: runner.key,
+          result: { ...result, source: "auto-localization", trafficDrivenLanguages: trafficDrivenLangs, processedAt: new Date().toISOString() },
+        });
+      } catch (err) {
+        console.error(`[AutomationEngine] Auto-localization ${runner.key} failed for user ${userId}:`, err);
+      }
     }
   }
-  console.log("[AutomationEngine] Localization auto-processing cycle complete");
+  console.log("[AutomationEngine] Localization auto-processing cycle complete (traffic-driven)");
 }
 
 function getNextRunTime(schedule: string): Date {

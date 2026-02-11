@@ -48,6 +48,7 @@ The platform is built as a full-stack application with an Express.js backend and
 - **AI Sponsorship Auto-Approve**: Evaluates and auto-approves/rejects brand deals every 30 minutes based on creator criteria (brand fit, min CPM, audience match).
 - **AI Creative Autonomy**: Makes all creative decisions autonomously - thumbnails, titles, scripts, scheduling - learning and matching each creator's unique style.
 - **AI Auto-Payment Manager**: Handles invoicing, expense categorization, tax prep, and payment optimization every 6 hours.
+- **Traffic-Driven Localization Intelligence**: AI Audience Language Analyzer runs first in the localization cron cycle, determines priority languages from viewer traffic data, stores recommendations in `localization_recommendations` table, then feeds those languages into all 16 other localization AI features (Video Translator, Subtitle Generator, etc.). Settings Language Selector shows traffic-based UI language suggestions. Content Localization tab displays priority languages, viewer distribution, and untapped markets.
 
 ## Key Files
 - `server/routes.ts` - All API routes including 722 AI endpoints, 17 localization endpoints, automation routes, and Stripe payment endpoints

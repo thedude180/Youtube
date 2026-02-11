@@ -4249,6 +4249,31 @@ export async function registerRoutes(
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
 
+  app.get("/api/localization/recommendations", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const rec = await storage.getLocalizationRecommendations(userId);
+      res.json(rec || { recommendedLanguages: [], trafficData: {}, source: "none" });
+    } catch (e: any) { console.error("Localization recommendations error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/localization/analyze-traffic", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const analyzerResult = await aiAudienceLanguageAnalyzer(req.body, userId);
+      const priorityLangs = analyzerResult.priorityRanking || analyzerResult.primaryLanguages || [];
+      const rec = await storage.upsertLocalizationRecommendations(userId, {
+        userId,
+        recommendedLanguages: priorityLangs,
+        trafficData: analyzerResult,
+        source: "ai-audience-analyzer",
+      });
+      res.json(rec);
+    } catch (e: any) { console.error("Traffic analysis error:", e); res.status(500).json({ message: e.message }); }
+  });
+
   app.post("/api/ai/dubbing", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

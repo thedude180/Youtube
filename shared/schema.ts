@@ -1999,10 +1999,20 @@ export const webhookEvents = pgTable("webhook_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const localizationRecommendations = pgTable("localization_recommendations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  recommendedLanguages: jsonb("recommended_languages").notNull(),
+  trafficData: jsonb("traffic_data").notNull(),
+  source: text("source").notNull().default("ai-audience-analyzer"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertAiResultSchema = createInsertSchema(aiResults).omit({ id: true, createdAt: true });
 export const insertCronJobSchema = createInsertSchema(cronJobs).omit({ id: true });
 export const insertAiChainSchema = createInsertSchema(aiChains).omit({ id: true });
 export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, createdAt: true });
+export const insertLocalizationRecommendationSchema = createInsertSchema(localizationRecommendations).omit({ id: true, updatedAt: true });
 
 export type AiResult = typeof aiResults.$inferSelect;
 export type InsertAiResult = z.infer<typeof insertAiResultSchema>;
@@ -2012,3 +2022,5 @@ export type AiChain = typeof aiChains.$inferSelect;
 export type InsertAiChain = z.infer<typeof insertAiChainSchema>;
 export type WebhookEvent = typeof webhookEvents.$inferSelect;
 export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
+export type LocalizationRecommendation = typeof localizationRecommendations.$inferSelect;
+export type InsertLocalizationRecommendation = z.infer<typeof insertLocalizationRecommendationSchema>;

@@ -5,6 +5,7 @@ import { Shield, Zap, AlertTriangle, Save, LogOut, Link2, Bell,
   Plus, Sparkles, CalendarDays, Heart, BookOpen, CheckCircle2,
   Link as LinkIcon, Users, Eye, Palette, Trash2, Target, Handshake, Mail, Briefcase,
   ChevronDown, ChevronUp, Clock, Globe, Play, UserPlus, CheckCircle, DollarSign,
+  TrendingUp,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1685,7 +1686,7 @@ function GeneralTab() {
             {t("settings.language")}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium">{t("settings.selectLanguage")}</p>
@@ -1713,6 +1714,7 @@ function GeneralTab() {
               </SelectContent>
             </Select>
           </div>
+          <LanguageTrafficSuggestions />
         </CardContent>
       </Card>
 
@@ -8535,6 +8537,63 @@ export default function Settings() {
       {activeTab === "wellness" && <WellnessTab />}
       {activeTab === "learning" && <LearningTab />}
       {activeTab === "automation" && <AutomationTab />}
+    </div>
+  );
+}
+
+const SETTINGS_LANG_NAMES: Record<string, string> = {
+  en: "English", es: "Spanish", fr: "French", pt: "Portuguese", de: "German",
+  ja: "Japanese", ko: "Korean", zh: "Chinese", ar: "Arabic", hi: "Hindi",
+  ru: "Russian", it: "Italian",
+};
+
+function LanguageTrafficSuggestions() {
+  const { t, i18n } = useTranslation();
+  const { toast } = useToast();
+
+  const { data: recommendations } = useQuery<any>({
+    queryKey: ["/api/localization/recommendations"],
+  });
+
+  const recLangs: string[] = Array.isArray(recommendations?.recommendedLanguages)
+    ? recommendations.recommendedLanguages
+    : [];
+  const hasRecs = recLangs.length > 0 && recommendations?.source !== "none";
+
+  const suggestedUiLangs = recLangs
+    .filter((code: string) => supportedLanguages.some((l) => l.code === code))
+    .filter((code: string) => code !== i18n.language)
+    .slice(0, 3);
+
+  if (!hasRecs || suggestedUiLangs.length === 0) return null;
+
+  return (
+    <div className="space-y-2 pt-2 border-t" data-testid="section-language-suggestions">
+      <div className="flex items-center gap-2 flex-wrap">
+        <TrendingUp className="h-3.5 w-3.5 text-primary" />
+        <span className="text-xs font-medium">{t("localization.suggestedByTraffic")}</span>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {suggestedUiLangs.map((code: string) => {
+          const lang = supportedLanguages.find((l) => l.code === code);
+          if (!lang) return null;
+          return (
+            <Button
+              key={code}
+              variant="outline"
+              size="sm"
+              data-testid={`button-suggest-lang-${code}`}
+              onClick={() => {
+                i18n.changeLanguage(code);
+                toast({ title: t("settings.languageChanged", { language: lang.nativeName }) });
+              }}
+            >
+              <TrendingUp className="h-3 w-3 mr-1.5" />
+              {lang.nativeName}
+            </Button>
+          );
+        })}
+      </div>
     </div>
   );
 }

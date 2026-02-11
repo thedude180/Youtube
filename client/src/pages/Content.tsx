@@ -21,6 +21,7 @@ import {
   RefreshCw, Loader2, CheckCircle2, Circle, ExternalLink, Sparkles,
   FileText, BarChart3, Hash, Share2, CalendarDays, Image, ListOrdered, ChevronDown, ChevronUp,
   Globe, Languages, Captions, Megaphone, Mic, Eye, Users, MapPin, MessageSquare, Clock, FlaskConical, ShieldCheck, Briefcase,
+  TrendingUp, Zap,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
@@ -6218,8 +6219,25 @@ function CalendarTab() {
   );
 }
 
+const LANG_NAMES: Record<string, string> = {
+  en: "English", es: "Spanish", fr: "French", pt: "Portuguese", de: "German",
+  ja: "Japanese", ko: "Korean", zh: "Chinese", ar: "Arabic", hi: "Hindi",
+  ru: "Russian", it: "Italian", tr: "Turkish", nl: "Dutch", pl: "Polish",
+  sv: "Swedish", th: "Thai", vi: "Vietnamese", id: "Indonesian", ms: "Malay",
+};
+
 function LocalizationTab() {
   const { t } = useTranslation();
+
+  const { data: recommendations, isLoading: recsLoading } = useQuery<any>({
+    queryKey: ["/api/localization/recommendations"],
+  });
+
+  const recLangs: string[] = Array.isArray(recommendations?.recommendedLanguages)
+    ? recommendations.recommendedLanguages
+    : [];
+  const trafficData = recommendations?.trafficData || {};
+  const hasRecs = recLangs.length > 0 && recommendations?.source !== "none";
 
   const localizationFeatures = [
     { key: "videoTranslator", featureKey: "ai-video-translator", icon: Languages, color: "text-blue-400" },
@@ -6251,9 +6269,73 @@ function LocalizationTab() {
         <p className="text-sm text-muted-foreground mt-1">{t("localization.subtitle")}</p>
       </div>
 
+      <Card data-testid="card-traffic-language-intelligence">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">{t("localization.trafficIntelligence")}</h3>
+            </div>
+            <Badge variant="outline" className="text-[10px] shrink-0">
+              <Zap className="h-3 w-3 mr-1" />{t("localization.trafficDriven")}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("localization.trafficIntelligenceDesc")}
+          </p>
+          {recsLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : hasRecs ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">{t("localization.priorityLanguages")}:</span>
+                {recLangs.map((lang: string, i: number) => (
+                  <Badge key={lang} variant={i === 0 ? "default" : "secondary"} className="text-[10px]" data-testid={`badge-priority-lang-${lang}`}>
+                    {LANG_NAMES[lang] || lang.toUpperCase()}
+                    {i === 0 && <TrendingUp className="h-3 w-3 ml-1" />}
+                  </Badge>
+                ))}
+              </div>
+              {trafficData.languageDistribution && (
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">{t("localization.viewerDistribution")}:</span>
+                  <div className="flex gap-1 flex-wrap">
+                    {Object.entries(trafficData.languageDistribution).slice(0, 6).map(([lang, pct]: [string, any]) => (
+                      <Badge key={lang} variant="outline" className="text-[10px]" data-testid={`badge-distribution-${lang}`}>
+                        {LANG_NAMES[lang] || lang}: {typeof pct === "number" ? `${pct}%` : pct}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {trafficData.untappedMarkets && (
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">{t("localization.untappedMarkets")}:</span>
+                  <div className="flex gap-1 flex-wrap">
+                    {(Array.isArray(trafficData.untappedMarkets) ? trafficData.untappedMarkets : []).slice(0, 4).map((market: any) => {
+                      const label = typeof market === "string" ? market : market.language || market.market || JSON.stringify(market);
+                      return (
+                        <Badge key={label} variant="outline" className="text-[10px] border-dashed" data-testid={`badge-untapped-${label}`}>
+                          {label}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground italic">
+              {t("localization.noTrafficData")}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {localizationFeatures.map((feature) => {
           const Icon = feature.icon;
+          const isTrafficDriven = hasRecs && ["videoTranslator", "subtitleGenerator", "dubbingScript", "multiLangSeo", "thumbnailLocalizer", "multiLangHashtags", "localizedCalendar"].includes(feature.key);
           return (
             <Card key={feature.key} data-testid={`card-ai-${feature.key}`} className="hover-elevate">
               <CardContent className="p-4">
@@ -6269,9 +6351,16 @@ function LocalizationTab() {
                 <p className="text-xs text-muted-foreground mt-2">
                   {t(`localization.${feature.key}Desc`)}
                 </p>
-                <Badge variant="secondary" className="mt-3 text-[10px]">
-                  {t("common.autoGenerated")}
-                </Badge>
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <Badge variant="secondary" className="text-[10px]">
+                    {t("common.autoGenerated")}
+                  </Badge>
+                  {isTrafficDriven && (
+                    <Badge variant="outline" className="text-[10px]" data-testid={`badge-traffic-driven-${feature.key}`}>
+                      <TrendingUp className="h-3 w-3 mr-1" />{t("localization.trafficDriven")}
+                    </Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
           );
