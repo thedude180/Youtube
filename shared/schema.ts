@@ -1958,3 +1958,57 @@ export type StatsResponse = {
   activeAgents: number;
   scheduledItems: number;
 };
+
+export const aiResults = pgTable("ai_results", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  featureKey: text("feature_key").notNull(),
+  result: jsonb("result").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const cronJobs = pgTable("cron_jobs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  featureKey: text("feature_key").notNull(),
+  schedule: text("schedule").notNull().default("0 */6 * * *"),
+  enabled: boolean("enabled").notNull().default(true),
+  lastRun: timestamp("last_run"),
+  nextRun: timestamp("next_run"),
+  status: text("status").notNull().default("idle"),
+});
+
+export const aiChains = pgTable("ai_chains", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  steps: jsonb("steps").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  lastRun: timestamp("last_run"),
+  status: text("status").notNull().default("idle"),
+  lastResult: jsonb("last_result"),
+});
+
+export const webhookEvents = pgTable("webhook_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  source: text("source").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull(),
+  processed: boolean("processed").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAiResultSchema = createInsertSchema(aiResults).omit({ id: true, createdAt: true });
+export const insertCronJobSchema = createInsertSchema(cronJobs).omit({ id: true });
+export const insertAiChainSchema = createInsertSchema(aiChains).omit({ id: true });
+export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, createdAt: true });
+
+export type AiResult = typeof aiResults.$inferSelect;
+export type InsertAiResult = z.infer<typeof insertAiResultSchema>;
+export type CronJob = typeof cronJobs.$inferSelect;
+export type InsertCronJob = z.infer<typeof insertCronJobSchema>;
+export type AiChain = typeof aiChains.$inferSelect;
+export type InsertAiChain = z.infer<typeof insertAiChainSchema>;
+export type WebhookEvent = typeof webhookEvents.$inferSelect;
+export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;

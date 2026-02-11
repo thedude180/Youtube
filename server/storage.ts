@@ -7,7 +7,8 @@ import {
   creatorMemory, contentClips, videoVersions, streamChatMessages, chatTopics,
   sponsorshipDeals, platformHealth, collaborationLeads, audienceSegments,
   complianceRules, userFeedback, subscriptions,
-  expenseRecords, businessVentures, businessGoals, taxEstimates, brandAssets, wellnessChecks, competitorTracks, knowledgeMilestones,
+  expenseRecords, businessVentures, businessGoals, taxEstimates, brandAssets, wellnessChecks, competitorTracks,
+  aiResults, cronJobs, aiChains, webhookEvents, knowledgeMilestones,
   type Channel, type InsertChannel, type UpdateChannelRequest,
   type Video, type InsertVideo, type UpdateVideoRequest,
   type Job, type InsertJob,
@@ -49,6 +50,10 @@ import {
   type WellnessCheck, type InsertWellnessCheck,
   type CompetitorTrack, type InsertCompetitorTrack,
   type KnowledgeMilestone, type InsertKnowledgeMilestone,
+  type AiResult, type InsertAiResult,
+  type CronJob, type InsertCronJob,
+  type AiChain, type InsertAiChain,
+  type WebhookEvent, type InsertWebhookEvent,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -234,6 +239,26 @@ export interface IStorage {
   updateKnowledgeMilestone(id: number, updates: Partial<InsertKnowledgeMilestone>): Promise<KnowledgeMilestone>;
 
   getStats(): Promise<StatsResponse>;
+
+  getAiResults(userId: string, featureKey?: string): Promise<AiResult[]>;
+  getLatestAiResult(userId: string, featureKey: string): Promise<AiResult | undefined>;
+  createAiResult(r: InsertAiResult): Promise<AiResult>;
+
+  getCronJobs(userId: string): Promise<CronJob[]>;
+  getCronJob(id: number): Promise<CronJob | undefined>;
+  createCronJob(j: InsertCronJob): Promise<CronJob>;
+  updateCronJob(id: number, updates: Partial<InsertCronJob>): Promise<CronJob>;
+  deleteCronJob(id: number): Promise<void>;
+
+  getAiChains(userId: string): Promise<AiChain[]>;
+  getAiChain(id: number): Promise<AiChain | undefined>;
+  createAiChain(c: InsertAiChain): Promise<AiChain>;
+  updateAiChain(id: number, updates: Partial<InsertAiChain>): Promise<AiChain>;
+  deleteAiChain(id: number): Promise<void>;
+
+  getWebhookEvents(userId: string, source?: string): Promise<WebhookEvent[]>;
+  createWebhookEvent(e: InsertWebhookEvent): Promise<WebhookEvent>;
+  markWebhookProcessed(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1037,6 +1062,84 @@ export class DatabaseStorage implements IStorage {
       activeAgents: Number(agentCount),
       scheduledItems: Number(scheduledCount),
     };
+  }
+  async getAiResults(userId: string, featureKey?: string): Promise<AiResult[]> {
+    if (featureKey) {
+      return await db.select().from(aiResults).where(and(eq(aiResults.userId, userId), eq(aiResults.featureKey, featureKey))).orderBy(desc(aiResults.createdAt));
+    }
+    return await db.select().from(aiResults).where(eq(aiResults.userId, userId)).orderBy(desc(aiResults.createdAt));
+  }
+
+  async getLatestAiResult(userId: string, featureKey: string): Promise<AiResult | undefined> {
+    const [result] = await db.select().from(aiResults).where(and(eq(aiResults.userId, userId), eq(aiResults.featureKey, featureKey))).orderBy(desc(aiResults.createdAt)).limit(1);
+    return result;
+  }
+
+  async createAiResult(r: InsertAiResult): Promise<AiResult> {
+    const [result] = await db.insert(aiResults).values(r).returning();
+    return result;
+  }
+
+  async getCronJobs(userId: string): Promise<CronJob[]> {
+    return await db.select().from(cronJobs).where(eq(cronJobs.userId, userId));
+  }
+
+  async getCronJob(id: number): Promise<CronJob | undefined> {
+    const [job] = await db.select().from(cronJobs).where(eq(cronJobs.id, id));
+    return job;
+  }
+
+  async createCronJob(j: InsertCronJob): Promise<CronJob> {
+    const [job] = await db.insert(cronJobs).values(j).returning();
+    return job;
+  }
+
+  async updateCronJob(id: number, updates: Partial<InsertCronJob>): Promise<CronJob> {
+    const [job] = await db.update(cronJobs).set(updates).where(eq(cronJobs.id, id)).returning();
+    return job;
+  }
+
+  async deleteCronJob(id: number): Promise<void> {
+    await db.delete(cronJobs).where(eq(cronJobs.id, id));
+  }
+
+  async getAiChains(userId: string): Promise<AiChain[]> {
+    return await db.select().from(aiChains).where(eq(aiChains.userId, userId));
+  }
+
+  async getAiChain(id: number): Promise<AiChain | undefined> {
+    const [chain] = await db.select().from(aiChains).where(eq(aiChains.id, id));
+    return chain;
+  }
+
+  async createAiChain(c: InsertAiChain): Promise<AiChain> {
+    const [chain] = await db.insert(aiChains).values(c).returning();
+    return chain;
+  }
+
+  async updateAiChain(id: number, updates: Partial<InsertAiChain>): Promise<AiChain> {
+    const [chain] = await db.update(aiChains).set(updates).where(eq(aiChains.id, id)).returning();
+    return chain;
+  }
+
+  async deleteAiChain(id: number): Promise<void> {
+    await db.delete(aiChains).where(eq(aiChains.id, id));
+  }
+
+  async getWebhookEvents(userId: string, source?: string): Promise<WebhookEvent[]> {
+    if (source) {
+      return await db.select().from(webhookEvents).where(and(eq(webhookEvents.userId, userId), eq(webhookEvents.source, source))).orderBy(desc(webhookEvents.createdAt));
+    }
+    return await db.select().from(webhookEvents).where(eq(webhookEvents.userId, userId)).orderBy(desc(webhookEvents.createdAt));
+  }
+
+  async createWebhookEvent(e: InsertWebhookEvent): Promise<WebhookEvent> {
+    const [event] = await db.insert(webhookEvents).values(e).returning();
+    return event;
+  }
+
+  async markWebhookProcessed(id: number): Promise<void> {
+    await db.update(webhookEvents).set({ processed: true }).where(eq(webhookEvents.id, id));
   }
 }
 

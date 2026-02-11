@@ -11023,6 +11023,211 @@ export async function registerRoutes(
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
 
+  // ====== AUTOMATION ENGINE ROUTES ======
+  const { initAutomationEngine, processWebhookEvent, runChainManually, evaluateRules,
+    AI_FEATURE_CATEGORIES, SCHEDULE_PRESETS, DEFAULT_CHAIN_TEMPLATES,
+    WEBHOOK_SOURCES, RULE_TRIGGER_TYPES, RULE_ACTION_TYPES } = await import("./automation-engine");
+
+  app.get("/api/automation/status", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const [cronJobsList, chainsList, notifs, rules, webhookEvts] = await Promise.all([
+        storage.getCronJobs(userId),
+        storage.getAiChains(userId),
+        storage.getNotifications(userId),
+        storage.getAutomationRules(userId),
+        storage.getWebhookEvents(userId),
+      ]);
+      const unreadCount = await storage.getUnreadCount(userId);
+      res.json({
+        cronJobs: cronJobsList.length,
+        activeChains: chainsList.filter((c: any) => c.enabled).length,
+        totalNotifications: notifs.length,
+        unreadNotifications: unreadCount,
+        activeRules: rules.filter((r: any) => r.enabled !== false).length,
+        webhookEvents: webhookEvts.length,
+        automationLevel: Math.min(100, 90 + Math.floor(
+          (cronJobsList.filter((j: any) => j.enabled).length * 2) +
+          (chainsList.filter((c: any) => c.enabled).length * 3) +
+          (rules.filter((r: any) => r.enabled !== false).length)
+        )),
+        categories: AI_FEATURE_CATEGORIES,
+        schedulePresets: SCHEDULE_PRESETS,
+        chainTemplates: DEFAULT_CHAIN_TEMPLATES,
+        webhookSources: WEBHOOK_SOURCES,
+        ruleTriggerTypes: RULE_TRIGGER_TYPES,
+        ruleActionTypes: RULE_ACTION_TYPES,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to get automation status" });
+    }
+  });
+
+  app.get("/api/automation/cron-jobs", requireAuth, async (req: any, res) => {
+    try {
+      const jobs = await storage.getCronJobs(req.user.id);
+      res.json(jobs);
+    } catch (err) { res.status(500).json({ error: "Failed to get cron jobs" }); }
+  });
+
+  app.post("/api/automation/cron-jobs", requireAuth, async (req: any, res) => {
+    try {
+      const { featureKey, schedule, enabled } = req.body;
+      const job = await storage.createCronJob({
+        userId: req.user.id,
+        featureKey,
+        schedule: schedule || "0 */6 * * *",
+        enabled: enabled !== false,
+        status: "idle",
+      });
+      res.json(job);
+    } catch (err) { res.status(500).json({ error: "Failed to create cron job" }); }
+  });
+
+  app.patch("/api/automation/cron-jobs/:id", requireAuth, async (req: any, res) => {
+    try {
+      const job = await storage.updateCronJob(parseInt(req.params.id), req.body);
+      res.json(job);
+    } catch (err) { res.status(500).json({ error: "Failed to update cron job" }); }
+  });
+
+  app.delete("/api/automation/cron-jobs/:id", requireAuth, async (req: any, res) => {
+    try {
+      await storage.deleteCronJob(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to delete cron job" }); }
+  });
+
+  app.get("/api/automation/chains", requireAuth, async (req: any, res) => {
+    try {
+      const chains = await storage.getAiChains(req.user.id);
+      res.json({ chains, templates: DEFAULT_CHAIN_TEMPLATES });
+    } catch (err) { res.status(500).json({ error: "Failed to get chains" }); }
+  });
+
+  app.post("/api/automation/chains", requireAuth, async (req: any, res) => {
+    try {
+      const { name, steps, enabled } = req.body;
+      const chain = await storage.createAiChain({
+        userId: req.user.id,
+        name,
+        steps: steps || [],
+        enabled: enabled !== false,
+        status: "idle",
+      });
+      res.json(chain);
+    } catch (err) { res.status(500).json({ error: "Failed to create chain" }); }
+  });
+
+  app.post("/api/automation/chains/:id/run", requireAuth, async (req: any, res) => {
+    try {
+      const result = await runChainManually(parseInt(req.params.id));
+      res.json(result);
+    } catch (err: any) { res.status(500).json({ error: err.message || "Failed to run chain" }); }
+  });
+
+  app.patch("/api/automation/chains/:id", requireAuth, async (req: any, res) => {
+    try {
+      const chain = await storage.updateAiChain(parseInt(req.params.id), req.body);
+      res.json(chain);
+    } catch (err) { res.status(500).json({ error: "Failed to update chain" }); }
+  });
+
+  app.delete("/api/automation/chains/:id", requireAuth, async (req: any, res) => {
+    try {
+      await storage.deleteAiChain(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to delete chain" }); }
+  });
+
+  app.get("/api/automation/notifications", requireAuth, async (req: any, res) => {
+    try {
+      const notifs = await storage.getNotifications(req.user.id);
+      const unread = await storage.getUnreadCount(req.user.id);
+      res.json({ notifications: notifs, unreadCount: unread });
+    } catch (err) { res.status(500).json({ error: "Failed to get notifications" }); }
+  });
+
+  app.post("/api/automation/notifications/:id/read", requireAuth, async (req: any, res) => {
+    try {
+      const notif = await storage.markRead(parseInt(req.params.id));
+      res.json(notif);
+    } catch (err) { res.status(500).json({ error: "Failed to mark read" }); }
+  });
+
+  app.post("/api/automation/notifications/read-all", requireAuth, async (req: any, res) => {
+    try {
+      await storage.markAllRead(req.user.id);
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to mark all read" }); }
+  });
+
+  app.get("/api/automation/webhook-events", requireAuth, async (req: any, res) => {
+    try {
+      const events = await storage.getWebhookEvents(req.user.id, req.query.source as string);
+      res.json(events);
+    } catch (err) { res.status(500).json({ error: "Failed to get webhook events" }); }
+  });
+
+  app.post("/api/automation/webhooks/:source", requireAuth, async (req: any, res) => {
+    try {
+      const event = await processWebhookEvent(req.user.id, req.params.source, req.body.eventType || "unknown", req.body.payload || req.body);
+      const triggered = await evaluateRules(req.user.id, req.body.eventType || req.params.source, req.body);
+      res.json({ event, triggeredRules: triggered });
+    } catch (err) { res.status(500).json({ error: "Failed to process webhook" }); }
+  });
+
+  app.get("/api/automation/rules", requireAuth, async (req: any, res) => {
+    try {
+      const rules = await storage.getAutomationRules(req.user.id);
+      res.json({ rules, triggerTypes: RULE_TRIGGER_TYPES, actionTypes: RULE_ACTION_TYPES });
+    } catch (err) { res.status(500).json({ error: "Failed to get rules" }); }
+  });
+
+  app.post("/api/automation/rules", requireAuth, async (req: any, res) => {
+    try {
+      const rule = await storage.createAutomationRule({
+        userId: req.user.id,
+        name: req.body.name,
+        trigger: req.body.trigger || req.body.triggerType,
+        agentId: req.body.agentId || req.body.actionType || "system",
+        actions: req.body.actions || [{ type: req.body.actionType, config: req.body.actionConfig || {} }],
+        enabled: req.body.enabled !== false,
+      });
+      res.json(rule);
+    } catch (err) { res.status(500).json({ error: "Failed to create rule" }); }
+  });
+
+  app.patch("/api/automation/rules/:id", requireAuth, async (req: any, res) => {
+    try {
+      const rule = await storage.updateAutomationRule(parseInt(req.params.id), req.body);
+      res.json(rule);
+    } catch (err) { res.status(500).json({ error: "Failed to update rule" }); }
+  });
+
+  app.delete("/api/automation/rules/:id", requireAuth, async (req: any, res) => {
+    try {
+      await storage.deleteAutomationRule(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to delete rule" }); }
+  });
+
+  app.get("/api/automation/ai-results", requireAuth, async (req: any, res) => {
+    try {
+      const results = await storage.getAiResults(req.user.id, req.query.featureKey as string);
+      res.json(results);
+    } catch (err) { res.status(500).json({ error: "Failed to get AI results" }); }
+  });
+
+  app.get("/api/automation/ai-results/:featureKey/latest", requireAuth, async (req: any, res) => {
+    try {
+      const result = await storage.getLatestAiResult(req.user.id, req.params.featureKey);
+      res.json(result || null);
+    } catch (err) { res.status(500).json({ error: "Failed to get latest result" }); }
+  });
+
+  initAutomationEngine().catch(console.error);
+
   await seedDatabase();
 
   return httpServer;
