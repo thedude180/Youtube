@@ -8,23 +8,15 @@ import {
   Film,
   ArrowRight,
   DollarSign,
-  Calendar,
   Bot,
-  Video,
-  MonitorPlay,
-  MessageSquare,
-  Radio,
   CheckCircle2,
   Zap,
-  Share2,
   Briefcase,
   Heart,
   Shield,
-  Target,
   TrendingUp,
   Sparkles,
   Activity,
-  Bell,
   Scissors,
   BarChart3,
   Lightbulb,
@@ -40,10 +32,9 @@ import type { Notification } from "@shared/schema";
 const healthAreas = [
   { key: "content", label: "Content", icon: Film, link: "/content" },
   { key: "revenue", label: "Revenue", icon: DollarSign, link: "/money" },
-  { key: "agents", label: "AI Team", icon: Bot, link: "/ai" },
-  { key: "brand", label: "Brand", icon: Briefcase, link: "/business/brand" },
-  { key: "wellness", label: "Wellness", icon: Heart, link: "/business/wellness" },
-  { key: "legal", label: "Legal", icon: Shield, link: "/business/legal" },
+  { key: "brand", label: "Brand", icon: Briefcase, link: "/settings/brand" },
+  { key: "wellness", label: "Wellness", icon: Heart, link: "/settings/wellness" },
+  { key: "legal", label: "Legal", icon: Shield, link: "/settings/legal" },
 ];
 
 export default function Dashboard() {
@@ -105,12 +96,6 @@ export default function Dashboard() {
         return (stats?.totalRevenue || 0) > 0
           ? { status: "good", label: "Earning" }
           : { status: "warning", label: "No Revenue" };
-      case "agents":
-        return activeAgents > 5
-          ? { status: "good", label: `${activeAgents} Active` }
-          : activeAgents > 0
-          ? { status: "warning", label: `${activeAgents} Active` }
-          : { status: "action", label: "Setup Needed" };
       case "brand":
         return { status: "good", label: "Managed" };
       case "wellness": {
@@ -146,19 +131,8 @@ export default function Dashboard() {
   const metrics = [
     { label: "Videos", value: stats?.totalVideos || 0, icon: Film },
     { label: "Revenue", value: `$${(stats?.totalRevenue || 0).toLocaleString()}`, icon: DollarSign },
-    { label: "Scheduled", value: stats?.scheduledItems || 0, icon: Calendar },
-    { label: "Active Agents", value: `${activeAgents}/11`, icon: Bot },
-    { label: "Platforms", value: platformCount, icon: Share2 },
+    { label: "AI Agents", value: `${activeAgents}/11`, icon: Bot },
     { label: "AI Tasks Today", value: tasksToday, icon: Zap },
-  ];
-
-  const quickLinks = [
-    { href: "/content", label: "Library", desc: "Manage videos", icon: Video },
-    { href: "/content/channels", label: "Channels", desc: "Connected accounts", icon: Radio },
-    { href: "/stream", label: "Go Live", desc: "Stream center", icon: MonitorPlay },
-    { href: "/ai", label: "AI Team", desc: "11 agents", icon: Bot },
-    { href: "/content/calendar", label: "Calendar", desc: "Content schedule", icon: Calendar },
-    { href: "/ai/chat", label: "Advisor", desc: "Ask anything", icon: MessageSquare },
   ];
 
   const severityColor = (severity: string) => {
@@ -227,7 +201,7 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {metrics.map((m) => {
           const Icon = m.icon;
           return (
@@ -255,7 +229,7 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {healthAreas.map((area) => {
               const health = getHealthStatus(area.key);
               const Icon = area.icon;
@@ -279,26 +253,6 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {quickLinks.map((link) => {
-          const Icon = link.icon;
-          return (
-            <Link key={link.href} href={link.href}>
-              <Card data-testid={`card-quicklink-${link.label.toLowerCase()}`} className="hover-elevate cursor-pointer h-full">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{link.label}</p>
-                    <p className="text-xs text-muted-foreground">{link.desc}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
-      </div>
 
       {briefing && (
         <Card data-testid="card-daily-briefing">
@@ -383,7 +337,7 @@ export default function Dashboard() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <CardTitle className="text-base">Active Goals</CardTitle>
-                  <Link href="/business/goals">
+                  <Link href="/money/goals">
                     <Button variant="ghost" size="sm" data-testid="link-all-goals"><ArrowRight className="w-4 h-4" /></Button>
                   </Link>
                 </div>
@@ -412,7 +366,7 @@ export default function Dashboard() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <CardTitle className="text-base">Active Ventures</CardTitle>
-                  <Link href="/business">
+                  <Link href="/money/ventures">
                     <Button variant="ghost" size="sm" data-testid="link-all-ventures"><ArrowRight className="w-4 h-4" /></Button>
                   </Link>
                 </div>
@@ -438,89 +392,60 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-            <h2 className="text-base font-display font-bold flex items-center gap-2">
-              <Bell className="w-4 h-4" />
-              Notifications
-            </h2>
+      <Card data-testid="card-activity-feed">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Activity Feed
+            </CardTitle>
             <Link href="/notifications">
               <Button variant="ghost" size="sm" data-testid="link-view-all-notifications">View All</Button>
             </Link>
           </div>
-          <Card>
-            <CardContent className="p-4">
-              {recentNotifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-6 gap-2">
-                  <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
-                  <p data-testid="text-all-caught-up" className="text-sm text-muted-foreground">All caught up</p>
+        </CardHeader>
+        <CardContent>
+          {recentNotifications.length === 0 && recentActivities.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <CheckCircle2 className="h-8 w-8 text-muted-foreground/30" />
+              <p data-testid="text-all-caught-up" className="text-sm text-muted-foreground">All caught up - AI is handling everything</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentActivities.map((activity: any) => (
+                <div key={`ai-${activity.id}`} data-testid={`row-activity-${activity.id}`} className="flex items-start gap-3">
+                  <div className="h-6 w-6 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <Bot className="h-3 w-3 text-purple-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{activity.agentName || "AI Agent"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{activity.action || activity.description || "Completed task"}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {activity.createdAt
+                      ? formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })
+                      : ""}
+                  </span>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {recentNotifications.map((n) => (
-                    <div key={n.id} data-testid={`row-notification-${n.id}`} className="flex items-start gap-3">
-                      <div
-                        className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${severityColor(n.severity)}`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{n.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">{n.message}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {n.createdAt
-                          ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })
-                          : ""}
-                      </span>
-                    </div>
-                  ))}
+              ))}
+              {recentNotifications.map((n) => (
+                <div key={`notif-${n.id}`} data-testid={`row-notification-${n.id}`} className="flex items-start gap-3">
+                  <div className={`h-2 w-2 rounded-full mt-2 shrink-0 ${severityColor(n.severity)}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{n.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">{n.message}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {n.createdAt
+                      ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })
+                      : ""}
+                  </span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-            <h2 className="text-base font-display font-bold flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              AI Activity
-            </h2>
-            <Link href="/ai">
-              <Button variant="ghost" size="sm" data-testid="link-view-ai-team">View Team</Button>
-            </Link>
-          </div>
-          <Card>
-            <CardContent className="p-4">
-              {recentActivities.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-6 gap-2">
-                  <Bot className="h-8 w-8 text-muted-foreground" />
-                  <p data-testid="text-no-ai-activity" className="text-sm text-muted-foreground">No recent AI activity</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {recentActivities.map((activity: any) => (
-                    <div key={activity.id} data-testid={`row-activity-${activity.id}`} className="flex items-start gap-3">
-                      <div className="h-6 w-6 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                        <Bot className="h-3 w-3 text-purple-400" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{activity.agentName || "AI Agent"}</p>
-                        <p className="text-xs text-muted-foreground truncate">{activity.action || activity.description || "Completed task"}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {activity.createdAt
-                          ? formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })
-                          : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -530,17 +455,13 @@ function DashboardSkeleton() {
     <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       <Skeleton className="h-8 w-48" />
       <Skeleton className="h-20 rounded-xl" />
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-24 rounded-xl" />
         ))}
       </div>
       <Skeleton className="h-32 rounded-xl" />
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Skeleton key={i} className="h-16 rounded-xl" />
-        ))}
-      </div>
+      <Skeleton className="h-48 rounded-xl" />
     </div>
   );
 }

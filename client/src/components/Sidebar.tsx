@@ -7,10 +7,8 @@ import {
   Radio,
   Settings,
   LogOut,
-  Bot,
   DollarSign,
   Zap,
-  Briefcase,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,9 +30,7 @@ const navLinks = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/content", label: "Content", icon: Video },
   { href: "/stream", label: "Go Live", icon: Radio },
-  { href: "/ai", label: "AI Team", icon: Bot },
   { href: "/money", label: "Money", icon: DollarSign },
-  { href: "/business", label: "Business", icon: Briefcase },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

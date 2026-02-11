@@ -18,13 +18,12 @@ import Dashboard from "@/pages/Dashboard";
 import Content from "@/pages/Content";
 import Settings from "@/pages/Settings";
 import StreamCenter from "@/pages/StreamCenter";
-import AIPage from "@/pages/AIPage";
 import Money from "@/pages/Money";
-import Business from "@/pages/Business";
 import Notifications from "@/pages/Notifications";
 import Landing from "@/pages/Landing";
 import Onboarding from "@/pages/Onboarding";
 import NotFound from "@/pages/not-found";
+import FloatingChat from "@/components/FloatingChat";
 
 const sidebarStyle = {
   "--sidebar-width": "13rem",
@@ -40,36 +39,44 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/settings/:tab" component={Settings} />
       <Route path="/stream" component={StreamCenter} />
-      <Route path="/ai" component={AIPage} />
-      <Route path="/ai/:tab" component={AIPage} />
       <Route path="/money" component={Money} />
       <Route path="/money/:tab" component={Money} />
-      <Route path="/business" component={Business} />
-      <Route path="/business/:tab" component={Business} />
       <Route path="/notifications" component={Notifications} />
 
+      <Route path="/ai">{() => <Redirect to="/" />}</Route>
+      <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>
+      <Route path="/business">{() => <Redirect to="/money/ventures" />}</Route>
+      <Route path="/business/ventures">{() => <Redirect to="/money/ventures" />}</Route>
+      <Route path="/business/goals">{() => <Redirect to="/money/goals" />}</Route>
+      <Route path="/business/sponsors">{() => <Redirect to="/money/sponsors" />}</Route>
+      <Route path="/business/brand">{() => <Redirect to="/settings/brand" />}</Route>
+      <Route path="/business/collabs">{() => <Redirect to="/settings/collabs" />}</Route>
+      <Route path="/business/competitors">{() => <Redirect to="/settings/competitors" />}</Route>
+      <Route path="/business/legal">{() => <Redirect to="/settings/legal" />}</Route>
+      <Route path="/business/wellness">{() => <Redirect to="/settings/wellness" />}</Route>
+      <Route path="/business/learning">{() => <Redirect to="/settings/learning" />}</Route>
       <Route path="/videos">{() => <Redirect to="/content" />}</Route>
       <Route path="/videos/:id">{() => <Redirect to="/content" />}</Route>
       <Route path="/channels">{() => <Redirect to="/content/channels" />}</Route>
-      <Route path="/team">{() => <Redirect to="/ai" />}</Route>
-      <Route path="/advisor">{() => <Redirect to="/ai/chat" />}</Route>
+      <Route path="/team">{() => <Redirect to="/" />}</Route>
+      <Route path="/advisor">{() => <Redirect to="/" />}</Route>
       <Route path="/schedule">{() => <Redirect to="/content/calendar" />}</Route>
       <Route path="/monetization">{() => <Redirect to="/money" />}</Route>
       <Route path="/expenses">{() => <Redirect to="/money" />}</Route>
       <Route path="/tax">{() => <Redirect to="/money" />}</Route>
-      <Route path="/ventures">{() => <Redirect to="/business" />}</Route>
-      <Route path="/goals">{() => <Redirect to="/business" />}</Route>
-      <Route path="/sponsorships">{() => <Redirect to="/business" />}</Route>
-      <Route path="/brand-kit">{() => <Redirect to="/business/brand" />}</Route>
-      <Route path="/collaborations">{() => <Redirect to="/business/collabs" />}</Route>
-      <Route path="/competitors">{() => <Redirect to="/business/competitors" />}</Route>
-      <Route path="/formation">{() => <Redirect to="/business/legal" />}</Route>
-      <Route path="/protections">{() => <Redirect to="/business/legal" />}</Route>
-      <Route path="/wellness">{() => <Redirect to="/business/wellness" />}</Route>
-      <Route path="/knowledge">{() => <Redirect to="/business/learning" />}</Route>
-      <Route path="/growth">{() => <Redirect to="/business/brand" />}</Route>
-      <Route path="/legal">{() => <Redirect to="/business/legal" />}</Route>
-      <Route path="/you">{() => <Redirect to="/business/wellness" />}</Route>
+      <Route path="/ventures">{() => <Redirect to="/money/ventures" />}</Route>
+      <Route path="/goals">{() => <Redirect to="/money/goals" />}</Route>
+      <Route path="/sponsorships">{() => <Redirect to="/money/sponsors" />}</Route>
+      <Route path="/brand-kit">{() => <Redirect to="/settings/brand" />}</Route>
+      <Route path="/collaborations">{() => <Redirect to="/settings/collabs" />}</Route>
+      <Route path="/competitors">{() => <Redirect to="/settings/competitors" />}</Route>
+      <Route path="/formation">{() => <Redirect to="/settings/legal" />}</Route>
+      <Route path="/protections">{() => <Redirect to="/settings/legal" />}</Route>
+      <Route path="/wellness">{() => <Redirect to="/settings/wellness" />}</Route>
+      <Route path="/knowledge">{() => <Redirect to="/settings/learning" />}</Route>
+      <Route path="/growth">{() => <Redirect to="/settings/brand" />}</Route>
+      <Route path="/legal">{() => <Redirect to="/settings/legal" />}</Route>
+      <Route path="/you">{() => <Redirect to="/settings/wellness" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -142,6 +149,7 @@ function AuthenticatedApp() {
           </main>
         </div>
       </div>
+      <FloatingChat />
     </SidebarProvider>
   );
 }
