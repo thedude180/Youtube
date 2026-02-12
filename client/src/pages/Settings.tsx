@@ -7,8 +7,10 @@ import { Shield, Zap, AlertTriangle, Save, LogOut, Link2, Bell,
   Plus, Sparkles, CalendarDays, Heart, BookOpen, CheckCircle2,
   Link as LinkIcon, Users, Eye, Palette, Trash2, Target, Handshake, Mail, Briefcase,
   ChevronDown, ChevronUp, Clock, Globe, Play, UserPlus, CheckCircle, DollarSign,
-  TrendingUp, Download,
+  TrendingUp, Download, Loader2, LogIn,
 } from "lucide-react";
+import { SiYoutube, SiTwitch, SiTiktok, SiDiscord } from "react-icons/si";
+import { SiX } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -82,8 +84,12 @@ const defaultNotificationPrefs: NotificationPrefs = {
 function GeneralTab() {
   const { user, logout, isLoggingOut } = useAuth();
   const { data: channels } = useChannels();
+  const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
+    queryKey: ["/api/oauth/status"],
+  });
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [activePreset, setActivePreset] = useState<"safe" | "normal" | "aggressive">("normal");
   const [aiTeam, setAiTeam] = useState<AIResponse>(null);
@@ -1709,26 +1715,80 @@ function GeneralTab() {
           <CardTitle className="text-base flex items-center gap-2 flex-wrap">
             <Link2 className="h-4 w-4 text-muted-foreground" />
             Connected Platforms
+            {connectedCount > 0 && (
+              <Badge variant="secondary" data-testid="badge-channel-count">{connectedCount}</Badge>
+            )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm text-muted-foreground">
-                {connectedCount === 0
-                  ? "No channels connected"
-                  : `${connectedCount} channel${connectedCount !== 1 ? "s" : ""} connected`}
-              </p>
-              {connectedCount > 0 && (
-                <Badge variant="secondary" data-testid="badge-channel-count">{connectedCount}</Badge>
-              )}
-            </div>
-            <Link href="/channels">
-              <Button variant="outline" size="sm" data-testid="link-manage-channels">
-                Manage Channels
-              </Button>
-            </Link>
-          </div>
+        <CardContent className="p-6 space-y-3">
+          {(() => {
+            const FOCUSED_PLATFORMS = [
+              { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true },
+              { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false },
+              { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false },
+              { key: "tiktok", label: "TikTok", color: "#000000", Icon: SiTiktok, isYouTube: false },
+              { key: "x", label: "X", color: "#000000", Icon: SiX, isYouTube: false },
+              { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false },
+            ];
+            const connectedSet = new Set((channels || []).map((c: any) => c.platform));
+            const unconnected = FOCUSED_PLATFORMS.filter(p => !connectedSet.has(p.key));
+            const connected = FOCUSED_PLATFORMS.filter(p => connectedSet.has(p.key));
+
+            const handleOAuthLogin = async (platform: string, isYouTube: boolean) => {
+              setOauthLoading(platform);
+              try {
+                const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
+                const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
+                const { url } = await res.json();
+                window.location.href = url;
+              } catch (error: any) {
+                toast({ title: "Error", description: error.message, variant: "destructive" });
+                setOauthLoading(null);
+              }
+            };
+
+            return (
+              <>
+                {connected.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {connected.map(p => (
+                      <Badge key={p.key} variant="secondary" className="text-xs" data-testid={`badge-connected-${p.key}`}>
+                        <CheckCircle className="w-3 h-3 mr-1 text-emerald-400" />
+                        {p.label}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {unconnected.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {unconnected.map(p => {
+                      const canOAuth = p.isYouTube || oauthStatus?.[p.key]?.configured;
+                      return (
+                        <Button
+                          key={p.key}
+                          data-testid={`button-connect-${p.key}`}
+                          className="w-full justify-start"
+                          style={{ backgroundColor: p.color === "#000000" ? "#333" : p.color, borderColor: p.color, color: "#fff" }}
+                          disabled={oauthLoading === p.key || !canOAuth}
+                          onClick={() => handleOAuthLogin(p.key, p.isYouTube)}
+                        >
+                          {oauthLoading === p.key ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <p.Icon className="h-4 w-4 mr-2" />
+                          )}
+                          {oauthLoading === p.key ? "Connecting..." : `Login with ${p.label}`}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-emerald-500 font-medium" data-testid="text-all-connected">All platforms connected</p>
+                )}
+              </>
+            );
+          })()}
         </CardContent>
       </Card>
 
