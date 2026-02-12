@@ -1,6 +1,8 @@
 const DB_NAME = 'creatoros-offline';
 const DB_VERSION = 1;
 
+let cacheWriteCount = 0;
+
 const STORES = {
   AI_RESULTS: 'ai_results',
   CONTENT: 'content',
@@ -173,6 +175,47 @@ export const offlineStore = {
     return reqToPromise(idx.count('pending'));
   },
 
+  async evictExpiredCache(): Promise<number> {
+    const s = await tx(STORES.CACHE, 'readwrite');
+    const allEntries = await reqToPromise(s.getAll()) as CachedResponse[];
+    
+    const now = new Date();
+    let evictedCount = 0;
+    
+    // First pass: delete expired entries
+    const expiredEntries: string[] = [];
+    const activeEntries: CachedResponse[] = [];
+    
+    for (const entry of allEntries) {
+      if (new Date(entry.expiresAt) < now) {
+        expiredEntries.push(entry.url);
+        evictedCount++;
+      } else {
+        activeEntries.push(entry);
+      }
+    }
+    
+    // Delete all expired entries
+    for (const url of expiredEntries) {
+      s.delete(url);
+    }
+    
+    // Second pass: if still more than 500 entries, delete oldest by cachedAt
+    if (activeEntries.length > 500) {
+      const sortedByDate = activeEntries.sort((a, b) => 
+        new Date(a.cachedAt).getTime() - new Date(b.cachedAt).getTime()
+      );
+      const toDelete = sortedByDate.length - 500;
+      
+      for (let i = 0; i < toDelete; i++) {
+        s.delete(sortedByDate[i].url);
+        evictedCount++;
+      }
+    }
+    
+    return evictedCount;
+  },
+
   async cacheResponse(url: string, data: unknown, ttlMinutes: number = 60) {
     const s = await tx(STORES.CACHE, 'readwrite');
     const entry: CachedResponse = {
@@ -182,6 +225,12 @@ export const offlineStore = {
       expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString(),
     };
     await reqToPromise(s.put(entry));
+    
+    // Increment write counter and trigger eviction every 50 writes
+    cacheWriteCount++;
+    if (cacheWriteCount % 50 === 0) {
+      this.evictExpiredCache().catch(() => {});
+    }
   },
 
   async getCachedResponse(url: string): Promise<unknown | null> {

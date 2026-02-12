@@ -6,11 +6,14 @@ let sessionExpiredHandled = false;
 function handleSessionExpired() {
   if (sessionExpiredHandled) return;
   sessionExpiredHandled = true;
+  queryClient.cancelQueries();
   queryClient.clear();
+  const event = new CustomEvent('session-expired');
+  window.dispatchEvent(event);
   setTimeout(() => {
     sessionExpiredHandled = false;
     window.location.replace("/");
-  }, 100);
+  }, 2500);
 }
 
 async function throwIfResNotOk(res: Response) {

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
+import { EmptyState } from "@/components/EmptyState";
 import { format, startOfWeek, addDays, isToday, isSameDay } from "date-fns";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter,
@@ -2605,11 +2606,27 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
 
       {filteredVideos.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <PlayCircle className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p data-testid="text-empty-state" className="text-sm text-muted-foreground">
-              {searchQuery ? `No results for "${searchQuery}"` : "No videos yet. Connect a channel to get started."}
-            </p>
+          <CardContent>
+            {searchQuery ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Search className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                <p data-testid="text-empty-state" className="text-sm text-muted-foreground">No results for "{searchQuery}"</p>
+              </div>
+            ) : (
+              <EmptyState
+                icon={PlayCircle}
+                title="No videos yet"
+                description="Your content library is empty. Start by connecting a channel or creating your first video."
+                tips={[
+                  "Connect a YouTube channel in the Channels tab",
+                  "Create a video manually to plan your content pipeline",
+                  "Use the Calendar tab to schedule upcoming uploads",
+                ]}
+                actionLabel="Go to Channels"
+                onAction={() => setActiveTab("channels")}
+                data-testid="empty-state-videos"
+              />
+            )}
           </CardContent>
         </Card>
       ) : (

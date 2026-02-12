@@ -28,6 +28,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { EmptyState } from "@/components/EmptyState";
 import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
@@ -276,12 +277,18 @@ function VenturesTab() {
 
       {!filtered || filtered.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Briefcase className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium mb-1" data-testid="text-empty-ventures">Launch your first business venture</p>
-            <p className="text-xs text-muted-foreground max-w-sm">
-              Start tracking your creator business ventures - merch lines, online courses, consulting services, memberships, and more.
-            </p>
+          <CardContent>
+            <EmptyState
+              icon={Briefcase}
+              title="Launch your first venture"
+              description="Track creator business ventures - merch, courses, consulting, memberships, and more."
+              tips={[
+                "Start with a venture type you already have (e.g. merch or memberships)",
+                "Track revenue and expenses to see real profit/loss",
+                "AI will suggest optimization strategies as data builds up",
+              ]}
+              data-testid="empty-state-ventures"
+            />
           </CardContent>
         </Card>
       ) : (
@@ -471,9 +478,18 @@ function GoalsTab() {
 
       {!goals || goals.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Target className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground" data-testid="text-empty-goals">Set your first business goal to track progress</p>
+          <CardContent>
+            <EmptyState
+              icon={Target}
+              title="Set your first goal"
+              description="Track business goals with measurable targets - subscribers, revenue, views, and more."
+              tips={[
+                "Choose a metric you want to improve (revenue, subscribers, etc.)",
+                "Set a realistic target and deadline",
+                "AI will track your progress and suggest adjustments",
+              ]}
+              data-testid="empty-state-goals"
+            />
           </CardContent>
         </Card>
       ) : (
@@ -2604,9 +2620,18 @@ export default function Money() {
               <CardTitle className="text-base">Revenue Records</CardTitle>
             </CardHeader>
             {!revenueRecords || revenueRecords.length === 0 ? (
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <DollarSign className="w-10 h-10 text-muted-foreground/30 mb-3" />
-                <p className="text-sm text-muted-foreground" data-testid="text-no-revenue">No revenue recorded yet.</p>
+              <CardContent>
+                <EmptyState
+                  icon={DollarSign}
+                  title="No revenue recorded"
+                  description="Start tracking income from ads, sponsors, memberships, and other sources."
+                  tips={[
+                    "Add revenue records manually or import from CSV",
+                    "Connect platforms to auto-track ad revenue",
+                    "Revenue data powers AI financial insights and forecasting",
+                  ]}
+                  data-testid="empty-state-revenue"
+                />
               </CardContent>
             ) : (
               <CardContent className="p-0">

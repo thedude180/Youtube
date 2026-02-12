@@ -6,6 +6,7 @@ import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { useLazyVisible } from "@/hooks/use-lazy-visible";
 import {
   Film,
   ArrowRight,
@@ -54,18 +55,19 @@ export default function Dashboard() {
   usePageTitle("Dashboard");
   const { user } = useAuth();
   const { isAdvanced: advancedMode } = useAdvancedMode();
+  const [belowFoldRef, belowFoldVisible] = useLazyVisible("400px");
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: agentStatus } = useQuery<any[]>({ queryKey: ['/api/agents/status'] });
   const { data: agentActivities } = useQuery<any[]>({ queryKey: ['/api/agents/activities'] });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
   const { data: channels } = useQuery<any[]>({ queryKey: ['/api/channels'] });
-  const { data: goals } = useQuery<any[]>({ queryKey: ['/api/goals'] });
-  const { data: wellness } = useQuery<any[]>({ queryKey: ['/api/wellness'] });
-  const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
-  const { data: briefing } = useQuery<any>({ queryKey: ['/api/learning/briefing'] });
-  const { data: optHealth } = useQuery<any>({ queryKey: ['/api/optimization/health-score'] });
-  const { data: shortsStatus } = useQuery<any>({ queryKey: ['/api/shorts/status'] });
-  const { data: trendingTopics } = useQuery<any[]>({ queryKey: ['/api/optimization/trending-topics'] });
+  const { data: goals } = useQuery<any[]>({ queryKey: ['/api/goals'], enabled: belowFoldVisible });
+  const { data: wellness } = useQuery<any[]>({ queryKey: ['/api/wellness'], enabled: belowFoldVisible });
+  const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'], enabled: belowFoldVisible });
+  const { data: briefing } = useQuery<any>({ queryKey: ['/api/learning/briefing'], enabled: belowFoldVisible });
+  const { data: optHealth } = useQuery<any>({ queryKey: ['/api/optimization/health-score'], enabled: belowFoldVisible });
+  const { data: shortsStatus } = useQuery<any>({ queryKey: ['/api/shorts/status'], enabled: belowFoldVisible });
+  const { data: trendingTopics } = useQuery<any[]>({ queryKey: ['/api/optimization/trending-topics'], enabled: belowFoldVisible });
 
   const [aiActions, setAiActions] = useState<any>(null);
   const [aiActionsLoading, setAiActionsLoading] = useState(false);
@@ -1469,6 +1471,8 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <div ref={belowFoldRef} />
 
       {(aiMilestones || aiMilestonesLoading) && (
         <Card data-testid="card-ai-milestones">

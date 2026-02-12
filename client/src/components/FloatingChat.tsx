@@ -14,9 +14,16 @@ const suggestions = [
   "Revenue tips?",
 ];
 
-export default function FloatingChat() {
+let persistedMessages: Message[] = [];
+
+interface FloatingChatProps {
+  externalOpen?: boolean;
+  onExternalClose?: () => void;
+}
+
+export default function FloatingChat({ externalOpen, onExternalClose }: FloatingChatProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(persistedMessages);
   const [input, setInput] = useState("");
   const advisor = useAdvisor();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -26,6 +33,16 @@ export default function FloatingChat() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, advisor.isPending]);
+
+  useEffect(() => {
+    persistedMessages = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (externalOpen) {
+      setIsOpen(true);
+    }
+  }, [externalOpen]);
 
   const handleSend = async (question?: string) => {
     const q = question || input.trim();
@@ -47,6 +64,13 @@ export default function FloatingChat() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleClose = () => {
+    setIsOpen(false);
+    if (onExternalClose) {
+      onExternalClose();
     }
   };
 
@@ -80,7 +104,7 @@ export default function FloatingChat() {
             data-testid="button-close-chat"
             variant="ghost"
             size="icon"
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -169,7 +193,7 @@ export default function FloatingChat() {
       <Button
         data-testid="button-floating-chat"
         className="h-12 w-12 rounded-full shadow-lg"
-        onClick={() => setIsOpen(false)}
+        onClick={handleClose}
       >
         <X className="h-5 w-5" />
       </Button>

@@ -28,8 +28,10 @@ The platform is built as a full-stack application with an Express.js backend and
 - **Automation Engine**: 6 autonomous systems (Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store) for background processing.
 - **Creator Intelligence System**: Style Scanner, Creator Memory, Humanization Layer, and Learning Engine for personalized AI outputs.
 - **PWA Support**: Full Progressive Web App capabilities for installability and offline access.
-- **UI/UX**: Consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, and floating AI chat.
+- **UI/UX**: Consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, floating AI chat with message persistence, command palette (Ctrl+K), keyboard shortcuts help (?), rich empty states with contextual tips.
 - **State Management**: ThemeProvider and AdvancedModeProvider context providers with localStorage persistence.
+- **Offline System**: IndexedDB storage with cache eviction (500 entry max, TTL cleanup every 50 writes), offline mutation queuing, service worker API caching, connection monitoring with toast notifications, PWA install prompt.
+- **Performance**: Dashboard lazy-loading with IntersectionObserver for below-fold API queries, session expiry detection with graceful toast + redirect.
 - **Key Features**:
     - **Home**: Dashboard with various AI-powered insights, analytics, and action centers.
     - **Content**: Library, Channels, Calendar, and Localization tabs with AI-powered content quality, repurposing, and localization tools.

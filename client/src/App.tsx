@@ -14,11 +14,13 @@ import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { Loader2, Zap, Sun, Moon, Gauge } from "lucide-react";
+import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
+
+const CommandPalette = lazy(() => import("@/components/CommandPalette"));
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Content = lazy(() => import("@/pages/Content"));
@@ -149,35 +151,111 @@ function GlobalErrorToast() {
         showError(event.mutation.state.error as Error);
       }
     });
-    return () => { unsubQuery(); unsubMutation(); };
+    const handleSessionExpired = () => {
+      toast({
+        title: "Session expired",
+        description: "You've been signed out. Redirecting to sign in...",
+        variant: "destructive",
+      });
+    };
+    window.addEventListener('session-expired', handleSessionExpired);
+    return () => { unsubQuery(); unsubMutation(); window.removeEventListener('session-expired', handleSessionExpired); };
   }, [toast]);
   return null;
 }
 
-function KeyboardShortcuts() {
+const SHORTCUTS = [
+  { keys: ["Ctrl/Cmd", "K"], description: "Open command palette" },
+  { keys: ["Alt", "1"], description: "Go to Dashboard" },
+  { keys: ["Alt", "2"], description: "Go to Content" },
+  { keys: ["Alt", "3"], description: "Go to Stream" },
+  { keys: ["Alt", "4"], description: "Go to Money" },
+  { keys: ["Alt", "5"], description: "Go to Settings" },
+  { keys: ["?"], description: "Show this help" },
+];
+
+function ShortcutsHelp({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} data-testid="panel-shortcuts-help">
+      <div className="max-w-sm w-full rounded-md border border-border bg-card shadow-lg p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <Keyboard className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Keyboard Shortcuts</h2>
+          </div>
+          <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-shortcuts">
+            <span className="sr-only">Close</span>
+            <span className="text-muted-foreground text-xs">Esc</span>
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {SHORTCUTS.map((s, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 py-1">
+              <span className="text-sm text-muted-foreground">{s.description}</span>
+              <div className="flex items-center gap-1">
+                {s.keys.map((k, j) => (
+                  <span key={j}>
+                    <kbd className="inline-flex h-5 items-center rounded border border-border bg-secondary px-1.5 text-[10px] font-mono text-muted-foreground">{k}</kbd>
+                    {j < s.keys.length - 1 && <span className="text-[10px] text-muted-foreground mx-0.5">+</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthenticatedApp() {
   const [, setLocation] = useLocation();
+  const { toggleTheme } = useTheme();
+  const { toggleAdvanced } = useAdvancedMode();
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+
+  useEffect(() => {
+    offlineEngine.setAuthenticated(true);
+    return () => offlineEngine.setAuthenticated(false);
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      if (!e.altKey) return;
-      switch (e.key) {
-        case "1": e.preventDefault(); setLocation("/"); break;
-        case "2": e.preventDefault(); setLocation("/content"); break;
-        case "3": e.preventDefault(); setLocation("/stream"); break;
-        case "4": e.preventDefault(); setLocation("/money"); break;
-        case "5": e.preventDefault(); setLocation("/settings"); break;
+      if (!e.altKey && !e.metaKey && !e.ctrlKey && e.key === "?") {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+        return;
+      }
+      if (e.altKey) {
+        switch (e.key) {
+          case "1": e.preventDefault(); setLocation("/"); break;
+          case "2": e.preventDefault(); setLocation("/content"); break;
+          case "3": e.preventDefault(); setLocation("/stream"); break;
+          case "4": e.preventDefault(); setLocation("/money"); break;
+          case "5": e.preventDefault(); setLocation("/settings"); break;
+        }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [setLocation]);
-  return null;
-}
 
-function AuthenticatedApp() {
-  useEffect(() => {
-    offlineEngine.setAuthenticated(true);
-    return () => offlineEngine.setAuthenticated(false);
+  const handlePaletteNavigate = useCallback((path: string) => {
+    setLocation(path);
+  }, [setLocation]);
+
+  const handleOpenChat = useCallback(() => {
+    setChatOpen(true);
   }, []);
 
   return (
@@ -201,6 +279,14 @@ function AuthenticatedApp() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="ghost" onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))} data-testid="button-search">
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Search (Ctrl+K)</TooltipContent>
+              </Tooltip>
               <OfflineStatusBadge />
               <AdvancedToggle />
               <ThemeToggle />
@@ -215,11 +301,14 @@ function AuthenticatedApp() {
         </div>
       </div>
       <Suspense fallback={null}>
-        <FloatingChat />
+        <FloatingChat externalOpen={chatOpen} onExternalClose={() => setChatOpen(false)} />
       </Suspense>
+      <Suspense fallback={null}>
+        <CommandPalette onNavigate={handlePaletteNavigate} onToggleTheme={toggleTheme} onToggleAdvanced={toggleAdvanced} onOpenChat={handleOpenChat} />
+      </Suspense>
+      {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       <PWAInstallPrompt />
       <GlobalErrorToast />
-      <KeyboardShortcuts />
     </SidebarProvider>
   );
 }
@@ -308,6 +397,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     console.error("ErrorBoundary caught:", error, info);
   }
 
+  handleRecover = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -318,14 +411,28 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
             </div>
             <h1 className="text-xl font-bold">Something went wrong</h1>
             <p className="text-sm text-muted-foreground">
-              An unexpected error occurred. Try refreshing the page.
+              An unexpected error occurred. You can try recovering or refresh the page.
             </p>
-            <Button
-              data-testid="button-error-reload"
-              onClick={() => window.location.reload()}
-            >
-              Reload Page
-            </Button>
+            {this.state.error && (
+              <p className="text-xs text-muted-foreground/60 font-mono break-all max-h-16 overflow-hidden">
+                {this.state.error.message}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <Button
+                data-testid="button-error-recover"
+                variant="outline"
+                onClick={this.handleRecover}
+              >
+                Try to Recover
+              </Button>
+              <Button
+                data-testid="button-error-reload"
+                onClick={() => window.location.reload()}
+              >
+                Reload Page
+              </Button>
+            </div>
           </div>
         </div>
       );
