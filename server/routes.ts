@@ -12968,6 +12968,14 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ error: "Failed to get latest result" }); }
   });
 
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  app.head("/api/health", (_req, res) => {
+    res.sendStatus(200);
+  });
+
   app.get("/robots.txt", (_req, res) => {
     res.type("text/plain").send(
       "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /settings\nSitemap: https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app") + "/sitemap.xml"

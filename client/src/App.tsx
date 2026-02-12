@@ -17,6 +17,8 @@ import { supportedLanguages } from "@/i18n";
 import { Loader2, Zap, Sun, Moon, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
+import { offlineEngine } from "@/lib/offline-engine";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Content = lazy(() => import("@/pages/Content"));
@@ -173,6 +175,11 @@ function KeyboardShortcuts() {
 }
 
 function AuthenticatedApp() {
+  useEffect(() => {
+    offlineEngine.setAuthenticated(true);
+    return () => offlineEngine.setAuthenticated(false);
+  }, []);
+
   return (
     <SidebarProvider style={sidebarStyle}>
       <div className="flex min-h-screen w-full bg-background text-foreground font-sans">
@@ -194,6 +201,7 @@ function AuthenticatedApp() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <OfflineStatusBadge />
               <AdvancedToggle />
               <ThemeToggle />
               <NotificationBell />
@@ -209,6 +217,7 @@ function AuthenticatedApp() {
       <Suspense fallback={null}>
         <FloatingChat />
       </Suspense>
+      <PWAInstallPrompt />
       <GlobalErrorToast />
       <KeyboardShortcuts />
     </SidebarProvider>
@@ -324,6 +333,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     return this.props.children;
   }
 }
+
+offlineEngine.start();
 
 function App() {
   return (
