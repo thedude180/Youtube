@@ -15,12 +15,13 @@ export function setupGoogleAuth(app: Express) {
   }
 
   function getCallbackUrl(req?: any): string {
+    if (req?.hostname) {
+      const proto = req.secure ? "https" : req.protocol;
+      return `${proto}://${req.hostname}/api/auth/google/callback`;
+    }
     if (process.env.REPLIT_DEPLOYMENT) {
       const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
       if (domain) return `https://${domain}/api/auth/google/callback`;
-    }
-    if (req?.hostname) {
-      return `https://${req.hostname}/api/auth/google/callback`;
     }
     if (process.env.REPLIT_DEV_DOMAIN) {
       return `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/google/callback`;
@@ -28,13 +29,16 @@ export function setupGoogleAuth(app: Express) {
     return "http://localhost:5000/api/auth/google/callback";
   }
 
+  const defaultCallbackUrl = getCallbackUrl();
+  console.log("Google OAuth default callbackURL:", defaultCallbackUrl);
+
   passport.use(
     "google",
     new GoogleStrategy(
       {
         clientID: clientId,
         clientSecret: clientSecret,
-        callbackURL: getCallbackUrl(),
+        callbackURL: defaultCallbackUrl,
         scope: [
           "openid",
           "email",
@@ -95,6 +99,8 @@ export function setupGoogleAuth(app: Express) {
   );
 
   app.get("/api/auth/google", (req, res, next) => {
+    const dynamicCallback = getCallbackUrl(req);
+    console.log("Google auth: initiating with callbackURL:", dynamicCallback);
     passport.authenticate("google", {
       scope: [
         "openid",
@@ -106,13 +112,17 @@ export function setupGoogleAuth(app: Express) {
       ],
       accessType: "offline",
       prompt: "consent",
+      callbackURL: dynamicCallback,
     } as any)(req, res, next);
   });
 
   app.get("/api/auth/google/callback", (req, res, next) => {
+    const dynamicCallback = getCallbackUrl(req);
+    console.log("Google auth callback: using callbackURL:", dynamicCallback);
     passport.authenticate("google", {
       failureRedirect: "/?auth_error=true",
-    })(req, res, async () => {
+      callbackURL: dynamicCallback,
+    } as any)(req, res, async () => {
       const user = req.user as any;
       if (!user) {
         console.error("Google auth callback: no user on req after authenticate");
