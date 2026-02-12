@@ -159,9 +159,12 @@ export default function StreamCenter() {
     const cached = sessionStorage.getItem("aiStreamRecs");
     if (cached) {
       try {
-        setAiStreamRecs(JSON.parse(cached));
-        setAiStreamRecsLoading(false);
-        return;
+        const e = JSON.parse(cached);
+        if (e.ts && Date.now() - e.ts < 1800000) {
+          setAiStreamRecs(e.data);
+          setAiStreamRecsLoading(false);
+          return;
+        } else { sessionStorage.removeItem("aiStreamRecs"); }
       } catch {}
     }
     (async () => {
@@ -169,9 +172,10 @@ export default function StreamCenter() {
         const res = await apiRequest("POST", "/api/ai/stream-recommendations");
         const data = await res.json();
         setAiStreamRecs(data);
-        sessionStorage.setItem("aiStreamRecs", JSON.stringify(data));
+        sessionStorage.setItem("aiStreamRecs", JSON.stringify({ data, ts: Date.now() }));
       } catch {
         setAiStreamRecs(null);
+        toast({ title: "AI feature unavailable", variant: "destructive" });
       } finally {
         setAiStreamRecsLoading(false);
       }
@@ -181,371 +185,371 @@ export default function StreamCenter() {
   useEffect(() => {
     const cached = sessionStorage.getItem("aiChatBotConfig");
     if (cached) {
-      try { setAiChatBot(JSON.parse(cached)); setAiChatBotLoading(false); return; } catch {}
+      try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChatBot(e.data); setAiChatBotLoading(false); return; } else { sessionStorage.removeItem("aiChatBotConfig"); } } catch {}
     }
     (async () => {
       try {
         const res = await apiRequest("POST", "/api/ai/chatbot-config", {});
         const data = await res.json();
         setAiChatBot(data);
-        sessionStorage.setItem("aiChatBotConfig", JSON.stringify(data));
-      } catch { setAiChatBot(null); } finally { setAiChatBotLoading(false); }
+        sessionStorage.setItem("aiChatBotConfig", JSON.stringify({ data, ts: Date.now() }));
+      } catch { setAiChatBot(null); toast({ title: "AI feature unavailable", variant: "destructive" }); } finally { setAiChatBotLoading(false); }
     })();
   }, []);
 
   useEffect(() => {
     const cached = sessionStorage.getItem("aiStreamChecklist");
     if (cached) {
-      try { setAiChecklist(JSON.parse(cached)); setAiChecklistLoading(false); return; } catch {}
+      try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChecklist(e.data); setAiChecklistLoading(false); return; } else { sessionStorage.removeItem("aiStreamChecklist"); } } catch {}
     }
     (async () => {
       try {
         const res = await apiRequest("POST", "/api/ai/stream-checklist", {});
         const data = await res.json();
         setAiChecklist(data);
-        sessionStorage.setItem("aiStreamChecklist", JSON.stringify(data));
-      } catch { setAiChecklist(null); } finally { setAiChecklistLoading(false); }
+        sessionStorage.setItem("aiStreamChecklist", JSON.stringify({ data, ts: Date.now() }));
+      } catch { setAiChecklist(null); toast({ title: "AI feature unavailable", variant: "destructive" }); } finally { setAiChecklistLoading(false); }
     })();
   }, []);
 
   useEffect(() => {
     const cached = sessionStorage.getItem("aiRaidStrategy");
     if (cached) {
-      try { setAiRaid(JSON.parse(cached)); setAiRaidLoading(false); return; } catch {}
+      try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRaid(e.data); setAiRaidLoading(false); return; } else { sessionStorage.removeItem("aiRaidStrategy"); } } catch {}
     }
     (async () => {
       try {
         const res = await apiRequest("POST", "/api/ai/raid-strategy", {});
         const data = await res.json();
         setAiRaid(data);
-        sessionStorage.setItem("aiRaidStrategy", JSON.stringify(data));
-      } catch { setAiRaid(null); } finally { setAiRaidLoading(false); }
+        sessionStorage.setItem("aiRaidStrategy", JSON.stringify({ data, ts: Date.now() }));
+      } catch { setAiRaid(null); toast({ title: "AI feature unavailable", variant: "destructive" }); } finally { setAiRaidLoading(false); }
     })();
   }, []);
 
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_titles");
-    if (cached) { try { setAiStreamTitles(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamTitles(e.data); return; } else { sessionStorage.removeItem("ai_stream_titles"); } } catch {} }
     setAiStreamTitlesLoading(true);
-    apiRequest("POST", "/api/ai/stream-titles", {}).then(r => r.json()).then(d => { setAiStreamTitles(d); sessionStorage.setItem("ai_stream_titles", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamTitlesLoading(false));
+    apiRequest("POST", "/api/ai/stream-titles", {}).then(r => r.json()).then(d => { setAiStreamTitles(d); sessionStorage.setItem("ai_stream_titles", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamTitlesLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_schedule");
-    if (cached) { try { setAiStreamSchedule(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamSchedule(e.data); return; } else { sessionStorage.removeItem("ai_stream_schedule"); } } catch {} }
     setAiStreamScheduleLoading(true);
-    apiRequest("POST", "/api/ai/stream-schedule", {}).then(r => r.json()).then(d => { setAiStreamSchedule(d); sessionStorage.setItem("ai_stream_schedule", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamScheduleLoading(false));
+    apiRequest("POST", "/api/ai/stream-schedule", {}).then(r => r.json()).then(d => { setAiStreamSchedule(d); sessionStorage.setItem("ai_stream_schedule", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamScheduleLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_overlays");
-    if (cached) { try { setAiStreamOverlays(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamOverlays(e.data); return; } else { sessionStorage.removeItem("ai_stream_overlays"); } } catch {} }
     setAiStreamOverlaysLoading(true);
-    apiRequest("POST", "/api/ai/stream-overlays", {}).then(r => r.json()).then(d => { setAiStreamOverlays(d); sessionStorage.setItem("ai_stream_overlays", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamOverlaysLoading(false));
+    apiRequest("POST", "/api/ai/stream-overlays", {}).then(r => r.json()).then(d => { setAiStreamOverlays(d); sessionStorage.setItem("ai_stream_overlays", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamOverlaysLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_alerts");
-    if (cached) { try { setAiStreamAlerts(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamAlerts(e.data); return; } else { sessionStorage.removeItem("ai_stream_alerts"); } } catch {} }
     setAiStreamAlertsLoading(true);
-    apiRequest("POST", "/api/ai/stream-alerts", {}).then(r => r.json()).then(d => { setAiStreamAlerts(d); sessionStorage.setItem("ai_stream_alerts", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamAlertsLoading(false));
+    apiRequest("POST", "/api/ai/stream-alerts", {}).then(r => r.json()).then(d => { setAiStreamAlerts(d); sessionStorage.setItem("ai_stream_alerts", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamAlertsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_mod");
-    if (cached) { try { setAiStreamMod(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamMod(e.data); return; } else { sessionStorage.removeItem("ai_stream_mod"); } } catch {} }
     setAiStreamModLoading(true);
-    apiRequest("POST", "/api/ai/stream-moderation", {}).then(r => r.json()).then(d => { setAiStreamMod(d); sessionStorage.setItem("ai_stream_mod", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamModLoading(false));
+    apiRequest("POST", "/api/ai/stream-moderation", {}).then(r => r.json()).then(d => { setAiStreamMod(d); sessionStorage.setItem("ai_stream_mod", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamModLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_interact");
-    if (cached) { try { setAiStreamInteract(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamInteract(e.data); return; } else { sessionStorage.removeItem("ai_stream_interact"); } } catch {} }
     setAiStreamInteractLoading(true);
-    apiRequest("POST", "/api/ai/stream-interactions", {}).then(r => r.json()).then(d => { setAiStreamInteract(d); sessionStorage.setItem("ai_stream_interact", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamInteractLoading(false));
+    apiRequest("POST", "/api/ai/stream-interactions", {}).then(r => r.json()).then(d => { setAiStreamInteract(d); sessionStorage.setItem("ai_stream_interact", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamInteractLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_rev");
-    if (cached) { try { setAiStreamRev(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamRev(e.data); return; } else { sessionStorage.removeItem("ai_stream_rev"); } } catch {} }
     setAiStreamRevLoading(true);
-    apiRequest("POST", "/api/ai/stream-revenue", {}).then(r => r.json()).then(d => { setAiStreamRev(d); sessionStorage.setItem("ai_stream_rev", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamRevLoading(false));
+    apiRequest("POST", "/api/ai/stream-revenue", {}).then(r => r.json()).then(d => { setAiStreamRev(d); sessionStorage.setItem("ai_stream_rev", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamRevLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_clips");
-    if (cached) { try { setAiStreamClips(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamClips(e.data); return; } else { sessionStorage.removeItem("ai_stream_clips"); } } catch {} }
     setAiStreamClipsLoading(true);
-    apiRequest("POST", "/api/ai/stream-clips", {}).then(r => r.json()).then(d => { setAiStreamClips(d); sessionStorage.setItem("ai_stream_clips", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamClipsLoading(false));
+    apiRequest("POST", "/api/ai/stream-clips", {}).then(r => r.json()).then(d => { setAiStreamClips(d); sessionStorage.setItem("ai_stream_clips", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamClipsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_cats");
-    if (cached) { try { setAiStreamCats(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCats(e.data); return; } else { sessionStorage.removeItem("ai_stream_cats"); } } catch {} }
     setAiStreamCatsLoading(true);
-    apiRequest("POST", "/api/ai/stream-categories", {}).then(r => r.json()).then(d => { setAiStreamCats(d); sessionStorage.setItem("ai_stream_cats", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamCatsLoading(false));
+    apiRequest("POST", "/api/ai/stream-categories", {}).then(r => r.json()).then(d => { setAiStreamCats(d); sessionStorage.setItem("ai_stream_cats", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamCatsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_panels");
-    if (cached) { try { setAiStreamPanels(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamPanels(e.data); return; } else { sessionStorage.removeItem("ai_stream_panels"); } } catch {} }
     setAiStreamPanelsLoading(true);
-    apiRequest("POST", "/api/ai/stream-panels", {}).then(r => r.json()).then(d => { setAiStreamPanels(d); sessionStorage.setItem("ai_stream_panels", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamPanelsLoading(false));
+    apiRequest("POST", "/api/ai/stream-panels", {}).then(r => r.json()).then(d => { setAiStreamPanels(d); sessionStorage.setItem("ai_stream_panels", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamPanelsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_emotes");
-    if (cached) { try { setAiStreamEmotes(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamEmotes(e.data); return; } else { sessionStorage.removeItem("ai_stream_emotes"); } } catch {} }
     setAiStreamEmotesLoading(true);
-    apiRequest("POST", "/api/ai/stream-emotes", {}).then(r => r.json()).then(d => { setAiStreamEmotes(d); sessionStorage.setItem("ai_stream_emotes", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamEmotesLoading(false));
+    apiRequest("POST", "/api/ai/stream-emotes", {}).then(r => r.json()).then(d => { setAiStreamEmotes(d); sessionStorage.setItem("ai_stream_emotes", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamEmotesLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_sub_goals");
-    if (cached) { try { setAiStreamSubGoals(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamSubGoals(e.data); return; } else { sessionStorage.removeItem("ai_stream_sub_goals"); } } catch {} }
     setAiStreamSubGoalsLoading(true);
-    apiRequest("POST", "/api/ai/stream-sub-goals", {}).then(r => r.json()).then(d => { setAiStreamSubGoals(d); sessionStorage.setItem("ai_stream_sub_goals", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamSubGoalsLoading(false));
+    apiRequest("POST", "/api/ai/stream-sub-goals", {}).then(r => r.json()).then(d => { setAiStreamSubGoals(d); sessionStorage.setItem("ai_stream_sub_goals", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamSubGoalsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_network");
-    if (cached) { try { setAiStreamNetwork(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamNetwork(e.data); return; } else { sessionStorage.removeItem("ai_stream_network"); } } catch {} }
     setAiStreamNetworkLoading(true);
-    apiRequest("POST", "/api/ai/stream-networking", {}).then(r => r.json()).then(d => { setAiStreamNetwork(d); sessionStorage.setItem("ai_stream_network", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamNetworkLoading(false));
+    apiRequest("POST", "/api/ai/stream-networking", {}).then(r => r.json()).then(d => { setAiStreamNetwork(d); sessionStorage.setItem("ai_stream_network", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamNetworkLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_analytics_exp");
-    if (cached) { try { setAiStreamAnalyticsExp(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamAnalyticsExp(e.data); return; } else { sessionStorage.removeItem("ai_stream_analytics_exp"); } } catch {} }
     setAiStreamAnalyticsExpLoading(true);
-    apiRequest("POST", "/api/ai/stream-analytics-explainer", {}).then(r => r.json()).then(d => { setAiStreamAnalyticsExp(d); sessionStorage.setItem("ai_stream_analytics_exp", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamAnalyticsExpLoading(false));
+    apiRequest("POST", "/api/ai/stream-analytics-explainer", {}).then(r => r.json()).then(d => { setAiStreamAnalyticsExp(d); sessionStorage.setItem("ai_stream_analytics_exp", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamAnalyticsExpLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_multi_stream");
-    if (cached) { try { setAiMultiStream(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMultiStream(e.data); return; } else { sessionStorage.removeItem("ai_multi_stream"); } } catch {} }
     setAiMultiStreamLoading(true);
-    apiRequest("POST", "/api/ai/multi-stream", {}).then(r => r.json()).then(d => { setAiMultiStream(d); sessionStorage.setItem("ai_multi_stream", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiMultiStreamLoading(false));
+    apiRequest("POST", "/api/ai/multi-stream", {}).then(r => r.json()).then(d => { setAiMultiStream(d); sessionStorage.setItem("ai_multi_stream", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMultiStreamLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_backup");
-    if (cached) { try { setAiStreamBackup(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamBackup(e.data); return; } else { sessionStorage.removeItem("ai_stream_backup"); } } catch {} }
     setAiStreamBackupLoading(true);
-    apiRequest("POST", "/api/ai/stream-backup", {}).then(r => r.json()).then(d => { setAiStreamBackup(d); sessionStorage.setItem("ai_stream_backup", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamBackupLoading(false));
+    apiRequest("POST", "/api/ai/stream-backup", {}).then(r => r.json()).then(d => { setAiStreamBackup(d); sessionStorage.setItem("ai_stream_backup", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamBackupLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_community");
-    if (cached) { try { setAiStreamCommunity(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCommunity(e.data); return; } else { sessionStorage.removeItem("ai_stream_community"); } } catch {} }
     setAiStreamCommunityLoading(true);
-    apiRequest("POST", "/api/ai/stream-community", {}).then(r => r.json()).then(d => { setAiStreamCommunity(d); sessionStorage.setItem("ai_stream_community", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamCommunityLoading(false));
+    apiRequest("POST", "/api/ai/stream-community", {}).then(r => r.json()).then(d => { setAiStreamCommunity(d); sessionStorage.setItem("ai_stream_community", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamCommunityLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_branding");
-    if (cached) { try { setAiStreamBranding(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamBranding(e.data); return; } else { sessionStorage.removeItem("ai_stream_branding"); } } catch {} }
     setAiStreamBrandingLoading(true);
-    apiRequest("POST", "/api/ai/stream-branding", {}).then(r => r.json()).then(d => { setAiStreamBranding(d); sessionStorage.setItem("ai_stream_branding", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamBrandingLoading(false));
+    apiRequest("POST", "/api/ai/stream-branding", {}).then(r => r.json()).then(d => { setAiStreamBranding(d); sessionStorage.setItem("ai_stream_branding", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamBrandingLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_calendar");
-    if (cached) { try { setAiStreamCalendar(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCalendar(e.data); return; } else { sessionStorage.removeItem("ai_stream_calendar"); } } catch {} }
     setAiStreamCalendarLoading(true);
-    apiRequest("POST", "/api/ai/stream-content-calendar", {}).then(r => r.json()).then(d => { setAiStreamCalendar(d); sessionStorage.setItem("ai_stream_calendar", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamCalendarLoading(false));
+    apiRequest("POST", "/api/ai/stream-content-calendar", {}).then(r => r.json()).then(d => { setAiStreamCalendar(d); sessionStorage.setItem("ai_stream_calendar", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamCalendarLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_growth");
-    if (cached) { try { setAiStreamGrowth(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamGrowth(e.data); return; } else { sessionStorage.removeItem("ai_stream_growth"); } } catch {} }
     setAiStreamGrowthLoading(true);
-    apiRequest("POST", "/api/ai/stream-growth", {}).then(r => r.json()).then(d => { setAiStreamGrowth(d); sessionStorage.setItem("ai_stream_growth", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamGrowthLoading(false));
+    apiRequest("POST", "/api/ai/stream-growth", {}).then(r => r.json()).then(d => { setAiStreamGrowth(d); sessionStorage.setItem("ai_stream_growth", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamGrowthLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_studio");
-    if (cached) { try { setAiYTStudio(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTStudio(e.data); return; } else { sessionStorage.removeItem("ai_yt_studio"); } } catch {} }
     setAiYTStudioLoading(true);
-    apiRequest("POST", "/api/ai/yt-studio", {}).then(r => r.json()).then(d => { setAiYTStudio(d); sessionStorage.setItem("ai_yt_studio", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTStudioLoading(false));
+    apiRequest("POST", "/api/ai/yt-studio", {}).then(r => r.json()).then(d => { setAiYTStudio(d); sessionStorage.setItem("ai_yt_studio", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTStudioLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_shorts_algo");
-    if (cached) { try { setAiYTShortsAlgo(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTShortsAlgo(e.data); return; } else { sessionStorage.removeItem("ai_yt_shorts_algo"); } } catch {} }
     setAiYTShortsAlgoLoading(true);
-    apiRequest("POST", "/api/ai/yt-shorts-algo", {}).then(r => r.json()).then(d => { setAiYTShortsAlgo(d); sessionStorage.setItem("ai_yt_shorts_algo", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTShortsAlgoLoading(false));
+    apiRequest("POST", "/api/ai/yt-shorts-algo", {}).then(r => r.json()).then(d => { setAiYTShortsAlgo(d); sessionStorage.setItem("ai_yt_shorts_algo", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTShortsAlgoLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_comments");
-    if (cached) { try { setAiYTComments(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTComments(e.data); return; } else { sessionStorage.removeItem("ai_yt_comments"); } } catch {} }
     setAiYTCommentsLoading(true);
-    apiRequest("POST", "/api/ai/yt-comments", {}).then(r => r.json()).then(d => { setAiYTComments(d); sessionStorage.setItem("ai_yt_comments", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTCommentsLoading(false));
+    apiRequest("POST", "/api/ai/yt-comments", {}).then(r => r.json()).then(d => { setAiYTComments(d); sessionStorage.setItem("ai_yt_comments", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTCommentsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_playlists");
-    if (cached) { try { setAiYTPlaylists(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTPlaylists(e.data); return; } else { sessionStorage.removeItem("ai_yt_playlists"); } } catch {} }
     setAiYTPlaylistsLoading(true);
-    apiRequest("POST", "/api/ai/yt-playlists", {}).then(r => r.json()).then(d => { setAiYTPlaylists(d); sessionStorage.setItem("ai_yt_playlists", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTPlaylistsLoading(false));
+    apiRequest("POST", "/api/ai/yt-playlists", {}).then(r => r.json()).then(d => { setAiYTPlaylists(d); sessionStorage.setItem("ai_yt_playlists", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTPlaylistsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_premiere");
-    if (cached) { try { setAiYTPremiere(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTPremiere(e.data); return; } else { sessionStorage.removeItem("ai_yt_premiere"); } } catch {} }
     setAiYTPremiereLoading(true);
-    apiRequest("POST", "/api/ai/yt-premiere", {}).then(r => r.json()).then(d => { setAiYTPremiere(d); sessionStorage.setItem("ai_yt_premiere", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTPremiereLoading(false));
+    apiRequest("POST", "/api/ai/yt-premiere", {}).then(r => r.json()).then(d => { setAiYTPremiere(d); sessionStorage.setItem("ai_yt_premiere", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTPremiereLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_membership");
-    if (cached) { try { setAiYTMembership(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTMembership(e.data); return; } else { sessionStorage.removeItem("ai_yt_membership"); } } catch {} }
     setAiYTMembershipLoading(true);
-    apiRequest("POST", "/api/ai/yt-membership", {}).then(r => r.json()).then(d => { setAiYTMembership(d); sessionStorage.setItem("ai_yt_membership", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTMembershipLoading(false));
+    apiRequest("POST", "/api/ai/yt-membership", {}).then(r => r.json()).then(d => { setAiYTMembership(d); sessionStorage.setItem("ai_yt_membership", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTMembershipLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_super_thanks");
-    if (cached) { try { setAiYTSuperThanks(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTSuperThanks(e.data); return; } else { sessionStorage.removeItem("ai_yt_super_thanks"); } } catch {} }
     setAiYTSuperThanksLoading(true);
-    apiRequest("POST", "/api/ai/yt-super-thanks", {}).then(r => r.json()).then(d => { setAiYTSuperThanks(d); sessionStorage.setItem("ai_yt_super_thanks", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTSuperThanksLoading(false));
+    apiRequest("POST", "/api/ai/yt-super-thanks", {}).then(r => r.json()).then(d => { setAiYTSuperThanks(d); sessionStorage.setItem("ai_yt_super_thanks", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTSuperThanksLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_handle");
-    if (cached) { try { setAiYTHandle(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTHandle(e.data); return; } else { sessionStorage.removeItem("ai_yt_handle"); } } catch {} }
     setAiYTHandleLoading(true);
-    apiRequest("POST", "/api/ai/yt-handle", {}).then(r => r.json()).then(d => { setAiYTHandle(d); sessionStorage.setItem("ai_yt_handle", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTHandleLoading(false));
+    apiRequest("POST", "/api/ai/yt-handle", {}).then(r => r.json()).then(d => { setAiYTHandle(d); sessionStorage.setItem("ai_yt_handle", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTHandleLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_channel_pg");
-    if (cached) { try { setAiYTChannelPg(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTChannelPg(e.data); return; } else { sessionStorage.removeItem("ai_yt_channel_pg"); } } catch {} }
     setAiYTChannelPgLoading(true);
-    apiRequest("POST", "/api/ai/yt-channel-page", {}).then(r => r.json()).then(d => { setAiYTChannelPg(d); sessionStorage.setItem("ai_yt_channel_pg", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTChannelPgLoading(false));
+    apiRequest("POST", "/api/ai/yt-channel-page", {}).then(r => r.json()).then(d => { setAiYTChannelPg(d); sessionStorage.setItem("ai_yt_channel_pg", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTChannelPgLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_hashtags");
-    if (cached) { try { setAiYTHashtags(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTHashtags(e.data); return; } else { sessionStorage.removeItem("ai_yt_hashtags"); } } catch {} }
     setAiYTHashtagsLoading(true);
-    apiRequest("POST", "/api/ai/yt-hashtags", {}).then(r => r.json()).then(d => { setAiYTHashtags(d); sessionStorage.setItem("ai_yt_hashtags", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiYTHashtagsLoading(false));
+    apiRequest("POST", "/api/ai/yt-hashtags", {}).then(r => r.json()).then(d => { setAiYTHashtags(d); sessionStorage.setItem("ai_yt_hashtags", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTHashtagsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_emotes");
-    if (cached) { try { setAiTwEmotes(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwEmotes(e.data); return; } else { sessionStorage.removeItem("ai_tw_emotes"); } } catch {} }
     setAiTwEmotesLoading(true);
-    apiRequest("POST", "/api/ai/twitch-emotes", {}).then(r => r.json()).then(d => { setAiTwEmotes(d); sessionStorage.setItem("ai_tw_emotes", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwEmotesLoading(false));
+    apiRequest("POST", "/api/ai/twitch-emotes", {}).then(r => r.json()).then(d => { setAiTwEmotes(d); sessionStorage.setItem("ai_tw_emotes", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwEmotesLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_bits");
-    if (cached) { try { setAiTwBits(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwBits(e.data); return; } else { sessionStorage.removeItem("ai_tw_bits"); } } catch {} }
     setAiTwBitsLoading(true);
-    apiRequest("POST", "/api/ai/twitch-bits", {}).then(r => r.json()).then(d => { setAiTwBits(d); sessionStorage.setItem("ai_tw_bits", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwBitsLoading(false));
+    apiRequest("POST", "/api/ai/twitch-bits", {}).then(r => r.json()).then(d => { setAiTwBits(d); sessionStorage.setItem("ai_tw_bits", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwBitsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_raids");
-    if (cached) { try { setAiTwRaids(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwRaids(e.data); return; } else { sessionStorage.removeItem("ai_tw_raids"); } } catch {} }
     setAiTwRaidsLoading(true);
-    apiRequest("POST", "/api/ai/twitch-raids", {}).then(r => r.json()).then(d => { setAiTwRaids(d); sessionStorage.setItem("ai_tw_raids", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwRaidsLoading(false));
+    apiRequest("POST", "/api/ai/twitch-raids", {}).then(r => r.json()).then(d => { setAiTwRaids(d); sessionStorage.setItem("ai_tw_raids", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwRaidsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_points");
-    if (cached) { try { setAiTwPoints(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPoints(e.data); return; } else { sessionStorage.removeItem("ai_tw_points"); } } catch {} }
     setAiTwPointsLoading(true);
-    apiRequest("POST", "/api/ai/twitch-points", {}).then(r => r.json()).then(d => { setAiTwPoints(d); sessionStorage.setItem("ai_tw_points", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwPointsLoading(false));
+    apiRequest("POST", "/api/ai/twitch-points", {}).then(r => r.json()).then(d => { setAiTwPoints(d); sessionStorage.setItem("ai_tw_points", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwPointsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_predictions");
-    if (cached) { try { setAiTwPredictions(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPredictions(e.data); return; } else { sessionStorage.removeItem("ai_tw_predictions"); } } catch {} }
     setAiTwPredictionsLoading(true);
-    apiRequest("POST", "/api/ai/twitch-predictions", {}).then(r => r.json()).then(d => { setAiTwPredictions(d); sessionStorage.setItem("ai_tw_predictions", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwPredictionsLoading(false));
+    apiRequest("POST", "/api/ai/twitch-predictions", {}).then(r => r.json()).then(d => { setAiTwPredictions(d); sessionStorage.setItem("ai_tw_predictions", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwPredictionsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_hype_train");
-    if (cached) { try { setAiTwHypeTrain(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwHypeTrain(e.data); return; } else { sessionStorage.removeItem("ai_tw_hype_train"); } } catch {} }
     setAiTwHypeTrainLoading(true);
-    apiRequest("POST", "/api/ai/twitch-hype-train", {}).then(r => r.json()).then(d => { setAiTwHypeTrain(d); sessionStorage.setItem("ai_tw_hype_train", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwHypeTrainLoading(false));
+    apiRequest("POST", "/api/ai/twitch-hype-train", {}).then(r => r.json()).then(d => { setAiTwHypeTrain(d); sessionStorage.setItem("ai_tw_hype_train", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwHypeTrainLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_clips");
-    if (cached) { try { setAiTwClips(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwClips(e.data); return; } else { sessionStorage.removeItem("ai_tw_clips"); } } catch {} }
     setAiTwClipsLoading(true);
-    apiRequest("POST", "/api/ai/twitch-clips", {}).then(r => r.json()).then(d => { setAiTwClips(d); sessionStorage.setItem("ai_tw_clips", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwClipsLoading(false));
+    apiRequest("POST", "/api/ai/twitch-clips", {}).then(r => r.json()).then(d => { setAiTwClips(d); sessionStorage.setItem("ai_tw_clips", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwClipsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_vods");
-    if (cached) { try { setAiTwVODs(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwVODs(e.data); return; } else { sessionStorage.removeItem("ai_tw_vods"); } } catch {} }
     setAiTwVODsLoading(true);
-    apiRequest("POST", "/api/ai/twitch-vods", {}).then(r => r.json()).then(d => { setAiTwVODs(d); sessionStorage.setItem("ai_tw_vods", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwVODsLoading(false));
+    apiRequest("POST", "/api/ai/twitch-vods", {}).then(r => r.json()).then(d => { setAiTwVODs(d); sessionStorage.setItem("ai_tw_vods", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwVODsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tw_panels");
-    if (cached) { try { setAiTwPanels(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPanels(e.data); return; } else { sessionStorage.removeItem("ai_tw_panels"); } } catch {} }
     setAiTwPanelsLoading(true);
-    apiRequest("POST", "/api/ai/twitch-panels", {}).then(r => r.json()).then(d => { setAiTwPanels(d); sessionStorage.setItem("ai_tw_panels", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiTwPanelsLoading(false));
+    apiRequest("POST", "/api/ai/twitch-panels", {}).then(r => r.json()).then(d => { setAiTwPanels(d); sessionStorage.setItem("ai_tw_panels", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTwPanelsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_kick_stream");
-    if (cached) { try { setAiKickStream(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickStream(e.data); return; } else { sessionStorage.removeItem("ai_kick_stream"); } } catch {} }
     setAiKickStreamLoading(true);
-    apiRequest("POST", "/api/ai/kick-stream", {}).then(r => r.json()).then(d => { setAiKickStream(d); sessionStorage.setItem("ai_kick_stream", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiKickStreamLoading(false));
+    apiRequest("POST", "/api/ai/kick-stream", {}).then(r => r.json()).then(d => { setAiKickStream(d); sessionStorage.setItem("ai_kick_stream", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiKickStreamLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_kick_money");
-    if (cached) { try { setAiKickMoney(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickMoney(e.data); return; } else { sessionStorage.removeItem("ai_kick_money"); } } catch {} }
     setAiKickMoneyLoading(true);
-    apiRequest("POST", "/api/ai/kick-monetization", {}).then(r => r.json()).then(d => { setAiKickMoney(d); sessionStorage.setItem("ai_kick_money", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiKickMoneyLoading(false));
+    apiRequest("POST", "/api/ai/kick-monetization", {}).then(r => r.json()).then(d => { setAiKickMoney(d); sessionStorage.setItem("ai_kick_money", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiKickMoneyLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_kick_comm");
-    if (cached) { try { setAiKickComm(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickComm(e.data); return; } else { sessionStorage.removeItem("ai_kick_comm"); } } catch {} }
     setAiKickCommLoading(true);
-    apiRequest("POST", "/api/ai/kick-community", {}).then(r => r.json()).then(d => { setAiKickComm(d); sessionStorage.setItem("ai_kick_comm", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiKickCommLoading(false));
+    apiRequest("POST", "/api/ai/kick-community", {}).then(r => r.json()).then(d => { setAiKickComm(d); sessionStorage.setItem("ai_kick_comm", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiKickCommLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_kick_diff");
-    if (cached) { try { setAiKickDiff(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickDiff(e.data); return; } else { sessionStorage.removeItem("ai_kick_diff"); } } catch {} }
     setAiKickDiffLoading(true);
-    apiRequest("POST", "/api/ai/kick-differentiator", {}).then(r => r.json()).then(d => { setAiKickDiff(d); sessionStorage.setItem("ai_kick_diff", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiKickDiffLoading(false));
+    apiRequest("POST", "/api/ai/kick-differentiator", {}).then(r => r.json()).then(d => { setAiKickDiff(d); sessionStorage.setItem("ai_kick_diff", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiKickDiffLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_kick_disc");
-    if (cached) { try { setAiKickDisc(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickDisc(e.data); return; } else { sessionStorage.removeItem("ai_kick_disc"); } } catch {} }
     setAiKickDiscLoading(true);
-    apiRequest("POST", "/api/ai/kick-discovery", {}).then(r => r.json()).then(d => { setAiKickDisc(d); sessionStorage.setItem("ai_kick_disc", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiKickDiscLoading(false));
+    apiRequest("POST", "/api/ai/kick-discovery", {}).then(r => r.json()).then(d => { setAiKickDisc(d); sessionStorage.setItem("ai_kick_disc", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiKickDiscLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_router");
-    if (cached) { try { setAiStreamRouter(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamRouter(e.data); return; } else { sessionStorage.removeItem("ai_stream_router"); } } catch {} }
     setAiStreamRouterLoading(true);
-    apiRequest("POST", "/api/ai/stream-router", {}).then(r => r.json()).then(d => { setAiStreamRouter(d); sessionStorage.setItem("ai_stream_router", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamRouterLoading(false));
+    apiRequest("POST", "/api/ai/stream-router", {}).then(r => r.json()).then(d => { setAiStreamRouter(d); sessionStorage.setItem("ai_stream_router", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamRouterLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_deck");
-    if (cached) { try { setAiStreamDeck(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamDeck(e.data); return; } else { sessionStorage.removeItem("ai_stream_deck"); } } catch {} }
     setAiStreamDeckLoading(true);
-    apiRequest("POST", "/api/ai/stream-deck", {}).then(r => r.json()).then(d => { setAiStreamDeck(d); sessionStorage.setItem("ai_stream_deck", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamDeckLoading(false));
+    apiRequest("POST", "/api/ai/stream-deck", {}).then(r => r.json()).then(d => { setAiStreamDeck(d); sessionStorage.setItem("ai_stream_deck", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamDeckLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_obs_opt");
-    if (cached) { try { setAiOBSOpt(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOBSOpt(e.data); return; } else { sessionStorage.removeItem("ai_obs_opt"); } } catch {} }
     setAiOBSOptLoading(true);
-    apiRequest("POST", "/api/ai/obs-optimizer", {}).then(r => r.json()).then(d => { setAiOBSOpt(d); sessionStorage.setItem("ai_obs_opt", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiOBSOptLoading(false));
+    apiRequest("POST", "/api/ai/obs-optimizer", {}).then(r => r.json()).then(d => { setAiOBSOpt(d); sessionStorage.setItem("ai_obs_opt", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiOBSOptLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_labs");
-    if (cached) { try { setAiStreamLabs(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamLabs(e.data); return; } else { sessionStorage.removeItem("ai_stream_labs"); } } catch {} }
     setAiStreamLabsLoading(true);
-    apiRequest("POST", "/api/ai/streamlabs", {}).then(r => r.json()).then(d => { setAiStreamLabs(d); sessionStorage.setItem("ai_stream_labs", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamLabsLoading(false));
+    apiRequest("POST", "/api/ai/streamlabs", {}).then(r => r.json()).then(d => { setAiStreamLabs(d); sessionStorage.setItem("ai_stream_labs", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamLabsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_stream_elem");
-    if (cached) { try { setAiStreamElem(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamElem(e.data); return; } else { sessionStorage.removeItem("ai_stream_elem"); } } catch {} }
     setAiStreamElemLoading(true);
-    apiRequest("POST", "/api/ai/stream-elements", {}).then(r => r.json()).then(d => { setAiStreamElem(d); sessionStorage.setItem("ai_stream_elem", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiStreamElemLoading(false));
+    apiRequest("POST", "/api/ai/stream-elements", {}).then(r => r.json()).then(d => { setAiStreamElem(d); sessionStorage.setItem("ai_stream_elem", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreamElemLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_overlay_designer");
-    if (cached) { try { setAiOverlayDesigner(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOverlayDesigner(e.data); return; } else { sessionStorage.removeItem("ai_overlay_designer"); } } catch {} }
     setAiOverlayDesignerLoading(true);
-    apiRequest("POST", "/api/ai/stream-overlay-designer", {}).then(r => r.json()).then(d => { setAiOverlayDesigner(d); sessionStorage.setItem("ai_overlay_designer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiOverlayDesignerLoading(false));
+    apiRequest("POST", "/api/ai/stream-overlay-designer", {}).then(r => r.json()).then(d => { setAiOverlayDesigner(d); sessionStorage.setItem("ai_overlay_designer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiOverlayDesignerLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_raid_optimizer");
-    if (cached) { try { setAiRaidOptimizer(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRaidOptimizer(e.data); return; } else { sessionStorage.removeItem("ai_raid_optimizer"); } } catch {} }
     setAiRaidOptimizerLoading(true);
-    apiRequest("POST", "/api/ai/raid-target-optimizer", {}).then(r => r.json()).then(d => { setAiRaidOptimizer(d); sessionStorage.setItem("ai_raid_optimizer", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiRaidOptimizerLoading(false));
+    apiRequest("POST", "/api/ai/raid-target-optimizer", {}).then(r => r.json()).then(d => { setAiRaidOptimizer(d); sessionStorage.setItem("ai_raid_optimizer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRaidOptimizerLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_highlight_clipper");
-    if (cached) { try { setAiHighlightClipper(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiHighlightClipper(e.data); return; } else { sessionStorage.removeItem("ai_highlight_clipper"); } } catch {} }
     setAiHighlightClipperLoading(true);
-    apiRequest("POST", "/api/ai/stream-highlight-clipper", {}).then(r => r.json()).then(d => { setAiHighlightClipper(d); sessionStorage.setItem("ai_highlight_clipper", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiHighlightClipperLoading(false));
+    apiRequest("POST", "/api/ai/stream-highlight-clipper", {}).then(r => r.json()).then(d => { setAiHighlightClipper(d); sessionStorage.setItem("ai_highlight_clipper", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiHighlightClipperLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_donation_goal");
-    if (cached) { try { setAiDonationGoal(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDonationGoal(e.data); return; } else { sessionStorage.removeItem("ai_donation_goal"); } } catch {} }
     setAiDonationGoalLoading(true);
-    apiRequest("POST", "/api/ai/donation-goal-strategist", {}).then(r => r.json()).then(d => { setAiDonationGoal(d); sessionStorage.setItem("ai_donation_goal", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiDonationGoalLoading(false));
+    apiRequest("POST", "/api/ai/donation-goal-strategist", {}).then(r => r.json()).then(d => { setAiDonationGoal(d); sessionStorage.setItem("ai_donation_goal", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDonationGoalLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_chat_unifier");
-    if (cached) { try { setAiChatUnifier(JSON.parse(cached)); return; } catch {} }
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChatUnifier(e.data); return; } else { sessionStorage.removeItem("ai_chat_unifier"); } } catch {} }
     setAiChatUnifierLoading(true);
-    apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify(d)); }).catch(() => {}).finally(() => setAiChatUnifierLoading(false));
+    apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiChatUnifierLoading(false));
   }, []);
 
   const { data: destinations = [] } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
