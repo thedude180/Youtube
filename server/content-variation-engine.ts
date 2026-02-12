@@ -20,6 +20,72 @@ interface VariationOptions {
   existingPosts?: string[];
 }
 
+const CREATOR_WEBSITE = "https://etgaming247.com";
+
+const CROSSLINK_LINES: Record<string, string[]> = {
+  youtube: [
+    `\n\n${CREATOR_WEBSITE}`,
+    `\nCatch the live streams on Twitch & Kick`,
+    `\nClips & highlights on TikTok`,
+    `\nUpdates & hot takes on X`,
+    `\nJoin the community on Discord`,
+  ],
+  twitch: [
+    `\n${CREATOR_WEBSITE}`,
+    `\nFull videos & guides on YouTube`,
+    `\nClips dropping on TikTok`,
+    `\nJoin the Discord`,
+  ],
+  kick: [
+    `\n${CREATOR_WEBSITE}`,
+    `\nAlso live on Twitch`,
+    `\nFull content on YouTube`,
+    `\nJoin the Discord`,
+  ],
+  tiktok: [
+    `\n${CREATOR_WEBSITE}`,
+    `\nFull vid on YT`,
+    `\nLive on Twitch & Kick`,
+  ],
+  x: [
+    `\n${CREATOR_WEBSITE}`,
+    `\nFull content on YouTube`,
+    `\nLive streams on Twitch/Kick`,
+  ],
+  discord: [
+    `\n${CREATOR_WEBSITE}`,
+    `\nNew vid on YouTube`,
+    `\nStreaming on Twitch & Kick`,
+    `\nClips on TikTok`,
+  ],
+};
+
+function appendCrosslinks(content: string, platform: string, contentType: string): string {
+  const links = CROSSLINK_LINES[platform] || CROSSLINK_LINES.youtube;
+
+  if (platform === "tiktok" || platform === "x") {
+    const short = [links[0]];
+    if (contentType === "go-live" || contentType === "new-video") {
+      short.push(links[Math.floor(Math.random() * (links.length - 1)) + 1]);
+    }
+    return content + short.join("");
+  }
+
+  if (platform === "discord") {
+    const pick = [links[0]];
+    if (contentType === "new-video") pick.push(links[1]);
+    if (contentType === "go-live") pick.push(links[2]);
+    return content + pick.join("");
+  }
+
+  if (platform === "youtube") {
+    return content + links.join("");
+  }
+
+  const pick = links.slice(0, Math.min(links.length, 3));
+  return content + pick.join("");
+}
+
 const PLATFORM_VOICE: Record<string, string> = {
   tiktok: `PLATFORM: TikTok
 - Ultra-casual, trending energy
@@ -160,6 +226,8 @@ ${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO N
   }
 
   processed = processed.replace(/^["']|["']$/g, "").trim();
+
+  processed = appendCrosslinks(processed, platform, contentType);
 
   const uniquenessScore = calculateUniqueness(processed, recentTexts);
   const stealthScore = calculateStealthScore(processed, platform);
