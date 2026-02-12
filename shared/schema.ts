@@ -1909,6 +1909,37 @@ export const autopilotConfig = pgTable("autopilot_config", {
   featureIdx: index("autopilot_config_feature_idx").on(table.feature),
 }));
 
+export const liveChatMessages = pgTable("live_chat_messages", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  streamId: integer("stream_id").references(() => streams.id),
+  platform: text("platform").notNull(),
+  author: text("author").notNull(),
+  authorId: text("author_id"),
+  message: text("message").notNull(),
+  isAiResponse: boolean("is_ai_response").default(false),
+  aiResponseTo: integer("ai_response_to"),
+  sentiment: text("sentiment"),
+  priority: text("priority").default("normal"),
+  metadata: jsonb("metadata").$type<{
+    badges?: string[];
+    isSubscriber?: boolean;
+    isModerator?: boolean;
+    isDonation?: boolean;
+    donationAmount?: number;
+    responseDelay?: number;
+    typingDelay?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("live_chat_user_id_idx").on(table.userId),
+  streamIdIdx: index("live_chat_stream_id_idx").on(table.streamId),
+}));
+
+export const insertLiveChatMessageSchema = createInsertSchema(liveChatMessages).omit({ id: true, createdAt: true });
+export type LiveChatMessage = typeof liveChatMessages.$inferSelect;
+export type InsertLiveChatMessage = z.infer<typeof insertLiveChatMessageSchema>;
+
 export const insertAutopilotQueueSchema = createInsertSchema(autopilotQueue).omit({ id: true, createdAt: true, publishedAt: true, errorMessage: true });
 export const insertCommentResponseSchema = createInsertSchema(commentResponses).omit({ id: true, createdAt: true, publishedAt: true });
 export const insertAutopilotConfigSchema = createInsertSchema(autopilotConfig).omit({ id: true, createdAt: true, updatedAt: true });

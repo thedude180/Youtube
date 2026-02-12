@@ -11,6 +11,7 @@ import {
 } from "../ai-engine";
 import { pivotToStream, resumeFromStream } from "../backlog-engine";
 import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
+import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStreamStatus } from "../live-chat-engine";
 
 export function registerStreamRoutes(app: Express) {
   app.get(api.streamDestinations.list.path, async (req, res) => {
@@ -527,6 +528,69 @@ export function registerStreamRoutes(app: Express) {
     } catch (error: any) {
       console.error("Post-stream processing error:", error);
       res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.get("/api/streams/:id/multi-status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const status = await getMultiStreamStatus(userId, Number(req.params.id));
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/streams/:id/chat", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const limit = Number(req.query.limit) || 100;
+      const messages = await getLiveChatFeed(Number(req.params.id), limit);
+      res.json(messages);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/streams/:id/chat/stats", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const stats = await getLiveChatStats(Number(req.params.id));
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/streams/:id/chat", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      platform: z.string().min(1),
+      author: z.string().min(1),
+      message: z.string().min(1),
+      metadata: z.any().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+    try {
+      const result = await processLiveChatMessage(
+        userId,
+        Number(req.params.id),
+        parsed.data.platform,
+        parsed.data.author,
+        parsed.data.message,
+        parsed.data.metadata,
+      );
+      res.json({ stored: true, aiResponse: result });
+    } catch (error: any) {
+      console.error("Live chat error:", error);
+      res.status(500).json({ message: error.message });
     }
   });
 }

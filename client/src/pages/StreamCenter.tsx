@@ -18,6 +18,7 @@ import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { LiveChatPanel } from "@/components/LiveChatPanel";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -2161,6 +2162,8 @@ export default function StreamCenter() {
       </div>
 
       {liveStream && <LiveBanner stream={liveStream} onEnd={() => endStream.mutate(liveStream.id)} isEnding={endStream.isPending} />}
+
+      {liveStream && <LiveChatPanel streamId={liveStream.id} />}
 
       <MultiPlatformStatus channels={connectedChannels} destinations={destinations} />
 
