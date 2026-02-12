@@ -31,6 +31,7 @@ const Notifications = lazy(() => import("@/pages/Notifications"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
+const Autopilot = lazy(() => import("@/pages/Autopilot"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazy(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazy(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/stream" component={StreamCenter} />
       <Route path="/money" component={Money} />
       <Route path="/money/:tab" component={Money} />
+      <Route path="/autopilot" component={Autopilot} />
       <Route path="/notifications" component={Notifications} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/privacy" component={PrivacyPolicy} />

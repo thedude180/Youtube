@@ -1831,6 +1831,95 @@ export const localizationRecommendations = pgTable("localization_recommendations
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// === AUTOPILOT SYSTEM TABLES ===
+
+export const autopilotQueue = pgTable("autopilot_queue", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceVideoId: integer("source_video_id").references(() => videos.id),
+  type: text("type").notNull(),
+  targetPlatform: text("target_platform").notNull(),
+  content: text("content").notNull(),
+  caption: text("caption"),
+  status: text("status").notNull().default("pending"),
+  scheduledAt: timestamp("scheduled_at"),
+  publishedAt: timestamp("published_at"),
+  metadata: jsonb("metadata").$type<{
+    clipStart?: number;
+    clipEnd?: number;
+    hashtags?: string[];
+    style?: string;
+    isRecycled?: boolean;
+    originalPostDate?: string;
+    aiModel?: string;
+    humanScore?: number;
+  }>(),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("autopilot_queue_user_id_idx").on(table.userId),
+  statusIdx: index("autopilot_queue_status_idx").on(table.status),
+}));
+
+export const commentResponses = pgTable("comment_responses", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  platform: text("platform").notNull().default("youtube"),
+  originalComment: text("original_comment").notNull(),
+  originalAuthor: text("original_author").notNull(),
+  aiResponse: text("ai_response").notNull(),
+  status: text("status").notNull().default("pending"),
+  sentiment: text("sentiment"),
+  priority: text("priority").default("normal"),
+  publishedAt: timestamp("published_at"),
+  metadata: jsonb("metadata").$type<{
+    commentId?: string;
+    likeCount?: number;
+    isQuestion?: boolean;
+    tone?: string;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("comment_responses_user_id_idx").on(table.userId),
+}));
+
+export const autopilotConfig = pgTable("autopilot_config", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  feature: text("feature").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  settings: jsonb("settings").$type<{
+    autoApprove?: boolean;
+    maxPostsPerDay?: number;
+    minHoursBetweenPosts?: number;
+    postingHoursStart?: number;
+    postingHoursEnd?: number;
+    platforms?: string[];
+    recycleAfterDays?: number;
+    commentApprovalMode?: "auto" | "queue";
+    discordWebhookUrl?: string;
+    discordChannelId?: string;
+    toneStyle?: string;
+  }>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("autopilot_config_user_id_idx").on(table.userId),
+  featureIdx: index("autopilot_config_feature_idx").on(table.feature),
+}));
+
+export const insertAutopilotQueueSchema = createInsertSchema(autopilotQueue).omit({ id: true, createdAt: true, publishedAt: true, errorMessage: true });
+export const insertCommentResponseSchema = createInsertSchema(commentResponses).omit({ id: true, createdAt: true, publishedAt: true });
+export const insertAutopilotConfigSchema = createInsertSchema(autopilotConfig).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type AutopilotQueueItem = typeof autopilotQueue.$inferSelect;
+export type InsertAutopilotQueueItem = z.infer<typeof insertAutopilotQueueSchema>;
+export type CommentResponse = typeof commentResponses.$inferSelect;
+export type InsertCommentResponse = z.infer<typeof insertCommentResponseSchema>;
+export type AutopilotConfigRecord = typeof autopilotConfig.$inferSelect;
+export type InsertAutopilotConfig = z.infer<typeof insertAutopilotConfigSchema>;
+
 export const insertAiResultSchema = createInsertSchema(aiResults).omit({ id: true, createdAt: true });
 export const insertCronJobSchema = createInsertSchema(cronJobs).omit({ id: true });
 export const insertAiChainSchema = createInsertSchema(aiChains).omit({ id: true });

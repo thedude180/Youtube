@@ -12,6 +12,7 @@ import {
   DollarSign,
   Zap,
   Crown,
+  Rocket,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,6 +34,7 @@ const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard },
   { href: "/content", labelKey: "nav.content", icon: Video },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio },
+  { href: "/autopilot", labelKey: "Autopilot", icon: Rocket },
   { href: "/money", labelKey: "nav.money", icon: DollarSign },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ];

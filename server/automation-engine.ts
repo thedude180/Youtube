@@ -258,7 +258,42 @@ export async function initAutomationEngine() {
     }
   });
 
-  console.log("[AutomationEngine] All systems operational");
+  cron.schedule("*/5 * * * *", async () => {
+    try {
+      const { processScheduledPosts } = await import("./autopilot-engine");
+      await processScheduledPosts();
+    } catch (err) {
+      console.error("[AutomationEngine] Autopilot scheduled posts error:", err);
+    }
+  });
+
+  cron.schedule("0 */4 * * *", async () => {
+    try {
+      const { processCommentResponses } = await import("./autopilot-engine");
+      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds) {
+        if (userId) await processCommentResponses(userId);
+      }
+    } catch (err) {
+      console.error("[AutomationEngine] Autopilot comment responder error:", err);
+    }
+  });
+
+  cron.schedule("0 */8 * * *", async () => {
+    try {
+      const { processContentRecycling } = await import("./autopilot-engine");
+      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds) {
+        if (userId) await processContentRecycling(userId);
+      }
+    } catch (err) {
+      console.error("[AutomationEngine] Autopilot content recycler error:", err);
+    }
+  });
+
+  console.log("[AutomationEngine] All systems operational (incl. Autopilot)");
 }
 
 async function processAllCronJobs() {

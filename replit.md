@@ -1,7 +1,7 @@
 # CreatorOS - YouTube Team In A Box
 
 ## Overview
-CreatorOS is a comprehensive, multi-platform content management and live streaming platform designed for creators. It supports 25 major platforms, offering AI-powered insights, compliance checks, growth strategies, and content optimization. The platform integrates 832 AI-powered features and 6 autonomous automation systems to provide near-100% automated end-to-end business management. CreatorOS aims to be a "YouTube Team In A Box," empowering creators with advanced tools for content creation, distribution, and business growth across all major digital platforms.
+CreatorOS is a comprehensive, multi-platform content management and live streaming platform designed for creators. It supports 6 focused platforms (YouTube, Twitch, Kick, TikTok, X, Discord), offering AI-powered insights, compliance checks, growth strategies, and content optimization. The platform integrates 832 AI-powered features, 6 autonomous automation systems, and a 5-system Autopilot engine to provide near-100% automated end-to-end business management. CreatorOS aims to be a "YouTube Team In A Box," empowering creators with advanced tools for content creation, distribution, and business growth.
 
 ## User Preferences
 - Dark mode design with deep purple/blue tones
@@ -26,6 +26,7 @@ The platform is built as a full-stack application with an Express.js backend and
 - **Design System**: Dark theme with a purple accent for a "God Tier" power-user aesthetic, emphasizing simplicity and clear status indicators.
 - **Internationalization (i18n)**: react-i18next with 12 languages (English, Spanish, French, Portuguese, German, Japanese, Korean, Chinese, Arabic, Hindi, Russian, Italian), including RTL support.
 - **Automation Engine**: 6 autonomous systems (Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store) for background processing.
+- **Autopilot Engine**: 5 hands-off automation systems: Auto-Clip & Post (TikTok/X), Smart Schedule (staggered posting), AI Comment Responder (YouTube), Discord Announcements, Content Recycler (re-promote old videos). Tables: autopilot_queue, comment_responses, autopilot_config. Routes: /api/autopilot/*. Page: /autopilot.
 - **Creator Intelligence System**: Style Scanner, Creator Memory, Humanization Layer, and Learning Engine for personalized AI outputs.
 - **PWA Support**: Full Progressive Web App capabilities for installability and offline access.
 - **UI/UX**: Consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, floating AI chat with message persistence, command palette (Ctrl+K), keyboard shortcuts help (?), rich empty states with contextual tips.
