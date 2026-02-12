@@ -35,7 +35,6 @@ import {
   SiTiktok,
   SiX,
   SiDiscord,
-  SiReddit,
   SiGoogle,
 } from "react-icons/si";
 import type { IconType } from "react-icons";
@@ -47,7 +46,6 @@ const PLATFORM_ICONS: Record<string, IconType> = {
   tiktok: SiTiktok,
   x: SiX,
   discord: SiDiscord,
-  reddit: SiReddit,
 };
 
 const GROUP_ICONS: Record<string, IconType> = {
@@ -82,13 +80,13 @@ const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
   {
     key: "social-media",
     label: "Social & Community",
-    platforms: ["discord", "reddit"],
+    platforms: ["discord"],
   },
 ];
 
 const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<string, string> }> = {
   gaming: {
-    platforms: ["youtube", "twitch", "kick", "discord", "tiktok", "x", "reddit"],
+    platforms: ["youtube", "twitch", "kick", "discord", "tiktok", "x"],
     reasons: {
       youtube: "Upload gameplay, reviews, walkthroughs + Shorts for highlights",
       twitch: "Live stream your gameplay to a gaming audience",
@@ -96,25 +94,22 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
       discord: "Build a community server for your fans",
       tiktok: "Short gaming clips go viral fast here",
       x: "Share updates and engage with the gaming community",
-      reddit: "Post in gaming subreddits to build your audience",
     },
   },
   tech: {
-    platforms: ["youtube", "x", "reddit", "discord", "tiktok"],
+    platforms: ["youtube", "x", "discord", "tiktok"],
     reasons: {
       youtube: "In-depth reviews, tutorials, unboxings + Shorts for quick tips",
       x: "Share tech news and engage with the tech community",
-      reddit: "Post in tech subreddits for targeted audiences",
       discord: "Build a tech community for discussions",
       tiktok: "Short tech tips and quick reviews",
     },
   },
   cooking: {
-    platforms: ["youtube", "tiktok", "reddit", "discord"],
+    platforms: ["youtube", "tiktok", "discord"],
     reasons: {
       youtube: "Full recipe videos, cooking shows + Shorts for quick hacks",
       tiktok: "Short recipe videos are hugely popular here",
-      reddit: "Share in cooking subreddits for targeted traffic",
       discord: "Build a food community",
     },
   },
@@ -128,20 +123,18 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   education: {
-    platforms: ["youtube", "tiktok", "reddit", "x"],
+    platforms: ["youtube", "tiktok", "x"],
     reasons: {
       youtube: "In-depth tutorials, courses, explainers + Shorts for quick tips",
       tiktok: "EduTok is a massive category — short lessons",
-      reddit: "Share knowledge in topic-specific subreddits",
       x: "Share quick insights and engage learners",
     },
   },
   fitness: {
-    platforms: ["youtube", "tiktok", "reddit", "discord"],
+    platforms: ["youtube", "tiktok", "discord"],
     reasons: {
       youtube: "Full workout videos, fitness programs + Shorts for exercise demos",
       tiktok: "Short workout clips and fitness trends",
-      reddit: "Fitness subreddits drive highly engaged viewers",
       discord: "Build a fitness accountability community",
     },
   },
@@ -155,49 +148,44 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   business: {
-    platforms: ["youtube", "x", "tiktok", "reddit"],
+    platforms: ["youtube", "x", "tiktok"],
     reasons: {
       youtube: "Business advice, case studies, interviews + Shorts for quick tips",
       x: "Business commentary and networking",
       tiktok: "FinTok and BizTok are growing fast",
-      reddit: "Engage in business and finance communities",
     },
   },
   beauty: {
-    platforms: ["youtube", "tiktok", "reddit", "discord"],
+    platforms: ["youtube", "tiktok", "discord"],
     reasons: {
       youtube: "Tutorials, hauls, product reviews + Shorts for quick tips",
       tiktok: "GRWM and beauty trends go viral here",
-      reddit: "Beauty subreddits drive targeted traffic",
       discord: "Build a beauty community",
     },
   },
   comedy: {
-    platforms: ["youtube", "tiktok", "x", "reddit"],
+    platforms: ["youtube", "tiktok", "x"],
     reasons: {
       youtube: "Sketches, commentary, long-form comedy + Shorts for skits",
       tiktok: "Comedy clips and trends are the core of TikTok",
       x: "Comedic commentary and engaging with fans",
-      reddit: "Share content in comedy and meme subreddits",
     },
   },
   art: {
-    platforms: ["youtube", "tiktok", "discord", "reddit"],
+    platforms: ["youtube", "tiktok", "discord"],
     reasons: {
       youtube: "Time-lapses, tutorials, process videos + Shorts for quick clips",
       tiktok: "Art process videos get huge engagement",
       discord: "Build an art community and share work",
-      reddit: "Art subreddits showcase your work to new fans",
     },
   },
   other: {
-    platforms: ["youtube", "tiktok", "x", "discord", "reddit"],
+    platforms: ["youtube", "tiktok", "x", "discord"],
     reasons: {
       youtube: "Long-form content + Shorts for fast audience growth",
       tiktok: "Short-form content for maximum reach",
       x: "Engage with your audience and share updates",
       discord: "Build a dedicated community",
-      reddit: "Find and engage your target audience",
     },
   },
 };

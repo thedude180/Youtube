@@ -15,7 +15,6 @@ export const PLATFORMS = [
   "tiktok",
   "x",
   "discord",
-  "reddit",
 ] as const;
 export type Platform = typeof PLATFORMS[number];
 
@@ -102,18 +101,6 @@ export const PLATFORM_INFO: Record<Platform, {
     signupUrl: "https://discord.com/register",
     strategyDescription: "The #1 community platform for creators. Build a dedicated server for your fans with channels for announcements, discussions, and exclusive content. Superfans live here.",
     setupSteps: ["Create a Discord server for your community at discord.com", "Go to Server Settings then Widget", "Copy your Server ID", "Paste your server invite link below"],
-  },
-  reddit: {
-    label: "Reddit",
-    color: "#FF4500",
-    maxResolution: "720p",
-    maxBitrate: "3 Mbps",
-    rtmpUrlTemplate: "",
-    category: "social",
-    connectionType: "manual",
-    signupUrl: "https://www.reddit.com/register/",
-    strategyDescription: "Niche communities (subreddits) are goldmines for targeted content promotion. Building authority in relevant subreddits drives highly engaged viewers to your channel.",
-    setupSteps: ["Create a Reddit account", "Join subreddits related to your content niche", "Paste your Reddit username below"],
   },
 };
 
