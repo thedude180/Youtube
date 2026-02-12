@@ -824,7 +824,7 @@ export async function registerPlatformRoutes(app: Express) {
         grant_type: "authorization_code",
         code,
         redirect_uri: getOAuthRedirectUri(platform),
-        client_id: clientId,
+        [config.usesClientKey ? "client_key" : "client_id"]: clientId,
         client_secret: clientSecret,
       };
 
@@ -834,6 +834,7 @@ export async function registerPlatformRoutes(app: Express) {
 
       const headers: Record<string, string> = {
         "Content-Type": "application/x-www-form-urlencoded",
+        "Cache-Control": "no-cache",
       };
 
       if (config.tokenAuthMethod === "header") {
