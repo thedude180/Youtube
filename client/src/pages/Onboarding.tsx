@@ -470,28 +470,78 @@ function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void;
   );
 }
 
+type OnboardingStep = "choice" | "new-creator" | "existing-creator";
+
+function ChoiceScreen({ onChoose }: { onChoose: (choice: OnboardingStep) => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="h-14 w-14 rounded-md bg-primary flex items-center justify-center mb-6">
+        <Zap className="h-7 w-7 text-primary-foreground" />
+      </div>
+      <h1
+        data-testid="text-onboarding-heading"
+        className="text-2xl sm:text-3xl font-display font-bold text-center"
+      >
+        Welcome to CreatorOS
+      </h1>
+      <p
+        data-testid="text-onboarding-subtitle"
+        className="mt-2 text-sm text-muted-foreground text-center max-w-md"
+      >
+        Let's set things up. Which best describes you?
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 w-full max-w-lg">
+        <Card
+          data-testid="card-choice-new"
+          className="cursor-pointer hover-elevate"
+          onClick={() => onChoose("new-creator")}
+        >
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
+            <div className="h-12 w-12 rounded-md bg-primary/10 flex items-center justify-center">
+              <Rocket className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="text-base font-display font-bold">I'm a New Creator</h2>
+            <p className="text-xs text-muted-foreground">
+              I'm just getting started and want help picking a niche, naming my channel, and planning content.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card
+          data-testid="card-choice-existing"
+          className="cursor-pointer hover-elevate"
+          onClick={() => onChoose("existing-creator")}
+        >
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
+            <div className="h-12 w-12 rounded-md bg-primary/10 flex items-center justify-center">
+              <TrendingUp className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="text-base font-display font-bold">I'm an Existing Creator</h2>
+            <p className="text-xs text-muted-foreground">
+              I already have channels and want to connect my platforms and start automating.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default function Onboarding({ onComplete }: { onComplete?: () => void }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [showNewCreator, setShowNewCreator] = useState<boolean | null>(null);
+  const [step, setStep] = useState<OnboardingStep>("choice");
 
   const { data: linkedChannels = [], isLoading } = useQuery<LinkedChannel[]>({
     queryKey: ["/api/linked-channels"],
   });
 
-  const { data: channels = [] } = useQuery<any[]>({
-    queryKey: ["/api/channels"],
-  });
-
   const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
     queryKey: ["/api/oauth/status"],
   });
-
-  const hasYouTubeChannel = channels.some((c: any) => c.platform === "youtube");
-  const hasYouTubeLinked = linkedChannels.some((c) => c.platform === "youtube" && c.isConnected);
-  const isNewCreator = !hasYouTubeChannel && !hasYouTubeLinked;
 
   const connectMutation = useMutation({
     mutationFn: async (data: {
@@ -558,8 +608,6 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
     }
   };
 
-  const shouldShowNewCreator = showNewCreator === null ? (isNewCreator && !isLoading) : showNewCreator;
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="border-b border-border">
@@ -572,9 +620,11 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
               Creator<span className="text-primary">OS</span>
             </span>
           </div>
-          <Badge variant="secondary" data-testid="badge-progress">
-            {connectedCount} of {PLATFORMS.length} connected
-          </Badge>
+          {step !== "choice" && (
+            <Badge variant="secondary" data-testid="badge-progress">
+              {connectedCount} of {PLATFORMS.length} connected
+            </Badge>
+          )}
         </div>
       </nav>
 
@@ -584,43 +634,65 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : shouldShowNewCreator ? (
+          ) : step === "choice" ? (
+            <ChoiceScreen onChoose={setStep} />
+          ) : step === "new-creator" ? (
             <>
               <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Button
+                    data-testid="button-back-to-choice"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setStep("choice")}
+                  >
+                    <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
+                    Back
+                  </Button>
+                </div>
                 <h1
                   data-testid="text-onboarding-heading"
                   className="text-2xl sm:text-3xl font-display font-bold"
                 >
-                  Welcome to CreatorOS
+                  Start Your Creator Journey
                 </h1>
                 <p
                   data-testid="text-onboarding-subtitle"
                   className="mt-2 text-sm text-muted-foreground max-w-xl"
                 >
-                  Looks like you're just getting started. Let's help you turn your idea into a content empire.
+                  Let's help you turn your idea into a content empire. Pick your niche and we'll build your roadmap.
                 </p>
               </div>
               <NewCreatorFlow
                 onFinish={finishOnboarding}
-                onSkipToPlatforms={() => setShowNewCreator(false)}
+                onSkipToPlatforms={() => setStep("existing-creator")}
               />
             </>
           ) : (
             <>
               <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Button
+                    data-testid="button-back-to-choice"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setStep("choice")}
+                  >
+                    <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
+                    Back
+                  </Button>
+                </div>
                 <h1
                   data-testid="text-onboarding-heading"
                   className="text-2xl sm:text-3xl font-display font-bold"
                 >
-                  {hasYouTubeChannel ? "YouTube Connected! Connect More Platforms" : "Connect Your Platforms"}
+                  Connect Your Platforms
                 </h1>
                 <p
                   data-testid="text-onboarding-subtitle"
                   className="mt-2 text-sm text-muted-foreground max-w-xl"
                 >
-                  {hasYouTubeChannel
-                    ? "Your YouTube channel is ready. Add more platforms to maximize your reach."
-                    : "Set up your accounts to unlock full automation. You can always come back to this later."}
+                  Link your existing channels and accounts to unlock full automation across all your platforms.
                 </p>
               </div>
 
@@ -652,21 +724,21 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
                   </div>
                 ))}
               </div>
+
+              <div className="mt-10 flex items-center justify-between gap-4 flex-wrap border-t border-border pt-6">
+                <p className="text-sm text-muted-foreground" data-testid="text-progress-summary">
+                  {connectedCount} of {PLATFORMS.length} platforms connected
+                </p>
+                <Button
+                  data-testid="button-finish-setup"
+                  onClick={finishOnboarding}
+                >
+                  {connectedCount > 0 ? "Finish Setup" : "Continue to Dashboard"}
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </>
           )}
-
-          <div className="mt-10 flex items-center justify-between gap-4 flex-wrap border-t border-border pt-6">
-            <p className="text-sm text-muted-foreground" data-testid="text-progress-summary">
-              {connectedCount} of {PLATFORMS.length} platforms connected
-            </p>
-            <Button
-              data-testid="button-finish-setup"
-              onClick={finishOnboarding}
-            >
-              {connectedCount > 0 ? "Finish Setup" : "Continue to Dashboard"}
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
         </div>
       </div>
     </div>
