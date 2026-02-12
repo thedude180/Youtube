@@ -398,7 +398,20 @@ function AppContent() {
           setLocation("/");
         }
       } else {
-        setNeedsOnboarding(true);
+        fetch("/api/user/profile", { credentials: "include" })
+          .then(r => r.ok ? r.json() : null)
+          .then(profile => {
+            if (profile?.onboardingCompleted) {
+              localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+              setNeedsOnboarding(false);
+              if (location === "/onboarding") {
+                setLocation("/");
+              }
+            } else {
+              setNeedsOnboarding(true);
+            }
+          })
+          .catch(() => setNeedsOnboarding(true));
       }
     }
   }, [isAuthenticated, user, location, setLocation]);
@@ -408,7 +421,11 @@ function AppContent() {
       localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
       try {
         await apiRequest("PATCH", "/api/user/profile", { onboardingCompleted: true });
-      } catch {}
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
+      } catch (e) {
+        console.error("Failed to save onboarding status:", e);
+      }
     }
     setNeedsOnboarding(false);
     setLocation("/");

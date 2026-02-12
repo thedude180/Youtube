@@ -1107,18 +1107,20 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
   };
 
   const finishOnboarding = async () => {
+    if (user?.id) {
+      localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+    }
     try {
       await apiRequest("PATCH", "/api/user/profile", {
         contentNiche: selectedNiche || undefined,
         onboardingCompleted: true,
       });
-    } catch {}
+    } catch (e) {
+      console.error("Failed to save onboarding:", e);
+    }
     if (onComplete) {
       onComplete();
     } else {
-      if (user?.id) {
-        localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
-      }
       navigate("/");
     }
   };
