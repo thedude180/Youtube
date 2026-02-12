@@ -1003,6 +1003,29 @@ export async function registerRoutes(
   app.use("/api/ai", rateLimit(RATE_LIMIT_WINDOW, RATE_LIMIT_MAX_AI));
   app.use("/api", rateLimit(RATE_LIMIT_WINDOW, RATE_LIMIT_MAX_DEFAULT));
 
+  const FREE_AI_ROUTES = new Set([
+    "/api/ai/dashboard-actions", "/api/ai/content-ideas", "/api/ai/advisor",
+    "/api/ai/daily-briefing", "/api/ai/health-score",
+  ]);
+
+  app.use("/api/ai", async (req: any, res, next) => {
+    if (FREE_AI_ROUTES.has(req.path)) return next();
+    if (!req.isAuthenticated()) return next();
+    const userId = getUserId(req);
+    if (!userId) return next();
+    try {
+      const user = await storage.getUser(userId);
+      if (user && user.tier === "free") {
+        return res.status(403).json({
+          error: "upgrade_required",
+          message: "This feature requires a paid subscription. Please upgrade your plan.",
+          currentTier: "free",
+        });
+      }
+    } catch {}
+    next();
+  });
+
   function requireAdmin(req: Request, res: Response): string | null {
     const userId = requireAuth(req, res);
     if (!userId) return null;
@@ -12949,75 +12972,5 @@ export async function registerRoutes(
 
   initAutomationEngine().catch(console.error);
 
-  await seedDatabase();
-
   return httpServer;
-}
-
-async function seedDatabase() {
-  const existingVideos = await storage.getVideos();
-  if (existingVideos.length > 0) return;
-
-  const existingChannels = await storage.getChannels();
-  let channelId: number | undefined;
-
-  if (existingChannels.length === 0) {
-    const channel = await storage.createChannel({
-      userId: "demo",
-      platform: "youtube",
-      channelName: "GrowthLab Gaming",
-      channelId: "UC_demo_channel",
-      settings: { preset: "normal", autoUpload: false, minShortsPerDay: 2, maxEditsPerDay: 3, cooldownMinutes: 60 },
-    });
-    channelId = channel.id;
-
-    await storage.createChannel({
-      userId: "demo",
-      platform: "tiktok",
-      channelName: "GrowthLab Clips",
-      channelId: "tiktok_demo",
-      settings: { preset: "aggressive", autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
-    });
-
-    await storage.createChannel({
-      userId: "demo",
-      platform: "twitch",
-      channelName: "GrowthLab_Live",
-      channelId: "twitch_demo",
-      settings: { preset: "normal", autoUpload: false, minShortsPerDay: 0, maxEditsPerDay: 2, cooldownMinutes: 60 },
-    });
-  } else {
-    channelId = existingChannels[0].id;
-  }
-
-  const sampleVideos = [
-    { title: "Top 10 Hidden Mechanics Every Player Misses", type: "vod", status: "uploaded", description: "Discover the game mechanics that most players overlook...", metadata: { tags: ["gaming", "tips", "mechanics"], stats: { views: 45200, likes: 3100, comments: 280, ctr: 8.2, avgWatchTime: 420 } } },
-    { title: "I Tried the HARDEST Challenge for 24 Hours", type: "vod", status: "uploaded", description: "Can I survive the ultimate challenge?", metadata: { tags: ["challenge", "gaming"], stats: { views: 128500, likes: 9800, comments: 1240, ctr: 12.1, avgWatchTime: 680 } } },
-    { title: "This Glitch Changes Everything", type: "short", status: "uploaded", description: "Quick glitch tutorial", metadata: { tags: ["glitch", "short", "tutorial"], stats: { views: 892000, likes: 45000, comments: 3200, ctr: 15.3, avgWatchTime: 42 } } },
-    { title: "Pro vs Noob - Who Wins?", type: "short", status: "scheduled", description: "Watch the ultimate showdown", metadata: { tags: ["pvp", "comparison"], seoScore: 62 } },
-    { title: "LIVE: Friday Night Gaming Session", type: "live_replay", status: "ready", description: "Weekly gaming stream replay", metadata: { tags: ["live", "gaming", "stream"], stats: { views: 12300, likes: 890, comments: 560, ctr: 5.4, avgWatchTime: 1200 } } },
-    { title: "5 Settings You NEED to Change Right Now", type: "vod", status: "ingested", description: "Optimize your gaming setup with these essential settings", metadata: { tags: ["settings", "optimization"] } },
-    { title: "Season Finale - Everything Changes", type: "vod", status: "processing", description: "The biggest update yet...", metadata: { tags: ["update", "season"] } },
-  ];
-
-  for (const v of sampleVideos) {
-    await storage.createVideo({
-      channelId,
-      title: v.title,
-      type: v.type,
-      status: v.status,
-      description: v.description,
-      metadata: v.metadata as any,
-      scheduledTime: v.status === 'scheduled' ? new Date(Date.now() + 86400000) : undefined,
-      publishedAt: v.status === 'uploaded' ? new Date(Date.now() - Math.random() * 604800000) : undefined,
-    });
-  }
-
-  await storage.createJob({ type: "metadata_opt", status: "completed", priority: 1, payload: { videoTitle: "Top 10 Hidden Mechanics", action: "seo_optimization" } });
-  await storage.createJob({ type: "clip", status: "processing", priority: 2, payload: { source: "Friday Night Gaming Session", targetClips: 3 } });
-  await storage.createJob({ type: "ingest", status: "pending", priority: 0, payload: { filename: "new_upload.mp4", watchFolder: "/content/incoming" } });
-
-  await storage.createAuditLog({ action: "system_started", target: "worker_loop", riskLevel: "low" });
-  await storage.createAuditLog({ action: "video_uploaded", target: "This Glitch Changes Everything", riskLevel: "low", details: { platform: "youtube", uploadType: "short" } });
-  await storage.createAuditLog({ action: "metadata_updated", target: "Top 10 Hidden Mechanics", riskLevel: "low", details: { field: "description", method: "ai_assisted" } });
 }

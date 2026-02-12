@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { Component, useEffect, useRef, useState, useCallback } from "react";
+import { Component, lazy, Suspense, useEffect, useRef, useState, useCallback } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -17,17 +17,17 @@ import { Loader2, Zap, Sun, Moon, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-import Dashboard from "@/pages/Dashboard";
-import Content from "@/pages/Content";
-import Settings from "@/pages/Settings";
-import StreamCenter from "@/pages/StreamCenter";
-import Money from "@/pages/Money";
-import Notifications from "@/pages/Notifications";
-import Landing from "@/pages/Landing";
-import Onboarding from "@/pages/Onboarding";
-import Pricing from "@/pages/Pricing";
-import NotFound from "@/pages/not-found";
-import FloatingChat from "@/components/FloatingChat";
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Content = lazy(() => import("@/pages/Content"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const StreamCenter = lazy(() => import("@/pages/StreamCenter"));
+const Money = lazy(() => import("@/pages/Money"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
+const Landing = lazy(() => import("@/pages/Landing"));
+const Onboarding = lazy(() => import("@/pages/Onboarding"));
+const Pricing = lazy(() => import("@/pages/Pricing"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const FloatingChat = lazy(() => import("@/components/FloatingChat"));
 
 const sidebarStyle = {
   "--sidebar-width": "13rem",
@@ -150,11 +150,15 @@ function AuthenticatedApp() {
             </div>
           </header>
           <main className="flex-1 overflow-auto">
-            <Router />
+            <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
+              <Router />
+            </Suspense>
           </main>
         </div>
       </div>
-      <FloatingChat />
+      <Suspense fallback={null}>
+        <FloatingChat />
+      </Suspense>
     </SidebarProvider>
   );
 }
@@ -211,7 +215,7 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
-    return <Landing />;
+    return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><Landing /></Suspense>;
   }
 
   if (needsOnboarding === null) {
@@ -223,7 +227,7 @@ function AppContent() {
   }
 
   if (needsOnboarding || location === "/onboarding") {
-    return <Onboarding onComplete={completeOnboarding} />;
+    return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><Onboarding onComplete={completeOnboarding} /></Suspense>;
   }
 
   return <AuthenticatedApp />;

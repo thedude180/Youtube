@@ -8,6 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -505,14 +509,23 @@ function GoalsTab() {
                         </Badge>
                       </div>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deleteMutation.mutate(goal.id)}
-                      data-testid={`button-delete-goal-${goal.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="icon" variant="ghost" data-testid={`button-delete-goal-${goal.id}`}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Goal</AlertDialogTitle>
+                          <AlertDialogDescription>Are you sure you want to delete "{goal.title}"? This cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction data-testid={`button-confirm-delete-goal-${goal.id}`} onClick={() => deleteMutation.mutate(goal.id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1105,14 +1118,23 @@ function SponsorsTab() {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deleteMutation.mutate(deal.id)}
-                      data-testid={`button-delete-deal-${deal.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="icon" variant="ghost" data-testid={`button-delete-deal-${deal.id}`}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Deal</AlertDialogTitle>
+                          <AlertDialogDescription>Are you sure you want to delete the deal with "{deal.brandName}"? This cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction data-testid={`button-confirm-delete-deal-${deal.id}`} onClick={() => deleteMutation.mutate(deal.id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardHeader>
@@ -2813,15 +2835,23 @@ export default function Money() {
                         <span className="text-sm font-semibold" data-testid={`text-amount-${expense.id}`}>
                           ${expense.amount?.toFixed(2)}
                         </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => deleteExpenseMutation.mutate(expense.id)}
-                          disabled={deleteExpenseMutation.isPending}
-                          data-testid={`button-delete-${expense.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" data-testid={`button-delete-${expense.id}`}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Expense</AlertDialogTitle>
+                              <AlertDialogDescription>Are you sure you want to delete this ${expense.amount?.toFixed(2)} expense? This cannot be undone.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction data-testid={`button-confirm-delete-${expense.id}`} onClick={() => deleteExpenseMutation.mutate(expense.id)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   ))}

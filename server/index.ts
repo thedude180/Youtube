@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -6,6 +7,7 @@ import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { seedStripeProducts } from "./stripe-seed";
+import { pool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -88,6 +90,11 @@ app.post(
   }
 );
 
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -97,6 +104,25 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+const API_TIMEOUT_MS = 30_000;
+const AI_TIMEOUT_MS = 60_000;
+
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  const timeout = req.path.startsWith("/ai") ? AI_TIMEOUT_MS : API_TIMEOUT_MS;
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(504).json({ error: "request_timeout", message: "Request timed out. Please try again." });
+    }
+  }, timeout);
+  res.on("finish", () => clearTimeout(timer));
+  res.on("close", () => clearTimeout(timer));
+  next();
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -140,15 +166,21 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const message = status < 500 ? (err.message || "Request Error") : "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    if (status >= 500) {
+      console.error("Internal Server Error:", err);
+    }
 
     if (res.headersSent) {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    return res.status(status).json({
+      error: status >= 500 ? "internal_error" : "request_error",
+      message,
+      ...(status === 400 && err.errors ? { errors: err.errors } : {}),
+    });
   });
 
   if (process.env.NODE_ENV === "production") {
@@ -169,4 +201,17 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
+
+  const shutdown = (signal: string) => {
+    log(`${signal} received, shutting down gracefully...`);
+    httpServer.close(() => {
+      pool.end().then(() => {
+        log("Database pool closed");
+        process.exit(0);
+      }).catch(() => process.exit(1));
+    });
+    setTimeout(() => { process.exit(1); }, 10000);
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 })();

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
@@ -2200,9 +2201,23 @@ export default function StreamCenter() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Switch data-testid={`switch-dest-${dest.id}`} checked={dest.enabled ?? true} onCheckedChange={(checked) => toggleDest.mutate({ id: dest.id, enabled: checked })} />
-                    <Button data-testid={`button-delete-dest-${dest.id}`} size="icon" variant="ghost" onClick={() => deleteDest.mutate(dest.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button data-testid={`button-delete-dest-${dest.id}`} size="icon" variant="ghost">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove Destination</AlertDialogTitle>
+                          <AlertDialogDescription>This will remove "{dest.label}" as a streaming destination. You can add it back later.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction data-testid={`button-confirm-delete-dest-${dest.id}`} onClick={() => deleteDest.mutate(dest.id)}>Remove</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}
