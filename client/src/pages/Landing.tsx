@@ -1,4 +1,5 @@
 import { Zap, ArrowRight, Globe, Bot, Send, DollarSign } from "lucide-react";
+import { SiGoogle } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 
 const features = [
@@ -24,9 +25,9 @@ export default function Landing() {
           <Button
             data-testid="button-sign-in-nav"
             size="sm"
-            onClick={() => { window.location.href = "/api/login"; }}
+            onClick={() => { window.location.href = "/api/auth/google"; }}
           >
-            <Zap className="h-4 w-4 mr-1.5" />
+            <SiGoogle className="h-3.5 w-3.5 mr-1.5" />
             Sign In
           </Button>
         </div>
@@ -41,16 +42,29 @@ export default function Landing() {
             <p data-testid="text-hero-subtitle" className="mt-5 text-lg text-muted-foreground leading-relaxed max-w-xl">
               CreatorOS runs your entire content business across 25 platforms. Upload, optimize, schedule, publish - all on autopilot.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8 space-y-3">
               <Button
-                data-testid="button-sign-in-hero"
-                onClick={() => { window.location.href = "/api/login"; }}
+                data-testid="button-sign-in-google"
+                size="lg"
+                onClick={() => { window.location.href = "/api/auth/google"; }}
+                className="w-full sm:w-auto"
               >
-                <Zap className="h-4 w-4 mr-1.5" />
-                Get Started
-                <ArrowRight className="h-4 w-4 ml-1" />
+                <SiGoogle className="h-4 w-4 mr-2" />
+                Sign in with Google
+                <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
-              <span className="text-xs text-muted-foreground">Free to start</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">Free to start</span>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs text-muted-foreground">YouTube auto-connects</span>
+              </div>
+              <button
+                data-testid="button-sign-in-replit"
+                onClick={() => { window.location.href = "/api/login"; }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+              >
+                Or sign in with Replit
+              </button>
             </div>
           </div>
 

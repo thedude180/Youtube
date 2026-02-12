@@ -3245,6 +3245,96 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/ai/new-creator-plan", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { niche, customIdea } = req.body;
+      const topic = customIdea || niche || "general content creation";
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert YouTube creator strategist. Generate a comprehensive plan for a new creator starting from scratch. Respond as JSON with this structure:
+{
+  "channelName": "creative and memorable channel name suggestion",
+  "channelDescription": "compelling channel description for YouTube about page (2-3 sentences)",
+  "videoIdeas": ["10 specific video title ideas that would perform well for a new channel"],
+  "schedule": "recommended posting schedule (e.g. '2 videos per week - Tuesdays and Fridays at 3PM EST')",
+  "growthStrategy": "paragraph describing the best growth strategy for this niche, including tips for the first 100 subscribers",
+  "brandingTips": "3-4 tips for visual branding (colors, thumbnail style, intro style)",
+  "nicheAnalysis": "brief analysis of the niche - competition level, audience size, monetization potential"
+}`,
+          },
+          {
+            role: "user",
+            content: `Create a complete YouTube channel plan for someone interested in: ${topic}. Make the video ideas specific, searchable, and designed to attract initial viewers. The channel name should be catchy and brandable.`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        return res.json({
+          channelName: `${topic} Creator`,
+          channelDescription: `A channel dedicated to ${topic} content with tutorials, insights, and entertainment.`,
+          videoIdeas: [
+            `Getting Started with ${topic} - Complete Beginner's Guide`,
+            `Top 10 ${topic} Tips Nobody Tells You`,
+            `My First Day Trying ${topic}`,
+            `${topic} vs Reality - What I Wish I Knew`,
+            `The Ultimate ${topic} Setup Guide`,
+            `5 Mistakes Every ${topic} Beginner Makes`,
+            `How I Got Into ${topic} - My Story`,
+            `${topic} on a Budget - Everything You Need`,
+            `Day in the Life of a ${topic} Creator`,
+            `${topic} Challenge - Can I Do It in 24 Hours?`,
+          ],
+          schedule: "2 videos per week - Tuesdays and Fridays at 3PM EST",
+          growthStrategy: `Focus on searchable content first. Use YouTube Shorts to build initial momentum. Engage with every comment in the first 90 days. Collaborate with other small creators in the ${topic} niche.`,
+          brandingTips: `Use bold, contrasting colors for thumbnails. Keep a consistent intro style. Include your channel name in every thumbnail. Create a recognizable visual pattern viewers can spot in their feed.`,
+          nicheAnalysis: `The ${topic} space has strong audience potential. Focus on underserved subtopics to stand out. Monetization is achievable through ads, sponsorships, and digital products.`,
+        });
+      }
+
+      const plan = JSON.parse(content);
+      res.json(plan);
+    } catch (error: any) {
+      console.error("AI new creator plan error:", error);
+      const niche = req.body.niche || "Content";
+      res.json({
+        channelName: `${niche} Creator`,
+        channelDescription: `A channel about ${niche.toLowerCase()} with tips, tutorials, and entertainment.`,
+        videoIdeas: [
+          `Getting Started with ${niche} - Complete Beginner's Guide`,
+          `Top 10 ${niche} Tips Nobody Tells You`,
+          `My First Day with ${niche} - Full Experience`,
+          `What I Wish I Knew Before Starting ${niche}`,
+          `The Ultimate ${niche} Setup Guide on a Budget`,
+          `5 Common ${niche} Mistakes to Avoid`,
+          `How I Got Into ${niche} - My Story`,
+          `Everything You Need to Get Started with ${niche}`,
+          `Day in the Life of a ${niche} Creator`,
+          `${niche} 30 Day Challenge - Can I Do It?`,
+        ],
+        schedule: "2 videos per week - Tuesdays and Fridays at 3PM EST",
+        growthStrategy: `Start with searchable, helpful ${niche.toLowerCase()} content. Use YouTube Shorts to build initial views. Engage with every comment in your first 90 days. Collaborate with other small creators in the ${niche.toLowerCase()} space.`,
+        brandingTips: `Use bold, contrasting colors for thumbnails. Keep a consistent intro style. Include your channel name in every thumbnail. Create a recognizable visual pattern viewers can spot in their feed.`,
+        nicheAnalysis: `The ${niche.toLowerCase()} niche has strong audience potential. Focus on underserved subtopics to stand out. Monetization is achievable through ads, sponsorships, and digital products.`,
+      });
+    }
+  });
+
   app.post("/api/ai/dashboard-actions", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

@@ -1,5 +1,5 @@
-import { Switch, Route, Redirect } from "wouter";
-import { useEffect, useRef } from "react";
+import { Switch, Route, Redirect, useLocation } from "wouter";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -161,8 +161,8 @@ function AuthenticatedApp() {
 function AppContent() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const { i18n } = useTranslation();
-  const autoConnectCalled = useRef(false);
-  const onboardingChecked = useRef(false);
+  const [location, setLocation] = useLocation();
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
     const lang = supportedLanguages.find((l) => l.code === i18n.language);
@@ -172,25 +172,31 @@ function AppContent() {
   }, [i18n.language]);
 
   useEffect(() => {
-    if (isAuthenticated && !autoConnectCalled.current) {
-      autoConnectCalled.current = true;
-      fetch("/api/auto-connect-youtube", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      }).catch(() => {});
+    if (!isAuthenticated) {
+      setNeedsOnboarding(null);
+      return;
     }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (isAuthenticated && user && !onboardingChecked.current) {
-      onboardingChecked.current = true;
+    if (user) {
       const onboarded = localStorage.getItem(`creatoros_onboarded_${user.id}`);
-      if (!onboarded && window.location.pathname !== "/onboarding") {
-        window.location.href = "/onboarding";
+      if (!onboarded) {
+        setNeedsOnboarding(true);
+      } else {
+        setNeedsOnboarding(false);
+        if (location === "/onboarding") {
+          setLocation("/");
+        }
       }
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, location, setLocation]);
+
+  const completeOnboarding = useCallback(() => {
+    if (user?.id) {
+      localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+    }
+    localStorage.setItem("creatoros_onboarded_fallback", "true");
+    setNeedsOnboarding(false);
+    setLocation("/");
+  }, [user, setLocation]);
 
   if (isLoading) {
     return (
@@ -204,16 +210,19 @@ function AppContent() {
     return <Landing />;
   }
 
-  if (window.location.pathname === "/onboarding") {
-    return <Onboarding />;
+  if (needsOnboarding === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
-  return (
-    <Switch>
-      <Route path="/onboarding" component={Onboarding} />
-      <Route>{() => <AuthenticatedApp />}</Route>
-    </Switch>
-  );
+  if (needsOnboarding || location === "/onboarding") {
+    return <Onboarding onComplete={completeOnboarding} />;
+  }
+
+  return <AuthenticatedApp />;
 }
 
 function App() {

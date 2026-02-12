@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { PLATFORMS, PLATFORM_INFO, type Platform, type LinkedChannel } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,13 @@ import {
   Zap,
   Loader2,
   LogIn,
+  Lightbulb,
+  Sparkles,
+  Rocket,
+  Video,
+  Target,
+  Calendar,
+  TrendingUp,
 } from "lucide-react";
 
 const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
@@ -229,19 +236,262 @@ function PlatformCard({
   );
 }
 
-export default function Onboarding() {
+const NICHE_OPTIONS = [
+  { id: "gaming", label: "Gaming", icon: Target, description: "Let's plays, esports, game reviews" },
+  { id: "tech", label: "Tech & Reviews", icon: Sparkles, description: "Gadgets, software, tutorials" },
+  { id: "cooking", label: "Cooking & Food", icon: Lightbulb, description: "Recipes, restaurant reviews, food science" },
+  { id: "vlogging", label: "Vlogging & Lifestyle", icon: Video, description: "Daily life, travel, personal stories" },
+  { id: "education", label: "Education & How-to", icon: Rocket, description: "Tutorials, courses, explainers" },
+  { id: "fitness", label: "Fitness & Health", icon: TrendingUp, description: "Workouts, nutrition, wellness" },
+  { id: "music", label: "Music & Entertainment", icon: Sparkles, description: "Covers, originals, performances" },
+  { id: "business", label: "Business & Finance", icon: TrendingUp, description: "Investing, entrepreneurship, money tips" },
+  { id: "beauty", label: "Beauty & Fashion", icon: Sparkles, description: "Makeup, style, hauls" },
+  { id: "comedy", label: "Comedy & Skits", icon: Lightbulb, description: "Sketches, reactions, commentary" },
+  { id: "art", label: "Art & Design", icon: Sparkles, description: "Drawing, digital art, crafts" },
+  { id: "other", label: "Something Else", icon: Lightbulb, description: "Tell me your idea" },
+];
+
+function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void; onSkipToPlatforms: () => void }) {
+  const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
+  const [customIdea, setCustomIdea] = useState("");
+  const [aiResult, setAiResult] = useState<any>(null);
+  const { toast } = useToast();
+
+  const generateMutation = useMutation({
+    mutationFn: async (niche: string) => {
+      const res = await apiRequest("POST", "/api/ai/new-creator-plan", {
+        niche,
+        customIdea: niche === "other" ? customIdea : undefined,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setAiResult(data);
+    },
+    onError: (error) => {
+      toast({
+        title: "AI is thinking...",
+        description: "We'll generate your plan in a moment. Try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleGenerate = () => {
+    if (!selectedNiche) return;
+    generateMutation.mutate(selectedNiche === "other" ? customIdea || "general content creation" : selectedNiche);
+  };
+
+  if (aiResult) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
+            <Sparkles className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div>
+            <h2 data-testid="text-ai-plan-heading" className="text-lg font-display font-bold">Your Creator Roadmap</h2>
+            <p className="text-sm text-muted-foreground">AI-generated plan based on your niche</p>
+          </div>
+        </div>
+
+        {aiResult.channelName && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-sm font-semibold">Suggested Channel Name</h3>
+              <p data-testid="text-suggested-name" className="text-base font-medium text-primary">{aiResult.channelName}</p>
+              {aiResult.channelDescription && (
+                <>
+                  <h3 className="text-sm font-semibold mt-3">Channel Description</h3>
+                  <p data-testid="text-suggested-description" className="text-sm text-muted-foreground">{aiResult.channelDescription}</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {aiResult.videoIdeas?.length > 0 && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Video className="h-4 w-4" />
+                Your First 10 Video Ideas
+              </h3>
+              <ol className="space-y-1.5 mt-2">
+                {aiResult.videoIdeas.map((idea: string, i: number) => (
+                  <li key={i} className="text-sm text-muted-foreground flex gap-2" data-testid={`text-video-idea-${i}`}>
+                    <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
+                    <span>{idea}</span>
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
+        )}
+
+        {aiResult.schedule && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Recommended Posting Schedule
+              </h3>
+              <p data-testid="text-schedule" className="text-sm text-muted-foreground">{aiResult.schedule}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {aiResult.growthStrategy && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Growth Strategy
+              </h3>
+              <p data-testid="text-growth-strategy" className="text-sm text-muted-foreground">{aiResult.growthStrategy}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {aiResult.brandingTips && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Branding Suggestions
+              </h3>
+              <p data-testid="text-branding-tips" className="text-sm text-muted-foreground">{aiResult.brandingTips}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {aiResult.nicheAnalysis && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Niche Analysis
+              </h3>
+              <p data-testid="text-niche-analysis" className="text-sm text-muted-foreground">{aiResult.nicheAnalysis}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <Button
+            data-testid="button-create-youtube-channel"
+            variant="default"
+            onClick={() => window.open("https://www.youtube.com/create_channel", "_blank")}
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Create YouTube Channel
+          </Button>
+          <Button
+            data-testid="button-continue-without-channel"
+            variant="secondary"
+            onClick={onFinish}
+          >
+            Continue to Dashboard
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          You can create your YouTube channel anytime. All AI tools are available even without one.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
+          <Rocket className="h-5 w-5 text-primary-foreground" />
+        </div>
+        <div>
+          <h2 data-testid="text-new-creator-heading" className="text-lg font-display font-bold">Start Your Creator Journey</h2>
+          <p className="text-sm text-muted-foreground">No YouTube channel yet? No problem. Pick your niche and we'll build your roadmap.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {NICHE_OPTIONS.map((niche) => (
+          <Card
+            key={niche.id}
+            data-testid={`card-niche-${niche.id}`}
+            className={`cursor-pointer transition-colors ${selectedNiche === niche.id ? "border-primary" : ""}`}
+            onClick={() => setSelectedNiche(niche.id)}
+          >
+            <CardContent className="p-3 text-center space-y-1">
+              <niche.icon className={`h-5 w-5 mx-auto ${selectedNiche === niche.id ? "text-primary" : "text-muted-foreground"}`} />
+              <p className="text-sm font-semibold">{niche.label}</p>
+              <p className="text-xs text-muted-foreground">{niche.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {selectedNiche === "other" && (
+        <Input
+          data-testid="input-custom-idea"
+          placeholder="Describe your content idea..."
+          value={customIdea}
+          onChange={(e) => setCustomIdea(e.target.value)}
+        />
+      )}
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Button
+          data-testid="button-generate-plan"
+          onClick={handleGenerate}
+          disabled={!selectedNiche || generateMutation.isPending || (selectedNiche === "other" && !customIdea.trim())}
+        >
+          {generateMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              AI is building your roadmap...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate My Creator Roadmap
+            </>
+          )}
+        </Button>
+        <Button
+          data-testid="button-skip-to-platforms"
+          variant="ghost"
+          onClick={onSkipToPlatforms}
+        >
+          Skip - connect platforms instead
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export default function Onboarding({ onComplete }: { onComplete?: () => void }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
+  const [showNewCreator, setShowNewCreator] = useState<boolean | null>(null);
 
   const { data: linkedChannels = [], isLoading } = useQuery<LinkedChannel[]>({
     queryKey: ["/api/linked-channels"],
   });
 
+  const { data: channels = [] } = useQuery<any[]>({
+    queryKey: ["/api/channels"],
+  });
+
   const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
     queryKey: ["/api/oauth/status"],
   });
+
+  const hasYouTubeChannel = channels.some((c: any) => c.platform === "youtube");
+  const hasYouTubeLinked = linkedChannels.some((c) => c.platform === "youtube" && c.isConnected);
+  const isNewCreator = !hasYouTubeChannel && !hasYouTubeLinked;
 
   const connectMutation = useMutation({
     mutationFn: async (data: {
@@ -258,7 +508,7 @@ export default function Onboarding() {
       return res.json();
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
+      qc.invalidateQueries({ queryKey: ["/api/linked-channels"] });
       const info = PLATFORM_INFO[variables.platform as Platform];
       toast({
         title: `${info?.label || variables.platform} Connected`,
@@ -297,6 +547,19 @@ export default function Onboarding() {
     });
   };
 
+  const finishOnboarding = () => {
+    if (onComplete) {
+      onComplete();
+    } else {
+      if (user?.id) {
+        localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+      }
+      navigate("/");
+    }
+  };
+
+  const shouldShowNewCreator = showNewCreator === null ? (isNewCreator && !isLoading) : showNewCreator;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="border-b border-border">
@@ -317,54 +580,79 @@ export default function Onboarding() {
 
       <div className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-10">
-          <div className="mb-8">
-            <h1
-              data-testid="text-onboarding-heading"
-              className="text-2xl sm:text-3xl font-display font-bold"
-            >
-              Connect Your Platforms
-            </h1>
-            <p
-              data-testid="text-onboarding-subtitle"
-              className="mt-2 text-sm text-muted-foreground max-w-xl"
-            >
-              Set up your accounts to unlock full automation. You can always come back to this later.
-            </p>
-          </div>
-
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
+          ) : shouldShowNewCreator ? (
+            <>
+              <div className="mb-8">
+                <h1
+                  data-testid="text-onboarding-heading"
+                  className="text-2xl sm:text-3xl font-display font-bold"
+                >
+                  Welcome to CreatorOS
+                </h1>
+                <p
+                  data-testid="text-onboarding-subtitle"
+                  className="mt-2 text-sm text-muted-foreground max-w-xl"
+                >
+                  Looks like you're just getting started. Let's help you turn your idea into a content empire.
+                </p>
+              </div>
+              <NewCreatorFlow
+                onFinish={finishOnboarding}
+                onSkipToPlatforms={() => setShowNewCreator(false)}
+              />
+            </>
           ) : (
-            <div className="space-y-8">
-              {CATEGORIES.map((category) => (
-                <div key={category.key}>
-                  <h2
-                    data-testid={`text-category-${category.key}`}
-                    className="text-sm font-medium text-muted-foreground mb-3"
-                  >
-                    {category.label}
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {category.platforms.map((platform) => {
-                      const info = PLATFORM_INFO[platform];
-                      return (
-                        <PlatformCard
-                          key={platform}
-                          platform={platform}
-                          info={info}
-                          isConnected={connectedPlatforms.has(platform)}
-                          onConnect={({ value }) => handleConnect(platform, value)}
-                          isPending={connectMutation.isPending}
-                          oauthStatus={oauthStatus}
-                        />
-                      );
-                    })}
+            <>
+              <div className="mb-8">
+                <h1
+                  data-testid="text-onboarding-heading"
+                  className="text-2xl sm:text-3xl font-display font-bold"
+                >
+                  {hasYouTubeChannel ? "YouTube Connected! Connect More Platforms" : "Connect Your Platforms"}
+                </h1>
+                <p
+                  data-testid="text-onboarding-subtitle"
+                  className="mt-2 text-sm text-muted-foreground max-w-xl"
+                >
+                  {hasYouTubeChannel
+                    ? "Your YouTube channel is ready. Add more platforms to maximize your reach."
+                    : "Set up your accounts to unlock full automation. You can always come back to this later."}
+                </p>
+              </div>
+
+              <div className="space-y-8">
+                {CATEGORIES.map((category) => (
+                  <div key={category.key}>
+                    <h2
+                      data-testid={`text-category-${category.key}`}
+                      className="text-sm font-medium text-muted-foreground mb-3"
+                    >
+                      {category.label}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {category.platforms.map((platform) => {
+                        const info = PLATFORM_INFO[platform];
+                        return (
+                          <PlatformCard
+                            key={platform}
+                            platform={platform}
+                            info={info}
+                            isConnected={connectedPlatforms.has(platform)}
+                            onConnect={({ value }) => handleConnect(platform, value)}
+                            isPending={connectMutation.isPending}
+                            oauthStatus={oauthStatus}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
 
           <div className="mt-10 flex items-center justify-between gap-4 flex-wrap border-t border-border pt-6">
@@ -373,14 +661,9 @@ export default function Onboarding() {
             </p>
             <Button
               data-testid="button-finish-setup"
-              onClick={() => {
-                if (user?.id) {
-                  localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
-                }
-                navigate("/");
-              }}
+              onClick={finishOnboarding}
             >
-              Finish Setup
+              {connectedCount > 0 ? "Finish Setup" : "Continue to Dashboard"}
               <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
