@@ -485,4 +485,137 @@ export async function autoDetectAndUpdateMetrics(userId: string) {
       }
     }
   }
+
+  await checkAndNotifyEligible(userId);
+}
+
+export async function toggleAutoApply(userId: string, programId: number, enabled: boolean) {
+  const [program] = await db.select().from(platformGrowthPrograms)
+    .where(and(
+      eq(platformGrowthPrograms.id, programId),
+      eq(platformGrowthPrograms.userId, userId),
+    ));
+  if (!program) return null;
+
+  const [updated] = await db.update(platformGrowthPrograms)
+    .set({ autoApplyEnabled: enabled })
+    .where(eq(platformGrowthPrograms.id, programId))
+    .returning();
+
+  if (enabled) {
+    checkAndNotifyEligible(userId).catch(err =>
+      console.error("[GrowthPrograms] Background eligibility check error:", err)
+    );
+  }
+
+  return updated;
+}
+
+export async function updateApplicationStatus(
+  userId: string,
+  programId: number,
+  status: string,
+) {
+  const [program] = await db.select().from(platformGrowthPrograms)
+    .where(and(
+      eq(platformGrowthPrograms.id, programId),
+      eq(platformGrowthPrograms.userId, userId),
+    ));
+  if (!program) return null;
+
+  const [updated] = await db.update(platformGrowthPrograms)
+    .set({ applicationStatus: status })
+    .where(eq(platformGrowthPrograms.id, programId))
+    .returning();
+  return updated;
+}
+
+async function checkAndNotifyEligible(userId: string) {
+  const programs = await db.select().from(platformGrowthPrograms)
+    .where(and(
+      eq(platformGrowthPrograms.userId, userId),
+      eq(platformGrowthPrograms.eligibilityMet, true),
+    ));
+
+  for (const program of programs) {
+    if (program.applicationStatus === "not_applied" && !program.notifiedAt && program.autoApplyEnabled) {
+      const guide = await generateApplicationGuide(program.platform, program.programName, program.applicationUrl || "");
+
+      await db.update(platformGrowthPrograms)
+        .set({
+          notifiedAt: new Date(),
+          applicationStatus: "ready_to_apply",
+          applicationGuide: guide,
+        })
+        .where(eq(platformGrowthPrograms.id, program.id));
+
+      try {
+        const { storage } = await import("./storage");
+        await storage.createNotification({
+          userId,
+          title: `Ready to Apply: ${program.programName}`,
+          message: `You now meet all requirements for ${program.programName} on ${program.platform}! Open Growth Programs in Settings to see your personalized application guide.`,
+          type: "growth_program",
+          priority: "high",
+          actionUrl: `/settings?tab=growth`,
+        });
+      } catch (err) {
+        console.error("[GrowthPrograms] Notification error:", err);
+      }
+    }
+  }
+}
+
+export async function generateApplicationGuide(
+  platform: string,
+  programName: string,
+  applicationUrl: string,
+) {
+  const programDef = KNOWN_PROGRAMS.find(p => p.platform === platform && p.programName === programName);
+
+  const prompt = `You are a creator monetization expert. Generate a step-by-step application guide for applying to "${programName}" on ${platform}.
+
+APPLICATION URL: ${applicationUrl}
+
+PROGRAM BENEFITS: ${programDef ? programDef.benefits.join(", ") : "Various monetization benefits"}
+
+Provide practical, specific steps the creator should follow to apply. Include tips for getting approved and what to write/select during the application.
+
+Respond as JSON:
+{
+  "steps": ["Step 1: Go to ${applicationUrl}", "Step 2: ...", "Step 3: ..."],
+  "tips": ["Tip for getting approved faster", "What reviewers look for"],
+  "estimatedTime": "e.g. 5 minutes",
+  "whatToSay": "If there is a free-text field in the application, this is what to write (gaming content creator focused on...)"
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-5-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 2048,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return null;
+    return JSON.parse(content);
+  } catch (err) {
+    console.error("[GrowthPrograms] Guide generation error:", err);
+    return {
+      steps: [
+        `Go to ${applicationUrl}`,
+        "Sign in with your creator account",
+        "Follow the on-screen application steps",
+        "Submit your application and wait for review",
+      ],
+      tips: [
+        "Ensure your channel has original content",
+        "Make sure your profile is complete with description and avatar",
+        "Having consistent upload schedule helps approval",
+      ],
+      estimatedTime: "5-10 minutes",
+      whatToSay: "I'm a gaming content creator producing original gameplay, tutorials, and entertainment content.",
+    };
+  }
 }

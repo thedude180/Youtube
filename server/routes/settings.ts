@@ -20,6 +20,7 @@ import {
 import {
   getUserGrowthPrograms, generateGrowthRecommendations,
   updateProgramMetrics, autoDetectAndUpdateMetrics,
+  toggleAutoApply, updateApplicationStatus, generateApplicationGuide,
 } from "../growth-programs-engine";
 
 export function registerSettingsRoutes(app: Express) {
@@ -528,6 +529,79 @@ export function registerSettingsRoutes(app: Express) {
       res.json(updated);
     } catch (error: any) {
       console.error("Update metrics error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/growth-programs/:id/auto-apply", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({ enabled: z.boolean() });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+    try {
+      const updated = await toggleAutoApply(userId, Number(req.params.id), parsed.data.enabled);
+      if (!updated) return res.status(404).json({ message: "Program not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Auto-apply toggle error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/growth-programs/:id/application-status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      status: z.enum(["not_applied", "ready_to_apply", "applied", "pending_review", "approved", "rejected"]),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid status" });
+    try {
+      const updated = await updateApplicationStatus(userId, Number(req.params.id), parsed.data.status);
+      if (!updated) return res.status(404).json({ message: "Program not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Application status error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/growth-programs/:id/generate-guide", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const programs = await getUserGrowthPrograms(userId);
+      const program = programs.find(p => p.id === Number(req.params.id));
+      if (!program) return res.status(404).json({ message: "Program not found" });
+
+      const guide = await generateApplicationGuide(program.platform, program.programName, program.applicationUrl || "");
+
+      const { db } = await import("../db");
+      const { platformGrowthPrograms } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(platformGrowthPrograms)
+        .set({ applicationGuide: guide })
+        .where(eq(platformGrowthPrograms.id, program.id));
+
+      res.json(guide);
+    } catch (error: any) {
+      console.error("Guide generation error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/growth-programs/enable-all-auto-apply", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const programs = await getUserGrowthPrograms(userId);
+      for (const program of programs) {
+        await toggleAutoApply(userId, program.id, true);
+      }
+      res.json({ success: true, count: programs.length });
+    } catch (error: any) {
+      console.error("Enable all auto-apply error:", error);
       res.status(500).json({ message: error.message });
     }
   });

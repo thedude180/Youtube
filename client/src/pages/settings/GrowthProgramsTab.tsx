@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -19,6 +21,12 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
+  Bell,
+  BookOpen,
+  Send,
+  Shield,
+  AlertCircle,
+  FileText,
 } from "lucide-react";
 
 interface Requirement {
@@ -35,6 +43,13 @@ interface AiRec {
   actionItems: string[];
 }
 
+interface ApplicationGuide {
+  steps: string[];
+  tips: string[];
+  estimatedTime: string;
+  whatToSay: string;
+}
+
 interface GrowthProgram {
   id: number;
   platform: string;
@@ -47,6 +62,10 @@ interface GrowthProgram {
   applicationUrl: string;
   aiRecommendations: AiRec | null;
   progress: number;
+  autoApplyEnabled: boolean;
+  applicationStatus: string;
+  notifiedAt: string | null;
+  applicationGuide: ApplicationGuide | null;
   lastChecked: string;
 }
 
@@ -74,6 +93,15 @@ const PROGRAM_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   referral: { label: "Referral", color: "text-purple-500" },
   "ads-revenue": { label: "Ads Revenue", color: "text-emerald-500" },
   developer: { label: "Developer", color: "text-cyan-500" },
+};
+
+const APP_STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
+  not_applied: { label: "Not Applied", color: "text-muted-foreground", icon: AlertCircle },
+  ready_to_apply: { label: "Ready to Apply", color: "text-amber-500", icon: Bell },
+  applied: { label: "Applied", color: "text-blue-500", icon: Send },
+  pending_review: { label: "Under Review", color: "text-purple-500", icon: Clock },
+  approved: { label: "Approved", color: "text-green-500", icon: CheckCircle2 },
+  rejected: { label: "Rejected", color: "text-red-500", icon: AlertCircle },
 };
 
 function ProgressBar({ value }: { value: number }) {
@@ -104,13 +132,58 @@ export default function GrowthProgramsTab() {
       const res = await apiRequest("POST", "/api/growth-programs/recommendations", {});
       return res.json();
     },
-    onSuccess: (data: AiRecommendations) => {
+    onSuccess: () => {
       setShowAiRecs(true);
       qc.invalidateQueries({ queryKey: ["/api/growth-programs"] });
       toast({ title: "AI recommendations generated" });
     },
     onError: () => {
       toast({ title: "Failed to generate recommendations", variant: "destructive" });
+    },
+  });
+
+  const autoApplyToggle = useMutation({
+    mutationFn: async ({ id, enabled }: { id: number; enabled: boolean }) => {
+      const res = await apiRequest("POST", `/api/growth-programs/${id}/auto-apply`, { enabled });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/growth-programs"] });
+    },
+  });
+
+  const enableAllAutoApply = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/growth-programs/enable-all-auto-apply", {});
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/growth-programs"] });
+      toast({ title: "Auto-apply enabled for all programs" });
+    },
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const res = await apiRequest("POST", `/api/growth-programs/${id}/application-status`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/growth-programs"] });
+    },
+  });
+
+  const generateGuide = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/growth-programs/${id}/generate-guide`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/growth-programs"] });
+      toast({ title: "Application guide generated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to generate guide", variant: "destructive" });
     },
   });
 
@@ -130,6 +203,7 @@ export default function GrowthProgramsTab() {
 
   const eligibleCount = programs.filter(p => p.eligibilityMet).length;
   const inProgressCount = programs.filter(p => p.status === "in_progress").length;
+  const autoApplyCount = programs.filter(p => p.autoApplyEnabled).length;
   const totalCount = programs.length;
 
   if (isLoading) {
@@ -145,19 +219,30 @@ export default function GrowthProgramsTab() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-lg font-semibold" data-testid="text-growth-heading">Platform Growth Programs</h2>
-          <p className="text-sm text-muted-foreground">Maximize earnings by qualifying for every platform's creator programs</p>
+          <p className="text-sm text-muted-foreground">Maximize earnings with AI-monitored auto-apply for every platform's creator programs</p>
         </div>
-        <Button
-          onClick={() => aiRecsMutation.mutate()}
-          disabled={aiRecsMutation.isPending}
-          data-testid="button-ai-growth-recs"
-        >
-          <Sparkles className="h-4 w-4 mr-2" />
-          {aiRecsMutation.isPending ? "Analyzing..." : "AI Growth Strategy"}
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => enableAllAutoApply.mutate()}
+            disabled={enableAllAutoApply.isPending || autoApplyCount === totalCount}
+            data-testid="button-enable-all-auto-apply"
+          >
+            <Bell className="h-4 w-4 mr-2" />
+            {autoApplyCount === totalCount ? "All Monitored" : "Monitor All"}
+          </Button>
+          <Button
+            onClick={() => aiRecsMutation.mutate()}
+            disabled={aiRecsMutation.isPending}
+            data-testid="button-ai-growth-recs"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {aiRecsMutation.isPending ? "Analyzing..." : "AI Growth Strategy"}
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-10 w-10 rounded-md bg-green-500/10 flex items-center justify-center shrink-0">
@@ -182,6 +267,17 @@ export default function GrowthProgramsTab() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-md bg-blue-500/10 flex items-center justify-center shrink-0">
+              <Bell className="h-5 w-5 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold" data-testid="text-monitored-count">{autoApplyCount}</p>
+              <p className="text-xs text-muted-foreground">Monitored</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
             <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
               <Target className="h-5 w-5 text-primary" />
             </div>
@@ -192,6 +288,24 @@ export default function GrowthProgramsTab() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-blue-500/30 bg-blue-500/5">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Shield className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">How Auto-Apply Works</p>
+              <p className="text-xs text-muted-foreground">
+                When you enable monitoring on a program, CreatorOS continuously checks your channel metrics.
+                The moment you meet all requirements, you'll get an instant notification with a direct link and
+                AI-generated step-by-step application guide telling you exactly what to click and what to write.
+                Most platforms require you to submit the application yourself (they don't have APIs for it),
+                but we make it as close to one-click as possible.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {showAiRecs && aiRecsMutation.data && (
         <Card data-testid="card-ai-growth-strategy">
@@ -294,6 +408,8 @@ export default function GrowthProgramsTab() {
             const expanded = expandedPrograms.has(program.id);
             const typeInfo = PROGRAM_TYPE_LABELS[program.programType] || { label: program.programType, color: "text-muted-foreground" };
             const reqs = (program.requirements || []) as Requirement[];
+            const appStatusCfg = APP_STATUS_CONFIG[program.applicationStatus] || APP_STATUS_CONFIG.not_applied;
+            const AppStatusIcon = appStatusCfg.icon;
 
             return (
               <Card key={program.id} data-testid={`card-program-${program.id}`}>
@@ -314,21 +430,36 @@ export default function GrowthProgramsTab() {
                         ) : (
                           <Badge variant="outline" className="text-[10px]">Not Started</Badge>
                         )}
+                        {program.applicationStatus !== "not_applied" && (
+                          <Badge variant="outline" className={`text-[10px] ${appStatusCfg.color}`}>
+                            <AppStatusIcon className="h-2.5 w-2.5 mr-0.5" />{appStatusCfg.label}
+                          </Badge>
+                        )}
                       </div>
 
                       <ProgressBar value={program.progress} />
 
-                      {reqs.length > 0 && (
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                          {reqs.slice(0, expanded ? reqs.length : 2).map((req, i) => (
-                            <span key={i} className={req.met ? "text-green-500" : ""}>
-                              {req.met ? <CheckCircle2 className="h-3 w-3 inline mr-0.5" /> : null}
-                              {req.metric}: {req.current}/{req.target}
-                            </span>
-                          ))}
-                          {!expanded && reqs.length > 2 && <span>+{reqs.length - 2} more</span>}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        {reqs.length > 0 && (
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                            {reqs.slice(0, expanded ? reqs.length : 2).map((req, i) => (
+                              <span key={i} className={req.met ? "text-green-500" : ""}>
+                                {req.met ? <CheckCircle2 className="h-3 w-3 inline mr-0.5" /> : null}
+                                {req.metric}: {req.current}/{req.target}
+                              </span>
+                            ))}
+                            {!expanded && reqs.length > 2 && <span>+{reqs.length - 2} more</span>}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 ml-auto">
+                          <span className="text-xs text-muted-foreground">Auto-Apply</span>
+                          <Switch
+                            checked={program.autoApplyEnabled}
+                            onCheckedChange={(checked) => autoApplyToggle.mutate({ id: program.id, enabled: checked })}
+                            data-testid={`switch-auto-apply-${program.id}`}
+                          />
                         </div>
-                      )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
@@ -382,6 +513,124 @@ export default function GrowthProgramsTab() {
                           </div>
                         </div>
                       )}
+
+                      <div className="rounded-md border p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <p className="text-xs font-medium">Application Status & Guide</p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className={`text-[10px] ${appStatusCfg.color}`}>
+                              <AppStatusIcon className="h-2.5 w-2.5 mr-0.5" />{appStatusCfg.label}
+                            </Badge>
+                            {program.applicationStatus === "not_applied" && program.eligibilityMet && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => {
+                                  updateStatus.mutate({ id: program.id, status: "ready_to_apply" });
+                                  if (!program.applicationGuide) {
+                                    generateGuide.mutate(program.id);
+                                  }
+                                }}
+                                data-testid={`button-ready-apply-${program.id}`}
+                              >
+                                <Bell className="h-3.5 w-3.5 mr-1.5" />
+                                Mark Ready
+                              </Button>
+                            )}
+                            {(program.applicationStatus === "ready_to_apply") && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => updateStatus.mutate({ id: program.id, status: "applied" })}
+                                data-testid={`button-mark-applied-${program.id}`}
+                              >
+                                <Send className="h-3.5 w-3.5 mr-1.5" />
+                                I Applied
+                              </Button>
+                            )}
+                            {program.applicationStatus === "applied" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateStatus.mutate({ id: program.id, status: "approved" })}
+                                data-testid={`button-mark-approved-${program.id}`}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                Approved
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {!program.applicationGuide && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generateGuide.mutate(program.id)}
+                            disabled={generateGuide.isPending}
+                            data-testid={`button-gen-guide-${program.id}`}
+                          >
+                            <BookOpen className="h-3.5 w-3.5 mr-1.5" />
+                            {generateGuide.isPending ? "Generating..." : "Generate AI Application Guide"}
+                          </Button>
+                        )}
+
+                        {program.applicationGuide && (
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Step-by-Step Guide</p>
+                              <div className="space-y-1.5">
+                                {program.applicationGuide.steps.map((step, i) => (
+                                  <div key={i} className="flex items-start gap-2 text-xs">
+                                    <span className="font-medium text-primary min-w-[1.5rem] shrink-0">{i + 1}.</span>
+                                    <span>{step}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {program.applicationGuide.tips?.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Tips for Approval</p>
+                                <div className="space-y-1">
+                                  {program.applicationGuide.tips.map((tip, i) => (
+                                    <div key={i} className="flex items-start gap-1.5 text-xs">
+                                      <Sparkles className="h-3 w-3 mt-0.5 shrink-0 text-amber-500" />
+                                      <span>{tip}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {program.applicationGuide.whatToSay && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">What to Write (Copy This)</p>
+                                <div className="rounded-md bg-muted p-2.5 text-xs font-mono select-all" data-testid={`text-what-to-say-${program.id}`}>
+                                  {program.applicationGuide.whatToSay}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              <span>Estimated time: {program.applicationGuide.estimatedTime}</span>
+                            </div>
+
+                            {program.applicationUrl && (
+                              <Button size="sm" asChild data-testid={`button-apply-now-${program.id}`}>
+                                <a href={program.applicationUrl} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                                  Open Application Page
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {program.aiRecommendations && (
                         <div className="rounded-md border p-3 bg-muted/20">

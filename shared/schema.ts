@@ -1963,6 +1963,15 @@ export const platformGrowthPrograms = pgTable("platform_growth_programs", {
     actionItems: string[];
   }>(),
   progress: integer("progress").default(0),
+  autoApplyEnabled: boolean("auto_apply_enabled").default(false),
+  applicationStatus: text("application_status").default("not_applied"),
+  notifiedAt: timestamp("notified_at"),
+  applicationGuide: jsonb("application_guide").$type<{
+    steps: string[];
+    tips: string[];
+    estimatedTime: string;
+    whatToSay: string;
+  }>(),
   lastChecked: timestamp("last_checked").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
