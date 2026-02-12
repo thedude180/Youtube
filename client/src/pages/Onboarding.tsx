@@ -29,6 +29,64 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import {
+  SiYoutube,
+  SiTwitch,
+  SiFacebook,
+  SiTiktok,
+  SiX,
+  SiLinkedin,
+  SiInstagram,
+  SiDiscord,
+  SiSnapchat,
+  SiPinterest,
+  SiReddit,
+  SiThreads,
+  SiBluesky,
+  SiMastodon,
+  SiPatreon,
+  SiKofi,
+  SiSubstack,
+  SiSpotify,
+  SiApplepodcasts,
+  SiWhatsapp,
+  SiGoogle,
+  SiMeta,
+} from "react-icons/si";
+import type { IconType } from "react-icons";
+
+const PLATFORM_ICONS: Record<string, IconType> = {
+  youtube: SiYoutube,
+  twitch: SiTwitch,
+  kick: SiTwitch,
+  facebook: SiFacebook,
+  tiktok: SiTiktok,
+  x: SiX,
+  rumble: SiYoutube,
+  linkedin: SiLinkedin,
+  instagram: SiInstagram,
+  discord: SiDiscord,
+  snapchat: SiSnapchat,
+  pinterest: SiPinterest,
+  reddit: SiReddit,
+  threads: SiThreads,
+  bluesky: SiBluesky,
+  mastodon: SiMastodon,
+  patreon: SiPatreon,
+  kofi: SiKofi,
+  substack: SiSubstack,
+  spotify: SiSpotify,
+  applepodcasts: SiApplepodcasts,
+  dlive: SiTwitch,
+  trovo: SiTwitch,
+  youtubeshorts: SiYoutube,
+  whatsapp: SiWhatsapp,
+};
+
+const GROUP_ICONS: Record<string, IconType> = {
+  google: SiGoogle,
+  meta: SiMeta,
+};
 
 const LOGIN_GROUPS: { id: string; label: string; color: string; provider: string; platforms: Platform[]; description: string }[] = [
   {
@@ -295,7 +353,7 @@ function PlatformCard({
             style={{ backgroundColor: info.color === "#000000" ? "#333" : info.color }}
             data-testid={`icon-platform-${platform}`}
           >
-            {info.label.charAt(0)}
+            {PLATFORM_ICONS[platform] ? (() => { const Icon = PLATFORM_ICONS[platform]; return <Icon className="w-4 h-4" />; })() : info.label.charAt(0)}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -339,7 +397,7 @@ function PlatformCard({
               className="w-full"
               style={{ backgroundColor: info.color === "#000000" ? "#333" : info.color, borderColor: info.color, color: "#fff" }}
             >
-              {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
+              {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : PLATFORM_ICONS[platform] ? (() => { const PIcon = PLATFORM_ICONS[platform]; return <PIcon className="h-4 w-4 mr-2" />; })() : <LogIn className="h-4 w-4 mr-2" />}
               {oauthLoading ? "Redirecting..." : `Login with ${info.label}`}
             </Button>
           </div>
@@ -355,7 +413,7 @@ function PlatformCard({
                 className="w-full"
                 style={{ backgroundColor: info.color === "#000000" ? "#333" : info.color, borderColor: info.color, color: "#fff" }}
               >
-                {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
+                {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : PLATFORM_ICONS[platform] ? (() => { const PIcon = PLATFORM_ICONS[platform]; return <PIcon className="h-4 w-4 mr-2" />; })() : <LogIn className="h-4 w-4 mr-2" />}
                 {oauthLoading ? "Redirecting..." : `Login with ${info.label}`}
               </Button>
             )}
@@ -463,7 +521,7 @@ function GroupedPlatformCard({
             className="h-9 w-9 rounded-md flex items-center justify-center shrink-0 text-white font-bold text-sm"
             style={{ backgroundColor: group.color }}
           >
-            {group.label.charAt(0)}
+            {GROUP_ICONS[group.id] ? (() => { const Icon = GROUP_ICONS[group.id]; return <Icon className="w-4 h-4" />; })() : group.label.charAt(0)}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -493,7 +551,7 @@ function GroupedPlatformCard({
                     className="text-xs"
                     data-testid={`badge-group-platform-${p}`}
                   >
-                    {connected && <Check className="w-3 h-3 mr-1" />}
+                    {connected ? <Check className="w-3 h-3 mr-1" /> : PLATFORM_ICONS[p] ? (() => { const PIcon = PLATFORM_ICONS[p]; return <PIcon className="w-3 h-3 mr-1" />; })() : null}
                     {info.label}
                   </Badge>
                 );
@@ -511,7 +569,7 @@ function GroupedPlatformCard({
               className="w-full"
               style={{ backgroundColor: group.color, borderColor: group.color, color: "#fff" }}
             >
-              {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
+              {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : GROUP_ICONS[group.id] ? (() => { const GIcon = GROUP_ICONS[group.id]; return <GIcon className="h-4 w-4 mr-2" />; })() : <LogIn className="h-4 w-4 mr-2" />}
               {oauthLoading
                 ? "Connecting..."
                 : someConnected
