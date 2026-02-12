@@ -79,6 +79,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
       <div className="fixed bottom-6 right-6 z-50">
         <Button
           data-testid="button-floating-chat"
+          aria-label="Open AI chat"
           className="h-12 w-12 rounded-full shadow-lg"
           onClick={() => setIsOpen(true)}
         >
@@ -92,6 +93,8 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
       <Card
         data-testid="panel-chat"
+        role="complementary"
+        aria-label="AI Chat"
         className="flex flex-col overflow-hidden"
         style={{ width: 400, height: 500 }}
       >
@@ -102,6 +105,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
           </div>
           <Button
             data-testid="button-close-chat"
+            aria-label="Close chat"
             variant="ghost"
             size="icon"
             onClick={handleClose}
@@ -110,7 +114,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
           </Button>
         </div>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div ref={scrollRef} aria-label="Chat messages" className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Bot className="w-8 h-8 text-muted-foreground/30 mb-3" />
@@ -171,6 +175,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
           <div className="flex gap-2">
             <Textarea
               data-testid="input-chat-message"
+              aria-label="Type a message"
               placeholder="Ask about strategy, growth..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -180,6 +185,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
             />
             <Button
               data-testid="button-send-chat"
+              aria-label="Send message"
               size="icon"
               onClick={() => handleSend()}
               disabled={!input.trim() || advisor.isPending}

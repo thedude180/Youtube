@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useDashboardStats } from "@/hooks/use-dashboard";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -43,6 +43,41 @@ import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
 
+interface AgentStatus {
+  id: string;
+  name: string;
+  status: "active" | "idle" | "error";
+  lastRun?: string;
+  icon?: string;
+}
+
+interface AgentActivity {
+  id: number;
+  agentId: string;
+  action: string;
+  target?: string;
+  result?: string;
+  createdAt: string;
+}
+
+interface DashboardChannel {
+  id: number;
+  channelName: string;
+  platform: string;
+  subscriberCount?: number;
+  videoCount?: number;
+}
+
+interface AIResult {
+  recommendations?: string[];
+  tips?: string[];
+  results?: string[];
+  actions?: string[];
+  insights?: string[];
+  items?: string[];
+  [key: string]: unknown;
+}
+
 const healthAreas = [
   { key: "content", label: "Content", icon: Film, link: "/content" },
   { key: "revenue", label: "Revenue", icon: DollarSign, link: "/money" },
@@ -57,16 +92,16 @@ export default function Dashboard() {
   const { isAdvanced: advancedMode } = useAdvancedMode();
   const [belowFoldRef, belowFoldVisible] = useLazyVisible("400px");
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
-  const { data: agentStatus } = useQuery<any[]>({ queryKey: ['/api/agents/status'] });
-  const { data: agentActivities } = useQuery<any[]>({ queryKey: ['/api/agents/activities'] });
+  const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'] });
+  const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'] });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
-  const { data: channels } = useQuery<any[]>({ queryKey: ['/api/channels'] });
+  const { data: channels } = useQuery<DashboardChannel[]>({ queryKey: ['/api/channels'] });
   const { data: goals } = useQuery<any[]>({ queryKey: ['/api/goals'], enabled: belowFoldVisible });
   const { data: wellness } = useQuery<any[]>({ queryKey: ['/api/wellness'], enabled: belowFoldVisible });
   const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'], enabled: belowFoldVisible });
-  const { data: briefing } = useQuery<any>({ queryKey: ['/api/learning/briefing'], enabled: belowFoldVisible });
-  const { data: optHealth } = useQuery<any>({ queryKey: ['/api/optimization/health-score'], enabled: belowFoldVisible });
-  const { data: shortsStatus } = useQuery<any>({ queryKey: ['/api/shorts/status'], enabled: belowFoldVisible });
+  const { data: briefing } = useQuery<AIResult>({ queryKey: ['/api/learning/briefing'], enabled: belowFoldVisible });
+  const { data: optHealth } = useQuery<AIResult>({ queryKey: ['/api/optimization/health-score'], enabled: belowFoldVisible });
+  const { data: shortsStatus } = useQuery<AIResult>({ queryKey: ['/api/shorts/status'], enabled: belowFoldVisible });
   const { data: trendingTopics } = useQuery<any[]>({ queryKey: ['/api/optimization/trending-topics'], enabled: belowFoldVisible });
 
   const [aiActions, setAiActions] = useState<any>(null);
@@ -1280,18 +1315,37 @@ export default function Dashboard() {
     crown: Crown,
   };
 
-  const activeAgents = agentStatus?.filter((a: any) => a.status === 'active')?.length || 0;
+  const activeAgentsList = useMemo(() =>
+    (agentStatus || []).filter((a) => a.status === "active"),
+    [agentStatus]
+  );
+  const activeAgents = activeAgentsList.length;
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const tasksToday = agentActivities?.filter((a: any) => {
-    const created = new Date(a.createdAt);
-    return created >= todayStart;
-  })?.length || 0;
+  const tasksToday = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return agentActivities?.filter((a) => {
+      const created = new Date(a.createdAt);
+      return created >= todayStart;
+    })?.length || 0;
+  }, [agentActivities]);
 
-  const recentNotifications = notifications?.slice(0, 5) || [];
-  const platformCount = channels?.length || 0;
-  const recentActivities = agentActivities?.slice(0, 5) || [];
+  const recentNotifications = useMemo(() =>
+    notifications?.slice(0, 5) || [],
+    [notifications]
+  );
+
+  const unreadNotifications = useMemo(() =>
+    (notifications || []).filter((n) => !n.read),
+    [notifications]
+  );
+
+  const platformCount = useMemo(() => channels?.length || 0, [channels]);
+
+  const recentActivities = useMemo(() =>
+    (agentActivities || []).slice(0, 5),
+    [agentActivities]
+  );
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -1362,8 +1416,14 @@ export default function Dashboard() {
     }
   };
 
-  const activeGoals = goals?.filter((g: any) => g.status === "active") || [];
-  const activeVentures = ventures?.filter((v: any) => v.status === "active") || [];
+  const activeGoals = useMemo(() =>
+    goals?.filter((g: any) => g.status === "active") || [],
+    [goals]
+  );
+  const activeVentures = useMemo(() =>
+    ventures?.filter((v: any) => v.status === "active") || [],
+    [ventures]
+  );
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">

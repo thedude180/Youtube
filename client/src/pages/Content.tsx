@@ -6604,9 +6604,23 @@ function CalendarTab() {
                       <PlatformBadge platform={item.platform} className="text-xs" />
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(item.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="icon" variant="ghost" data-testid={`button-delete-schedule-${item.id}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remove Scheduled Item</AlertDialogTitle>
+                        <AlertDialogDescription>This will remove "{item.title}" from the schedule. This cannot be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(item.id)} className="bg-destructive text-destructive-foreground" data-testid={`button-confirm-delete-schedule-${item.id}`}>Remove</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               ))}
             </div>

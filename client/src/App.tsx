@@ -14,7 +14,7 @@ import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard } from "lucide-react";
+import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
@@ -184,8 +184,9 @@ function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} data-testid="panel-shortcuts-help">
-      <div className="max-w-sm w-full rounded-md border border-border bg-card shadow-lg p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" data-testid="panel-shortcuts-help">
+      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
+      <div role="dialog" aria-label="Keyboard shortcuts" aria-modal="true" className="relative max-w-sm w-full rounded-md border border-border bg-card shadow-lg p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
             <Keyboard className="h-4 w-4 text-muted-foreground" />
@@ -213,6 +214,56 @@ function ShortcutsHelp({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+const ROUTE_LABELS: Record<string, string> = {
+  "/": "Home",
+  "/content": "Content",
+  "/content/channels": "Channels",
+  "/content/calendar": "Calendar",
+  "/content/localization": "Localization",
+  "/stream": "Go Live",
+  "/money": "Money",
+  "/settings": "Settings",
+  "/settings/brand": "Brand",
+  "/settings/collabs": "Collaborations",
+  "/settings/competitors": "Competitors",
+  "/settings/legal": "Legal",
+  "/settings/wellness": "Wellness",
+  "/settings/learning": "Learning",
+  "/settings/automation": "Automation",
+  "/notifications": "Notifications",
+  "/pricing": "Pricing",
+};
+
+function RouteBreadcrumb() {
+  const [location] = useLocation();
+  if (location === "/" || location === "") return null;
+
+  const segments = location.split("/").filter(Boolean);
+  const crumbs: { label: string; path: string }[] = [{ label: "Home", path: "/" }];
+
+  let accumulated = "";
+  for (const seg of segments) {
+    accumulated += `/${seg}`;
+    const label = ROUTE_LABELS[accumulated] || seg.charAt(0).toUpperCase() + seg.slice(1);
+    crumbs.push({ label, path: accumulated });
+  }
+
+  return (
+    <nav aria-label="breadcrumb" className="hidden md:flex items-center gap-1 text-xs text-muted-foreground" data-testid="nav-breadcrumb">
+      {crumbs.map((crumb, i) => (
+        <span key={crumb.path} className="flex items-center gap-1">
+          {i > 0 && <ChevronRight className="h-3 w-3" />}
+          {i < crumbs.length - 1 ? (
+            <a href={crumb.path} className="hover:text-foreground transition-colors" data-testid={`link-breadcrumb-${crumb.label.toLowerCase()}`}>{crumb.label}</a>
+          ) : (
+            <span className="text-foreground font-medium" data-testid={`text-breadcrumb-current`}>{crumb.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
   );
 }
 
@@ -267,7 +318,7 @@ function AuthenticatedApp() {
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-4 border-b border-border bg-background shrink-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden" />
               <div className="hidden md:flex items-center gap-2">
                 <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
@@ -277,6 +328,7 @@ function AuthenticatedApp() {
                   Creator<span className="text-primary">OS</span>
                 </span>
               </div>
+              <RouteBreadcrumb />
             </div>
             <div className="flex items-center gap-1">
               <Tooltip>

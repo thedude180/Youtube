@@ -993,12 +993,19 @@ function rateLimit(windowMs: number, max: number) {
   };
 }
 
+const RATE_LIMIT_MAX_ENTRIES = 10000;
+
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of rateLimitMap) {
     if (now > entry.reset) rateLimitMap.delete(key);
   }
-}, 5 * 60_000);
+  if (rateLimitMap.size > RATE_LIMIT_MAX_ENTRIES) {
+    const entries = [...rateLimitMap.entries()].sort((a, b) => a[1].reset - b[1].reset);
+    const toRemove = entries.slice(0, rateLimitMap.size - RATE_LIMIT_MAX_ENTRIES);
+    for (const [key] of toRemove) rateLimitMap.delete(key);
+  }
+}, 60_000);
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1029,7 +1036,7 @@ export async function registerRoutes(
           currentTier: "free",
         });
       }
-    } catch {}
+    } catch (err) { console.error("Tier check error:", err); }
     next();
   });
 

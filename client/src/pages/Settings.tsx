@@ -6,7 +6,7 @@ import { Shield, Zap, AlertTriangle, Save, LogOut, Link2, Bell,
   Plus, Sparkles, CalendarDays, Heart, BookOpen, CheckCircle2,
   Link as LinkIcon, Users, Eye, Palette, Trash2, Target, Handshake, Mail, Briefcase,
   ChevronDown, ChevronUp, Clock, Globe, Play, UserPlus, CheckCircle, DollarSign,
-  TrendingUp,
+  TrendingUp, Download,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ function GeneralTab() {
   const { data: channels } = useChannels();
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
   const [activePreset, setActivePreset] = useState<"safe" | "normal" | "aggressive">("normal");
   const [aiTeam, setAiTeam] = useState<any>(null);
   const [aiTeamLoading, setAiTeamLoading] = useState(true);
@@ -1550,6 +1551,29 @@ function GeneralTab() {
   const connectedCount = channels?.length ?? 0;
   const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
 
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const res = await fetch("/api/user/export", { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "creatoros-export.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Data exported successfully" });
+    } catch {
+      toast({ title: "Export failed", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -1735,16 +1759,28 @@ function GeneralTab() {
                 <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-user-email">{user.email}</p>
               )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="button-sign-out"
-              onClick={() => logout()}
-              disabled={isLoggingOut}
-            >
-              <LogOut className="h-3.5 w-3.5 mr-1.5" />
-              {isLoggingOut ? t("auth.signOut") : t("auth.signOut")}
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-export-data"
+                onClick={handleExportData}
+                disabled={isExporting}
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                {isExporting ? "Exporting..." : "Export Data"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-sign-out"
+                onClick={() => logout()}
+                disabled={isLoggingOut}
+              >
+                <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                {isLoggingOut ? t("auth.signOut") : t("auth.signOut")}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

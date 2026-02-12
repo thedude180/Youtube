@@ -205,12 +205,15 @@ export default function CommandPalette({
 
   return (
     <div
+      role="dialog"
+      aria-label="Command palette"
       className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[20vh]"
       onClick={close}
       onKeyDown={handleKeyDown}
     >
       <div
         data-testid="panel-command-palette"
+        aria-modal="true"
         className="w-full max-w-lg rounded-md border border-border bg-card shadow-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -219,13 +222,14 @@ export default function CommandPalette({
           <Input
             ref={inputRef}
             data-testid="input-command-search"
+            aria-label="Search commands"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search commands..."
             className="border-0 focus-visible:ring-0 shadow-none"
           />
         </div>
-        <div ref={listRef} className="max-h-72 overflow-y-auto p-2">
+        <div ref={listRef} role="listbox" className="max-h-72 overflow-y-auto p-2">
           {flatItems.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-6">No results found.</p>
           )}
@@ -238,6 +242,8 @@ export default function CommandPalette({
                 return (
                   <button
                     key={`${item.group}-${item.label}`}
+                    role="option"
+                    aria-selected={currentIndex === selectedIndex}
                     data-testid={`command-item-${toKebab(item.label)}`}
                     data-index={currentIndex}
                     className={`w-full flex items-center gap-3 px-2 py-1.5 rounded-md text-sm cursor-pointer ${
