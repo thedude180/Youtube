@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth/index";
 import { storage } from "./storage";
@@ -8,6 +8,13 @@ import { ADMIN_EMAIL, PLATFORM_INFO, type Platform } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
 import { sql, eq, and } from "drizzle-orm";
+
+type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
+function asyncHandler(fn: AsyncHandler) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
 import {
   generateVideoMetadata,
   analyzeChannelGrowth,
@@ -2733,14 +2740,6 @@ export async function registerRoutes(
     if (!userId) {
       userId = sessionUserId;
     }
-
-    console.log("YouTube callback:", {
-      hasCode: !!code,
-      hasState: !!state,
-      resolvedUserId: userId || "(none)",
-      sessionYtUser: (req.session as any)?.youtubeOAuthUserId || "(none)",
-      isAuth: req.isAuthenticated(),
-    });
 
     if (!code) {
       return res.redirect("/channels?error=" + encodeURIComponent("Missing authorization code from Google. Please try connecting again."));
@@ -8277,7 +8276,6 @@ export async function registerRoutes(
           .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
       }
 
-      console.log(`[OAuth ${platform}] Successfully connected for user ${userId}: ${channelName} (streamKey: ${streamKey ? "yes" : "no"}, rtmpUrl: ${rtmpUrl ? "yes" : "no"})`);
       res.redirect(`/channels?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
     } catch (error: any) {
       console.error(`[OAuth ${platform}] Callback error:`, error);
@@ -12968,6 +12966,53 @@ export async function registerRoutes(
       const result = await storage.getLatestAiResult(userId, req.params.featureKey);
       res.json(result || null);
     } catch (err) { res.status(500).json({ error: "Failed to get latest result" }); }
+  });
+
+  app.get("/robots.txt", (_req, res) => {
+    res.type("text/plain").send(
+      "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /settings\nSitemap: https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app") + "/sitemap.xml"
+    );
+  });
+
+  app.get("/sitemap.xml", (_req, res) => {
+    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app");
+    const urls = ["/", "/pricing", "/content", "/stream", "/money"].map(
+      (path) => `<url><loc>${domain}${path}</loc><changefreq>weekly</changefreq></url>`
+    ).join("");
+    res.type("application/xml").send(
+      '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + '</urlset>'
+    );
+  });
+
+  app.get("/api/user/export", async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const [user, channels, videos, goals, deals, expenses, aiResults] = await Promise.all([
+        storage.getUser(userId),
+        storage.getChannels(userId),
+        storage.getVideos(userId),
+        storage.getGoals(userId),
+        storage.getDeals(userId),
+        storage.getExpenses(userId),
+        storage.getAiResults(userId),
+      ]);
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        user: user ? { id: user.id, role: user.role, tier: user.tier, contentNiche: user.contentNiche } : null,
+        channels,
+        videos,
+        goals,
+        deals,
+        expenses,
+        aiResults,
+      };
+      res.setHeader("Content-Disposition", "attachment; filename=creatoros-export.json");
+      res.setHeader("Content-Type", "application/json");
+      res.json(exportData);
+    } catch (e: any) {
+      res.status(500).json({ error: "Export failed" });
+    }
   });
 
   initAutomationEngine().catch(console.error);

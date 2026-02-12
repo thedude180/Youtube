@@ -2,8 +2,9 @@ import { Switch, Route, Redirect, useLocation } from "wouter";
 import { Component, lazy, Suspense, useEffect, useRef, useState, useCallback } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { queryClient, apiRequest } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/Sidebar";
@@ -125,10 +126,59 @@ function AdvancedToggle() {
   );
 }
 
+function GlobalErrorToast() {
+  const { toast } = useToast();
+  useEffect(() => {
+    const showError = (err: Error) => {
+      if (err?.message?.startsWith("401:")) return;
+      toast({
+        title: "Something went wrong",
+        description: "A request failed. Please try again.",
+        variant: "destructive",
+      });
+    };
+    const unsubQuery = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === "updated" && event.query.state.status === "error") {
+        showError(event.query.state.error as Error);
+      }
+    });
+    const unsubMutation = queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === "updated" && event.mutation.state.status === "error") {
+        showError(event.mutation.state.error as Error);
+      }
+    });
+    return () => { unsubQuery(); unsubMutation(); };
+  }, [toast]);
+  return null;
+}
+
+function KeyboardShortcuts() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (!e.altKey) return;
+      switch (e.key) {
+        case "1": e.preventDefault(); setLocation("/"); break;
+        case "2": e.preventDefault(); setLocation("/content"); break;
+        case "3": e.preventDefault(); setLocation("/stream"); break;
+        case "4": e.preventDefault(); setLocation("/money"); break;
+        case "5": e.preventDefault(); setLocation("/settings"); break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [setLocation]);
+  return null;
+}
+
 function AuthenticatedApp() {
   return (
     <SidebarProvider style={sidebarStyle}>
       <div className="flex min-h-screen w-full bg-background text-foreground font-sans">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-3 focus:bg-primary focus:text-primary-foreground" data-testid="link-skip-to-content">
+          Skip to main content
+        </a>
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-4 border-b border-border bg-background shrink-0">
@@ -149,7 +199,7 @@ function AuthenticatedApp() {
               <NotificationBell />
             </div>
           </header>
-          <main className="flex-1 overflow-auto">
+          <main id="main-content" className="flex-1 overflow-auto">
             <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
               <Router />
             </Suspense>
@@ -159,6 +209,8 @@ function AuthenticatedApp() {
       <Suspense fallback={null}>
         <FloatingChat />
       </Suspense>
+      <GlobalErrorToast />
+      <KeyboardShortcuts />
     </SidebarProvider>
   );
 }

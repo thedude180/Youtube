@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
+import compression from "compression";
+import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -90,20 +92,46 @@ app.post(
   }
 );
 
+app.use(compression());
+
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    reportOnly: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com", "https://apis.google.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com", "wss:", "ws:"],
+      frameSrc: ["'self'", "https://accounts.google.com", "https://js.stripe.com", "https://checkout.stripe.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  permissionsPolicy: {
+    features: {
+      camera: ["'none'"],
+      microphone: ["'self'"],
+      geolocation: ["'none'"],
+      payment: ["'self'"],
+    },
+  },
 }));
 
 app.use(
   express.json({
+    limit: "2mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 const API_TIMEOUT_MS = 30_000;
 const AI_TIMEOUT_MS = 60_000;
@@ -124,37 +152,35 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
 });
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
+type LogLevel = "info" | "warn" | "error" | "debug";
 
-  console.log(`${formattedTime} [${source}] ${message}`);
+export function log(message: string, source = "express", level: LogLevel = "info") {
+  const ts = new Date().toISOString();
+  const prefix = `${ts} [${level.toUpperCase()}] [${source}]`;
+  if (level === "error") {
+    console.error(`${prefix} ${message}`);
+  } else if (level === "warn") {
+    console.warn(`${prefix} ${message}`);
+  } else {
+    console.log(`${prefix} ${message}`);
+  }
 }
 
-app.use((req, res, next) => {
+app.use((req: any, res, next) => {
+  req.requestId = crypto.randomUUID().slice(0, 8);
+  res.setHeader("X-Request-Id", req.requestId);
+  next();
+});
+
+app.use((req: any, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+      const level: LogLevel = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+      log(`${req.method} ${path} ${res.statusCode} ${duration}ms [${req.requestId}]`, "http", level);
     }
   });
 
