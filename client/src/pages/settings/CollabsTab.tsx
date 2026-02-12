@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Plus, Users, Link as LinkIcon, ChevronDown, ChevronUp } from "lucide-react";
 
+type AIResponse = Record<string, unknown> | null;
+
 const COLLAB_STATUSES = ["suggested", "contacted", "active", "completed", "declined"] as const;
 const collabStatusColors: Record<string, string> = {
   suggested: "bg-blue-500/10 text-blue-500",
@@ -28,23 +30,23 @@ function CollabsTab() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [aiCollab, setAiCollab] = useState<any>(null);
+  const [aiCollab, setAiCollab] = useState<AIResponse>(null);
   const [aiCollabLoading, setAiCollabLoading] = useState(true);
 
   const [showCollabSuiteAI, setShowCollabSuiteAI] = useState(false);
-  const [aiCollabMatch, setAiCollabMatch] = useState<any>(null);
+  const [aiCollabMatch, setAiCollabMatch] = useState<AIResponse>(null);
   const [aiCollabMatchLoading, setAiCollabMatchLoading] = useState(false);
-  const [aiCollabContract, setAiCollabContract] = useState<any>(null);
+  const [aiCollabContract, setAiCollabContract] = useState<AIResponse>(null);
   const [aiCollabContractLoading, setAiCollabContractLoading] = useState(false);
-  const [aiCollabRev, setAiCollabRev] = useState<any>(null);
+  const [aiCollabRev, setAiCollabRev] = useState<AIResponse>(null);
   const [aiCollabRevLoading, setAiCollabRevLoading] = useState(false);
-  const [aiCollabIdeas, setAiCollabIdeas] = useState<any>(null);
+  const [aiCollabIdeas, setAiCollabIdeas] = useState<AIResponse>(null);
   const [aiCollabIdeasLoading, setAiCollabIdeasLoading] = useState(false);
-  const [aiCollabOutreach, setAiCollabOutreach] = useState<any>(null);
+  const [aiCollabOutreach, setAiCollabOutreach] = useState<AIResponse>(null);
   const [aiCollabOutreachLoading, setAiCollabOutreachLoading] = useState(false);
-  const [aiCollabPerf, setAiCollabPerf] = useState<any>(null);
+  const [aiCollabPerf, setAiCollabPerf] = useState<AIResponse>(null);
   const [aiCollabPerfLoading, setAiCollabPerfLoading] = useState(false);
-  const [aiNetworkEff, setAiNetworkEff] = useState<any>(null);
+  const [aiNetworkEff, setAiNetworkEff] = useState<AIResponse>(null);
   const [aiNetworkEffLoading, setAiNetworkEffLoading] = useState(false);
 
   useEffect(() => {

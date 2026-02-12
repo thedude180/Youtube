@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Plus, Palette, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 
+type AIResponse = Record<string, unknown> | null;
+
 const ASSET_TYPES = ["color", "logo", "font", "tone"] as const;
 const assetTypeLabels: Record<string, string> = { color: "Colors", logo: "Logos", font: "Fonts", tone: "Tone of Voice" };
 const assetTypeIcons: Record<string, string> = { color: "bg-gradient-to-br from-purple-500 to-pink-500", logo: "bg-gradient-to-br from-blue-500 to-cyan-500", font: "bg-gradient-to-br from-amber-500 to-orange-500", tone: "bg-gradient-to-br from-emerald-500 to-teal-500" };
@@ -24,29 +26,29 @@ function BrandTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [assetType, setAssetType] = useState<string>("color");
   const [filterType, setFilterType] = useState<string | null>(null);
-  const [aiBrand, setAiBrand] = useState<any>(null);
+  const [aiBrand, setAiBrand] = useState<AIResponse>(null);
   const [aiBrandLoading, setAiBrandLoading] = useState(true);
 
   const [showPersonalBrandAI, setShowPersonalBrandAI] = useState(false);
-  const [aiBrandAudit, setAiBrandAudit] = useState<any>(null);
+  const [aiBrandAudit, setAiBrandAudit] = useState<AIResponse>(null);
   const [aiBrandAuditLoading, setAiBrandAuditLoading] = useState(false);
-  const [aiElevPitch, setAiElevPitch] = useState<any>(null);
+  const [aiElevPitch, setAiElevPitch] = useState<AIResponse>(null);
   const [aiElevPitchLoading, setAiElevPitchLoading] = useState(false);
-  const [aiPressKitPB, setAiPressKitPB] = useState<any>(null);
+  const [aiPressKitPB, setAiPressKitPB] = useState<AIResponse>(null);
   const [aiPressKitPBLoading, setAiPressKitPBLoading] = useState(false);
-  const [aiSpeakerBio, setAiSpeakerBio] = useState<any>(null);
+  const [aiSpeakerBio, setAiSpeakerBio] = useState<AIResponse>(null);
   const [aiSpeakerBioLoading, setAiSpeakerBioLoading] = useState(false);
-  const [aiLIProfile, setAiLIProfile] = useState<any>(null);
+  const [aiLIProfile, setAiLIProfile] = useState<AIResponse>(null);
   const [aiLIProfileLoading, setAiLIProfileLoading] = useState(false);
-  const [aiPersWeb, setAiPersWeb] = useState<any>(null);
+  const [aiPersWeb, setAiPersWeb] = useState<AIResponse>(null);
   const [aiPersWebLoading, setAiPersWebLoading] = useState(false);
-  const [aiThoughtLead, setAiThoughtLead] = useState<any>(null);
+  const [aiThoughtLead, setAiThoughtLead] = useState<AIResponse>(null);
   const [aiThoughtLeadLoading, setAiThoughtLeadLoading] = useState(false);
-  const [aiPubSpeak, setAiPubSpeak] = useState<any>(null);
+  const [aiPubSpeak, setAiPubSpeak] = useState<AIResponse>(null);
   const [aiPubSpeakLoading, setAiPubSpeakLoading] = useState(false);
-  const [aiNetworkStrat, setAiNetworkStrat] = useState<any>(null);
+  const [aiNetworkStrat, setAiNetworkStrat] = useState<AIResponse>(null);
   const [aiNetworkStratLoading, setAiNetworkStratLoading] = useState(false);
-  const [aiRepMonitor, setAiRepMonitor] = useState<any>(null);
+  const [aiRepMonitor, setAiRepMonitor] = useState<AIResponse>(null);
   const [aiRepMonitorLoading, setAiRepMonitorLoading] = useState(false);
 
   useEffect(() => {

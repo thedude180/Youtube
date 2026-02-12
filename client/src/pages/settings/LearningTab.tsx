@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 
+type AIResponse = Record<string, unknown> | null;
+
 const insightCategoryColors: Record<string, string> = {
   content: "bg-purple-500/10 text-purple-500",
   audience: "bg-blue-500/10 text-blue-500",
@@ -17,7 +19,7 @@ const insightCategoryColors: Record<string, string> = {
 };
 
 function LearningTab() {
-  const [aiAcademy, setAiAcademy] = useState<any>(null);
+  const [aiAcademy, setAiAcademy] = useState<AIResponse>(null);
   const [aiAcademyLoading, setAiAcademyLoading] = useState(true);
 
   useEffect(() => {
@@ -33,21 +35,21 @@ function LearningTab() {
   }, []);
 
   const [showEducationAI, setShowEducationAI] = useState(false);
-  const [aiSkillAssess, setAiSkillAssess] = useState<any>(null);
+  const [aiSkillAssess, setAiSkillAssess] = useState<AIResponse>(null);
   const [aiSkillAssessLoading, setAiSkillAssessLoading] = useState(false);
-  const [aiLearnPath, setAiLearnPath] = useState<any>(null);
+  const [aiLearnPath, setAiLearnPath] = useState<AIResponse>(null);
   const [aiLearnPathLoading, setAiLearnPathLoading] = useState(false);
-  const [aiCerts, setAiCerts] = useState<any>(null);
+  const [aiCerts, setAiCerts] = useState<AIResponse>(null);
   const [aiCertsLoading, setAiCertsLoading] = useState(false);
-  const [aiBooks, setAiBooks] = useState<any>(null);
+  const [aiBooks, setAiBooks] = useState<AIResponse>(null);
   const [aiBooksLoading, setAiBooksLoading] = useState(false);
-  const [aiToolTut, setAiToolTut] = useState<any>(null);
+  const [aiToolTut, setAiToolTut] = useState<AIResponse>(null);
   const [aiToolTutLoading, setAiToolTutLoading] = useState(false);
-  const [aiIndustryReport, setAiIndustryReport] = useState<any>(null);
+  const [aiIndustryReport, setAiIndustryReport] = useState<AIResponse>(null);
   const [aiIndustryReportLoading, setAiIndustryReportLoading] = useState(false);
-  const [aiCaseStudy, setAiCaseStudy] = useState<any>(null);
+  const [aiCaseStudy, setAiCaseStudy] = useState<AIResponse>(null);
   const [aiCaseStudyLoading, setAiCaseStudyLoading] = useState(false);
-  const [aiPortfolio, setAiPortfolio] = useState<any>(null);
+  const [aiPortfolio, setAiPortfolio] = useState<AIResponse>(null);
   const [aiPortfolioLoading, setAiPortfolioLoading] = useState(false);
 
   useEffect(() => {

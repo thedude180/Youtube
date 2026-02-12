@@ -6,10 +6,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, CheckCircle2, Filter } from "lucide-react";
+import { Bell, CheckCircle2, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+
+type CategoryType = "alert" | "ai" | "update" | "system";
+type FilterType = "all" | "alert" | "update" | "ai";
+
+function deriveCategory(notification: Notification): CategoryType {
+  const title = (notification.title || "").toLowerCase();
+  const type = (notification.type || "").toLowerCase();
+
+  if (/alert|warning|error|critical|urgent/.test(title) || /alert|warning|error|critical/.test(type)) {
+    return "alert";
+  }
+  if (/ai|agent|automation|optimize|generated|analysis/.test(title) || /ai|agent|automation/.test(type)) {
+    return "ai";
+  }
+  if (/system|maintenance|downtime/.test(title) || /system/.test(type)) {
+    return "system";
+  }
+  return "update";
+}
+
+const categoryConfig: Record<CategoryType, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  alert: { label: "Alert", variant: "destructive" },
+  ai: { label: "AI", variant: "default" },
+  update: { label: "Update", variant: "secondary" },
+  system: { label: "System", variant: "outline" },
+};
 
 const severityColor = (severity: string) => {
   switch (severity) {
@@ -19,17 +45,6 @@ const severityColor = (severity: string) => {
     default: return "bg-blue-400";
   }
 };
-
-const severityLabel = (severity: string) => {
-  switch (severity) {
-    case "critical": return "Urgent";
-    case "warning": return "Warning";
-    case "success": return "Success";
-    default: return "Info";
-  }
-};
-
-type FilterType = "all" | "critical" | "warning" | "success" | "info";
 
 export default function Notifications() {
   usePageTitle("Notifications");
@@ -47,7 +62,7 @@ export default function Notifications() {
 
   const markAllReadMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/notifications/read-all");
+      await apiRequest("POST", "/api/automation/notifications/read-all");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
@@ -56,15 +71,25 @@ export default function Notifications() {
 
   const filtered = (notifications || []).filter(n => {
     if (filter === "all") return true;
-    return n.severity === filter;
+    return deriveCategory(n) === filter;
   });
 
   const unreadCount = (notifications || []).filter(n => !n.read).length;
+
+  const filterOptions: { key: FilterType; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "alert", label: "Alerts" },
+    { key: "update", label: "Updates" },
+    { key: "ai", label: "AI Results" },
+  ];
 
   if (isLoading) {
     return (
       <div className="p-6 lg:p-8 space-y-6 max-w-3xl mx-auto">
         <Skeleton className="h-8 w-48" />
+        <div className="flex gap-2">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-9 w-20 rounded-md" />)}
+        </div>
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-20 rounded-md" />)}
         </div>
@@ -85,7 +110,7 @@ export default function Notifications() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Notifications</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-unread-count">
             {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
           </p>
         </div>
@@ -97,71 +122,91 @@ export default function Notifications() {
             disabled={markAllReadMutation.isPending}
             data-testid="button-mark-all-read"
           >
-            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+            {markAllReadMutation.isPending ? (
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+            )}
             Mark All Read
           </Button>
         )}
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {(["all", "critical", "warning", "success", "info"] as FilterType[]).map(f => (
+      <div className="flex gap-2 flex-wrap" data-testid="container-filters">
+        {filterOptions.map(f => (
           <Button
-            key={f}
+            key={f.key}
             size="sm"
-            variant={filter === f ? "default" : "outline"}
-            onClick={() => setFilter(f)}
-            className="capitalize toggle-elevate"
-            data-testid={`filter-${f}`}
+            variant={filter === f.key ? "default" : "outline"}
+            onClick={() => setFilter(f.key)}
+            className="toggle-elevate"
+            data-testid={`filter-${f.key}`}
           >
-            {f === "all" ? "All" : severityLabel(f)}
+            {f.label}
           </Button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+        <Card data-testid="container-empty-state">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Bell className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              {filter === "all" ? "No notifications yet" : `No ${severityLabel(filter).toLowerCase()} notifications`}
+            <p className="text-sm font-medium mb-1">
+              {filter === "all" ? "No notifications yet" : `No ${filterOptions.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {filter === "all" ? "When something happens, you'll see it here." : "Try selecting a different filter."}
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(n => (
-            <Card
-              key={n.id}
-              data-testid={`card-notification-${n.id}`}
-              className={`hover-elevate overflow-visible ${!n.read ? 'border-primary/20' : ''}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className={`h-2.5 w-2.5 rounded-full mt-1.5 shrink-0 ${severityColor(n.severity)}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <p className={`text-sm font-medium ${!n.read ? '' : 'text-muted-foreground'}`}>{n.title}</p>
-                      {!n.read && <Badge variant="default" className="text-[10px]">New</Badge>}
+        <div className="space-y-2" data-testid="container-notifications">
+          {filtered.map(n => {
+            const category = deriveCategory(n);
+            const config = categoryConfig[category];
+            return (
+              <Card
+                key={n.id}
+                data-testid={`card-notification-${n.id}`}
+                className={`hover-elevate overflow-visible transition-opacity ${n.read ? 'opacity-60' : ''}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`h-2.5 w-2.5 rounded-full mt-1.5 shrink-0 ${severityColor(n.severity)}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p
+                          className={`text-sm ${!n.read ? 'font-semibold' : 'font-normal text-muted-foreground'}`}
+                          data-testid={`text-notification-title-${n.id}`}
+                        >
+                          {n.title}
+                        </p>
+                        <Badge variant={config.variant} className="text-[10px]" data-testid={`badge-category-${n.id}`}>
+                          {config.label}
+                        </Badge>
+                        {!n.read && <Badge variant="default" className="text-[10px]" data-testid={`badge-new-${n.id}`}>New</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground" data-testid={`text-notification-message-${n.id}`}>{n.message}</p>
+                      <span className="text-xs text-muted-foreground mt-1 block" data-testid={`text-notification-time-${n.id}`}>
+                        {n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true }) : ""}
+                      </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{n.message}</p>
-                    <span className="text-xs text-muted-foreground mt-1 block">
-                      {n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true }) : ""}
-                    </span>
+                    {!n.read && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => markReadMutation.mutate(n.id)}
+                        disabled={markReadMutation.isPending}
+                        data-testid={`button-mark-read-${n.id}`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
-                  {!n.read && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => markReadMutation.mutate(n.id)}
-                      data-testid={`button-mark-read-${n.id}`}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

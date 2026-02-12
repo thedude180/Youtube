@@ -1,5 +1,5 @@
 
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -390,7 +390,9 @@ export const channels = pgTable("channels", {
   }>().default({ preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 }),
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("channels_user_id_idx").on(table.userId),
+}));
 
 export const videos = pgTable("videos", {
   id: serial("id").primaryKey(),
@@ -442,7 +444,9 @@ export const videos = pgTable("videos", {
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  channelIdIdx: index("videos_channel_id_idx").on(table.channelId),
+}));
 
 export const streamDestinations = pgTable("stream_destinations", {
   id: serial("id").primaryKey(),
@@ -459,7 +463,9 @@ export const streamDestinations = pgTable("stream_destinations", {
     autoStart: boolean;
   }>().default({ resolution: "1080p", bitrate: "6000", fps: 60, autoStart: true }),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("stream_destinations_user_id_idx").on(table.userId),
+}));
 
 export const streams = pgTable("streams", {
   id: serial("id").primaryKey(),
@@ -490,7 +496,9 @@ export const streams = pgTable("streams", {
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("streams_user_id_idx").on(table.userId),
+}));
 
 export const thumbnails = pgTable("thumbnails", {
   id: serial("id").primaryKey(),
@@ -542,7 +550,9 @@ export const contentInsights = pgTable("content_insights", {
   }>().notNull(),
   status: text("status").default("active"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  channelIdIdx: index("content_insights_channel_id_idx").on(table.channelId),
+}));
 
 export const complianceRecords = pgTable("compliance_records", {
   id: serial("id").primaryKey(),
@@ -558,7 +568,9 @@ export const complianceRecords = pgTable("compliance_records", {
   }>().notNull(),
   resolvedAt: timestamp("resolved_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  channelIdIdx: index("compliance_records_channel_id_idx").on(table.channelId),
+}));
 
 export const growthStrategies = pgTable("growth_strategies", {
   id: serial("id").primaryKey(),
@@ -572,7 +584,9 @@ export const growthStrategies = pgTable("growth_strategies", {
   status: text("status").default("pending"),
   aiGenerated: boolean("ai_generated").default(true),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  channelIdIdx: index("growth_strategies_channel_id_idx").on(table.channelId),
+}));
 
 export const aiAgentActivities = pgTable("ai_agent_activities", {
   id: serial("id").primaryKey(),
@@ -590,7 +604,9 @@ export const aiAgentActivities = pgTable("ai_agent_activities", {
     delayMs?: number;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("ai_agent_activities_user_id_idx").on(table.userId),
+}));
 
 export const automationRules = pgTable("automation_rules", {
   id: serial("id").primaryKey(),
@@ -606,7 +622,9 @@ export const automationRules = pgTable("automation_rules", {
   lastTriggeredAt: timestamp("last_triggered_at"),
   triggerCount: integer("trigger_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("automation_rules_user_id_idx").on(table.userId),
+}));
 
 export const scheduleItems = pgTable("schedule_items", {
   id: serial("id").primaryKey(),
@@ -627,7 +645,9 @@ export const scheduleItems = pgTable("schedule_items", {
   }>(),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("schedule_items_user_id_idx").on(table.userId),
+}));
 
 export const revenueRecords = pgTable("revenue_records", {
   id: serial("id").primaryKey(),
@@ -649,7 +669,9 @@ export const revenueRecords = pgTable("revenue_records", {
   }>(),
   recordedAt: timestamp("recorded_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("revenue_records_user_id_idx").on(table.userId),
+}));
 
 export const communityPosts = pgTable("community_posts", {
   id: serial("id").primaryKey(),
@@ -668,7 +690,9 @@ export const communityPosts = pgTable("community_posts", {
   }>(),
   aiGenerated: boolean("ai_generated").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("community_posts_user_id_idx").on(table.userId),
+}));
 
 // === NEW TABLES ===
 
@@ -689,7 +713,9 @@ export const notifications = pgTable("notifications", {
     platformAffected?: string;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("notifications_user_id_idx").on(table.userId),
+}));
 
 export const abTests = pgTable("ab_tests", {
   id: serial("id").primaryKey(),
@@ -896,7 +922,9 @@ export const sponsorshipDeals = pgTable("sponsorship_deals", {
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("sponsorship_deals_user_id_idx").on(table.userId),
+}));
 
 export const platformHealth = pgTable("platform_health", {
   id: serial("id").primaryKey(),
@@ -1018,7 +1046,9 @@ export const expenseRecords = pgTable("expense_records", {
   }>(),
   expenseDate: timestamp("expense_date").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("expense_records_user_id_idx").on(table.userId),
+}));
 
 export const businessVentures = pgTable("business_ventures", {
   id: serial("id").primaryKey(),
@@ -1039,7 +1069,9 @@ export const businessVentures = pgTable("business_ventures", {
     kpis?: Record<string, number>;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("business_ventures_user_id_idx").on(table.userId),
+}));
 
 export const businessGoals = pgTable("business_goals", {
   id: serial("id").primaryKey(),
@@ -1053,7 +1085,9 @@ export const businessGoals = pgTable("business_goals", {
   status: text("status").notNull().default("active"),
   aiRecommendations: jsonb("ai_recommendations").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("business_goals_user_id_idx").on(table.userId),
+}));
 
 export const taxEstimates = pgTable("tax_estimates", {
   id: serial("id").primaryKey(),
@@ -1095,7 +1129,9 @@ export const brandAssets = pgTable("brand_assets", {
     variations?: Record<string, string>;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("brand_assets_user_id_idx").on(table.userId),
+}));
 
 export const wellnessChecks = pgTable("wellness_checks", {
   id: serial("id").primaryKey(),
@@ -1107,7 +1143,9 @@ export const wellnessChecks = pgTable("wellness_checks", {
   notes: text("notes"),
   aiRecommendation: text("ai_recommendation"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("wellness_checks_user_id_idx").on(table.userId),
+}));
 
 export const competitorTracks = pgTable("competitor_tracks", {
   id: serial("id").primaryKey(),
@@ -1122,7 +1160,9 @@ export const competitorTracks = pgTable("competitor_tracks", {
   opportunities: jsonb("opportunities").$type<string[]>(),
   lastAnalyzedAt: timestamp("last_analyzed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("competitor_tracks_user_id_idx").on(table.userId),
+}));
 
 export const knowledgeMilestones = pgTable("knowledge_milestones", {
   id: serial("id").primaryKey(),
@@ -1706,7 +1746,9 @@ export const linkedChannels = pgTable("linked_channels", {
   lastVerifiedAt: timestamp("last_verified_at"),
   followerCount: integer("follower_count"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("linked_channels_user_id_idx").on(table.userId),
+}));
 
 // === INSERT SCHEMAS ===
 export const insertChannelSchema = createInsertSchema(channels).omit({ id: true, createdAt: true, lastSyncAt: true });
@@ -1988,7 +2030,10 @@ export const aiResults = pgTable("ai_results", {
   featureKey: text("feature_key").notNull(),
   result: jsonb("result").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("ai_results_user_id_idx").on(table.userId),
+  featureKeyIdx: index("ai_results_feature_key_idx").on(table.featureKey),
+}));
 
 export const cronJobs = pgTable("cron_jobs", {
   id: serial("id").primaryKey(),
@@ -1999,7 +2044,9 @@ export const cronJobs = pgTable("cron_jobs", {
   lastRun: timestamp("last_run"),
   nextRun: timestamp("next_run"),
   status: text("status").notNull().default("idle"),
-});
+}, (table) => ({
+  userIdIdx: index("cron_jobs_user_id_idx").on(table.userId),
+}));
 
 export const aiChains = pgTable("ai_chains", {
   id: serial("id").primaryKey(),

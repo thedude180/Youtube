@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { Sparkles, Plus, Eye, Trash2, Link as LinkIcon, ChevronDown, ChevronUp } from "lucide-react";
 
+type AIResponse = Record<string, unknown> | null;
+
 function CompetitorsTab() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -64,33 +66,33 @@ function CompetitorsTab() {
   const avgViewsAll = competitors?.length ? Math.round(competitors.reduce((sum: number, c: any) => sum + (c.avgViews || 0), 0) / competitors.length) : 0;
 
   const [showCompetitorAI, setShowCompetitorAI] = useState(false);
-  const [aiCompAnalysis, setAiCompAnalysis] = useState<any>(null);
+  const [aiCompAnalysis, setAiCompAnalysis] = useState<AIResponse>(null);
   const [aiCompAnalysisLoading, setAiCompAnalysisLoading] = useState(false);
-  const [aiCompContent, setAiCompContent] = useState<any>(null);
+  const [aiCompContent, setAiCompContent] = useState<AIResponse>(null);
   const [aiCompContentLoading, setAiCompContentLoading] = useState(false);
-  const [aiCompPricing, setAiCompPricing] = useState<any>(null);
+  const [aiCompPricing, setAiCompPricing] = useState<AIResponse>(null);
   const [aiCompPricingLoading, setAiCompPricingLoading] = useState(false);
-  const [aiMktShare, setAiMktShare] = useState<any>(null);
+  const [aiMktShare, setAiMktShare] = useState<AIResponse>(null);
   const [aiMktShareLoading, setAiMktShareLoading] = useState(false);
-  const [aiSWOT, setAiSWOT] = useState<any>(null);
+  const [aiSWOT, setAiSWOT] = useState<AIResponse>(null);
   const [aiSWOTLoading, setAiSWOTLoading] = useState(false);
-  const [aiCompSocial, setAiCompSocial] = useState<any>(null);
+  const [aiCompSocial, setAiCompSocial] = useState<AIResponse>(null);
   const [aiCompSocialLoading, setAiCompSocialLoading] = useState(false);
-  const [aiBlueOcean, setAiBlueOcean] = useState<any>(null);
+  const [aiBlueOcean, setAiBlueOcean] = useState<AIResponse>(null);
   const [aiBlueOceanLoading, setAiBlueOceanLoading] = useState(false);
 
   const [showCompIntelAI2, setShowCompIntelAI2] = useState(false);
-  const [aiCompTracker, setAiCompTracker] = useState<any>(null);
+  const [aiCompTracker, setAiCompTracker] = useState<AIResponse>(null);
   const [aiCompTrackerLoading, setAiCompTrackerLoading] = useState(false);
-  const [aiCompGapAnalysis, setAiCompGapAnalysis] = useState<any>(null);
+  const [aiCompGapAnalysis, setAiCompGapAnalysis] = useState<AIResponse>(null);
   const [aiCompGapAnalysisLoading, setAiCompGapAnalysisLoading] = useState(false);
-  const [aiCompAlerts, setAiCompAlerts] = useState<any>(null);
+  const [aiCompAlerts, setAiCompAlerts] = useState<AIResponse>(null);
   const [aiCompAlertsLoading, setAiCompAlertsLoading] = useState(false);
-  const [aiCompContentScorer, setAiCompContentScorer] = useState<any>(null);
+  const [aiCompContentScorer, setAiCompContentScorer] = useState<AIResponse>(null);
   const [aiCompContentScorerLoading, setAiCompContentScorerLoading] = useState(false);
-  const [aiNicheDomMap, setAiNicheDomMap] = useState<any>(null);
+  const [aiNicheDomMap, setAiNicheDomMap] = useState<AIResponse>(null);
   const [aiNicheDomMapLoading, setAiNicheDomMapLoading] = useState(false);
-  const [aiCompAudienceOverlap, setAiCompAudienceOverlap] = useState<any>(null);
+  const [aiCompAudienceOverlap, setAiCompAudienceOverlap] = useState<AIResponse>(null);
   const [aiCompAudienceOverlapLoading, setAiCompAudienceOverlapLoading] = useState(false);
 
   useEffect(() => {

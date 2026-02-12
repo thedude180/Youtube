@@ -1,0 +1,515 @@
+import type { Express } from "express";
+import { z } from "zod";
+import { api } from "@shared/routes";
+import { storage } from "../storage";
+import { requireAuth, getUserId } from "./helpers";
+import {
+  generateStreamSeo,
+  postStreamOptimize,
+  generateThumbnailPrompt,
+  runComplianceCheck,
+} from "../ai-engine";
+import { pivotToStream, resumeFromStream } from "../backlog-engine";
+
+export function registerStreamRoutes(app: Express) {
+  app.get(api.streamDestinations.list.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const destinations = await storage.getStreamDestinations(userId);
+    res.json(destinations);
+  });
+
+  app.post(api.streamDestinations.create.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      platform: z.string().min(1),
+      label: z.string().min(1),
+      rtmpUrl: z.string().optional(),
+      streamKey: z.string().optional(),
+      enabled: z.boolean().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+    try {
+      const input = { ...parsed.data, userId: userId };
+      const dest = await storage.createStreamDestination(input);
+      await storage.createAuditLog({
+        userId,
+        action: "stream_destination_created",
+        target: dest.label,
+        details: { platform: dest.platform },
+        riskLevel: "low",
+      });
+      res.status(201).json(dest);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.streamDestinations.update.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      platform: z.string().min(1).optional(),
+      label: z.string().min(1).optional(),
+      rtmpUrl: z.string().optional(),
+      streamKey: z.string().optional(),
+      enabled: z.boolean().optional(),
+    }).passthrough();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+    const dest = await storage.updateStreamDestination(Number(req.params.id), parsed.data);
+    res.json(dest);
+  });
+
+  app.delete(api.streamDestinations.delete.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteStreamDestination(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
+  app.get(api.streams.list.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const streamList = await storage.getStreams(userId);
+    res.json(streamList);
+  });
+
+  app.get(api.streams.get.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    res.json(stream);
+  });
+
+  app.post(api.streams.create.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      category: z.string().optional(),
+      platforms: z.array(z.string()).optional(),
+      scheduledFor: z.string().optional().nullable(),
+      status: z.string().optional(),
+    }).passthrough();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+    try {
+      const input = { ...parsed.data, userId: userId };
+      const stream = await storage.createStream(input);
+      await storage.createAuditLog({
+        userId,
+        action: "stream_created",
+        target: stream.title,
+        details: { platforms: stream.platforms },
+        riskLevel: "low",
+      });
+      res.status(201).json(stream);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.streams.update.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      title: z.string().min(1).optional(),
+      description: z.string().optional(),
+      category: z.string().optional(),
+      platforms: z.array(z.string()).optional(),
+      status: z.string().optional(),
+      scheduledFor: z.string().optional().nullable(),
+    }).passthrough();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+    const stream = await storage.updateStream(Number(req.params.id), parsed.data);
+    res.json(stream);
+  });
+
+  app.post(api.streams.optimizeSeo.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+
+    try {
+      const seoData = await generateStreamSeo({
+        title: stream.title,
+        description: stream.description,
+        category: stream.category,
+        platforms: (stream.platforms as string[]) || ['youtube'],
+      });
+
+      await storage.updateStream(stream.id, { seoData });
+      await storage.createAuditLog({
+        userId,
+        action: "stream_seo_optimized",
+        target: stream.title,
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, seoData });
+    } catch (error: any) {
+      console.error("Stream SEO error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.post(api.streams.goLive.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (stream.status !== 'planned') {
+      return res.status(400).json({ message: `Cannot go live from '${stream.status}' status. Stream must be in 'planned' state.` });
+    }
+
+    try {
+      const updatedStream = await storage.updateStream(stream.id, {
+        status: 'live',
+        startedAt: new Date(),
+      });
+
+      pivotToStream(userId, stream.id).catch(err =>
+        console.error("Stream pivot error:", err)
+      );
+
+      const tasks = [
+        { name: "seo_optimization", status: "pending" },
+        { name: "thumbnail_generation", status: "pending" },
+        { name: "compliance_check", status: "pending" },
+      ];
+
+      const job = await storage.createJob({
+        type: "stream_automation",
+        status: "processing",
+        priority: 1,
+        payload: { streamId: stream.id, platforms: stream.platforms, tasks },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "stream_went_live",
+        target: stream.title,
+        details: { platforms: stream.platforms, automationJobId: job.id },
+        riskLevel: "low",
+      });
+
+      (async () => {
+        const platforms = (stream.platforms as string[]) || ['youtube'];
+
+        const persistTasks = async (progress: number) => {
+          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms: stream.platforms, tasks });
+          await storage.updateJobProgress(job.id, progress);
+        };
+
+        try {
+          tasks[0].status = "running";
+          await persistTasks(10);
+
+          const seoData = await generateStreamSeo({
+            title: stream.title,
+            description: stream.description,
+            category: stream.category,
+            platforms,
+          });
+
+          await storage.updateStream(stream.id, { seoData });
+          tasks[0].status = "completed";
+          (tasks[0] as any).result = { platformCount: Object.keys(seoData.platformSpecific || {}).length };
+          await persistTasks(40);
+        } catch (err) {
+          console.error("Auto SEO failed:", err);
+          tasks[0].status = "failed";
+          (tasks[0] as any).error = (err as Error).message;
+          await persistTasks(40);
+        }
+
+        try {
+          tasks[1].status = "running";
+          await persistTasks(45);
+
+          const thumbData = await generateThumbnailPrompt({
+            title: stream.title,
+            description: stream.description,
+            platform: platforms[0],
+            type: 'stream',
+          });
+
+          await storage.createThumbnail({
+            videoId: null,
+            streamId: stream.id,
+            prompt: thumbData.prompt,
+            platform: platforms[0],
+            resolution: '1280x720',
+            status: 'generated',
+          });
+          tasks[1].status = "completed";
+          (tasks[1] as any).result = { style: thumbData.style };
+          await persistTasks(70);
+        } catch (err) {
+          console.error("Auto thumbnail failed:", err);
+          tasks[1].status = "failed";
+          (tasks[1] as any).error = (err as Error).message;
+          await persistTasks(70);
+        }
+
+        try {
+          tasks[2].status = "running";
+          await persistTasks(75);
+
+          const recentLogs = await storage.getAuditLogs();
+          const userLogs = recentLogs
+            .filter(l => l.userId === userId)
+            .slice(0, 20)
+            .map(l => ({ action: l.action, target: l.target, details: l.details }));
+
+          const complianceResult = await runComplianceCheck({
+            channelName: stream.title,
+            platform: platforms[0],
+            recentActions: userLogs,
+            settings: { streamType: 'live', category: stream.category },
+          });
+
+          tasks[2].status = "completed";
+          (tasks[2] as any).result = { overallScore: complianceResult.overallScore, checks: complianceResult.checks?.length || 0 };
+          await persistTasks(100);
+        } catch (err) {
+          console.error("Auto compliance failed:", err);
+          tasks[2].status = "failed";
+          (tasks[2] as any).error = (err as Error).message;
+          await persistTasks(100);
+        }
+
+        const anyFailed = tasks.some((t: any) => t.status === 'failed');
+        await storage.updateJobStatus(
+          job.id,
+          anyFailed ? 'completed_with_errors' : 'completed',
+          { tasks, completedAt: new Date().toISOString() }
+        );
+      })();
+
+      res.json({ success: true, stream: updatedStream, automationJobId: job.id });
+    } catch (error: any) {
+      console.error("Go live error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.post(api.streams.endStream.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (stream.status !== 'live') {
+      return res.status(400).json({ message: `Cannot end stream from '${stream.status}' status. Stream must be 'live'.` });
+    }
+
+    try {
+      const endedAt = new Date();
+      const updatedStream = await storage.updateStream(stream.id, {
+        status: 'ended',
+        endedAt,
+      });
+
+      resumeFromStream(userId, stream.id).catch(err =>
+        console.error("Stream resume error:", err)
+      );
+
+      const tasks = [
+        { name: "vod_optimization", status: "pending" },
+        { name: "vod_thumbnail", status: "pending" },
+      ];
+
+      const job = await storage.createJob({
+        type: "post_stream_automation",
+        status: "processing",
+        priority: 1,
+        payload: { streamId: stream.id, platforms: stream.platforms, tasks },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "stream_ended",
+        target: stream.title,
+        details: {
+          platforms: stream.platforms,
+          postProcessJobId: job.id,
+          duration: stream.startedAt ? Math.round((endedAt.getTime() - new Date(stream.startedAt).getTime()) / 1000) : null,
+        },
+        riskLevel: "low",
+      });
+
+      (async () => {
+        const platforms = (stream.platforms as string[]) || ['youtube'];
+        const duration = stream.startedAt
+          ? (endedAt.getTime() - new Date(stream.startedAt).getTime()) / 1000
+          : undefined;
+
+        const persistTasks = async (progress: number) => {
+          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms: stream.platforms, tasks });
+          await storage.updateJobProgress(job.id, progress);
+        };
+
+        try {
+          tasks[0].status = "running";
+          await persistTasks(10);
+
+          const result = await postStreamOptimize({
+            title: stream.title,
+            description: stream.description,
+            category: stream.category,
+            platforms,
+            duration,
+            stats: stream.streamStats,
+          });
+
+          await storage.updateStream(stream.id, {
+            status: 'processed',
+            seoData: {
+              ...(stream.seoData as any),
+              vodOptimization: result,
+            },
+          });
+
+          tasks[0].status = "completed";
+          (tasks[0] as any).result = { seoScore: result.seoScore };
+          await persistTasks(60);
+        } catch (err) {
+          console.error("Auto VOD optimization failed:", err);
+          tasks[0].status = "failed";
+          (tasks[0] as any).error = (err as Error).message;
+          await persistTasks(60);
+        }
+
+        try {
+          tasks[1].status = "running";
+          await persistTasks(65);
+
+          const thumbData = await generateThumbnailPrompt({
+            title: stream.title,
+            description: stream.description,
+            platform: platforms[0],
+            type: 'vod',
+          });
+
+          await storage.createThumbnail({
+            videoId: null,
+            streamId: stream.id,
+            prompt: thumbData.prompt,
+            platform: platforms[0],
+            resolution: '1280x720',
+            status: 'generated',
+          });
+
+          tasks[1].status = "completed";
+          (tasks[1] as any).result = { style: thumbData.style };
+          await persistTasks(100);
+        } catch (err) {
+          console.error("Auto VOD thumbnail failed:", err);
+          tasks[1].status = "failed";
+          (tasks[1] as any).error = (err as Error).message;
+          await persistTasks(100);
+        }
+
+        const anyFailed = tasks.some((t: any) => t.status === 'failed');
+        await storage.updateJobStatus(
+          job.id,
+          anyFailed ? 'completed_with_errors' : 'completed',
+          { tasks, completedAt: new Date().toISOString() }
+        );
+      })();
+
+      res.json({ success: true, stream: updatedStream, postProcessJobId: job.id });
+    } catch (error: any) {
+      console.error("End stream error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.get(api.streams.automationStatus.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const streamId = Number(req.params.id);
+    const allJobs = await storage.getJobs();
+    const streamJobs = allJobs.filter(j =>
+      (j.type === 'stream_automation' || j.type === 'post_stream_automation') &&
+      (j.payload as any)?.streamId === streamId
+    );
+
+    const tasks = streamJobs.flatMap(j => {
+      const payload = j.payload as any;
+      return (payload?.tasks || []).map((t: any) => ({
+        ...t,
+        jobId: j.id,
+        jobType: j.type,
+        jobStatus: j.status,
+        progress: j.progress,
+      }));
+    });
+
+    res.json({ jobs: streamJobs, tasks });
+  });
+
+  app.post(api.streams.postStreamProcess.path, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const stream = await storage.getStream(Number(req.params.id));
+    if (!stream) return res.status(404).json({ message: "Stream not found" });
+
+    try {
+      const duration = stream.startedAt && stream.endedAt
+        ? (stream.endedAt.getTime() - stream.startedAt.getTime()) / 1000
+        : undefined;
+
+      const result = await postStreamOptimize({
+        title: stream.title,
+        description: stream.description,
+        category: stream.category,
+        platforms: (stream.platforms as string[]) || ['youtube'],
+        duration,
+        stats: stream.streamStats,
+      });
+
+      await storage.updateStream(stream.id, {
+        status: 'processed',
+        seoData: {
+          ...(stream.seoData as any),
+          vodOptimization: result,
+        },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "post_stream_processed",
+        target: stream.title,
+        details: { seoScore: result.seoScore },
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, result });
+    } catch (error: any) {
+      console.error("Post-stream processing error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+}

@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { storage } from "./storage";
+import { sendSSEEvent } from "./routes/events";
 import { db } from "./db";
 import { cronJobs, aiResults, aiChains, webhookEvents, notifications, channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -478,6 +479,7 @@ export async function processWebhookEvent(userId: string, source: string, eventT
     message: `Received ${eventType} event from ${source}`,
     severity: "info",
   });
+  sendSSEEvent(userId, "notification", { type: "new" });
 
   await storage.markWebhookProcessed(event.id);
   return event;
@@ -498,6 +500,7 @@ export async function runChainManually(chainId: number) {
     message: `All ${(chain.steps as any[]).length} steps executed successfully`,
     severity: "info",
   });
+  sendSSEEvent(chain.userId, "notification", { type: "new" });
 
   return { chainId, steps: results };
 }
@@ -519,6 +522,7 @@ export async function evaluateRules(userId: string, eventType: string, _eventDat
         message: `Auto-action executed for ${eventType}`,
         severity: "info",
       });
+      sendSSEEvent(userId, "notification", { type: "new" });
     }
   }
 
