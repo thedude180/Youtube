@@ -755,18 +755,15 @@ export async function registerPlatformRoutes(app: Express) {
 
     pendingOAuthStates.set(state, { userId, platform, timestamp: Date.now(), codeVerifier });
 
+    const scopeDelimiter = config.usesClientKey ? "," : " ";
     const params = new URLSearchParams({
-      client_id: clientId,
+      [config.usesClientKey ? "client_key" : "client_id"]: clientId,
       redirect_uri: getOAuthRedirectUri(platform),
       response_type: config.responseType || "code",
-      scope: config.scopes.join(" "),
+      scope: config.scopes.join(scopeDelimiter),
       state,
       ...(config.additionalAuthParams || {}),
     });
-
-    if (config.usesClientKey) {
-      params.set("client_key", clientId);
-    }
     if (config.requiresPKCE && codeVerifier) {
       if (config.pkceChallengeMethod === "S256") {
         const hash = crypto.createHash("sha256").update(codeVerifier).digest();
