@@ -36,6 +36,7 @@ import {
   SiX,
   SiDiscord,
   SiGoogle,
+  SiMeta,
 } from "react-icons/si";
 import type { IconType } from "react-icons";
 
