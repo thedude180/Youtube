@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction, MutationCache, QueryCache } from "@tanstack/react-query";
+import { offlineStore } from './offline-store';
 
 let sessionExpiredHandled = false;
 
@@ -27,15 +28,26 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: data ? { "Content-Type": "application/json" } : {},
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
 
-  await throwIfResNotOk(res);
-  return res;
+    await throwIfResNotOk(res);
+    return res;
+  } catch (err) {
+    if (!navigator.onLine && method !== 'GET') {
+      await offlineStore.queueAction({ method, url, body: data });
+      return new Response(JSON.stringify({ queued: true, offline: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    throw err;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -44,7 +56,15 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+
+    if (!navigator.onLine) {
+      const cached = await offlineStore.getCachedResponse(url);
+      if (cached !== null) return cached as T;
+      return null as T;
+    }
+
+    const res = await fetch(url, {
       credentials: "include",
     });
 
@@ -53,7 +73,11 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    const data = await res.json();
+
+    offlineStore.cacheResponse(url, data, 120).catch(() => {});
+
+    return data;
   };
 
 export const queryClient = new QueryClient({

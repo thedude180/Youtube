@@ -162,6 +162,10 @@ async function preloadData() {
   }
 
   await offlineStore.setSetting('lastPreload', new Date().toISOString());
+
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage('preloadOffline');
+  }
 }
 
 export const offlineEngine = {

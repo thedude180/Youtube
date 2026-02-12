@@ -9,7 +9,34 @@
   "scope": "/",
   "orientation": "any",
   "categories": ["productivity", "entertainment"],
-  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Home",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Content Library",
+      "short_name": "Content",
+      "url": "/content"
+    },
+    {
+      "name": "Go Live",
+      "short_name": "Stream",
+      "url": "/stream"
+    },
+    {
+      "name": "Revenue",
+      "short_name": "Money",
+      "url": "/money"
+    },
+    {
+      "name": "Settings",
+      "short_name": "Settings",
+      "url": "/settings"
+    }
+  ],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }

@@ -1,14 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useOfflineStatus } from '@/hooks/use-offline';
-import { offlineEngine } from '@/lib/offline-engine';
-import { Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Download, Check, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Wifi, WifiOff, RefreshCw, Download, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Badge } from '@/components/ui/badge';
 
 export function OfflineStatusBadge() {
   const { status, queueCount, syncing, lastSync, syncNow, preload } = useOfflineStatus();
+  const { toast } = useToast();
   const [showDetails, setShowDetails] = useState(false);
+  const [preloading, setPreloading] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const prevStatus = useRef(status);
+
+  useEffect(() => {
+    if (prevStatus.current !== status) {
+      if (status === 'offline' && prevStatus.current === 'online') {
+        toast({ title: 'You are offline', description: 'Changes will be saved and synced when you reconnect.', variant: 'destructive' });
+      } else if (status === 'online' && prevStatus.current !== 'online') {
+        toast({ title: 'Back online', description: 'Syncing your changes now.' });
+      }
+      prevStatus.current = status;
+    }
+  }, [status, toast]);
+
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showDetails) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (panelRef.current && !panelRef.current.contains(target)) {
+        setShowDetails(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showDetails]);
+
+  const handlePreload = useCallback(async () => {
+    setPreloading(true);
+    try {
+      await preload();
+      toast({ title: 'Offline prep complete', description: 'Your data is ready for offline use.' });
+    } catch {
+    } finally {
+      setPreloading(false);
+    }
+  }, [preload, toast]);
 
   const statusConfig = {
     online: { icon: Wifi, label: 'Online', color: 'text-emerald-500' },
@@ -35,6 +75,7 @@ export function OfflineStatusBadge() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            ref={buttonRef}
             size="icon"
             variant="ghost"
             onClick={() => setShowDetails(!showDetails)}
@@ -52,7 +93,7 @@ export function OfflineStatusBadge() {
       </Tooltip>
 
       {showDetails && (
-        <div className="absolute right-0 top-full mt-2 w-64 rounded-md border border-border bg-card p-3 shadow-lg z-50" data-testid="panel-offline-details">
+        <div ref={panelRef} className="absolute right-0 top-full mt-2 w-64 rounded-md border border-border bg-card p-3 shadow-lg z-50" data-testid="panel-offline-details">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
               <Icon className={`h-4 w-4 ${cfg.color}`} />
@@ -90,12 +131,16 @@ export function OfflineStatusBadge() {
               size="sm"
               variant="outline"
               className="flex-1 text-xs"
-              onClick={preload}
-              disabled={status === 'offline'}
+              onClick={handlePreload}
+              disabled={status === 'offline' || preloading}
               data-testid="button-preload"
             >
-              <Download className="h-3 w-3 mr-1" />
-              Prep Offline
+              {preloading ? (
+                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Download className="h-3 w-3 mr-1" />
+              )}
+              {preloading ? 'Prepping...' : 'Prep Offline'}
             </Button>
           </div>
         </div>
