@@ -35,17 +35,7 @@ import {
   SiTiktok,
   SiX,
   SiDiscord,
-  SiSnapchat,
-  SiPinterest,
   SiReddit,
-  SiBluesky,
-  SiMastodon,
-  SiPatreon,
-  SiKofi,
-  SiSubstack,
-  SiSpotify,
-  SiApplepodcasts,
-  SiWhatsapp,
   SiGoogle,
 } from "react-icons/si";
 import type { IconType } from "react-icons";
@@ -56,22 +46,8 @@ const PLATFORM_ICONS: Record<string, IconType> = {
   kick: SiTwitch,
   tiktok: SiTiktok,
   x: SiX,
-  rumble: SiYoutube,
   discord: SiDiscord,
-  snapchat: SiSnapchat,
-  pinterest: SiPinterest,
   reddit: SiReddit,
-  bluesky: SiBluesky,
-  mastodon: SiMastodon,
-  patreon: SiPatreon,
-  kofi: SiKofi,
-  substack: SiSubstack,
-  spotify: SiSpotify,
-  applepodcasts: SiApplepodcasts,
-  dlive: SiTwitch,
-  trovo: SiTwitch,
-  youtubeshorts: SiYoutube,
-  whatsapp: SiWhatsapp,
 };
 
 const GROUP_ICONS: Record<string, IconType> = {
@@ -101,33 +77,18 @@ const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
   {
     key: "live-streaming",
     label: "Live Streaming",
-    platforms: ["twitch", "kick", "tiktok", "x", "rumble", "dlive", "trovo"],
+    platforms: ["twitch", "kick", "tiktok", "x"],
   },
   {
     key: "social-media",
-    label: "Social Media",
-    platforms: ["discord", "snapchat", "pinterest", "reddit", "bluesky", "mastodon"],
-  },
-  {
-    key: "creator-economy",
-    label: "Creator Economy",
-    platforms: ["patreon", "kofi", "substack"],
-  },
-  {
-    key: "podcasts",
-    label: "Podcasts",
-    platforms: ["spotify", "applepodcasts"],
-  },
-  {
-    key: "messaging",
-    label: "Messaging",
-    platforms: ["whatsapp"],
+    label: "Social & Community",
+    platforms: ["discord", "reddit"],
   },
 ];
 
 const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<string, string> }> = {
   gaming: {
-    platforms: ["youtube", "twitch", "kick", "discord", "tiktok", "x", "reddit", "rumble"],
+    platforms: ["youtube", "twitch", "kick", "discord", "tiktok", "x", "reddit"],
     reasons: {
       youtube: "Upload gameplay, reviews, walkthroughs + Shorts for highlights",
       twitch: "Live stream your gameplay to a gaming audience",
@@ -136,105 +97,97 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
       tiktok: "Short gaming clips go viral fast here",
       x: "Share updates and engage with the gaming community",
       reddit: "Post in gaming subreddits to build your audience",
-      rumble: "Reach audiences looking for alternative platforms",
     },
   },
   tech: {
-    platforms: ["youtube", "x", "reddit", "discord", "tiktok", "mastodon", "substack"],
+    platforms: ["youtube", "x", "reddit", "discord", "tiktok"],
     reasons: {
       youtube: "In-depth reviews, tutorials, unboxings + Shorts for quick tips",
       x: "Share tech news and engage with the tech community",
       reddit: "Post in tech subreddits for targeted audiences",
       discord: "Build a tech community for discussions",
       tiktok: "Short tech tips and quick reviews",
-      mastodon: "Tech-savvy audience loves open platforms",
-      substack: "Write detailed tech analysis and newsletters",
     },
   },
   cooking: {
-    platforms: ["youtube", "tiktok", "pinterest", "snapchat"],
+    platforms: ["youtube", "tiktok", "reddit", "discord"],
     reasons: {
       youtube: "Full recipe videos, cooking shows + Shorts for quick hacks",
       tiktok: "Short recipe videos are hugely popular here",
-      pinterest: "Recipe pins drive massive long-term traffic",
-      snapchat: "Behind-the-scenes cooking content",
+      reddit: "Share in cooking subreddits for targeted traffic",
+      discord: "Build a food community",
     },
   },
   vlogging: {
-    platforms: ["youtube", "tiktok", "snapchat", "x"],
+    platforms: ["youtube", "tiktok", "x", "discord"],
     reasons: {
       youtube: "Long-form vlogs, day-in-the-life + Shorts for quick updates",
       tiktok: "Short lifestyle clips and trends",
-      snapchat: "Behind-the-scenes and real-time updates",
       x: "Daily updates and engage with your community",
+      discord: "Build a community of loyal followers",
     },
   },
   education: {
-    platforms: ["youtube", "tiktok", "reddit", "substack", "x"],
+    platforms: ["youtube", "tiktok", "reddit", "x"],
     reasons: {
       youtube: "In-depth tutorials, courses, explainers + Shorts for quick tips",
       tiktok: "EduTok is a massive category — short lessons",
       reddit: "Share knowledge in topic-specific subreddits",
-      substack: "Write detailed educational newsletters",
       x: "Share quick insights and engage learners",
     },
   },
   fitness: {
-    platforms: ["youtube", "tiktok", "snapchat"],
+    platforms: ["youtube", "tiktok", "reddit", "discord"],
     reasons: {
       youtube: "Full workout videos, fitness programs + Shorts for exercise demos",
       tiktok: "Short workout clips and fitness trends",
-      snapchat: "Daily workout updates and progress",
+      reddit: "Fitness subreddits drive highly engaged viewers",
+      discord: "Build a fitness accountability community",
     },
   },
   music: {
-    platforms: ["youtube", "spotify", "applepodcasts", "tiktok", "x", "discord"],
+    platforms: ["youtube", "tiktok", "x", "discord"],
     reasons: {
       youtube: "Music videos, covers, performances + Shorts for song previews",
-      spotify: "Distribute your music and grow listeners",
-      applepodcasts: "Music commentary and behind-the-scenes",
       tiktok: "Short song clips can go viral and drive streams",
       x: "Announce releases and engage with fans",
       discord: "Build a fan community",
     },
   },
   business: {
-    platforms: ["youtube", "x", "substack", "tiktok", "reddit"],
+    platforms: ["youtube", "x", "tiktok", "reddit"],
     reasons: {
       youtube: "Business advice, case studies, interviews + Shorts for quick tips",
       x: "Business commentary and networking",
-      substack: "In-depth business newsletters and analysis",
       tiktok: "FinTok and BizTok are growing fast",
       reddit: "Engage in business and finance communities",
     },
   },
   beauty: {
-    platforms: ["youtube", "tiktok", "pinterest", "snapchat"],
+    platforms: ["youtube", "tiktok", "reddit", "discord"],
     reasons: {
       youtube: "Tutorials, hauls, product reviews + Shorts for quick tips",
       tiktok: "GRWM and beauty trends go viral here",
-      pinterest: "Beauty inspiration pins drive search traffic",
-      snapchat: "Daily beauty routines and behind-the-scenes",
+      reddit: "Beauty subreddits drive targeted traffic",
+      discord: "Build a beauty community",
     },
   },
   comedy: {
-    platforms: ["youtube", "tiktok", "x", "snapchat", "reddit"],
+    platforms: ["youtube", "tiktok", "x", "reddit"],
     reasons: {
       youtube: "Sketches, commentary, long-form comedy + Shorts for skits",
       tiktok: "Comedy clips and trends are the core of TikTok",
       x: "Comedic commentary and engaging with fans",
-      snapchat: "Behind-the-scenes and daily humor",
       reddit: "Share content in comedy and meme subreddits",
     },
   },
   art: {
-    platforms: ["youtube", "tiktok", "pinterest", "discord", "bluesky"],
+    platforms: ["youtube", "tiktok", "discord", "reddit"],
     reasons: {
       youtube: "Time-lapses, tutorials, process videos + Shorts for quick clips",
       tiktok: "Art process videos get huge engagement",
-      pinterest: "Art pins drive traffic and commissions",
       discord: "Build an art community and share work",
-      bluesky: "Growing art community on this platform",
+      reddit: "Art subreddits showcase your work to new fans",
     },
   },
   other: {

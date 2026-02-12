@@ -1,3 +1,4 @@
+
 import { Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -7,17 +8,7 @@ import {
   SiTiktok,
   SiX,
   SiDiscord,
-  SiSnapchat,
-  SiPinterest,
   SiReddit,
-  SiBluesky,
-  SiMastodon,
-  SiPatreon,
-  SiKofi,
-  SiSubstack,
-  SiSpotify,
-  SiApplepodcasts,
-  SiWhatsapp,
 } from "react-icons/si";
 
 const PLATFORM_ICONS: Record<string, any> = {
@@ -26,22 +17,8 @@ const PLATFORM_ICONS: Record<string, any> = {
   kick: SiKick,
   tiktok: SiTiktok,
   x: SiX,
-  rumble: Globe,
   discord: SiDiscord,
-  snapchat: SiSnapchat,
-  pinterest: SiPinterest,
   reddit: SiReddit,
-  bluesky: SiBluesky,
-  mastodon: SiMastodon,
-  patreon: SiPatreon,
-  kofi: SiKofi,
-  substack: SiSubstack,
-  spotify: SiSpotify,
-  applepodcasts: SiApplepodcasts,
-  dlive: Globe,
-  trovo: Globe,
-  youtubeshorts: SiYoutube,
-  whatsapp: SiWhatsapp,
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -50,22 +27,8 @@ const PLATFORM_LABELS: Record<string, string> = {
   kick: "Kick",
   tiktok: "TikTok",
   x: "X",
-  rumble: "Rumble",
   discord: "Discord",
-  snapchat: "Snapchat",
-  pinterest: "Pinterest",
   reddit: "Reddit",
-  bluesky: "Bluesky",
-  mastodon: "Mastodon",
-  patreon: "Patreon",
-  kofi: "Ko-fi",
-  substack: "Substack",
-  spotify: "Spotify",
-  applepodcasts: "Apple Podcasts",
-  dlive: "DLive",
-  trovo: "Trovo",
-  youtubeshorts: "YT Shorts",
-  whatsapp: "WhatsApp",
 };
 
 export function PlatformIcon({ platform, className = "h-4 w-4" }: { platform: string; className?: string }) {
