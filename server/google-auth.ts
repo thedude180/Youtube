@@ -4,6 +4,9 @@ import type { Express } from "express";
 import { google } from "googleapis";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { storage } from "./storage";
+import { db } from "./db";
+import { linkedChannels } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 export function setupGoogleAuth(app: Express) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -229,12 +232,11 @@ async function autoConnectYouTubeFromGoogle(
       channel = await storage.createChannel(channelData);
     }
 
-    const linkedChannels = await storage.getLinkedChannelsByUser(userId);
-    const existingLinkedYt = linkedChannels.find(
-      (c) => c.platform === "youtube"
+    const existingLinked = await db.select().from(linkedChannels).where(
+      and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, "youtube"))
     );
-    if (!existingLinkedYt) {
-      await storage.createLinkedChannel({
+    if (existingLinked.length === 0) {
+      await db.insert(linkedChannels).values({
         userId,
         platform: "youtube",
         username: ytChannel.snippet?.title || "YouTube",
