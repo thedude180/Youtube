@@ -30,6 +30,27 @@ import {
   EyeOff,
 } from "lucide-react";
 
+const LOGIN_GROUPS: { id: string; label: string; color: string; provider: string; platforms: Platform[]; description: string }[] = [
+  {
+    id: "google",
+    label: "Google Account",
+    color: "#4285F4",
+    provider: "google",
+    platforms: ["youtube"],
+    description: "YouTube + Shorts — one Google login connects everything",
+  },
+  {
+    id: "meta",
+    label: "Meta Account",
+    color: "#0082FB",
+    provider: "meta",
+    platforms: ["facebook", "instagram", "threads"],
+    description: "Facebook, Instagram & Threads — all connected with one Meta login",
+  },
+];
+
+const GROUPED_PLATFORMS = new Set(LOGIN_GROUPS.flatMap(g => g.platforms));
+
 const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
   {
     key: "priority",
@@ -390,6 +411,121 @@ function PlatformCard({
   );
 }
 
+function GroupedPlatformCard({
+  group,
+  connectedPlatforms,
+  onConnect,
+  isPending,
+  oauthStatus,
+}: {
+  group: typeof LOGIN_GROUPS[number];
+  connectedPlatforms: Set<string>;
+  onConnect: (platform: Platform, value: string, skipGrouping?: boolean) => void;
+  isPending: boolean;
+  oauthStatus?: Record<string, { hasOAuth: boolean; configured: boolean }>;
+}) {
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const { toast } = useToast();
+
+  const allConnected = group.platforms.every(p => connectedPlatforms.has(p));
+  const someConnected = group.platforms.some(p => connectedPlatforms.has(p));
+  const connectedCount = group.platforms.filter(p => connectedPlatforms.has(p)).length;
+
+  const handleGroupLogin = async () => {
+    setOauthLoading(true);
+    try {
+      if (group.id === "google") {
+        const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed");
+        const { url } = await res.json();
+        window.location.href = url;
+      } else {
+        const unconnected = group.platforms.filter(p => !connectedPlatforms.has(p));
+        for (const platform of unconnected) {
+          onConnect(platform, group.label, true);
+        }
+        setOauthLoading(false);
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setOauthLoading(false);
+    }
+  };
+
+  return (
+    <Card
+      data-testid={`card-group-${group.id}`}
+      className={allConnected ? "border-emerald-500/30" : someConnected ? "border-primary/20" : ""}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div
+            className="h-9 w-9 rounded-md flex items-center justify-center shrink-0 text-white font-bold text-sm"
+            style={{ backgroundColor: group.color }}
+          >
+            {group.label.charAt(0)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold">{group.label}</span>
+              {allConnected && (
+                <Badge variant="secondary" className="text-xs">
+                  <Check className="w-3 h-3 mr-1" />
+                  All Connected
+                </Badge>
+              )}
+              {someConnected && !allConnected && (
+                <Badge variant="secondary" className="text-xs">
+                  {connectedCount}/{group.platforms.length} Connected
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{group.description}</p>
+
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {group.platforms.map(p => {
+                const info = PLATFORM_INFO[p];
+                const connected = connectedPlatforms.has(p);
+                return (
+                  <Badge
+                    key={p}
+                    variant={connected ? "default" : "outline"}
+                    className="text-xs"
+                    data-testid={`badge-group-platform-${p}`}
+                  >
+                    {connected && <Check className="w-3 h-3 mr-1" />}
+                    {info.label}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {!allConnected && (
+          <div className="mt-3">
+            <Button
+              data-testid={`button-group-login-${group.id}`}
+              onClick={handleGroupLogin}
+              disabled={oauthLoading || isPending}
+              className="w-full"
+              style={{ backgroundColor: group.color, borderColor: group.color, color: "#fff" }}
+            >
+              {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
+              {oauthLoading
+                ? "Connecting..."
+                : someConnected
+                ? `Connect Remaining with ${group.label}`
+                : `Login with ${group.label}`
+              }
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 const NICHE_OPTIONS = [
   { id: "gaming", label: "Gaming", icon: Target, description: "Let's plays, esports, game reviews" },
   { id: "tech", label: "Tech & Reviews", icon: Sparkles, description: "Gadgets, software, tutorials" },
@@ -416,7 +552,7 @@ function RecommendedPlatforms({
 }: {
   niche: string;
   connectedPlatforms: Set<string>;
-  onConnect: (platform: Platform, value: string) => void;
+  onConnect: (platform: Platform, value: string, skipGrouping?: boolean) => void;
   isPending: boolean;
   oauthStatus?: Record<string, { hasOAuth: boolean; configured: boolean }>;
   showAll: boolean;
@@ -425,7 +561,13 @@ function RecommendedPlatforms({
   const nicheData = NICHE_PLATFORMS[niche] || NICHE_PLATFORMS["other"];
   const recommendedList = nicheData.platforms;
   const allPlatformsList = PLATFORMS as readonly Platform[];
-  const remainingPlatforms = allPlatformsList.filter((p) => !recommendedList.includes(p));
+  const relevantGroups = LOGIN_GROUPS.filter(g =>
+    g.platforms.some(p => recommendedList.includes(p))
+  );
+  const individualRecommended = recommendedList.filter(p => !GROUPED_PLATFORMS.has(p));
+
+  const allGroups = LOGIN_GROUPS;
+  const allIndividual = allPlatformsList.filter(p => !GROUPED_PLATFORMS.has(p) && !recommendedList.includes(p) && p !== "youtubeshorts");
 
   return (
     <div className="space-y-6">
@@ -437,48 +579,35 @@ function RecommendedPlatforms({
           <h2 data-testid="text-recommended-heading" className="text-lg font-display font-bold">
             Recommended for {NICHE_OPTIONS.find((n) => n.id === niche)?.label || "Your Niche"}
           </h2>
-          <p className="text-sm text-muted-foreground">These platforms are the best fit for your content type</p>
+          <p className="text-sm text-muted-foreground">Connect accounts that share a login together — one tap connects all</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {recommendedList.map((platform) => {
-          const info = PLATFORM_INFO[platform];
-          const reason = nicheData.reasons[platform];
-          return (
-            <div key={platform} data-testid={`card-recommended-${platform}`}>
-              <PlatformCard
-                platform={platform}
-                info={info}
-                isConnected={connectedPlatforms.has(platform)}
-                onConnect={({ value }) => onConnect(platform, value)}
+      {relevantGroups.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Shared Login Accounts</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {relevantGroups.map(group => (
+              <GroupedPlatformCard
+                key={group.id}
+                group={group}
+                connectedPlatforms={connectedPlatforms}
+                onConnect={onConnect}
                 isPending={isPending}
                 oauthStatus={oauthStatus}
-                reason={reason}
               />
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <div className="pt-2">
-        <Button
-          data-testid="button-toggle-show-all"
-          variant="ghost"
-          size="sm"
-          onClick={onToggleShowAll}
-        >
-          {showAll ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-          {showAll ? "Hide Other Platforms" : `Show All ${PLATFORMS.length} Platforms`}
-        </Button>
-      </div>
-
-      {showAll && remainingPlatforms.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground">Other Platforms</h3>
+      {individualRecommended.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Individual Platforms</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {remainingPlatforms.map((platform) => {
+            {individualRecommended.map((platform) => {
               const info = PLATFORM_INFO[platform];
+              const reason = nicheData.reasons[platform];
               return (
                 <PlatformCard
                   key={platform}
@@ -488,10 +617,66 @@ function RecommendedPlatforms({
                   onConnect={({ value }) => onConnect(platform, value)}
                   isPending={isPending}
                   oauthStatus={oauthStatus}
+                  reason={reason}
                 />
               );
             })}
           </div>
+        </div>
+      )}
+
+      <div className="pt-2">
+        <Button
+          data-testid="button-toggle-show-all"
+          variant="ghost"
+          size="sm"
+          onClick={onToggleShowAll}
+        >
+          {showAll ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+          {showAll ? "Hide Other Platforms" : `Show All ${PLATFORMS.filter(p => p !== "youtubeshorts").length} Platforms`}
+        </Button>
+      </div>
+
+      {showAll && (
+        <div className="space-y-4">
+          {allGroups.filter(g => !relevantGroups.some(rg => rg.id === g.id)).length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Other Shared Login Accounts</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {allGroups.filter(g => !relevantGroups.some(rg => rg.id === g.id)).map(group => (
+                  <GroupedPlatformCard
+                    key={group.id}
+                    group={group}
+                    connectedPlatforms={connectedPlatforms}
+                    onConnect={onConnect}
+                    isPending={isPending}
+                    oauthStatus={oauthStatus}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {allIndividual.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Other Platforms</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {allIndividual.map((platform) => {
+                  const info = PLATFORM_INFO[platform];
+                  return (
+                    <PlatformCard
+                      key={platform}
+                      platform={platform}
+                      info={info}
+                      isConnected={connectedPlatforms.has(platform)}
+                      onConnect={({ value }) => onConnect(platform, value)}
+                      isPending={isPending}
+                      oauthStatus={oauthStatus}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -511,7 +696,7 @@ function NewCreatorFlow({
   onSkipToPlatforms: () => void;
   onNicheSelected: (niche: string) => void;
   connectedPlatforms: Set<string>;
-  onConnect: (platform: Platform, value: string) => void;
+  onConnect: (platform: Platform, value: string, skipGrouping?: boolean) => void;
   isPending: boolean;
   oauthStatus?: Record<string, { hasOAuth: boolean; configured: boolean }>;
 }) {
@@ -927,7 +1112,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
   );
   const connectedCount = connectedPlatforms.size;
 
-  const handleConnect = (platform: Platform, value: string) => {
+  const handleConnect = (platform: Platform, value: string, skipGrouping?: boolean) => {
     const info = PLATFORM_INFO[platform];
     const isStreamKey = info.category === "streaming" && info.rtmpUrlTemplate;
     const isApiKey = info.connectionType === "api_key";
@@ -944,6 +1129,20 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
         : undefined,
     });
 
+    if (!skipGrouping) {
+      const group = LOGIN_GROUPS.find(g => g.platforms.includes(platform));
+      if (group) {
+        group.platforms.forEach(siblingPlatform => {
+          if (siblingPlatform !== platform && !connectedPlatforms.has(siblingPlatform)) {
+            connectMutation.mutate({
+              platform: siblingPlatform,
+              username: value || group.label,
+              connectionType: "manual",
+            });
+          }
+        });
+      }
+    }
   };
 
   const finishOnboarding = async () => {
@@ -977,7 +1176,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
           </div>
           {step !== "choice" && (
             <Badge variant="secondary" data-testid="badge-progress">
-              {connectedCount} of {PLATFORMS.length} connected
+              {connectedCount} of {PLATFORMS.filter(p => p !== "youtubeshorts").length} connected
             </Badge>
           )}
         </div>
@@ -1092,7 +1291,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
                   </Button>
                 )}
                 <p className="text-sm text-muted-foreground" data-testid="text-progress-summary">
-                  {connectedCount} of {PLATFORMS.length} platforms connected
+                  {connectedCount} of {PLATFORMS.filter(p => p !== "youtubeshorts").length} platforms connected
                 </p>
                 <Button
                   data-testid="button-finish-setup"

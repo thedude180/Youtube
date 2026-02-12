@@ -47,6 +47,7 @@ The platform is built as a full-stack application with an Express.js backend and
     - **Settings**: General settings, brand management, collaboration tools, competitor analysis, legal protection, wellness, and an Automation Hub.
 - **Security & Performance**: Includes Helmet security headers, response compression, request body size limits, request IDs, structured logging, request timeouts, rate limiting, subscription tier enforcement, async error handling, global 401 handler, smart query caching, global error toasts, PWA service worker, keyboard shortcuts, accessibility, SEO, data export, and database indexing.
 - **OAuth Platform Integration**: Universal OAuth framework for 23 platforms, generic OAuth routes, status API, and automatic data fetching and token refresh for connected platforms.
+- **Login Groups**: Platforms sharing the same login provider are grouped in onboarding (Google → YouTube+Shorts, Meta → Facebook+Instagram+Threads). One login connects all platforms in the group. YouTube Shorts is deprecated as a separate platform — YouTube covers both.
 - **Subscription & Access System**: Multi-tier subscription model (free, youtube, starter, pro, ultimate) with role-based access, admin capabilities, and Stripe integration for payments.
 
 ## External Dependencies
