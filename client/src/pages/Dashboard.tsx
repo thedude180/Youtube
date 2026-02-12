@@ -1403,6 +1403,15 @@ export default function Dashboard() {
     return "bg-red-400";
   };
 
+  const activeGoals = useMemo(() =>
+    goals?.filter((g: any) => g.status === "active") || [],
+    [goals]
+  );
+  const activeVentures = useMemo(() =>
+    ventures?.filter((v: any) => v.status === "active") || [],
+    [ventures]
+  );
+
   if (statsLoading) return <DashboardSkeleton />;
 
   if (statsError) {
@@ -1428,15 +1437,6 @@ export default function Dashboard() {
       default: return "bg-blue-400";
     }
   };
-
-  const activeGoals = useMemo(() =>
-    goals?.filter((g: any) => g.status === "active") || [],
-    [goals]
-  );
-  const activeVentures = useMemo(() =>
-    ventures?.filter((v: any) => v.status === "active") || [],
-    [ventures]
-  );
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
