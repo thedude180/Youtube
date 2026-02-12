@@ -275,6 +275,7 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   updateUserRole(userId: string, role: string, tier: string): Promise<User>;
   updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string; tier?: string }): Promise<User>;
+  updateUserProfile(userId: string, info: { contentNiche?: string; onboardingCompleted?: Date }): Promise<User>;
 
   getAccessCodes(createdBy?: string): Promise<AccessCode[]>;
   getAccessCode(code: string): Promise<AccessCode | undefined>;
@@ -1215,6 +1216,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string; tier?: string }): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ ...info, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserProfile(userId: string, info: { contentNiche?: string; onboardingCompleted?: Date }): Promise<User> {
     const [updated] = await db.update(users)
       .set({ ...info, updatedAt: new Date() })
       .where(eq(users.id, userId))

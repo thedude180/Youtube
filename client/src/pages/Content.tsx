@@ -6,6 +6,7 @@ import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useVideos } from "@/hooks/use-videos";
 import { useChannels, useCreateChannel } from "@/hooks/use-channels";
 import { useAuth } from "@/hooks/use-auth";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ const CATEGORIES = [
 type CategoryFilter = typeof CATEGORIES[number]["key"];
 
 export default function Content() {
+  usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
   const validTabs: ContentTab[] = ["library", "channels", "calendar", "localization"];

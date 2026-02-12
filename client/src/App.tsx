@@ -1,6 +1,7 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { useEffect, useRef, useState, useCallback } from "react";
-import { queryClient } from "./lib/queryClient";
+import { Component, useEffect, useRef, useState, useCallback } from "react";
+import type { ErrorInfo, ReactNode } from "react";
+import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -177,23 +178,26 @@ function AppContent() {
       return;
     }
     if (user) {
-      const onboarded = localStorage.getItem(`creatoros_onboarded_${user.id}`);
-      if (!onboarded) {
-        setNeedsOnboarding(true);
-      } else {
+      const serverOnboarded = (user as any).onboardingCompleted;
+      const localOnboarded = localStorage.getItem(`creatoros_onboarded_${user.id}`);
+      if (serverOnboarded || localOnboarded) {
         setNeedsOnboarding(false);
         if (location === "/onboarding") {
           setLocation("/");
         }
+      } else {
+        setNeedsOnboarding(true);
       }
     }
   }, [isAuthenticated, user, location, setLocation]);
 
-  const completeOnboarding = useCallback(() => {
+  const completeOnboarding = useCallback(async () => {
     if (user?.id) {
       localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+      try {
+        await apiRequest("PATCH", "/api/user/profile", { onboardingCompleted: true });
+      } catch {}
     }
-    localStorage.setItem("creatoros_onboarded_fallback", "true");
     setNeedsOnboarding(false);
     setLocation("/");
   }, [user, setLocation]);
@@ -225,18 +229,60 @@ function AppContent() {
   return <AuthenticatedApp />;
 }
 
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("ErrorBoundary caught:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-6">
+          <div className="max-w-md w-full space-y-4 text-center">
+            <div className="h-12 w-12 rounded-md bg-destructive/10 flex items-center justify-center mx-auto">
+              <Zap className="h-6 w-6 text-destructive" />
+            </div>
+            <h1 className="text-xl font-bold">Something went wrong</h1>
+            <p className="text-sm text-muted-foreground">
+              An unexpected error occurred. Try refreshing the page.
+            </p>
+            <Button
+              data-testid="button-error-reload"
+              onClick={() => window.location.reload()}
+            >
+              Reload Page
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <ThemeProvider>
-          <AdvancedModeProvider>
-            <AppContent />
-          </AdvancedModeProvider>
-        </ThemeProvider>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ThemeProvider>
+            <AdvancedModeProvider>
+              <AppContent />
+            </AdvancedModeProvider>
+          </ThemeProvider>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

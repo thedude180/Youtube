@@ -962,12 +962,46 @@ function requireAuth(req: Request, res: Response): string | null {
   return getUserId(req);
 }
 
+const rateLimitMap = new Map<string, { count: number; reset: number }>();
+const RATE_LIMIT_WINDOW = 60_000;
+const RATE_LIMIT_MAX_AI = 30;
+const RATE_LIMIT_MAX_DEFAULT = 120;
+
+function rateLimit(windowMs: number, max: number) {
+  return (req: Request, res: Response, next: () => void) => {
+    const userId = getUserId(req) || req.ip || "anon";
+    const key = `${userId}:${req.path}`;
+    const now = Date.now();
+    let entry = rateLimitMap.get(key);
+    if (!entry || now > entry.reset) {
+      entry = { count: 0, reset: now + windowMs };
+      rateLimitMap.set(key, entry);
+    }
+    entry.count++;
+    if (entry.count > max) {
+      res.status(429).json({ error: "Too many requests. Please try again later." });
+      return;
+    }
+    next();
+  };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap) {
+    if (now > entry.reset) rateLimitMap.delete(key);
+  }
+}, 5 * 60_000);
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  app.use("/api/ai", rateLimit(RATE_LIMIT_WINDOW, RATE_LIMIT_MAX_AI));
+  app.use("/api", rateLimit(RATE_LIMIT_WINDOW, RATE_LIMIT_MAX_DEFAULT));
 
   function requireAdmin(req: Request, res: Response): string | null {
     const userId = requireAuth(req, res);
@@ -991,6 +1025,21 @@ export async function registerRoutes(
         user = await storage.updateUserRole(userId, "admin", "ultimate");
       }
       res.json(user || { id: userId, role: "user", tier: "free" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/user/profile", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { contentNiche, onboardingCompleted } = req.body;
+      const updateData: { contentNiche?: string; onboardingCompleted?: Date } = {};
+      if (contentNiche !== undefined) updateData.contentNiche = contentNiche;
+      if (onboardingCompleted) updateData.onboardingCompleted = new Date();
+      const user = await storage.updateUserProfile(userId, updateData);
+      res.json(user);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

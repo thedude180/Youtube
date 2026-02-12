@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 
 export default function StreamCenter() {
+  usePageTitle("Go Live");
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showAddDest, setShowAddDest] = useState(false);

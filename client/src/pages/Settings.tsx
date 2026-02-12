@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { Shield, Zap, AlertTriangle, Save, LogOut, Link2, Bell,
   Plus, Sparkles, CalendarDays, Heart, BookOpen, CheckCircle2,
   Link as LinkIcon, Users, Eye, Palette, Trash2, Target, Handshake, Mail, Briefcase,
@@ -9218,6 +9219,7 @@ function AdminUsersTab() {
 }
 
 export default function Settings() {
+  usePageTitle("Settings");
   const params = useParams<{ tab?: string }>();
   const [, setLocation] = useLocation();
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });

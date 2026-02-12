@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,7 @@ const TIER_INFO = [
 ];
 
 export default function Pricing() {
+  usePageTitle("Pricing");
   const { user } = useAuth();
   const { toast } = useToast();
   const [accessCode, setAccessCode] = useState("");
@@ -148,7 +150,7 @@ export default function Pricing() {
               >
                 {info.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge variant="default" className={info.tier === "ultimate" ? "bg-yellow-500 text-black" : ""}>
+                    <Badge variant="default" className={info.tier === "ultimate" ? "bg-yellow-500 text-yellow-950" : ""}>
                       {info.badge}
                     </Badge>
                   </div>

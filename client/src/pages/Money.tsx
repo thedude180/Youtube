@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1148,6 +1149,7 @@ function SponsorsTab() {
 }
 
 export default function Money() {
+  usePageTitle("Money");
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>("revenue");
 
