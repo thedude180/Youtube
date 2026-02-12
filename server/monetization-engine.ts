@@ -58,7 +58,7 @@ Best practices:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -131,7 +131,7 @@ Generate forecast as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -349,7 +349,7 @@ Split the deal value across the deliverables proportionally. Include any applica
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -437,7 +437,7 @@ Analyze this deal as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;

@@ -262,7 +262,7 @@ Focus on:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 2048,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -354,7 +354,7 @@ Return as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 512,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -421,7 +421,7 @@ Return as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 512,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -522,7 +522,7 @@ Create a compilation plan as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;

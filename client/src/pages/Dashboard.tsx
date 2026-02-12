@@ -148,6 +148,7 @@ export default function Dashboard() {
   }, [agentActivities]);
 
   useEffect(() => {
+    if (!user) return;
     const cached = sessionStorage.getItem("aiDashboardActions");
     if (cached) {
       try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiActions(e.data); } else { sessionStorage.removeItem("aiDashboardActions"); } } catch {}
@@ -159,10 +160,10 @@ export default function Dashboard() {
           setAiActions(data);
           sessionStorage.setItem("aiDashboardActions", JSON.stringify({ data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiActionsLoading(false));
     }
-  }, []);
+  }, [user]);
 
   const recentNotifications = useMemo(() =>
     notifications?.slice(0, 5) || [],

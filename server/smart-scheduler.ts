@@ -65,7 +65,7 @@ Provide 5-7 optimal posting slots based on ${platform}'s known best practices an
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -167,7 +167,7 @@ Analyze and recommend as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -284,7 +284,7 @@ Analyze and recommend as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;

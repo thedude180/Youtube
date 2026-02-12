@@ -184,7 +184,7 @@ Provide your response as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -258,7 +258,7 @@ Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -324,7 +324,7 @@ Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 512,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -424,7 +424,7 @@ Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 512,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -490,7 +490,7 @@ Evaluate up to 15 most important tags.`;
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -561,7 +561,7 @@ Based on the content type, topic, and engagement ratio, predict the sentiment di
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 512,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -627,7 +627,7 @@ Identify 2-3 current algorithm behaviors or recent changes. Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -791,7 +791,7 @@ For each video, classify as evergreen or not. Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -872,7 +872,7 @@ Identify pairs of videos that may be cannibalizing each other's performance. Res
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -952,7 +952,7 @@ Predict trends that are emerging or about to emerge. Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -1028,7 +1028,7 @@ Build a comprehensive Content DNA profile as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -1110,7 +1110,7 @@ Suggest specific changes to improve CTR. Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 512,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -1195,7 +1195,7 @@ Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -1375,7 +1375,7 @@ Find 5 content gaps with high demand. Respond as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -1443,7 +1443,7 @@ Include 8-10 best practices, 3-4 recent changes, 5 dos and 5 don'ts.`;
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;

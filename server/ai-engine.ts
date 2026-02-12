@@ -140,7 +140,7 @@ Provide your response as JSON with exactly these fields:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -193,7 +193,7 @@ Be specific to THIS channel's content, not generic advice.`;
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -249,7 +249,7 @@ Check for:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -300,7 +300,7 @@ Focus on patterns that would help improve:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -382,7 +382,7 @@ Focus on:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -432,7 +432,7 @@ ${streamData.platforms.map(p => `    "${p}": { "title": "VOD title for ${p}${gam
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -643,7 +643,7 @@ Focus on:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -691,7 +691,7 @@ Focus on:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
 
   const expContent = response.choices[0]?.message?.content;
@@ -728,7 +728,7 @@ Respond as JSON:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 4096,
   });
   const catContent = catResponse.choices[0]?.message?.content;
   if (!catContent) throw new Error("No response from AI");
@@ -1098,7 +1098,7 @@ Respond as JSON:
   "pastCollabs": "description of collaboration style",
   "testimonialPrompts": ["suggested testimonial angles"]
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1118,7 +1118,7 @@ Respond as JSON:
   "welcomeMessage": "greeting for new chatters",
   "raidMessage": "thank you message for raids"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1135,7 +1135,7 @@ Respond as JSON:
   "postStream": [{"item": "post-stream task", "category": "content|social|analytics", "automatable": true}],
   "emergencyPlan": [{"scenario": "what could go wrong", "solution": "how to handle it"}]
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1180,7 +1180,7 @@ Respond as JSON:
   "clipSuggestions": ["moments worth clipping"],
   "socialPosts": [{"platform": "Twitter/X", "content": "ready-to-post recap"}]
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1280,7 +1280,7 @@ Respond as JSON:
   "opportunities": [{"title": "opportunity", "description": "details", "deadline": "time-sensitive or ongoing", "estimatedBenefit": "potential benefit"}],
   "creatorEconomyPulse": "overall state of the creator economy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1300,7 +1300,7 @@ Respond as JSON:
   "streaks": [{"name": "streak name", "current": 5, "best": 10, "description": "what the streak tracks"}],
   "yearInReview": {"topVideo": "best performing video concept", "growth": "growth summary", "totalEarnings": "earnings summary"}
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1322,7 +1322,7 @@ Respond as JSON:
   "revenueBreakdown": [{"platform": "name", "estimatedRevenue": "$X", "growthTip": "how to earn more here"}],
   "synergies": [{"from": "platform1", "to": "platform2", "strategy": "how to cross-promote"}]
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1362,7 +1362,7 @@ Respond as JSON:
   "networkingTips": ["tip for building creator relationships"],
   "collabCalendar": "suggested frequency and timing for collabs"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1386,7 +1386,7 @@ Respond as JSON:
   "incomeStability": "assessment of income stability for taking breaks",
   "creativeBlock": {"hasBlock": false, "exercises": ["creative unblocking exercises"]}
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1408,7 +1408,7 @@ Respond as JSON:
   "quickWins": [{"fix": "easy improvement", "impact": "high|medium|low", "effort": "5 min|15 min|30 min"}],
   "optimizedTitle": "SEO-optimized title suggestion"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1447,7 +1447,7 @@ Respond as JSON:
   "totalDuration": "estimated total duration",
   "mood": "overall mood"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1467,7 +1467,7 @@ Respond as JSON:
   "contrast": "high/medium/low",
   "examples": [{"style": "style name", "description": "description"}]
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1484,7 +1484,7 @@ Respond as JSON:
   "outro": {"duration": "seconds", "concept": "description", "elements": ["element1"], "cta": "call to action"},
   "brandConsistency": "tips for brand consistency"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1501,7 +1501,7 @@ Respond as JSON:
   "ambientSounds": "ambient sound recommendations",
   "musicTransitions": "music transition suggestions"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1522,7 +1522,7 @@ Respond as JSON:
   "payoffTiming": "ideal payoff timing",
   "overallScore": 75
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1540,7 +1540,7 @@ Respond as JSON:
   "closingCta": "closing call to action",
   "segueIdeas": "ideas for natural segues"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1560,7 +1560,7 @@ Respond as JSON:
   "platformOptimal": {"youtube": "optimal for youtube", "tiktok": "optimal for tiktok", "instagram": "optimal for instagram"},
   "segmentBreakdown": "how to structure segments"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1577,7 +1577,7 @@ Respond as JSON:
   "exportOrder": "recommended export order",
   "priorities": "prioritization strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1595,7 +1595,7 @@ Respond as JSON:
   "platforms": [{"name": "platform", "required": true, "position": "position"}],
   "removalStrategy": "when and how to handle removal"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1612,7 +1612,7 @@ Respond as JSON:
   "lightingTips": "lighting recommendations",
   "keyingAdvice": "chroma key best practices"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1631,7 +1631,7 @@ Respond as JSON:
   "emphasisMarks": "words to emphasize",
   "pausePoints": "where to pause"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1648,7 +1648,7 @@ Respond as JSON:
   "avoidList": "transitions to avoid",
   "styleTips": "general style tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1665,7 +1665,7 @@ Respond as JSON:
   "exportSettings": "optimal export settings",
   "platformOptimal": "platform-specific quality tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1681,7 +1681,7 @@ Respond as JSON:
   "masterFormat": "recommended master format",
   "reframeNotes": "reframing recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1698,7 +1698,7 @@ Respond as JSON:
   "brandAlignment": "brand alignment tips",
   "accessibilityScore": 85
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1715,7 +1715,7 @@ Respond as JSON:
   "bestPractices": "CTA best practices",
   "abTestIdeas": "A/B testing suggestions"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1731,7 +1731,7 @@ Respond as JSON:
   "audioMixing": "audio mixing recommendations",
   "transitionTips": "transition tips between layouts"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1746,7 +1746,7 @@ Respond as JSON:
   "timeLapse": {"intervalSeconds": 5, "totalDuration": "total duration", "bestSubjects": "best subjects for time-lapse", "tips": "time-lapse tips"},
   "slowMo": {"fps": 240, "bestMoments": "best moments for slow-mo", "editingTips": "editing tips for slow-mo"}
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1764,7 +1764,7 @@ Respond as JSON:
   "workflow": "organizing workflow",
   "backupStrategy": "backup recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1784,7 +1784,7 @@ Respond as JSON:
   "normalization": "normalization advice",
   "platformStandards": "platform-specific audio standards"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1801,7 +1801,7 @@ Respond as JSON:
   "hardwareTips": "hardware recommendations",
   "idealEnvironment": "ideal recording environment setup"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1820,7 +1820,7 @@ Respond as JSON:
   "smoothTransitions": "smooth transition techniques",
   "bRollSuggestions": "B-roll suggestions to cover cuts"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1837,7 +1837,7 @@ Respond as JSON:
   "shotList": "complete shot list",
   "lightingSetup": "overall lighting setup"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1858,7 +1858,7 @@ Respond as JSON:
   "platformLimits": "platform upload limits",
   "exportSettings": "complete export settings"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1875,7 +1875,7 @@ Respond as JSON:
   "sampleSize": "minimum sample size",
   "metrics": "metrics to track"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1895,7 +1895,7 @@ Respond as JSON:
   "improvements": [{"change": "suggested change", "expectedLift": "expected CTR improvement"}],
   "competitorBenchmark": "how it compares to competitors"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1911,7 +1911,7 @@ Respond as JSON:
   "trendingStyles": "currently trending thumbnail styles",
   "nicheTop": "top performing styles in this niche"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1928,7 +1928,7 @@ Respond as JSON:
   "eyeDirection": "where eyes should look",
   "facePlacement": "where to place face in thumbnail"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1948,7 +1948,7 @@ Respond as JSON:
   "readabilityScore": 85,
   "contrastAdvice": "contrast and readability tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1965,7 +1965,7 @@ Respond as JSON:
   "nicheBest": "best colors for this niche",
   "contrastRules": "contrast rules for thumbnails"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1983,7 +1983,7 @@ Respond as JSON:
   "brandConsistency": "brand consistency tips",
   "updateFrequency": "how often to update banners"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -1999,7 +1999,7 @@ Respond as JSON:
   "covers": [{"platform": "platform name", "dimensions": "dimensions", "designConcept": "design concept", "elements": "design elements", "cta": "call to action"}],
   "consistency": "cross-platform consistency tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2015,7 +2015,7 @@ Respond as JSON:
   "platformSupport": "which platforms support animated thumbnails",
   "bestPractices": "animated thumbnail best practices"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2032,7 +2032,7 @@ Respond as JSON:
   "opportunities": "opportunities to stand out",
   "standoutStrategy": "strategy to differentiate"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2048,7 +2048,7 @@ Respond as JSON:
   "doNots": "watermark mistakes to avoid",
   "platformRules": "platform-specific watermark rules"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2066,7 +2066,7 @@ Respond as JSON:
   "platformUsage": "where to use stickers",
   "monetization": "monetization opportunities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2084,7 +2084,7 @@ Respond as JSON:
   "dimensions": "recommended dimensions",
   "shareability": "tips for making it shareable"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2100,7 +2100,7 @@ Respond as JSON:
   "trendingFormats": "currently trending meme formats",
   "brandSafe": "brand safety guidelines"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2119,7 +2119,7 @@ Respond as JSON:
   "improvements": [{"area": "improvement area", "suggestion": "specific suggestion"}],
   "brandRecognition": "brand recognition score and tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2137,7 +2137,7 @@ Respond as JSON:
   "useCases": "recommended use cases",
   "disclosureRequirements": "disclosure and transparency requirements"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2154,7 +2154,7 @@ Respond as JSON:
   "bestHook": "the best hook from the list",
   "reasoning": "why this hook works best"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2170,7 +2170,7 @@ Respond as JSON:
   "winner": "predicted winning title",
   "testingTips": "tips for running the A/B test"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2187,7 +2187,7 @@ Respond as JSON:
   "improvements": "specific improvement suggestions",
   "curiosityGap": "curiosity gap analysis"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2205,7 +2205,7 @@ Respond as JSON:
   "alternatives": "non-clickbait alternative suggestions",
   "trustScore": 85
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2222,7 +2222,7 @@ Respond as JSON:
   "linkPlacement": "optimal link placement strategy",
   "hashtagStrategy": "hashtag usage strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2239,7 +2239,7 @@ Respond as JSON:
   "visualCTA": "visual CTA design suggestions",
   "cardTiming": "optimal card timing strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2255,7 +2255,7 @@ Respond as JSON:
   "bestChoice": "the best comment option",
   "questionToAsk": "question to drive replies"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2272,7 +2272,7 @@ Respond as JSON:
   "schedule": "posting schedule recommendation",
   "engagementTips": "tips to boost engagement"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2288,7 +2288,7 @@ Respond as JSON:
   "winner": "predicted best subject line",
   "abTestPlan": "A/B testing plan for subjects"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2305,7 +2305,7 @@ Respond as JSON:
   "keywords": "key SEO keywords used",
   "brandVoice": "brand voice description"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2324,7 +2324,7 @@ Respond as JSON:
   "searchVolume": "estimated search volume analysis",
   "competitorTags": "competitor tag analysis"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2342,7 +2342,7 @@ Respond as JSON:
   "trending": "currently trending relevant hashtags",
   "evergreen": "evergreen hashtags to always use"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2360,7 +2360,7 @@ Respond as JSON:
   "orderStrategy": "video ordering strategy",
   "thumbnailTips": "playlist thumbnail tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2379,7 +2379,7 @@ Respond as JSON:
   "distribution": "distribution strategy",
   "mediaKit": "media kit recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2397,7 +2397,7 @@ Respond as JSON:
   "incentiveIdeas": "incentive ideas for testimonials",
   "displayFormat": "best format to display testimonials"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2414,7 +2414,7 @@ Respond as JSON:
   "gaps": "tag gaps to fill",
   "topPerformers": "top performing tags"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2430,7 +2430,7 @@ Respond as JSON:
   "priorityList": "prioritized list of content to create",
   "contentIdeas": "content ideas based on search intent"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2446,7 +2446,7 @@ Respond as JSON:
   "myths": "common algorithm myths debunked",
   "bestPractices": "algorithm best practices"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2464,7 +2464,7 @@ Respond as JSON:
   "targetQueries": "target queries for snippets",
   "implementation": "implementation steps"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2481,7 +2481,7 @@ Respond as JSON:
   "conflicts": "potential conflicts between platforms",
   "universalKeywords": "keywords that work across all platforms"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2498,7 +2498,7 @@ Respond as JSON:
   "outreachTargets": "outreach targets for link building",
   "linkBuildingTips": "link building tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2512,7 +2512,7 @@ Respond as JSON:
   "videos": [{"title": "video title", "freshnessScore": 75, "updateNeeded": true, "suggestions": "update suggestions"}],
   "priorityUpdates": "priority list of videos to update first"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2527,7 +2527,7 @@ Respond as JSON:
   "consolidationPlan": "content consolidation plan",
   "redirects": "redirect recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2543,7 +2543,7 @@ Respond as JSON:
   "clusters": "keyword clusters",
   "contentIdeas": "content ideas from keywords"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2561,7 +2561,7 @@ Respond as JSON:
   "submission": "search engine submission strategy",
   "monitoring": "monitoring and maintenance plan"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2579,7 +2579,7 @@ Respond as JSON:
   "howToSchema": "how-to schema recommendations",
   "implementation": "implementation guide"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2595,7 +2595,7 @@ Respond as JSON:
   "conversationalKeywords": "conversational keyword suggestions",
   "featuredSnippetTargets": "featured snippet target queries"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2610,7 +2610,7 @@ Respond as JSON:
   "opportunities": "content opportunities from autocomplete",
   "contentGaps": "content gaps identified"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2626,7 +2626,7 @@ Respond as JSON:
   "risingQueries": "rising search queries",
   "breakoutTopics": "breakout topics to capitalize on"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2642,7 +2642,7 @@ Respond as JSON:
   "stealOpportunities": "keywords to steal from competitors",
   "avoidKeywords": "keywords to avoid competing on"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2659,7 +2659,7 @@ Respond as JSON:
   "declining": "keywords with declining rankings",
   "opportunities": "new ranking opportunities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2677,7 +2677,7 @@ Respond as JSON:
   "improvements": "specific CTR improvement suggestions",
   "abTestIdeas": "A/B test ideas to improve CTR"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2696,7 +2696,7 @@ Respond as JSON:
   "improvements": "improvement recommendations",
   "benchmarks": "industry benchmarks comparison"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2714,7 +2714,7 @@ Respond as JSON:
   "engagementSignals": "engagement signals to boost",
   "competitorAnalysis": "competitor analysis for suggested videos"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2732,7 +2732,7 @@ Respond as JSON:
   "notificationOptimization": "notification bell optimization",
   "consistency": "consistency recommendations for browse features"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2748,7 +2748,7 @@ Respond as JSON:
   "distribution": "distribution strategy across pillars",
   "calendar": "weekly/monthly content calendar overview"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2764,7 +2764,7 @@ Respond as JSON:
   "monetization": "monetization strategy for series",
   "crossPromotion": "cross-promotion strategy between series"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2780,7 +2780,7 @@ Respond as JSON:
   "workflow": "repurposing workflow",
   "automationTips": "automation tips for repurposing"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2798,7 +2798,7 @@ Respond as JSON:
   "benchmark": "benchmark comparison",
   "timing": "optimal timing for posting"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2814,7 +2814,7 @@ Respond as JSON:
   "priorities": "prioritized list of gaps to fill",
   "contentIdeas": "specific content ideas for top gaps"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2830,7 +2830,7 @@ Respond as JSON:
   "timing": "optimal timing to jump on trends",
   "risks": "risks of trend-chasing"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2846,7 +2846,7 @@ Respond as JSON:
   "schedule": "evergreen content publishing schedule",
   "seoStrategy": "SEO strategy for evergreen content"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2864,7 +2864,7 @@ Respond as JSON:
   "reasoning": "reasoning behind recommendations",
   "impactPrediction": "predicted impact of changes"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2880,7 +2880,7 @@ Respond as JSON:
   "themes": "seasonal themes to leverage",
   "tieIns": "brand and sponsor tie-in opportunities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2896,7 +2896,7 @@ Respond as JSON:
   "logistics": "logistics and planning tips",
   "contracts": "contract and agreement considerations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2912,7 +2912,7 @@ Respond as JSON:
   "authenticity": "tips for authentic BTS content",
   "engagement": "engagement strategies for BTS content"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2928,7 +2928,7 @@ Respond as JSON:
   "guidelines": "reaction content best practices",
   "fairUse": "fair use considerations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2944,7 +2944,7 @@ Respond as JSON:
   "timeline": "challenge launch timeline",
   "promotion": "promotion strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2960,7 +2960,7 @@ Respond as JSON:
   "schedule": "Q&A content schedule",
   "engagement": "engagement strategies for Q&A"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2976,7 +2976,7 @@ Respond as JSON:
   "prerequisites": "prerequisites for the tutorial",
   "resources": "additional resources to include"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -2992,7 +2992,7 @@ Respond as JSON:
   "research": "research plan and sources",
   "timeline": "production timeline"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3011,7 +3011,7 @@ Respond as JSON:
   "trending": "how to leverage trends",
   "crossPost": "cross-posting strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3027,7 +3027,7 @@ Respond as JSON:
   "formats": "trending formats to use",
   "timing": "best times to post"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3044,7 +3044,7 @@ Respond as JSON:
   "structureChange": "how to restructure for long-form",
   "audience": "audience differences to consider"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3060,7 +3060,7 @@ Respond as JSON:
   "bestMoments": "best moments to clip",
   "platformAdaptation": "how to adapt clips per platform"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3078,7 +3078,7 @@ Respond as JSON:
   "engagement": "engagement optimization tips",
   "platformSpecific": "platform-specific vertical tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3094,7 +3094,7 @@ Respond as JSON:
   "original": "tips for original audio creation",
   "licensing": "audio licensing considerations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3110,7 +3110,7 @@ Respond as JSON:
   "accessibility": "accessibility considerations",
   "readability": "readability best practices"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3125,7 +3125,7 @@ Respond as JSON:
   "firstFrameTips": "first frame optimization tips",
   "thumbStop": "thumb-stopping techniques"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3141,7 +3141,7 @@ Respond as JSON:
   "etiquette": "duet/stitch etiquette guidelines",
   "timing": "optimal timing for duets/stitches"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3159,7 +3159,7 @@ Respond as JSON:
   "retentionCurve": "retention curve analysis and tips",
   "swipeRate": "swipe-away rate reduction strategies"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3176,7 +3176,7 @@ Respond as JSON:
   "editingTips": "batch editing tips",
   "schedule": "release schedule for batch"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3190,7 +3190,7 @@ Respond as JSON:
   "remixes": [{"original": "original short reference", "newAngle": "new angle to take", "improvement": "improvement over original", "timing": "when to post remix"}],
   "ethicalGuidelines": "ethical guidelines for remixing"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3206,7 +3206,7 @@ Respond as JSON:
   "strategies": [{"method": "monetization method", "potential": "revenue potential", "implementation": "how to implement"}],
   "fundEligibility": "platform fund eligibility and requirements"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3223,7 +3223,7 @@ Respond as JSON:
   "actionPlan": "prioritized action plan",
   "priorities": "top 3 priorities to address"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3241,7 +3241,7 @@ Respond as JSON:
   "qualityBalance": "quality vs quantity balance",
   "recommendations": "velocity optimization recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3257,7 +3257,7 @@ Respond as JSON:
   "recommendation": "top niche recommendation",
   "hybridIdeas": "hybrid niche ideas combining interests"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3275,7 +3275,7 @@ Respond as JSON:
   "accuracy": "estimated accuracy percentage",
   "wordCount": "total word count"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3291,7 +3291,7 @@ Respond as JSON:
   "accessibility": "accessibility compliance notes",
   "readability": "readability score and tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3309,7 +3309,7 @@ Respond as JSON:
   "culturalNotes": "cultural adaptation notes",
   "alternatives": "alternative translation options"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3325,7 +3325,7 @@ Respond as JSON:
   "markets": "target market analysis",
   "opportunities": "growth opportunities by language"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3341,7 +3341,7 @@ Respond as JSON:
   "priorities": "prioritized market list",
   "timeline": "recommended localization timeline"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3357,7 +3357,7 @@ Respond as JSON:
   "bestApproach": "recommended dubbing approach",
   "lipSyncTips": "lip sync optimization tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3374,7 +3374,7 @@ Respond as JSON:
   "chapters": "suggested chapter markers",
   "summary": "concise transcript summary"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3390,7 +3390,7 @@ Respond as JSON:
   "accessibility": "accessibility standards summary",
   "penalties": "non-compliance penalties"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3406,7 +3406,7 @@ Respond as JSON:
   "compliance": "accessibility compliance status",
   "guidelines": "audio description best practices"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3422,7 +3422,7 @@ Respond as JSON:
   "quickWins": "quick win language opportunities",
   "longTerm": "long-term language investments"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3441,7 +3441,7 @@ Respond as JSON:
   "benchmark": "niche benchmark comparison",
   "retentionCurve": "ideal retention curve description"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3458,7 +3458,7 @@ Respond as JSON:
   "targeting": "targeting recommendations",
   "content": "content preferences by segment"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3477,7 +3477,7 @@ Respond as JSON:
   "hooks": "audience hook techniques",
   "reEngagement": "re-engagement tactics"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3496,7 +3496,7 @@ Respond as JSON:
   "commentStrategy": "comment engagement strategy",
   "likeTriggers": "like-triggering techniques"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3514,7 +3514,7 @@ Respond as JSON:
   "strategies": "growth acceleration strategies",
   "benchmark": "niche benchmark comparison"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3532,7 +3532,7 @@ Respond as JSON:
   "risks": "potential revenue risks",
   "ceiling": "estimated revenue ceiling"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3552,7 +3552,7 @@ Respond as JSON:
   "nextTest": "suggested next test",
   "insights": "actionable insights"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3569,7 +3569,7 @@ Respond as JSON:
   "hotSpots": "high retention segments analysis",
   "fixes": "recommendations to fix cold spots"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3584,7 +3584,7 @@ Respond as JSON:
   "untapped": "untapped traffic sources",
   "strategy": "overall traffic strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3602,7 +3602,7 @@ Respond as JSON:
   "trending": "device trend analysis",
   "priorities": "optimization priorities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3620,7 +3620,7 @@ Respond as JSON:
   "seoImpact": "SEO impact of playback locations",
   "partnerSites": "potential partner site recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3638,7 +3638,7 @@ Respond as JSON:
   "timing": "optimal end screen timing",
   "design": "design recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3655,7 +3655,7 @@ Respond as JSON:
   "timing": "optimal card timing",
   "placement": "placement best practices"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3672,7 +3672,7 @@ Respond as JSON:
   "bottleneck": "primary bottleneck identification",
   "priority": "priority actions to fix funnel"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3688,7 +3688,7 @@ Respond as JSON:
   "gaps": "identified gaps and opportunities",
   "opportunities": "strategic opportunities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3704,7 +3704,7 @@ Respond as JSON:
   "confidence": "prediction confidence level",
   "accelerators": "growth accelerator recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3722,7 +3722,7 @@ Respond as JSON:
   "reEngagement": "re-engagement campaign ideas",
   "benchmark": "industry churn benchmark"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3740,7 +3740,7 @@ Respond as JSON:
   "shareability": "shareability score and tips",
   "benchmark": "viral coefficient benchmark"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3759,7 +3759,7 @@ Respond as JSON:
   "trending": "trending sentiment topics",
   "alerts": "sentiment alerts requiring attention"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3777,7 +3777,7 @@ Respond as JSON:
   "timezone": "timezone-specific recommendations",
   "seasonal": "seasonal timing adjustments"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3794,7 +3794,7 @@ Respond as JSON:
   "revivalStrategies": "strategies to revive viewership",
   "evergreenPotential": "evergreen content potential assessment"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3812,7 +3812,7 @@ Respond as JSON:
   "adOptimization": "ad placement optimization tips",
   "nichePremium": "niche premium opportunities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3829,7 +3829,7 @@ Respond as JSON:
   "crossPromotion": "cross-promotion opportunities",
   "strategy": "multi-platform audience strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3844,7 +3844,7 @@ Respond as JSON:
   "patterns": "performance patterns identified",
   "replication": "how to replicate top performers"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3861,7 +3861,7 @@ Respond as JSON:
   "priority": "priority fixes ranked",
   "quickWins": "quick win improvements"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3877,7 +3877,7 @@ Respond as JSON:
   "alerts": "important alerts and warnings",
   "opportunities": "upcoming opportunities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3894,7 +3894,7 @@ Respond as JSON:
   "visualizations": "recommended data visualizations",
   "schedule": "recommended reporting schedule"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3911,7 +3911,7 @@ Respond as JSON:
   "trending": "currently trending title styles",
   "hashtags": "recommended hashtags"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3928,7 +3928,7 @@ Respond as JSON:
   "avoid": "times to avoid streaming",
   "seasonal": "seasonal scheduling adjustments"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3944,7 +3944,7 @@ Respond as JSON:
   "alerts": "alert overlay recommendations",
   "panels": "panel design recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3960,7 +3960,7 @@ Respond as JSON:
   "progression": "alert progression system for milestones",
   "celebration": "celebration alert ideas"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3977,7 +3977,7 @@ Respond as JSON:
   "wordFilter": "word filter suggestions",
   "timeouts": "timeout policy recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -3994,7 +3994,7 @@ Respond as JSON:
   "predictions": "prediction ideas for viewers",
   "minigames": "chat minigame suggestions"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4011,7 +4011,7 @@ Respond as JSON:
   "donations": "donation optimization tips",
   "bits": "bits and cheering strategy"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4027,7 +4027,7 @@ Respond as JSON:
   "compilation": "highlight compilation strategy",
   "thumbnails": "thumbnail suggestions for clips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4045,7 +4045,7 @@ Respond as JSON:
   "trending": "trending categories to consider",
   "discovery": "category-based discovery tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4061,7 +4061,7 @@ Respond as JSON:
   "layout": "overall panel layout recommendation",
   "branding": "branding consistency tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4077,7 +4077,7 @@ Respond as JSON:
   "progression": "emote unlock progression strategy",
   "communityInput": "how to involve community in emote creation"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4094,7 +4094,7 @@ Respond as JSON:
   "community": "community engagement around sub goals",
   "celebration": "milestone celebration ideas"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4111,7 +4111,7 @@ Respond as JSON:
   "communities": "communities to join",
   "etiquette": "networking etiquette tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4127,7 +4127,7 @@ Respond as JSON:
   "priorities": "which metrics to prioritize",
   "trends": "trend analysis and predictions"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4144,7 +4144,7 @@ Respond as JSON:
   "bandwidth": "bandwidth requirements and optimization",
   "legal": "legal considerations for multi-streaming"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4160,7 +4160,7 @@ Respond as JSON:
   "software": "software backup recommendations",
   "internetBackup": "internet backup solutions"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4177,7 +4177,7 @@ Respond as JSON:
   "events": "community event ideas",
   "loyalty": "loyalty and retention programs"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4193,7 +4193,7 @@ Respond as JSON:
   "consistency": "brand consistency guidelines",
   "guidelines": "usage guidelines and do/dont rules"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4210,7 +4210,7 @@ Respond as JSON:
   "variety": "content variety recommendations",
   "events": "special event and holiday content ideas"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4227,7 +4227,7 @@ Respond as JSON:
   "crossPromo": "cross-promotion strategies",
   "viral": "viral content strategies for streams"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4245,7 +4245,7 @@ Respond as JSON:
   "midRolls": "mid-roll ad strategy recommendations",
   "benchmark": "industry benchmark comparison"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4261,7 +4261,7 @@ Respond as JSON:
   "skipRate": "expected skip rate analysis",
   "viewerExperience": "viewer experience impact assessment"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4279,7 +4279,7 @@ Respond as JSON:
   "premiumTopics": "high-CPM topic suggestions",
   "geography": "geographic targeting recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4297,7 +4297,7 @@ Respond as JSON:
   "rateCard": "professional rate card recommendations",
   "benchmark": "industry benchmark comparison"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4314,7 +4314,7 @@ Respond as JSON:
   "mediaKit": "media kit talking points",
   "customization": "personalization tips for each brand"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4332,7 +4332,7 @@ Respond as JSON:
   "addOns": "value-add suggestions to sweeten the deal",
   "contractPoints": "key contract points to negotiate"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4347,7 +4347,7 @@ Respond as JSON:
   "reminders": "reminder schedule recommendations",
   "compliance": "compliance checklist for sponsor agreements"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4364,7 +4364,7 @@ Respond as JSON:
   "placement": "optimal link placement recommendations",
   "disclosure": "FTC disclosure compliance tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4381,7 +4381,7 @@ Respond as JSON:
   "pricing": "pricing strategy",
   "marketing": "merchandise marketing tactics"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4398,7 +4398,7 @@ Respond as JSON:
   "retention": "member retention tactics",
   "upsell": "upsell strategies between tiers"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4415,7 +4415,7 @@ Respond as JSON:
   "launch": "launch strategy recommendations",
   "marketing": "marketing and promotion plan"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4432,7 +4432,7 @@ Respond as JSON:
   "platform": "recommended course platforms",
   "marketing": "course marketing and launch plan"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4450,7 +4450,7 @@ Respond as JSON:
   "growth": "patron growth strategies",
   "retention": "patron retention tactics"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4468,7 +4468,7 @@ Respond as JSON:
   "goals": "Super Chat goal-setting recommendations",
   "benchmark": "industry benchmark comparison"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4484,7 +4484,7 @@ Respond as JSON:
   "perkIdeas": "new membership perk ideas",
   "retention": "member retention strategies"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4499,7 +4499,7 @@ Respond as JSON:
   "risk": "risk diversification analysis",
   "priority": "prioritized implementation order"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4515,7 +4515,7 @@ Respond as JSON:
   "template": "invoice template recommendations",
   "terms": "payment terms and conditions"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4532,7 +4532,7 @@ Respond as JSON:
   "negotiation": "negotiation recommendations",
   "alternatives": "alternative clause suggestions"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4547,7 +4547,7 @@ Respond as JSON:
   "totalSavings": "estimated total tax savings",
   "tips": "additional tax saving tips for creators"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4565,7 +4565,7 @@ Respond as JSON:
   "deadlines": "upcoming tax deadlines",
   "optimization": "tax optimization strategies"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4583,7 +4583,7 @@ Respond as JSON:
   "walkAway": "walk-away analysis",
   "longTerm": "long-term partnership potential"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4600,7 +4600,7 @@ Respond as JSON:
   "caseStudies": "case study ideas to include",
   "socialProof": "social proof elements to highlight"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4616,7 +4616,7 @@ Respond as JSON:
   "customization": "rate card customization tips",
   "negotiation": "negotiation flexibility guidelines"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4632,7 +4632,7 @@ Respond as JSON:
   "report": "ROI report summary for sponsor",
   "improvements": "suggestions to improve ROI for future deals"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4648,7 +4648,7 @@ Respond as JSON:
   "timeline": "implementation timeline",
   "priority": "prioritized action plan"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4666,7 +4666,7 @@ Respond as JSON:
   "testing": "A/B testing recommendations",
   "competitors": "competitive pricing analysis"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4681,7 +4681,7 @@ Respond as JSON:
   "crossChannel": "cross-channel attribution insights",
   "optimization": "revenue optimization recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4698,7 +4698,7 @@ Respond as JSON:
   "recognition": "donor recognition best practices",
   "psychology": "donation psychology insights"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4717,7 +4717,7 @@ Respond as JSON:
   "risks": "risk assessment and mitigation",
   "platforms": "recommended crowdfunding platforms"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4733,7 +4733,7 @@ Respond as JSON:
   "protection": "intellectual property protection recommendations",
   "contracts": "licensing contract essentials"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4751,7 +4751,7 @@ Respond as JSON:
   "ghostwriter": "ghostwriter considerations",
   "marketing": "book marketing and launch plan"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4767,7 +4767,7 @@ Respond as JSON:
   "negotiation": "fee negotiation strategies",
   "portfolio": "speaking portfolio building tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4783,7 +4783,7 @@ Respond as JSON:
   "positioning": "market positioning strategy",
   "sales": "sales and client acquisition tactics"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4800,7 +4800,7 @@ Respond as JSON:
   "savings": "cost-saving opportunities",
   "deductible": "tax-deductible expense identification"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4818,7 +4818,7 @@ Respond as JSON:
   "costCutting": "cost reduction recommendations",
   "revenueGrowth": "revenue growth opportunities"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4835,7 +4835,7 @@ Respond as JSON:
   "runway": "financial runway estimate",
   "optimization": "cash flow optimization tips"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4851,7 +4851,7 @@ Respond as JSON:
   "comparison": "gateway comparison summary",
   "integration": "integration recommendations"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4870,7 +4870,7 @@ Respond as JSON:
   "marketing": "marketing and launch strategy",
   "margins": "profit margin analysis"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4889,7 +4889,7 @@ Respond as JSON:
   "community": "community building around NFTs",
   "risks": "risks and mitigation strategies"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4907,7 +4907,7 @@ Respond as JSON:
   "timeline": "projected timeline to reach goal",
   "milestones": "intermediate milestones to track"
 }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4918,7 +4918,7 @@ export async function aiCommentResponseGenerator(data: { comment?: string; tone?
 ${data.comment ? `Comment to respond to: "${data.comment}"` : ""}
 ${data.tone ? `Desired tone: ${data.tone}` : ""}
 Respond as JSON: { "responses": [{"text": "response text", "tone": "tone used", "engagement": "engagement level"}], "bestResponse": "the best response option", "strategy": "overall response strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4928,7 +4928,7 @@ export async function aiSuperfanIdentifier(data: { comments?: Array<{author: str
   const p = `Identify and analyze superfans from comment data for a content creator.
 ${data.comments ? `Comment data: ${JSON.stringify(data.comments)}` : ""}
 Respond as JSON: { "superfans": [{"name": "fan name", "engagement": "engagement level", "value": "value to community", "nurture": "nurture strategy"}], "strategy": "overall superfan strategy", "rewards": "reward ideas for superfans" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4939,7 +4939,7 @@ export async function aiDiscordServerPlanner(data: { channelName?: string; membe
 ${data.channelName ? `Channel/Brand name: ${data.channelName}` : ""}
 ${data.memberCount ? `Expected member count: ${data.memberCount}` : ""}
 Respond as JSON: { "structure": [{"channel": "channel name", "purpose": "channel purpose", "rules": "channel rules"}], "bots": "recommended bots", "events": "community events plan", "moderation": "moderation strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4950,7 +4950,7 @@ export async function aiCommunityEventPlanner(data: { community?: string; platfo
 ${data.community ? `Community: ${data.community}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "events": [{"name": "event name", "type": "event type", "schedule": "schedule details", "format": "event format"}], "promotion": "promotion strategy", "engagement": "engagement tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4961,7 +4961,7 @@ export async function aiPollCreator(data: { topic?: string; platform?: string },
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "polls": [{"question": "poll question", "options": "poll options", "timing": "best timing to post"}], "engagement": "engagement strategy", "followUp": "follow-up content ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4972,7 +4972,7 @@ export async function aiContestRunner(data: { prize?: string; niche?: string }, 
 ${data.prize ? `Prize: ${data.prize}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "contests": [{"name": "contest name", "rules": "contest rules", "prizes": "prize details", "duration": "contest duration"}], "legal": "legal considerations", "promotion": "promotion strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4983,7 +4983,7 @@ export async function aiCommunityGuidelinesWriter(data: { platform?: string; val
 ${data.platform ? `Platform: ${data.platform}` : ""}
 ${data.values ? `Core values: ${data.values.join(", ")}` : ""}
 Respond as JSON: { "guidelines": "full community guidelines text", "enforcement": "enforcement policy", "appeals": "appeals process", "examples": "examples of acceptable and unacceptable behavior" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -4994,7 +4994,7 @@ export async function aiModeratorTrainer(data: { communitySize?: number; issues?
 ${data.communitySize ? `Community size: ${data.communitySize}` : ""}
 ${data.issues ? `Common issues: ${data.issues.join(", ")}` : ""}
 Respond as JSON: { "training": [{"topic": "training topic", "guidelines": "specific guidelines", "scenarios": "example scenarios"}], "tools": "recommended moderation tools", "escalation": "escalation procedures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5005,7 +5005,7 @@ export async function aiAMAPlanner(data: { topic?: string; audience?: string }, 
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.audience ? `Target audience: ${data.audience}` : ""}
 Respond as JSON: { "plan": {"prep": "preparation steps", "format": "AMA format", "questions": "anticipated questions and answers", "followUp": "follow-up actions"}, "promotion": "promotion strategy", "platform": "recommended platform" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5016,7 +5016,7 @@ export async function aiLoyaltyProgramBuilder(data: { platform?: string; rewards
 ${data.platform ? `Platform: ${data.platform}` : ""}
 ${data.rewards ? `Available rewards: ${data.rewards.join(", ")}` : ""}
 Respond as JSON: { "tiers": [{"name": "tier name", "requirements": "tier requirements", "rewards": "tier rewards"}], "points": "points system design", "engagement": "engagement mechanics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5027,7 +5027,7 @@ export async function aiUserGeneratedContentStrategy(data: { niche?: string; com
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.community ? `Community: ${data.community}` : ""}
 Respond as JSON: { "strategy": [{"type": "UGC type", "incentive": "incentive for creation", "curation": "curation process"}], "legal": "legal considerations for UGC", "showcase": "how to showcase UGC" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5037,7 +5037,7 @@ export async function aiCommunityHealthScorer(data: { metrics?: any }, userId?: 
   const p = `Score and analyze the health of a content creator's community.
 ${data.metrics ? `Community metrics: ${JSON.stringify(data.metrics)}` : ""}
 Respond as JSON: { "score": "overall health score 0-100", "indicators": [{"metric": "metric name", "health": "health status"}], "improvements": "suggested improvements", "alerts": "any urgent alerts" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5047,7 +5047,7 @@ export async function aiFanArtCurator(data: { channelName?: string }, userId?: s
   const p = `Create a fan art curation strategy for a content creator.
 ${data.channelName ? `Channel name: ${data.channelName}` : ""}
 Respond as JSON: { "strategy": "fan art curation strategy", "showcase": "how to showcase fan art", "guidelines": "submission guidelines", "credit": "crediting policy", "monetization": "monetization considerations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5058,7 +5058,7 @@ export async function aiMilestoneEventPlanner(data: { milestone?: string; audien
 ${data.milestone ? `Milestone: ${data.milestone}` : ""}
 ${data.audience ? `Audience: ${data.audience}` : ""}
 Respond as JSON: { "event": {"type": "event type", "content": "content plan", "celebration": "celebration details"}, "promotion": "promotion strategy", "memorabilia": "memorabilia ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5068,7 +5068,7 @@ export async function aiDMResponseTemplates(data: { commonQuestions?: string[] }
   const p = `Create DM response templates for a content creator.
 ${data.commonQuestions ? `Common questions received: ${data.commonQuestions.join(", ")}` : ""}
 Respond as JSON: { "templates": [{"question": "common question", "response": "template response", "followUp": "follow-up message"}], "automation": "automation recommendations", "personalization": "personalization tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5079,7 +5079,7 @@ export async function aiHashtagCommunityBuilder(data: { channelName?: string; ni
 ${data.channelName ? `Channel name: ${data.channelName}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "hashtag": "primary branded hashtag", "campaign": "hashtag campaign strategy", "challenges": "hashtag challenge ideas", "tracking": "tracking and measurement plan", "growth": "growth tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5090,7 +5090,7 @@ export async function aiLiveQAManager(data: { topic?: string; expectedQuestions?
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.expectedQuestions ? `Expected questions: ${data.expectedQuestions.join(", ")}` : ""}
 Respond as JSON: { "prep": [{"question": "anticipated question", "answer": "prepared answer", "talking": "talking points"}], "moderation": "moderation plan", "followUp": "post-session follow-up" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5101,7 +5101,7 @@ export async function aiReferralProgramBuilder(data: { platform?: string; incent
 ${data.platform ? `Platform: ${data.platform}` : ""}
 ${data.incentive ? `Incentive type: ${data.incentive}` : ""}
 Respond as JSON: { "program": {"structure": "program structure", "rewards": "reward tiers", "tracking": "tracking mechanism"}, "promotion": "promotion strategy", "analytics": "analytics and KPIs" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5112,7 +5112,7 @@ export async function aiCommunityAmbassadorProgram(data: { community?: string; g
 ${data.community ? `Community: ${data.community}` : ""}
 ${data.goals ? `Program goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "program": {"roles": "ambassador roles and responsibilities", "requirements": "selection requirements", "perks": "ambassador perks"}, "recruitment": "recruitment strategy", "management": "program management plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5123,7 +5123,7 @@ export async function aiEngagementBoostStrategy(data: { currentEngagement?: numb
 ${data.currentEngagement ? `Current engagement rate: ${data.currentEngagement}%` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "strategies": [{"tactic": "engagement tactic", "implementation": "how to implement", "impact": "expected impact"}], "timeline": "implementation timeline", "metrics": "metrics to track" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5134,7 +5134,7 @@ export async function aiHiringAdvisor(data: { role?: string; budget?: number }, 
 ${data.role ? `Role needed: ${data.role}` : ""}
 ${data.budget ? `Budget: $${data.budget}` : ""}
 Respond as JSON: { "roles": [{"title": "role title", "skills": "required skills", "rate": "expected rate", "where": "where to find candidates"}], "interview": "interview process", "onboarding": "onboarding plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5145,7 +5145,7 @@ export async function aiFreelancerFinder(data: { skill?: string; budget?: string
 ${data.skill ? `Skill needed: ${data.skill}` : ""}
 ${data.budget ? `Budget: ${data.budget}` : ""}
 Respond as JSON: { "platforms": [{"name": "platform name", "skill": "skill match", "avgRate": "average rate"}], "vetting": "vetting process", "contracts": "contract recommendations", "management": "freelancer management tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5156,7 +5156,7 @@ export async function aiSOPBuilder(data: { process?: string; team?: string[] }, 
 ${data.process ? `Process: ${data.process}` : ""}
 ${data.team ? `Team members: ${data.team.join(", ")}` : ""}
 Respond as JSON: { "sop": [{"step": "step description", "owner": "responsible person", "tools": "tools needed", "time": "estimated time"}], "documentation": "documentation format", "updates": "update schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5167,7 +5167,7 @@ export async function aiProjectTimeline(data: { project?: string; deadline?: str
 ${data.project ? `Project: ${data.project}` : ""}
 ${data.deadline ? `Deadline: ${data.deadline}` : ""}
 Respond as JSON: { "timeline": [{"phase": "phase name", "tasks": "tasks in this phase", "duration": "phase duration", "dependencies": "dependencies"}], "risks": "risk assessment", "milestones": "key milestones" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5178,7 +5178,7 @@ export async function aiContentApprovalFlow(data: { teamSize?: number; contentTy
 ${data.teamSize ? `Team size: ${data.teamSize}` : ""}
 ${data.contentTypes ? `Content types: ${data.contentTypes.join(", ")}` : ""}
 Respond as JSON: { "flow": [{"stage": "approval stage", "reviewer": "who reviews", "criteria": "approval criteria"}], "tools": "recommended tools", "turnaround": "expected turnaround times" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5189,7 +5189,7 @@ export async function aiEditingChecklistBuilder(data: { videoType?: string; styl
 ${data.videoType ? `Video type: ${data.videoType}` : ""}
 ${data.style ? `Editing style: ${data.style}` : ""}
 Respond as JSON: { "checklist": [{"category": "checklist category", "items": "checklist items"}], "quality": "quality standards", "standards": "technical standards" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5200,7 +5200,7 @@ export async function aiProductionBudgetPlanner(data: { contentType?: string; fr
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.frequency ? `Production frequency: ${data.frequency}` : ""}
 Respond as JSON: { "budget": [{"category": "budget category", "monthly": "monthly cost", "yearly": "yearly cost"}], "savings": "cost-saving tips", "ROI": "expected ROI analysis" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5211,7 +5211,7 @@ export async function aiEquipmentRecommender(data: { budget?: number; contentTyp
 ${data.budget ? `Budget: $${data.budget}` : ""}
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "equipment": [{"item": "equipment type", "model": "recommended model", "price": "price estimate", "priority": "purchase priority"}], "upgradePath": "future upgrade recommendations", "alternatives": "budget-friendly alternatives" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5222,7 +5222,7 @@ export async function aiStudioSetupPlanner(data: { space?: string; budget?: numb
 ${data.space ? `Available space: ${data.space}` : ""}
 ${data.budget ? `Budget: $${data.budget}` : ""}
 Respond as JSON: { "layout": "studio layout plan", "equipment": [{"item": "equipment item", "placement": "where to place it", "cost": "estimated cost"}], "acoustic": "acoustic treatment plan", "lighting": "lighting setup plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5233,7 +5233,7 @@ export async function aiWorkflowOptimizer(data: { currentSteps?: string[]; bottl
 ${data.currentSteps ? `Current workflow steps: ${data.currentSteps.join(", ")}` : ""}
 ${data.bottlenecks ? `Known bottlenecks: ${data.bottlenecks.join(", ")}` : ""}
 Respond as JSON: { "optimized": [{"step": "workflow step", "improvement": "suggested improvement", "timeSaved": "time saved"}], "tools": "recommended tools", "automation": "automation opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5244,7 +5244,7 @@ export async function aiBatchRecordingScheduler(data: { frequency?: string; vide
 ${data.frequency ? `Upload frequency: ${data.frequency}` : ""}
 ${data.videos ? `Videos per batch: ${data.videos}` : ""}
 Respond as JSON: { "schedule": [{"day": "recording day", "videos": "number of videos", "setup": "setup requirements", "props": "props needed"}], "efficiency": "efficiency tips", "tips": "batch recording best practices" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5255,7 +5255,7 @@ export async function aiOutsourcingAdvisor(data: { tasks?: string[]; budget?: nu
 ${data.tasks ? `Tasks to consider: ${data.tasks.join(", ")}` : ""}
 ${data.budget ? `Budget: $${data.budget}` : ""}
 Respond as JSON: { "outsource": [{"task": "task name", "provider": "recommended provider type", "cost": "estimated cost", "quality": "quality expectations"}], "keep": "tasks to keep in-house", "platforms": "recommended outsourcing platforms" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5266,7 +5266,7 @@ export async function aiToolStackOptimizer(data: { currentTools?: string[]; budg
 ${data.currentTools ? `Current tools: ${data.currentTools.join(", ")}` : ""}
 ${data.budget ? `Monthly budget: $${data.budget}` : ""}
 Respond as JSON: { "optimized": [{"tool": "recommended tool", "replaces": "what it replaces", "savings": "cost savings", "features": "key features"}], "total": "total monthly cost", "recommendations": "additional recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5277,7 +5277,7 @@ export async function aiBrandVoiceCreator(data: { personality?: string; values?:
 ${data.personality ? `Brand personality: ${data.personality}` : ""}
 ${data.values ? `Core values: ${data.values.join(", ")}` : ""}
 Respond as JSON: { "voice": {"tone": "brand tone description", "vocabulary": "vocabulary guidelines", "personality": "personality traits"}, "guidelines": "usage guidelines", "examples": "example content in brand voice", "doNots": "things to avoid" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5288,7 +5288,7 @@ export async function aiBrandColorPalette(data: { industry?: string; mood?: stri
 ${data.industry ? `Industry: ${data.industry}` : ""}
 ${data.mood ? `Desired mood: ${data.mood}` : ""}
 Respond as JSON: { "palette": [{"name": "color name", "hex": "hex code", "usage": "where to use this color"}], "accessibility": "accessibility considerations", "darkMode": "dark mode color adjustments", "lightMode": "light mode color adjustments" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5299,7 +5299,7 @@ export async function aiBrandFontSelector(data: { style?: string; platform?: str
 ${data.style ? `Brand style: ${data.style}` : ""}
 ${data.platform ? `Primary platform: ${data.platform}` : ""}
 Respond as JSON: { "fonts": [{"name": "font name", "usage": "where to use", "pairing": "font pairing suggestion", "weight": "recommended weights"}], "hierarchy": "typographic hierarchy", "licensing": "licensing information" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5310,7 +5310,7 @@ export async function aiBrandStoryWriter(data: { channelName?: string; origin?: 
 ${data.channelName ? `Channel name: ${data.channelName}` : ""}
 ${data.origin ? `Origin story: ${data.origin}` : ""}
 Respond as JSON: { "story": {"hook": "attention-grabbing opening", "journey": "the creator journey", "mission": "brand mission", "vision": "brand vision"}, "platforms": "platform-specific versions", "variations": "short and long versions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5320,7 +5320,7 @@ export async function aiBrandConsistencyAuditor(data: { platforms?: string[] }, 
   const p = `Audit brand consistency across platforms for a content creator.
 ${data.platforms ? `Platforms to audit: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "audit": [{"platform": "platform name", "consistency": "consistency score", "issues": "identified issues"}], "score": "overall consistency score", "fixes": "recommended fixes" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5331,7 +5331,7 @@ export async function aiContentPillarRefiner(data: { pillars?: string[]; perform
 ${data.pillars ? `Current pillars: ${data.pillars.join(", ")}` : ""}
 ${data.performance ? `Performance data: ${JSON.stringify(data.performance)}` : ""}
 Respond as JSON: { "refined": [{"pillar": "pillar name", "adjustment": "recommended adjustment", "reasoning": "reasoning for change"}], "newPillars": "suggested new pillars", "retire": "pillars to consider retiring" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5342,7 +5342,7 @@ export async function aiChannelTrailerBuilder(data: { channelName?: string; nich
 ${data.channelName ? `Channel name: ${data.channelName}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "script": "full trailer script", "duration": "recommended duration", "structure": "trailer structure breakdown", "cta": "call to action", "style": "visual style recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5353,7 +5353,7 @@ export async function aiChannelArtDirector(data: { channelName?: string; style?:
 ${data.channelName ? `Channel name: ${data.channelName}` : ""}
 ${data.style ? `Preferred style: ${data.style}` : ""}
 Respond as JSON: { "direction": {"banner": "banner design direction", "logo": "logo design direction", "thumbnails": "thumbnail style guide", "colors": "color scheme"}, "consistency": "consistency guidelines", "refresh": "brand refresh schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5364,7 +5364,7 @@ export async function aiUniqueSellingPointFinder(data: { niche?: string; competi
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
 Respond as JSON: { "usp": [{"angle": "unique angle", "strength": "strength level", "positioning": "market positioning"}], "differentiation": "differentiation strategy", "messaging": "key messaging" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5375,7 +5375,7 @@ export async function aiTargetAudienceDefiner(data: { niche?: string; content?: 
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.content ? `Content types: ${data.content.join(", ")}` : ""}
 Respond as JSON: { "personas": [{"name": "persona name", "demographics": "demographic details", "interests": "interests and hobbies", "painPoints": "pain points and needs"}], "content": "content strategy per persona", "messaging": "messaging guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5386,7 +5386,7 @@ export async function aiBrandPartnershipMatcher(data: { values?: string[]; niche
 ${data.values ? `Brand values: ${data.values.join(", ")}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "partners": [{"brand": "brand name or type", "alignment": "value alignment score", "opportunity": "partnership opportunity"}], "approach": "outreach approach", "criteria": "partnership evaluation criteria" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5396,7 +5396,7 @@ export async function aiCrisisCommsPlanner(data: { scenario?: string }, userId?:
   const p = `Create a crisis communications plan for a content creator.
 ${data.scenario ? `Scenario: ${data.scenario}` : ""}
 Respond as JSON: { "plan": {"response": "initial response strategy", "timeline": "response timeline", "channels": "communication channels", "messaging": "key messages"}, "prevention": "prevention strategies", "templates": "response templates" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5407,7 +5407,7 @@ export async function aiPersonalBrandAudit(data: { platforms?: string[]; channel
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 ${data.channelName ? `Channel name: ${data.channelName}` : ""}
 Respond as JSON: { "audit": [{"area": "audit area", "score": "score out of 100", "improvement": "improvement suggestions"}], "overall": "overall brand score", "priorities": "top priorities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5418,7 +5418,7 @@ export async function aiBrandEvolutionPlanner(data: { currentBrand?: string; goa
 ${data.currentBrand ? `Current brand description: ${data.currentBrand}` : ""}
 ${data.goals ? `Evolution goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "evolution": [{"phase": "evolution phase", "changes": "planned changes", "timeline": "phase timeline"}], "risks": "risks and mitigation", "communication": "how to communicate changes to audience" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5429,7 +5429,7 @@ export async function aiCompetitorDifferentiator(data: { competitors?: string[];
 ${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "gaps": [{"area": "competitive area", "yours": "your position", "theirs": "their position", "opportunity": "opportunity to differentiate"}], "strategy": "differentiation strategy", "positioning": "market positioning" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5440,7 +5440,7 @@ export async function aiCollaborationBriefWriter(data: { partner?: string; conce
 ${data.partner ? `Partner: ${data.partner}` : ""}
 ${data.concept ? `Concept: ${data.concept}` : ""}
 Respond as JSON: { "brief": {"objectives": "collaboration objectives", "deliverables": "expected deliverables", "timeline": "project timeline", "terms": "suggested terms"}, "template": "reusable brief template" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5451,7 +5451,7 @@ export async function aiNetworkingEventPrep(data: { event?: string; goals?: stri
 ${data.event ? `Event: ${data.event}` : ""}
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "prep": {"elevator": "elevator pitch", "cards": "business card tips", "goals": "networking goals", "followUp": "follow-up strategy"}, "talking": "talking points", "contacts": "types of contacts to target" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5462,7 +5462,7 @@ export async function aiMentorshipFinder(data: { goals?: string[]; niche?: strin
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "mentors": [{"type": "mentor type", "where": "where to find them", "approach": "how to approach"}], "program": "mentorship program structure", "reciprocity": "what to offer in return" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5473,7 +5473,7 @@ export async function aiDelegationAdvisor(data: { tasks?: string[]; teamSize?: n
 ${data.tasks ? `Tasks to delegate: ${data.tasks.join(", ")}` : ""}
 ${data.teamSize ? `Team size: ${data.teamSize}` : ""}
 Respond as JSON: { "delegation": [{"task": "task name", "delegateTo": "who to delegate to", "priority": "delegation priority"}], "keep": "tasks to keep yourself", "systemize": "tasks to systemize" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5484,7 +5484,7 @@ export async function aiTimeManagementCoach(data: { schedule?: string; tasks?: s
 ${data.schedule ? `Current schedule: ${data.schedule}` : ""}
 ${data.tasks ? `Tasks: ${data.tasks.join(", ")}` : ""}
 Respond as JSON: { "optimized": [{"block": "time block", "activity": "planned activity", "duration": "duration"}], "tips": "productivity tips", "boundaries": "boundary-setting advice" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5495,7 +5495,7 @@ export async function aiCreatorMastermindPlanner(data: { niche?: string; level?:
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.level ? `Creator level: ${data.level}` : ""}
 Respond as JSON: { "mastermind": {"structure": "group structure", "frequency": "meeting frequency", "topics": "discussion topics", "members": "ideal member profiles"}, "format": "meeting format", "rules": "group rules" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5506,7 +5506,7 @@ export async function aiProductivityTracker(data: { tasksCompleted?: number; hou
 ${data.tasksCompleted ? `Tasks completed: ${data.tasksCompleted}` : ""}
 ${data.hoursWorked ? `Hours worked: ${data.hoursWorked}` : ""}
 Respond as JSON: { "score": "productivity score 0-100", "efficiency": "efficiency analysis", "recommendations": "improvement recommendations", "burnoutRisk": "burnout risk assessment", "balance": "work-life balance tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5517,7 +5517,7 @@ export async function aiCopyrightChecker(data: { content?: string; type?: string
 ${data.content ? `Content: ${data.content}` : ""}
 ${data.type ? `Content type: ${data.type}` : ""}
 Respond as JSON: { "risks": [{"issue": "copyright issue", "severity": "severity level", "solution": "recommended solution"}], "safetyScore": "safety score 0-100", "alternatives": "safe alternatives" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5528,7 +5528,7 @@ export async function aiFairUseAnalyzer(data: { usage?: string; original?: strin
 ${data.usage ? `Usage description: ${data.usage}` : ""}
 ${data.original ? `Original work: ${data.original}` : ""}
 Respond as JSON: { "analysis": {"transformative": "transformative factor analysis", "commercial": "commercial nature analysis", "amount": "amount used analysis", "effect": "market effect analysis"}, "conclusion": "fair use conclusion", "risks": "risk assessment" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5539,7 +5539,7 @@ export async function aiMusicLicenseAdvisor(data: { useCase?: string; platform?:
 ${data.useCase ? `Use case: ${data.useCase}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "licenses": [{"type": "license type", "provider": "license provider", "cost": "estimated cost", "rights": "rights included"}], "freeSources": "free music sources", "alternatives": "alternative options" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5550,7 +5550,7 @@ export async function aiPrivacyPolicyGenerator(data: { platforms?: string[]; dat
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 ${data.dataCollected ? `Data collected: ${data.dataCollected.join(", ")}` : ""}
 Respond as JSON: { "policy": "privacy policy summary", "sections": [{"title": "section title", "content": "section content"}], "compliance": "compliance notes", "updates": "recommended update schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5561,7 +5561,7 @@ export async function aiTermsOfServiceWriter(data: { services?: string[]; platfo
 ${data.services ? `Services offered: ${data.services.join(", ")}` : ""}
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "terms": "terms of service summary", "sections": [{"title": "section title", "content": "section content"}], "enforcement": "enforcement guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5572,7 +5572,7 @@ export async function aiFTCComplianceChecker(data: { contentType?: string; spons
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.sponsorships !== undefined ? `Has sponsorships: ${data.sponsorships}` : ""}
 Respond as JSON: { "compliant": "compliance status", "issues": [{"rule": "FTC rule", "violation": "potential violation", "fix": "how to fix"}], "disclosures": "required disclosures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5582,7 +5582,7 @@ export async function aiCOPPAAdvisor(data: { targetAudience?: string }, userId?:
   const p = `Advise on COPPA compliance for content creator.
 ${data.targetAudience ? `Target audience: ${data.targetAudience}` : ""}
 Respond as JSON: { "applicable": "whether COPPA applies", "requirements": [{"rule": "COPPA rule", "implementation": "how to implement"}], "risks": "risk assessment", "alternatives": "alternative approaches" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5592,7 +5592,7 @@ export async function aiGDPRComplianceChecker(data: { dataProcessing?: string[] 
   const p = `Check GDPR compliance for content creator.
 ${data.dataProcessing ? `Data processing activities: ${data.dataProcessing.join(", ")}` : ""}
 Respond as JSON: { "compliant": "compliance status", "gaps": [{"requirement": "GDPR requirement", "status": "current status", "action": "required action"}], "dpa": "data processing agreement notes" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5603,7 +5603,7 @@ export async function aiContentIDManager(data: { platform?: string; claims?: num
 ${data.platform ? `Platform: ${data.platform}` : ""}
 ${data.claims ? `Number of claims: ${data.claims}` : ""}
 Respond as JSON: { "management": [{"claimType": "type of claim", "response": "recommended response", "prevention": "prevention strategy"}], "strategy": "overall management strategy", "appeals": "appeal process guidance" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5613,7 +5613,7 @@ export async function aiDisputeResolutionAdvisor(data: { disputeType?: string },
   const p = `Advise on dispute resolution for content creator.
 ${data.disputeType ? `Dispute type: ${data.disputeType}` : ""}
 Respond as JSON: { "steps": [{"step": "resolution step", "timeline": "expected timeline", "action": "specific action"}], "escalation": "escalation path", "documentation": "documentation needed" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5624,7 +5624,7 @@ export async function aiTrademarkAdvisor(data: { brandName?: string; niche?: str
 ${data.brandName ? `Brand name: ${data.brandName}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "availability": "trademark availability assessment", "risks": "potential risks", "registration": "registration process", "protection": "protection strategy", "costs": "estimated costs" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5635,7 +5635,7 @@ export async function aiContractTemplateBuilder(data: { contractType?: string; p
 ${data.contractType ? `Contract type: ${data.contractType}` : ""}
 ${data.parties ? `Parties involved: ${data.parties.join(", ")}` : ""}
 Respond as JSON: { "template": "contract template overview", "clauses": [{"title": "clause title", "content": "clause content", "importance": "importance level"}], "negotiation": "negotiation tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5646,7 +5646,7 @@ export async function aiInsuranceAdvisor(data: { contentType?: string; revenue?:
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.revenue ? `Annual revenue: $${data.revenue}` : ""}
 Respond as JSON: { "recommended": [{"type": "insurance type", "coverage": "coverage details", "cost": "estimated cost"}], "risks": "uninsured risks", "providers": "recommended providers" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5657,7 +5657,7 @@ export async function aiBusinessEntityAdvisor(data: { revenue?: number; state?: 
 ${data.revenue ? `Annual revenue: $${data.revenue}` : ""}
 ${data.state ? `State: ${data.state}` : ""}
 Respond as JSON: { "recommended": "recommended entity type", "comparison": [{"type": "entity type", "pros": "advantages", "cons": "disadvantages", "tax": "tax implications"}], "steps": "formation steps" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5667,7 +5667,7 @@ export async function aiIntellectualPropertyProtector(data: { assets?: string[] 
   const p = `Protect intellectual property for a content creator.
 ${data.assets ? `Assets to protect: ${data.assets.join(", ")}` : ""}
 Respond as JSON: { "protection": [{"asset": "asset name", "method": "protection method", "cost": "estimated cost", "timeline": "timeline"}], "priority": "priority order", "enforcement": "enforcement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5678,7 +5678,7 @@ export async function aiBurnoutRiskAssessor(data: { hoursPerWeek?: number; conte
 ${data.hoursPerWeek ? `Hours per week: ${data.hoursPerWeek}` : ""}
 ${data.contentFrequency ? `Content frequency: ${data.contentFrequency}` : ""}
 Respond as JSON: { "riskLevel": "burnout risk level", "factors": [{"factor": "risk factor", "score": "factor score"}], "prevention": "prevention strategies", "recovery": "recovery plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5689,7 +5689,7 @@ export async function aiMeditationGuide(data: { stressLevel?: string; duration?:
 ${data.stressLevel ? `Stress level: ${data.stressLevel}` : ""}
 ${data.duration ? `Available duration: ${data.duration}` : ""}
 Respond as JSON: { "exercises": [{"name": "exercise name", "duration": "duration", "technique": "technique description"}], "schedule": "recommended schedule", "benefits": "expected benefits" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5700,7 +5700,7 @@ export async function aiWorkLifeBalancer(data: { workHours?: number; personalGoa
 ${data.workHours ? `Work hours per week: ${data.workHours}` : ""}
 ${data.personalGoals ? `Personal goals: ${data.personalGoals.join(", ")}` : ""}
 Respond as JSON: { "assessment": "current balance assessment", "adjustments": [{"area": "life area", "change": "recommended change", "benefit": "expected benefit"}], "boundaries": "boundary recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5711,7 +5711,7 @@ export async function aiCreatorMentalHealthMonitor(data: { mood?: string; stress
 ${data.mood ? `Current mood: ${data.mood}` : ""}
 ${data.stressors ? `Stressors: ${data.stressors.join(", ")}` : ""}
 Respond as JSON: { "assessment": "mental health assessment", "resources": [{"type": "resource type", "resource": "resource name", "access": "how to access"}], "coping": "coping strategies", "professional": "when to seek professional help" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5722,7 +5722,7 @@ export async function aiSleepOptimizer(data: { schedule?: string; issues?: strin
 ${data.schedule ? `Current schedule: ${data.schedule}` : ""}
 ${data.issues ? `Sleep issues: ${data.issues.join(", ")}` : ""}
 Respond as JSON: { "recommendations": [{"change": "recommended change", "impact": "expected impact", "implementation": "how to implement"}], "routine": "bedtime routine", "environment": "sleep environment tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5733,7 +5733,7 @@ export async function aiExerciseForCreators(data: { sedentaryHours?: number; iss
 ${data.sedentaryHours ? `Sedentary hours per day: ${data.sedentaryHours}` : ""}
 ${data.issues ? `Physical issues: ${data.issues.join(", ")}` : ""}
 Respond as JSON: { "exercises": [{"name": "exercise name", "duration": "duration", "benefit": "health benefit", "deskFriendly": "whether desk-friendly"}], "schedule": "exercise schedule", "ergonomics": "ergonomic tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5743,7 +5743,7 @@ export async function aiEyeStrainPreventer(data: { screenHours?: number }, userI
   const p = `Prevent eye strain for a content creator.
 ${data.screenHours ? `Screen hours per day: ${data.screenHours}` : ""}
 Respond as JSON: { "tips": [{"tip": "prevention tip", "frequency": "how often", "benefit": "expected benefit"}], "settings": "display settings recommendations", "equipment": "recommended equipment", "breaks": "break schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5754,7 +5754,7 @@ export async function aiVoiceCareAdvisor(data: { speakingHours?: number; issues?
 ${data.speakingHours ? `Speaking hours per day: ${data.speakingHours}` : ""}
 ${data.issues ? `Voice issues: ${data.issues.join(", ")}` : ""}
 Respond as JSON: { "care": [{"tip": "voice care tip", "importance": "importance level", "technique": "technique description"}], "warmups": "vocal warmup exercises", "prevention": "prevention strategies", "recovery": "recovery tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5765,7 +5765,7 @@ export async function aiStressManagementCoach(data: { triggers?: string[]; level
 ${data.triggers ? `Stress triggers: ${data.triggers.join(", ")}` : ""}
 ${data.level ? `Stress level: ${data.level}` : ""}
 Respond as JSON: { "strategies": [{"technique": "stress technique", "when": "when to use", "duration": "duration needed"}], "emergency": "emergency stress relief", "longTerm": "long-term management plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5776,7 +5776,7 @@ export async function aiCreatorBreakScheduler(data: { contentSchedule?: string; 
 ${data.contentSchedule ? `Content schedule: ${data.contentSchedule}` : ""}
 ${data.lastBreak ? `Last break taken: ${data.lastBreak}` : ""}
 Respond as JSON: { "nextBreak": "recommended next break", "schedule": [{"break": "break type", "duration": "duration", "timing": "when to take"}], "content": "content prep for breaks", "coverage": "coverage plan during breaks" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5786,7 +5786,7 @@ export async function aiYouTubeAPIIntegrator(data: { features?: string[] }, user
   const p = `Guide YouTube API integration for a content creator.
 ${data.features ? `Desired features: ${data.features.join(", ")}` : ""}
 Respond as JSON: { "endpoints": [{"api": "API endpoint", "purpose": "purpose", "implementation": "implementation guide"}], "authentication": "auth setup guide", "limits": "rate limits and quotas", "bestPractices": "best practices" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5796,7 +5796,7 @@ export async function aiTwitchIntegrator(data: { features?: string[] }, userId?:
   const p = `Guide Twitch integration for a content creator.
 ${data.features ? `Desired features: ${data.features.join(", ")}` : ""}
 Respond as JSON: { "integration": [{"feature": "feature name", "api": "API to use", "implementation": "implementation guide"}], "authentication": "auth setup", "webhooks": "webhook configuration" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5806,7 +5806,7 @@ export async function aiDiscordBotBuilder(data: { features?: string[] }, userId?
   const p = `Build a Discord bot for a content creator community.
 ${data.features ? `Desired features: ${data.features.join(", ")}` : ""}
 Respond as JSON: { "bot": {"commands": "bot commands list", "events": "event handlers", "permissions": "required permissions"}, "hosting": "hosting recommendations", "deployment": "deployment guide" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5816,7 +5816,7 @@ export async function aiGoogleAnalyticsSetup(data: { platform?: string }, userId
   const p = `Set up Google Analytics for a content creator.
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "setup": [{"step": "setup step", "config": "configuration details"}], "tracking": "tracking recommendations", "reports": "key reports to monitor", "goals": "goal configuration" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5827,7 +5827,7 @@ export async function aiSocialMediaScheduler(data: { platforms?: string[]; frequ
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 ${data.frequency ? `Posting frequency: ${data.frequency}` : ""}
 Respond as JSON: { "schedule": [{"platform": "platform name", "times": "optimal posting times", "content": "content type"}], "tools": "scheduling tools", "automation": "automation tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5838,7 +5838,7 @@ export async function aiEmailMarketingSetup(data: { platform?: string; listSize?
 ${data.platform ? `Email platform: ${data.platform}` : ""}
 ${data.listSize ? `List size: ${data.listSize}` : ""}
 Respond as JSON: { "setup": [{"step": "setup step", "config": "configuration"}], "sequences": "email sequence recommendations", "templates": "template suggestions", "segmentation": "audience segmentation strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5849,7 +5849,7 @@ export async function aiPodcastIntegrator(data: { format?: string; frequency?: s
 ${data.format ? `Podcast format: ${data.format}` : ""}
 ${data.frequency ? `Release frequency: ${data.frequency}` : ""}
 Respond as JSON: { "setup": [{"platform": "platform name", "config": "configuration"}], "distribution": "distribution strategy", "monetization": "monetization options", "crossPromo": "cross-promotion strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5859,7 +5859,7 @@ export async function aiWebhookManager(data: { services?: string[] }, userId?: s
   const p = `Manage webhooks for a content creator's services.
 ${data.services ? `Services: ${data.services.join(", ")}` : ""}
 Respond as JSON: { "webhooks": [{"service": "service name", "events": "events to listen for", "handler": "handler implementation"}], "security": "security best practices", "monitoring": "monitoring strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5869,7 +5869,7 @@ export async function aiAPIRateLimitManager(data: { apis?: string[] }, userId?: 
   const p = `Manage API rate limits for a content creator.
 ${data.apis ? `APIs used: ${data.apis.join(", ")}` : ""}
 Respond as JSON: { "limits": [{"api": "API name", "rate": "rate limit details", "optimization": "optimization strategy"}], "caching": "caching recommendations", "queueing": "request queueing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5880,7 +5880,7 @@ export async function aiDataBackupPlanner(data: { platforms?: string[]; dataType
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 ${data.dataTypes ? `Data types: ${data.dataTypes.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"data": "data type", "frequency": "backup frequency", "method": "backup method", "storage": "storage location"}], "automation": "automation setup", "recovery": "recovery procedures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5891,7 +5891,7 @@ export async function aiNotificationOptimizer(data: { channels?: string[]; volum
 ${data.channels ? `Notification channels: ${data.channels.join(", ")}` : ""}
 ${data.volume ? `Current volume: ${data.volume}` : ""}
 Respond as JSON: { "optimized": [{"channel": "channel name", "frequency": "optimized frequency", "priority": "priority level"}], "filtering": "filtering rules", "batching": "batching strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5902,7 +5902,7 @@ export async function aiCrossPostAutomator(data: { platforms?: string[]; content
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 ${data.contentTypes ? `Content types: ${data.contentTypes.join(", ")}` : ""}
 Respond as JSON: { "automation": [{"from": "source platform", "to": "target platform", "adaptation": "content adaptation needed", "timing": "posting timing"}], "tools": "automation tools", "limitations": "platform limitations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5913,7 +5913,7 @@ export async function aiLinkTreeOptimizer(data: { links?: string[]; goals?: stri
 ${data.links ? `Current links: ${data.links.join(", ")}` : ""}
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "optimized": [{"link": "link URL or label", "placement": "optimal placement", "cta": "call to action"}], "design": "design recommendations", "analytics": "analytics setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5923,7 +5923,7 @@ export async function aiQRCodeGenerator(data: { destinations?: string[] }, userI
   const p = `Generate QR code strategy for a content creator.
 ${data.destinations ? `Destinations: ${data.destinations.join(", ")}` : ""}
 Respond as JSON: { "codes": [{"destination": "destination URL", "design": "design recommendations", "placement": "where to place", "tracking": "tracking setup"}], "analytics": "analytics strategy", "bestPractices": "QR code best practices" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5934,7 +5934,7 @@ export async function aiChatbotIntegrator(data: { platform?: string; purpose?: s
 ${data.platform ? `Platform: ${data.platform}` : ""}
 ${data.purpose ? `Purpose: ${data.purpose}` : ""}
 Respond as JSON: { "setup": [{"step": "setup step", "config": "configuration"}], "responses": "response templates", "training": "chatbot training guide", "escalation": "escalation to human process" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5945,7 +5945,7 @@ export async function aiAnalyticsDashboardBuilder(data: { metrics?: string[]; so
 ${data.metrics ? `Key metrics: ${data.metrics.join(", ")}` : ""}
 ${data.sources ? `Data sources: ${data.sources.join(", ")}` : ""}
 Respond as JSON: { "dashboard": [{"widget": "widget type", "metric": "metric displayed", "source": "data source"}], "layout": "dashboard layout", "refresh": "refresh intervals", "alerts": "alert configuration" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5956,7 +5956,7 @@ export async function aiContentDeliveryOptimizer(data: { platforms?: string[]; f
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 ${data.fileTypes ? `File types: ${data.fileTypes.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"platform": "platform name", "settings": "optimal settings", "quality": "quality recommendations"}], "CDN": "CDN recommendations", "compression": "compression strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5967,7 +5967,7 @@ export async function aiAccessibilityAuditor(data: { contentType?: string; platf
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "audit": [{"criterion": "accessibility criterion", "status": "pass or fail", "fix": "how to fix"}], "score": "accessibility score", "wcag": "WCAG compliance level", "priorities": "priority fixes" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5978,7 +5978,7 @@ export async function aiMultiDeviceTester(data: { content?: string; platforms?: 
 ${data.content ? `Content: ${data.content}` : ""}
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "testing": [{"device": "device type", "issues": "issues found", "fixes": "recommended fixes"}], "checklist": "testing checklist", "automation": "automated testing options" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5988,7 +5988,7 @@ export async function aiPerformanceMonitor(data: { metrics?: string[] }, userId?
   const p = `Monitor performance metrics for a content creator.
 ${data.metrics ? `Metrics to monitor: ${data.metrics.join(", ")}` : ""}
 Respond as JSON: { "monitoring": [{"metric": "metric name", "baseline": "baseline value", "alert": "alert threshold"}], "tools": "monitoring tools", "optimization": "optimization recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -5998,7 +5998,7 @@ export async function aiSecurityAuditor(data: { accounts?: string[] }, userId?: 
   const p = `Audit security for a content creator's accounts.
 ${data.accounts ? `Accounts: ${data.accounts.join(", ")}` : ""}
 Respond as JSON: { "audit": [{"account": "account name", "risk": "risk level", "action": "recommended action"}], "twoFA": "two-factor auth recommendations", "passwords": "password management tips", "backup": "backup access strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6009,7 +6009,7 @@ export async function aiCookieConsentManager(data: { platforms?: string[]; regio
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 ${data.regions ? `Target regions: ${data.regions.join(", ")}` : ""}
 Respond as JSON: { "implementation": [{"region": "region name", "requirements": "legal requirements", "solution": "implementation solution"}], "tools": "consent management tools" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6020,7 +6020,7 @@ export async function aiAgeGatingAdvisor(data: { contentType?: string; platform?
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "required": "whether age gating is required", "implementation": [{"method": "gating method", "platform": "platform specifics"}], "guidelines": "content guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6030,7 +6030,7 @@ export async function aiDataRetentionPlanner(data: { dataTypes?: string[] }, use
   const p = `Plan data retention for a content creator.
 ${data.dataTypes ? `Data types: ${data.dataTypes.join(", ")}` : ""}
 Respond as JSON: { "policy": [{"dataType": "data type", "retention": "retention period", "deletion": "deletion method"}], "compliance": "compliance notes", "automation": "automation setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6040,7 +6040,7 @@ export async function aiIncidentResponsePlanner(data: { scenarios?: string[] }, 
   const p = `Plan incident response for a content creator.
 ${data.scenarios ? `Scenarios to plan for: ${data.scenarios.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"scenario": "incident scenario", "response": "response steps", "communication": "communication plan", "timeline": "response timeline"}], "prevention": "prevention strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6051,7 +6051,7 @@ export async function aiCustomShortcutBuilder(data: { workflow?: string; tools?:
 ${data.workflow ? `Workflow: ${data.workflow}` : ""}
 ${data.tools ? `Tools used: ${data.tools.join(", ")}` : ""}
 Respond as JSON: { "shortcuts": [{"action": "action name", "key": "keyboard shortcut", "tool": "associated tool", "timeSaved": "time saved per use"}], "profiles": "shortcut profiles for different tasks", "automation": "automation recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6062,7 +6062,7 @@ export async function aiAdvancedSearchOptimizer(data: { contentType?: string; pl
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "operators": [{"operator": "search operator", "usage": "how to use it", "example": "example query"}], "templates": "saved search templates", "savedSearches": "recommended saved searches" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6073,7 +6073,7 @@ export async function aiBulkUploadManager(data: { fileCount?: number; platforms?
 ${data.fileCount ? `Number of files: ${data.fileCount}` : ""}
 ${data.platforms ? `Target platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "workflow": [{"step": "workflow step", "tool": "tool to use", "config": "configuration details"}], "naming": "file naming conventions", "metadata": "metadata strategy", "scheduling": "upload scheduling plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6084,7 +6084,7 @@ export async function aiPlaylistAutoOrganizer(data: { playlists?: string[]; crit
 ${data.playlists ? `Existing playlists: ${data.playlists.join(", ")}` : ""}
 ${data.criteria ? `Organization criteria: ${data.criteria}` : ""}
 Respond as JSON: { "organized": [{"playlist": "playlist name", "order": "suggested order", "additions": "suggested additions"}], "newPlaylists": "suggested new playlists", "cleanup": "cleanup recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6095,7 +6095,7 @@ export async function aiMultiAccountManager(data: { accounts?: number; platforms
 ${data.accounts ? `Number of accounts: ${data.accounts}` : ""}
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "management": [{"account": "account identifier", "purpose": "account purpose", "schedule": "posting schedule"}], "tools": "management tools recommended", "delegation": "delegation strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6106,7 +6106,7 @@ export async function aiCustomDashboardBuilder(data: { metrics?: string[]; role?
 ${data.metrics ? `Key metrics: ${data.metrics.join(", ")}` : ""}
 ${data.role ? `User role: ${data.role}` : ""}
 Respond as JSON: { "widgets": [{"name": "widget name", "metric": "metric tracked", "visualization": "visualization type"}], "layout": "dashboard layout recommendation", "refresh": "data refresh intervals" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6117,7 +6117,7 @@ export async function aiAutoTaggingSystem(data: { contentType?: string; existing
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.existing ? `Existing tags: ${data.existing.join(", ")}` : ""}
 Respond as JSON: { "tags": [{"tag": "tag name", "category": "tag category", "rules": "auto-tagging rules"}], "automation": "automation setup", "hierarchy": "tag hierarchy structure" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6127,7 +6127,7 @@ export async function aiSmartNotificationSystem(data: { priorities?: string[] },
   const p = `Design a smart notification system for a content creator.
 ${data.priorities ? `Priority levels: ${data.priorities.join(", ")}` : ""}
 Respond as JSON: { "rules": [{"trigger": "notification trigger", "action": "action to take", "priority": "priority level"}], "channels": "notification channels", "quiet": "quiet hours configuration", "escalation": "escalation rules" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6137,7 +6137,7 @@ export async function aiTemplateLibrary(data: { contentTypes?: string[] }, userI
   const p = `Build a template library for a content creator.
 ${data.contentTypes ? `Content types: ${data.contentTypes.join(", ")}` : ""}
 Respond as JSON: { "templates": [{"name": "template name", "type": "content type", "sections": "template sections", "vars": "customizable variables"}], "customization": "customization options", "sharing": "template sharing features" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6147,7 +6147,7 @@ export async function aiMacroBuilder(data: { tasks?: string[] }, userId?: string
   const p = `Build automation macros for a content creator.
 ${data.tasks ? `Tasks to automate: ${data.tasks.join(", ")}` : ""}
 Respond as JSON: { "macros": [{"name": "macro name", "steps": "macro steps", "trigger": "trigger condition", "timeSaved": "estimated time saved"}], "sequences": "macro sequences", "scheduling": "macro scheduling" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6158,7 +6158,7 @@ export async function aiVRContentAdvisor(data: { niche?: string; budget?: string
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.budget ? `Budget: ${data.budget}` : ""}
 Respond as JSON: { "opportunities": [{"format": "VR content format", "platform": "target platform", "audience": "target audience"}], "equipment": "recommended equipment", "creation": "creation workflow tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6169,7 +6169,7 @@ export async function aiARFilterCreator(data: { platform?: string; brand?: strin
 ${data.platform ? `Platform: ${data.platform}` : ""}
 ${data.brand ? `Brand: ${data.brand}` : ""}
 Respond as JSON: { "filters": [{"name": "filter name", "concept": "filter concept", "platform": "target platform", "interaction": "user interaction type"}], "development": "development recommendations", "promotion": "promotion strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6180,7 +6180,7 @@ export async function aiAIVoiceoverGenerator(data: { script?: string; voice?: st
 ${data.script ? `Script sample: ${data.script}` : ""}
 ${data.voice ? `Preferred voice style: ${data.voice}` : ""}
 Respond as JSON: { "options": [{"provider": "voiceover provider", "quality": "quality rating", "price": "pricing info", "languages": "supported languages"}], "editing": "editing tips", "syncing": "audio syncing advice" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6190,7 +6190,7 @@ export async function aiDeepfakeDetector(data: { contentType?: string }, userId?
   const p = `Advise on deepfake detection and prevention for a content creator.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "detection": [{"method": "detection method", "accuracy": "accuracy level", "tool": "recommended tool"}], "prevention": "prevention strategies", "watermarking": "watermarking recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6200,7 +6200,7 @@ export async function aiBlockchainContentVerifier(data: { contentType?: string }
   const p = `Plan blockchain-based content verification for a content creator.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "verification": [{"method": "verification method", "platform": "blockchain platform", "cost": "estimated cost"}], "timestamping": "content timestamping strategy", "proof": "proof of ownership approach" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6211,7 +6211,7 @@ export async function aiPredictiveTrendEngine(data: { niche?: string; horizon?: 
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.horizon ? `Time horizon: ${data.horizon}` : ""}
 Respond as JSON: { "predictions": [{"trend": "predicted trend", "probability": "likelihood percentage", "timing": "expected timing", "preparation": "how to prepare"}], "signals": "trend signals to watch" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6222,7 +6222,7 @@ export async function aiContentGraphAnalyzer(data: { videos?: number; connection
 ${data.videos ? `Number of videos: ${data.videos}` : ""}
 ${data.connections ? `Connection types: ${data.connections.join(", ")}` : ""}
 Respond as JSON: { "graph": {"nodes": "content nodes description", "edges": "relationship edges", "clusters": "content clusters identified"}, "insights": "graph insights", "optimization": "optimization recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6233,7 +6233,7 @@ export async function aiAudiencePsychographer(data: { niche?: string; demographi
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.demographics ? `Demographics: ${JSON.stringify(data.demographics)}` : ""}
 Respond as JSON: { "psychographics": [{"segment": "audience segment", "values": "core values", "motivations": "key motivations", "triggers": "content triggers"}], "content": "content strategy based on psychographics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6244,7 +6244,7 @@ export async function aiNeuroMarketingAdvisor(data: { contentType?: string; goal
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 ${data.goal ? `Goal: ${data.goal}` : ""}
 Respond as JSON: { "techniques": [{"technique": "neuromarketing technique", "application": "how to apply it", "ethical": "ethical considerations"}], "color": "color psychology recommendations", "sound": "sound design tips", "pacing": "content pacing advice" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6255,7 +6255,7 @@ export async function aiGamificationEngine(data: { community?: string; goals?: s
 ${data.community ? `Community: ${data.community}` : ""}
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "mechanics": [{"mechanic": "gamification mechanic", "implementation": "how to implement", "engagement": "expected engagement impact"}], "rewards": "reward system design", "leaderboard": "leaderboard structure" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6265,7 +6265,7 @@ export async function aiPersonalizationEngine(data: { segments?: string[] }, use
   const p = `Design a content personalization engine for a content creator.
 ${data.segments ? `Audience segments: ${data.segments.join(", ")}` : ""}
 Respond as JSON: { "personalization": [{"segment": "audience segment", "content": "personalized content strategy", "delivery": "delivery method"}], "automation": "automation setup", "testing": "A/B testing recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6276,7 +6276,7 @@ export async function aiSentimentPredictiveModel(data: { topic?: string; platfor
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "prediction": [{"scenario": "content scenario", "sentiment": "predicted sentiment", "probability": "likelihood percentage"}], "mitigation": "negative sentiment mitigation strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6286,7 +6286,7 @@ export async function aiContentDNAAnalyzer(data: { topVideos?: string[] }, userI
   const p = `Analyze the content DNA of top-performing videos for a content creator.
 ${data.topVideos ? `Top videos: ${data.topVideos.join(", ")}` : ""}
 Respond as JSON: { "dna": {"format": "content format patterns", "pacing": "pacing analysis", "hooks": "hook patterns", "emotions": "emotional triggers", "topics": "topic patterns"}, "replication": "replication strategy", "evolution": "content evolution recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6297,7 +6297,7 @@ export async function aiAlgorithmSimulator(data: { platform?: string; contentTyp
 ${data.platform ? `Platform: ${data.platform}` : ""}
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "simulation": [{"factor": "algorithm factor", "weight": "estimated weight", "optimization": "optimization strategy"}], "ranking": "ranking factors analysis", "boosts": "algorithm boost opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6307,7 +6307,7 @@ export async function aiCreatorEconomyTracker(data: { niche?: string }, userId?:
   const p = `Track creator economy trends and opportunities for a content creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "trends": [{"trend": "economy trend", "impact": "impact on creators", "opportunity": "opportunity description"}], "market": "market analysis", "predictions": "future predictions", "positioning": "strategic positioning advice" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6317,7 +6317,7 @@ export async function aiWeb3CreatorTools(data: { interest?: string }, userId?: s
   const p = `Recommend Web3 tools and opportunities for a content creator.
 ${data.interest ? `Interest area: ${data.interest}` : ""}
 Respond as JSON: { "tools": [{"name": "tool name", "purpose": "tool purpose", "blockchain": "blockchain platform", "cost": "estimated cost"}], "opportunities": "Web3 opportunities for creators", "risks": "risks and considerations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6327,7 +6327,7 @@ export async function aiMetaversePresencePlanner(data: { brand?: string }, userI
   const p = `Plan metaverse presence strategy for a content creator.
 ${data.brand ? `Brand: ${data.brand}` : ""}
 Respond as JSON: { "strategy": [{"platform": "metaverse platform", "presence": "presence type", "content": "content strategy"}], "investment": "investment requirements", "timeline": "implementation timeline" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6337,7 +6337,7 @@ export async function aiAIAgentCustomizer(data: { taskTypes?: string[] }, userId
   const p = `Customize AI agents for a content creator workflow.
 ${data.taskTypes ? `Task types: ${data.taskTypes.join(", ")}` : ""}
 Respond as JSON: { "agents": [{"name": "agent name", "role": "agent role", "capabilities": "agent capabilities", "config": "configuration details"}], "workflows": "agent workflow design", "integration": "integration recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6348,7 +6348,7 @@ export async function aiDataVisualizationEngine(data: { data?: string[]; format?
 ${data.data ? `Data sources: ${data.data.join(", ")}` : ""}
 ${data.format ? `Preferred format: ${data.format}` : ""}
 Respond as JSON: { "visualizations": [{"type": "visualization type", "data": "data to visualize", "style": "visual style", "insight": "key insight revealed"}], "tools": "recommended tools", "sharing": "sharing and export options" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6358,7 +6358,7 @@ export async function aiCreatorAPIBuilder(data: { features?: string[] }, userId?
   const p = `Design a creator API for monetization and integration.
 ${data.features ? `Desired features: ${data.features.join(", ")}` : ""}
 Respond as JSON: { "api": [{"endpoint": "API endpoint", "purpose": "endpoint purpose", "auth": "authentication method"}], "documentation": "documentation strategy", "monetization": "API monetization model", "sdk": "SDK development plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6369,7 +6369,7 @@ export async function aiPodcastLaunchPlanner(data: { niche?: string; format?: st
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.format ? `Format: ${data.format}` : ""}
 Respond as JSON: { "plan": [{"phase": "launch phase", "tasks": "key tasks", "timeline": "timeline"}], "equipment": "recommended equipment", "hosting": "hosting platform recommendation", "marketing": "marketing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6380,7 +6380,7 @@ export async function aiPodcastEpisodePlanner(data: { topic?: string; guests?: s
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.guests ? `Guests: ${data.guests.join(", ")}` : ""}
 Respond as JSON: { "outline": [{"segment": "segment name", "duration": "duration", "notes": "notes"}], "questions": "interview questions", "promotion": "promotion strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6391,7 +6391,7 @@ export async function aiPodcastSEO(data: { title?: string; niche?: string }, use
 ${data.title ? `Title: ${data.title}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "optimized": {"title": "optimized title", "description": "optimized description", "tags": "optimized tags"}, "distribution": "distribution strategy", "transcription": "transcription recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6402,7 +6402,7 @@ export async function aiAudioBrandingKit(data: { style?: string; genre?: string 
 ${data.style ? `Style: ${data.style}` : ""}
 ${data.genre ? `Genre: ${data.genre}` : ""}
 Respond as JSON: { "elements": [{"type": "audio element type", "description": "description", "usage": "usage guidelines"}], "consistency": "brand consistency tips", "production": "production recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6413,7 +6413,7 @@ export async function aiMusicComposerAdvisor(data: { mood?: string; usage?: stri
 ${data.mood ? `Mood: ${data.mood}` : ""}
 ${data.usage ? `Usage: ${data.usage}` : ""}
 Respond as JSON: { "recommendations": [{"source": "music source", "style": "style", "license": "license type", "cost": "cost"}], "royaltyFree": "royalty-free options and tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6423,7 +6423,7 @@ export async function aiASMRContentPlanner(data: { niche?: string }, userId?: st
   const p = `Plan ASMR content for a creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "ideas": [{"concept": "ASMR concept", "equipment": "equipment needed", "technique": "technique"}], "audience": "target audience analysis", "monetization": "monetization strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6433,7 +6433,7 @@ export async function aiVoiceTrainingCoach(data: { issues?: string[] }, userId?:
   const p = `Provide voice training coaching for a content creator.
 ${data.issues ? `Issues: ${data.issues.join(", ")}` : ""}
 Respond as JSON: { "exercises": [{"name": "exercise name", "technique": "technique description", "duration": "duration"}], "warmups": "warmup routine", "tips": "general voice tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6443,7 +6443,7 @@ export async function aiAudioMixingGuide(data: { contentType?: string }, userId?
   const p = `Create an audio mixing guide for content creators.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "settings": [{"parameter": "mixing parameter", "value": "recommended value", "reason": "reason"}], "software": "recommended software", "workflow": "mixing workflow" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6454,7 +6454,7 @@ export async function aiNewsletterBuilder(data: { niche?: string; frequency?: st
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.frequency ? `Frequency: ${data.frequency}` : ""}
 Respond as JSON: { "template": [{"section": "section name", "content": "content description", "cta": "call to action"}], "schedule": "publishing schedule", "growth": "growth strategies", "tools": "recommended tools" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6465,7 +6465,7 @@ export async function aiEmailSequenceWriter(data: { goal?: string; steps?: numbe
 ${data.goal ? `Goal: ${data.goal}` : ""}
 ${data.steps ? `Number of steps: ${data.steps}` : ""}
 Respond as JSON: { "sequence": [{"email": "email number", "subject": "subject line", "content": "email content summary", "delay": "delay before sending"}], "segmentation": "audience segmentation tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6476,7 +6476,7 @@ export async function aiLeadMagnetCreator(data: { niche?: string; audience?: str
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.audience ? `Audience: ${data.audience}` : ""}
 Respond as JSON: { "magnets": [{"type": "lead magnet type", "title": "title", "content": "content description", "conversion": "expected conversion"}], "funnel": "funnel strategy", "delivery": "delivery method" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6487,7 +6487,7 @@ export async function aiEmailListGrower(data: { currentSize?: number; niche?: st
 ${data.currentSize ? `Current list size: ${data.currentSize}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "strategies": [{"method": "growth method", "implementation": "how to implement", "growth": "expected growth"}], "tools": "recommended tools", "compliance": "email compliance tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6498,7 +6498,7 @@ export async function aiEmailAnalyticsAdvisor(data: { openRate?: number; clickRa
 ${data.openRate ? `Current open rate: ${data.openRate}%` : ""}
 ${data.clickRate ? `Current click rate: ${data.clickRate}%` : ""}
 Respond as JSON: { "analysis": "overall analysis", "improvements": [{"metric": "metric to improve", "strategy": "improvement strategy"}], "benchmarks": "industry benchmarks" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6509,7 +6509,7 @@ export async function aiWebinarPlanner(data: { topic?: string; audience?: string
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.audience ? `Audience: ${data.audience}` : ""}
 Respond as JSON: { "plan": [{"phase": "planning phase", "tasks": "tasks"}], "platform": "recommended platform", "promotion": "promotion strategy", "followUp": "follow-up plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6520,7 +6520,7 @@ export async function aiVirtualEventOrganizer(data: { eventType?: string; attend
 ${data.eventType ? `Event type: ${data.eventType}` : ""}
 ${data.attendees ? `Expected attendees: ${data.attendees}` : ""}
 Respond as JSON: { "plan": [{"element": "event element", "setup": "setup details", "timing": "timing"}], "platform": "recommended platform", "engagement": "engagement strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6531,7 +6531,7 @@ export async function aiMeetupOrganizer(data: { community?: string; location?: s
 ${data.community ? `Community: ${data.community}` : ""}
 ${data.location ? `Location: ${data.location}` : ""}
 Respond as JSON: { "plan": [{"detail": "planning detail", "action": "action item"}], "venue": "venue recommendations", "promotion": "promotion plan", "agenda": "event agenda" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6542,7 +6542,7 @@ export async function aiConferencePrep(data: { conference?: string; role?: strin
 ${data.conference ? `Conference: ${data.conference}` : ""}
 ${data.role ? `Role: ${data.role}` : ""}
 Respond as JSON: { "prep": [{"task": "preparation task", "timeline": "timeline"}], "networking": "networking strategy", "pitch": "elevator pitch", "materials": "materials to prepare" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6553,7 +6553,7 @@ export async function aiAwardSubmissionWriter(data: { category?: string; achieve
 ${data.category ? `Category: ${data.category}` : ""}
 ${data.achievements ? `Achievements: ${data.achievements.join(", ")}` : ""}
 Respond as JSON: { "submission": {"narrative": "submission narrative", "metrics": "key metrics", "impact": "impact statement"}, "tips": "submission tips", "deadlines": "deadline management" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6564,7 +6564,7 @@ export async function aiPanelDiscussionPrep(data: { topic?: string; role?: strin
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.role ? `Role: ${data.role}` : ""}
 Respond as JSON: { "prep": [{"talking": "talking point", "supporting": "supporting evidence"}], "questions": "anticipated questions", "audience": "audience engagement tips", "followUp": "follow-up strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6575,7 +6575,7 @@ export async function aiCreatorRetreePlanner(data: { purpose?: string; attendees
 ${data.purpose ? `Purpose: ${data.purpose}` : ""}
 ${data.attendees ? `Attendees: ${data.attendees}` : ""}
 Respond as JSON: { "plan": [{"day": "day number", "activities": "planned activities"}], "budget": "budget breakdown", "venue": "venue recommendations", "outcomes": "expected outcomes" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6586,7 +6586,7 @@ export async function aiLiveWorkshopBuilder(data: { skill?: string; duration?: s
 ${data.skill ? `Skill: ${data.skill}` : ""}
 ${data.duration ? `Duration: ${data.duration}` : ""}
 Respond as JSON: { "curriculum": [{"section": "section name", "activity": "activity description", "materials": "materials needed"}], "pricing": "pricing strategy", "recording": "recording and repurposing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6597,7 +6597,7 @@ export async function aiOnlineCourseLauncher(data: { topic?: string; modules?: n
 ${data.topic ? `Topic: ${data.topic}` : ""}
 ${data.modules ? `Number of modules: ${data.modules}` : ""}
 Respond as JSON: { "launch": [{"phase": "launch phase", "tasks": "tasks", "timeline": "timeline"}], "pricing": "pricing strategy", "marketing": "marketing plan", "platform": "platform recommendation" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6608,7 +6608,7 @@ export async function aiMasterclassDesigner(data: { expertise?: string; format?:
 ${data.expertise ? `Expertise: ${data.expertise}` : ""}
 ${data.format ? `Format: ${data.format}` : ""}
 Respond as JSON: { "design": [{"session": "session name", "content": "content outline", "exercise": "practical exercise"}], "pricing": "pricing strategy", "promotion": "promotion plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6619,7 +6619,7 @@ export async function aiMediaAppearancePrep(data: { outlet?: string; topic?: str
 ${data.outlet ? `Media outlet: ${data.outlet}` : ""}
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "prep": [{"area": "preparation area", "talking": "talking points"}], "dos": "dos for the appearance", "donts": "donts for the appearance", "followUp": "follow-up strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6630,7 +6630,7 @@ export async function aiGuestPostWriter(data: { publication?: string; topic?: st
 ${data.publication ? `Publication: ${data.publication}` : ""}
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "outline": "article outline", "pitch": "pitch to the publication", "bio": "author bio", "promotion": "promotion strategy", "relationships": "relationship building tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6641,7 +6641,7 @@ export async function aiInfluencerEventPlanner(data: { brand?: string; influence
 ${data.brand ? `Brand: ${data.brand}` : ""}
 ${data.influencers ? `Number of influencers: ${data.influencers}` : ""}
 Respond as JSON: { "event": [{"element": "event element", "detail": "detail"}], "budget": "budget estimate", "contracts": "contract considerations", "content": "content deliverables" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6652,7 +6652,7 @@ export async function aiProductLaunchPlanner(data: { product?: string; audience?
 ${data.product ? `Product: ${data.product}` : ""}
 ${data.audience ? `Target audience: ${data.audience}` : ""}
 Respond as JSON: { "launch": [{"phase": "launch phase", "actions": "actions", "timeline": "timeline"}], "marketing": "marketing strategy", "partners": "partnership opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6663,7 +6663,7 @@ export async function aiCharityEventAdvisor(data: { cause?: string; format?: str
 ${data.cause ? `Cause: ${data.cause}` : ""}
 ${data.format ? `Format: ${data.format}` : ""}
 Respond as JSON: { "plan": [{"element": "event element", "detail": "detail"}], "fundraising": "fundraising strategy", "promotion": "promotion plan", "legal": "legal considerations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6673,7 +6673,7 @@ export async function aiAnniversaryCelebrationPlanner(data: { milestone?: string
   const p = `Plan an anniversary celebration for a content creator channel.
 ${data.milestone ? `Milestone: ${data.milestone}` : ""}
 Respond as JSON: { "celebration": [{"element": "celebration element", "content": "content idea"}], "community": "community engagement plan", "memorabilia": "memorabilia and merchandise ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6684,7 +6684,7 @@ export async function aiSeasonalCampaignPlanner(data: { season?: string; niche?:
 ${data.season ? `Season: ${data.season}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "campaigns": [{"name": "campaign name", "content": "content plan", "timing": "timing"}], "merchandise": "merchandise opportunities", "partnerships": "partnership ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6695,7 +6695,7 @@ export async function aiHolidayContentCalendar(data: { holidays?: string[]; nich
 ${data.holidays ? `Holidays: ${data.holidays.join(", ")}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "calendar": [{"holiday": "holiday name", "content": "content ideas", "timing": "publishing timing"}], "preparation": "preparation timeline", "evergreen": "evergreen content opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6705,7 +6705,7 @@ export async function aiEndOfYearReview(data: { metrics?: any }, userId?: string
   const p = `Create an end-of-year review for a content creator.
 ${data.metrics ? `Metrics: ${JSON.stringify(data.metrics)}` : ""}
 Respond as JSON: { "review": [{"area": "review area", "achievement": "key achievement", "growth": "growth percentage"}], "highlights": "top highlights", "goals": "goals for next year" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6716,7 +6716,7 @@ export async function aiSkillAssessment(data: { skills?: string[]; goals?: strin
 ${data.skills ? `Current skills: ${data.skills.join(", ")}` : ""}
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "assessment": [{"skill": "skill name", "level": "current level", "gap": "gap to close"}], "learning": "learning recommendations", "priority": "priority order" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6727,7 +6727,7 @@ export async function aiLearningPathBuilder(data: { goal?: string; current?: str
 ${data.goal ? `Goal: ${data.goal}` : ""}
 ${data.current ? `Current level: ${data.current}` : ""}
 Respond as JSON: { "path": [{"milestone": "milestone", "resources": "resources", "duration": "duration"}], "schedule": "recommended schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6738,7 +6738,7 @@ export async function aiCertificationAdvisor(data: { niche?: string; goals?: str
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "certifications": [{"name": "certification name", "provider": "provider", "cost": "cost", "value": "value proposition"}], "priority": "priority order" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6749,7 +6749,7 @@ export async function aiBookRecommender(data: { niche?: string; goals?: string[]
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "books": [{"title": "book title", "author": "author", "key": "key takeaway", "relevance": "relevance to goals"}], "reading": "reading strategy", "schedule": "reading schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6760,7 +6760,7 @@ export async function aiToolTutorialCreator(data: { tool?: string; level?: strin
 ${data.tool ? `Tool: ${data.tool}` : ""}
 ${data.level ? `Level: ${data.level}` : ""}
 Respond as JSON: { "tutorial": [{"step": "step number", "instruction": "instruction", "tip": "pro tip"}], "prerequisites": "prerequisites" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6771,7 +6771,7 @@ export async function aiIndustryReportGenerator(data: { industry?: string; perio
 ${data.industry ? `Industry: ${data.industry}` : ""}
 ${data.period ? `Period: ${data.period}` : ""}
 Respond as JSON: { "report": [{"section": "report section", "findings": "key findings"}], "trends": "emerging trends", "predictions": "future predictions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6782,7 +6782,7 @@ export async function aiCaseStudyBuilder(data: { project?: string; results?: any
 ${data.project ? `Project: ${data.project}` : ""}
 ${data.results ? `Results: ${JSON.stringify(data.results)}` : ""}
 Respond as JSON: { "caseStudy": [{"section": "section name", "content": "content"}], "metrics": "key metrics to highlight", "testimonials": "testimonial gathering strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6793,7 +6793,7 @@ export async function aiPortfolioOptimizer(data: { works?: string[]; goals?: str
 ${data.works ? `Works: ${data.works.join(", ")}` : ""}
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "optimized": [{"piece": "portfolio piece", "position": "recommended position", "description": "optimized description"}], "layout": "layout recommendations", "cta": "call-to-action strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6803,7 +6803,7 @@ export async function aiSocialProofCollector(data: { sources?: string[] }, userI
   const p = `Develop a social proof collection strategy for a content creator.
 ${data.sources ? `Sources: ${data.sources.join(", ")}` : ""}
 Respond as JSON: { "proof": [{"type": "proof type", "content": "content description", "display": "display method"}], "automation": "automation tips", "placement": "optimal placement" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6813,7 +6813,7 @@ export async function aiTestimonialVideoPlanner(data: { clients?: string[] }, us
   const p = `Plan testimonial videos for a content creator.
 ${data.clients ? `Clients: ${data.clients.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"client": "client name", "questions": "interview questions", "format": "video format"}], "editing": "editing guidelines", "placement": "placement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6823,7 +6823,7 @@ export async function aiCaseStudyVideoCreator(data: { project?: string }, userId
   const p = `Create a case study video script for a content creator.
 ${data.project ? `Project: ${data.project}` : ""}
 Respond as JSON: { "script": [{"section": "section", "visual": "visual description", "narration": "narration text"}], "metrics": "metrics to showcase", "cta": "call to action" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6833,7 +6833,7 @@ export async function aiBeforeAfterShowcase(data: { service?: string }, userId?:
   const p = `Create a before/after showcase for a content creator's service.
 ${data.service ? `Service: ${data.service}` : ""}
 Respond as JSON: { "showcase": [{"metric": "metric", "before": "before value", "after": "after value"}], "visuals": "visual presentation tips", "credibility": "credibility boosters" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6843,7 +6843,7 @@ export async function aiInfluencerScorecard(data: { metrics?: any }, userId?: st
   const p = `Generate an influencer scorecard for a content creator.
 ${data.metrics ? `Metrics: ${JSON.stringify(data.metrics)}` : ""}
 Respond as JSON: { "scorecard": [{"metric": "metric name", "score": "score", "benchmark": "industry benchmark"}], "overall": "overall score", "improvements": "improvement areas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6853,7 +6853,7 @@ export async function aiCredibilityBooster(data: { platform?: string }, userId?:
   const p = `Boost credibility for a content creator on their platform.
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "strategies": [{"method": "credibility method", "implementation": "how to implement", "impact": "expected impact"}], "timeline": "implementation timeline" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6863,7 +6863,7 @@ export async function aiUserReviewManager(data: { platform?: string }, userId?: 
   const p = `Manage user reviews for a content creator.
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "management": [{"action": "management action", "process": "process details"}], "responses": "response templates", "flagging": "flagging criteria" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6873,7 +6873,7 @@ export async function aiReferencePageBuilder(data: { references?: string[] }, us
   const p = `Build a reference page for a content creator.
 ${data.references ? `References: ${data.references.join(", ")}` : ""}
 Respond as JSON: { "page": [{"reference": "reference name", "context": "context", "display": "display format"}], "layout": "page layout", "verification": "verification process" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6884,7 +6884,7 @@ export async function aiEcommerceStoreBuilder(data: { products?: string[]; niche
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "store": [{"section": "store section", "setup": "setup details"}], "products": "product strategy", "pricing": "pricing strategy", "marketing": "marketing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6895,7 +6895,7 @@ export async function aiDropshippingAdvisor(data: { niche?: string; budget?: num
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.budget ? `Budget: $${data.budget}` : ""}
 Respond as JSON: { "strategy": "overall strategy", "products": [{"item": "product item", "supplier": "supplier", "margin": "profit margin"}], "marketing": "marketing approach" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6906,7 +6906,7 @@ export async function aiPrintOnDemandOptimizer(data: { designs?: string[]; platf
 ${data.designs ? `Designs: ${data.designs.join(", ")}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "optimization": [{"design": "design name", "platform": "platform", "pricing": "pricing strategy"}], "marketing": "marketing tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6917,7 +6917,7 @@ export async function aiDigitalDownloadCreator(data: { type?: string; niche?: st
 ${data.type ? `Type: ${data.type}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "products": [{"name": "product name", "format": "file format", "price": "price", "creation": "creation process"}], "delivery": "delivery method", "marketing": "marketing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6928,7 +6928,7 @@ export async function aiAffiliatePageBuilder(data: { niche?: string; products?: 
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "page": [{"product": "product name", "review": "review summary", "link": "link placement"}], "seo": "SEO strategy", "disclosure": "disclosure requirements" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6938,7 +6938,7 @@ export async function aiUpsellStrategyBuilder(data: { products?: string[] }, use
   const p = `Build an upsell strategy for a content creator's products.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "upsells": [{"trigger": "upsell trigger", "offer": "upsell offer", "value": "value proposition"}], "sequencing": "upsell sequencing", "pricing": "pricing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6948,7 +6948,7 @@ export async function aiCartAbandonmentRecovery(data: { products?: string[] }, u
   const p = `Create a cart abandonment recovery strategy for a content creator.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "recovery": [{"trigger": "recovery trigger", "email": "email content", "timing": "send timing"}], "incentives": "incentive strategies", "testing": "A/B testing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6958,7 +6958,7 @@ export async function aiCustomerJourneyMapper(data: { touchpoints?: string[] }, 
   const p = `Map the customer journey for a content creator's business.
 ${data.touchpoints ? `Touchpoints: ${data.touchpoints.join(", ")}` : ""}
 Respond as JSON: { "journey": [{"stage": "journey stage", "touchpoint": "touchpoint", "content": "content needed"}], "optimization": "optimization opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6968,7 +6968,7 @@ export async function aiProductBundleCreator(data: { products?: string[] }, user
   const p = `Create product bundles for a content creator.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "bundles": [{"name": "bundle name", "items": "included items", "price": "bundle price", "savings": "customer savings"}], "positioning": "positioning strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6979,7 +6979,7 @@ export async function aiFlashSalePlanner(data: { products?: string[]; duration?:
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 ${data.duration ? `Duration: ${data.duration}` : ""}
 Respond as JSON: { "plan": [{"phase": "sale phase", "action": "action", "timing": "timing"}], "discount": "discount strategy", "urgency": "urgency tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -6989,7 +6989,7 @@ export async function aiLoyaltyRewardDesigner(data: { business?: string }, userI
   const p = `Design a loyalty rewards program for a content creator's business.
 ${data.business ? `Business: ${data.business}` : ""}
 Respond as JSON: { "program": [{"tier": "tier name", "rewards": "rewards", "requirements": "requirements"}], "engagement": "engagement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7000,7 +7000,7 @@ export async function aiSubscriptionModelBuilder(data: { product?: string; niche
 ${data.product ? `Product: ${data.product}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "model": [{"tier": "tier name", "price": "price", "includes": "what is included"}], "retention": "retention strategies", "growth": "growth plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7010,7 +7010,7 @@ export async function aiPricingPageOptimizer(data: { products?: any[] }, userId?
   const p = `Optimize a pricing page for a content creator.
 ${data.products ? `Products: ${JSON.stringify(data.products)}` : ""}
 Respond as JSON: { "optimized": [{"element": "page element", "change": "recommended change", "reason": "reason"}], "psychology": "pricing psychology tips", "testing": "A/B testing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7020,7 +7020,7 @@ export async function aiCheckoutOptimizer(data: { currentFlow?: string[] }, user
   const p = `Optimize the checkout flow for a content creator's store.
 ${data.currentFlow ? `Current flow: ${data.currentFlow.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"step": "checkout step", "improvement": "improvement"}], "trust": "trust signals to add", "urgency": "urgency elements" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7030,7 +7030,7 @@ export async function aiInventoryForecaster(data: { products?: any[] }, userId?:
   const p = `Forecast inventory needs for a content creator's products.
 ${data.products ? `Products: ${JSON.stringify(data.products)}` : ""}
 Respond as JSON: { "forecast": [{"product": "product name", "demand": "demand forecast", "reorder": "reorder point"}], "seasonal": "seasonal adjustments", "buffer": "buffer stock recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7040,7 +7040,7 @@ export async function aiShippingOptimizer(data: { locations?: string[] }, userId
   const p = `Optimize shipping for a content creator's ecommerce.
 ${data.locations ? `Locations: ${data.locations.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"region": "region", "method": "shipping method", "cost": "cost optimization"}], "packaging": "packaging recommendations", "returns": "returns policy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7051,7 +7051,7 @@ export async function aiYouTubeAdsOptimizer(data: { budget?: number; goal?: stri
 ${data.budget ? `Budget: $${data.budget}` : ""}
 ${data.goal ? `Goal: ${data.goal}` : ""}
 Respond as JSON: { "strategy": [{"adType": "ad type", "targeting": "targeting strategy", "budget": "budget allocation"}], "creatives": "creative recommendations", "testing": "testing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7062,7 +7062,7 @@ export async function aiFacebookAdsCreator(data: { product?: string; audience?: 
 ${data.product ? `Product: ${data.product}` : ""}
 ${data.audience ? `Audience: ${data.audience}` : ""}
 Respond as JSON: { "ads": [{"format": "ad format", "copy": "ad copy", "targeting": "targeting", "budget": "budget"}], "funnel": "funnel strategy", "optimization": "optimization tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7073,7 +7073,7 @@ export async function aiGoogleAdsManager(data: { keywords?: string[]; budget?: n
 ${data.keywords ? `Keywords: ${data.keywords.join(", ")}` : ""}
 ${data.budget ? `Budget: $${data.budget}` : ""}
 Respond as JSON: { "campaigns": [{"type": "campaign type", "keywords": "target keywords", "bid": "bid strategy"}], "landing": "landing page recommendations", "tracking": "conversion tracking setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7084,7 +7084,7 @@ export async function aiTikTokAdsAdvisor(data: { product?: string; audience?: st
 ${data.product ? `Product: ${data.product}` : ""}
 ${data.audience ? `Audience: ${data.audience}` : ""}
 Respond as JSON: { "strategy": [{"format": "ad format", "content": "content approach", "targeting": "targeting"}], "creative": "creative best practices", "budget": "budget recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7095,7 +7095,7 @@ export async function aiInfluencerAdsManager(data: { budget?: number; niche?: st
 ${data.budget ? `Budget: $${data.budget}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "strategy": [{"tier": "influencer tier", "influencer": "influencer type", "format": "content format", "cost": "estimated cost"}], "tracking": "tracking methods", "roi": "ROI measurement" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7105,7 +7105,7 @@ export async function aiRetargetingStrategist(data: { platforms?: string[] }, us
   const p = `Create a retargeting strategy for a content creator.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"platform": "platform", "audience": "audience segment", "creative": "creative approach"}], "frequency": "frequency capping", "exclusions": "exclusion rules" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7116,7 +7116,7 @@ export async function aiAdCopyWriter(data: { product?: string; platform?: string
 ${data.product ? `Product: ${data.product}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "copy": [{"headline": "headline", "body": "body copy", "cta": "call to action"}], "variations": "copy variations", "testing": "A/B testing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7127,7 +7127,7 @@ export async function aiAdBudgetAllocator(data: { totalBudget?: number; platform
 ${data.totalBudget ? `Total budget: $${data.totalBudget}` : ""}
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "allocation": [{"platform": "platform", "budget": "allocated budget", "expected": "expected results"}], "optimization": "optimization strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7138,7 +7138,7 @@ export async function aiLandingPageOptimizer(data: { url?: string; goal?: string
 ${data.url ? `URL: ${data.url}` : ""}
 ${data.goal ? `Goal: ${data.goal}` : ""}
 Respond as JSON: { "optimization": [{"element": "page element", "change": "recommended change", "impact": "expected impact"}], "testing": "A/B testing plan", "copy": "copy improvements" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7148,7 +7148,7 @@ export async function aiConversionRateOptimizer(data: { funnel?: string[] }, use
   const p = `Optimize conversion rates for a content creator's funnel.
 ${data.funnel ? `Funnel steps: ${data.funnel.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"step": "funnel step", "issue": "identified issue", "fix": "recommended fix"}], "testing": "testing strategy", "priorities": "priority order" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7158,7 +7158,7 @@ export async function aiDataCleaningAdvisor(data: { dataTypes?: string[] }, user
   const p = `Advise on data cleaning for a content creator's analytics.
 ${data.dataTypes ? `Data types: ${data.dataTypes.join(", ")}` : ""}
 Respond as JSON: { "cleaning": [{"issue": "data issue", "solution": "solution", "tool": "recommended tool"}], "validation": "validation rules", "automation": "automation tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7169,7 +7169,7 @@ export async function aiDataPipelineBuilder(data: { sources?: string[]; destinat
 ${data.sources ? `Data sources: ${data.sources.join(", ")}` : ""}
 ${data.destination ? `Destination: ${data.destination}` : ""}
 Respond as JSON: { "pipeline": [{"step": "pipeline step", "tool": "tool", "config": "configuration"}], "scheduling": "scheduling plan", "monitoring": "monitoring setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7179,7 +7179,7 @@ export async function aiAnomalyDetector(data: { metrics?: string[] }, userId?: s
   const p = `Set up anomaly detection for a content creator's metrics.
 ${data.metrics ? `Metrics: ${data.metrics.join(", ")}` : ""}
 Respond as JSON: { "detection": [{"metric": "metric name", "method": "detection method", "threshold": "threshold"}], "alerting": "alerting setup", "investigation": "investigation process" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7189,7 +7189,7 @@ export async function aiCohortAnalyzer(data: { segments?: string[] }, userId?: s
   const p = `Analyze audience cohorts for a content creator.
 ${data.segments ? `Segments: ${data.segments.join(", ")}` : ""}
 Respond as JSON: { "cohorts": [{"segment": "cohort segment", "behavior": "behavior pattern", "retention": "retention rate"}], "insights": "key insights", "actions": "recommended actions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7199,7 +7199,7 @@ export async function aiAttributionModeler(data: { channels?: string[] }, userId
   const p = `Build an attribution model for a content creator's marketing.
 ${data.channels ? `Channels: ${data.channels.join(", ")}` : ""}
 Respond as JSON: { "model": [{"channel": "channel", "attribution": "attribution method", "weight": "weight"}], "comparison": "model comparison", "optimization": "optimization tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7209,7 +7209,7 @@ export async function aiPredictiveChurnModeler(data: { factors?: string[] }, use
   const p = `Build a predictive churn model for a content creator's audience.
 ${data.factors ? `Factors: ${data.factors.join(", ")}` : ""}
 Respond as JSON: { "model": [{"factor": "churn factor", "weight": "weight", "intervention": "intervention strategy"}], "earlyWarning": "early warning signs", "retention": "retention strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7219,7 +7219,7 @@ export async function aiLifetimeValueCalculator(data: { segments?: string[] }, u
   const p = `Calculate customer lifetime value for a content creator's business.
 ${data.segments ? `Segments: ${data.segments.join(", ")}` : ""}
 Respond as JSON: { "ltv": [{"segment": "segment", "value": "lifetime value", "improvement": "improvement opportunity"}], "strategies": "value increase strategies", "forecasting": "LTV forecasting" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7229,7 +7229,7 @@ export async function aiAccessibilityTextChecker(data: { content?: string }, use
   const p = `Check content accessibility for a content creator.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "issues": [{"issue": "accessibility issue", "location": "location", "fix": "fix recommendation"}], "readability": "readability score and tips", "inclusive": "inclusive language suggestions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7239,7 +7239,7 @@ export async function aiAltTextGenerator(data: { images?: string[] }, userId?: s
   const p = `Generate alt text for a content creator's images.
 ${data.images ? `Images: ${data.images.join(", ")}` : ""}
 Respond as JSON: { "altTexts": [{"image": "image description", "altText": "alt text", "description": "extended description"}], "guidelines": "alt text best practices" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7250,7 +7250,7 @@ export async function aiColorContrastChecker(data: { foreground?: string; backgr
 ${data.foreground ? `Foreground color: ${data.foreground}` : ""}
 ${data.background ? `Background color: ${data.background}` : ""}
 Respond as JSON: { "ratio": "contrast ratio", "wcag": {"aa": "AA compliance status", "aaa": "AAA compliance status"}, "alternatives": "alternative color suggestions", "recommendations": "recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7260,7 +7260,7 @@ export async function aiScreenReaderOptimizer(data: { contentType?: string }, us
   const p = `Optimize content for screen readers.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "optimization": [{"element": "element to optimize", "fix": "recommended fix"}], "testing": "testing guidelines", "compliance": "compliance checklist" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7270,7 +7270,7 @@ export async function aiKeyboardNavChecker(data: { components?: string[] }, user
   const p = `Check keyboard navigation accessibility.
 ${data.components ? `Components: ${data.components.join(", ")}` : ""}
 Respond as JSON: { "issues": [{"component": "component", "issue": "navigation issue", "fix": "fix"}], "tabOrder": "tab order recommendations", "shortcuts": "keyboard shortcuts to add" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7280,7 +7280,7 @@ export async function aiCaptionQualityChecker(data: { captions?: string }, userI
   const p = `Check caption quality for accessibility.
 ${data.captions ? `Captions: ${data.captions}` : ""}
 Respond as JSON: { "quality": {"accuracy": "accuracy assessment", "timing": "timing assessment", "formatting": "formatting assessment"}, "improvements": "improvement suggestions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7290,7 +7290,7 @@ export async function aiInclusiveLanguageChecker(data: { content?: string }, use
   const p = `Check content for inclusive language.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "issues": [{"phrase": "problematic phrase", "alternative": "inclusive alternative", "reason": "reason for change"}], "score": "inclusivity score", "guidelines": "inclusive language guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7300,7 +7300,7 @@ export async function aiDyslexiaFriendlyFormatter(data: { content?: string }, us
   const p = `Format content to be dyslexia-friendly.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "formatted": {"font": "recommended font", "spacing": "spacing settings", "colors": "color recommendations"}, "guidelines": "dyslexia-friendly guidelines", "testing": "testing methods" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7310,7 +7310,7 @@ export async function aiMotionSensitivityChecker(data: { animations?: string[] }
   const p = `Check animations for motion sensitivity issues.
 ${data.animations ? `Animations: ${data.animations.join(", ")}` : ""}
 Respond as JSON: { "issues": [{"animation": "animation name", "risk": "risk level", "alternative": "alternative approach"}], "reducedMotion": "reduced motion implementation" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7320,7 +7320,7 @@ export async function aiCognitiveLoadReducer(data: { interface?: string }, userI
   const p = `Reduce cognitive load in a content creator's interface.
 ${data.interface ? `Interface: ${data.interface}` : ""}
 Respond as JSON: { "reductions": [{"element": "interface element", "issue": "cognitive load issue", "simplification": "simplification suggestion"}], "testing": "usability testing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7330,7 +7330,7 @@ export async function aiMultiModalContentCreator(data: { content?: string }, use
   const p = `Create multi-modal content adaptations for accessibility.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "modes": [{"mode": "content mode", "adaptation": "adaptation details", "accessibility": "accessibility features"}], "delivery": "delivery strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7340,7 +7340,7 @@ export async function aiPasswordSecurityAdvisor(data: { accounts?: number }, use
   const p = `Advise on password security for a content creator.
 ${data.accounts ? `Number of accounts: ${data.accounts}` : ""}
 Respond as JSON: { "recommendations": [{"account": "account type", "action": "security action"}], "manager": "password manager recommendation", "twoFA": "two-factor authentication setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7350,7 +7350,7 @@ export async function aiPhishingDetector(data: { emailTypes?: string[] }, userId
   const p = `Detect and prevent phishing for a content creator.
 ${data.emailTypes ? `Email types to check: ${data.emailTypes.join(", ")}` : ""}
 Respond as JSON: { "detection": [{"type": "phishing type", "signs": "warning signs", "prevention": "prevention steps"}], "training": "awareness training", "reporting": "reporting process" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7360,7 +7360,7 @@ export async function aiAccountRecoveryPlanner(data: { accounts?: string[] }, us
   const p = `Plan account recovery procedures for a content creator.
 ${data.accounts ? `Accounts: ${data.accounts.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"account": "account", "backup": "backup method", "recovery": "recovery steps"}], "documentation": "documentation to maintain" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7370,7 +7370,7 @@ export async function aiPrivacySettingsOptimizer(data: { platforms?: string[] },
   const p = `Optimize privacy settings for a content creator across platforms.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "settings": [{"platform": "platform", "setting": "privacy setting", "recommended": "recommended value"}], "review": "regular review schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7380,7 +7380,7 @@ export async function aiDataBreachResponsePlanner(data: { dataTypes?: string[] }
   const p = `Plan data breach response for a content creator.
 ${data.dataTypes ? `Data types at risk: ${data.dataTypes.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"step": "response step", "action": "action to take", "timeline": "timeline"}], "notification": "notification plan", "prevention": "prevention measures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7390,7 +7390,7 @@ export async function aiVPNAdvisor(data: { useCase?: string }, userId?: string) 
   const p = `Advise on VPN usage for a content creator.
 ${data.useCase ? `Use case: ${data.useCase}` : ""}
 Respond as JSON: { "recommendations": [{"provider": "VPN provider", "features": "key features", "price": "price"}], "setup": "setup guide", "split": "split tunneling recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7401,7 +7401,7 @@ export async function aiCompetitorAnalyzer(data: { competitors?: string[]; metri
 ${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
 ${data.metrics ? `Metrics to compare: ${data.metrics.join(", ")}` : ""}
 Respond as JSON: { "analysis": [{"competitor": "competitor", "strengths": "strengths", "weaknesses": "weaknesses", "opportunity": "opportunity"}], "strategy": "competitive strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7411,7 +7411,7 @@ export async function aiCompetitorContentTracker(data: { competitors?: string[] 
   const p = `Track competitor content for a content creator.
 ${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
 Respond as JSON: { "tracking": [{"competitor": "competitor", "content": "content type", "frequency": "posting frequency", "performance": "performance metrics"}], "gaps": "content gaps to exploit" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7421,7 +7421,7 @@ export async function aiCompetitorPricingMonitor(data: { competitors?: string[] 
   const p = `Monitor competitor pricing for a content creator.
 ${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
 Respond as JSON: { "pricing": [{"competitor": "competitor", "products": "products", "prices": "price points"}], "positioning": "price positioning strategy", "strategy": "competitive pricing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7431,7 +7431,7 @@ export async function aiMarketShareAnalyzer(data: { niche?: string }, userId?: s
   const p = `Analyze market share in a content creator's niche.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "analysis": [{"player": "market player", "share": "market share", "trend": "trend"}], "opportunity": "market opportunity", "positioning": "positioning strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7442,7 +7442,7 @@ export async function aiSWOTAnalyzer(data: { channelName?: string; niche?: strin
 ${data.channelName ? `Channel: ${data.channelName}` : ""}
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "swot": {"strengths": "key strengths", "weaknesses": "key weaknesses", "opportunities": "opportunities", "threats": "threats"}, "actions": "recommended actions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7452,7 +7452,7 @@ export async function aiCompetitorSocialTracker(data: { competitors?: string[] }
   const p = `Track competitor social media activity for a content creator.
 ${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
 Respond as JSON: { "tracking": [{"competitor": "competitor", "platform": "platform", "metrics": "key metrics"}], "insights": "actionable insights" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7463,7 +7463,7 @@ export async function aiBlueOceanFinder(data: { niche?: string; interests?: stri
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.interests ? `Interests: ${data.interests.join(", ")}` : ""}
 Respond as JSON: { "opportunities": [{"space": "opportunity space", "demand": "demand level", "competition": "competition level"}], "strategy": "entry strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7473,7 +7473,7 @@ export async function aiMobileOptimizer(data: { contentType?: string }, userId?:
   const p = `Optimize content for mobile viewing.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "optimization": [{"element": "content element", "mobile": "mobile optimization", "desktop": "desktop version"}], "responsive": "responsive design tips", "testing": "testing checklist" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7483,7 +7483,7 @@ export async function aiAppDeepLinkBuilder(data: { platforms?: string[] }, userI
   const p = `Build deep links for a content creator's app.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "links": [{"platform": "platform", "scheme": "URL scheme", "fallback": "fallback URL"}], "testing": "testing strategy", "analytics": "analytics tracking" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7493,7 +7493,7 @@ export async function aiPushNotificationOptimizer(data: { types?: string[] }, us
   const p = `Optimize push notifications for a content creator's app.
 ${data.types ? `Notification types: ${data.types.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"type": "notification type", "timing": "optimal timing", "content": "content strategy"}], "frequency": "frequency recommendations", "segmentation": "audience segmentation" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7503,7 +7503,7 @@ export async function aiMobileVideoOptimizer(data: { format?: string }, userId?:
   const p = `Optimize video for mobile playback.
 ${data.format ? `Format: ${data.format}` : ""}
 Respond as JSON: { "optimization": [{"setting": "video setting", "value": "recommended value", "reason": "reason"}], "fileSize": "file size optimization", "quality": "quality preservation tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7513,7 +7513,7 @@ export async function aiResponsiveDesignChecker(data: { pages?: string[] }, user
   const p = `Check responsive design for a content creator's website.
 ${data.pages ? `Pages: ${data.pages.join(", ")}` : ""}
 Respond as JSON: { "issues": [{"page": "page name", "issue": "responsive issue", "fix": "fix recommendation"}], "breakpoints": "breakpoint recommendations", "testing": "testing devices" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7523,7 +7523,7 @@ export async function aiMobilePaymentOptimizer(data: { products?: string[] }, us
   const p = `Optimize mobile payment experience for a content creator's store.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"method": "payment method", "setup": "setup steps", "conversion": "conversion impact"}], "trust": "trust signals", "testing": "testing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7533,7 +7533,7 @@ export async function aiOfflineContentPlanner(data: { contentTypes?: string[] },
   const p = `Plan offline content strategy for a content creator's app.
 ${data.contentTypes ? `Content types: ${data.contentTypes.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"content": "content type", "caching": "caching strategy", "sync": "sync method"}], "PWA": "PWA implementation tips", "storage": "storage management" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7543,7 +7543,7 @@ export async function aiMobileAnalyticsSetup(data: { platforms?: string[] }, use
   const p = `Set up mobile analytics for a content creator.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "setup": [{"tool": "analytics tool", "config": "configuration", "tracking": "what to track"}], "events": "key events to track", "funnels": "funnel setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7554,7 +7554,7 @@ export async function aiAppStoreOptimizer(data: { appName?: string; category?: s
 ${data.appName ? `App name: ${data.appName}` : ""}
 ${data.category ? `Category: ${data.category}` : ""}
 Respond as JSON: { "optimization": [{"element": "store element", "current": "current state", "improved": "improved version"}], "keywords": "keyword strategy", "screenshots": "screenshot recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7565,7 +7565,7 @@ export async function aiWidgetDesigner(data: { purpose?: string; platform?: stri
 ${data.purpose ? `Purpose: ${data.purpose}` : ""}
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "widgets": [{"name": "widget name", "design": "design description", "data": "data displayed", "interaction": "interaction type"}], "placement": "placement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7575,7 +7575,7 @@ export async function aiGestureOptimizer(data: { interactions?: string[] }, user
   const p = `Optimize gesture interactions for a content creator's mobile app.
 ${data.interactions ? `Interactions: ${data.interactions.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"gesture": "gesture type", "improvement": "improvement suggestion"}], "accessibility": "accessibility considerations", "feedback": "haptic feedback recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7585,7 +7585,7 @@ export async function aiMobileFirstContentCreator(data: { contentType?: string }
   const p = `Create mobile-first content strategy for a content creator.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "strategy": [{"element": "content element", "mobile": "mobile-first approach", "adaptation": "adaptation method"}], "thumbZone": "thumb zone optimization", "scrolling": "scroll behavior recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7595,7 +7595,7 @@ export async function aiWearableContentAdvisor(data: { devices?: string[] }, use
   const p = `Advise on content for wearable devices.
 ${data.devices ? `Devices: ${data.devices.join(", ")}` : ""}
 Respond as JSON: { "content": [{"device": "device type", "format": "content format", "limitations": "limitations"}], "notifications": "notification strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7605,7 +7605,7 @@ export async function aiCrossPlatformSyncManager(data: { platforms?: string[] },
   const p = `Manage cross-platform content synchronization.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "sync": [{"data": "data type", "platforms": "platforms involved", "method": "sync method"}], "conflicts": "conflict resolution strategy", "realtime": "real-time sync options" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7615,7 +7615,7 @@ export async function aiSmartTVOptimizer(data: { contentType?: string }, userId?
   const p = `Optimize content for Smart TV viewing.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "optimization": [{"element": "content element", "tvSetting": "TV-optimized setting"}], "navigation": "TV navigation design", "quality": "quality recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7625,7 +7625,7 @@ export async function aiAchievementSystemBuilder(data: { community?: string }, u
   const p = `Design a gamification achievement system for a creator community.
 ${data.community ? `Community: ${data.community}` : ""}
 Respond as JSON: { "achievements": [{"name": "achievement name", "criteria": "unlock criteria", "reward": "reward given", "rarity": "common/rare/epic/legendary"}], "progression": "progression system overview" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7635,7 +7635,7 @@ export async function aiLeaderboardDesigner(data: { metrics?: string[] }, userId
   const p = `Design engaging leaderboard systems for a content creator platform.
 ${data.metrics ? `Metrics to track: ${data.metrics.join(", ")}` : ""}
 Respond as JSON: { "boards": [{"name": "leaderboard name", "metric": "tracked metric", "period": "time period", "prizes": "prize structure"}], "fairness": "fairness mechanisms" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7645,7 +7645,7 @@ export async function aiPointsEconomyBuilder(data: { actions?: string[] }, userI
   const p = `Build a points economy system for a creator community.
 ${data.actions ? `Actions to reward: ${data.actions.join(", ")}` : ""}
 Respond as JSON: { "economy": [{"action": "user action", "points": "points awarded", "decay": "point decay rate"}], "rewards": "reward tiers and options", "inflation": "inflation control measures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7655,7 +7655,7 @@ export async function aiBadgeSystemCreator(data: { categories?: string[] }, user
   const p = `Create a badge system for a content creator platform.
 ${data.categories ? `Badge categories: ${data.categories.join(", ")}` : ""}
 Respond as JSON: { "badges": [{"name": "badge name", "category": "badge category", "criteria": "earn criteria", "design": "visual design description"}], "progression": "badge progression path" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7665,7 +7665,7 @@ export async function aiStreakSystemBuilder(data: { activities?: string[] }, use
   const p = `Build a streak tracking system to encourage consistent creator activity.
 ${data.activities ? `Activities to track: ${data.activities.join(", ")}` : ""}
 Respond as JSON: { "streaks": [{"activity": "tracked activity", "milestones": "streak milestones", "rewards": "milestone rewards"}], "recovery": "streak recovery mechanics", "notification": "notification strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7675,7 +7675,7 @@ export async function aiProgressVisualizationEngine(data: { metrics?: string[] }
   const p = `Design progress visualization dashboards for creator metrics.
 ${data.metrics ? `Metrics to visualize: ${data.metrics.join(", ")}` : ""}
 Respond as JSON: { "visualizations": [{"metric": "metric name", "chartType": "recommended chart type", "milestones": "visual milestones"}], "dashboard": "dashboard layout recommendation" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7685,7 +7685,7 @@ export async function aiChallengeSystemBuilder(data: { community?: string }, use
   const p = `Build a challenge system for a creator community to drive engagement.
 ${data.community ? `Community: ${data.community}` : ""}
 Respond as JSON: { "challenges": [{"name": "challenge name", "rules": "challenge rules", "duration": "challenge duration", "reward": "reward for completion"}], "seasonal": "seasonal challenge plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7695,7 +7695,7 @@ export async function aiMonthlyReportGenerator(data: { metrics?: any }, userId?:
   const p = `Generate a comprehensive monthly performance report for a content creator.
 ${data.metrics ? `Metrics data: ${JSON.stringify(data.metrics)}` : ""}
 Respond as JSON: { "report": [{"section": "report section", "data": "key data points", "insight": "actionable insight"}], "highlights": "month highlights summary", "goals": "next month goals" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7705,7 +7705,7 @@ export async function aiWeeklyDigestBuilder(data: { activities?: string[] }, use
   const p = `Build a weekly digest summary for a content creator.
 ${data.activities ? `Recent activities: ${data.activities.join(", ")}` : ""}
 Respond as JSON: { "digest": [{"topic": "digest topic", "summary": "brief summary", "action": "recommended action"}], "metrics": "key metrics snapshot", "upcoming": "upcoming priorities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7715,7 +7715,7 @@ export async function aiQuarterlyBusinessReview(data: { financials?: any }, user
   const p = `Generate a quarterly business review for a content creator's business.
 ${data.financials ? `Financial data: ${JSON.stringify(data.financials)}` : ""}
 Respond as JSON: { "review": [{"area": "business area", "performance": "performance summary", "target": "target vs actual"}], "strategy": "strategic recommendations", "adjustments": "suggested adjustments" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7725,7 +7725,7 @@ export async function aiAnnualStrategyPlanner(data: { goals?: string[] }, userId
   const p = `Create an annual strategy plan for a content creator.
 ${data.goals ? `Annual goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"quarter": "Q1/Q2/Q3/Q4", "focus": "quarterly focus area", "milestones": "key milestones"}], "budget": "budget allocation plan", "risks": "risk assessment" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7735,7 +7735,7 @@ export async function aiCompetitorReportGenerator(data: { competitors?: string[]
   const p = `Generate a competitor analysis report for a content creator.
 ${data.competitors ? `Competitors: ${data.competitors.join(", ")}` : ""}
 Respond as JSON: { "report": [{"competitor": "competitor name", "analysis": "competitive analysis"}], "opportunities": "identified opportunities", "threats": "competitive threats" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7745,7 +7745,7 @@ export async function aiAudienceReportBuilder(data: { demographics?: any }, user
   const p = `Build an audience analysis report for a content creator.
 ${data.demographics ? `Demographics data: ${JSON.stringify(data.demographics)}` : ""}
 Respond as JSON: { "report": [{"segment": "audience segment", "size": "segment size", "behavior": "behavior patterns"}], "growth": "growth opportunities", "targeting": "targeting recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7755,7 +7755,7 @@ export async function aiContentReportCard(data: { videos?: any[] }, userId?: str
   const p = `Generate a content report card grading a creator's recent content.
 ${data.videos ? `Videos: ${JSON.stringify(data.videos.slice(0, 10))}` : ""}
 Respond as JSON: { "grades": [{"category": "grading category", "grade": "letter grade", "feedback": "specific feedback"}], "overall": "overall grade and summary", "improvements": "top improvements needed" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7765,7 +7765,7 @@ export async function aiROIReportGenerator(data: { investments?: any[] }, userId
   const p = `Generate an ROI report for a content creator's investments.
 ${data.investments ? `Investments: ${JSON.stringify(data.investments.slice(0, 10))}` : ""}
 Respond as JSON: { "roi": [{"investment": "investment description", "return": "return achieved", "recommendation": "keep/scale/cut"}], "total": "total ROI summary", "optimization": "optimization suggestions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7775,7 +7775,7 @@ export async function aiGamingNicheOptimizer(data: { games?: string[] }, userId?
   const p = `Optimize a gaming content creator's niche strategy.
 ${data.games ? `Games covered: ${data.games.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"game": "game title", "opportunity": "content opportunity", "strategy": "recommended strategy"}], "trending": "trending games to consider", "schedule": "optimal upload schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7785,7 +7785,7 @@ export async function aiBeautyNicheAdvisor(data: { subNiche?: string }, userId?:
   const p = `Provide niche strategy advice for a beauty content creator.
 ${data.subNiche ? `Sub-niche: ${data.subNiche}` : ""}
 Respond as JSON: { "advice": [{"area": "content area", "strategy": "recommended strategy", "audience": "target audience"}], "trends": "current beauty trends", "brands": "brand partnership opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7795,7 +7795,7 @@ export async function aiTechReviewOptimizer(data: { category?: string }, userId?
   const p = `Optimize a tech review content creator's strategy.
 ${data.category ? `Tech category: ${data.category}` : ""}
 Respond as JSON: { "optimization": [{"element": "content element", "strategy": "optimization strategy"}], "seoTips": "tech review SEO tips", "affiliate": "affiliate program recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7805,7 +7805,7 @@ export async function aiFoodContentPlanner(data: { cuisine?: string }, userId?: 
   const p = `Plan content strategy for a food content creator.
 ${data.cuisine ? `Cuisine focus: ${data.cuisine}` : ""}
 Respond as JSON: { "content": [{"type": "content type", "concept": "content concept", "seasonality": "seasonal relevance"}], "trends": "food content trends", "monetization": "monetization strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7815,7 +7815,7 @@ export async function aiFitnessContentStrategy(data: { specialty?: string }, use
   const p = `Create a content strategy for a fitness content creator.
 ${data.specialty ? `Fitness specialty: ${data.specialty}` : ""}
 Respond as JSON: { "strategy": [{"pillar": "content pillar", "content": "content ideas", "audience": "target audience"}], "partnerships": "brand partnership opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7825,7 +7825,7 @@ export async function aiTravelContentOptimizer(data: { style?: string }, userId?
   const p = `Optimize content strategy for a travel content creator.
 ${data.style ? `Travel style: ${data.style}` : ""}
 Respond as JSON: { "optimization": [{"aspect": "content aspect", "strategy": "optimization strategy"}], "sponsorships": "sponsorship opportunities", "gear": "recommended gear" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7835,7 +7835,7 @@ export async function aiEducationContentPlanner(data: { subject?: string }, user
   const p = `Plan content strategy for an education content creator.
 ${data.subject ? `Subject area: ${data.subject}` : ""}
 Respond as JSON: { "plan": [{"topic": "content topic", "format": "content format", "audience": "target audience"}], "credentials": "credibility building tips", "courses": "course creation opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7845,7 +7845,7 @@ export async function aiFinanceContentAdvisor(data: { specialty?: string }, user
   const p = `Advise on content strategy for a finance content creator.
 ${data.specialty ? `Finance specialty: ${data.specialty}` : ""}
 Respond as JSON: { "advice": [{"topic": "content topic", "compliance": "compliance considerations", "format": "best format"}], "disclaimers": "required disclaimers", "affiliate": "affiliate opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7855,7 +7855,7 @@ export async function aiParentingContentStrategy(data: { ageGroup?: string }, us
   const p = `Create a content strategy for a parenting content creator.
 ${data.ageGroup ? `Target age group: ${data.ageGroup}` : ""}
 Respond as JSON: { "strategy": [{"topic": "content topic", "approach": "content approach", "safety": "safety considerations"}], "monetization": "monetization strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7865,7 +7865,7 @@ export async function aiPetContentOptimizer(data: { petType?: string }, userId?:
   const p = `Optimize content strategy for a pet content creator.
 ${data.petType ? `Pet type: ${data.petType}` : ""}
 Respond as JSON: { "optimization": [{"content": "content type", "audience": "target audience", "brands": "brand opportunities"}], "viral": "viral content strategies", "products": "product recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7875,7 +7875,7 @@ export async function aiDIYCraftPlanner(data: { category?: string }, userId?: st
   const p = `Plan content strategy for a DIY and crafts content creator.
 ${data.category ? `Craft category: ${data.category}` : ""}
 Respond as JSON: { "plan": [{"project": "project idea", "difficulty": "difficulty level", "materials": "materials needed"}], "series": "content series ideas", "monetization": "monetization approaches" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7885,7 +7885,7 @@ export async function aiMusicianContentStrategy(data: { genre?: string }, userId
   const p = `Create a content strategy for a musician content creator.
 ${data.genre ? `Music genre: ${data.genre}` : ""}
 Respond as JSON: { "strategy": [{"platform": "target platform", "content": "content type", "promotion": "promotion strategy"}], "distribution": "music distribution plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7895,7 +7895,7 @@ export async function aiComedyContentAdvisor(data: { style?: string }, userId?: 
   const p = `Advise on content strategy for a comedy content creator.
 ${data.style ? `Comedy style: ${data.style}` : ""}
 Respond as JSON: { "advice": [{"format": "content format", "platform": "best platform", "timing": "posting timing"}], "trends": "comedy trends", "safety": "content safety guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7905,7 +7905,7 @@ export async function aiSportsContentPlanner(data: { sport?: string }, userId?: 
   const p = `Plan content strategy for a sports content creator.
 ${data.sport ? `Sport: ${data.sport}` : ""}
 Respond as JSON: { "plan": [{"content": "content idea", "timing": "optimal timing", "rights": "rights considerations"}], "partnerships": "partnership opportunities", "live": "live content strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7915,7 +7915,7 @@ export async function aiNewsCommentaryPlanner(data: { niche?: string }, userId?:
   const p = `Plan content strategy for a news commentary content creator.
 ${data.niche ? `News niche: ${data.niche}` : ""}
 Respond as JSON: { "plan": [{"approach": "commentary approach", "format": "content format", "frequency": "posting frequency"}], "sourcing": "source verification tips", "liability": "legal liability considerations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7925,7 +7925,7 @@ export async function aiLifestyleContentOptimizer(data: { aesthetic?: string }, 
   const p = `Optimize content strategy for a lifestyle content creator.
 ${data.aesthetic ? `Aesthetic style: ${data.aesthetic}` : ""}
 Respond as JSON: { "optimization": [{"area": "content area", "strategy": "optimization strategy"}], "branding": "personal branding tips", "partnerships": "brand partnership opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7935,7 +7935,7 @@ export async function aiVideoToBookConverter(data: { videos?: string[] }, userId
   const p = `Plan converting video content into a book format.
 ${data.videos ? `Videos: ${data.videos.join(", ")}` : ""}
 Respond as JSON: { "book": [{"chapter": "chapter title", "source": "source video", "content": "chapter content outline"}], "publishing": "publishing strategy", "marketing": "book marketing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7945,7 +7945,7 @@ export async function aiVideoToPodcastConverter(data: { videoTitle?: string }, u
   const p = `Plan converting a video into podcast format.
 ${data.videoTitle ? `Video title: ${data.videoTitle}` : ""}
 Respond as JSON: { "conversion": {"audioEdit": "audio editing notes", "intro": "podcast intro script", "chapters": "chapter markers"}, "distribution": "podcast distribution plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7955,7 +7955,7 @@ export async function aiVideoToCourseConverter(data: { videos?: string[] }, user
   const p = `Plan converting video content into an online course.
 ${data.videos ? `Videos: ${data.videos.join(", ")}` : ""}
 Respond as JSON: { "course": [{"module": "module name", "videos": "included videos", "exercises": "practice exercises"}], "platform": "recommended platform", "pricing": "pricing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7965,7 +7965,7 @@ export async function aiBlogToVideoConverter(data: { blogPost?: string }, userId
   const p = `Plan converting a blog post into video content.
 ${data.blogPost ? `Blog post: ${data.blogPost}` : ""}
 Respond as JSON: { "video": {"script": "video script outline", "visuals": "visual elements needed", "duration": "estimated duration"}, "seo": "video SEO strategy", "promotion": "promotion plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7975,7 +7975,7 @@ export async function aiTwitterThreadCreator(data: { content?: string }, userId?
   const p = `Create an engaging Twitter/X thread from content.
 ${data.content ? `Content to adapt: ${data.content}` : ""}
 Respond as JSON: { "thread": [{"tweet": "tweet text", "media": "media suggestion"}], "timing": "optimal posting time", "engagement": "engagement tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7985,7 +7985,7 @@ export async function aiLinkedInContentAdapter(data: { content?: string }, userI
   const p = `Adapt content for LinkedIn platform.
 ${data.content ? `Content to adapt: ${data.content}` : ""}
 Respond as JSON: { "adapted": {"post": "LinkedIn post text", "article": "article version", "carousel": "carousel slide ideas"}, "timing": "optimal posting time" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -7995,7 +7995,7 @@ export async function aiPinterestPinCreator(data: { content?: string }, userId?:
   const p = `Create optimized Pinterest pins from content.
 ${data.content ? `Content to adapt: ${data.content}` : ""}
 Respond as JSON: { "pins": [{"title": "pin title", "description": "pin description", "design": "design recommendations"}], "boards": "board strategy", "seo": "Pinterest SEO tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8006,7 +8006,7 @@ export async function aiRedditPostOptimizer(data: { content?: string; subreddit?
 ${data.content ? `Content: ${data.content}` : ""}
 ${data.subreddit ? `Target subreddit: ${data.subreddit}` : ""}
 Respond as JSON: { "optimized": {"title": "optimized title", "body": "post body", "timing": "best posting time"}, "rules": "subreddit rules to follow", "engagement": "engagement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8016,7 +8016,7 @@ export async function aiQuoraAnswerWriter(data: { topic?: string }, userId?: str
   const p = `Create strategic Quora answers to drive traffic and authority.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "answers": [{"question": "target question", "answer": "answer outline", "links": "strategic link placement"}], "strategy": "Quora growth strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8026,7 +8026,7 @@ export async function aiMediumArticleAdapter(data: { content?: string }, userId?
   const p = `Adapt content for Medium publication.
 ${data.content ? `Content to adapt: ${data.content}` : ""}
 Respond as JSON: { "article": {"title": "article title", "body": "article structure", "tags": "recommended tags"}, "distribution": "distribution strategy", "earnings": "Medium earnings optimization" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8036,7 +8036,7 @@ export async function aiSlidedeckCreator(data: { topic?: string }, userId?: stri
   const p = `Create a slide deck presentation from content.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "slides": [{"title": "slide title", "content": "slide content", "visual": "visual suggestion"}], "design": "design theme recommendation", "sharing": "distribution strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8046,7 +8046,7 @@ export async function aiInfographicRepurposer(data: { data?: string }, userId?: 
   const p = `Repurpose content data into infographic format.
 ${data.data ? `Data to visualize: ${data.data}` : ""}
 Respond as JSON: { "infographic": {"layout": "layout structure", "sections": "content sections", "design": "design guidelines"}, "platforms": "platform-specific sizing" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8057,7 +8057,7 @@ export async function aiCollabMatchScorer(data: { creator1?: any; creator2?: any
 ${data.creator1 ? `Creator 1: ${JSON.stringify(data.creator1)}` : ""}
 ${data.creator2 ? `Creator 2: ${JSON.stringify(data.creator2)}` : ""}
 Respond as JSON: { "score": "compatibility score 0-100", "compatibility": "compatibility analysis", "format": "best collab format", "risks": "potential risks", "benefits": "expected benefits" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8067,7 +8067,7 @@ export async function aiCollabContractWriter(data: { terms?: any }, userId?: str
   const p = `Draft collaboration contract terms for content creators.
 ${data.terms ? `Terms: ${JSON.stringify(data.terms)}` : ""}
 Respond as JSON: { "contract": [{"clause": "contract clause", "detail": "clause details"}], "negotiation": "negotiation tips", "protection": "creator protection measures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8077,7 +8077,7 @@ export async function aiCollabRevenueCalculator(data: { creators?: any[] }, user
   const p = `Calculate projected collaboration revenue and split.
 ${data.creators ? `Creators: ${JSON.stringify(data.creators.slice(0, 5))}` : ""}
 Respond as JSON: { "revenue": {"split": "revenue split recommendation", "projected": "projected earnings", "terms": "payment terms"}, "negotiation": "negotiation framework" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8088,7 +8088,7 @@ export async function aiCollabContentIdeator(data: { creators?: string[]; niches
 ${data.creators ? `Creators: ${data.creators.join(", ")}` : ""}
 ${data.niches ? `Niches: ${data.niches.join(", ")}` : ""}
 Respond as JSON: { "ideas": [{"concept": "content concept", "format": "content format", "audience": "target audience"}], "distribution": "distribution plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8099,7 +8099,7 @@ export async function aiCollabOutreachWriter(data: { target?: string; reason?: s
 ${data.target ? `Target creator: ${data.target}` : ""}
 ${data.reason ? `Reason for collab: ${data.reason}` : ""}
 Respond as JSON: { "outreach": {"subject": "message subject", "body": "message body", "followUp": "follow-up message"}, "platform": "best outreach platform", "timing": "optimal timing" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8109,7 +8109,7 @@ export async function aiCollabPerformanceTracker(data: { collabs?: any[] }, user
   const p = `Track and analyze collaboration performance.
 ${data.collabs ? `Collaborations: ${JSON.stringify(data.collabs.slice(0, 5))}` : ""}
 Respond as JSON: { "performance": [{"collab": "collaboration name", "metrics": "key metrics", "roi": "return on investment"}], "learnings": "key learnings" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8119,7 +8119,7 @@ export async function aiNetworkEffectCalculator(data: { connections?: number }, 
   const p = `Calculate network effects and growth potential for a creator.
 ${data.connections ? `Current connections: ${data.connections}` : ""}
 Respond as JSON: { "effect": {"current": "current network value", "potential": "growth potential", "strategy": "network growth strategy"}, "growth": "growth projections" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8130,7 +8130,7 @@ export async function aiSubMilestoneStrategyBuilder(data: { target?: number; cur
 ${data.target ? `Target subscribers: ${data.target}` : ""}
 ${data.current ? `Current subscribers: ${data.current}` : ""}
 Respond as JSON: { "strategy": [{"milestone": "subscriber milestone", "tactics": "growth tactics", "timeline": "estimated timeline"}], "celebrations": "milestone celebration ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8140,7 +8140,7 @@ export async function aiSubRetentionOptimizer(data: { churnRate?: number }, user
   const p = `Optimize subscriber retention and reduce churn.
 ${data.churnRate ? `Current churn rate: ${data.churnRate}%` : ""}
 Respond as JSON: { "optimization": [{"strategy": "retention strategy", "implementation": "implementation steps"}], "notifications": "notification optimization" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8150,7 +8150,7 @@ export async function aiNotificationBellOptimizer(data: { bellClickRate?: number
   const p = `Optimize notification bell click-through rates.
 ${data.bellClickRate ? `Current bell click rate: ${data.bellClickRate}%` : ""}
 Respond as JSON: { "optimization": [{"tactic": "optimization tactic", "implementation": "how to implement"}], "messaging": "notification messaging strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8160,7 +8160,7 @@ export async function aiFirstVideoOptimizer(data: { niche?: string }, userId?: s
   const p = `Optimize a creator's first video for maximum impact.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "optimization": [{"element": "video element", "strategy": "optimization strategy"}], "hook": "opening hook strategy", "promotion": "first video promotion plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8170,7 +8170,7 @@ export async function aiChannelMembershipPerks(data: { tiers?: any[] }, userId?:
   const p = `Design channel membership perks and tiers.
 ${data.tiers ? `Current tiers: ${JSON.stringify(data.tiers)}` : ""}
 Respond as JSON: { "perks": [{"tier": "membership tier", "perks": "tier perks", "value": "perceived value"}], "exclusive": "exclusive content ideas", "retention": "member retention strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8181,7 +8181,7 @@ export async function aiSubCountdownPlanner(data: { target?: number; current?: n
 ${data.target ? `Target subscribers: ${data.target}` : ""}
 ${data.current ? `Current subscribers: ${data.current}` : ""}
 Respond as JSON: { "plan": [{"phase": "campaign phase", "actions": "specific actions"}], "content": "special content ideas", "community": "community engagement tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8191,7 +8191,7 @@ export async function aiUnsubscribeAnalyzer(data: { reasons?: string[] }, userId
   const p = `Analyze unsubscribe patterns and provide prevention strategies.
 ${data.reasons ? `Known reasons: ${data.reasons.join(", ")}` : ""}
 Respond as JSON: { "analysis": [{"reason": "unsubscribe reason", "percentage": "estimated percentage", "solution": "prevention solution"}], "prevention": "overall prevention strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8201,7 +8201,7 @@ export async function aiSubQualityAnalyzer(data: { engagement?: number }, userId
   const p = `Analyze subscriber quality and engagement levels.
 ${data.engagement ? `Engagement rate: ${data.engagement}%` : ""}
 Respond as JSON: { "quality": {"active": "active subscriber analysis", "passive": "passive subscriber analysis", "ghost": "ghost subscriber analysis"}, "reEngagement": "re-engagement strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8212,7 +8212,7 @@ export async function aiGrowthHackingPlaybook(data: { niche?: string; stage?: st
 ${data.niche ? `Niche: ${data.niche}` : ""}
 ${data.stage ? `Growth stage: ${data.stage}` : ""}
 Respond as JSON: { "playbook": [{"hack": "growth hack", "implementation": "implementation steps", "risk": "risk level"}], "priority": "prioritized action plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8222,7 +8222,7 @@ export async function aiViralGrowthEngineBuilder(data: { mechanics?: string[] },
   const p = `Build a viral growth engine for content distribution.
 ${data.mechanics ? `Growth mechanics: ${data.mechanics.join(", ")}` : ""}
 Respond as JSON: { "engine": [{"mechanic": "viral mechanic", "trigger": "activation trigger", "amplifier": "amplification method"}], "testing": "A/B testing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8232,7 +8232,7 @@ export async function aiCrossPromotionPlanner(data: { platforms?: string[] }, us
   const p = `Plan cross-platform content promotion strategy.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"from": "source platform", "to": "target platform", "content": "content adaptation", "timing": "posting timing"}], "automation": "automation recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8242,7 +8242,7 @@ export async function aiWatchTimeBooster(data: { avgDuration?: string }, userId?
   const p = `Provide strategies to boost video watch time and retention.
 ${data.avgDuration ? `Current average watch duration: ${data.avgDuration}` : ""}
 Respond as JSON: { "boosters": [{"technique": "retention technique", "placement": "where to apply", "impact": "expected impact"}], "structure": "optimal video structure" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8252,7 +8252,7 @@ export async function aiOpenLoopCreator(data: { topic?: string }, userId?: strin
   const p = `Create open loop storytelling hooks for video retention.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "loops": [{"setup": "open loop setup", "payoff": "payoff delivery", "timing": "timing in video"}], "retention": "retention impact analysis", "placement": "strategic placement guide" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8262,7 +8262,7 @@ export async function aiPatternInterruptDesigner(data: { frequency?: string }, u
   const p = `Design pattern interrupts to maintain viewer attention.
 ${data.frequency ? `Desired frequency: ${data.frequency}` : ""}
 Respond as JSON: { "interrupts": [{"type": "interrupt type", "timing": "when to use", "execution": "how to execute"}], "variety": "variety recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8272,7 +8272,7 @@ export async function aiReEngagementHookBuilder(data: { dropOffPoints?: string[]
   const p = `Build re-engagement hooks for video drop-off points.
 ${data.dropOffPoints ? `Drop-off points: ${data.dropOffPoints.join(", ")}` : ""}
 Respond as JSON: { "hooks": [{"point": "drop-off point", "hook": "re-engagement hook", "technique": "technique used"}], "testing": "testing methodology" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8282,7 +8282,7 @@ export async function aiBingeWatchOptimizer(data: { series?: string[] }, userId?
   const p = `Optimize content for binge-watching behavior.
 ${data.series ? `Content series: ${data.series.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"element": "content element", "strategy": "optimization strategy"}], "endScreens": "end screen strategy", "cards": "card placement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8292,7 +8292,7 @@ export async function aiYouTubeStudioOptimizer(data: { settings?: string[] }, us
   const p = `Optimize YouTube Studio settings for maximum channel performance.
 ${data.settings ? `Current settings: ${data.settings.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"setting": "studio setting", "recommended": "recommended value"}], "advanced": "advanced settings tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8302,7 +8302,7 @@ export async function aiYouTubeShortsAlgorithm(data: { niche?: string }, userId?
   const p = `Decode and optimize for the YouTube Shorts algorithm.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "algorithm": [{"signal": "algorithm signal", "weight": "importance weight", "optimization": "how to optimize"}], "testing": "testing strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8312,7 +8312,7 @@ export async function aiYouTubeCommentsManager(data: { volume?: string }, userId
   const p = `Create a YouTube comments management strategy.
 ${data.volume ? `Comment volume: ${data.volume}` : ""}
 Respond as JSON: { "management": [{"type": "comment type", "response": "response template", "automation": "automation option"}], "moderation": "moderation guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8322,7 +8322,7 @@ export async function aiYouTubePlaylistStrategy(data: { categories?: string[] },
   const p = `Design an optimal YouTube playlist strategy.
 ${data.categories ? `Content categories: ${data.categories.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"playlist": "playlist name", "purpose": "playlist purpose", "seo": "SEO optimization"}], "ordering": "video ordering strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8332,7 +8332,7 @@ export async function aiYouTubePremierePlanner(data: { videoTitle?: string }, us
   const p = `Plan a YouTube Premiere event for maximum engagement.
 ${data.videoTitle ? `Video title: ${data.videoTitle}` : ""}
 Respond as JSON: { "plan": [{"phase": "premiere phase", "action": "specific action", "timing": "timing"}], "chat": "live chat strategy", "promotion": "pre-premiere promotion" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8342,7 +8342,7 @@ export async function aiYouTubeMembeshipStrategy(data: { currentMembers?: number
   const p = `Create a YouTube channel membership growth strategy.
 ${data.currentMembers ? `Current members: ${data.currentMembers}` : ""}
 Respond as JSON: { "strategy": [{"tier": "membership tier", "content": "exclusive content", "pricing": "pricing recommendation"}], "retention": "member retention tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8352,7 +8352,7 @@ export async function aiYouTubeSuperThanksOptimizer(data: { avgThanks?: number }
   const p = `Optimize YouTube Super Thanks revenue.
 ${data.avgThanks ? `Average Super Thanks per video: ${data.avgThanks}` : ""}
 Respond as JSON: { "optimization": [{"tactic": "optimization tactic", "implementation": "how to implement"}], "triggers": "Super Thanks triggers" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8362,7 +8362,7 @@ export async function aiYouTubeHandleOptimizer(data: { currentHandle?: string },
   const p = `Optimize YouTube channel handle for branding and SEO.
 ${data.currentHandle ? `Current handle: ${data.currentHandle}` : ""}
 Respond as JSON: { "recommendations": [{"handle": "suggested handle", "reasoning": "why this handle", "availability": "likely availability"}], "seo": "handle SEO impact" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8372,7 +8372,7 @@ export async function aiYouTubeChannelPageOptimizer(data: { sections?: string[] 
   const p = `Optimize YouTube channel page layout and sections.
 ${data.sections ? `Current sections: ${data.sections.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"section": "page section", "change": "recommended change"}], "layout": "optimal layout order", "branding": "branding consistency tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8382,7 +8382,7 @@ export async function aiYouTubeHashtagStrategy(data: { niche?: string }, userId?
   const p = `Create a YouTube hashtag strategy for discoverability.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "strategy": [{"hashtag": "recommended hashtag", "usage": "when to use", "volume": "search volume estimate"}], "trending": "trending hashtag tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8392,7 +8392,7 @@ export async function aiTwitchEmoteStrategy(data: { subCount?: number }, userId?
   const p = `Design a Twitch emote strategy for community building.
 ${data.subCount ? `Current sub count: ${data.subCount}` : ""}
 Respond as JSON: { "strategy": [{"tier": "sub tier", "emotes": "emote ideas", "community": "community impact"}], "creation": "emote creation guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8402,7 +8402,7 @@ export async function aiTwitchBitsOptimizer(data: { avgBits?: number }, userId?:
   const p = `Optimize Twitch Bits revenue and engagement.
 ${data.avgBits ? `Average bits per stream: ${data.avgBits}` : ""}
 Respond as JSON: { "optimization": [{"tactic": "optimization tactic", "implementation": "implementation steps"}], "incentives": "bits incentive ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8412,7 +8412,7 @@ export async function aiTwitchRaidOptimizer(data: { avgViewers?: number }, userI
   const p = `Optimize Twitch raid strategy for network growth.
 ${data.avgViewers ? `Average viewers: ${data.avgViewers}` : ""}
 Respond as JSON: { "optimization": [{"strategy": "raid strategy", "timing": "optimal timing", "targets": "ideal raid targets"}], "etiquette": "raid etiquette guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8422,7 +8422,7 @@ export async function aiTwitchChannelPointsDesigner(data: { points?: string[] },
   const p = `Design Twitch channel points rewards system.
 ${data.points ? `Current rewards: ${data.points.join(", ")}` : ""}
 Respond as JSON: { "design": [{"reward": "reward name", "cost": "point cost", "engagement": "engagement impact"}], "economy": "points economy balance" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8432,7 +8432,7 @@ export async function aiTwitchPredictionsCreator(data: { streamType?: string }, 
   const p = `Create engaging Twitch Predictions for stream interaction.
 ${data.streamType ? `Stream type: ${data.streamType}` : ""}
 Respond as JSON: { "predictions": [{"question": "prediction question", "options": "prediction options", "timing": "when to run"}], "engagement": "engagement maximization tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8442,7 +8442,7 @@ export async function aiTwitchHypeTrainMaximizer(data: { avgTrain?: number }, us
   const p = `Maximize Twitch Hype Train frequency and levels.
 ${data.avgTrain ? `Average hype trains per stream: ${data.avgTrain}` : ""}
 Respond as JSON: { "maximizer": [{"tactic": "hype train tactic", "timing": "optimal timing"}], "triggers": "hype train triggers", "goals": "level goals strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8452,7 +8452,7 @@ export async function aiTwitchClipStrategy(data: { genre?: string }, userId?: st
   const p = `Create a Twitch clip strategy for content promotion.
 ${data.genre ? `Content genre: ${data.genre}` : ""}
 Respond as JSON: { "strategy": [{"moment": "clip-worthy moment", "action": "clipping action", "promotion": "clip promotion"}], "compilation": "clip compilation strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8462,7 +8462,7 @@ export async function aiTwitchVODOptimizer(data: { avgVODViews?: number }, userI
   const p = `Optimize Twitch VOD performance and discoverability.
 ${data.avgVODViews ? `Average VOD views: ${data.avgVODViews}` : ""}
 Respond as JSON: { "optimization": [{"element": "VOD element", "change": "recommended change"}], "highlights": "highlight creation strategy", "youtube": "YouTube repurposing plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8472,7 +8472,7 @@ export async function aiTwitchPanelDesigner(data: { style?: string }, userId?: s
   const p = `Design Twitch channel panels for maximum impact.
 ${data.style ? `Desired style: ${data.style}` : ""}
 Respond as JSON: { "panels": [{"name": "panel name", "content": "panel content", "design": "design specs"}], "layout": "panel layout order", "links": "strategic link placement" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8482,7 +8482,7 @@ export async function aiKickStreamOptimizer(data: { niche?: string }, userId?: s
   const p = `Optimize streaming strategy for the Kick platform.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "optimization": [{"area": "optimization area", "strategy": "recommended strategy"}], "differences": "Kick vs Twitch differences", "growth": "Kick-specific growth tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8492,7 +8492,7 @@ export async function aiKickMonetizationAdvisor(data: { viewers?: number }, user
   const p = `Advise on Kick platform monetization strategies.
 ${data.viewers ? `Average viewers: ${data.viewers}` : ""}
 Respond as JSON: { "monetization": [{"method": "monetization method", "potential": "earning potential"}], "comparison": "Kick vs Twitch earnings comparison" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8502,7 +8502,7 @@ export async function aiKickCommunityBuilder(data: { category?: string }, userId
   const p = `Build a community on the Kick streaming platform.
 ${data.category ? `Content category: ${data.category}` : ""}
 Respond as JSON: { "community": [{"strategy": "community strategy", "implementation": "implementation steps"}], "discord": "Discord integration plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8512,7 +8512,7 @@ export async function aiKickContentDifferentiator(data: { twitchContent?: string
   const p = `Differentiate Kick content from Twitch content strategy.
 ${data.twitchContent ? `Current Twitch content: ${data.twitchContent}` : ""}
 Respond as JSON: { "differentiation": [{"aspect": "content aspect", "approach": "Kick-specific approach"}], "exclusive": "Kick-exclusive content ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8522,7 +8522,7 @@ export async function aiKickDiscoveryOptimizer(data: { category?: string }, user
   const p = `Optimize discoverability on the Kick platform.
 ${data.category ? `Content category: ${data.category}` : ""}
 Respond as JSON: { "discovery": [{"method": "discovery method", "implementation": "how to implement"}], "tags": "tag optimization strategy", "timing": "optimal streaming times" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8532,7 +8532,7 @@ export async function aiMultiPlatformStreamRouter(data: { platforms?: string[] }
   const p = `Design a multi-platform streaming routing strategy.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "routing": [{"platform": "platform name", "config": "configuration", "priority": "priority level"}], "sync": "synchronization strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8542,7 +8542,7 @@ export async function aiStreamDeckConfigurer(data: { scenes?: string[] }, userId
   const p = `Configure Stream Deck for optimal streaming workflow.
 ${data.scenes ? `Scenes: ${data.scenes.join(", ")}` : ""}
 Respond as JSON: { "config": [{"button": "button assignment", "action": "button action", "scene": "associated scene"}], "profiles": "profile recommendations", "macros": "useful macros" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8552,7 +8552,7 @@ export async function aiOBSOptimizer(data: { system?: string }, userId?: string)
   const p = `Optimize OBS settings for best streaming quality.
 ${data.system ? `System specs: ${data.system}` : ""}
 Respond as JSON: { "optimization": [{"setting": "OBS setting", "value": "recommended value", "reason": "why this value"}], "scenes": "scene setup recommendations", "filters": "filter recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8562,7 +8562,7 @@ export async function aiStreamLabsConfigurator(data: { features?: string[] }, us
   const p = `Configure Streamlabs for optimal streaming setup.
 ${data.features ? `Features to configure: ${data.features.join(", ")}` : ""}
 Respond as JSON: { "config": [{"feature": "feature name", "setup": "configuration steps"}], "alerts": "alert configuration", "widgets": "widget recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8572,7 +8572,7 @@ export async function aiStreamElementsOptimizer(data: { features?: string[] }, u
   const p = `Optimize StreamElements configuration for engagement.
 ${data.features ? `Features to optimize: ${data.features.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"feature": "feature name", "config": "optimal configuration"}], "overlays": "overlay recommendations", "commands": "chat command setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8582,7 +8582,7 @@ export async function aiChaturbateStreamAdvisor(data: { niche?: string }, userId
   const p = `Provide streaming strategy advice for adult content platforms.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "advice": [{"area": "content area", "strategy": "recommended strategy"}], "moderation": "moderation guidelines", "revenue": "revenue optimization" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8592,7 +8592,7 @@ export async function aiTikTokAlgorithmDecoder(data: { niche?: string }, userId?
   const p = `Decode and optimize for the TikTok algorithm.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "algorithm": [{"signal": "algorithm signal", "weight": "importance weight", "optimization": "optimization tip"}], "fyp": "For You Page strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8602,7 +8602,7 @@ export async function aiTikTokSoundStrategy(data: { niche?: string }, userId?: s
   const p = `Create a TikTok sound and music strategy.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "strategy": [{"sound": "sound type", "trend": "trend alignment", "usage": "usage strategy"}], "original": "original sound creation tips", "timing": "trending sound timing" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8612,7 +8612,7 @@ export async function aiTikTokDuetStrategy(data: { niche?: string }, userId?: st
   const p = `Create a TikTok Duet content strategy.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "strategy": [{"target": "duet target type", "angle": "content angle", "value": "value added"}], "etiquette": "duet etiquette guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8622,7 +8622,7 @@ export async function aiTikTokLiveOptimizer(data: { followers?: number }, userId
   const p = `Optimize TikTok Live streaming for engagement and gifts.
 ${data.followers ? `Current followers: ${data.followers}` : ""}
 Respond as JSON: { "optimization": [{"element": "live element", "strategy": "optimization strategy"}], "gifts": "gift maximization tactics", "engagement": "live engagement techniques" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8632,7 +8632,7 @@ export async function aiTikTokShopAdvisor(data: { products?: string[] }, userId?
   const p = `Advise on TikTok Shop strategy and product promotion.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "advice": [{"product": "product type", "strategy": "promotion strategy", "promotion": "content format"}], "affiliate": "affiliate program tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8642,7 +8642,7 @@ export async function aiTikTokCreatorFundOptimizer(data: { views?: number }, use
   const p = `Optimize TikTok Creator Fund earnings.
 ${data.views ? `Average views: ${data.views}` : ""}
 Respond as JSON: { "optimization": [{"strategy": "optimization strategy", "impact": "expected impact"}], "eligibility": "eligibility requirements and tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8652,7 +8652,7 @@ export async function aiTikTokHashtagResearcher(data: { niche?: string }, userId
   const p = `Research and recommend TikTok hashtags for maximum reach.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "hashtags": [{"tag": "hashtag", "views": "estimated views", "competition": "competition level"}], "trending": "trending hashtag strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8662,7 +8662,7 @@ export async function aiTikTokProfileOptimizer(data: { bio?: string }, userId?: 
   const p = `Optimize TikTok profile for maximum conversions.
 ${data.bio ? `Current bio: ${data.bio}` : ""}
 Respond as JSON: { "optimization": [{"element": "profile element", "improvement": "suggested improvement"}], "link": "link-in-bio strategy", "branding": "branding consistency tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8672,7 +8672,7 @@ export async function aiInstagramReelsOptimizer(data: { niche?: string }, userId
   const p = `Optimize Instagram Reels for algorithm performance.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "optimization": [{"element": "reel element", "strategy": "optimization strategy"}], "algorithm": "algorithm insights", "trending": "trending content formats" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8682,7 +8682,7 @@ export async function aiInstagramStoriesPlanner(data: { frequency?: string }, us
   const p = `Plan an Instagram Stories content strategy.
 ${data.frequency ? `Posting frequency: ${data.frequency}` : ""}
 Respond as JSON: { "plan": [{"type": "story type", "content": "content idea", "timing": "posting time"}], "stickers": "interactive sticker strategy", "engagement": "engagement tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8692,7 +8692,7 @@ export async function aiInstagramCarouselCreator(data: { topic?: string }, userI
   const p = `Create an engaging Instagram carousel post.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "carousel": [{"slide": "slide number", "content": "slide content", "design": "design notes"}], "caption": "carousel caption", "hashtags": "recommended hashtags" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8702,7 +8702,7 @@ export async function aiInstagramBioOptimizer(data: { niche?: string }, userId?:
   const p = `Optimize Instagram bio for maximum profile conversions.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "optimization": [{"element": "bio element", "improvement": "suggested improvement"}], "link": "link-in-bio strategy", "highlights": "story highlights strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8712,7 +8712,7 @@ export async function aiInstagramShoppingSetup(data: { products?: string[] }, us
   const p = `Set up and optimize Instagram Shopping features.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "setup": [{"step": "setup step", "config": "configuration details"}], "catalog": "product catalog strategy", "tagging": "product tagging best practices" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8722,7 +8722,7 @@ export async function aiInstagramCollabManager(data: { partners?: string[] }, us
   const p = `Manage Instagram collaboration partnerships.
 ${data.partners ? `Partners: ${data.partners.join(", ")}` : ""}
 Respond as JSON: { "management": [{"partner": "partner name", "format": "collab format", "terms": "partnership terms"}], "tracking": "performance tracking plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8732,7 +8732,7 @@ export async function aiInstagramGrowthHacker(data: { followers?: number }, user
   const p = `Create Instagram growth hacking strategies.
 ${data.followers ? `Current followers: ${data.followers}` : ""}
 Respond as JSON: { "hacks": [{"tactic": "growth tactic", "implementation": "implementation steps", "risk": "risk level"}], "organic": "organic growth fundamentals" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8742,7 +8742,7 @@ export async function aiInstagramAestheticPlanner(data: { style?: string }, user
   const p = `Plan an Instagram aesthetic and visual brand.
 ${data.style ? `Desired style: ${data.style}` : ""}
 Respond as JSON: { "plan": [{"element": "aesthetic element", "specification": "design specification"}], "grid": "grid layout strategy", "consistency": "visual consistency guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8752,7 +8752,7 @@ export async function aiXTwitterGrowthStrategy(data: { followers?: number }, use
   const p = `Create a growth strategy for X/Twitter.
 ${data.followers ? `Current followers: ${data.followers}` : ""}
 Respond as JSON: { "strategy": [{"tactic": "growth tactic", "implementation": "implementation steps"}], "threads": "thread strategy", "spaces": "Twitter Spaces strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8762,7 +8762,7 @@ export async function aiXTwitterThreadWriter(data: { topic?: string }, userId?: 
   const p = `Write an engaging X/Twitter thread.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "thread": [{"tweet": "tweet content", "hook": "engagement hook"}], "timing": "optimal posting time", "engagement": "engagement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8772,7 +8772,7 @@ export async function aiLinkedInCreatorStrategy(data: { industry?: string }, use
   const p = `Create a LinkedIn creator content strategy.
 ${data.industry ? `Industry: ${data.industry}` : ""}
 Respond as JSON: { "strategy": [{"content": "content type", "format": "content format", "timing": "posting schedule"}], "newsletter": "LinkedIn newsletter strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8782,7 +8782,7 @@ export async function aiLinkedInArticleWriter(data: { topic?: string }, userId?:
   const p = `Write an optimized LinkedIn article.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "article": {"title": "article title", "outline": "article outline", "cta": "call to action"}, "seo": "LinkedIn SEO tips", "distribution": "article distribution strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8792,7 +8792,7 @@ export async function aiFacebookGroupManager(data: { community?: string }, userI
   const p = `Create a Facebook Group management strategy.
 ${data.community ? `Community focus: ${data.community}` : ""}
 Respond as JSON: { "management": [{"area": "management area", "strategy": "management strategy"}], "engagement": "engagement tactics", "rules": "group rules framework" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8802,7 +8802,7 @@ export async function aiFacebookReelsOptimizer(data: { niche?: string }, userId?
   const p = `Optimize Facebook Reels for maximum reach.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "optimization": [{"element": "reel element", "strategy": "optimization strategy"}], "algorithm": "Facebook Reels algorithm insights" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8812,7 +8812,7 @@ export async function aiSnapchatSpotlightAdvisor(data: { niche?: string }, userI
   const p = `Advise on Snapchat Spotlight content strategy.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "advice": [{"strategy": "content strategy", "content": "content ideas", "timing": "posting timing"}], "earnings": "Spotlight earnings optimization" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8822,7 +8822,7 @@ export async function aiThreadsStrategy(data: { niche?: string }, userId?: strin
   const p = `Create a Threads platform content strategy.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "strategy": [{"approach": "content approach", "content": "content type", "timing": "posting timing"}], "growth": "Threads growth tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8832,7 +8832,7 @@ export async function aiDiscordServerOptimizer(data: { members?: number }, userI
   const p = `Optimize a Discord server for community engagement.
 ${data.members ? `Current members: ${data.members}` : ""}
 Respond as JSON: { "optimization": [{"area": "server area", "change": "recommended change"}], "bots": "bot recommendations", "events": "community event ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8842,7 +8842,7 @@ export async function aiPatreonContentPlanner(data: { tiers?: any[] }, userId?: 
   const p = `Plan Patreon content strategy across tiers.
 ${data.tiers ? `Current tiers: ${JSON.stringify(data.tiers)}` : ""}
 Respond as JSON: { "plan": [{"tier": "tier name", "content": "exclusive content", "schedule": "content schedule"}], "exclusive": "exclusive content ideas", "retention": "patron retention strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8852,7 +8852,7 @@ export async function aiSubstackOptimizer(data: { subscribers?: number }, userId
   const p = `Optimize Substack newsletter for growth and monetization.
 ${data.subscribers ? `Current subscribers: ${data.subscribers}` : ""}
 Respond as JSON: { "optimization": [{"element": "newsletter element", "strategy": "optimization strategy"}], "growth": "subscriber growth tactics", "paid": "paid subscription strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8862,7 +8862,7 @@ export async function aiGumroadProductOptimizer(data: { products?: string[] }, u
   const p = `Optimize Gumroad product listings and sales.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"product": "product name", "improvement": "suggested improvement"}], "pricing": "pricing strategy", "marketing": "marketing recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8872,7 +8872,7 @@ export async function aiTeachableCoursePlanner(data: { topic?: string }, userId?
   const p = `Plan an online course on Teachable platform.
 ${data.topic ? `Course topic: ${data.topic}` : ""}
 Respond as JSON: { "plan": [{"module": "module name", "content": "module content", "pricing": "module pricing"}], "marketing": "course marketing strategy", "launch": "launch plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8882,7 +8882,7 @@ export async function aiBuyMeCoffeeOptimizer(data: { supporters?: number }, user
   const p = `Optimize Buy Me a Coffee page for supporter growth.
 ${data.supporters ? `Current supporters: ${data.supporters}` : ""}
 Respond as JSON: { "optimization": [{"strategy": "optimization strategy", "implementation": "implementation steps"}], "perks": "supporter perks ideas", "growth": "supporter growth tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8892,7 +8892,7 @@ export async function aiRetirementPlanner(data: { income?: number; age?: number 
   const p = `Create a retirement plan for a content creator.
 ${data.income ? `Annual income: $${data.income}` : ""}${data.age ? ` Age: ${data.age}` : ""}
 Respond as JSON: { "plan": [{"phase": "retirement phase", "savings": "savings target", "investments": "investment strategy"}], "timeline": "retirement timeline", "strategies": "key strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8902,7 +8902,7 @@ export async function aiEmergencyFundAdvisor(data: { monthlyExpenses?: number },
   const p = `Advise on building an emergency fund for a content creator.
 ${data.monthlyExpenses ? `Monthly expenses: $${data.monthlyExpenses}` : ""}
 Respond as JSON: { "target": "target amount", "plan": [{"month": "month number", "contribution": "contribution amount"}], "accounts": "recommended account types", "tips": "saving tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8912,7 +8912,7 @@ export async function aiInvestmentAdvisor(data: { risk?: string; capital?: numbe
   const p = `Provide investment advice for a content creator.
 ${data.risk ? `Risk tolerance: ${data.risk}` : ""}${data.capital ? ` Available capital: $${data.capital}` : ""}
 Respond as JSON: { "portfolio": [{"asset": "asset class", "allocation": "percentage allocation", "reasoning": "why this allocation"}], "rebalancing": "rebalancing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8922,7 +8922,7 @@ export async function aiDebtPayoffPlanner(data: { debts?: any[] }, userId?: stri
   const p = `Create a debt payoff plan for a content creator.
 ${data.debts ? `Debts: ${JSON.stringify(data.debts)}` : ""}
 Respond as JSON: { "plan": [{"debt": "debt name", "strategy": "payoff strategy", "timeline": "payoff timeline"}], "savings": "interest savings", "priority": "debt priority order" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8932,7 +8932,7 @@ export async function aiRealEstateInvestor(data: { budget?: number; goals?: stri
   const p = `Advise on real estate investment strategies for a content creator.
 ${data.budget ? `Budget: $${data.budget}` : ""}${data.goals ? ` Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "strategies": [{"type": "investment type", "roi": "expected ROI", "timeline": "investment timeline"}], "markets": "recommended markets", "financing": "financing options" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8942,7 +8942,7 @@ export async function aiCryptoPortfolioAdvisor(data: { risk?: string; investment
   const p = `Build a cryptocurrency portfolio for a content creator.
 ${data.risk ? `Risk tolerance: ${data.risk}` : ""}${data.investment ? ` Investment amount: $${data.investment}` : ""}
 Respond as JSON: { "portfolio": [{"coin": "cryptocurrency", "allocation": "percentage", "thesis": "investment thesis"}], "security": "security recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8952,7 +8952,7 @@ export async function aiFreelancePricingGuide(data: { skill?: string; experience
   const p = `Create a freelance pricing guide for a content creator.
 ${data.skill ? `Skill: ${data.skill}` : ""}${data.experience ? ` Experience level: ${data.experience}` : ""}
 Respond as JSON: { "pricing": [{"service": "service offered", "rate": "suggested rate", "model": "pricing model"}], "negotiation": "negotiation tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8962,7 +8962,7 @@ export async function aiGrantFinder(data: { niche?: string; type?: string }, use
   const p = `Find grants available for a content creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}${data.type ? ` Grant type: ${data.type}` : ""}
 Respond as JSON: { "grants": [{"name": "grant name", "amount": "grant amount", "eligibility": "eligibility criteria", "deadline": "application deadline"}], "tips": "application tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8972,7 +8972,7 @@ export async function aiBudgetTrackerSetup(data: { income?: number; categories?:
   const p = `Set up a budget tracker for a content creator.
 ${data.income ? `Monthly income: $${data.income}` : ""}${data.categories ? ` Categories: ${data.categories.join(", ")}` : ""}
 Respond as JSON: { "budget": [{"category": "budget category", "allocation": "monthly allocation"}], "tools": "recommended tools", "automation": "automation suggestions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8982,7 +8982,7 @@ export async function aiFinancialGoalSetter(data: { goals?: string[]; timeframe?
   const p = `Set financial goals for a content creator.
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}${data.timeframe ? ` Timeframe: ${data.timeframe}` : ""}
 Respond as JSON: { "goals": [{"goal": "financial goal", "target": "target amount", "milestones": "key milestones"}], "tracking": "tracking methods" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -8992,7 +8992,7 @@ export async function aiCameraRecommender(data: { budget?: number; usage?: strin
   const p = `Recommend cameras for a content creator.
 ${data.budget ? `Budget: $${data.budget}` : ""}${data.usage ? ` Usage: ${data.usage}` : ""}
 Respond as JSON: { "recommendations": [{"camera": "camera model", "price": "price", "pros": "advantages", "cons": "disadvantages"}], "accessories": "recommended accessories" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9002,7 +9002,7 @@ export async function aiMicrophoneAdvisor(data: { type?: string; budget?: number
   const p = `Recommend microphones for a content creator.
 ${data.type ? `Type: ${data.type}` : ""}${data.budget ? ` Budget: $${data.budget}` : ""}
 Respond as JSON: { "recommendations": [{"mic": "microphone model", "type": "microphone type", "price": "price", "best": "best use case"}], "setup": "setup recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9012,7 +9012,7 @@ export async function aiLightingSetupPlanner(data: { budget?: number; space?: st
   const p = `Plan a lighting setup for a content creator studio.
 ${data.budget ? `Budget: $${data.budget}` : ""}${data.space ? ` Space: ${data.space}` : ""}
 Respond as JSON: { "setup": [{"light": "light name", "position": "placement position", "purpose": "lighting purpose"}], "total": "total cost", "ambient": "ambient lighting tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9022,7 +9022,7 @@ export async function aiEditingSoftwareAdvisor(data: { level?: string; platform?
   const p = `Recommend editing software for a content creator.
 ${data.level ? `Skill level: ${data.level}` : ""}${data.platform ? ` Platform: ${data.platform}` : ""}
 Respond as JSON: { "recommendations": [{"software": "software name", "price": "pricing", "features": "key features"}], "workflow": "recommended workflow" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9032,7 +9032,7 @@ export async function aiStudioDesignPlanner(data: { budget?: number; space?: str
   const p = `Design a content creation studio.
 ${data.budget ? `Budget: $${data.budget}` : ""}${data.space ? ` Space dimensions: ${data.space}` : ""}
 Respond as JSON: { "design": [{"zone": "studio zone", "equipment": "required equipment", "cost": "estimated cost"}], "acoustics": "acoustic treatment plan", "layout": "optimal layout" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9042,7 +9042,7 @@ export async function aiGreenScreenSetup(data: { budget?: number; space?: string
   const p = `Plan a green screen setup for a content creator.
 ${data.budget ? `Budget: $${data.budget}` : ""}${data.space ? ` Space: ${data.space}` : ""}
 Respond as JSON: { "setup": [{"item": "equipment item", "specification": "specs", "cost": "cost"}], "software": "recommended software", "tips": "setup tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9052,7 +9052,7 @@ export async function aiTeleprompterAdvisor(data: { type?: string; budget?: numb
   const p = `Recommend teleprompter solutions for a content creator.
 ${data.type ? `Type: ${data.type}` : ""}${data.budget ? ` Budget: $${data.budget}` : ""}
 Respond as JSON: { "recommendations": [{"device": "teleprompter device", "price": "price", "features": "key features"}], "apps": "recommended apps", "setup": "setup guide" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9062,7 +9062,7 @@ export async function aiBackupStoragePlanner(data: { dataSize?: string; budget?:
   const p = `Plan backup and storage solutions for a content creator.
 ${data.dataSize ? `Data size: ${data.dataSize}` : ""}${data.budget ? ` Budget: $${data.budget}` : ""}
 Respond as JSON: { "plan": [{"tier": "storage tier", "solution": "storage solution", "cost": "monthly cost"}], "automation": "backup automation", "recovery": "disaster recovery plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9072,7 +9072,7 @@ export async function aiInternetOptimizer(data: { usage?: string; currentSpeed?:
   const p = `Optimize internet setup for a content creator.
 ${data.usage ? `Usage type: ${data.usage}` : ""}${data.currentSpeed ? ` Current speed: ${data.currentSpeed}` : ""}
 Respond as JSON: { "optimization": [{"area": "optimization area", "improvement": "suggested improvement"}], "hardware": "recommended hardware", "isp": "ISP recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9083,7 +9083,7 @@ export async function aiVATaskDelegator(data: { tasks?: string[] }, userId?: str
   const p = `Plan virtual assistant task delegation for a content creator.
 ${data.tasks ? `Tasks to delegate: ${data.tasks.join(", ")}` : ""}
 Respond as JSON: { "delegation": [{"task": "task name", "skills": "required skills", "cost": "estimated cost"}], "platforms": "VA platforms", "management": "management tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9093,7 +9093,7 @@ export async function aiEditorHiringGuide(data: { volume?: number; style?: strin
   const p = `Guide hiring a video editor for a content creator.
 ${data.volume ? `Monthly video volume: ${data.volume}` : ""}${data.style ? ` Editing style: ${data.style}` : ""}
 Respond as JSON: { "guide": [{"criteria": "hiring criteria", "importance": "importance level"}], "portfolio": "portfolio evaluation tips", "rates": "market rates", "test": "test project ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9103,7 +9103,7 @@ export async function aiThumbnailDesignerFinder(data: { style?: string; budget?:
   const p = `Find a thumbnail designer for a content creator.
 ${data.style ? `Preferred style: ${data.style}` : ""}${data.budget ? ` Budget: $${data.budget}` : ""}
 Respond as JSON: { "recommendations": [{"platform": "hiring platform", "priceRange": "price range"}], "brief": "design brief template", "evaluation": "evaluation criteria" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9113,7 +9113,7 @@ export async function aiOutsourcingStrategyBuilder(data: { tasks?: string[]; bud
   const p = `Build an outsourcing strategy for a content creator.
 ${data.tasks ? `Tasks to outsource: ${data.tasks.join(", ")}` : ""}${data.budget ? ` Budget: $${data.budget}` : ""}
 Respond as JSON: { "strategy": [{"task": "task name", "outsource": "outsource recommendation", "platform": "platform", "cost": "estimated cost"}], "management": "management approach" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9123,7 +9123,7 @@ export async function aiContentModerationPlanner(data: { platforms?: string[] },
   const p = `Plan content moderation strategy for a creator.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"area": "moderation area", "policy": "policy details", "enforcement": "enforcement method"}], "tools": "moderation tools", "training": "team training plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9133,7 +9133,7 @@ export async function aiCopyrightClaimResolver(data: { claimType?: string }, use
   const p = `Help resolve a copyright claim for a content creator.
 ${data.claimType ? `Claim type: ${data.claimType}` : ""}
 Respond as JSON: { "resolution": [{"step": "resolution step", "action": "action to take", "timeline": "expected timeline"}], "prevention": "prevention strategies", "fairUse": "fair use guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9143,7 +9143,7 @@ export async function aiSponsorshipDisclosureChecker(data: { content?: string },
   const p = `Check sponsorship disclosure compliance in content.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "issues": [{"issue": "disclosure issue", "location": "where in content", "fix": "how to fix"}], "ftcGuidelines": "relevant FTC guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9153,7 +9153,7 @@ export async function aiAgeRestrictionAdvisor(data: { content?: string }, userId
   const p = `Advise on age restriction settings for content.
 ${data.content ? `Content description: ${data.content}` : ""}
 Respond as JSON: { "assessment": [{"factor": "content factor", "rating": "suggested rating"}], "adjustments": "content adjustments", "audience": "target audience recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9163,7 +9163,7 @@ export async function aiDefamationRiskChecker(data: { content?: string }, userId
   const p = `Check content for defamation risks.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "risks": [{"statement": "risky statement", "risk": "risk level", "alternative": "safer alternative"}], "guidelines": "defamation prevention guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9173,7 +9173,7 @@ export async function aiPlagiarismDetector(data: { content?: string }, userId?: 
   const p = `Detect potential plagiarism in content.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "detection": [{"section": "content section", "similarity": "similarity percentage", "source": "potential source"}], "originality": "originality score" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9183,7 +9183,7 @@ export async function aiCOPPAComplianceChecker(data: { content?: string }, userI
   const p = `Check COPPA compliance for content targeting children.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "compliance": [{"area": "compliance area", "status": "compliant or not", "fix": "how to fix"}], "dataCollection": "data collection guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9193,7 +9193,7 @@ export async function aiGDPRComplianceAdvisor(data: { dataTypes?: string[] }, us
   const p = `Advise on GDPR compliance for a content creator.
 ${data.dataTypes ? `Data types collected: ${data.dataTypes.join(", ")}` : ""}
 Respond as JSON: { "compliance": [{"requirement": "GDPR requirement", "status": "compliance status", "action": "action needed"}], "privacy": "privacy policy recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9204,7 +9204,7 @@ export async function aiHateSpeechDetector(data: { content?: string }, userId?: 
   const p = `Detect hate speech in content and suggest alternatives.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "detection": [{"phrase": "detected phrase", "severity": "severity level", "alternative": "suggested alternative"}], "education": "educational resources" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9214,7 +9214,7 @@ export async function aiMisinformationChecker(data: { claims?: string[] }, userI
   const p = `Check claims for potential misinformation.
 ${data.claims ? `Claims to check: ${data.claims.join("; ")}` : ""}
 Respond as JSON: { "checks": [{"claim": "claim text", "status": "verified or unverified or false", "source": "verification source"}], "corrections": "suggested corrections" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9224,7 +9224,7 @@ export async function aiTriggerWarningAdvisor(data: { content?: string }, userId
   const p = `Advise on trigger warnings needed for content.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "warnings": [{"topic": "sensitive topic", "severity": "severity level", "placement": "where to place warning"}], "guidelines": "trigger warning best practices" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9234,7 +9234,7 @@ export async function aiChildSafetyChecker(data: { content?: string }, userId?: 
   const p = `Check content for child safety compliance.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "safety": [{"area": "safety area", "status": "safe or concern", "recommendation": "safety recommendation"}], "compliance": "compliance summary" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9245,7 +9245,7 @@ export async function aiPersonalBrandAuditor(data: { platforms?: string[] }, use
   const p = `Audit personal brand consistency across platforms.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}
 Respond as JSON: { "audit": [{"platform": "platform name", "consistency": "consistency score", "improvement": "improvement suggestion"}], "score": "overall brand score" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9255,7 +9255,7 @@ export async function aiElevatorPitchWriter(data: { niche?: string; unique?: str
   const p = `Write elevator pitches for a content creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}${data.unique ? ` Unique value: ${data.unique}` : ""}
 Respond as JSON: { "pitches": [{"length": "pitch length", "pitch": "elevator pitch text", "audience": "target audience"}], "practice": "practice tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9265,7 +9265,7 @@ export async function aiPressKitBuilder(data: { achievements?: string[] }, userI
   const p = `Build a press kit for a content creator.
 ${data.achievements ? `Achievements: ${data.achievements.join(", ")}` : ""}
 Respond as JSON: { "kit": [{"section": "press kit section", "content": "section content"}], "design": "design recommendations", "distribution": "distribution strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9275,7 +9275,7 @@ export async function aiSpeakerBioWriter(data: { expertise?: string[]; achieveme
   const p = `Write speaker bios for a content creator.
 ${data.expertise ? `Expertise: ${data.expertise.join(", ")}` : ""}${data.achievements ? ` Achievements: ${data.achievements.join(", ")}` : ""}
 Respond as JSON: { "bios": [{"length": "bio length", "bio": "speaker bio text", "context": "usage context"}], "photo": "photo recommendations", "credentials": "credentials to highlight" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9285,7 +9285,7 @@ export async function aiLinkedInProfileOptimizer(data: { industry?: string }, us
   const p = `Optimize LinkedIn profile for a content creator.
 ${data.industry ? `Industry: ${data.industry}` : ""}
 Respond as JSON: { "optimization": [{"section": "profile section", "improvement": "improvement suggestion"}], "keywords": "target keywords", "networking": "networking strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9295,7 +9295,7 @@ export async function aiPersonalWebsiteBuilder(data: { niche?: string }, userId?
   const p = `Plan a personal website for a content creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "plan": [{"page": "page name", "content": "page content", "seo": "SEO strategy"}], "design": "design recommendations", "portfolio": "portfolio structure" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9305,7 +9305,7 @@ export async function aiThoughtLeadershipPlanner(data: { expertise?: string }, u
   const p = `Plan a thought leadership strategy for a content creator.
 ${data.expertise ? `Area of expertise: ${data.expertise}` : ""}
 Respond as JSON: { "plan": [{"pillar": "content pillar", "content": "content ideas", "platform": "target platform"}], "timeline": "implementation timeline", "metrics": "success metrics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9315,7 +9315,7 @@ export async function aiPublicSpeakingCoach(data: { experience?: string }, userI
   const p = `Coach a content creator on public speaking.
 ${data.experience ? `Experience level: ${data.experience}` : ""}
 Respond as JSON: { "coaching": [{"area": "speaking area", "exercise": "practice exercise", "tip": "improvement tip"}], "opportunities": "speaking opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9325,7 +9325,7 @@ export async function aiNetworkingStrategyBuilder(data: { goals?: string[] }, us
   const p = `Build a networking strategy for a content creator.
 ${data.goals ? `Networking goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"channel": "networking channel", "approach": "approach method", "followUp": "follow-up strategy"}], "events": "recommended events", "tracking": "relationship tracking" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9335,7 +9335,7 @@ export async function aiReputationMonitor(data: { name?: string }, userId?: stri
   const p = `Set up reputation monitoring for a content creator.
 ${data.name ? `Creator name: ${data.name}` : ""}
 Respond as JSON: { "monitoring": [{"platform": "platform", "method": "monitoring method", "alert": "alert setup"}], "response": "response protocol", "crisis": "crisis prevention" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9345,7 +9345,7 @@ export async function aiCrisisResponsePlanner(data: { scenarios?: string[] }, us
   const p = `Plan crisis response strategies for a content creator.
 ${data.scenarios ? `Potential scenarios: ${data.scenarios.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"scenario": "crisis scenario", "response": "response plan", "timeline": "response timeline"}], "templates": "response templates", "team": "crisis team roles" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9355,7 +9355,7 @@ export async function aiApologyScriptWriter(data: { situation?: string }, userId
   const p = `Write apology scripts for a content creator.
 ${data.situation ? `Situation: ${data.situation}` : ""}
 Respond as JSON: { "scripts": [{"type": "apology type", "script": "apology script", "timing": "when to deliver"}], "sincerity": "sincerity guidelines", "followUp": "follow-up actions" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9365,7 +9365,7 @@ export async function aiControversyNavigator(data: { topic?: string }, userId?: 
   const p = `Navigate a controversial topic for a content creator.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "navigation": [{"approach": "approach strategy", "risk": "risk level", "messaging": "key messaging"}], "timeline": "response timeline" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9375,7 +9375,7 @@ export async function aiCancelCultureDefender(data: { scenario?: string }, userI
   const p = `Defend against cancel culture for a content creator.
 ${data.scenario ? `Scenario: ${data.scenario}` : ""}
 Respond as JSON: { "defense": [{"step": "defense step", "action": "action to take"}], "communication": "communication strategy", "recovery": "recovery plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9385,7 +9385,7 @@ export async function aiDiversityInclusionAdvisor(data: { content?: string }, us
   const p = `Advise on diversity and inclusion in content.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "advice": [{"area": "content area", "recommendation": "inclusion recommendation"}], "representation": "representation guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9395,7 +9395,7 @@ export async function aiMentalHealthContentGuide(data: { topic?: string }, userI
   const p = `Guide creating mental health content responsibly.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "guide": [{"guideline": "content guideline", "reason": "why it matters"}], "resources": "professional resources to reference", "disclaimers": "required disclaimers" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9405,7 +9405,7 @@ export async function aiPoliticalContentNavigator(data: { topic?: string }, user
   const p = `Navigate political content for a content creator.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "navigation": [{"approach": "content approach", "risk": "risk assessment", "framing": "framing suggestion"}], "neutrality": "neutrality guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9415,7 +9415,7 @@ export async function aiReligiousSensitivityChecker(data: { content?: string }, 
   const p = `Check content for religious sensitivity.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "check": [{"topic": "religious topic", "sensitivity": "sensitivity level", "approach": "recommended approach"}], "consultation": "expert consultation recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9425,7 +9425,7 @@ export async function aiCulturalSensitivityAdvisor(data: { markets?: string[] },
   const p = `Advise on cultural sensitivity for content across markets.
 ${data.markets ? `Target markets: ${data.markets.join(", ")}` : ""}
 Respond as JSON: { "advice": [{"culture": "culture or market", "consideration": "cultural consideration", "adaptation": "content adaptation"}], "localization": "localization strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9435,7 +9435,7 @@ export async function aiBodyImageSensitivityChecker(data: { content?: string }, 
   const p = `Check content for body image sensitivity issues.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "check": [{"element": "content element", "concern": "sensitivity concern", "alternative": "suggested alternative"}], "guidelines": "body positivity guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9445,7 +9445,7 @@ export async function aiAddictionContentGuide(data: { topic?: string }, userId?:
   const p = `Guide creating content about addiction responsibly.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "guide": [{"guideline": "content guideline", "reason": "why it matters"}], "resources": "professional resources", "responsible": "responsible messaging guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9455,7 +9455,7 @@ export async function aiFinancialDisclaimerWriter(data: { contentType?: string }
   const p = `Write financial disclaimers for content.
 ${data.contentType ? `Content type: ${data.contentType}` : ""}
 Respond as JSON: { "disclaimers": [{"type": "disclaimer type", "text": "disclaimer text", "placement": "where to place"}], "compliance": "regulatory compliance notes" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9465,7 +9465,7 @@ export async function aiWorkflowAutomationBuilder(data: { processes?: string[] }
   const p = `Build workflow automations for a content creator.
 ${data.processes ? `Processes to automate: ${data.processes.join(", ")}` : ""}
 Respond as JSON: { "automations": [{"trigger": "automation trigger", "actions": "automated actions", "tool": "recommended tool"}], "time": "time saved", "ROI": "return on investment" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9475,7 +9475,7 @@ export async function aiZapierIntegrationPlanner(data: { tools?: string[] }, use
   const p = `Plan Zapier integrations for a content creator workflow.
 ${data.tools ? `Tools to integrate: ${data.tools.join(", ")}` : ""}
 Respond as JSON: { "zaps": [{"trigger": "trigger event", "action": "automated action", "tool": "connected tool"}], "efficiency": "efficiency gains" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9485,7 +9485,7 @@ export async function aiIFTTTRecipeCreator(data: { services?: string[] }, userId
   const p = `Create IFTTT recipes for a content creator.
 ${data.services ? `Services: ${data.services.join(", ")}` : ""}
 Respond as JSON: { "recipes": [{"trigger": "trigger condition", "action": "automated action", "service": "connected service"}], "scheduling": "scheduling recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9495,7 +9495,7 @@ export async function aiMakeScenarioBuilder(data: { workflows?: string[] }, user
   const p = `Build Make (Integromat) scenarios for a content creator.
 ${data.workflows ? `Workflows: ${data.workflows.join(", ")}` : ""}
 Respond as JSON: { "scenarios": [{"trigger": "scenario trigger", "modules": "connected modules", "output": "expected output"}], "scheduling": "scheduling setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9505,7 +9505,7 @@ export async function aiAutoScheduler(data: { platforms?: string[]; frequency?: 
   const p = `Create an automated content scheduling plan.
 ${data.platforms ? `Platforms: ${data.platforms.join(", ")}` : ""}${data.frequency ? ` Posting frequency: ${data.frequency}` : ""}
 Respond as JSON: { "schedule": [{"platform": "platform name", "time": "optimal posting time", "content": "content type"}], "optimization": "scheduling optimization tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9515,7 +9515,7 @@ export async function aiAutoResponder(data: { messageTypes?: string[] }, userId?
   const p = `Set up auto-responders for a content creator.
 ${data.messageTypes ? `Message types: ${data.messageTypes.join(", ")}` : ""}
 Respond as JSON: { "responses": [{"trigger": "message trigger", "response": "auto-response text", "platform": "platform"}], "personalization": "personalization tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9525,7 +9525,7 @@ export async function aiAutoModerator(data: { rules?: string[] }, userId?: strin
   const p = `Set up auto-moderation for a content creator community.
 ${data.rules ? `Moderation rules: ${data.rules.join(", ")}` : ""}
 Respond as JSON: { "moderation": [{"rule": "moderation rule", "action": "automated action", "escalation": "escalation path"}], "learning": "machine learning improvements" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9535,7 +9535,7 @@ export async function aiAutoBackupper(data: { content?: string[] }, userId?: str
   const p = `Set up automated backups for a content creator.
 ${data.content ? `Content to backup: ${data.content.join(", ")}` : ""}
 Respond as JSON: { "backup": [{"content": "content type", "destination": "backup destination", "frequency": "backup frequency"}], "verification": "backup verification process" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9545,7 +9545,7 @@ export async function aiAutoReporter(data: { metrics?: string[] }, userId?: stri
   const p = `Set up automated reporting for a content creator.
 ${data.metrics ? `Metrics to track: ${data.metrics.join(", ")}` : ""}
 Respond as JSON: { "reports": [{"metric": "metric name", "frequency": "report frequency", "delivery": "delivery method"}], "templates": "report templates", "alerts": "alert thresholds" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9555,7 +9555,7 @@ export async function aiAutoOptimizer(data: { areas?: string[] }, userId?: strin
   const p = `Set up automated optimization for a content creator.
 ${data.areas ? `Areas to optimize: ${data.areas.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"area": "optimization area", "trigger": "optimization trigger", "action": "automated action"}], "monitoring": "monitoring setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9565,7 +9565,7 @@ export async function aiBatchProcessor(data: { tasks?: string[] }, userId?: stri
   const p = `Set up batch processing for content creator tasks.
 ${data.tasks ? `Tasks: ${data.tasks.join(", ")}` : ""}
 Respond as JSON: { "batches": [{"task": "task name", "schedule": "batch schedule", "efficiency": "efficiency gain"}], "parallel": "parallel processing options", "monitoring": "batch monitoring" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9575,7 +9575,7 @@ export async function aiSmartQueueManager(data: { contentTypes?: string[] }, use
   const p = `Manage a smart content queue for a creator.
 ${data.contentTypes ? `Content types: ${data.contentTypes.join(", ")}` : ""}
 Respond as JSON: { "queue": [{"type": "content type", "priority": "priority level", "scheduling": "scheduling rule"}], "overflow": "overflow handling strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9585,7 +9585,7 @@ export async function aiContentPipelineBuilder(data: { stages?: string[] }, user
   const p = `Build a content pipeline for a creator.
 ${data.stages ? `Pipeline stages: ${data.stages.join(", ")}` : ""}
 Respond as JSON: { "pipeline": [{"stage": "pipeline stage", "tool": "recommended tool", "automation": "automation level"}], "bottleneck": "bottleneck identification" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9595,7 +9595,7 @@ export async function aiAITrainingDataCollector(data: { purpose?: string }, user
   const p = `Plan AI training data collection for a creator.
 ${data.purpose ? `Purpose: ${data.purpose}` : ""}
 Respond as JSON: { "collection": [{"source": "data source", "method": "collection method", "format": "data format"}], "labeling": "labeling strategy", "privacy": "privacy considerations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9605,7 +9605,7 @@ export async function aiCrisisDetector(data: { channels?: string[] }, userId?: s
   const p = `Set up crisis detection for a content creator.
 ${data.channels ? `Channels to monitor: ${data.channels.join(", ")}` : ""}
 Respond as JSON: { "detection": [{"signal": "crisis signal", "threshold": "alert threshold", "response": "initial response"}], "escalation": "escalation procedures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9615,7 +9615,7 @@ export async function aiDamageControlPlanner(data: { crisis?: string }, userId?:
   const p = `Plan damage control for a content creator crisis.
 ${data.crisis ? `Crisis: ${data.crisis}` : ""}
 Respond as JSON: { "plan": [{"phase": "response phase", "action": "key action", "timeline": "timeline"}], "communication": "communication strategy", "recovery": "recovery outlook" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9625,7 +9625,7 @@ export async function aiPRStatementWriter(data: { situation?: string }, userId?:
   const p = `Write PR statements for a content creator.
 ${data.situation ? `Situation: ${data.situation}` : ""}
 Respond as JSON: { "statements": [{"type": "statement type", "statement": "PR statement text", "audience": "target audience"}], "timing": "release timing recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9635,7 +9635,7 @@ export async function aiStakeholderCommunicator(data: { stakeholders?: string[] 
   const p = `Plan stakeholder communication for a content creator.
 ${data.stakeholders ? `Stakeholders: ${data.stakeholders.join(", ")}` : ""}
 Respond as JSON: { "communication": [{"stakeholder": "stakeholder group", "message": "key message", "channel": "communication channel"}], "timeline": "communication timeline" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9645,7 +9645,7 @@ export async function aiRecoveryStrategyBuilder(data: { damage?: string[] }, use
   const p = `Build a recovery strategy after a content creator crisis.
 ${data.damage ? `Damage areas: ${data.damage.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"phase": "recovery phase", "actions": "key actions", "metrics": "success metrics"}], "timeline": "recovery timeline" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9655,7 +9655,7 @@ export async function aiMediaResponsePlanner(data: { inquiry?: string }, userId?
   const p = `Plan media responses for a content creator.
 ${data.inquiry ? `Media inquiry: ${data.inquiry}` : ""}
 Respond as JSON: { "plan": [{"scenario": "media scenario", "response": "prepared response", "spokesperson": "designated spokesperson"}], "training": "media training recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9665,7 +9665,7 @@ export async function aiLegalRiskAssessor(data: { content?: string }, userId?: s
   const p = `Assess legal risks in content.
 ${data.content ? `Content: ${data.content}` : ""}
 Respond as JSON: { "assessment": [{"risk": "legal risk", "severity": "severity level", "mitigation": "mitigation strategy"}], "insurance": "insurance recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9675,7 +9675,7 @@ export async function aiSocialMediaCrisisManager(data: { platform?: string }, us
   const p = `Manage a social media crisis for a content creator.
 ${data.platform ? `Platform: ${data.platform}` : ""}
 Respond as JSON: { "management": [{"phase": "crisis phase", "actions": "key actions"}], "templates": "response templates", "monitoring": "monitoring setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9685,7 +9685,7 @@ export async function aiInfluencerCrisisAdvisor(data: { issue?: string }, userId
   const p = `Advise on influencer crisis management.
 ${data.issue ? `Issue: ${data.issue}` : ""}
 Respond as JSON: { "advice": [{"step": "crisis step", "action": "recommended action", "timing": "timing"}], "communication": "communication strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9695,7 +9695,7 @@ export async function aiBrandRecoveryPlanner(data: { damage?: string }, userId?:
   const p = `Plan brand recovery for a content creator.
 ${data.damage ? `Damage description: ${data.damage}` : ""}
 Respond as JSON: { "plan": [{"phase": "recovery phase", "strategy": "recovery strategy", "milestone": "key milestone"}], "timeline": "recovery timeline", "metrics": "success metrics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9705,7 +9705,7 @@ export async function aiCommunityTrustRebuilder(data: { breach?: string }, userI
   const p = `Rebuild community trust after a breach for a content creator.
 ${data.breach ? `Trust breach: ${data.breach}` : ""}
 Respond as JSON: { "rebuilding": [{"action": "trust-building action", "timeline": "implementation timeline", "measurement": "success measurement"}], "transparency": "transparency measures" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9715,7 +9715,7 @@ export async function aiAlgorithmRecoveryAdvisor(data: { platform?: string; issu
   const p = `Advise on algorithm recovery for a content creator.
 ${data.platform ? `Platform: ${data.platform}` : ""}${data.issue ? ` Issue: ${data.issue}` : ""}
 Respond as JSON: { "recovery": [{"step": "recovery step", "action": "action to take", "timeline": "expected timeline"}], "prevention": "prevention strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9725,7 +9725,7 @@ export async function aiRevenueRecoveryPlanner(data: { loss?: number }, userId?:
   const p = `Plan revenue recovery for a content creator.
 ${data.loss ? `Revenue loss: $${data.loss}` : ""}
 Respond as JSON: { "plan": [{"strategy": "recovery strategy", "timeline": "implementation timeline", "projected": "projected recovery"}], "diversification": "revenue diversification plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9735,7 +9735,7 @@ export async function aiTeamCrisisManager(data: { issue?: string }, userId?: str
   const p = `Manage a team crisis for a content creator.
 ${data.issue ? `Issue: ${data.issue}` : ""}
 Respond as JSON: { "management": [{"step": "management step", "action": "action to take"}], "communication": "team communication plan", "morale": "morale recovery strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9745,7 +9745,7 @@ export async function aiLegalDefensePrepper(data: { claim?: string }, userId?: s
   const p = `Prepare legal defense for a content creator.
 ${data.claim ? `Claim: ${data.claim}` : ""}
 Respond as JSON: { "preparation": [{"area": "defense area", "action": "preparation action", "document": "required documentation"}], "counsel": "legal counsel recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9755,7 +9755,7 @@ export async function aiInsuranceClaimHelper(data: { incident?: string }, userId
   const p = `Help with an insurance claim for a content creator.
 ${data.incident ? `Incident: ${data.incident}` : ""}
 Respond as JSON: { "help": [{"step": "claim step", "documentation": "required documentation", "timeline": "expected timeline"}], "coverage": "coverage assessment" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9765,7 +9765,7 @@ export async function aiContingencyPlanner(data: { risks?: string[] }, userId?: 
   const p = `Create contingency plans for a content creator.
 ${data.risks ? `Risks: ${data.risks.join(", ")}` : ""}
 Respond as JSON: { "plans": [{"risk": "risk scenario", "trigger": "trigger condition", "response": "response plan", "backup": "backup plan"}], "testing": "plan testing schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9775,7 +9775,7 @@ export async function aiDisasterRecoveryPlanner(data: { assets?: string[] }, use
   const p = `Plan disaster recovery for a content creator's digital assets.
 ${data.assets ? `Assets: ${data.assets.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"asset": "digital asset", "backup": "backup strategy", "recovery": "recovery procedure"}], "testing": "testing schedule", "documentation": "documentation requirements" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9785,7 +9785,7 @@ export async function aiBusinessContinuityPlanner(data: { critical?: string[] },
   const p = `Plan business continuity for a content creator.
 ${data.critical ? `Critical functions: ${data.critical.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"function": "business function", "continuity": "continuity strategy", "alternative": "alternative approach"}], "testing": "continuity testing" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9795,7 +9795,7 @@ export async function aiExitStrategyBuilder(data: { business?: string; value?: n
   const p = `Build an exit strategy for a content creator business.
 ${data.business ? `Business type: ${data.business}` : ""}${data.value ? ` Estimated value: $${data.value}` : ""}
 Respond as JSON: { "strategies": [{"type": "exit type", "preparation": "preparation steps", "timeline": "exit timeline"}], "valuation": "valuation methodology" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9805,7 +9805,7 @@ export async function aiSummerContentPlanner(data: { niche?: string }, userId?: 
   const p = `Plan summer content for a creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "plan": [{"week": "week number", "content": "content idea", "theme": "summer theme"}], "seasonal": "seasonal trends", "events": "summer events to cover" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9815,7 +9815,7 @@ export async function aiWinterContentStrategy(data: { niche?: string }, userId?:
   const p = `Plan winter content strategy for a creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "strategy": [{"month": "month", "content": "content idea", "angle": "content angle"}], "holidays": "holiday content opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9825,7 +9825,7 @@ export async function aiBackToSchoolPlanner(data: { audience?: string }, userId?
   const p = `Plan back-to-school content for a creator.
 ${data.audience ? `Target audience: ${data.audience}` : ""}
 Respond as JSON: { "plan": [{"week": "week", "content": "content idea", "partner": "potential partner"}], "products": "product recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9835,7 +9835,7 @@ export async function aiHalloweenContentCreator(data: { niche?: string }, userId
   const p = `Create Halloween content ideas for a creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "content": [{"type": "content type", "concept": "creative concept", "audience": "target audience"}], "costumes": "costume ideas", "collab": "collaboration opportunities" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9845,7 +9845,7 @@ export async function aiBlackFridayStrategist(data: { products?: string[] }, use
   const p = `Plan a Black Friday content and sales strategy.
 ${data.products ? `Products: ${data.products.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"phase": "campaign phase", "action": "key action", "deal": "deal structure"}], "timeline": "campaign timeline", "marketing": "marketing channels" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9855,7 +9855,7 @@ export async function aiChristmasContentPlanner(data: { niche?: string }, userId
   const p = `Plan Christmas content for a creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "plan": [{"week": "week", "content": "content idea", "type": "content type"}], "gifts": "gift guide ideas", "calendar": "advent calendar content" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9865,7 +9865,7 @@ export async function aiNewYearGoalSetter(data: { lastYear?: any }, userId?: str
   const p = `Set New Year goals for a content creator.
 ${data.lastYear ? `Last year summary: ${JSON.stringify(data.lastYear)}` : ""}
 Respond as JSON: { "goals": [{"goal": "new year goal", "metric": "success metric", "plan": "action plan"}], "reflection": "year-in-review prompts", "sharing": "goal sharing content ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9875,7 +9875,7 @@ export async function aiValentinesDayPlanner(data: { niche?: string }, userId?: 
   const p = `Plan Valentine's Day content for a creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "plan": [{"content": "content idea", "angle": "content angle", "partner": "potential partner"}], "timing": "posting schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9885,7 +9885,7 @@ export async function aiEasterContentCreator(data: { audience?: string }, userId
   const p = `Create Easter content ideas for a creator.
 ${data.audience ? `Target audience: ${data.audience}` : ""}
 Respond as JSON: { "content": [{"type": "content type", "concept": "creative concept"}], "family": "family-friendly ideas", "seasonal": "seasonal tie-ins" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9895,7 +9895,7 @@ export async function aiSuperBowlContentPlanner(data: { niche?: string }, userId
   const p = `Plan Super Bowl content for a creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "plan": [{"content": "content idea", "angle": "content angle", "timing": "posting timing"}], "watchParty": "watch party content ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9905,7 +9905,7 @@ export async function aiParentsDayPlanner(data: { occasion?: string }, userId?: 
   const p = `Plan Mother's Day or Father's Day content for a creator.
 ${data.occasion ? `Occasion: ${data.occasion}` : ""}
 Respond as JSON: { "plan": [{"content": "content idea", "gift": "gift guide idea", "angle": "emotional angle"}], "emotional": "emotional storytelling tips", "timing": "posting schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9915,7 +9915,7 @@ export async function aiGraduationContentCreator(data: { audience?: string }, us
   const p = `Create graduation content for a creator.
 ${data.audience ? `Target audience: ${data.audience}` : ""}
 Respond as JSON: { "content": [{"type": "content type", "message": "key message", "audience": "target audience"}], "products": "product recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9925,7 +9925,7 @@ export async function aiWorldCupContentPlanner(data: { sport?: string }, userId?
   const p = `Plan World Cup content for a creator.
 ${data.sport ? `Sport: ${data.sport}` : ""}
 Respond as JSON: { "plan": [{"phase": "tournament phase", "content": "content idea", "engagement": "engagement strategy"}], "predictions": "prediction content ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9935,7 +9935,7 @@ export async function aiOlympicsContentStrategy(data: { events?: string[] }, use
   const p = `Plan Olympics content strategy for a creator.
 ${data.events ? `Events to cover: ${data.events.join(", ")}` : ""}
 Respond as JSON: { "strategy": [{"event": "olympic event", "content": "content idea", "angle": "unique angle"}], "scheduling": "content scheduling" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9945,7 +9945,7 @@ export async function aiAwardsSeasonPlanner(data: { category?: string }, userId?
   const p = `Plan awards season content for a creator.
 ${data.category ? `Category: ${data.category}` : ""}
 Respond as JSON: { "plan": [{"event": "awards event", "content": "content idea", "timing": "posting timing"}], "predictions": "prediction content ideas" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9955,7 +9955,7 @@ export async function aiMusicFestivalContentGuide(data: { festivals?: string[] }
   const p = `Guide music festival content creation.
 ${data.festivals ? `Festivals: ${data.festivals.join(", ")}` : ""}
 Respond as JSON: { "guide": [{"festival": "festival name", "content": "content ideas", "logistics": "logistics tips"}], "gear": "recommended gear" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9965,7 +9965,7 @@ export async function aiGamingEventPlanner(data: { events?: string[] }, userId?:
   const p = `Plan gaming event content coverage.
 ${data.events ? `Events: ${data.events.join(", ")}` : ""}
 Respond as JSON: { "plan": [{"event": "gaming event", "coverage": "coverage plan", "content": "content types"}], "streaming": "streaming setup" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9975,7 +9975,7 @@ export async function aiProductHuntLaunchGuide(data: { product?: string }, userI
   const p = `Guide a Product Hunt launch for a creator product.
 ${data.product ? `Product: ${data.product}` : ""}
 Respond as JSON: { "guide": [{"phase": "launch phase", "action": "key action", "timing": "timing"}], "community": "community engagement", "marketing": "marketing strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9985,7 +9985,7 @@ export async function aiErgonomicSetupAdvisor(data: { hours?: number }, userId?:
   const p = `Advise on ergonomic setup for a content creator.
 ${data.hours ? `Daily hours at desk: ${data.hours}` : ""}
 Respond as JSON: { "setup": [{"item": "ergonomic item", "recommendation": "specific recommendation", "price": "price range"}], "posture": "posture tips", "breaks": "break schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -9995,7 +9995,7 @@ export async function aiEyeCareAdvisor(data: { screenTime?: number }, userId?: s
   const p = `Advise on eye care for a content creator.
 ${data.screenTime ? `Daily screen time: ${data.screenTime} hours` : ""}
 Respond as JSON: { "advice": [{"area": "eye care area", "recommendation": "specific recommendation"}], "exercises": "eye exercises", "tools": "helpful tools and apps" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10005,7 +10005,7 @@ export async function aiVocalHealthCoach(data: { usage?: string }, userId?: stri
   const p = `Coach vocal health for a content creator.
 ${data.usage ? `Voice usage: ${data.usage}` : ""}
 Respond as JSON: { "coaching": [{"area": "vocal area", "exercise": "vocal exercise", "frequency": "how often"}], "hydration": "hydration guidelines", "rest": "vocal rest recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10015,7 +10015,7 @@ export async function aiNutritionForCreators(data: { goals?: string[] }, userId?
   const p = `Plan nutrition for a content creator.
 ${data.goals ? `Health goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "nutrition": [{"meal": "meal time", "foods": "recommended foods", "benefit": "health benefit"}], "supplements": "supplement recommendations" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10025,7 +10025,7 @@ export async function aiWorkLifeBalanceOptimizer(data: { hoursWorking?: number }
   const p = `Optimize work-life balance for a content creator.
 ${data.hoursWorking ? `Hours working per day: ${data.hoursWorking}` : ""}
 Respond as JSON: { "optimization": [{"area": "life area", "change": "recommended change", "benefit": "expected benefit"}], "boundaries": "boundary-setting strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10035,7 +10035,7 @@ export async function aiCreatorBurnoutRecovery(data: { symptoms?: string[] }, us
   const p = `Help a content creator recover from burnout.
 ${data.symptoms ? `Symptoms: ${data.symptoms.join(", ")}` : ""}
 Respond as JSON: { "recovery": [{"phase": "recovery phase", "action": "recovery action", "duration": "phase duration"}], "prevention": "burnout prevention strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10045,7 +10045,7 @@ export async function aiMeditationGuideForCreators(data: { experience?: string }
   const p = `Guide meditation practice for a content creator.
 ${data.experience ? `Experience level: ${data.experience}` : ""}
 Respond as JSON: { "guide": [{"type": "meditation type", "duration": "session duration", "technique": "technique description"}], "schedule": "recommended schedule", "apps": "recommended apps" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10055,7 +10055,7 @@ export async function aiTimeBlockingOptimizer(data: { tasks?: string[] }, userId
   const p = `Optimize time blocking for a content creator.
 ${data.tasks ? `Tasks: ${data.tasks.join(", ")}` : ""}
 Respond as JSON: { "blocks": [{"time": "time block", "task": "assigned task", "energy": "energy level needed"}], "templates": "schedule templates", "tools": "time blocking tools" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10065,7 +10065,7 @@ export async function aiPomodoroCustomizer(data: { workType?: string }, userId?:
   const p = `Customize the Pomodoro technique for a content creator.
 ${data.workType ? `Work type: ${data.workType}` : ""}
 Respond as JSON: { "customization": [{"setting": "pomodoro setting", "value": "recommended value", "reason": "why this value"}], "breaks": "break activity suggestions", "tracking": "tracking methods" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10075,7 +10075,7 @@ export async function aiDigitalDetoxPlanner(data: { frequency?: string }, userId
   const p = `Plan a digital detox for a content creator.
 ${data.frequency ? `Detox frequency: ${data.frequency}` : ""}
 Respond as JSON: { "plan": [{"phase": "detox phase", "action": "detox action", "duration": "phase duration"}], "alternatives": "offline alternatives", "communication": "audience communication plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10085,7 +10085,7 @@ export async function aiGratitudeJournalPrompts(data: { niche?: string }, userId
   const p = `Generate gratitude journal prompts for a content creator.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "prompts": [{"prompt": "journal prompt", "reflection": "reflection guidance", "growth": "growth connection"}], "schedule": "journaling schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10095,7 +10095,7 @@ export async function aiAffirmationGenerator(data: { goals?: string[] }, userId?
   const p = `Generate affirmations for a content creator.
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "affirmations": [{"affirmation": "affirmation text", "category": "affirmation category", "timing": "best time to practice"}], "practice": "practice guidelines" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10105,7 +10105,7 @@ export async function aiHabitStackBuilder(data: { habits?: string[] }, userId?: 
   const p = `Build habit stacks for a content creator.
 ${data.habits ? `Desired habits: ${data.habits.join(", ")}` : ""}
 Respond as JSON: { "stacks": [{"trigger": "habit trigger", "habit": "new habit", "reward": "reward"}], "tracking": "habit tracking methods", "accountability": "accountability strategies" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10115,7 +10115,7 @@ export async function aiEnergyManagementAdvisor(data: { schedule?: string }, use
   const p = `Advise on energy management for a content creator.
 ${data.schedule ? `Current schedule: ${data.schedule}` : ""}
 Respond as JSON: { "management": [{"time": "time of day", "energy": "energy level", "task": "best task for this energy"}], "optimization": "energy optimization tips" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10125,7 +10125,7 @@ export async function aiCreatorCommunityBuilder(data: { niche?: string }, userId
   const p = `Build a creator community strategy.
 ${data.niche ? `Niche: ${data.niche}` : ""}
 Respond as JSON: { "community": [{"platform": "community platform", "strategy": "growth strategy", "engagement": "engagement tactics"}], "growth": "community growth plan" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10135,7 +10135,7 @@ export async function aiMastermindGroupFacilitator(data: { topic?: string }, use
   const p = `Facilitate a mastermind group for content creators.
 ${data.topic ? `Topic: ${data.topic}` : ""}
 Respond as JSON: { "facilitation": [{"session": "session topic", "structure": "session structure", "outcome": "expected outcome"}], "members": "member selection criteria", "cadence": "meeting cadence" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10145,7 +10145,7 @@ export async function aiAccountabilityPartnerMatcher(data: { goals?: string[] },
   const p = `Match accountability partners for a content creator.
 ${data.goals ? `Goals: ${data.goals.join(", ")}` : ""}
 Respond as JSON: { "matching": [{"criteria": "matching criteria", "platform": "where to find partners", "structure": "partnership structure"}], "checkIns": "check-in schedule and format" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);
@@ -10155,7 +10155,7 @@ export async function aiCreatorSabbaticalPlanner(data: { duration?: string }, us
   const p = `Plan a sabbatical for a content creator.
 ${data.duration ? `Duration: ${data.duration}` : ""}
 Respond as JSON: { "plan": [{"phase": "sabbatical phase", "preparation": "preparation steps", "content": "pre-scheduled content"}], "finances": "financial preparation", "return": "return strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 1200 });
+  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);

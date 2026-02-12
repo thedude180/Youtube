@@ -186,7 +186,7 @@ Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and 
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 2048,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content;
