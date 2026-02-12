@@ -1,4 +1,4 @@
-import { users, type User, type UpsertUser } from "@shared/models/auth";
+import { users, ADMIN_EMAIL, type User, type UpsertUser } from "@shared/models/auth";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
 
@@ -14,19 +14,28 @@ class AuthStorage implements IAuthStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    const isAdmin = userData.email?.toLowerCase() === ADMIN_EMAIL;
+    const insertValues = isAdmin
+      ? { ...userData, role: "admin" as const, tier: "ultimate" as const }
+      : userData;
+    const updateSet: Record<string, any> = {
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      profileImageUrl: userData.profileImageUrl,
+      updatedAt: new Date(),
+    };
+    if (isAdmin) {
+      updateSet.role = "admin";
+      updateSet.tier = "ultimate";
+    }
     try {
       const [user] = await db
         .insert(users)
-        .values(userData)
+        .values(insertValues)
         .onConflictDoUpdate({
           target: users.id,
-          set: {
-            email: userData.email,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            profileImageUrl: userData.profileImageUrl,
-            updatedAt: new Date(),
-          },
+          set: updateSet,
         })
         .returning();
       return user;
@@ -36,12 +45,7 @@ class AuthStorage implements IAuthStorage {
         if (existing) {
           const [updated] = await db
             .update(users)
-            .set({
-              firstName: userData.firstName,
-              lastName: userData.lastName,
-              profileImageUrl: userData.profileImageUrl,
-              updatedAt: new Date(),
-            })
+            .set(updateSet)
             .where(eq(users.email, userData.email))
             .returning();
           return updated;
