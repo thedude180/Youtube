@@ -67,7 +67,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     label: "TikTok",
     authUrl: "https://www.tiktok.com/v2/auth/authorize/",
     tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
-    scopes: ["user.info.basic"],
+    scopes: ["user.info.basic", "user.info.stats", "video.list", "video.upload", "video.publish"],
     clientIdEnv: "TIKTOK_CLIENT_ID",
     clientSecretEnv: "TIKTOK_CLIENT_SECRET",
     usesClientKey: true,
