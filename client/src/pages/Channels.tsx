@@ -1,7 +1,7 @@
 import { useChannels, useCreateChannel } from "@/hooks/use-channels";
 import { useAuth } from "@/hooks/use-auth";
 import { format } from "date-fns";
-import { RefreshCw, Trash2, Loader2, Globe, ExternalLink, CheckCircle2, Circle } from "lucide-react";
+import { RefreshCw, Trash2, Loader2, Globe, ExternalLink, CheckCircle2, Circle, Key, Radio, Users, Eye, EyeOff } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -251,15 +251,38 @@ export default function Channels() {
 }
 
 function ConnectedChannelInfo({ channel }: { channel: Channel; onSync: undefined }) {
+  const platformData = channel.platformData as Record<string, any> | null;
+  const followerCount = platformData?.followerCount || platformData?.patron_count;
+
   return (
     <div className="flex items-center gap-2 text-xs" data-testid={`info-channel-${channel.id}`}>
       <div className="flex-1 min-w-0">
         <p data-testid={`text-channel-name-${channel.id}`} className="font-medium truncate">{channel.channelName}</p>
-        {channel.lastSyncAt && (
-          <span className="text-muted-foreground">
-            Synced {format(new Date(channel.lastSyncAt), "MMM d, yyyy")}
-          </span>
-        )}
+        <div className="flex items-center gap-3 text-muted-foreground flex-wrap">
+          {channel.streamKey && (
+            <span className="flex items-center gap-1">
+              <Key className="h-3 w-3" />
+              Stream Key
+            </span>
+          )}
+          {channel.rtmpUrl && (
+            <span className="flex items-center gap-1">
+              <Radio className="h-3 w-3" />
+              RTMP Ready
+            </span>
+          )}
+          {followerCount !== undefined && (
+            <span className="flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {typeof followerCount === "number" ? followerCount.toLocaleString() : followerCount}
+            </span>
+          )}
+          {channel.lastSyncAt && (
+            <span>
+              Synced {format(new Date(channel.lastSyncAt), "MMM d, yyyy")}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -374,6 +397,153 @@ const CREDENTIAL_LABELS: Record<string, { label: string; placeholder: string; se
   trovo: { label: "Stream Key", placeholder: "Your Trovo stream key" },
   whatsapp: { label: "WhatsApp Channel Link", placeholder: "https://whatsapp.com/channel/..." },
 };
+
+function ConnectedPlatformDetails({ platform, channels }: { platform: Platform; channels: Channel[] }) {
+  const [showStreamKey, setShowStreamKey] = useState(false);
+
+  if (!channels.length) return null;
+  const channel = channels[0];
+  const platformData = channel.platformData as Record<string, any> | null;
+
+  return (
+    <div className="border-t pt-4 space-y-3">
+      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+        <CheckCircle2 className="h-4 w-4" />
+        <span className="text-sm font-medium" data-testid={`text-connected-${platform}`}>Connected as {channel.channelName}</span>
+      </div>
+
+      <div className="space-y-2">
+        {channel.streamKey && (
+          <div className="rounded-md bg-muted p-3" data-testid={`info-stream-key-${platform}`}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="text-xs font-medium flex items-center gap-1.5">
+                <Key className="h-3.5 w-3.5" />
+                Stream Key (auto-fetched)
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                data-testid={`button-toggle-stream-key-${platform}`}
+                onClick={() => setShowStreamKey(!showStreamKey)}
+              >
+                {showStreamKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+            <code className="text-xs break-all block">
+              {showStreamKey ? channel.streamKey : "\u2022".repeat(24)}
+            </code>
+          </div>
+        )}
+
+        {channel.rtmpUrl && (
+          <div className="rounded-md bg-muted p-3" data-testid={`info-rtmp-url-${platform}`}>
+            <span className="text-xs font-medium flex items-center gap-1.5 mb-1">
+              <Radio className="h-3.5 w-3.5" />
+              RTMP URL (auto-configured)
+            </span>
+            <code className="text-xs break-all block">{channel.rtmpUrl}</code>
+          </div>
+        )}
+
+        {platformData && Object.keys(platformData).length > 0 && (
+          <div className="rounded-md bg-muted p-3" data-testid={`info-platform-data-${platform}`}>
+            <span className="text-xs font-medium mb-2 block">Platform Data (auto-fetched)</span>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              {platformData.followerCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Followers</span>
+                  <span className="font-medium">{Number(platformData.followerCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.followingCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Following</span>
+                  <span className="font-medium">{Number(platformData.followingCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.videoCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Videos</span>
+                  <span className="font-medium">{Number(platformData.videoCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.totalKarma !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Karma</span>
+                  <span className="font-medium">{Number(platformData.totalKarma).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.guildCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Servers</span>
+                  <span className="font-medium">{platformData.guildCount}</span>
+                </>
+              )}
+              {platformData.campaignName && (
+                <>
+                  <span className="text-muted-foreground">Campaign</span>
+                  <span className="font-medium truncate">{platformData.campaignName}</span>
+                </>
+              )}
+              {platformData.mediaCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Posts</span>
+                  <span className="font-medium">{Number(platformData.mediaCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.tweetCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Posts</span>
+                  <span className="font-medium">{Number(platformData.tweetCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.statusesCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Posts</span>
+                  <span className="font-medium">{Number(platformData.statusesCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.pinCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Pins</span>
+                  <span className="font-medium">{Number(platformData.pinCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.likesCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Likes</span>
+                  <span className="font-medium">{Number(platformData.likesCount).toLocaleString()}</span>
+                </>
+              )}
+              {platformData.connectionStatus && (
+                <>
+                  <span className="text-muted-foreground">Status</span>
+                  <span className="font-medium capitalize">{platformData.connectionStatus}</span>
+                </>
+              )}
+              {platformData.lastFetchedAt && (
+                <>
+                  <span className="text-muted-foreground">Last Synced</span>
+                  <span className="font-medium">{format(new Date(platformData.lastFetchedAt), "MMM d, h:mm a")}</span>
+                </>
+              )}
+            </div>
+            {platformData.note && (
+              <p className="text-xs text-muted-foreground mt-2 italic">{platformData.note}</p>
+            )}
+          </div>
+        )}
+
+        {channel.tokenExpiresAt && (
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <span>Token expires: {format(new Date(channel.tokenExpiresAt), "MMM d, yyyy h:mm a")}</span>
+            <Badge variant="outline" className="text-[10px]">Auto-refresh</Badge>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function PlatformDetailDialog({
   platform,
@@ -517,12 +687,10 @@ function PlatformDetailDialog({
           </div>
 
           {isAlreadyConnected && (
-            <div className="border-t pt-4">
-              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                <CheckCircle2 className="h-4 w-4" />
-                <span className="text-sm font-medium" data-testid={`text-connected-${platform}`}>Already connected</span>
-              </div>
-            </div>
+            <ConnectedPlatformDetails
+              platform={platform}
+              channels={existingChannels?.filter(c => c.platform === platform) || []}
+            />
           )}
 
           {!isAlreadyConnected && (

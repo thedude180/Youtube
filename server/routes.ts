@@ -884,7 +884,7 @@ import {
   getCreatorPreferences,
   recordLearningSignal,
 } from "./creator-intelligence";
-import { AI_AGENTS, linkedChannels } from "@shared/schema";
+import { AI_AGENTS, linkedChannels, streamDestinations } from "@shared/schema";
 import {
   startBacklogProcessing,
   getBacklogStatus,
@@ -7847,6 +7847,7 @@ export async function registerRoutes(
 
   // === GENERIC OAUTH FOR ALL PLATFORMS ===
   const { OAUTH_CONFIGS, getOAuthRedirectUri, isPlatformOAuthConfigured, getAllOAuthPlatforms } = await import("./oauth-config");
+  const { fetchPlatformData } = await import("./platform-data-fetcher");
   const crypto = await import("crypto");
 
   const pendingOAuthStates = new Map<string, { userId: string; platform: string; timestamp: number; codeVerifier?: string }>();
@@ -8014,6 +8015,24 @@ export async function registerRoutes(
         }
       }
 
+      let streamKey: string | undefined;
+      let rtmpUrl: string | undefined;
+      let platformDataObj: Record<string, any> = {};
+      let fetchedFollowerCount: number | undefined;
+
+      try {
+        const fetched = await fetchPlatformData(platform as Platform, accessToken, channelId);
+        if (fetched.streamKey) streamKey = fetched.streamKey;
+        if (fetched.rtmpUrl) rtmpUrl = fetched.rtmpUrl;
+        if (fetched.channelName) channelName = fetched.channelName;
+        if (fetched.channelId) channelId = fetched.channelId;
+        if (fetched.profileUrl) profileUrl = fetched.profileUrl;
+        if (fetched.followerCount !== undefined) fetchedFollowerCount = fetched.followerCount;
+        if (fetched.platformData) platformDataObj = fetched.platformData;
+      } catch (e) {
+        console.error(`[OAuth ${platform}] Platform data fetch failed:`, e);
+      }
+
       const existingChannels = await storage.getChannelsByUser(userId);
       const existing = existingChannels.find(c => c.platform === platform);
 
@@ -8024,6 +8043,9 @@ export async function registerRoutes(
           tokenExpiresAt,
           channelName,
           channelId,
+          streamKey: streamKey || existing.streamKey || null,
+          rtmpUrl: rtmpUrl || existing.rtmpUrl || null,
+          platformData: { ...((existing.platformData as any) || {}), ...platformDataObj, lastFetchedAt: new Date().toISOString() },
         });
       } else {
         await storage.createChannel({
@@ -8034,8 +8056,37 @@ export async function registerRoutes(
           accessToken,
           refreshToken,
           tokenExpiresAt,
+          streamKey: streamKey || null,
+          rtmpUrl: rtmpUrl || null,
+          platformData: { ...platformDataObj, lastFetchedAt: new Date().toISOString() },
           settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
         });
+      }
+
+      if (streamKey || rtmpUrl) {
+        const platformInfo = (await import("@shared/schema")).PLATFORM_INFO;
+        const info = platformInfo[platform as Platform];
+        const finalRtmpUrl = rtmpUrl || info?.rtmpUrlTemplate || "";
+
+        const existingDest = await db.select().from(streamDestinations).where(
+          and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform))
+        );
+
+        if (existingDest.length === 0) {
+          await db.insert(streamDestinations).values({
+            userId,
+            platform,
+            label: `${channelName} (${config.label})`,
+            rtmpUrl: finalRtmpUrl,
+            streamKey: streamKey || null,
+            enabled: true,
+            settings: { resolution: "1080p", bitrate: "6000", fps: 60, autoStart: true },
+          });
+        } else {
+          await db.update(streamDestinations)
+            .set({ rtmpUrl: finalRtmpUrl, streamKey: streamKey || existingDest[0].streamKey, label: `${channelName} (${config.label})` })
+            .where(and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform)));
+        }
       }
 
       const existingLinked = await db.select().from(linkedChannels).where(
@@ -8049,14 +8100,22 @@ export async function registerRoutes(
           profileUrl: profileUrl || null,
           isConnected: true,
           connectionType: "oauth",
+          followerCount: fetchedFollowerCount || null,
         });
       } else {
         await db.update(linkedChannels)
-          .set({ isConnected: true, username: channelName, profileUrl: profileUrl || null, connectionType: "oauth" })
+          .set({
+            isConnected: true,
+            username: channelName,
+            profileUrl: profileUrl || null,
+            connectionType: "oauth",
+            followerCount: fetchedFollowerCount || existingLinked[0].followerCount,
+            lastVerifiedAt: new Date(),
+          })
           .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
       }
 
-      console.log(`[OAuth ${platform}] Successfully connected for user ${userId}: ${channelName}`);
+      console.log(`[OAuth ${platform}] Successfully connected for user ${userId}: ${channelName} (streamKey: ${streamKey ? "yes" : "no"}, rtmpUrl: ${rtmpUrl ? "yes" : "no"})`);
       res.redirect(`/channels?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
     } catch (error: any) {
       console.error(`[OAuth ${platform}] Callback error:`, error);

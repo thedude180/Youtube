@@ -378,6 +378,9 @@ export const channels = pgTable("channels", {
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   tokenExpiresAt: timestamp("token_expires_at"),
+  streamKey: text("stream_key"),
+  rtmpUrl: text("rtmp_url"),
+  platformData: jsonb("platform_data").$type<Record<string, any>>(),
   settings: jsonb("settings").$type<{
     preset: "safe" | "normal" | "aggressive";
     autoUpload: boolean;

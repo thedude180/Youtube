@@ -57,9 +57,19 @@ The platform is built as a full-stack application with an Express.js backend and
 - **Credential Env Vars**: Each platform uses `{PLATFORM}_CLIENT_ID` and `{PLATFORM}_CLIENT_SECRET` env vars (e.g., `TWITCH_CLIENT_ID`, `DISCORD_CLIENT_SECRET`)
 - **UI Integration**: Platform dialogs show "Login with [Platform]" OAuth buttons when configured, with manual credential fallback always available
 - **YouTube**: Uses dedicated `/api/youtube/auth` flow via Google OAuth (already configured with GOOGLE_CLIENT_ID/SECRET)
+- **Post-OAuth Data Fetcher**: `server/platform-data-fetcher.ts` - After OAuth callback, automatically fetches per-platform data:
+  - **Streaming platforms** (Twitch, Kick, Trovo, DLive, Rumble, Facebook): Auto-fetches stream keys and RTMP URLs
+  - **Content/Social** (TikTok, X, Instagram, LinkedIn, Threads, Mastodon, Reddit, Pinterest, Snapchat): Fetches follower counts, post counts, profile data
+  - **Monetization** (Patreon, Ko-fi, Spotify): Fetches campaign IDs, patron counts, account details
+  - **Community** (Discord): Fetches guild/server list
+  - All data stored in `channels.platformData` JSONB field, stream keys in `channels.streamKey`, RTMP URLs in `channels.rtmpUrl`
+  - Auto-creates `stream_destinations` records for streaming platforms
+- **Token Auto-Refresh**: `server/token-refresh.ts` - Runs every 10 minutes via cron, refreshes tokens expiring within 15 minutes. Handles per-platform auth methods (body, header, PKCE, client_key for TikTok). Logs invalid_grant errors for re-authorization.
 
 ## Key Files
 - `server/oauth-config.ts` - OAuth2 configuration for all 23 non-YouTube platforms (auth URLs, token URLs, scopes, user info endpoints)
+- `server/platform-data-fetcher.ts` - Post-OAuth data fetcher with per-platform API calls for stream keys, RTMP URLs, follower counts, campaign IDs
+- `server/token-refresh.ts` - Automatic OAuth token refresh system running every 10 minutes via cron
 - `server/routes.ts` - All API routes including 832 AI endpoints, 17 localization endpoints, automation routes, Stripe payment endpoints, and generic OAuth routes
 - `server/storage.ts` - Database storage layer with IStorage interface
 - `server/ai-engine.ts` - 832 AI feature functions organized in 22+ batches + 17 localization AI functions + 110 new upgrade features

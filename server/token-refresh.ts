@@ -1,0 +1,120 @@
+import type { Platform } from "@shared/schema";
+import { OAUTH_CONFIGS } from "./oauth-config";
+import { db } from "./db";
+import { channels } from "@shared/schema";
+import { eq, lt, and, isNotNull } from "drizzle-orm";
+
+interface RefreshResult {
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: Date;
+  error?: string;
+}
+
+async function refreshToken(platform: Platform, currentRefreshToken: string): Promise<RefreshResult> {
+  const config = OAUTH_CONFIGS[platform];
+  if (!config) return { success: false, error: `No OAuth config for ${platform}` };
+
+  const clientId = process.env[config.clientIdEnv];
+  const clientSecret = process.env[config.clientSecretEnv];
+  if (!clientId || !clientSecret) return { success: false, error: `Missing credentials for ${platform}` };
+
+  try {
+    const body: Record<string, string> = {
+      grant_type: "refresh_token",
+      refresh_token: currentRefreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    };
+
+    if (config.usesClientKey) {
+      body.client_key = clientId;
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/x-www-form-urlencoded",
+    };
+
+    if (config.tokenAuthMethod === "header") {
+      headers["Authorization"] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+      delete body.client_id;
+      delete body.client_secret;
+    }
+
+    const res = await fetch(config.tokenUrl, {
+      method: "POST",
+      headers,
+      body: new URLSearchParams(body).toString(),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[TokenRefresh:${platform}] Failed:`, errText);
+
+      if (errText.includes("invalid_grant") || errText.includes("expired") || res.status === 401) {
+        return { success: false, error: `Token expired - user needs to re-authorize ${platform}` };
+      }
+      return { success: false, error: `Token refresh failed: ${res.status}` };
+    }
+
+    const data = await res.json() as any;
+    const expiresIn = data.expires_in;
+
+    return {
+      success: true,
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token || currentRefreshToken,
+      expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : undefined,
+    };
+  } catch (e) {
+    console.error(`[TokenRefresh:${platform}] Error:`, e);
+    return { success: false, error: String(e) };
+  }
+}
+
+export async function refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
+  const bufferMs = 15 * 60 * 1000;
+  const threshold = new Date(Date.now() + bufferMs);
+
+  let refreshed = 0;
+  let failed = 0;
+
+  try {
+    const expiring = await db.select().from(channels).where(
+      and(
+        isNotNull(channels.refreshToken),
+        isNotNull(channels.tokenExpiresAt),
+        lt(channels.tokenExpiresAt, threshold)
+      )
+    );
+
+    for (const ch of expiring) {
+      if (!ch.refreshToken || !ch.platform) continue;
+
+      const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
+
+      if (result.success && result.accessToken) {
+        await db.update(channels).set({
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken || ch.refreshToken,
+          tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
+        }).where(eq(channels.id, ch.id));
+
+        console.log(`[TokenRefresh] Refreshed token for ${ch.platform} channel ${ch.channelName}`);
+        refreshed++;
+      } else {
+        console.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
+        failed++;
+      }
+    }
+  } catch (e) {
+    console.error("[TokenRefresh] Error checking expiring tokens:", e);
+  }
+
+  if (refreshed > 0 || failed > 0) {
+    console.log(`[TokenRefresh] Complete: ${refreshed} refreshed, ${failed} failed`);
+  }
+
+  return { refreshed, failed };
+}

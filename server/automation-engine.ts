@@ -248,6 +248,15 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("*/10 * * * *", async () => {
+    try {
+      const { refreshExpiringTokens } = await import("./token-refresh");
+      await refreshExpiringTokens();
+    } catch (err) {
+      console.error("[AutomationEngine] Token refresh error:", err);
+    }
+  });
+
   console.log("[AutomationEngine] All systems operational");
 }
 
