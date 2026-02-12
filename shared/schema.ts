@@ -1940,6 +1940,40 @@ export const insertLiveChatMessageSchema = createInsertSchema(liveChatMessages).
 export type LiveChatMessage = typeof liveChatMessages.$inferSelect;
 export type InsertLiveChatMessage = z.infer<typeof insertLiveChatMessageSchema>;
 
+export const platformGrowthPrograms = pgTable("platform_growth_programs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  platform: text("platform").notNull(),
+  programName: text("program_name").notNull(),
+  programType: text("program_type").notNull(),
+  status: text("status").default("not_started"),
+  eligibilityMet: boolean("eligibility_met").default(false),
+  requirements: jsonb("requirements").$type<{
+    metric: string;
+    current: number;
+    target: number;
+    met: boolean;
+  }[]>(),
+  benefits: text("benefits").array(),
+  applicationUrl: text("application_url"),
+  aiRecommendations: jsonb("ai_recommendations").$type<{
+    strategy: string;
+    priority: string;
+    estimatedTimeToEligible: string;
+    actionItems: string[];
+  }>(),
+  progress: integer("progress").default(0),
+  lastChecked: timestamp("last_checked").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("growth_programs_user_id_idx").on(table.userId),
+  platformIdx: index("growth_programs_platform_idx").on(table.platform),
+}));
+
+export const insertPlatformGrowthProgramSchema = createInsertSchema(platformGrowthPrograms).omit({ id: true, createdAt: true, lastChecked: true });
+export type PlatformGrowthProgram = typeof platformGrowthPrograms.$inferSelect;
+export type InsertPlatformGrowthProgram = z.infer<typeof insertPlatformGrowthProgramSchema>;
+
 export const insertAutopilotQueueSchema = createInsertSchema(autopilotQueue).omit({ id: true, createdAt: true, publishedAt: true, errorMessage: true });
 export const insertCommentResponseSchema = createInsertSchema(commentResponses).omit({ id: true, createdAt: true, publishedAt: true });
 export const insertAutopilotConfigSchema = createInsertSchema(autopilotConfig).omit({ id: true, createdAt: true, updatedAt: true });

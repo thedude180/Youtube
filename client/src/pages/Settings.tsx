@@ -36,6 +36,7 @@ const LegalTab = lazy(() => import("./settings/LegalTab"));
 const WellnessTab = lazy(() => import("./settings/WellnessTab"));
 const LearningTab = lazy(() => import("./settings/LearningTab"));
 const AutomationTab = lazy(() => import("./settings/AutomationTab"));
+const GrowthProgramsTab = lazy(() => import("./settings/GrowthProgramsTab"));
 const SubscriptionTab = lazy(() => import("./settings/AdminTabs"));
 const AdminCodesTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminCodesTab })));
 const AdminUsersTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminUsersTab })));
@@ -44,9 +45,9 @@ const TabFallback = () => <Skeleton className="h-96 w-full rounded-lg" />;
 
 type AIResponse = Record<string, unknown> | null;
 
-type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "wellness" | "learning" | "automation" | "admin-codes" | "admin-users" | "subscription";
+type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "wellness" | "learning" | "automation" | "growth" | "admin-codes" | "admin-users" | "subscription";
 
-const VALID_TABS: TabKey[] = ["general", "brand", "collabs", "competitors", "legal", "wellness", "learning", "automation", "admin-codes", "admin-users", "subscription"];
+const VALID_TABS: TabKey[] = ["general", "brand", "collabs", "competitors", "legal", "wellness", "learning", "automation", "growth", "admin-codes", "admin-users", "subscription"];
 
 const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "general", label: "General" },
@@ -57,6 +58,7 @@ const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "wellness", label: "Wellness" },
   { key: "learning", label: "Learning" },
   { key: "automation", label: "Automation Hub" },
+  { key: "growth", label: "Growth Programs" },
   { key: "subscription", label: "Subscription" },
   { key: "admin-codes", label: "Access Codes", adminOnly: true },
   { key: "admin-users", label: "Users", adminOnly: true },
@@ -4567,6 +4569,7 @@ export default function Settings() {
         {activeTab === "wellness" && <WellnessTab />}
         {activeTab === "learning" && <LearningTab />}
         {activeTab === "automation" && <AutomationTab />}
+        {activeTab === "growth" && <GrowthProgramsTab />}
         {activeTab === "subscription" && <SubscriptionTab />}
         {activeTab === "admin-codes" && isAdmin && <AdminCodesTab />}
         {activeTab === "admin-users" && isAdmin && <AdminUsersTab />}

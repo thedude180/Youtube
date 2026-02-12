@@ -17,6 +17,10 @@ import {
   updateTeamTask, getCreativeBlockSuggestions, scanCompliance,
   storeLegalDocument, getLegalDocuments, manageCrm,
 } from "../wellness-engine";
+import {
+  getUserGrowthPrograms, generateGrowthRecommendations,
+  updateProgramMetrics, autoDetectAndUpdateMetrics,
+} from "../growth-programs-engine";
 
 export function registerSettingsRoutes(app: Express) {
   app.get("/api/notifications", async (req, res) => {
@@ -478,6 +482,52 @@ export function registerSettingsRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/growth-programs", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      await autoDetectAndUpdateMetrics(userId);
+      const programs = await getUserGrowthPrograms(userId);
+      res.json(programs);
+    } catch (error: any) {
+      console.error("Growth programs error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/growth-programs/recommendations", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const recommendations = await generateGrowthRecommendations(userId);
+      res.json(recommendations || { prioritizedPrograms: [], crossPlatformStrategy: "", quickWins: [], longTermGoals: [] });
+    } catch (error: any) {
+      console.error("Growth recommendations error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/growth-programs/:id/metrics", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      metrics: z.array(z.object({
+        metric: z.string(),
+        current: z.number(),
+      })),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+    try {
+      const updated = await updateProgramMetrics(userId, Number(req.params.id), parsed.data.metrics);
+      if (!updated) return res.status(404).json({ message: "Program not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update metrics error:", error);
       res.status(500).json({ message: error.message });
     }
   });
