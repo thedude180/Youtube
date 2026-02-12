@@ -38,7 +38,7 @@ function getOAuth2Client() {
   let redirectUri = process.env.GOOGLE_REDIRECT_URI;
   if (!redirectUri) {
     if (process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT) {
-      redirectUri = "https://ytautomation.replit.app/api/youtube/callback";
+      redirectUri = "https://etgaming247.com/api/youtube/callback";
     } else if (process.env.REPLIT_DEV_DOMAIN) {
       redirectUri = `https://${process.env.REPLIT_DEV_DOMAIN}/api/youtube/callback`;
     } else {

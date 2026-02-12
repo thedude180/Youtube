@@ -303,7 +303,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
 
 export function getOAuthRedirectUri(platform: string): string {
   if (process.env.REPLIT_DEPLOYMENT) {
-    return `https://ytautomation.replit.app/api/oauth/${platform}/callback`;
+    return `https://etgaming247.com/api/oauth/${platform}/callback`;
   } else if (process.env.REPLIT_DEV_DOMAIN) {
     return `https://${process.env.REPLIT_DEV_DOMAIN}/api/oauth/${platform}/callback`;
   }

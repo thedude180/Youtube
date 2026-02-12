@@ -162,12 +162,12 @@ export async function registerRoutes(
 
   app.get("/robots.txt", (_req, res) => {
     res.type("text/plain").send(
-      "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /settings\nSitemap: https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app") + "/sitemap.xml"
+      "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /settings\nSitemap: https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "etgaming247.com") + "/sitemap.xml"
     );
   });
 
   app.get("/sitemap.xml", (_req, res) => {
-    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app");
+    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "etgaming247.com");
     const urls = ["/", "/pricing", "/content", "/stream", "/money"].map(
       (path) => `<url><loc>${domain}${path}</loc><changefreq>weekly</changefreq></url>`
     ).join("");
