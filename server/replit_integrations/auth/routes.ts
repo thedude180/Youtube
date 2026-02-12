@@ -2,9 +2,25 @@ import type { Express } from "express";
 import { authStorage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
 
-// Register auth-specific routes
 export function registerAuthRoutes(app: Express): void {
-  // Get current authenticated user
+  app.get("/api/auth/debug-session", (req: any, res) => {
+    res.json({
+      hasSession: !!req.session,
+      sessionID: req.sessionID ? req.sessionID.substring(0, 8) + "..." : null,
+      hasPassport: !!req.session?.passport,
+      hasUser: !!req.user,
+      isAuthenticated: req.isAuthenticated?.() || false,
+      authProvider: req.user?.auth_provider || null,
+      userSub: req.user?.claims?.sub || null,
+      cookies: Object.keys(req.cookies || {}),
+      hasCookieHeader: !!req.headers.cookie,
+      protocol: req.protocol,
+      secure: req.secure,
+      hostname: req.hostname,
+      trustProxy: req.app.get("trust proxy"),
+    });
+  });
+
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
