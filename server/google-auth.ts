@@ -55,13 +55,19 @@ export function setupGoogleAuth(app: Express) {
 
           const userId = `google_${googleId}`;
 
-          await authStorage.upsertUser({
-            id: userId,
-            email,
-            firstName,
-            lastName,
-            profileImageUrl: profileImage,
-          });
+          console.log("Google auth: upserting user", userId, email);
+          try {
+            const dbUser = await authStorage.upsertUser({
+              id: userId,
+              email,
+              firstName,
+              lastName,
+              profileImageUrl: profileImage,
+            });
+            console.log("Google auth: user upserted successfully", dbUser?.id);
+          } catch (upsertErr) {
+            console.error("Google auth: upsertUser FAILED:", upsertErr);
+          }
 
           const user = {
             claims: {

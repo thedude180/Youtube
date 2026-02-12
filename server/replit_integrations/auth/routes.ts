@@ -24,7 +24,24 @@ export function registerAuthRoutes(app: Express): void {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const user = await authStorage.getUser(userId);
+      let user = await authStorage.getUser(userId);
+
+      if (!user && userId && req.user.claims) {
+        const claims = req.user.claims;
+        console.log("User not found in DB, creating from session claims:", userId);
+        user = await authStorage.upsertUser({
+          id: userId,
+          email: claims.email || null,
+          firstName: claims.first_name || null,
+          lastName: claims.last_name || null,
+          profileImageUrl: claims.profile_image_url || null,
+        });
+      }
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
