@@ -1,0 +1,874 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { Sparkles, CalendarDays, Shield, ChevronDown, ChevronUp } from "lucide-react";
+
+const ENTITY_TYPES = ["sole_proprietor", "llc", "s_corp", "c_corp", "partnership"] as const;
+const entityTypeLabels: Record<string, string> = { sole_proprietor: "Sole Proprietor", llc: "LLC", s_corp: "S-Corp", c_corp: "C-Corp", partnership: "Partnership" };
+const FORMATION_STEPS = [
+  { key: "entity", label: "Choose Entity Type", desc: "Select your business structure" },
+  { key: "ein", label: "Get EIN", desc: "Apply for Employer Identification Number" },
+  { key: "state", label: "State Registration", desc: "File with your state" },
+  { key: "bank", label: "Business Bank Account", desc: "Open a dedicated account" },
+  { key: "insurance", label: "Business Insurance", desc: "Get coverage for your business" },
+  { key: "trademark", label: "Trademark", desc: "Protect your brand name" },
+];
+
+function LegalTab() {
+  const { toast } = useToast();
+  const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
+  const { data: taxEstimates } = useQuery<any[]>({ queryKey: ['/api/tax-estimates'] });
+
+  const [completedSteps, setCompletedSteps] = useState<string[]>(() => {
+    const stored = localStorage.getItem("legalFormationSteps");
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const toggleStep = (key: string) => {
+    setCompletedSteps((prev: string[]) => {
+      const next = prev.includes(key) ? prev.filter((k: string) => k !== key) : [...prev, key];
+      localStorage.setItem("legalFormationSteps", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const completionPct = Math.round((completedSteps.length / FORMATION_STEPS.length) * 100);
+
+  const activeVenture = ventures?.find((v: any) => v.status === "active");
+  const entityType = activeVenture?.metadata?.entityType || activeVenture?.type || null;
+
+  const upcomingTax = taxEstimates?.find((t: any) => !t.paid && t.dueDate && new Date(t.dueDate) > new Date());
+
+  const [showLegalAI, setShowLegalAI] = useState(false);
+  const [aiCopyright, setAiCopyright] = useState<any>(null);
+  const [aiCopyrightLoading, setAiCopyrightLoading] = useState(false);
+  const [aiFairUse, setAiFairUse] = useState<any>(null);
+  const [aiFairUseLoading, setAiFairUseLoading] = useState(false);
+  const [aiMusicLicense, setAiMusicLicense] = useState<any>(null);
+  const [aiMusicLicenseLoading, setAiMusicLicenseLoading] = useState(false);
+  const [aiPrivacyPolicy, setAiPrivacyPolicy] = useState<any>(null);
+  const [aiPrivacyPolicyLoading, setAiPrivacyPolicyLoading] = useState(false);
+  const [aiToS, setAiToS] = useState<any>(null);
+  const [aiToSLoading, setAiToSLoading] = useState(false);
+  const [aiFTC, setAiFTC] = useState<any>(null);
+  const [aiFTCLoading, setAiFTCLoading] = useState(false);
+  const [aiCOPPA, setAiCOPPA] = useState<any>(null);
+  const [aiCOPPALoading, setAiCOPPALoading] = useState(false);
+  const [aiGDPR, setAiGDPR] = useState<any>(null);
+  const [aiGDPRLoading, setAiGDPRLoading] = useState(false);
+  const [aiContentID, setAiContentID] = useState<any>(null);
+  const [aiContentIDLoading, setAiContentIDLoading] = useState(false);
+  const [aiDispute, setAiDispute] = useState<any>(null);
+  const [aiDisputeLoading, setAiDisputeLoading] = useState(false);
+  const [aiTrademark, setAiTrademark] = useState<any>(null);
+  const [aiTrademarkLoading, setAiTrademarkLoading] = useState(false);
+  const [aiContractTempl, setAiContractTempl] = useState<any>(null);
+  const [aiContractTemplLoading, setAiContractTemplLoading] = useState(false);
+  const [aiInsurance, setAiInsurance] = useState<any>(null);
+  const [aiInsuranceLoading, setAiInsuranceLoading] = useState(false);
+  const [aiBizEntity, setAiBizEntity] = useState<any>(null);
+  const [aiBizEntityLoading, setAiBizEntityLoading] = useState(false);
+  const [aiIPProtect, setAiIPProtect] = useState<any>(null);
+  const [aiIPProtectLoading, setAiIPProtectLoading] = useState(false);
+
+  const [showSensitivityAI, setShowSensitivityAI] = useState(false);
+  const [aiDiversityCS, setAiDiversityCS] = useState<any>(null);
+  const [aiDiversityCSLoading, setAiDiversityCSLoading] = useState(false);
+  const [aiMHContent, setAiMHContent] = useState<any>(null);
+  const [aiMHContentLoading, setAiMHContentLoading] = useState(false);
+  const [aiPolitical, setAiPolitical] = useState<any>(null);
+  const [aiPoliticalLoading, setAiPoliticalLoading] = useState(false);
+  const [aiReligious, setAiReligious] = useState<any>(null);
+  const [aiReligiousLoading, setAiReligiousLoading] = useState(false);
+  const [aiCulturalCS, setAiCulturalCS] = useState<any>(null);
+  const [aiCulturalCSLoading, setAiCulturalCSLoading] = useState(false);
+  const [aiBodyImage, setAiBodyImage] = useState<any>(null);
+  const [aiBodyImageLoading, setAiBodyImageLoading] = useState(false);
+  const [aiAddiction, setAiAddiction] = useState<any>(null);
+  const [aiAddictionLoading, setAiAddictionLoading] = useState(false);
+  const [aiFinDisclaim, setAiFinDisclaim] = useState<any>(null);
+  const [aiFinDisclaimLoading, setAiFinDisclaimLoading] = useState(false);
+
+  const [showLegalProtAI, setShowLegalProtAI] = useState(false);
+  const [aiCopyrightShield, setAiCopyrightShield] = useState<any>(null);
+  const [aiCopyrightShieldLoading, setAiCopyrightShieldLoading] = useState(false);
+  const [aiContractAnalyzer, setAiContractAnalyzer] = useState<any>(null);
+  const [aiContractAnalyzerLoading, setAiContractAnalyzerLoading] = useState(false);
+  const [aiFairUseAnalyzer, setAiFairUseAnalyzer] = useState<any>(null);
+  const [aiFairUseAnalyzerLoading, setAiFairUseAnalyzerLoading] = useState(false);
+  const [aiDMCADefense, setAiDMCADefense] = useState<any>(null);
+  const [aiDMCADefenseLoading, setAiDMCADefenseLoading] = useState(false);
+  const [aiContentInsAdvisor, setAiContentInsAdvisor] = useState<any>(null);
+  const [aiContentInsAdvisorLoading, setAiContentInsAdvisorLoading] = useState(false);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_copyright");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCopyright(e.data); return; } else { sessionStorage.removeItem("ai_copyright"); } } catch {} }
+    setAiCopyrightLoading(true);
+    apiRequest("POST", "/api/ai/copyright-check", {}).then(r => r.json()).then(d => { setAiCopyright(d); sessionStorage.setItem("ai_copyright", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCopyrightLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_fair_use");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFairUse(e.data); return; } else { sessionStorage.removeItem("ai_fair_use"); } } catch {} }
+    setAiFairUseLoading(true);
+    apiRequest("POST", "/api/ai/fair-use", {}).then(r => r.json()).then(d => { setAiFairUse(d); sessionStorage.setItem("ai_fair_use", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFairUseLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_music_license");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMusicLicense(e.data); return; } else { sessionStorage.removeItem("ai_music_license"); } } catch {} }
+    setAiMusicLicenseLoading(true);
+    apiRequest("POST", "/api/ai/music-license", {}).then(r => r.json()).then(d => { setAiMusicLicense(d); sessionStorage.setItem("ai_music_license", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMusicLicenseLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_privacy_policy");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPrivacyPolicy(e.data); return; } else { sessionStorage.removeItem("ai_privacy_policy"); } } catch {} }
+    setAiPrivacyPolicyLoading(true);
+    apiRequest("POST", "/api/ai/privacy-policy", {}).then(r => r.json()).then(d => { setAiPrivacyPolicy(d); sessionStorage.setItem("ai_privacy_policy", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPrivacyPolicyLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_tos");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiToS(e.data); return; } else { sessionStorage.removeItem("ai_tos"); } } catch {} }
+    setAiToSLoading(true);
+    apiRequest("POST", "/api/ai/terms-of-service", {}).then(r => r.json()).then(d => { setAiToS(d); sessionStorage.setItem("ai_tos", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiToSLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_ftc");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFTC(e.data); return; } else { sessionStorage.removeItem("ai_ftc"); } } catch {} }
+    setAiFTCLoading(true);
+    apiRequest("POST", "/api/ai/ftc-compliance", {}).then(r => r.json()).then(d => { setAiFTC(d); sessionStorage.setItem("ai_ftc", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFTCLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_coppa");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCOPPA(e.data); return; } else { sessionStorage.removeItem("ai_coppa"); } } catch {} }
+    setAiCOPPALoading(true);
+    apiRequest("POST", "/api/ai/coppa", {}).then(r => r.json()).then(d => { setAiCOPPA(d); sessionStorage.setItem("ai_coppa", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCOPPALoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_gdpr");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiGDPR(e.data); return; } else { sessionStorage.removeItem("ai_gdpr"); } } catch {} }
+    setAiGDPRLoading(true);
+    apiRequest("POST", "/api/ai/gdpr", {}).then(r => r.json()).then(d => { setAiGDPR(d); sessionStorage.setItem("ai_gdpr", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiGDPRLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_content_id");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiContentID(e.data); return; } else { sessionStorage.removeItem("ai_content_id"); } } catch {} }
+    setAiContentIDLoading(true);
+    apiRequest("POST", "/api/ai/content-id", {}).then(r => r.json()).then(d => { setAiContentID(d); sessionStorage.setItem("ai_content_id", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiContentIDLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_dispute");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDispute(e.data); return; } else { sessionStorage.removeItem("ai_dispute"); } } catch {} }
+    setAiDisputeLoading(true);
+    apiRequest("POST", "/api/ai/dispute-resolution", {}).then(r => r.json()).then(d => { setAiDispute(d); sessionStorage.setItem("ai_dispute", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDisputeLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_trademark");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTrademark(e.data); return; } else { sessionStorage.removeItem("ai_trademark"); } } catch {} }
+    setAiTrademarkLoading(true);
+    apiRequest("POST", "/api/ai/trademark", {}).then(r => r.json()).then(d => { setAiTrademark(d); sessionStorage.setItem("ai_trademark", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTrademarkLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_contract_templ");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiContractTempl(e.data); return; } else { sessionStorage.removeItem("ai_contract_templ"); } } catch {} }
+    setAiContractTemplLoading(true);
+    apiRequest("POST", "/api/ai/contract-template", {}).then(r => r.json()).then(d => { setAiContractTempl(d); sessionStorage.setItem("ai_contract_templ", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiContractTemplLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_insurance");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiInsurance(e.data); return; } else { sessionStorage.removeItem("ai_insurance"); } } catch {} }
+    setAiInsuranceLoading(true);
+    apiRequest("POST", "/api/ai/insurance", {}).then(r => r.json()).then(d => { setAiInsurance(d); sessionStorage.setItem("ai_insurance", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiInsuranceLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_biz_entity");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBizEntity(e.data); return; } else { sessionStorage.removeItem("ai_biz_entity"); } } catch {} }
+    setAiBizEntityLoading(true);
+    apiRequest("POST", "/api/ai/business-entity", {}).then(r => r.json()).then(d => { setAiBizEntity(d); sessionStorage.setItem("ai_biz_entity", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiBizEntityLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_ip_protect");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiIPProtect(e.data); return; } else { sessionStorage.removeItem("ai_ip_protect"); } } catch {} }
+    setAiIPProtectLoading(true);
+    apiRequest("POST", "/api/ai/ip-protection", {}).then(r => r.json()).then(d => { setAiIPProtect(d); sessionStorage.setItem("ai_ip_protect", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiIPProtectLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_diversity");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDiversityCS(e.data); return; } else { sessionStorage.removeItem("ai_diversity"); } } catch {} }
+    setAiDiversityCSLoading(true);
+    apiRequest("POST", "/api/ai/diversity", {}).then(r => r.json()).then(d => { setAiDiversityCS(d); sessionStorage.setItem("ai_diversity", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDiversityCSLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_mh_content");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMHContent(e.data); return; } else { sessionStorage.removeItem("ai_mh_content"); } } catch {} }
+    setAiMHContentLoading(true);
+    apiRequest("POST", "/api/ai/mental-health-content", {}).then(r => r.json()).then(d => { setAiMHContent(d); sessionStorage.setItem("ai_mh_content", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMHContentLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_political");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPolitical(e.data); return; } else { sessionStorage.removeItem("ai_political"); } } catch {} }
+    setAiPoliticalLoading(true);
+    apiRequest("POST", "/api/ai/political-content", {}).then(r => r.json()).then(d => { setAiPolitical(d); sessionStorage.setItem("ai_political", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPoliticalLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_religious");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiReligious(e.data); return; } else { sessionStorage.removeItem("ai_religious"); } } catch {} }
+    setAiReligiousLoading(true);
+    apiRequest("POST", "/api/ai/religious-sensitivity", {}).then(r => r.json()).then(d => { setAiReligious(d); sessionStorage.setItem("ai_religious", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiReligiousLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_cultural");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCulturalCS(e.data); return; } else { sessionStorage.removeItem("ai_cultural"); } } catch {} }
+    setAiCulturalCSLoading(true);
+    apiRequest("POST", "/api/ai/cultural-sensitivity", {}).then(r => r.json()).then(d => { setAiCulturalCS(d); sessionStorage.setItem("ai_cultural", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCulturalCSLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_body_image");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBodyImage(e.data); return; } else { sessionStorage.removeItem("ai_body_image"); } } catch {} }
+    setAiBodyImageLoading(true);
+    apiRequest("POST", "/api/ai/body-image", {}).then(r => r.json()).then(d => { setAiBodyImage(d); sessionStorage.setItem("ai_body_image", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiBodyImageLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_addiction");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAddiction(e.data); return; } else { sessionStorage.removeItem("ai_addiction"); } } catch {} }
+    setAiAddictionLoading(true);
+    apiRequest("POST", "/api/ai/addiction-content", {}).then(r => r.json()).then(d => { setAiAddiction(d); sessionStorage.setItem("ai_addiction", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAddictionLoading(false));
+  }, []);
+  useEffect(() => {
+    const cached = sessionStorage.getItem("ai_fin_disclaim");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFinDisclaim(e.data); return; } else { sessionStorage.removeItem("ai_fin_disclaim"); } } catch {} }
+    setAiFinDisclaimLoading(true);
+    apiRequest("POST", "/api/ai/financial-disclaimer", {}).then(r => r.json()).then(d => { setAiFinDisclaim(d); sessionStorage.setItem("ai_fin_disclaim", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFinDisclaimLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!showLegalProtAI) return;
+    const cached = sessionStorage.getItem("ai_copyright_shield");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCopyrightShield(e.data); return; } else { sessionStorage.removeItem("ai_copyright_shield"); } } catch {} }
+    setAiCopyrightShieldLoading(true);
+    apiRequest("POST", "/api/ai/copyright-shield", {}).then(r => r.json()).then(d => { setAiCopyrightShield(d); sessionStorage.setItem("ai_copyright_shield", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCopyrightShieldLoading(false));
+  }, [showLegalProtAI]);
+  useEffect(() => {
+    if (!showLegalProtAI) return;
+    const cached = sessionStorage.getItem("ai_contract_analyzer");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiContractAnalyzer(e.data); return; } else { sessionStorage.removeItem("ai_contract_analyzer"); } } catch {} }
+    setAiContractAnalyzerLoading(true);
+    apiRequest("POST", "/api/ai/contract-analyzer", {}).then(r => r.json()).then(d => { setAiContractAnalyzer(d); sessionStorage.setItem("ai_contract_analyzer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiContractAnalyzerLoading(false));
+  }, [showLegalProtAI]);
+  useEffect(() => {
+    if (!showLegalProtAI) return;
+    const cached = sessionStorage.getItem("ai_fair_use_analyzer");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFairUseAnalyzer(e.data); return; } else { sessionStorage.removeItem("ai_fair_use_analyzer"); } } catch {} }
+    setAiFairUseAnalyzerLoading(true);
+    apiRequest("POST", "/api/ai/fair-use-analyzer", {}).then(r => r.json()).then(d => { setAiFairUseAnalyzer(d); sessionStorage.setItem("ai_fair_use_analyzer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFairUseAnalyzerLoading(false));
+  }, [showLegalProtAI]);
+  useEffect(() => {
+    if (!showLegalProtAI) return;
+    const cached = sessionStorage.getItem("ai_dmca_defense");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDMCADefense(e.data); return; } else { sessionStorage.removeItem("ai_dmca_defense"); } } catch {} }
+    setAiDMCADefenseLoading(true);
+    apiRequest("POST", "/api/ai/dmca-defense-assistant", {}).then(r => r.json()).then(d => { setAiDMCADefense(d); sessionStorage.setItem("ai_dmca_defense", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDMCADefenseLoading(false));
+  }, [showLegalProtAI]);
+  useEffect(() => {
+    if (!showLegalProtAI) return;
+    const cached = sessionStorage.getItem("ai_content_ins_advisor");
+    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiContentInsAdvisor(e.data); return; } else { sessionStorage.removeItem("ai_content_ins_advisor"); } } catch {} }
+    setAiContentInsAdvisorLoading(true);
+    apiRequest("POST", "/api/ai/content-insurance-advisor", {}).then(r => r.json()).then(d => { setAiContentInsAdvisor(d); sessionStorage.setItem("ai_content_ins_advisor", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiContentInsAdvisorLoading(false));
+  }, [showLegalProtAI]);
+
+  const renderAIList = (arr: any[] | undefined, limit = 5) => {
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
+    return arr.slice(0, limit).map((item: any, i: number) => (
+      <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
+    ));
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 data-testid="text-legal-title" className="text-lg font-semibold">Legal & Formation</h2>
+
+      <Card className={completionPct === 100 ? "border-emerald-500/30 bg-emerald-500/5" : completionPct > 50 ? "border-amber-500/30 bg-amber-500/5" : ""}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
+            <div>
+              <p className="text-sm font-medium" data-testid="text-formation-status">
+                {completionPct === 100 ? "Formation Complete" : `Formation Progress: ${completionPct}%`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {completedSteps.length} of {FORMATION_STEPS.length} steps done
+              </p>
+            </div>
+            {entityType && <Badge variant="secondary" className="text-xs">{entityTypeLabels[entityType] || entityType}</Badge>}
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${completionPct}%` }} data-testid="bar-formation-progress" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-2">
+        {FORMATION_STEPS.map((step) => {
+          const done = completedSteps.includes(step.key);
+          return (
+            <Card key={step.key} className={`cursor-pointer hover-elevate ${done ? "border-emerald-500/20" : ""}`} onClick={() => toggleStep(step.key)} data-testid={`card-formation-step-${step.key}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${done ? "border-emerald-500 bg-emerald-500" : "border-muted-foreground/30"}`}>
+                    {done && <CheckCircle2 className="w-4 h-4 text-white" />}
+                  </div>
+                  <div>
+                    <p className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : ""}`}>{step.label}</p>
+                    <p className="text-xs text-muted-foreground">{step.desc}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {upcomingTax && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <CalendarDays className="w-4 h-4 text-amber-500" />
+              <p className="text-sm font-medium">Upcoming Tax Payment</p>
+            </div>
+            <p className="text-xs text-muted-foreground" data-testid="text-upcoming-tax">
+              {upcomingTax.quarter} {upcomingTax.year} — Est. ${(upcomingTax.estimatedTax || 0).toLocaleString()} due {upcomingTax.dueDate ? new Date(upcomingTax.dueDate).toLocaleDateString() : "TBD"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <Shield className="w-4 h-4 text-muted-foreground" />
+            <p className="text-sm font-medium">Compliance Reminders</p>
+          </div>
+          <div className="space-y-2">
+            {[
+              { label: "Annual Report Filing", status: completedSteps.includes("state") ? "done" : "pending" },
+              { label: "Quarterly Tax Estimates", status: upcomingTax ? "upcoming" : "done" },
+              { label: "Business License Renewal", status: completedSteps.includes("ein") ? "done" : "pending" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-2 flex-wrap" data-testid={`compliance-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                <span className="text-xs">{item.label}</span>
+                <Badge variant="secondary" className={`text-xs no-default-hover-elevate no-default-active-elevate ${item.status === "done" ? "bg-emerald-500/10 text-emerald-500" : item.status === "upcoming" ? "bg-amber-500/10 text-amber-500" : "bg-muted-foreground/10 text-muted-foreground"}`}>
+                  {item.status === "done" ? "Complete" : item.status === "upcoming" ? "Due Soon" : "Pending"}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowLegalAI(!showLegalAI)}
+          data-testid="button-toggle-legal-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Legal & Compliance Suite</span>
+          <Badge variant="outline" className="text-[10px]">15 tools</Badge>
+          {showLegalAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showLegalAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiCopyrightLoading || aiCopyright) && (
+              <Card data-testid="card-ai-copyright">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Copyright Check</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCopyrightLoading ? <Skeleton className="h-24 w-full" /> : aiCopyright && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCopyright.issues || aiCopyright.recommendations || aiCopyright.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFairUseLoading || aiFairUse) && (
+              <Card data-testid="card-ai-fair-use">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Fair Use</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFairUseLoading ? <Skeleton className="h-24 w-full" /> : aiFairUse && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiFairUse.analysis || aiFairUse.recommendations || aiFairUse.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMusicLicenseLoading || aiMusicLicense) && (
+              <Card data-testid="card-ai-music-license">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Music License</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMusicLicenseLoading ? <Skeleton className="h-24 w-full" /> : aiMusicLicense && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiMusicLicense.licenses || aiMusicLicense.recommendations || aiMusicLicense.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPrivacyPolicyLoading || aiPrivacyPolicy) && (
+              <Card data-testid="card-ai-privacy-policy">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Privacy Policy</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPrivacyPolicyLoading ? <Skeleton className="h-24 w-full" /> : aiPrivacyPolicy && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiPrivacyPolicy.sections || aiPrivacyPolicy.recommendations || aiPrivacyPolicy.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiToSLoading || aiToS) && (
+              <Card data-testid="card-ai-tos">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Terms of Service</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiToSLoading ? <Skeleton className="h-24 w-full" /> : aiToS && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiToS.clauses || aiToS.recommendations || aiToS.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFTCLoading || aiFTC) && (
+              <Card data-testid="card-ai-ftc">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI FTC Compliance</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFTCLoading ? <Skeleton className="h-24 w-full" /> : aiFTC && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiFTC.guidelines || aiFTC.recommendations || aiFTC.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCOPPALoading || aiCOPPA) && (
+              <Card data-testid="card-ai-coppa">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI COPPA</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCOPPALoading ? <Skeleton className="h-24 w-full" /> : aiCOPPA && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCOPPA.requirements || aiCOPPA.recommendations || aiCOPPA.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiGDPRLoading || aiGDPR) && (
+              <Card data-testid="card-ai-gdpr">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI GDPR</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiGDPRLoading ? <Skeleton className="h-24 w-full" /> : aiGDPR && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiGDPR.compliance || aiGDPR.recommendations || aiGDPR.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiContentIDLoading || aiContentID) && (
+              <Card data-testid="card-ai-content-id">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Content ID</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiContentIDLoading ? <Skeleton className="h-24 w-full" /> : aiContentID && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiContentID.claims || aiContentID.recommendations || aiContentID.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDisputeLoading || aiDispute) && (
+              <Card data-testid="card-ai-dispute">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Dispute Resolution</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDisputeLoading ? <Skeleton className="h-24 w-full" /> : aiDispute && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiDispute.disputes || aiDispute.recommendations || aiDispute.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiTrademarkLoading || aiTrademark) && (
+              <Card data-testid="card-ai-trademark">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Trademark</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiTrademarkLoading ? <Skeleton className="h-24 w-full" /> : aiTrademark && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiTrademark.marks || aiTrademark.recommendations || aiTrademark.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiContractTemplLoading || aiContractTempl) && (
+              <Card data-testid="card-ai-contract-templ">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Contract Template</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiContractTemplLoading ? <Skeleton className="h-24 w-full" /> : aiContractTempl && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiContractTempl.templates || aiContractTempl.recommendations || aiContractTempl.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiInsuranceLoading || aiInsurance) && (
+              <Card data-testid="card-ai-insurance">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Insurance</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiInsuranceLoading ? <Skeleton className="h-24 w-full" /> : aiInsurance && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiInsurance.policies || aiInsurance.recommendations || aiInsurance.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiBizEntityLoading || aiBizEntity) && (
+              <Card data-testid="card-ai-biz-entity">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Business Entity</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiBizEntityLoading ? <Skeleton className="h-24 w-full" /> : aiBizEntity && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiBizEntity.entities || aiBizEntity.recommendations || aiBizEntity.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiIPProtectLoading || aiIPProtect) && (
+              <Card data-testid="card-ai-ip-protect">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI IP Protection</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiIPProtectLoading ? <Skeleton className="h-24 w-full" /> : aiIPProtect && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiIPProtect.protections || aiIPProtect.recommendations || aiIPProtect.results)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowSensitivityAI(!showSensitivityAI)}
+          data-testid="button-toggle-sensitivity-ai"
+        >
+          <Sparkles className="h-4 w-4 text-yellow-400" />
+          <span className="text-sm font-semibold">AI Content Sensitivity Suite</span>
+          <Badge variant="outline" className="text-[10px]">8 tools</Badge>
+          {showSensitivityAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showSensitivityAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiDiversityCSLoading || aiDiversityCS) && (
+              <Card data-testid="card-ai-diversity">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Diversity</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDiversityCSLoading ? <Skeleton className="h-24 w-full" /> : aiDiversityCS && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiDiversityCS.strategies || aiDiversityCS.tips || aiDiversityCS.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiMHContentLoading || aiMHContent) && (
+              <Card data-testid="card-ai-mh-content">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Mental Health Content</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiMHContentLoading ? <Skeleton className="h-24 w-full" /> : aiMHContent && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiMHContent.strategies || aiMHContent.tips || aiMHContent.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiPoliticalLoading || aiPolitical) && (
+              <Card data-testid="card-ai-political">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Political Content</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiPoliticalLoading ? <Skeleton className="h-24 w-full" /> : aiPolitical && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiPolitical.strategies || aiPolitical.tips || aiPolitical.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiReligiousLoading || aiReligious) && (
+              <Card data-testid="card-ai-religious">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Religious Sensitivity</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiReligiousLoading ? <Skeleton className="h-24 w-full" /> : aiReligious && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiReligious.strategies || aiReligious.tips || aiReligious.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiCulturalCSLoading || aiCulturalCS) && (
+              <Card data-testid="card-ai-cultural">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Cultural Sensitivity</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCulturalCSLoading ? <Skeleton className="h-24 w-full" /> : aiCulturalCS && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCulturalCS.strategies || aiCulturalCS.tips || aiCulturalCS.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiBodyImageLoading || aiBodyImage) && (
+              <Card data-testid="card-ai-body-image">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Body Image</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiBodyImageLoading ? <Skeleton className="h-24 w-full" /> : aiBodyImage && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiBodyImage.strategies || aiBodyImage.tips || aiBodyImage.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiAddictionLoading || aiAddiction) && (
+              <Card data-testid="card-ai-addiction">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Addiction Content</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiAddictionLoading ? <Skeleton className="h-24 w-full" /> : aiAddiction && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiAddiction.strategies || aiAddiction.tips || aiAddiction.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFinDisclaimLoading || aiFinDisclaim) && (
+              <Card data-testid="card-ai-fin-disclaim">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <h3 className="font-semibold text-sm">AI Financial Disclaimer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFinDisclaimLoading ? <Skeleton className="h-24 w-full" /> : aiFinDisclaim && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiFinDisclaim.strategies || aiFinDisclaim.tips || aiFinDisclaim.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md overflow-visible">
+        <button
+          className="flex items-center gap-2 w-full p-4 text-left"
+          onClick={() => setShowLegalProtAI(!showLegalProtAI)}
+          data-testid="button-toggle-legal-prot-ai"
+        >
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <span className="text-sm font-semibold">AI Legal Protection Suite</span>
+          <Badge variant="outline" className="text-[10px]">5 tools</Badge>
+          {showLegalProtAI ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showLegalProtAI && (
+          <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(aiCopyrightShieldLoading || aiCopyrightShield) && (
+              <Card data-testid="card-ai-copyright-shield">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Copyright Shield</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiCopyrightShieldLoading ? <Skeleton className="h-24 w-full" /> : aiCopyrightShield && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiCopyrightShield.scans || aiCopyrightShield.strikes || aiCopyrightShield.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiContractAnalyzerLoading || aiContractAnalyzer) && (
+              <Card data-testid="card-ai-contract-analyzer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Contract Analyzer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiContractAnalyzerLoading ? <Skeleton className="h-24 w-full" /> : aiContractAnalyzer && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiContractAnalyzer.clauses || aiContractAnalyzer.reviews || aiContractAnalyzer.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiFairUseAnalyzerLoading || aiFairUseAnalyzer) && (
+              <Card data-testid="card-ai-fair-use-analyzer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Fair Use Analyzer</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiFairUseAnalyzerLoading ? <Skeleton className="h-24 w-full" /> : aiFairUseAnalyzer && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiFairUseAnalyzer.evaluations || aiFairUseAnalyzer.factors || aiFairUseAnalyzer.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiDMCADefenseLoading || aiDMCADefense) && (
+              <Card data-testid="card-ai-dmca-defense">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI DMCA Defense Assistant</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiDMCADefenseLoading ? <Skeleton className="h-24 w-full" /> : aiDMCADefense && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiDMCADefense.responses || aiDMCADefense.claims || aiDMCADefense.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {(aiContentInsAdvisorLoading || aiContentInsAdvisor) && (
+              <Card data-testid="card-ai-content-ins-advisor">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="font-semibold text-sm">AI Content Insurance Advisor</h3>
+                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
+                  </div>
+                  {aiContentInsAdvisorLoading ? <Skeleton className="h-24 w-full" /> : aiContentInsAdvisor && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {renderAIList(aiContentInsAdvisor.policies || aiContentInsAdvisor.coverage || aiContentInsAdvisor.recommendations)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default LegalTab;
