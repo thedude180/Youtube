@@ -28,6 +28,7 @@ import {
 import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
 import { EmptyState } from "@/components/EmptyState";
+import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { format, startOfWeek, addDays, isToday, isSameDay } from "date-fns";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter,
@@ -38,6 +39,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+type AIResponse = Record<string, unknown> | null;
 
 type ContentTab = "library" | "channels" | "calendar" | "localization";
 
@@ -110,38 +113,38 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const { toast } = useToast();
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const { data: videos, isLoading } = useVideos();
-  const [aiContentIdeas, setAiContentIdeas] = useState<any>(null);
+  const { data: videos, isLoading, error } = useVideos();
+  const [aiContentIdeas, setAiContentIdeas] = useState<AIResponse>(null);
   const [aiIdeasLoading, setAiIdeasLoading] = useState(false);
 
-  const [kwData, setKwData] = useState<any>(null);
+  const [kwData, setKwData] = useState<AIResponse>(null);
   const [kwLoading, setKwLoading] = useState(false);
-  const [calData, setCalData] = useState<any>(null);
+  const [calData, setCalData] = useState<AIResponse>(null);
   const [calLoading, setCalLoading] = useState(false);
 
   const [scriptTopic, setScriptTopic] = useState("");
   const [scriptStyle, setScriptStyle] = useState("educational");
   const [scriptDuration, setScriptDuration] = useState("10");
-  const [scriptResult, setScriptResult] = useState<any>(null);
+  const [scriptResult, setScriptResult] = useState<AIResponse>(null);
   const [scriptLoading, setScriptLoading] = useState(false);
   const [scriptExpanded, setScriptExpanded] = useState(false);
 
   const [repurposeVideo, setRepurposeVideo] = useState("");
   const [repurposePlatform, setRepurposePlatform] = useState("");
-  const [repurposeResult, setRepurposeResult] = useState<any>(null);
+  const [repurposeResult, setRepurposeResult] = useState<AIResponse>(null);
   const [repurposeLoading, setRepurposeLoading] = useState(false);
 
   const [chapterTitle, setChapterTitle] = useState("");
   const [chapterDesc, setChapterDesc] = useState("");
-  const [chapterResult, setChapterResult] = useState<any>(null);
+  const [chapterResult, setChapterResult] = useState<AIResponse>(null);
   const [chapterLoading, setChapterLoading] = useState(false);
 
   const [seoVideoId, setSeoVideoId] = useState<number | null>(null);
-  const [seoResult, setSeoResult] = useState<any>(null);
+  const [seoResult, setSeoResult] = useState<AIResponse>(null);
   const [seoLoading, setSeoLoading] = useState(false);
 
   const [thumbVideoId, setThumbVideoId] = useState<number | null>(null);
-  const [thumbResult, setThumbResult] = useState<any>(null);
+  const [thumbResult, setThumbResult] = useState<AIResponse>(null);
   const [thumbLoading, setThumbLoading] = useState(false);
 
   const [showProductionAI, setShowProductionAI] = useState(false);
@@ -152,30 +155,30 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   const [showShortsAI, setShowShortsAI] = useState(false);
   const [showCaptionsAI, setShowCaptionsAI] = useState(false);
 
-  const [aiCaptions, setAiCaptions] = useState<any>(null);
+  const [aiCaptions, setAiCaptions] = useState<AIResponse>(null);
   const [aiCaptionsLoading, setAiCaptionsLoading] = useState(false);
-  const [aiCaptionStyle, setAiCaptionStyle] = useState<any>(null);
+  const [aiCaptionStyle, setAiCaptionStyle] = useState<AIResponse>(null);
   const [aiCaptionStyleLoading, setAiCaptionStyleLoading] = useState(false);
-  const [aiSubtitles, setAiSubtitles] = useState<any>(null);
+  const [aiSubtitles, setAiSubtitles] = useState<AIResponse>(null);
   const [aiSubtitlesLoading, setAiSubtitlesLoading] = useState(false);
-  const [aiMultiLangSEO, setAiMultiLangSEO] = useState<any>(null);
+  const [aiMultiLangSEO, setAiMultiLangSEO] = useState<AIResponse>(null);
   const [aiMultiLangSEOLoading, setAiMultiLangSEOLoading] = useState(false);
-  const [aiLocalization, setAiLocalization] = useState<any>(null);
+  const [aiLocalization, setAiLocalization] = useState<AIResponse>(null);
   const [aiLocalizationLoading, setAiLocalizationLoading] = useState(false);
-  const [aiDubbing, setAiDubbing] = useState<any>(null);
+  const [aiDubbing, setAiDubbing] = useState<AIResponse>(null);
   const [aiDubbingLoading, setAiDubbingLoading] = useState(false);
-  const [aiTranscript, setAiTranscript] = useState<any>(null);
+  const [aiTranscript, setAiTranscript] = useState<AIResponse>(null);
   const [aiTranscriptLoading, setAiTranscriptLoading] = useState(false);
-  const [aiCaptionComp, setAiCaptionComp] = useState<any>(null);
+  const [aiCaptionComp, setAiCaptionComp] = useState<AIResponse>(null);
   const [aiCaptionCompLoading, setAiCaptionCompLoading] = useState(false);
-  const [aiAudioDesc, setAiAudioDesc] = useState<any>(null);
+  const [aiAudioDesc, setAiAudioDesc] = useState<AIResponse>(null);
   const [aiAudioDescLoading, setAiAudioDescLoading] = useState(false);
-  const [aiLangPriority, setAiLangPriority] = useState<any>(null);
+  const [aiLangPriority, setAiLangPriority] = useState<AIResponse>(null);
   const [aiLangPriorityLoading, setAiLangPriorityLoading] = useState(false);
 
-  const [aiStoryboard, setAiStoryboard] = useState<any>(null);
+  const [aiStoryboard, setAiStoryboard] = useState<AIResponse>(null);
   const [aiStoryboardLoading, setAiStoryboardLoading] = useState(false);
-  const [aiColorGrading, setAiColorGrading] = useState<any>(null);
+  const [aiColorGrading, setAiColorGrading] = useState<AIResponse>(null);
   const [aiColorGradingLoading, setAiColorGradingLoading] = useState(false);
   const [aiIntroOutro, setAiIntroOutro] = useState<any>(null);
   const [aiIntroOutroLoading, setAiIntroOutroLoading] = useState(false);
@@ -1003,7 +1006,7 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
   }, [showContentQualityAI]);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));
@@ -2242,6 +2245,8 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
       </div>
     );
   }
+
+  if (error) return <QueryErrorReset error={error} queryKey={["/api/videos"]} label="Failed to load videos" />;
 
   return (
     <div className="space-y-4">
@@ -6055,7 +6060,7 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
 }
 
 function ChannelsTab() {
-  const { data: channels, isLoading } = useChannels();
+  const { data: channels, isLoading, error } = useChannels();
   const { toast } = useToast();
   const [connecting, setConnecting] = useState(false);
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
@@ -6097,6 +6102,8 @@ function ChannelsTab() {
       </div>
     );
   }
+
+  if (error) return <QueryErrorReset error={error} queryKey={["/api/channels"]} label="Failed to load channels" />;
 
   return (
     <div className="space-y-4">
@@ -6456,7 +6463,7 @@ function CalendarTab() {
   const [formType, setFormType] = useState("video");
   const [formPlatform, setFormPlatform] = useState("youtube");
 
-  const { data: items, isLoading } = useQuery<any[]>({ queryKey: ['/api/schedule'] });
+  const { data: items, isLoading, error } = useQuery<any[]>({ queryKey: ['/api/schedule'] });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -6502,6 +6509,8 @@ function CalendarTab() {
       </div>
     );
   }
+
+  if (error) return <QueryErrorReset error={error} queryKey={["/api/schedule"]} label="Failed to load schedule" />;
 
   return (
     <div className="space-y-4">
@@ -6645,7 +6654,7 @@ const LANG_NAMES: Record<string, string> = {
 function LocalizationTab() {
   const { t } = useTranslation();
 
-  const { data: recommendations, isLoading: recsLoading } = useQuery<any>({
+  const { data: recommendations, isLoading: recsLoading, error: recsError } = useQuery<any>({
     queryKey: ["/api/localization/recommendations"],
   });
 
@@ -6701,6 +6710,8 @@ function LocalizationTab() {
           </p>
           {recsLoading ? (
             <Skeleton className="h-16 w-full" />
+          ) : recsError ? (
+            <QueryErrorReset error={recsError} queryKey={["/api/localization/recommendations"]} label="Failed to load recommendations" />
           ) : hasRecs ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2 flex-wrap">

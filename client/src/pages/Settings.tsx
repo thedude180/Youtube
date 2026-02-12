@@ -29,6 +29,8 @@ import { Link, useParams, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
 
+type AIResponse = Record<string, unknown> | null;
+
 type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "wellness" | "learning" | "automation" | "admin-codes" | "admin-users" | "subscription";
 
 const VALID_TABS: TabKey[] = ["general", "brand", "collabs", "competitors", "legal", "wellness", "learning", "automation", "admin-codes", "admin-users", "subscription"];
@@ -68,37 +70,37 @@ function GeneralTab() {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
   const [activePreset, setActivePreset] = useState<"safe" | "normal" | "aggressive">("normal");
-  const [aiTeam, setAiTeam] = useState<any>(null);
+  const [aiTeam, setAiTeam] = useState<AIResponse>(null);
   const [aiTeamLoading, setAiTeamLoading] = useState(true);
-  const [aiAutomations, setAiAutomations] = useState<any>(null);
+  const [aiAutomations, setAiAutomations] = useState<AIResponse>(null);
   const [aiAutomationsLoading, setAiAutomationsLoading] = useState(true);
 
   const [showTeamAI, setShowTeamAI] = useState(false);
-  const [aiHiring, setAiHiring] = useState<any>(null);
+  const [aiHiring, setAiHiring] = useState<AIResponse>(null);
   const [aiHiringLoading, setAiHiringLoading] = useState(false);
-  const [aiFreelance, setAiFreelance] = useState<any>(null);
+  const [aiFreelance, setAiFreelance] = useState<AIResponse>(null);
   const [aiFreelanceLoading, setAiFreelanceLoading] = useState(false);
-  const [aiSOP, setAiSOP] = useState<any>(null);
+  const [aiSOP, setAiSOP] = useState<AIResponse>(null);
   const [aiSOPLoading, setAiSOPLoading] = useState(false);
-  const [aiTimeline, setAiTimeline] = useState<any>(null);
+  const [aiTimeline, setAiTimeline] = useState<AIResponse>(null);
   const [aiTimelineLoading, setAiTimelineLoading] = useState(false);
-  const [aiApproval, setAiApproval] = useState<any>(null);
+  const [aiApproval, setAiApproval] = useState<AIResponse>(null);
   const [aiApprovalLoading, setAiApprovalLoading] = useState(false);
-  const [aiEditChecklist, setAiEditChecklist] = useState<any>(null);
+  const [aiEditChecklist, setAiEditChecklist] = useState<AIResponse>(null);
   const [aiEditChecklistLoading, setAiEditChecklistLoading] = useState(false);
-  const [aiProdBudget, setAiProdBudget] = useState<any>(null);
+  const [aiProdBudget, setAiProdBudget] = useState<AIResponse>(null);
   const [aiProdBudgetLoading, setAiProdBudgetLoading] = useState(false);
-  const [aiEquip, setAiEquip] = useState<any>(null);
+  const [aiEquip, setAiEquip] = useState<AIResponse>(null);
   const [aiEquipLoading, setAiEquipLoading] = useState(false);
-  const [aiStudio, setAiStudio] = useState<any>(null);
+  const [aiStudio, setAiStudio] = useState<AIResponse>(null);
   const [aiStudioLoading, setAiStudioLoading] = useState(false);
-  const [aiWorkflow, setAiWorkflow] = useState<any>(null);
+  const [aiWorkflow, setAiWorkflow] = useState<AIResponse>(null);
   const [aiWorkflowLoading, setAiWorkflowLoading] = useState(false);
-  const [aiBatchRec, setAiBatchRec] = useState<any>(null);
+  const [aiBatchRec, setAiBatchRec] = useState<AIResponse>(null);
   const [aiBatchRecLoading, setAiBatchRecLoading] = useState(false);
-  const [aiOutsource, setAiOutsource] = useState<any>(null);
+  const [aiOutsource, setAiOutsource] = useState<AIResponse>(null);
   const [aiOutsourceLoading, setAiOutsourceLoading] = useState(false);
-  const [aiToolStack, setAiToolStack] = useState<any>(null);
+  const [aiToolStack, setAiToolStack] = useState<AIResponse>(null);
   const [aiToolStackLoading, setAiToolStackLoading] = useState(false);
   const [aiDelegation, setAiDelegation] = useState<any>(null);
   const [aiDelegationLoading, setAiDelegationLoading] = useState(false);
@@ -1513,7 +1515,7 @@ function GeneralTab() {
   }, []);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));
@@ -4667,7 +4669,7 @@ function BrandTab() {
   }, []);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));
@@ -5158,7 +5160,7 @@ function CollabsTab() {
   }, []);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));
@@ -6385,7 +6387,7 @@ function LegalTab() {
   }, [showLegalProtAI]);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));
@@ -7286,7 +7288,7 @@ function WellnessTab() {
   }, [showWellProdAI]);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));

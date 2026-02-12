@@ -17,6 +17,9 @@ import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, Check
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
+import { QueryErrorReset } from "@/components/QueryErrorReset";
+
+type AIResponse = Record<string, unknown> | null;
 
 export default function StreamCenter() {
   usePageTitle("Go Live");
@@ -26,37 +29,37 @@ export default function StreamCenter() {
   const [showNewStream, setShowNewStream] = useState(false);
   const [newDest, setNewDest] = useState({ platform: "youtube", label: "", rtmpUrl: "", streamKey: "" });
   const [newStream, setNewStream] = useState({ title: "", description: "", category: "Gaming", platforms: [] as string[] });
-  const [aiStreamRecs, setAiStreamRecs] = useState<any>(null);
+  const [aiStreamRecs, setAiStreamRecs] = useState<AIResponse>(null);
   const [aiStreamRecsLoading, setAiStreamRecsLoading] = useState(true);
-  const [aiChatBot, setAiChatBot] = useState<any>(null);
+  const [aiChatBot, setAiChatBot] = useState<AIResponse>(null);
   const [aiChatBotLoading, setAiChatBotLoading] = useState(true);
-  const [aiChecklist, setAiChecklist] = useState<any>(null);
+  const [aiChecklist, setAiChecklist] = useState<AIResponse>(null);
   const [aiChecklistLoading, setAiChecklistLoading] = useState(true);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
-  const [aiRaid, setAiRaid] = useState<any>(null);
+  const [aiRaid, setAiRaid] = useState<AIResponse>(null);
   const [aiRaidLoading, setAiRaidLoading] = useState(true);
-  const [aiPostReport, setAiPostReport] = useState<any>(null);
+  const [aiPostReport, setAiPostReport] = useState<AIResponse>(null);
   const [aiPostReportLoading, setAiPostReportLoading] = useState(false);
   const [showStreamAI, setShowStreamAI] = useState(false);
-  const [aiStreamTitles, setAiStreamTitles] = useState<any>(null);
+  const [aiStreamTitles, setAiStreamTitles] = useState<AIResponse>(null);
   const [aiStreamTitlesLoading, setAiStreamTitlesLoading] = useState(false);
-  const [aiStreamSchedule, setAiStreamSchedule] = useState<any>(null);
+  const [aiStreamSchedule, setAiStreamSchedule] = useState<AIResponse>(null);
   const [aiStreamScheduleLoading, setAiStreamScheduleLoading] = useState(false);
-  const [aiStreamOverlays, setAiStreamOverlays] = useState<any>(null);
+  const [aiStreamOverlays, setAiStreamOverlays] = useState<AIResponse>(null);
   const [aiStreamOverlaysLoading, setAiStreamOverlaysLoading] = useState(false);
-  const [aiStreamAlerts, setAiStreamAlerts] = useState<any>(null);
+  const [aiStreamAlerts, setAiStreamAlerts] = useState<AIResponse>(null);
   const [aiStreamAlertsLoading, setAiStreamAlertsLoading] = useState(false);
-  const [aiStreamMod, setAiStreamMod] = useState<any>(null);
+  const [aiStreamMod, setAiStreamMod] = useState<AIResponse>(null);
   const [aiStreamModLoading, setAiStreamModLoading] = useState(false);
-  const [aiStreamInteract, setAiStreamInteract] = useState<any>(null);
+  const [aiStreamInteract, setAiStreamInteract] = useState<AIResponse>(null);
   const [aiStreamInteractLoading, setAiStreamInteractLoading] = useState(false);
-  const [aiStreamRev, setAiStreamRev] = useState<any>(null);
+  const [aiStreamRev, setAiStreamRev] = useState<AIResponse>(null);
   const [aiStreamRevLoading, setAiStreamRevLoading] = useState(false);
-  const [aiStreamClips, setAiStreamClips] = useState<any>(null);
+  const [aiStreamClips, setAiStreamClips] = useState<AIResponse>(null);
   const [aiStreamClipsLoading, setAiStreamClipsLoading] = useState(false);
-  const [aiStreamCats, setAiStreamCats] = useState<any>(null);
+  const [aiStreamCats, setAiStreamCats] = useState<AIResponse>(null);
   const [aiStreamCatsLoading, setAiStreamCatsLoading] = useState(false);
-  const [aiStreamPanels, setAiStreamPanels] = useState<any>(null);
+  const [aiStreamPanels, setAiStreamPanels] = useState<AIResponse>(null);
   const [aiStreamPanelsLoading, setAiStreamPanelsLoading] = useState(false);
   const [aiStreamEmotes, setAiStreamEmotes] = useState<any>(null);
   const [aiStreamEmotesLoading, setAiStreamEmotesLoading] = useState(false);
@@ -552,9 +555,9 @@ export default function StreamCenter() {
     apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiChatUnifierLoading(false));
   }, []);
 
-  const { data: destinations = [] } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
-  const { data: streamList = [], isLoading: streamsLoading } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
-  const { data: connectedChannels = [] } = useQuery<Channel[]>({ queryKey: ["/api/channels"] });
+  const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
+  const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
+  const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"] });
 
   const liveStream = streamList.find(s => s.status === 'live');
   const plannedStreams = streamList.filter(s => s.status === 'planned');
@@ -638,11 +641,15 @@ export default function StreamCenter() {
   };
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));
   };
+
+  if (destError) return <div className="p-6 lg:p-8 max-w-5xl mx-auto"><QueryErrorReset error={destError} queryKey={["/api/stream-destinations"]} label="Failed to load stream destinations" /></div>;
+  if (streamsError) return <div className="p-6 lg:p-8 max-w-5xl mx-auto"><QueryErrorReset error={streamsError} queryKey={["/api/streams"]} label="Failed to load streams" /></div>;
+  if (channelsError) return <div className="p-6 lg:p-8 max-w-5xl mx-auto"><QueryErrorReset error={channelsError} queryKey={["/api/channels"]} label="Failed to load channels" /></div>;
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">

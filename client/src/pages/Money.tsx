@@ -29,10 +29,13 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
+import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
+
+type AIResponse = Record<string, unknown> | null;
 
 type TabKey = "revenue" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors";
 
@@ -152,7 +155,7 @@ function VenturesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
 
-  const { data: ventures, isLoading } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
+  const { data: ventures, isLoading, error } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -197,6 +200,8 @@ function VenturesTab() {
       </div>
     );
   }
+
+  if (error) return <QueryErrorReset error={error} queryKey={["/api/ventures"]} label="Failed to load ventures" />;
 
   return (
     <div className="space-y-6">
@@ -364,7 +369,7 @@ function GoalsTab() {
   const [category, setCategory] = useState("Revenue");
   const [unit, setUnit] = useState("USD");
 
-  const { data: goals, isLoading } = useQuery<any[]>({ queryKey: ["/api/goals"] });
+  const { data: goals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/goals"] });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -410,6 +415,8 @@ function GoalsTab() {
       </div>
     );
   }
+
+  if (error) return <QueryErrorReset error={error} queryKey={["/api/goals"]} label="Failed to load goals" />;
 
   return (
     <div className="space-y-6">
@@ -596,9 +603,9 @@ function SponsorsTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [status, setStatus] = useState("Prospect");
   const [filterStage, setFilterStage] = useState<string | null>(null);
-  const [aiSponsorship, setAiSponsorship] = useState<any>(null);
+  const [aiSponsorship, setAiSponsorship] = useState<AIResponse>(null);
   const [aiSponsorshipLoading, setAiSponsorshipLoading] = useState(false);
-  const [aiMediaKit, setAiMediaKit] = useState<any>(null);
+  const [aiMediaKit, setAiMediaKit] = useState<AIResponse>(null);
   const [aiMediaKitLoading, setAiMediaKitLoading] = useState(false);
 
   useEffect(() => {
@@ -638,7 +645,7 @@ function SponsorsTab() {
     }
   }, []);
 
-  const { data: deals, isLoading } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"] });
+  const { data: deals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"] });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -711,6 +718,8 @@ function SponsorsTab() {
       </div>
     );
   }
+
+  if (error) return <QueryErrorReset error={error} queryKey={["/api/sponsorship-deals"]} label="Failed to load sponsorship deals" />;
 
   const copyToClipboardSponsors = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -1204,34 +1213,34 @@ export default function Money() {
   const [taxDeductible, setTaxDeductible] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
   const [selectedState, setSelectedState] = useState("");
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<AIResponse>(null);
   const [paymentUrl, setPaymentUrl] = useState("");
-  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [aiInsights, setAiInsights] = useState<AIResponse>(null);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
-  const [aiPLReport, setAiPLReport] = useState<any>(null);
+  const [aiPLReport, setAiPLReport] = useState<AIResponse>(null);
   const [aiPLReportLoading, setAiPLReportLoading] = useState(false);
 
   const [showMonetizationAI, setShowMonetizationAI] = useState(false);
   const [showBusinessAI, setShowBusinessAI] = useState(false);
-  const [aiAdRevenue, setAiAdRevenue] = useState<any>(null);
+  const [aiAdRevenue, setAiAdRevenue] = useState<AIResponse>(null);
   const [aiAdRevenueLoading, setAiAdRevenueLoading] = useState(false);
-  const [aiAdPlace, setAiAdPlace] = useState<any>(null);
+  const [aiAdPlace, setAiAdPlace] = useState<AIResponse>(null);
   const [aiAdPlaceLoading, setAiAdPlaceLoading] = useState(false);
-  const [aiCPM, setAiCPM] = useState<any>(null);
+  const [aiCPM, setAiCPM] = useState<AIResponse>(null);
   const [aiCPMLoading, setAiCPMLoading] = useState(false);
-  const [aiSponsorPrice, setAiSponsorPrice] = useState<any>(null);
+  const [aiSponsorPrice, setAiSponsorPrice] = useState<AIResponse>(null);
   const [aiSponsorPriceLoading, setAiSponsorPriceLoading] = useState(false);
-  const [aiSponsorOutreach, setAiSponsorOutreach] = useState<any>(null);
+  const [aiSponsorOutreach, setAiSponsorOutreach] = useState<AIResponse>(null);
   const [aiSponsorOutreachLoading, setAiSponsorOutreachLoading] = useState(false);
-  const [aiSponsorNeg, setAiSponsorNeg] = useState<any>(null);
+  const [aiSponsorNeg, setAiSponsorNeg] = useState<AIResponse>(null);
   const [aiSponsorNegLoading, setAiSponsorNegLoading] = useState(false);
-  const [aiSponsorDeliv, setAiSponsorDeliv] = useState<any>(null);
+  const [aiSponsorDeliv, setAiSponsorDeliv] = useState<AIResponse>(null);
   const [aiSponsorDelivLoading, setAiSponsorDelivLoading] = useState(false);
-  const [aiAffiliate, setAiAffiliate] = useState<any>(null);
+  const [aiAffiliate, setAiAffiliate] = useState<AIResponse>(null);
   const [aiAffiliateLoading, setAiAffiliateLoading] = useState(false);
-  const [aiMerch, setAiMerch] = useState<any>(null);
+  const [aiMerch, setAiMerch] = useState<AIResponse>(null);
   const [aiMerchLoading, setAiMerchLoading] = useState(false);
-  const [aiMemberTiers, setAiMemberTiers] = useState<any>(null);
+  const [aiMemberTiers, setAiMemberTiers] = useState<AIResponse>(null);
   const [aiMemberTiersLoading, setAiMemberTiersLoading] = useState(false);
   const [aiDigitalProd, setAiDigitalProd] = useState<any>(null);
   const [aiDigitalProdLoading, setAiDigitalProdLoading] = useState(false);
@@ -1823,15 +1832,15 @@ export default function Money() {
     apiRequest("POST", "/api/ai/shipping", {}).then(r => r.json()).then(d => { setAiShipping(d); sessionStorage.setItem("ai_shipping", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiShippingLoading(false));
   }, []);
 
-  const { data: revenueRecords, isLoading: revenueLoading } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
+  const { data: revenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
 
-  const { data: expenses, isLoading: expensesLoading } = useQuery<any[]>({ queryKey: ['/api/expenses'] });
+  const { data: expenses, isLoading: expensesLoading, error: expensesError } = useQuery<any[]>({ queryKey: ['/api/expenses'] });
   const { data: expenseSummary } = useQuery<any>({ queryKey: ['/api/expenses/summary'] });
 
-  const { data: taxEstimates, isLoading: taxLoading } = useQuery<any[]>({ queryKey: ['/api/tax-estimates', '?year=2026'] });
+  const { data: taxEstimates, isLoading: taxLoading, error: taxError } = useQuery<any[]>({ queryKey: ['/api/tax-estimates', '?year=2026'] });
 
-  const { data: payments, isLoading: paymentsLoading } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'] });
+  const { data: payments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'] });
 
   const createRevenueMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -2221,6 +2230,17 @@ export default function Money() {
     (activeTab === "taxes" && taxLoading) ||
     (activeTab === "payments" && paymentsLoading);
 
+  const activeError = (activeTab === "revenue" && revenueError) ||
+    (activeTab === "expenses" && expensesError) ||
+    (activeTab === "taxes" && taxError) ||
+    (activeTab === "payments" && paymentsError) || null;
+
+  const activeErrorQueryKey = activeTab === "revenue" ? ["/api/revenue"]
+    : activeTab === "expenses" ? ["/api/expenses"]
+    : activeTab === "taxes" ? ["/api/tax-estimates", "?year=2026"]
+    : activeTab === "payments" ? ["/api/stripe/payments"]
+    : ["/api/revenue"];
+
   if (isLoading) {
     return (
       <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
@@ -2234,6 +2254,14 @@ export default function Money() {
           <Skeleton className="h-24 rounded-xl" />
         </div>
         <Skeleton className="h-48 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (activeError) {
+    return (
+      <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+        <QueryErrorReset error={activeError instanceof Error ? activeError : null} queryKey={activeErrorQueryKey} label={`Failed to load ${activeTab}`} />
       </div>
     );
   }

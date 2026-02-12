@@ -43,6 +43,9 @@ import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { QueryErrorReset } from "@/components/QueryErrorReset";
+
+type AIResponse = Record<string, unknown> | null;
 
 interface AgentStatus {
   id: string;
@@ -93,7 +96,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { isAdvanced: advancedMode } = useAdvancedMode();
   const [belowFoldRef, belowFoldVisible] = useLazyVisible("400px");
-  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
   const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'] });
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'] });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
@@ -106,41 +109,41 @@ export default function Dashboard() {
   const { data: shortsStatus } = useQuery<AIResult>({ queryKey: ['/api/shorts/status'], enabled: belowFoldVisible });
   const { data: trendingTopics } = useQuery<any[]>({ queryKey: ['/api/optimization/trending-topics'], enabled: belowFoldVisible });
 
-  const [aiActions, setAiActions] = useState<any>(null);
+  const [aiActions, setAiActions] = useState<AIResponse>(null);
   const [aiActionsLoading, setAiActionsLoading] = useState(false);
 
-  const [aiNewsFeed, setAiNewsFeed] = useState<any>(null);
+  const [aiNewsFeed, setAiNewsFeed] = useState<AIResponse>(null);
   const [aiNewsFeedLoading, setAiNewsFeedLoading] = useState(false);
 
-  const [aiMilestones, setAiMilestones] = useState<any>(null);
+  const [aiMilestones, setAiMilestones] = useState<AIResponse>(null);
   const [aiMilestonesLoading, setAiMilestonesLoading] = useState(false);
 
-  const [aiCrossplatform, setAiCrossplatform] = useState<any>(null);
+  const [aiCrossplatform, setAiCrossplatform] = useState<AIResponse>(null);
   const [aiCrossplatformLoading, setAiCrossplatformLoading] = useState(false);
 
-  const [aiCommentManager, setAiCommentManager] = useState<any>(null);
+  const [aiCommentManager, setAiCommentManager] = useState<AIResponse>(null);
   const [aiCommentManagerLoading, setAiCommentManagerLoading] = useState(false);
 
   const [showAnalyticsAI, setShowAnalyticsAI] = useState(false);
-  const [aiRetention, setAiRetention] = useState<any>(null);
+  const [aiRetention, setAiRetention] = useState<AIResponse>(null);
   const [aiRetentionLoading, setAiRetentionLoading] = useState(false);
-  const [aiDemographics, setAiDemographics] = useState<any>(null);
+  const [aiDemographics, setAiDemographics] = useState<AIResponse>(null);
   const [aiDemographicsLoading, setAiDemographicsLoading] = useState(false);
-  const [aiWatchTime, setAiWatchTime] = useState<any>(null);
+  const [aiWatchTime, setAiWatchTime] = useState<AIResponse>(null);
   const [aiWatchTimeLoading, setAiWatchTimeLoading] = useState(false);
-  const [aiEngagement, setAiEngagement] = useState<any>(null);
+  const [aiEngagement, setAiEngagement] = useState<AIResponse>(null);
   const [aiEngagementLoading, setAiEngagementLoading] = useState(false);
-  const [aiSubGrowth, setAiSubGrowth] = useState<any>(null);
+  const [aiSubGrowth, setAiSubGrowth] = useState<AIResponse>(null);
   const [aiSubGrowthLoading, setAiSubGrowthLoading] = useState(false);
-  const [aiRevForecast, setAiRevForecast] = useState<any>(null);
+  const [aiRevForecast, setAiRevForecast] = useState<AIResponse>(null);
   const [aiRevForecastLoading, setAiRevForecastLoading] = useState(false);
-  const [aiABTest, setAiABTest] = useState<any>(null);
+  const [aiABTest, setAiABTest] = useState<AIResponse>(null);
   const [aiABTestLoading, setAiABTestLoading] = useState(false);
-  const [aiRetHeatmap, setAiRetHeatmap] = useState<any>(null);
+  const [aiRetHeatmap, setAiRetHeatmap] = useState<AIResponse>(null);
   const [aiRetHeatmapLoading, setAiRetHeatmapLoading] = useState(false);
-  const [aiTrafficSrc, setAiTrafficSrc] = useState<any>(null);
+  const [aiTrafficSrc, setAiTrafficSrc] = useState<AIResponse>(null);
   const [aiTrafficSrcLoading, setAiTrafficSrcLoading] = useState(false);
-  const [aiDevices, setAiDevices] = useState<any>(null);
+  const [aiDevices, setAiDevices] = useState<AIResponse>(null);
   const [aiDevicesLoading, setAiDevicesLoading] = useState(false);
   const [aiPlayback, setAiPlayback] = useState<any>(null);
   const [aiPlaybackLoading, setAiPlaybackLoading] = useState(false);
@@ -1303,7 +1306,7 @@ export default function Dashboard() {
   }, [showAnalyticsPredAI]);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
-    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
       <p key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || item.label || JSON.stringify(item)}</p>
     ));
@@ -1401,6 +1404,14 @@ export default function Dashboard() {
   };
 
   if (statsLoading) return <DashboardSkeleton />;
+
+  if (statsError) {
+    return (
+      <div className="p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+        <QueryErrorReset error={statsError} queryKey={["/api/dashboard/stats"]} label="Failed to load dashboard" />
+      </div>
+    );
+  }
 
   const metrics = [
     { label: "Videos", value: stats?.totalVideos || 0, icon: Film },

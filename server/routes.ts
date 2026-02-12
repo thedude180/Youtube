@@ -1071,14 +1071,16 @@ export async function registerRoutes(
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { contentNiche, onboardingCompleted } = req.body;
+      const profileSchema = z.object({ contentNiche: z.string().optional(), onboardingCompleted: z.boolean().optional() });
+      const parsed = profileSchema.parse(req.body);
       const updateData: { contentNiche?: string; onboardingCompleted?: Date } = {};
-      if (contentNiche !== undefined) updateData.contentNiche = contentNiche;
-      if (onboardingCompleted) updateData.onboardingCompleted = new Date();
+      if (parsed.contentNiche !== undefined) updateData.contentNiche = parsed.contentNiche;
+      if (parsed.onboardingCompleted) updateData.onboardingCompleted = new Date();
       const user = await storage.updateUserProfile(userId, updateData);
       res.json(user);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -1098,22 +1100,24 @@ export async function registerRoutes(
     const userId = requireAdmin(req, res);
     if (!userId) return;
     try {
-      const { label, tier, maxUses, expiresAt } = req.body;
+      const codeSchema = z.object({ label: z.string().optional(), tier: z.string().default("ultimate"), maxUses: z.number().int().positive().optional(), expiresAt: z.string().optional() });
+      const parsed = codeSchema.parse(req.body);
       const code = Math.random().toString(36).substring(2, 8).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
       const created = await storage.createAccessCode({
         code,
-        label: label || null,
-        tier: tier || "ultimate",
+        label: parsed.label || null,
+        tier: parsed.tier,
         createdBy: userId,
-        maxUses: maxUses || 1,
+        maxUses: parsed.maxUses || 1,
         active: true,
         redeemedBy: null,
         redeemedAt: null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        expiresAt: parsed.expiresAt ? new Date(parsed.expiresAt) : null,
       });
       res.status(201).json(created);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -1133,14 +1137,15 @@ export async function registerRoutes(
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { code } = req.body;
-      if (!code) return res.status(400).json({ error: "Code required" });
+      const redeemSchema = z.object({ code: z.string().min(1) });
+      const { code } = redeemSchema.parse(req.body);
       const result = await storage.redeemAccessCode(code.toUpperCase(), userId);
       if (!result) return res.status(400).json({ error: "Invalid, expired, or already used code" });
       const user = await storage.getUser(userId);
       res.json({ success: true, tier: user?.tier, role: user?.role });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -1160,11 +1165,13 @@ export async function registerRoutes(
     const adminId = requireAdmin(req, res);
     if (!adminId) return;
     try {
-      const { tier, role } = req.body;
+      const tierSchema = z.object({ tier: z.string().optional(), role: z.string().optional() });
+      const { tier, role } = tierSchema.parse(req.body);
       const updated = await storage.updateUserRole(req.params.userId, role || "user", tier || "free");
       res.json(updated);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -1174,8 +1181,8 @@ export async function registerRoutes(
     if (!userId) return;
     try {
       const stripe = await getUncachableStripeClient();
-      const { priceId } = req.body;
-      if (!priceId) return res.status(400).json({ error: "priceId required" });
+      const checkoutSchema = z.object({ priceId: z.string().min(1) });
+      const { priceId } = checkoutSchema.parse(req.body);
 
       const user = await storage.getUser(userId);
       let customerId = user?.stripeCustomerId;
@@ -1201,9 +1208,10 @@ export async function registerRoutes(
       });
 
       res.json({ url: session.url });
-    } catch (e: any) {
-      console.error("Stripe checkout error:", e);
-      res.status(500).json({ error: e.message });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      console.error("Stripe checkout error:", err);
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -1343,15 +1351,22 @@ export async function registerRoutes(
   app.put(api.channels.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const channel = await storage.updateChannel(Number(req.params.id), req.body);
-    await storage.createAuditLog({
-      userId,
-      action: "channel_updated",
-      target: channel.channelName,
-      details: req.body,
-      riskLevel: "low",
-    });
-    res.json(channel);
+    try {
+      const channelUpdateSchema = z.object({}).passthrough();
+      const parsed = channelUpdateSchema.parse(req.body);
+      const channel = await storage.updateChannel(Number(req.params.id), parsed);
+      await storage.createAuditLog({
+        userId,
+        action: "channel_updated",
+        target: channel.channelName,
+        details: parsed,
+        riskLevel: "low",
+      });
+      res.json(channel);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      throw err;
+    }
   });
 
   app.delete("/api/channels/:id", async (req, res) => {
@@ -3120,8 +3135,15 @@ export async function registerRoutes(
   app.post("/api/expenses", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const record = await storage.createExpenseRecord({ ...req.body, userId });
-    res.status(201).json(record);
+    try {
+      const expenseSchema = z.object({ category: z.string(), description: z.string(), amount: z.number(), date: z.string().optional() }).passthrough();
+      const parsed = expenseSchema.parse(req.body);
+      const record = await storage.createExpenseRecord({ ...parsed, userId });
+      res.status(201).json(record);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      throw err;
+    }
   });
 
   app.put("/api/expenses/:id", async (req, res) => {

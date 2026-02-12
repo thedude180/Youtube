@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Bell, CheckCircle2, Filter } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
+import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 const severityColor = (severity: string) => {
   switch (severity) {
@@ -33,7 +34,7 @@ type FilterType = "all" | "critical" | "warning" | "success" | "info";
 export default function Notifications() {
   usePageTitle("Notifications");
   const [filter, setFilter] = useState<FilterType>("all");
-  const { data: notifications, isLoading } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
+  const { data: notifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
 
   const markReadMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -67,6 +68,14 @@ export default function Notifications() {
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-20 rounded-md" />)}
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8 space-y-6 max-w-3xl mx-auto">
+        <QueryErrorReset error={error} queryKey={["/api/notifications"]} label="Failed to load notifications" />
       </div>
     );
   }
