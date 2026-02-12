@@ -107,22 +107,37 @@ export function setupGoogleAuth(app: Express) {
     passport.authenticate("google", {
       failureRedirect: "/?auth_error=true",
     })(req, res, async () => {
-      try {
-        const user = req.user as any;
-        if (user?.google_access_token && user?.claims?.sub) {
-          const userId = user.claims.sub;
-          await autoConnectYouTubeFromGoogle(
-            userId,
-            user.google_access_token,
-            user.google_refresh_token
-          );
-        }
-      } catch (error) {
-        console.error("Auto YouTube connect after Google auth failed:", error);
+      const user = req.user as any;
+      if (!user) {
+        console.error("Google auth callback: no user on req after authenticate");
+        return res.redirect("/?auth_error=no_user");
       }
-      req.session.save((err) => {
-        if (err) console.error("Session save error:", err);
-        res.redirect("/");
+
+      console.log("Google auth callback: user authenticated, sub:", user.claims?.sub);
+
+      req.login(user, async (loginErr) => {
+        if (loginErr) {
+          console.error("Google auth req.login error:", loginErr);
+          return res.redirect("/?auth_error=login_failed");
+        }
+
+        try {
+          if (user.google_access_token && user.claims?.sub) {
+            await autoConnectYouTubeFromGoogle(
+              user.claims.sub,
+              user.google_access_token,
+              user.google_refresh_token
+            );
+          }
+        } catch (error) {
+          console.error("Auto YouTube connect after Google auth failed:", error);
+        }
+
+        req.session.save((saveErr) => {
+          if (saveErr) console.error("Google auth session save error:", saveErr);
+          console.log("Google auth: session saved, redirecting to /");
+          res.redirect("/");
+        });
       });
     });
   });
