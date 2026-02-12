@@ -398,20 +398,30 @@ function AppContent() {
           setLocation("/");
         }
       } else {
-        fetch("/api/user/profile", { credentials: "include" })
-          .then(r => r.ok ? r.json() : null)
-          .then(profile => {
-            if (profile?.onboardingCompleted) {
-              localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
-              setNeedsOnboarding(false);
-              if (location === "/onboarding") {
-                setLocation("/");
-              }
-            } else {
-              setNeedsOnboarding(true);
+        Promise.all([
+          fetch("/api/user/profile", { credentials: "include" }).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch("/api/linked-channels", { credentials: "include" }).then(r => r.ok ? r.json() : []).catch(() => []),
+        ]).then(([profile, channels]) => {
+          const hasOnboarded = profile?.onboardingCompleted;
+          const hasChannels = Array.isArray(channels) && channels.length > 0;
+          if (hasOnboarded || hasChannels) {
+            localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+            setNeedsOnboarding(false);
+            if (!hasOnboarded && hasChannels) {
+              fetch("/api/user/profile", {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ onboardingCompleted: true }),
+              }).catch(() => {});
             }
-          })
-          .catch(() => setNeedsOnboarding(true));
+            if (location === "/onboarding") {
+              setLocation("/");
+            }
+          } else {
+            setNeedsOnboarding(true);
+          }
+        });
       }
     }
   }, [isAuthenticated, user, location, setLocation]);
