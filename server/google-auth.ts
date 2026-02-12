@@ -28,15 +28,13 @@ export function setupGoogleAuth(app: Express) {
     return "http://localhost:5000/api/auth/google/callback";
   }
 
-  const callbackURL = getCallbackUrl();
-
   passport.use(
     "google",
     new GoogleStrategy(
       {
         clientID: clientId,
         clientSecret: clientSecret,
-        callbackURL,
+        callbackURL: getCallbackUrl(),
         scope: [
           "openid",
           "email",
@@ -122,7 +120,10 @@ export function setupGoogleAuth(app: Express) {
       } catch (error) {
         console.error("Auto YouTube connect after Google auth failed:", error);
       }
-      res.redirect("/");
+      req.session.save((err) => {
+        if (err) console.error("Session save error:", err);
+        res.redirect("/");
+      });
     });
   });
 
