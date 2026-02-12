@@ -14,7 +14,7 @@ interface VariationOptions {
   videoDescription: string;
   videoType: string;
   platform: string;
-  contentType: "new-video" | "recycle" | "engagement" | "cross-promo";
+  contentType: "new-video" | "recycle" | "engagement" | "cross-promo" | "go-live" | "post-stream";
   creatorTone: string;
   userId: string;
   existingPosts?: string[];
@@ -201,6 +201,22 @@ Output ONLY the post text. No quotes around it.`;
       return `Write a ${platform} post related to the topic of "${title}" that drives engagement.
 Use the "${angle}" approach. Ask a question, share an opinion, or start a discussion.
 This should feel like an organic thought, not a content strategy post.
+Output ONLY the post text. No quotes around it.`;
+
+    case "go-live":
+      return `You are ABOUT TO GO LIVE streaming "${title}" right now.
+${description ? `The stream is about: ${description}` : ""}
+Write a ${platform} post announcing you're going live using the "${angle}" angle.
+Sound hyped but natural - like you literally just hit "go live" and are telling people.
+Include urgency ("live rn", "get in here", "happening now") but keep it YOUR voice.
+Output ONLY the post text. No quotes around it.`;
+
+    case "post-stream":
+      return `You just FINISHED a live stream called "${title}".
+${description ? `The stream covered: ${description}` : ""}
+Write a ${platform} post about highlights or moments from the stream using the "${angle}" angle.
+Sound like you're decompressing after streaming - tired but satisfied energy.
+Reference specific-sounding moments even if vague ("that clutch play", "the ending though").
 Output ONLY the post text. No quotes around it.`;
 
     default:

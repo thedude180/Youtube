@@ -10,6 +10,7 @@ import {
   runComplianceCheck,
 } from "../ai-engine";
 import { pivotToStream, resumeFromStream } from "../backlog-engine";
+import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
 
 export function registerStreamRoutes(app: Express) {
   app.get(api.streamDestinations.list.path, async (req, res) => {
@@ -193,6 +194,14 @@ export function registerStreamRoutes(app: Express) {
         console.error("Stream pivot error:", err)
       );
 
+      processGoLiveAnnouncements(
+        userId,
+        stream.id,
+        stream.title,
+        stream.description || "",
+        (stream.platforms as string[]) || ["youtube"],
+      ).catch(err => console.error("[Autopilot] Go-live announcement error:", err));
+
       const tasks = [
         { name: "seo_optimization", status: "pending" },
         { name: "thumbnail_generation", status: "pending" },
@@ -334,6 +343,14 @@ export function registerStreamRoutes(app: Express) {
       resumeFromStream(userId, stream.id).catch(err =>
         console.error("Stream resume error:", err)
       );
+
+      processPostStreamHighlights(
+        userId,
+        stream.id,
+        stream.title,
+        stream.description || "",
+        (stream.platforms as string[]) || ["youtube"],
+      ).catch(err => console.error("[Autopilot] Post-stream highlights error:", err));
 
       const tasks = [
         { name: "vod_optimization", status: "pending" },

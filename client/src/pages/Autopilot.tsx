@@ -155,6 +155,8 @@ function typeLabel(type: string) {
     case "discord-announce": return "Discord";
     case "content-recycle": return "Recycled";
     case "cross-promo": return "Cross-Promo";
+    case "go-live": return "Live Announce";
+    case "post-stream": return "Stream Recap";
     default: return type;
   }
 }

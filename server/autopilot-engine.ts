@@ -38,6 +38,7 @@ const AUTOPILOT_FEATURES = [
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
 const ALL_DISTRIBUTION_PLATFORMS = ["tiktok", "x", "discord", "twitch", "kick"];
+const ALL_ANNOUNCE_PLATFORMS = ["youtube", "tiktok", "x", "discord", "twitch", "kick"];
 
 async function getAutopilotConfig(userId: string, feature: AutopilotFeature) {
   const [config] = await db
@@ -102,14 +103,15 @@ async function generateFullThrottleDistribution(
   video: any,
   creatorTone: string,
   platforms: string[],
-  contentType: "new-video" | "recycle" | "cross-promo",
+  contentType: "new-video" | "recycle" | "cross-promo" | "go-live" | "post-stream",
 ) {
   const activePlatforms = platforms.filter(p => {
-    if (contentType === "new-video") return true;
+    if (contentType === "new-video" || contentType === "go-live" || contentType === "post-stream") return true;
     return shouldPostToday(p);
   });
 
-  const schedule = generateStaggeredSchedule(activePlatforms, contentType === "cross-promo" ? "engagement" : contentType, userId);
+  const scheduleType = contentType === "cross-promo" ? "engagement" : contentType === "go-live" ? "new-video" : contentType === "post-stream" ? "new-video" : contentType;
+  const schedule = generateStaggeredSchedule(activePlatforms, scheduleType, userId);
 
   for (const platform of activePlatforms) {
     const budget = calculateDailyPostBudget(platform);
@@ -167,11 +169,12 @@ async function generateFullThrottleDistribution(
       Object.assign(result, retry);
     }
 
+    const urgency = contentType === "go-live" ? "immediate" as const : contentType === "new-video" || contentType === "post-stream" ? "normal" as const : "low" as const;
     const scheduledAt = schedule.get(platform) || generateHumanScheduledTime({
       platform,
       userId,
-      contentType,
-      urgency: contentType === "new-video" ? "normal" : "low",
+      contentType: contentType === "go-live" || contentType === "post-stream" ? "new-video" : contentType,
+      urgency,
     });
 
     const microDelay = addHumanMicroDelay();
@@ -180,7 +183,7 @@ async function generateFullThrottleDistribution(
     await db.insert(autopilotQueue).values({
       userId,
       sourceVideoId: video.id,
-      type: contentType === "new-video" ? "auto-clip" : contentType === "recycle" ? "content-recycle" : "cross-promo",
+      type: contentType === "new-video" ? "auto-clip" : contentType === "recycle" ? "content-recycle" : contentType === "go-live" ? "go-live" : contentType === "post-stream" ? "post-stream" : "cross-promo",
       targetPlatform: platform,
       content: result.content,
       caption: `${contentType}: ${video.title}`,
@@ -243,6 +246,97 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
       schedulingMethod: "human-behavior-engine",
     },
   });
+}
+
+export async function processGoLiveAnnouncements(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
+  console.log(`[Autopilot] Processing go-live announcements: stream="${streamTitle}", userId=${userId}`);
+
+  const smartScheduleConfig = await getAutopilotConfig(userId, "smart-schedule");
+  if (smartScheduleConfig && smartScheduleConfig.enabled === false) return;
+
+  const creatorTone = await getCreatorTone(userId);
+
+  const streamAsVideo = {
+    id: streamId,
+    title: streamTitle,
+    description: streamDescription,
+    type: "live-stream",
+  };
+
+  const announcePlatforms = ALL_ANNOUNCE_PLATFORMS;
+
+  await generateFullThrottleDistribution(userId, streamAsVideo, creatorTone, announcePlatforms, "go-live");
+
+  const discordConfig = await getAutopilotConfig(userId, "discord-announce");
+  if (!discordConfig || discordConfig.enabled !== false) {
+    const result = await generateUniqueContent({
+      videoTitle: streamTitle,
+      videoDescription: streamDescription || "",
+      videoType: "live-stream",
+      platform: "discord",
+      contentType: "go-live",
+      creatorTone,
+      userId,
+    });
+
+    if (result.content) {
+      const scheduledAt = generateHumanScheduledTime({
+        platform: "discord",
+        userId,
+        contentType: "new-video",
+        urgency: "immediate",
+      });
+
+      await db.insert(autopilotQueue).values({
+        userId,
+        sourceVideoId: streamId,
+        type: "go-live",
+        targetPlatform: "discord",
+        content: result.content,
+        caption: `LIVE NOW: ${streamTitle}`,
+        status: "scheduled",
+        scheduledAt,
+        metadata: {
+          streamId,
+          isLiveAnnouncement: true,
+          style: "human",
+          aiModel: "gpt-5-mini",
+          humanScore: result.stealthScore,
+          uniquenessScore: result.uniquenessScore,
+          fingerprint: result.fingerprint,
+          schedulingMethod: "human-behavior-engine",
+        },
+      });
+    }
+  }
+
+  await createNotification(userId, "autopilot", "Live announcements sent",
+    `Going live across ${announcePlatforms.length + 1} platforms for "${streamTitle}"`,
+    "info");
+}
+
+export async function processPostStreamHighlights(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
+  console.log(`[Autopilot] Processing post-stream highlights: stream="${streamTitle}", userId=${userId}`);
+
+  const smartScheduleConfig = await getAutopilotConfig(userId, "smart-schedule");
+  if (smartScheduleConfig && smartScheduleConfig.enabled === false) return;
+
+  const creatorTone = await getCreatorTone(userId);
+
+  const streamAsVideo = {
+    id: streamId,
+    title: streamTitle,
+    description: streamDescription,
+    type: "stream-vod",
+  };
+
+  const highlightPlatforms = ALL_ANNOUNCE_PLATFORMS;
+
+  await generateFullThrottleDistribution(userId, streamAsVideo, creatorTone, highlightPlatforms, "post-stream");
+
+  await createNotification(userId, "autopilot", "Stream highlights queued",
+    `Post-stream clips queued across ${highlightPlatforms.length} platforms for "${streamTitle}"`,
+    "info");
 }
 
 export async function processCommentResponses(userId: string) {
