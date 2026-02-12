@@ -9,7 +9,9 @@ import {
   processNewVideoUpload,
   processCommentResponses,
   processContentRecycling,
+  processCrossPromotion,
 } from "../autopilot-engine";
+import { getStealthReport } from "../content-variation-engine";
 import { getUserId } from "./helpers";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -124,7 +126,7 @@ export function registerAutopilotRoutes(app: Express) {
     if (!userId) return;
     try {
       const { feature, enabled, settings } = req.body;
-      const validFeatures = ["auto-clip", "smart-schedule", "comment-responder", "discord-announce", "content-recycler"];
+      const validFeatures = ["auto-clip", "smart-schedule", "comment-responder", "discord-announce", "content-recycler", "cross-promo", "stealth-mode"];
       if (!feature || !validFeatures.includes(feature)) return res.status(400).json({ error: "Invalid feature" });
       if (typeof enabled !== "boolean" && enabled !== undefined) return res.status(400).json({ error: "enabled must be boolean" });
       const config = await updateAutopilotFeatureConfig(userId, feature, enabled ?? true, settings);
@@ -180,6 +182,29 @@ export function registerAutopilotRoutes(app: Express) {
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: "Failed to delete queue item" });
+    }
+  });
+
+  app.get("/api/autopilot/stealth", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const report = await getStealthReport(userId);
+      res.json(report);
+    } catch (err) {
+      console.error("[Autopilot] Stealth report error:", err);
+      res.status(500).json({ error: "Failed to generate stealth report" });
+    }
+  });
+
+  app.post("/api/autopilot/trigger/cross-promo", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      await processCrossPromotion(userId);
+      res.json({ success: true, message: "Cross-promotion triggered" });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to trigger cross-promotion" });
     }
   });
 

@@ -280,7 +280,7 @@ export async function initAutomationEngine() {
     }
   });
 
-  cron.schedule("0 */8 * * *", async () => {
+  cron.schedule("0 */6 * * *", async () => {
     try {
       const { processContentRecycling } = await import("./autopilot-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
@@ -293,7 +293,20 @@ export async function initAutomationEngine() {
     }
   });
 
-  console.log("[AutomationEngine] All systems operational (incl. Autopilot)");
+  cron.schedule("0 */12 * * *", async () => {
+    try {
+      const { processCrossPromotion } = await import("./autopilot-engine");
+      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds) {
+        if (userId) await processCrossPromotion(userId);
+      }
+    } catch (err) {
+      console.error("[AutomationEngine] Autopilot cross-promo error:", err);
+    }
+  });
+
+  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode)");
 }
 
 async function processAllCronJobs() {

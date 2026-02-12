@@ -4,6 +4,21 @@ import { eq, and, desc, lte, sql, gte } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import OpenAI from "openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
+import {
+  generateHumanScheduledTime,
+  generateStaggeredSchedule,
+  addHumanMicroDelay,
+  shouldPostToday,
+  getActivityWindow,
+  calculateDailyPostBudget,
+  getCommentResponseDelay,
+  simulateTypingDelay,
+} from "./human-behavior-engine";
+import {
+  generateUniqueContent,
+  checkContentSafety,
+  getStealthReport,
+} from "./content-variation-engine";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -16,9 +31,13 @@ const AUTOPILOT_FEATURES = [
   "comment-responder",
   "discord-announce",
   "content-recycler",
+  "cross-promo",
+  "stealth-mode",
 ] as const;
 
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
+
+const ALL_DISTRIBUTION_PLATFORMS = ["tiktok", "x", "discord", "twitch", "kick"];
 
 async function getAutopilotConfig(userId: string, feature: AutopilotFeature) {
   const [config] = await db
@@ -48,7 +67,7 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
         { role: "system", content: systemMsg },
         { role: "user", content: prompt },
       ],
-      temperature: 0.8,
+      temperature: 0.9,
       max_tokens: 500,
     });
     return response.choices[0]?.message?.content || "";
@@ -68,7 +87,8 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
 
   const autoClipConfig = await getAutopilotConfig(userId, "auto-clip");
   if (!autoClipConfig || autoClipConfig.enabled !== false) {
-    await generateAutoClips(userId, video, creatorTone, autoClipConfig?.settings as any);
+    const platforms = (autoClipConfig?.settings as any)?.platforms || ALL_DISTRIBUTION_PLATFORMS;
+    await generateFullThrottleDistribution(userId, video, creatorTone, platforms, "new-video");
   }
 
   const discordConfig = await getAutopilotConfig(userId, "discord-announce");
@@ -77,104 +97,150 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
   }
 }
 
-async function generateAutoClips(
+async function generateFullThrottleDistribution(
   userId: string,
   video: any,
   creatorTone: string,
-  settings?: { platforms?: string[]; maxPostsPerDay?: number },
+  platforms: string[],
+  contentType: "new-video" | "recycle" | "cross-promo",
 ) {
-  const platforms = settings?.platforms || ["tiktok", "x"];
+  const activePlatforms = platforms.filter(p => {
+    if (contentType === "new-video") return true;
+    return shouldPostToday(p);
+  });
 
-  for (const platform of platforms) {
-    const platformLabel = platform === "x" ? "X (Twitter)" : "TikTok";
+  const schedule = generateStaggeredSchedule(activePlatforms, contentType === "cross-promo" ? "engagement" : contentType, userId);
 
-    const systemMsg = `You are a social media manager who writes posts that sound completely human and natural - never robotic or corporate.
-${creatorTone}
+  for (const platform of activePlatforms) {
+    const budget = calculateDailyPostBudget(platform);
 
-RULES:
-- Write like a real person excited to share their content
-- Use casual language, slang, and natural speech patterns
-- Include 2-3 relevant hashtags (not more)
-- Keep it short and punchy
-- Never use corporate phrases like "check out" or "don't miss"
-- Make it feel like the creator typed this themselves
-- For ${platformLabel}: ${platform === "tiktok" ? "Keep under 150 chars, trending vibe, use viral hooks" : "Keep under 280 chars, conversational tone"}`;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const [todayCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        eq(autopilotQueue.targetPlatform, platform),
+        gte(autopilotQueue.createdAt, todayStart),
+      ));
 
-    const prompt = `Write a ${platformLabel} post promoting this video:
-Title: "${video.title}"
-Description: "${video.description || ""}"
-Type: ${video.type}
+    if ((todayCount?.count || 0) >= budget) {
+      console.log(`[Autopilot] Daily budget reached for ${platform} (${todayCount?.count}/${budget})`);
+      continue;
+    }
 
-Generate a single post that sounds like the creator naturally talking about their content. Output ONLY the post text, nothing else.`;
+    const result = await generateUniqueContent({
+      videoTitle: video.title,
+      videoDescription: video.description || "",
+      videoType: video.type || "video",
+      platform,
+      contentType,
+      creatorTone,
+      userId,
+    });
 
-    const content = await generateWithAI(prompt, systemMsg);
-    if (!content) continue;
+    if (!result.content) continue;
 
-    const now = new Date();
-    const delayHours = platforms.indexOf(platform) * 2 + Math.random() * 3;
-    const scheduledAt = new Date(now.getTime() + delayHours * 3600000);
+    const safety = await checkContentSafety(result.content, userId, platform);
+
+    if (!safety.safe) {
+      console.log(`[Autopilot] Content failed safety check for ${platform}: ${safety.issues.join(", ")}`);
+      const retry = await generateUniqueContent({
+        videoTitle: video.title,
+        videoDescription: video.description || "",
+        videoType: video.type || "video",
+        platform,
+        contentType,
+        creatorTone,
+        userId,
+      });
+
+      if (!retry.content) continue;
+
+      const retrySafety = await checkContentSafety(retry.content, userId, platform);
+      if (!retrySafety.safe) {
+        console.log(`[Autopilot] Retry also failed safety for ${platform}, skipping`);
+        continue;
+      }
+
+      Object.assign(result, retry);
+    }
+
+    const scheduledAt = schedule.get(platform) || generateHumanScheduledTime({
+      platform,
+      userId,
+      contentType,
+      urgency: contentType === "new-video" ? "normal" : "low",
+    });
+
+    const microDelay = addHumanMicroDelay();
+    const finalSchedule = new Date(scheduledAt.getTime() + microDelay);
 
     await db.insert(autopilotQueue).values({
       userId,
       sourceVideoId: video.id,
-      type: "auto-clip",
+      type: contentType === "new-video" ? "auto-clip" : contentType === "recycle" ? "content-recycle" : "cross-promo",
       targetPlatform: platform,
-      content,
-      caption: `Auto-clip from: ${video.title}`,
+      content: result.content,
+      caption: `${contentType}: ${video.title}`,
       status: "scheduled",
-      scheduledAt,
+      scheduledAt: finalSchedule,
       metadata: {
-        hashtags: extractHashtags(content),
+        contentType,
+        angle: "ai-selected",
         style: "human",
         aiModel: "gpt-5-mini",
-        humanScore: 0.9,
+        humanScore: result.stealthScore,
+        uniquenessScore: result.uniquenessScore,
+        fingerprint: result.fingerprint,
+        safetyGrade: safety.overallGrade,
+        schedulingMethod: "human-behavior-engine",
       },
     });
   }
 
-  await createNotification(userId, "autopilot", "Auto-clips generated",
-    `${platforms.length} posts scheduled for "${video.title}" across ${platforms.map(p => p === "x" ? "X" : "TikTok").join(", ")}`,
+  await createNotification(userId, "autopilot", "Content distributed",
+    `${activePlatforms.length} platform${activePlatforms.length !== 1 ? "s" : ""} queued for "${video.title}" with human-like scheduling`,
     "info");
 }
 
 async function generateDiscordAnnouncement(userId: string, video: any, creatorTone: string) {
-  const systemMsg = `You are writing a Discord server announcement for a creator's community.
-${creatorTone}
+  const result = await generateUniqueContent({
+    videoTitle: video.title,
+    videoDescription: video.description || "",
+    videoType: video.type || "video",
+    platform: "discord",
+    contentType: "new-video",
+    creatorTone,
+    userId,
+  });
 
-RULES:
-- Write like you're the creator talking to their fans in their own server
-- Be excited but natural
-- Include the video title
-- Keep it 2-3 sentences max
-- Don't use @everyone or @here
-- Make fans feel special, like they're getting an inside scoop
-- Sound human, not like a bot notification`;
+  if (!result.content) return;
 
-  const prompt = `Write a Discord announcement for this new video:
-Title: "${video.title}"
-Description: "${video.description || ""}"
-Type: ${video.type}
-
-Output ONLY the announcement text.`;
-
-  const content = await generateWithAI(prompt, systemMsg);
-  if (!content) return;
-
-  const scheduledAt = new Date(Date.now() + 30 * 60000);
+  const scheduledAt = generateHumanScheduledTime({
+    platform: "discord",
+    userId,
+    contentType: "new-video",
+    urgency: "immediate",
+  });
 
   await db.insert(autopilotQueue).values({
     userId,
     sourceVideoId: video.id,
     type: "discord-announce",
     targetPlatform: "discord",
-    content,
+    content: result.content,
     caption: `Discord announcement for: ${video.title}`,
     status: "scheduled",
     scheduledAt,
     metadata: {
       style: "human",
       aiModel: "gpt-5-mini",
-      humanScore: 0.95,
+      humanScore: result.stealthScore,
+      uniquenessScore: result.uniquenessScore,
+      fingerprint: result.fingerprint,
+      schedulingMethod: "human-behavior-engine",
     },
   });
 }
@@ -182,6 +248,12 @@ Output ONLY the announcement text.`;
 export async function processCommentResponses(userId: string) {
   const config = await getAutopilotConfig(userId, "comment-responder");
   if (config && config.enabled === false) return;
+
+  const { isActive } = getActivityWindow();
+  if (!isActive) {
+    console.log(`[Autopilot] Outside activity window, skipping comments for ${userId}`);
+    return;
+  }
 
   const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
   if (userChannels.length === 0) return;
@@ -212,24 +284,38 @@ export async function processCommentResponses(userId: string) {
 
     if (existingResponse.length > 0) continue;
 
-    const systemMsg = `You are the creator responding to a YouTube comment on your video.
+    const systemMsg = `You ARE this creator responding to a comment on your own video. First person. Your voice.
 ${creatorTone}
 
-RULES:
-- Sound like a real person, not a corporate social media team
-- Keep responses short (1-2 sentences)
-- Be warm and appreciative
-- If someone asks a question, actually answer it
-- Use the creator's natural speaking style
-- Don't be overly formal or stiff
-- Match the energy of the original comment`;
+CRITICAL RULES:
+- 1-2 sentences MAX, no more
+- Sound like you typed this on your phone between matches
+- Use their name sometimes but not always
+- If they ask a question, give a real answer (not generic)
+- Match their energy level
+- Use the creator's actual speaking style
+- Occasional typos or shortcuts are fine (ur, rn, ngl, tbh)
+- NEVER sound corporate, formal, or like a brand account
+- Vary response length and style from reply to reply`;
 
-    const prompt = `Comment on "${sample.videoTitle}" by ${sample.author}: "${sample.comment}"
+    const prompt = `Comment on your video "${sample.videoTitle}" by ${sample.author}: "${sample.comment}"
 
-Write a short, natural reply as the creator. Output ONLY the reply text.`;
+Write a quick reply as yourself. Output ONLY the reply text.`;
 
     const response = await generateWithAI(prompt, systemMsg);
     if (!response) continue;
+
+    let processedResponse = response.replace(/^["']|["']$/g, "").trim();
+
+    if (Math.random() < 0.15) {
+      const shortcuts: Record<string, string> = { "you": "u", "your": "ur", "to be honest": "tbh", "right now": "rn" };
+      for (const [full, short] of Object.entries(shortcuts)) {
+        if (processedResponse.toLowerCase().includes(full) && Math.random() < 0.3) {
+          processedResponse = processedResponse.replace(new RegExp(full, "i"), short);
+          break;
+        }
+      }
+    }
 
     const approvalMode = (config?.settings as any)?.commentApprovalMode || "auto";
 
@@ -239,13 +325,15 @@ Write a short, natural reply as the creator. Output ONLY the reply text.`;
       platform: "youtube",
       originalComment: sample.comment,
       originalAuthor: sample.author,
-      aiResponse: response,
+      aiResponse: processedResponse,
       status: approvalMode === "auto" ? "approved" : "pending",
       sentiment: detectSentiment(sample.comment),
       priority: sample.comment.includes("?") ? "high" : "normal",
       metadata: {
         isQuestion: sample.comment.includes("?"),
         tone: "friendly",
+        responseDelay: getCommentResponseDelay(),
+        typingDelay: simulateTypingDelay(processedResponse.length),
       },
     });
   }
@@ -255,7 +343,7 @@ export async function processContentRecycling(userId: string) {
   const config = await getAutopilotConfig(userId, "content-recycler");
   if (config && config.enabled === false) return;
 
-  const recycleAfterDays = (config?.settings as any)?.recycleAfterDays || 30;
+  const recycleAfterDays = (config?.settings as any)?.recycleAfterDays || 14;
   const cutoffDate = new Date(Date.now() - recycleAfterDays * 86400000);
 
   const oldVideos = await db.select().from(videos)
@@ -264,12 +352,12 @@ export async function processContentRecycling(userId: string) {
       lte(videos.createdAt, cutoffDate),
     ))
     .orderBy(desc(videos.createdAt))
-    .limit(5);
+    .limit(10);
 
   if (oldVideos.length === 0) return;
 
   const creatorTone = await getCreatorTone(userId);
-  const platforms = (config?.settings as any)?.platforms || ["x", "tiktok"];
+  const platforms = (config?.settings as any)?.platforms || ["x", "tiktok", "discord"];
 
   const video = oldVideos[Math.floor(Math.random() * oldVideos.length)];
 
@@ -278,71 +366,56 @@ export async function processContentRecycling(userId: string) {
       eq(autopilotQueue.userId, userId),
       eq(autopilotQueue.sourceVideoId, video.id),
       eq(autopilotQueue.type, "content-recycle"),
-      gte(autopilotQueue.createdAt, new Date(Date.now() - 7 * 86400000)),
+      gte(autopilotQueue.createdAt, new Date(Date.now() - 5 * 86400000)),
     ))
     .limit(1);
 
   if (alreadyRecycled.length > 0) return;
 
-  for (const platform of platforms) {
-    const platformLabel = platform === "x" ? "X (Twitter)" : "TikTok";
+  await generateFullThrottleDistribution(userId, video, creatorTone, platforms, "recycle");
+}
 
-    const systemMsg = `You are resharing an older video in a fresh, natural way. The goal is to drive new views to existing content.
-${creatorTone}
+export async function processCrossPromotion(userId: string) {
+  const config = await getAutopilotConfig(userId, "cross-promo");
+  if (config && config.enabled === false) return;
 
-RULES:
-- Don't say "throwback" or "icymi" - be more creative
-- Frame it as relevant NOW, not as old content
-- Sound completely natural and human
-- Use a different angle/hook than the original title
-- For ${platformLabel}: ${platform === "tiktok" ? "Under 150 chars, trending vibe" : "Under 280 chars, conversational"}
-- Include 1-2 hashtags max`;
+  const recentPublished = await db.select().from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.status, "published"),
+      gte(autopilotQueue.publishedAt, new Date(Date.now() - 48 * 3600000)),
+    ))
+    .orderBy(desc(autopilotQueue.publishedAt))
+    .limit(5);
 
-    const prompt = `Create a fresh post to re-promote this video that was published ${Math.round((Date.now() - (video.createdAt?.getTime() || 0)) / 86400000)} days ago:
-Title: "${video.title}"
-Description: "${video.description || ""}"
+  if (recentPublished.length === 0) return;
 
-Output ONLY the post text.`;
+  const bestPost = recentPublished[0];
+  if (!bestPost.sourceVideoId) return;
 
-    const content = await generateWithAI(prompt, systemMsg);
-    if (!content) continue;
+  const [video] = await db.select().from(videos).where(eq(videos.id, bestPost.sourceVideoId));
+  if (!video) return;
 
-    const delayHours = Math.random() * 12;
-    const scheduledAt = new Date(Date.now() + delayHours * 3600000);
+  const otherPlatforms = ALL_DISTRIBUTION_PLATFORMS.filter(p => p !== bestPost.targetPlatform);
+  const crossPlatform = otherPlatforms[Math.floor(Math.random() * otherPlatforms.length)];
 
-    await db.insert(autopilotQueue).values({
-      userId,
-      sourceVideoId: video.id,
-      type: "content-recycle",
-      targetPlatform: platform,
-      content,
-      caption: `Recycled: ${video.title}`,
-      status: "scheduled",
-      scheduledAt,
-      metadata: {
-        hashtags: extractHashtags(content),
-        isRecycled: true,
-        originalPostDate: video.createdAt?.toISOString(),
-        style: "human",
-        aiModel: "gpt-5-mini",
-        humanScore: 0.85,
-      },
-    });
-  }
+  if (!crossPlatform || !shouldPostToday(crossPlatform)) return;
 
-  await createNotification(userId, "autopilot", "Content recycled",
-    `Fresh posts created for "${video.title}" on ${platforms.map(p => p === "x" ? "X" : "TikTok").join(", ")}`,
-    "info");
+  const creatorTone = await getCreatorTone(userId);
+
+  await generateFullThrottleDistribution(userId, video, creatorTone, [crossPlatform], "cross-promo");
 }
 
 export async function processScheduledPosts() {
   const now = new Date();
+  const { isActive } = getActivityWindow();
+
   const duePosts = await db.select().from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.status, "scheduled"),
       lte(autopilotQueue.scheduledAt, now),
     ))
-    .limit(20);
+    .limit(isActive ? 10 : 3);
 
   for (const post of duePosts) {
     try {
@@ -400,6 +473,13 @@ export async function getAutopilotStats(userId: string) {
     featureStatuses[feature] = cfg ? cfg.enabled : true;
   }
 
+  let stealthData = null;
+  try {
+    stealthData = await getStealthReport(userId);
+  } catch {
+    stealthData = { overallScore: 1.0, platformGrades: {}, recentIssues: [], recommendations: [] };
+  }
+
   return {
     totalPosts: queueItems?.count || 0,
     scheduledPosts: scheduledCount?.count || 0,
@@ -408,6 +488,7 @@ export async function getAutopilotStats(userId: string) {
     pendingCommentApprovals: pendingComments?.count || 0,
     recentActivity,
     featureStatuses,
+    stealth: stealthData,
   };
 }
 
@@ -449,14 +530,9 @@ async function createNotification(userId: string, type: string, title: string, m
   sendSSEEvent(userId, "notification", { type: "new" });
 }
 
-function extractHashtags(text: string): string[] {
-  const matches = text.match(/#\w+/g);
-  return matches || [];
-}
-
 function detectSentiment(text: string): string {
-  const positive = ["love", "amazing", "great", "awesome", "best", "thank", "excellent", "fantastic"];
-  const negative = ["hate", "bad", "worst", "terrible", "awful", "horrible", "sucks"];
+  const positive = ["love", "amazing", "great", "awesome", "best", "thank", "excellent", "fantastic", "fire", "goat", "w", "peak"];
+  const negative = ["hate", "bad", "worst", "terrible", "awful", "horrible", "sucks", "mid", "L", "trash"];
   const lower = text.toLowerCase();
   if (positive.some(w => lower.includes(w))) return "positive";
   if (negative.some(w => lower.includes(w))) return "negative";

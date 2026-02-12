@@ -26,8 +26,22 @@ import {
   CalendarClock,
   Activity,
   Bot,
+  Shield,
+  ShieldCheck,
+  ShieldAlert,
+  Eye,
+  Fingerprint,
+  Shuffle,
+  TrendingUp,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
+
+interface StealthData {
+  overallScore: number;
+  platformGrades: Record<string, { grade: string; score: number; postCount: number }>;
+  recentIssues: string[];
+  recommendations: string[];
+}
 
 interface AutopilotStats {
   totalPosts: number;
@@ -37,6 +51,7 @@ interface AutopilotStats {
   pendingCommentApprovals: number;
   recentActivity: any[];
   featureStatuses: Record<string, boolean>;
+  stealth: StealthData | null;
 }
 
 interface QueueItem {
@@ -67,37 +82,51 @@ const FEATURES = [
   {
     id: "auto-clip",
     label: "Auto-Clip & Post",
-    description: "AI creates clips and posts to TikTok/X when you upload a video",
+    description: "AI creates unique posts for all 6 platforms when you upload a video",
     icon: Zap,
     color: "text-yellow-500",
   },
   {
     id: "smart-schedule",
     label: "Smart Schedule",
-    description: "Staggers posts across hours for maximum reach",
+    description: "Posts during peak hours per platform with human-like random delays",
     icon: CalendarClock,
     color: "text-blue-500",
   },
   {
     id: "comment-responder",
     label: "Comment Responder",
-    description: "AI drafts replies to YouTube comments in your voice",
+    description: "AI replies to YouTube comments in your exact voice and slang",
     icon: MessageSquare,
     color: "text-green-500",
   },
   {
     id: "discord-announce",
     label: "Discord Announcements",
-    description: "Auto-posts to your Discord when new content goes live",
+    description: "Auto-posts to your Discord like you're chatting with your community",
     icon: SiDiscord,
     color: "text-indigo-500",
   },
   {
     id: "content-recycler",
     label: "Content Recycler",
-    description: "Creates fresh posts about your older videos to keep driving views",
+    description: "Re-promotes older videos every 14 days with completely fresh angles",
     icon: Recycle,
     color: "text-purple-500",
+  },
+  {
+    id: "cross-promo",
+    label: "Cross-Platform Loops",
+    description: "When content performs well, auto-creates follow-up posts on other platforms",
+    icon: Shuffle,
+    color: "text-orange-500",
+  },
+  {
+    id: "stealth-mode",
+    label: "Stealth Mode",
+    description: "Self-monitors all posts to catch anything that looks automated before it goes out",
+    icon: Shield,
+    color: "text-emerald-500",
   },
 ];
 
@@ -125,8 +154,49 @@ function typeLabel(type: string) {
     case "auto-clip": return "Auto-Clip";
     case "discord-announce": return "Discord";
     case "content-recycle": return "Recycled";
+    case "cross-promo": return "Cross-Promo";
     default: return type;
   }
+}
+
+function GradeIndicator({ grade }: { grade: string }) {
+  const colors: Record<string, string> = {
+    "A": "text-green-500",
+    "B": "text-blue-500",
+    "C": "text-yellow-500",
+    "D": "text-orange-500",
+    "F": "text-red-500",
+    "-": "text-muted-foreground",
+  };
+  return (
+    <span className={`font-bold text-lg ${colors[grade] || "text-muted-foreground"}`}>
+      {grade}
+    </span>
+  );
+}
+
+function StealthScoreRing({ score }: { score: number }) {
+  const percentage = Math.round(score * 100);
+  const color = percentage >= 90 ? "text-green-500" : percentage >= 70 ? "text-yellow-500" : "text-red-500";
+  const label = percentage >= 90 ? "Invisible" : percentage >= 70 ? "Low Risk" : "Detectable";
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className={`text-4xl font-bold ${color}`} data-testid="text-stealth-score">
+        {percentage}%
+      </div>
+      <div className="flex items-center gap-1">
+        {percentage >= 90 ? (
+          <ShieldCheck className={`h-4 w-4 ${color}`} />
+        ) : percentage >= 70 ? (
+          <Shield className={`h-4 w-4 ${color}`} />
+        ) : (
+          <ShieldAlert className={`h-4 w-4 ${color}`} />
+        )}
+        <span className={`text-sm font-medium ${color}`}>{label}</span>
+      </div>
+    </div>
+  );
 }
 
 export default function Autopilot() {
@@ -156,17 +226,6 @@ export default function Autopilot() {
     },
   });
 
-  const triggerClipMutation = useMutation({
-    mutationFn: async (videoId: number) => {
-      return apiRequest("POST", "/api/autopilot/trigger/clip", { videoId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
-      toast({ title: "Auto-clip pipeline triggered" });
-    },
-  });
-
   const triggerCommentsMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", "/api/autopilot/trigger/comments", {});
@@ -186,6 +245,17 @@ export default function Autopilot() {
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
       toast({ title: "Content recycler triggered" });
+    },
+  });
+
+  const triggerCrossPromoMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/autopilot/trigger/cross-promo", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      toast({ title: "Cross-promotion triggered" });
     },
   });
 
@@ -232,6 +302,7 @@ export default function Autopilot() {
   const stats = statsQuery.data;
   const queue = queueQuery.data || [];
   const comments = commentsQuery.data || [];
+  const stealth = stats?.stealth;
 
   if (statsQuery.isLoading) {
     return (
@@ -245,6 +316,8 @@ export default function Autopilot() {
     );
   }
 
+  const activeFeatureCount = Object.values(stats?.featureStatuses || {}).filter(Boolean).length;
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto overflow-y-auto h-full">
       <div className="flex items-center gap-3 flex-wrap">
@@ -254,11 +327,15 @@ export default function Autopilot() {
         </div>
         <Badge variant="secondary">
           <Bot className="h-3 w-3 mr-1" />
-          {Object.values(stats?.featureStatuses || {}).filter(Boolean).length}/5 Active
+          {activeFeatureCount}/7 Active
+        </Badge>
+        <Badge variant="outline">
+          <Eye className="h-3 w-3 mr-1" />
+          Full Throttle
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold" data-testid="text-scheduled-posts">{stats?.scheduledPosts || 0}</div>
@@ -274,13 +351,18 @@ export default function Autopilot() {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold" data-testid="text-total-comments">{stats?.totalCommentResponses || 0}</div>
-            <p className="text-sm text-muted-foreground">Comments Replied</p>
+            <p className="text-sm text-muted-foreground">Replies</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold" data-testid="text-pending-approvals">{stats?.pendingCommentApprovals || 0}</div>
-            <p className="text-sm text-muted-foreground">Pending Approval</p>
+            <p className="text-sm text-muted-foreground">Pending</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <StealthScoreRing score={stealth?.overallScore || 1.0} />
           </CardContent>
         </Card>
       </div>
@@ -290,9 +372,13 @@ export default function Autopilot() {
           <TabsTrigger value="overview" data-testid="tab-overview">Systems</TabsTrigger>
           <TabsTrigger value="queue" data-testid="tab-queue">Queue ({queue.length})</TabsTrigger>
           <TabsTrigger value="comments" data-testid="tab-comments">Comments ({comments.length})</TabsTrigger>
+          <TabsTrigger value="stealth" data-testid="tab-stealth">
+            <Shield className="h-3 w-3 mr-1" />
+            Stealth
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4 mt-4">
+        <TabsContent value="overview" className="space-y-3 mt-4">
           {FEATURES.map((feature) => {
             const isEnabled = stats?.featureStatuses?.[feature.id] !== false;
             const Icon = feature.icon;
@@ -334,6 +420,18 @@ export default function Autopilot() {
                           Run Now
                         </Button>
                       )}
+                      {feature.id === "cross-promo" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => triggerCrossPromoMutation.mutate()}
+                          disabled={triggerCrossPromoMutation.isPending}
+                          data-testid="button-trigger-cross-promo"
+                        >
+                          <Shuffle className="h-3 w-3 mr-1" />
+                          Run Now
+                        </Button>
+                      )}
                       <Switch
                         checked={isEnabled}
                         onCheckedChange={(checked) => {
@@ -356,7 +454,7 @@ export default function Autopilot() {
                 <CalendarClock className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                 <p className="font-medium">No posts in queue</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Upload a video to YouTube and the AI will automatically create posts for your other platforms
+                  Upload a video to YouTube and everything fires automatically across all platforms
                 </p>
               </CardContent>
             </Card>
@@ -377,13 +475,24 @@ export default function Autopilot() {
                         )}
                       </div>
                       <p className="text-sm break-words">{item.content}</p>
-                      {item.metadata?.humanScore && (
-                        <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {item.metadata?.humanScore != null && (
                           <Badge variant="secondary" className="text-xs">
-                            Human Score: {Math.round((item.metadata.humanScore as number) * 100)}%
+                            <Fingerprint className="h-3 w-3 mr-1" />
+                            Stealth: {Math.round((item.metadata.humanScore as number) * 100)}%
                           </Badge>
-                        </div>
-                      )}
+                        )}
+                        {item.metadata?.uniquenessScore != null && (
+                          <Badge variant="secondary" className="text-xs">
+                            Unique: {Math.round((item.metadata.uniquenessScore as number) * 100)}%
+                          </Badge>
+                        )}
+                        {item.metadata?.safetyGrade && (
+                          <Badge variant={item.metadata.safetyGrade === "A" ? "secondary" : "destructive"} className="text-xs">
+                            Grade: {item.metadata.safetyGrade as string}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {item.status === "scheduled" && (
@@ -421,7 +530,7 @@ export default function Autopilot() {
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                 <p className="font-medium">No comment responses yet</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  The AI will draft replies to your YouTube comments automatically
+                  The AI drafts replies in your exact voice automatically
                 </p>
                 <Button
                   variant="outline"
@@ -462,7 +571,7 @@ export default function Autopilot() {
                       <p className="text-sm">{comment.originalComment}</p>
                     </div>
                     <div className="pl-4 border-l-2 border-primary/30">
-                      <p className="text-xs font-medium text-primary mb-1">AI Reply:</p>
+                      <p className="text-xs font-medium text-primary mb-1">Your Reply:</p>
                       <p className="text-sm">{comment.aiResponse}</p>
                     </div>
                   </div>
@@ -493,6 +602,107 @@ export default function Autopilot() {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="stealth" className="space-y-4 mt-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Shield className="h-5 w-5 text-emerald-500" />
+                <h3 className="font-semibold">Stealth Report</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col items-center justify-center p-4">
+                  <StealthScoreRing score={stealth?.overallScore || 1.0} />
+                  <p className="text-xs text-muted-foreground mt-3 text-center">
+                    How human your posting pattern looks across all platforms
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Platform Grades</h4>
+                  {stealth?.platformGrades && Object.entries(stealth.platformGrades).map(([platform, data]) => (
+                    <div key={platform} className="flex items-center justify-between gap-2" data-testid={`stealth-grade-${platform}`}>
+                      <div className="flex items-center gap-2">
+                        <PlatformBadge platform={platform} />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground">{data.postCount} posts</span>
+                        <GradeIndicator grade={data.grade} />
+                      </div>
+                    </div>
+                  ))}
+                  {(!stealth?.platformGrades || Object.keys(stealth.platformGrades).length === 0) && (
+                    <p className="text-sm text-muted-foreground">No posts analyzed yet</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {stealth?.recentIssues && stealth.recentIssues.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldAlert className="h-4 w-4 text-yellow-500" />
+                  <h4 className="text-sm font-medium">Issues Detected</h4>
+                </div>
+                <div className="space-y-2">
+                  {stealth.recentIssues.map((issue, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <AlertCircle className="h-3 w-3 text-yellow-500 mt-1 shrink-0" />
+                      <p className="text-xs text-muted-foreground">{issue}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {stealth?.recommendations && stealth.recommendations.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="h-4 w-4 text-blue-500" />
+                  <h4 className="text-sm font-medium">Recommendations</h4>
+                </div>
+                <div className="space-y-2">
+                  {stealth.recommendations.map((rec, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3 w-3 text-blue-500 mt-1 shrink-0" />
+                      <p className="text-xs text-muted-foreground">{rec}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Fingerprint className="h-4 w-4 text-primary" />
+                <h4 className="text-sm font-medium">How Stealth Mode Works</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  { title: "Human Timing", desc: "Posts only during waking hours with random delays between platforms" },
+                  { title: "Unique Content", desc: "Every platform gets completely different wording, never copy-paste" },
+                  { title: "Natural Patterns", desc: "Varies post length, style, and frequency like a real person" },
+                  { title: "Self-Monitoring", desc: "Scans every post for detectable patterns before it goes out" },
+                  { title: "Smart Cooldowns", desc: "Respects daily post limits per platform with natural gaps" },
+                  { title: "Fingerprint Check", desc: "Tracks content similarity to prevent repetitive posting" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <ShieldCheck className="h-3 w-3 text-emerald-500 mt-1 shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
