@@ -114,8 +114,6 @@ function BrandTab() {
   const colorAssets = filtered?.filter((a: any) => a.assetType === "color") || [];
   const otherAssets = filtered?.filter((a: any) => a.assetType !== "color") || [];
 
-  if (isLoading) return <div className="space-y-4"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
-
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_brand_audit");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBrandAudit(e.data); return; } else { sessionStorage.removeItem("ai_brand_audit"); } } catch {} }
@@ -176,6 +174,8 @@ function BrandTab() {
     setAiRepMonitorLoading(true);
     apiRequest("POST", "/api/ai/reputation-monitor", {}).then(r => r.json()).then(d => { setAiRepMonitor(d); sessionStorage.setItem("ai_rep_monitor", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRepMonitorLoading(false));
   }, []);
+
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
