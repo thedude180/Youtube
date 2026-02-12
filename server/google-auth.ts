@@ -229,42 +229,6 @@ async function autoConnectYouTubeFromGoogle(
       channel = await storage.createChannel(channelData);
     }
 
-    const existingShortsChannel = existingChannels.find(
-      (c) => c.platform === "youtubeshorts"
-    );
-    const shortsData = {
-      userId,
-      platform: "youtubeshorts" as const,
-      channelName: `${ytChannel.snippet?.title || "YouTube"} Shorts`,
-      channelId: ytChannel.id || "",
-      accessToken: accessToken,
-      refreshToken: refreshToken || null,
-      tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
-      settings: {
-        preset: "normal" as const,
-        autoUpload: false,
-        minShortsPerDay: 1,
-        maxEditsPerDay: 3,
-        cooldownMinutes: 60,
-      },
-    };
-
-    if (existingShortsChannel) {
-      const shortsUpdate: any = {
-        channelName: shortsData.channelName,
-        channelId: shortsData.channelId,
-        accessToken: shortsData.accessToken,
-        tokenExpiresAt: shortsData.tokenExpiresAt,
-        lastSyncAt: new Date(),
-      };
-      if (refreshToken) {
-        shortsUpdate.refreshToken = refreshToken;
-      }
-      await storage.updateChannel(existingShortsChannel.id, shortsUpdate);
-    } else {
-      await storage.createChannel(shortsData);
-    }
-
     const linkedChannels = await storage.getLinkedChannelsByUser(userId);
     const existingLinkedYt = linkedChannels.find(
       (c) => c.platform === "youtube"
@@ -274,24 +238,6 @@ async function autoConnectYouTubeFromGoogle(
         userId,
         platform: "youtube",
         username: ytChannel.snippet?.title || "YouTube",
-        channelUrl: `https://youtube.com/channel/${ytChannel.id}`,
-        isConnected: true,
-        connectionType: "oauth",
-        followerCount: parseInt(
-          ytChannel.statistics?.subscriberCount || "0",
-          10
-        ),
-      });
-    }
-
-    const existingLinkedShorts = linkedChannels.find(
-      (c) => c.platform === "youtubeshorts"
-    );
-    if (!existingLinkedShorts) {
-      await storage.createLinkedChannel({
-        userId,
-        platform: "youtubeshorts",
-        username: `${ytChannel.snippet?.title || "YouTube"} Shorts`,
         channelUrl: `https://youtube.com/channel/${ytChannel.id}`,
         isConnected: true,
         connectionType: "oauth",

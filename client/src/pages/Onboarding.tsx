@@ -34,7 +34,7 @@ const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
   {
     key: "priority",
     label: "Priority",
-    platforms: ["youtube", "youtubeshorts"],
+    platforms: ["youtube"],
   },
   {
     key: "live-streaming",
@@ -65,10 +65,9 @@ const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
 
 const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<string, string> }> = {
   gaming: {
-    platforms: ["youtube", "youtubeshorts", "twitch", "kick", "discord", "tiktok", "x", "reddit", "rumble"],
+    platforms: ["youtube", "twitch", "kick", "discord", "tiktok", "x", "reddit", "rumble"],
     reasons: {
-      youtube: "Upload gameplay, reviews, and walkthroughs",
-      youtubeshorts: "Clip highlights and funny moments",
+      youtube: "Upload gameplay, reviews, walkthroughs + Shorts for highlights",
       twitch: "Live stream your gameplay to a gaming audience",
       kick: "Alternative streaming platform growing fast in gaming",
       discord: "Build a community server for your fans",
@@ -79,10 +78,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   tech: {
-    platforms: ["youtube", "youtubeshorts", "x", "reddit", "linkedin", "discord", "tiktok", "mastodon", "substack"],
+    platforms: ["youtube", "x", "reddit", "linkedin", "discord", "tiktok", "mastodon", "substack"],
     reasons: {
-      youtube: "In-depth reviews, tutorials, and unboxings",
-      youtubeshorts: "Quick tech tips and first impressions",
+      youtube: "In-depth reviews, tutorials, unboxings + Shorts for quick tips",
       x: "Share tech news and engage with the tech community",
       reddit: "Post in tech subreddits for targeted audiences",
       linkedin: "Professional tech content and networking",
@@ -93,10 +91,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   cooking: {
-    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "pinterest", "facebook", "snapchat"],
+    platforms: ["youtube", "instagram", "tiktok", "pinterest", "facebook", "snapchat"],
     reasons: {
-      youtube: "Full recipe videos and cooking shows",
-      youtubeshorts: "Quick recipe clips and cooking hacks",
+      youtube: "Full recipe videos, cooking shows + Shorts for quick hacks",
       instagram: "Beautiful food photography and Reels",
       tiktok: "Short recipe videos are hugely popular here",
       pinterest: "Recipe pins drive massive long-term traffic",
@@ -105,10 +102,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   vlogging: {
-    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "snapchat", "threads", "x", "facebook"],
+    platforms: ["youtube", "instagram", "tiktok", "snapchat", "threads", "x", "facebook"],
     reasons: {
-      youtube: "Long-form vlogs and day-in-the-life content",
-      youtubeshorts: "Quick life updates and travel clips",
+      youtube: "Long-form vlogs, day-in-the-life + Shorts for quick updates",
       instagram: "Photo stories and Reels of your daily life",
       tiktok: "Short lifestyle clips and trends",
       snapchat: "Behind-the-scenes and real-time updates",
@@ -118,10 +114,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   education: {
-    platforms: ["youtube", "youtubeshorts", "linkedin", "tiktok", "reddit", "substack", "x", "threads"],
+    platforms: ["youtube", "linkedin", "tiktok", "reddit", "substack", "x", "threads"],
     reasons: {
-      youtube: "In-depth tutorials, courses, and explainers",
-      youtubeshorts: "Quick tips and bite-sized lessons",
+      youtube: "In-depth tutorials, courses, explainers + Shorts for quick tips",
       linkedin: "Professional development and career content",
       tiktok: "EduTok is a massive category — short lessons",
       reddit: "Share knowledge in topic-specific subreddits",
@@ -131,10 +126,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   fitness: {
-    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "facebook", "threads", "snapchat"],
+    platforms: ["youtube", "instagram", "tiktok", "facebook", "threads", "snapchat"],
     reasons: {
-      youtube: "Full workout videos and fitness programs",
-      youtubeshorts: "Quick exercise demos and tips",
+      youtube: "Full workout videos, fitness programs + Shorts for exercise demos",
       instagram: "Transformation photos, Reels, and Stories",
       tiktok: "Short workout clips and fitness trends",
       facebook: "Fitness groups and community engagement",
@@ -143,10 +137,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   music: {
-    platforms: ["youtube", "youtubeshorts", "spotify", "applepodcasts", "instagram", "tiktok", "x", "discord"],
+    platforms: ["youtube", "spotify", "applepodcasts", "instagram", "tiktok", "x", "discord"],
     reasons: {
-      youtube: "Music videos, covers, and performances",
-      youtubeshorts: "Short clips and song previews",
+      youtube: "Music videos, covers, performances + Shorts for song previews",
       spotify: "Distribute your music and grow listeners",
       applepodcasts: "Music commentary and behind-the-scenes",
       instagram: "Share clips and connect with fans",
@@ -156,10 +149,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   business: {
-    platforms: ["youtube", "youtubeshorts", "linkedin", "x", "substack", "threads", "tiktok", "reddit"],
+    platforms: ["youtube", "linkedin", "x", "substack", "threads", "tiktok", "reddit"],
     reasons: {
-      youtube: "Business advice, case studies, and interviews",
-      youtubeshorts: "Quick business tips and insights",
+      youtube: "Business advice, case studies, interviews + Shorts for quick tips",
       linkedin: "Professional content and thought leadership",
       x: "Business commentary and networking",
       substack: "In-depth business newsletters and analysis",
@@ -169,10 +161,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   beauty: {
-    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "pinterest", "snapchat", "threads"],
+    platforms: ["youtube", "instagram", "tiktok", "pinterest", "snapchat", "threads"],
     reasons: {
-      youtube: "Tutorials, hauls, and product reviews",
-      youtubeshorts: "Quick makeup tips and transformations",
+      youtube: "Tutorials, hauls, product reviews + Shorts for quick tips",
       instagram: "Product photos, Reels, and Stories",
       tiktok: "GRWM and beauty trends go viral here",
       pinterest: "Beauty inspiration pins drive search traffic",
@@ -181,10 +172,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   comedy: {
-    platforms: ["youtube", "youtubeshorts", "tiktok", "instagram", "x", "snapchat", "reddit", "facebook"],
+    platforms: ["youtube", "tiktok", "instagram", "x", "snapchat", "reddit", "facebook"],
     reasons: {
-      youtube: "Sketches, commentary, and long-form comedy",
-      youtubeshorts: "Short skits and reaction clips",
+      youtube: "Sketches, commentary, long-form comedy + Shorts for skits",
       tiktok: "Comedy clips and trends are the core of TikTok",
       instagram: "Reels and funny Stories",
       x: "Comedic commentary and engaging with fans",
@@ -194,10 +184,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   art: {
-    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "pinterest", "threads", "discord", "bluesky"],
+    platforms: ["youtube", "instagram", "tiktok", "pinterest", "threads", "discord", "bluesky"],
     reasons: {
-      youtube: "Time-lapses, tutorials, and process videos",
-      youtubeshorts: "Quick art process clips",
+      youtube: "Time-lapses, tutorials, process videos + Shorts for quick clips",
       instagram: "Showcase your portfolio and art Reels",
       tiktok: "Art process videos get huge engagement",
       pinterest: "Art pins drive traffic and commissions",
@@ -207,10 +196,9 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   other: {
-    platforms: ["youtube", "youtubeshorts", "tiktok", "instagram", "x", "discord", "threads", "reddit"],
+    platforms: ["youtube", "tiktok", "instagram", "x", "discord", "threads", "reddit"],
     reasons: {
-      youtube: "Long-form content for any niche",
-      youtubeshorts: "Short clips to grow your audience fast",
+      youtube: "Long-form content + Shorts for fast audience growth",
       tiktok: "Short-form content for maximum reach",
       instagram: "Visual content and community building",
       x: "Engage with your audience and share updates",
@@ -243,7 +231,7 @@ function PlatformCard({
   const [oauthLoading, setOauthLoading] = useState(false);
   const { toast } = useToast();
 
-  const isYouTube = platform === "youtube" || platform === "youtubeshorts";
+  const isYouTube = platform === "youtube";
   const platformOAuth = oauthStatus?.[platform];
   const hasOAuthConfig = platformOAuth?.configured || false;
   const canOAuth = isYouTube || hasOAuthConfig;
@@ -290,7 +278,7 @@ function PlatformCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold">{info.label}</span>
+              <span className="text-sm font-semibold">{isYouTube ? "YouTube + Shorts" : info.label}</span>
               <span
                 data-testid={`status-platform-${platform}`}
                 className={`h-2 w-2 rounded-full shrink-0 ${isConnected ? "bg-emerald-400" : "bg-muted-foreground/30"}`}
@@ -955,6 +943,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
         ? { apiKey: value }
         : undefined,
     });
+
   };
 
   const finishOnboarding = async () => {

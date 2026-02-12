@@ -114,8 +114,8 @@ export default function Dashboard() {
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'] });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
   const { data: channels } = useQuery<DashboardChannel[]>({ queryKey: ['/api/channels'] });
+  const { data: wellness } = useQuery<any[]>({ queryKey: ['/api/wellness'] });
   const { data: goals } = useQuery<any[]>({ queryKey: ['/api/goals'], enabled: belowFoldVisible });
-  const { data: wellness } = useQuery<any[]>({ queryKey: ['/api/wellness'], enabled: belowFoldVisible });
   const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'], enabled: belowFoldVisible });
   const { data: briefing } = useQuery<AIResult>({ queryKey: ['/api/learning/briefing'], enabled: belowFoldVisible });
   const { data: optHealth } = useQuery<AIResult>({ queryKey: ['/api/optimization/health-score'], enabled: belowFoldVisible });
@@ -324,6 +324,28 @@ export default function Dashboard() {
       <MetricsGrid metrics={metrics} />
 
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
+
+      {getHealthStatus("wellness").status !== "good" && (
+        <Card data-testid="card-daily-checkin-prompt" className="border-primary/20">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Heart className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">Daily Check-In</p>
+                  <p className="text-xs text-muted-foreground">How are you feeling today? Track your wellness to prevent burnout.</p>
+                </div>
+              </div>
+              <Link href="/settings/wellness">
+                <Button size="sm" data-testid="button-dashboard-checkin">
+                  <Heart className="h-4 w-4 mr-1" />
+                  Check In Now
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div ref={belowFoldRef} />
 
