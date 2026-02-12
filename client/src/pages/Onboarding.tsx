@@ -25,6 +25,8 @@ import {
   Target,
   Calendar,
   TrendingUp,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
@@ -60,6 +62,164 @@ const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
   },
 ];
 
+const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<string, string> }> = {
+  gaming: {
+    platforms: ["youtube", "youtubeshorts", "twitch", "kick", "discord", "tiktok", "x", "reddit", "rumble"],
+    reasons: {
+      youtube: "Upload gameplay, reviews, and walkthroughs",
+      youtubeshorts: "Clip highlights and funny moments",
+      twitch: "Live stream your gameplay to a gaming audience",
+      kick: "Alternative streaming platform growing fast in gaming",
+      discord: "Build a community server for your fans",
+      tiktok: "Short gaming clips go viral fast here",
+      x: "Share updates and engage with the gaming community",
+      reddit: "Post in gaming subreddits to build your audience",
+      rumble: "Reach audiences looking for alternative platforms",
+    },
+  },
+  tech: {
+    platforms: ["youtube", "youtubeshorts", "x", "reddit", "linkedin", "discord", "tiktok", "mastodon", "substack"],
+    reasons: {
+      youtube: "In-depth reviews, tutorials, and unboxings",
+      youtubeshorts: "Quick tech tips and first impressions",
+      x: "Share tech news and engage with the tech community",
+      reddit: "Post in tech subreddits for targeted audiences",
+      linkedin: "Professional tech content and networking",
+      discord: "Build a tech community for discussions",
+      tiktok: "Short tech tips and quick reviews",
+      mastodon: "Tech-savvy audience loves open platforms",
+      substack: "Write detailed tech analysis and newsletters",
+    },
+  },
+  cooking: {
+    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "pinterest", "facebook", "snapchat"],
+    reasons: {
+      youtube: "Full recipe videos and cooking shows",
+      youtubeshorts: "Quick recipe clips and cooking hacks",
+      instagram: "Beautiful food photography and Reels",
+      tiktok: "Short recipe videos are hugely popular here",
+      pinterest: "Recipe pins drive massive long-term traffic",
+      facebook: "Share recipes with cooking groups and communities",
+      snapchat: "Behind-the-scenes cooking content",
+    },
+  },
+  vlogging: {
+    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "snapchat", "threads", "x", "facebook"],
+    reasons: {
+      youtube: "Long-form vlogs and day-in-the-life content",
+      youtubeshorts: "Quick life updates and travel clips",
+      instagram: "Photo stories and Reels of your daily life",
+      tiktok: "Short lifestyle clips and trends",
+      snapchat: "Behind-the-scenes and real-time updates",
+      threads: "Share quick thoughts and connect with followers",
+      x: "Daily updates and engage with your community",
+      facebook: "Reach a broad audience with lifestyle content",
+    },
+  },
+  education: {
+    platforms: ["youtube", "youtubeshorts", "linkedin", "tiktok", "reddit", "substack", "x", "threads"],
+    reasons: {
+      youtube: "In-depth tutorials, courses, and explainers",
+      youtubeshorts: "Quick tips and bite-sized lessons",
+      linkedin: "Professional development and career content",
+      tiktok: "EduTok is a massive category — short lessons",
+      reddit: "Share knowledge in topic-specific subreddits",
+      substack: "Write detailed educational newsletters",
+      x: "Share quick insights and engage learners",
+      threads: "Short-form educational posts",
+    },
+  },
+  fitness: {
+    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "facebook", "threads", "snapchat"],
+    reasons: {
+      youtube: "Full workout videos and fitness programs",
+      youtubeshorts: "Quick exercise demos and tips",
+      instagram: "Transformation photos, Reels, and Stories",
+      tiktok: "Short workout clips and fitness trends",
+      facebook: "Fitness groups and community engagement",
+      threads: "Daily fitness motivation and tips",
+      snapchat: "Daily workout updates and progress",
+    },
+  },
+  music: {
+    platforms: ["youtube", "youtubeshorts", "spotify", "applepodcasts", "instagram", "tiktok", "x", "discord"],
+    reasons: {
+      youtube: "Music videos, covers, and performances",
+      youtubeshorts: "Short clips and song previews",
+      spotify: "Distribute your music and grow listeners",
+      applepodcasts: "Music commentary and behind-the-scenes",
+      instagram: "Share clips and connect with fans",
+      tiktok: "Short song clips can go viral and drive streams",
+      x: "Announce releases and engage with fans",
+      discord: "Build a fan community",
+    },
+  },
+  business: {
+    platforms: ["youtube", "youtubeshorts", "linkedin", "x", "substack", "threads", "tiktok", "reddit"],
+    reasons: {
+      youtube: "Business advice, case studies, and interviews",
+      youtubeshorts: "Quick business tips and insights",
+      linkedin: "Professional content and thought leadership",
+      x: "Business commentary and networking",
+      substack: "In-depth business newsletters and analysis",
+      threads: "Quick business takes and discussions",
+      tiktok: "FinTok and BizTok are growing fast",
+      reddit: "Engage in business and finance communities",
+    },
+  },
+  beauty: {
+    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "pinterest", "snapchat", "threads"],
+    reasons: {
+      youtube: "Tutorials, hauls, and product reviews",
+      youtubeshorts: "Quick makeup tips and transformations",
+      instagram: "Product photos, Reels, and Stories",
+      tiktok: "GRWM and beauty trends go viral here",
+      pinterest: "Beauty inspiration pins drive search traffic",
+      snapchat: "Daily beauty routines and behind-the-scenes",
+      threads: "Quick beauty tips and product recs",
+    },
+  },
+  comedy: {
+    platforms: ["youtube", "youtubeshorts", "tiktok", "instagram", "x", "snapchat", "reddit", "facebook"],
+    reasons: {
+      youtube: "Sketches, commentary, and long-form comedy",
+      youtubeshorts: "Short skits and reaction clips",
+      tiktok: "Comedy clips and trends are the core of TikTok",
+      instagram: "Reels and funny Stories",
+      x: "Comedic commentary and engaging with fans",
+      snapchat: "Behind-the-scenes and daily humor",
+      reddit: "Share content in comedy and meme subreddits",
+      facebook: "Comedy videos reach a wide audience here",
+    },
+  },
+  art: {
+    platforms: ["youtube", "youtubeshorts", "instagram", "tiktok", "pinterest", "threads", "discord", "bluesky"],
+    reasons: {
+      youtube: "Time-lapses, tutorials, and process videos",
+      youtubeshorts: "Quick art process clips",
+      instagram: "Showcase your portfolio and art Reels",
+      tiktok: "Art process videos get huge engagement",
+      pinterest: "Art pins drive traffic and commissions",
+      threads: "Share works-in-progress and connect with artists",
+      discord: "Build an art community and share work",
+      bluesky: "Growing art community on this platform",
+    },
+  },
+  other: {
+    platforms: ["youtube", "youtubeshorts", "tiktok", "instagram", "x", "discord", "threads", "reddit"],
+    reasons: {
+      youtube: "Long-form content for any niche",
+      youtubeshorts: "Short clips to grow your audience fast",
+      tiktok: "Short-form content for maximum reach",
+      instagram: "Visual content and community building",
+      x: "Engage with your audience and share updates",
+      discord: "Build a dedicated community",
+      threads: "Quick updates and discussions",
+      reddit: "Find and engage your target audience",
+    },
+  },
+};
+
 function PlatformCard({
   platform,
   info,
@@ -67,6 +227,7 @@ function PlatformCard({
   onConnect,
   isPending,
   oauthStatus,
+  reason,
 }: {
   platform: Platform;
   info: (typeof PLATFORM_INFO)[Platform];
@@ -74,6 +235,7 @@ function PlatformCard({
   onConnect: (data: { value: string }) => void;
   isPending: boolean;
   oauthStatus?: Record<string, { hasOAuth: boolean; configured: boolean }>;
+  reason?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -139,6 +301,9 @@ function PlatformCard({
                 </Badge>
               )}
             </div>
+            {reason && (
+              <p data-testid={`text-reason-${platform}`} className="text-xs text-primary/80 mt-0.5 font-medium">{reason}</p>
+            )}
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
               {info.strategyDescription}
             </p>
@@ -251,10 +416,121 @@ const NICHE_OPTIONS = [
   { id: "other", label: "Something Else", icon: Lightbulb, description: "Tell me your idea" },
 ];
 
-function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void; onSkipToPlatforms: () => void }) {
+function RecommendedPlatforms({
+  niche,
+  connectedPlatforms,
+  onConnect,
+  isPending,
+  oauthStatus,
+  showAll,
+  onToggleShowAll,
+}: {
+  niche: string;
+  connectedPlatforms: Set<string>;
+  onConnect: (platform: Platform, value: string) => void;
+  isPending: boolean;
+  oauthStatus?: Record<string, { hasOAuth: boolean; configured: boolean }>;
+  showAll: boolean;
+  onToggleShowAll: () => void;
+}) {
+  const nicheData = NICHE_PLATFORMS[niche] || NICHE_PLATFORMS["other"];
+  const recommendedList = nicheData.platforms;
+  const allPlatformsList = PLATFORMS as readonly Platform[];
+  const remainingPlatforms = allPlatformsList.filter((p) => !recommendedList.includes(p));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
+          <Target className="h-5 w-5 text-primary-foreground" />
+        </div>
+        <div>
+          <h2 data-testid="text-recommended-heading" className="text-lg font-display font-bold">
+            Recommended for {NICHE_OPTIONS.find((n) => n.id === niche)?.label || "Your Niche"}
+          </h2>
+          <p className="text-sm text-muted-foreground">These platforms are the best fit for your content type</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {recommendedList.map((platform) => {
+          const info = PLATFORM_INFO[platform];
+          const reason = nicheData.reasons[platform];
+          return (
+            <div key={platform} data-testid={`card-recommended-${platform}`}>
+              <PlatformCard
+                platform={platform}
+                info={info}
+                isConnected={connectedPlatforms.has(platform)}
+                onConnect={({ value }) => onConnect(platform, value)}
+                isPending={isPending}
+                oauthStatus={oauthStatus}
+                reason={reason}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="pt-2">
+        <Button
+          data-testid="button-toggle-show-all"
+          variant="ghost"
+          size="sm"
+          onClick={onToggleShowAll}
+        >
+          {showAll ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+          {showAll ? "Hide Other Platforms" : `Show All ${PLATFORMS.length} Platforms`}
+        </Button>
+      </div>
+
+      {showAll && remainingPlatforms.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-muted-foreground">Other Platforms</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {remainingPlatforms.map((platform) => {
+              const info = PLATFORM_INFO[platform];
+              return (
+                <PlatformCard
+                  key={platform}
+                  platform={platform}
+                  info={info}
+                  isConnected={connectedPlatforms.has(platform)}
+                  onConnect={({ value }) => onConnect(platform, value)}
+                  isPending={isPending}
+                  oauthStatus={oauthStatus}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewCreatorFlow({
+  onFinish,
+  onSkipToPlatforms,
+  onNicheSelected,
+  connectedPlatforms,
+  onConnect,
+  isPending,
+  oauthStatus,
+}: {
+  onFinish: () => void;
+  onSkipToPlatforms: () => void;
+  onNicheSelected: (niche: string) => void;
+  connectedPlatforms: Set<string>;
+  onConnect: (platform: Platform, value: string) => void;
+  isPending: boolean;
+  oauthStatus?: Record<string, { hasOAuth: boolean; configured: boolean }>;
+}) {
   const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
   const [customIdea, setCustomIdea] = useState("");
   const [aiResult, setAiResult] = useState<any>(null);
+  const [showPlatforms, setShowPlatforms] = useState(false);
+  const [showAllPlatforms, setShowAllPlatforms] = useState(false);
   const { toast } = useToast();
 
   const generateMutation = useMutation({
@@ -267,8 +543,9 @@ function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void;
     },
     onSuccess: (data) => {
       setAiResult(data);
+      if (selectedNiche) onNicheSelected(selectedNiche);
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "AI is thinking...",
         description: "We'll generate your plan in a moment. Try again.",
@@ -281,6 +558,41 @@ function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void;
     if (!selectedNiche) return;
     generateMutation.mutate(selectedNiche === "other" ? customIdea || "general content creation" : selectedNiche);
   };
+
+  if (aiResult && showPlatforms && selectedNiche) {
+    return (
+      <div className="space-y-6">
+        <RecommendedPlatforms
+          niche={selectedNiche}
+          connectedPlatforms={connectedPlatforms}
+          onConnect={onConnect}
+          isPending={isPending}
+          oauthStatus={oauthStatus}
+          showAll={showAllPlatforms}
+          onToggleShowAll={() => setShowAllPlatforms(!showAllPlatforms)}
+        />
+
+        <div className="mt-6 flex items-center justify-between gap-4 flex-wrap border-t border-border pt-6">
+          <Button
+            data-testid="button-back-to-roadmap"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowPlatforms(false)}
+          >
+            <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
+            Back to Roadmap
+          </Button>
+          <Button
+            data-testid="button-finish-setup"
+            onClick={onFinish}
+          >
+            Continue to Dashboard
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (aiResult) {
     return (
@@ -379,8 +691,15 @@ function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void;
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <Button
+            data-testid="button-connect-platforms"
+            onClick={() => setShowPlatforms(true)}
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            Connect Your Platforms
+          </Button>
+          <Button
             data-testid="button-create-youtube-channel"
-            variant="default"
+            variant="secondary"
             onClick={() => window.open("https://www.youtube.com/create_channel", "_blank")}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
@@ -388,15 +707,15 @@ function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void;
           </Button>
           <Button
             data-testid="button-continue-without-channel"
-            variant="secondary"
+            variant="ghost"
             onClick={onFinish}
           >
-            Continue to Dashboard
+            Skip to Dashboard
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          You can create your YouTube channel anytime. All AI tools are available even without one.
+          Connect platforms best suited for your {NICHE_OPTIONS.find((n) => n.id === selectedNiche)?.label?.toLowerCase() || ""} content, or go straight to the dashboard.
         </p>
       </div>
     );
@@ -410,7 +729,7 @@ function NewCreatorFlow({ onFinish, onSkipToPlatforms }: { onFinish: () => void;
         </div>
         <div>
           <h2 data-testid="text-new-creator-heading" className="text-lg font-display font-bold">Start Your Creator Journey</h2>
-          <p className="text-sm text-muted-foreground">No YouTube channel yet? No problem. Pick your niche and we'll build your roadmap.</p>
+          <p className="text-sm text-muted-foreground">Pick your niche and we'll build your roadmap and recommend the best platforms.</p>
         </div>
       </div>
 
@@ -528,12 +847,51 @@ function ChoiceScreen({ onChoose }: { onChoose: (choice: OnboardingStep) => void
   );
 }
 
+function ExistingCreatorNichePicker({
+  onNicheSelected,
+}: {
+  onNicheSelected: (niche: string) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
+          <Target className="h-5 w-5 text-primary-foreground" />
+        </div>
+        <div>
+          <h2 data-testid="text-niche-picker-heading" className="text-lg font-display font-bold">What type of content do you create?</h2>
+          <p className="text-sm text-muted-foreground">We'll show you the best platforms for your content</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {NICHE_OPTIONS.map((niche) => (
+          <Card
+            key={niche.id}
+            data-testid={`card-existing-niche-${niche.id}`}
+            className="cursor-pointer hover-elevate"
+            onClick={() => onNicheSelected(niche.id)}
+          >
+            <CardContent className="p-3 text-center space-y-1">
+              <niche.icon className="h-5 w-5 mx-auto text-muted-foreground" />
+              <p className="text-sm font-semibold">{niche.label}</p>
+              <p className="text-xs text-muted-foreground">{niche.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Onboarding({ onComplete }: { onComplete?: () => void }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [step, setStep] = useState<OnboardingStep>("choice");
+  const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
+  const [showAllPlatforms, setShowAllPlatforms] = useState(false);
 
   const { data: linkedChannels = [], isLoading } = useQuery<LinkedChannel[]>({
     queryKey: ["/api/linked-channels"],
@@ -666,6 +1024,11 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
               <NewCreatorFlow
                 onFinish={finishOnboarding}
                 onSkipToPlatforms={() => setStep("existing-creator")}
+                onNicheSelected={setSelectedNiche}
+                connectedPlatforms={connectedPlatforms}
+                onConnect={handleConnect}
+                isPending={connectMutation.isPending}
+                oauthStatus={oauthStatus}
               />
             </>
           ) : (
@@ -676,7 +1039,11 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
                     data-testid="button-back-to-choice"
                     size="sm"
                     variant="ghost"
-                    onClick={() => setStep("choice")}
+                    onClick={() => {
+                      setStep("choice");
+                      setSelectedNiche(null);
+                      setShowAllPlatforms(false);
+                    }}
                   >
                     <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
                     Back
@@ -692,40 +1059,41 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
                   data-testid="text-onboarding-subtitle"
                   className="mt-2 text-sm text-muted-foreground max-w-xl"
                 >
-                  Link your existing channels and accounts to unlock full automation across all your platforms.
+                  {selectedNiche
+                    ? `Here are the best platforms for your ${NICHE_OPTIONS.find((n) => n.id === selectedNiche)?.label?.toLowerCase() || ""} content. Connect them to unlock full automation.`
+                    : "Tell us what kind of content you create so we can recommend the best platforms for you."}
                 </p>
               </div>
 
-              <div className="space-y-8">
-                {CATEGORIES.map((category) => (
-                  <div key={category.key}>
-                    <h2
-                      data-testid={`text-category-${category.key}`}
-                      className="text-sm font-medium text-muted-foreground mb-3"
-                    >
-                      {category.label}
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {category.platforms.map((platform) => {
-                        const info = PLATFORM_INFO[platform];
-                        return (
-                          <PlatformCard
-                            key={platform}
-                            platform={platform}
-                            info={info}
-                            isConnected={connectedPlatforms.has(platform)}
-                            onConnect={({ value }) => handleConnect(platform, value)}
-                            isPending={connectMutation.isPending}
-                            oauthStatus={oauthStatus}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {!selectedNiche ? (
+                <ExistingCreatorNichePicker onNicheSelected={setSelectedNiche} />
+              ) : (
+                <RecommendedPlatforms
+                  niche={selectedNiche}
+                  connectedPlatforms={connectedPlatforms}
+                  onConnect={handleConnect}
+                  isPending={connectMutation.isPending}
+                  oauthStatus={oauthStatus}
+                  showAll={showAllPlatforms}
+                  onToggleShowAll={() => setShowAllPlatforms(!showAllPlatforms)}
+                />
+              )}
 
               <div className="mt-10 flex items-center justify-between gap-4 flex-wrap border-t border-border pt-6">
+                {selectedNiche && (
+                  <Button
+                    data-testid="button-change-niche"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedNiche(null);
+                      setShowAllPlatforms(false);
+                    }}
+                  >
+                    <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
+                    Change Content Type
+                  </Button>
+                )}
                 <p className="text-sm text-muted-foreground" data-testid="text-progress-summary">
                   {connectedCount} of {PLATFORMS.length} platforms connected
                 </p>
