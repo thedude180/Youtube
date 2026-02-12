@@ -11,6 +11,7 @@ export interface OAuthPlatformConfig {
   responseType?: string;
   additionalAuthParams?: Record<string, string>;
   requiresPKCE?: boolean;
+  pkceChallengeMethod?: "plain" | "S256";
   usesClientKey?: boolean;
   tokenAuthMethod?: "body" | "header";
   userInfoUrl?: string;
@@ -78,12 +79,22 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
   kick: {
     platform: "kick",
     label: "Kick",
-    authUrl: "https://kick.com/oauth/authorize",
-    tokenUrl: "https://kick.com/oauth/token",
-    scopes: ["user:read", "channel:read"],
+    authUrl: "https://id.kick.com/oauth/authorize",
+    tokenUrl: "https://id.kick.com/oauth/token",
+    scopes: ["user:read", "channel:read", "chat:read", "chat:write", "streamkey:read", "events:subscribe"],
     clientIdEnv: "KICK_CLIENT_ID",
     clientSecretEnv: "KICK_CLIENT_SECRET",
+    requiresPKCE: true,
+    pkceChallengeMethod: "S256",
     tokenAuthMethod: "body",
+    userInfoUrl: "https://api.kick.com/public/v1/users",
+    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
+    parseUserId: (data) => ({
+      id: String(data.data?.[0]?.user_id || data.data?.user_id || data.user_id || ""),
+      username: data.data?.[0]?.name || data.data?.name || data.name || "",
+      displayName: data.data?.[0]?.name || data.data?.name || data.name || "",
+      profileUrl: `https://kick.com/${data.data?.[0]?.slug || data.data?.slug || data.slug || ""}`,
+    }),
   },
 };
 

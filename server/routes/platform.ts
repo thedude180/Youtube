@@ -768,8 +768,15 @@ export async function registerPlatformRoutes(app: Express) {
       params.set("client_key", clientId);
     }
     if (config.requiresPKCE && codeVerifier) {
-      params.set("code_challenge", codeVerifier);
-      params.set("code_challenge_method", "plain");
+      if (config.pkceChallengeMethod === "S256") {
+        const hash = crypto.createHash("sha256").update(codeVerifier).digest();
+        const codeChallenge = hash.toString("base64url");
+        params.set("code_challenge", codeChallenge);
+        params.set("code_challenge_method", "S256");
+      } else {
+        params.set("code_challenge", codeVerifier);
+        params.set("code_challenge_method", "plain");
+      }
     }
 
     const authUrl = `${config.authUrl}?${params.toString()}`;
