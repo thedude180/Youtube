@@ -50,6 +50,12 @@ interface ApplicationGuide {
   whatToSay: string;
 }
 
+interface ComplianceRisk {
+  risk: string;
+  severity: string;
+  recommendation: string;
+}
+
 interface GrowthProgram {
   id: number;
   platform: string;
@@ -66,6 +72,10 @@ interface GrowthProgram {
   applicationStatus: string;
   notifiedAt: string | null;
   applicationGuide: ApplicationGuide | null;
+  monetizationActive: boolean;
+  complianceStatus: string;
+  complianceRisks: ComplianceRisk[] | null;
+  lastComplianceCheck: string | null;
   lastChecked: string;
 }
 
@@ -187,6 +197,28 @@ export default function GrowthProgramsTab() {
     },
   });
 
+  const activateMonetization = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/growth-programs/${id}/activate-monetization`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/growth-programs"] });
+      toast({ title: "Monetization activated! Compliance monitoring is now active." });
+    },
+  });
+
+  const checkCompliance = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", "/api/growth-programs/compliance");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/growth-programs"] });
+      toast({ title: "Compliance check completed" });
+    },
+  });
+
   const toggleExpand = (id: number) => {
     setExpandedPrograms(prev => {
       const next = new Set(prev);
@@ -204,6 +236,8 @@ export default function GrowthProgramsTab() {
   const eligibleCount = programs.filter(p => p.eligibilityMet).length;
   const inProgressCount = programs.filter(p => p.status === "in_progress").length;
   const autoApplyCount = programs.filter(p => p.autoApplyEnabled).length;
+  const monetizedCount = programs.filter(p => p.monetizationActive).length;
+  const atRiskCount = programs.filter(p => p.complianceStatus === "at_risk").length;
   const totalCount = programs.length;
 
   if (isLoading) {
@@ -222,6 +256,17 @@ export default function GrowthProgramsTab() {
           <p className="text-sm text-muted-foreground">Maximize earnings with AI-monitored auto-apply for every platform's creator programs</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {monetizedCount > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => checkCompliance.mutate()}
+              disabled={checkCompliance.isPending}
+              data-testid="button-compliance-check"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              {checkCompliance.isPending ? "Checking..." : "Compliance Check"}
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => enableAllAutoApply.mutate()}
@@ -242,7 +287,18 @@ export default function GrowthProgramsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-md bg-green-500/10 flex items-center justify-center shrink-0">
+              <DollarSign className="h-5 w-5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold" data-testid="text-monetized-count">{monetizedCount}</p>
+              <p className="text-xs text-muted-foreground">Earning</p>
+            </div>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-10 w-10 rounded-md bg-green-500/10 flex items-center justify-center shrink-0">
@@ -283,11 +339,28 @@ export default function GrowthProgramsTab() {
             </div>
             <div>
               <p className="text-2xl font-bold" data-testid="text-total-count">{totalCount}</p>
-              <p className="text-xs text-muted-foreground">Total Programs</p>
+              <p className="text-xs text-muted-foreground">Total</p>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {atRiskCount > 0 && (
+        <Card className="border-red-500/30 bg-red-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Compliance Alert</p>
+                <p className="text-xs text-muted-foreground">
+                  {atRiskCount} program{atRiskCount > 1 ? "s are" : " is"} at risk of losing monetization.
+                  Expand the affected programs below to see specific issues and recommendations.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-blue-500/30 bg-blue-500/5">
         <CardContent className="p-4">
@@ -430,7 +503,22 @@ export default function GrowthProgramsTab() {
                         ) : (
                           <Badge variant="outline" className="text-[10px]">Not Started</Badge>
                         )}
-                        {program.applicationStatus !== "not_applied" && (
+                        {program.monetizationActive && (
+                          <Badge variant="default" className="text-[10px] bg-emerald-600">
+                            <DollarSign className="h-2.5 w-2.5 mr-0.5" />Earning
+                          </Badge>
+                        )}
+                        {program.complianceStatus === "at_risk" && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            <AlertCircle className="h-2.5 w-2.5 mr-0.5" />At Risk
+                          </Badge>
+                        )}
+                        {program.complianceStatus === "warning" && (
+                          <Badge variant="outline" className="text-[10px] text-amber-500">
+                            <AlertCircle className="h-2.5 w-2.5 mr-0.5" />Warning
+                          </Badge>
+                        )}
+                        {program.applicationStatus !== "not_applied" && !program.monetizationActive && (
                           <Badge variant="outline" className={`text-[10px] ${appStatusCfg.color}`}>
                             <AppStatusIcon className="h-2.5 w-2.5 mr-0.5" />{appStatusCfg.label}
                           </Badge>
@@ -631,6 +719,78 @@ export default function GrowthProgramsTab() {
                           </div>
                         )}
                       </div>
+
+                      {program.monetizationActive && (
+                        <div className={`rounded-md border p-3 ${
+                          program.complianceStatus === "at_risk" ? "border-red-500/30 bg-red-500/5" :
+                          program.complianceStatus === "warning" ? "border-amber-500/30 bg-amber-500/5" :
+                          "border-green-500/30 bg-green-500/5"
+                        }`} data-testid={`card-compliance-${program.id}`}>
+                          <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <Shield className={`h-4 w-4 ${
+                                program.complianceStatus === "at_risk" ? "text-red-500" :
+                                program.complianceStatus === "warning" ? "text-amber-500" :
+                                "text-green-500"
+                              }`} />
+                              <p className="text-xs font-medium">Compliance Monitor</p>
+                              <Badge variant={
+                                program.complianceStatus === "at_risk" ? "destructive" :
+                                program.complianceStatus === "warning" ? "outline" : "default"
+                              } className="text-[10px]">
+                                {program.complianceStatus === "at_risk" ? "At Risk" :
+                                 program.complianceStatus === "warning" ? "Warning" : "Compliant"}
+                              </Badge>
+                            </div>
+                            {program.lastComplianceCheck && (
+                              <span className="text-[10px] text-muted-foreground">
+                                Last checked: {new Date(program.lastComplianceCheck).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+
+                          {program.complianceRisks && program.complianceRisks.length > 0 ? (
+                            <div className="space-y-2">
+                              {program.complianceRisks.map((risk, i) => (
+                                <div key={i} className="space-y-0.5">
+                                  <div className="flex items-start gap-1.5 text-xs">
+                                    <AlertCircle className={`h-3 w-3 mt-0.5 shrink-0 ${
+                                      risk.severity === "critical" ? "text-red-500" :
+                                      risk.severity === "warning" ? "text-amber-500" : "text-blue-500"
+                                    }`} />
+                                    <span className="font-medium">{risk.risk}</span>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground ml-4.5 pl-[18px]">{risk.recommendation}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-green-600">All requirements met. Your monetization status is secure.</p>
+                          )}
+                        </div>
+                      )}
+
+                      {!program.monetizationActive && (program.applicationStatus === "applied" || program.applicationStatus === "approved") && (
+                        <div className="rounded-md border border-green-500/30 p-3 bg-green-500/5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium">Got accepted?</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Once approved, CreatorOS will activate monetization and start compliance monitoring to protect your earnings.
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => activateMonetization.mutate(program.id)}
+                              disabled={activateMonetization.isPending}
+                              data-testid={`button-activate-monetization-${program.id}`}
+                            >
+                              <DollarSign className="h-3.5 w-3.5 mr-1.5" />
+                              I Got Accepted
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
                       {program.aiRecommendations && (
                         <div className="rounded-md border p-3 bg-muted/20">

@@ -21,6 +21,7 @@ import {
   getUserGrowthPrograms, generateGrowthRecommendations,
   updateProgramMetrics, autoDetectAndUpdateMetrics,
   toggleAutoApply, updateApplicationStatus, generateApplicationGuide,
+  activateMonetization, runComplianceCheck,
 } from "../growth-programs-engine";
 
 export function registerSettingsRoutes(app: Express) {
@@ -602,6 +603,31 @@ export function registerSettingsRoutes(app: Express) {
       res.json({ success: true, count: programs.length });
     } catch (error: any) {
       console.error("Enable all auto-apply error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/growth-programs/:id/activate-monetization", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const updated = await activateMonetization(userId, Number(req.params.id));
+      if (!updated) return res.status(404).json({ message: "Program not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Activate monetization error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/growth-programs/compliance", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const results = await runComplianceCheck(userId);
+      res.json(results);
+    } catch (error: any) {
+      console.error("Compliance check error:", error);
       res.status(500).json({ message: error.message });
     }
   });

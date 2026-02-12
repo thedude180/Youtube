@@ -269,11 +269,13 @@ export async function initAutomationEngine() {
 
   cron.schedule("0 */2 * * *", async () => {
     try {
-      const { autoDetectAndUpdateMetrics } = await import("./growth-programs-engine");
+      const { runComplianceCheck } = await import("./growth-programs-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
       for (const userId of userIds) {
-        if (userId) await autoDetectAndUpdateMetrics(userId);
+        if (userId) {
+          await runComplianceCheck(userId);
+        }
       }
     } catch (err) {
       console.error("[AutomationEngine] Growth program monitoring error:", err);

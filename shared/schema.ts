@@ -1972,6 +1972,14 @@ export const platformGrowthPrograms = pgTable("platform_growth_programs", {
     estimatedTime: string;
     whatToSay: string;
   }>(),
+  monetizationActive: boolean("monetization_active").default(false),
+  complianceStatus: text("compliance_status").default("not_applicable"),
+  complianceRisks: jsonb("compliance_risks").$type<{
+    risk: string;
+    severity: string;
+    recommendation: string;
+  }[]>(),
+  lastComplianceCheck: timestamp("last_compliance_check"),
   lastChecked: timestamp("last_checked").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({

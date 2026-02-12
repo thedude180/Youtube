@@ -300,6 +300,21 @@ export class DatabaseStorage implements IStorage {
 
   async createChannel(channel: InsertChannel): Promise<Channel> {
     const [newChannel] = await db.insert(channels).values(channel).returning();
+
+    if (channel.userId) {
+      import("./growth-programs-engine").then(({ initializeGrowthPrograms, autoDetectAndUpdateMetrics }) => {
+        initializeGrowthPrograms(channel.userId!).then(() => {
+          autoDetectAndUpdateMetrics(channel.userId!);
+        }).catch(err => console.error("[Storage] Growth programs init error:", err));
+      }).catch(() => {});
+
+      import("./growth-programs-engine").then(({ enableAutoApplyForPlatform }) => {
+        enableAutoApplyForPlatform(channel.userId!, newChannel.platform).catch(err =>
+          console.error("[Storage] Auto-apply enable error:", err)
+        );
+      }).catch(() => {});
+    }
+
     return newChannel;
   }
 

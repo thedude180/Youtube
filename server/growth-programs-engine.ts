@@ -523,6 +523,10 @@ export async function updateApplicationStatus(
     ));
   if (!program) return null;
 
+  if (status === "approved") {
+    return activateMonetization(userId, programId);
+  }
+
   const [updated] = await db.update(platformGrowthPrograms)
     .set({ applicationStatus: status })
     .where(eq(platformGrowthPrograms.id, programId))
@@ -564,6 +568,164 @@ async function checkAndNotifyEligible(userId: string) {
       }
     }
   }
+}
+
+export async function enableAutoApplyForPlatform(userId: string, platform: string) {
+  await initializeGrowthPrograms(userId);
+  const programs = await db.select().from(platformGrowthPrograms)
+    .where(and(
+      eq(platformGrowthPrograms.userId, userId),
+      eq(platformGrowthPrograms.platform, platform),
+    ));
+
+  for (const program of programs) {
+    if (!program.autoApplyEnabled) {
+      await db.update(platformGrowthPrograms)
+        .set({ autoApplyEnabled: true })
+        .where(eq(platformGrowthPrograms.id, program.id));
+    }
+  }
+
+  console.log(`[GrowthPrograms] Auto-apply enabled for ${programs.length} programs on ${platform} for user ${userId}`);
+}
+
+export async function activateMonetization(userId: string, programId: number) {
+  const [program] = await db.select().from(platformGrowthPrograms)
+    .where(and(
+      eq(platformGrowthPrograms.id, programId),
+      eq(platformGrowthPrograms.userId, userId),
+    ));
+  if (!program) return null;
+
+  const [updated] = await db.update(platformGrowthPrograms)
+    .set({
+      monetizationActive: true,
+      applicationStatus: "approved",
+      complianceStatus: "compliant",
+      lastComplianceCheck: new Date(),
+    })
+    .where(eq(platformGrowthPrograms.id, programId))
+    .returning();
+
+  try {
+    const { storage } = await import("./storage");
+    await storage.createNotification({
+      userId,
+      title: `Monetization Active: ${program.programName}`,
+      message: `${program.programName} is now active! CreatorOS will monitor compliance to protect your monetization status.`,
+      type: "growth_program",
+      priority: "high",
+      actionUrl: `/settings?tab=growth`,
+    });
+  } catch (err) {
+    console.error("[GrowthPrograms] Activation notification error:", err);
+  }
+
+  return updated;
+}
+
+export async function runComplianceCheck(userId: string) {
+  await autoDetectAndUpdateMetrics(userId);
+
+  const programs = await db.select().from(platformGrowthPrograms)
+    .where(and(
+      eq(platformGrowthPrograms.userId, userId),
+      eq(platformGrowthPrograms.monetizationActive, true),
+    ));
+
+  if (programs.length === 0) return [];
+
+  const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+  const results: { programId: number; programName: string; platform: string; status: string; risks: any[] }[] = [];
+
+  for (const program of programs) {
+    const channel = userChannels.find(c => c.platform === program.platform);
+    const requirements = (program.requirements || []) as { metric: string; current: number; target: number; met: boolean }[];
+    const risks: { risk: string; severity: string; recommendation: string }[] = [];
+
+    for (const req of requirements) {
+      if (!req.met) {
+        const pct = req.target > 0 ? (req.current / req.target) * 100 : 0;
+        risks.push({
+          risk: `${req.metric} below requirement (${req.current}/${req.target})`,
+          severity: pct < 50 ? "critical" : pct < 80 ? "warning" : "info",
+          recommendation: getComplianceRecommendation(req.metric, program.platform),
+        });
+      } else {
+        const buffer = req.target > 0 ? ((req.current - req.target) / req.target) * 100 : 100;
+        if (buffer < 10 && buffer >= 0) {
+          risks.push({
+            risk: `${req.metric} barely above minimum (${req.current}/${req.target}) - only ${buffer.toFixed(0)}% buffer`,
+            severity: "warning",
+            recommendation: `Grow your ${req.metric.toLowerCase()} to maintain a safe buffer above the minimum requirement.`,
+          });
+        }
+      }
+    }
+
+    if (!channel) {
+      risks.push({
+        risk: "Channel not connected",
+        severity: "critical",
+        recommendation: "Reconnect your channel to maintain platform compliance.",
+      });
+    }
+
+    const complianceStatus = risks.some(r => r.severity === "critical") ? "at_risk"
+      : risks.some(r => r.severity === "warning") ? "warning"
+      : "compliant";
+
+    await db.update(platformGrowthPrograms)
+      .set({
+        complianceStatus,
+        complianceRisks: risks.length > 0 ? risks : null,
+        lastComplianceCheck: new Date(),
+      })
+      .where(eq(platformGrowthPrograms.id, program.id));
+
+    if (complianceStatus === "at_risk") {
+      try {
+        const { storage } = await import("./storage");
+        await storage.createNotification({
+          userId,
+          title: `Compliance Risk: ${program.programName}`,
+          message: `Your ${program.programName} status is at risk. ${risks.filter(r => r.severity === "critical").map(r => r.risk).join(". ")}`,
+          type: "growth_program",
+          priority: "high",
+          actionUrl: `/settings?tab=growth`,
+        });
+      } catch (err) {
+        console.error("[GrowthPrograms] Compliance notification error:", err);
+      }
+    }
+
+    results.push({
+      programId: program.id,
+      programName: program.programName,
+      platform: program.platform,
+      status: complianceStatus,
+      risks,
+    });
+  }
+
+  return results;
+}
+
+function getComplianceRecommendation(metric: string, platform: string): string {
+  const m = metric.toLowerCase();
+  if (m.includes("subscriber") || m.includes("follower")) {
+    return `Increase ${platform} content frequency and cross-promote from other platforms to recover ${metric.toLowerCase()}.`;
+  }
+  if (m.includes("watch hour") || m.includes("view")) {
+    return `Create more engaging long-form content and optimize titles/thumbnails to boost ${metric.toLowerCase()}.`;
+  }
+  if (m.includes("stream") || m.includes("broadcast")) {
+    return `Maintain a consistent streaming schedule to meet the minimum ${metric.toLowerCase()} requirement.`;
+  }
+  if (m.includes("viewer") || m.includes("communicator")) {
+    return `Engage your community more actively and use raids/hosts to maintain ${metric.toLowerCase()}.`;
+  }
+  return `Take action to maintain your ${metric.toLowerCase()} above the minimum threshold.`;
 }
 
 export async function generateApplicationGuide(
