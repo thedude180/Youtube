@@ -32,6 +32,8 @@ const Landing = lazy(() => import("@/pages/Landing"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const PrivacyPolicy = lazy(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
+const TermsOfService = lazy(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
 const FloatingChat = lazy(() => import("@/components/FloatingChat"));
 
 const sidebarStyle = {
@@ -52,6 +54,8 @@ function Router() {
       <Route path="/money/:tab" component={Money} />
       <Route path="/notifications" component={Notifications} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/privacy" component={PrivacyPolicy} />
+      <Route path="/terms" component={TermsOfService} />
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>
