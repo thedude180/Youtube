@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -746,7 +747,8 @@ export default function MoneyAIToolSuites() {
   };
 
   return (
-    <>
+    <CollapsibleToolbox title="AI Money Tools" toolCount={40}>
+      <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
@@ -2272,6 +2274,7 @@ export default function MoneyAIToolSuites() {
           </div>
         )}
       </div>
-    </>
+      </div>
+    </CollapsibleToolbox>
   );
 }

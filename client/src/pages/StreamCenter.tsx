@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1212,6 +1213,9 @@ export default function StreamCenter() {
         </CardContent>
       </Card>
 
+      <CollapsibleToolbox title="AI Stream Tools" toolCount={100}>
+      <div className="space-y-3">
+
       <div className="border rounded-md overflow-visible">
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
@@ -2160,6 +2164,9 @@ export default function StreamCenter() {
           </div>
         )}
       </div>
+
+      </div>
+      </CollapsibleToolbox>
 
       {liveStream && <LiveBanner stream={liveStream} onEnd={() => endStream.mutate(liveStream.id)} isEnding={endStream.isPending} />}
 

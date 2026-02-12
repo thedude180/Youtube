@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, CalendarDays, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -371,6 +372,8 @@ function LegalTab() {
         </CardContent>
       </Card>
 
+      <CollapsibleToolbox title="AI Legal Tools" toolCount={25}>
+      <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
@@ -869,6 +872,8 @@ function LegalTab() {
           </div>
         )}
       </div>
+      </div>
+      </CollapsibleToolbox>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -325,6 +326,8 @@ function LearningTab() {
         </div>
       )}
 
+      <CollapsibleToolbox title="AI Learning Tools" toolCount={15}>
+      <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
@@ -469,6 +472,8 @@ function LearningTab() {
           </div>
         )}
       </div>
+      </div>
+      </CollapsibleToolbox>
     </div>
   );
 }

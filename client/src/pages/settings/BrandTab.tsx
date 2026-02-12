@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Plus, Palette, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -402,6 +403,8 @@ function BrandTab() {
         </div>
       )}
 
+      <CollapsibleToolbox title="AI Brand Tools" toolCount={15}>
+      <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
@@ -578,6 +581,8 @@ function BrandTab() {
           </div>
         )}
       </div>
+      </div>
+      </CollapsibleToolbox>
     </div>
   );
 }

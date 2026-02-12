@@ -29,6 +29,7 @@ import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
 import { EmptyState } from "@/components/EmptyState";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import { format, startOfWeek, addDays, isToday, isSameDay } from "date-fns";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter,
@@ -2736,6 +2737,9 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
           </CardContent>
         </Card>
       )}
+
+      <CollapsibleToolbox title="AI Content Tools" toolCount={200}>
+      <div className="space-y-3">
 
       <div className="border rounded-md overflow-visible">
         <button
@@ -6055,6 +6059,9 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
           </div>
         )}
       </div>
+
+      </div>
+      </CollapsibleToolbox>
     </div>
   );
 }

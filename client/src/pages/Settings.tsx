@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Shield, Zap, AlertTriangle, Save, LogOut, Link2, Bell,
   Plus, Sparkles, CalendarDays, Heart, BookOpen, CheckCircle2,
@@ -1950,6 +1951,9 @@ function GeneralTab() {
           </CardContent>
         </Card>
       ) : null}
+
+      <CollapsibleToolbox title="AI Settings Tools" toolCount={150}>
+      <div className="space-y-3">
 
       <div className="border rounded-md overflow-visible">
         <button
@@ -4519,6 +4523,9 @@ function GeneralTab() {
           </div>
         )}
       </div>
+
+      </div>
+      </CollapsibleToolbox>
     </div>
   );
 }

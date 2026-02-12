@@ -1,32 +1,62 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { useDashboardStats } from "@/hooks/use-dashboard";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { useLazyVisible } from "@/hooks/use-lazy-visible";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import {
   Film,
+  ArrowRight,
   DollarSign,
   Bot,
+  CheckCircle2,
   Zap,
   Briefcase,
   Heart,
   Shield,
+  TrendingUp,
+  Sparkles,
   Activity,
+  Scissors,
+  BarChart3,
+  Lightbulb,
+  Trophy,
+  Star,
+  Rocket,
+  Flame,
+  Crown,
+  Newspaper,
+  MessageSquare,
+  Globe,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PlatformBadge } from "@/components/PlatformIcon";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import DashboardSkeleton from "./dashboard/DashboardSkeleton";
 import MetricsGrid from "./dashboard/MetricsGrid";
 import BusinessHealthSection from "./dashboard/BusinessHealthSection";
+import AIActionCenter from "./dashboard/AIActionCenter";
+
+const LazyAdvancedMetrics = lazy(() => import("./dashboard/AdvancedMetrics"));
+const LazyAIInsightsSection = lazy(() => import("./dashboard/AIInsightsSection"));
+const LazyAIToolSuites = lazy(() => import("./dashboard/AIToolSuites"));
+const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
+const LazyDailyBriefing = lazy(() => import("./dashboard/DailyBriefingSection"));
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -35,6 +65,7 @@ interface AgentStatus {
   name: string;
   status: "active" | "idle" | "error";
   lastRun?: string;
+  icon?: string;
 }
 
 interface AgentActivity {
@@ -44,6 +75,24 @@ interface AgentActivity {
   target?: string;
   result?: string;
   createdAt: string;
+}
+
+interface DashboardChannel {
+  id: number;
+  channelName: string;
+  platform: string;
+  subscriberCount?: number;
+  videoCount?: number;
+}
+
+interface AIResult {
+  recommendations?: string[];
+  tips?: string[];
+  results?: string[];
+  actions?: string[];
+  insights?: string[];
+  items?: string[];
+  [key: string]: unknown;
 }
 
 const healthAreas = [
@@ -57,13 +106,25 @@ const healthAreas = [
 export default function Dashboard() {
   usePageTitle("Dashboard");
   useSSE();
+  const { toast } = useToast();
   const { user } = useAuth();
+  const { isAdvanced: advancedMode } = useAdvancedMode();
+  const [belowFoldRef, belowFoldVisible] = useLazyVisible("400px");
   const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
   const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'] });
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'] });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
+  const { data: channels } = useQuery<DashboardChannel[]>({ queryKey: ['/api/channels'] });
   const { data: wellness } = useQuery<any[]>({ queryKey: ['/api/wellness'] });
+  const { data: goals } = useQuery<any[]>({ queryKey: ['/api/goals'], enabled: belowFoldVisible });
+  const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'], enabled: belowFoldVisible });
+  const { data: briefing } = useQuery<AIResult>({ queryKey: ['/api/learning/briefing'], enabled: belowFoldVisible });
+  const { data: optHealth } = useQuery<AIResult>({ queryKey: ['/api/optimization/health-score'], enabled: belowFoldVisible });
+  const { data: shortsStatus } = useQuery<AIResult>({ queryKey: ['/api/shorts/status'], enabled: belowFoldVisible });
+  const { data: trendingTopics } = useQuery<any[]>({ queryKey: ['/api/optimization/trending-topics'], enabled: belowFoldVisible });
 
+  const [aiActions, setAiActions] = useState<AIResponse>(null);
+  const [aiActionsLoading, setAiActionsLoading] = useState(false);
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
     const stored = localStorage.getItem("humanReviewMode");
     return stored === null ? false : stored === "true";
@@ -81,16 +142,44 @@ export default function Dashboard() {
   const tasksToday = useMemo(() => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    return agentActivities?.filter((a) => new Date(a.createdAt) >= todayStart)?.length || 0;
+    return agentActivities?.filter((a) => {
+      const created = new Date(a.createdAt);
+      return created >= todayStart;
+    })?.length || 0;
   }, [agentActivities]);
 
+  useEffect(() => {
+    if (!user) return;
+    const cached = sessionStorage.getItem("aiDashboardActions");
+    if (cached) {
+      try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiActions(e.data); } else { sessionStorage.removeItem("aiDashboardActions"); } } catch {}
+    } else if (!aiActionsLoading && !aiActions) {
+      setAiActionsLoading(true);
+      apiRequest("POST", "/api/ai/dashboard-actions", {})
+        .then(r => r.json())
+        .then(data => {
+          setAiActions(data);
+          sessionStorage.setItem("aiDashboardActions", JSON.stringify({ data, ts: Date.now() }));
+        })
+        .catch(() => {})
+        .finally(() => setAiActionsLoading(false));
+    }
+  }, [user]);
+
   const recentNotifications = useMemo(() =>
-    (notifications || []).filter((n) => !n.read).slice(0, 4),
+    notifications?.slice(0, 5) || [],
     [notifications]
   );
 
+  const unreadNotifications = useMemo(() =>
+    (notifications || []).filter((n) => !n.read),
+    [notifications]
+  );
+
+  const platformCount = useMemo(() => channels?.length || 0, [channels]);
+
   const recentActivities = useMemo(() =>
-    (agentActivities || []).slice(0, 4),
+    (agentActivities || []).slice(0, 5),
     [agentActivities]
   );
 
@@ -145,11 +234,20 @@ export default function Dashboard() {
     return "bg-red-400";
   };
 
+  const activeGoals = useMemo(() =>
+    goals?.filter((g: any) => g.status === "active") || [],
+    [goals]
+  );
+  const activeVentures = useMemo(() =>
+    ventures?.filter((v: any) => v.status === "active") || [],
+    [ventures]
+  );
+
   if (statsLoading) return <DashboardSkeleton />;
 
   if (statsError) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+      <div className="p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
         <QueryErrorReset error={statsError} queryKey={["/api/dashboard/stats"]} label="Failed to load dashboard" />
       </div>
     );
@@ -159,7 +257,7 @@ export default function Dashboard() {
     { label: "Videos", value: stats?.totalVideos || 0, icon: Film },
     { label: "Revenue", value: `$${(stats?.totalRevenue || 0).toLocaleString()}`, icon: DollarSign },
     { label: "AI Agents", value: `${activeAgents}/11`, icon: Bot },
-    { label: "Tasks Today", value: tasksToday, icon: Zap },
+    { label: "AI Tasks Today", value: tasksToday, icon: Zap },
   ];
 
   const severityColor = (severity: string) => {
@@ -212,7 +310,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-3">
               <label htmlFor="human-review-toggle" className="text-xs text-muted-foreground cursor-pointer">
-                Human Review
+                Human Review Mode
               </label>
               <Switch
                 id="human-review-toggle"
@@ -237,12 +335,13 @@ export default function Dashboard() {
                 <Heart className="h-5 w-5 text-primary" />
                 <div>
                   <p className="text-sm font-medium">Daily Check-In</p>
-                  <p className="text-xs text-muted-foreground">Track your wellness to prevent burnout.</p>
+                  <p className="text-xs text-muted-foreground">How are you feeling today? Track your wellness to prevent burnout.</p>
                 </div>
               </div>
               <Link href="/settings/wellness">
                 <Button size="sm" data-testid="button-dashboard-checkin">
-                  Check In
+                  <Heart className="h-4 w-4 mr-1" />
+                  Check In Now
                 </Button>
               </Link>
             </div>
@@ -250,49 +349,47 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {recentNotifications.length > 0 && (
-        <Card data-testid="card-notifications">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-sm font-medium">Recent Alerts</p>
-              <Badge variant="secondary" className="text-xs">{recentNotifications.length} unread</Badge>
-            </div>
-            <div className="space-y-2">
-              {recentNotifications.map((n) => (
-                <div key={n.id} data-testid={`notification-${n.id}`} className="flex items-start gap-3">
-                  <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${severityColor(n.severity || "info")}`} />
-                  <div className="min-w-0">
-                    <p className="text-sm">{n.title}</p>
-                    <p className="text-xs text-muted-foreground">{n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true }) : ""}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <AIActionCenter aiActions={aiActions} aiActionsLoading={aiActionsLoading} />
 
-      {recentActivities.length > 0 && (
-        <Card data-testid="card-activity-feed">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm font-medium">Recent AI Activity</p>
-            </div>
-            <div className="space-y-2">
-              {recentActivities.map((a) => (
-                <div key={a.id} data-testid={`activity-${a.id}`} className="flex items-start gap-3">
-                  <Bot className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm">{a.action}{a.target ? ` - ${a.target}` : ""}</p>
-                    <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.createdAt), { addSuffix: true })}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Suspense fallback={<Skeleton className="h-12 w-full" />}>
+        <LazyActivityFeedSection
+          recentNotifications={recentNotifications}
+          recentActivities={recentActivities}
+          severityColor={severityColor}
+        />
+      </Suspense>
+
+      <div ref={belowFoldRef} />
+
+      <CollapsibleToolbox title="AI Insights & Briefing" toolCount={3}>
+        <div className="space-y-4">
+          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+            <LazyAIInsightsSection />
+          </Suspense>
+          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+            <LazyDailyBriefing briefing={briefing} />
+          </Suspense>
+        </div>
+      </CollapsibleToolbox>
+
+      <CollapsibleToolbox title="Advanced Metrics" toolCount={6}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <LazyAdvancedMetrics
+            advancedMode={advancedMode}
+            optHealth={optHealth}
+            shortsStatus={shortsStatus}
+            trendingTopics={trendingTopics}
+            activeGoals={activeGoals}
+            activeVentures={activeVentures}
+          />
+        </Suspense>
+      </CollapsibleToolbox>
+
+      <CollapsibleToolbox title="AI Tool Suites" toolCount={200}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <LazyAIToolSuites />
+        </Suspense>
+      </CollapsibleToolbox>
     </div>
   );
 }

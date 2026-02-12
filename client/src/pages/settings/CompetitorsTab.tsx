@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { Sparkles, Plus, Eye, Trash2, Link as LinkIcon, ChevronDown, ChevronUp } from "lucide-react";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -358,6 +359,8 @@ function CompetitorsTab() {
         </div>
       )}
 
+      <CollapsibleToolbox title="AI Competitor Tools" toolCount={20}>
+      <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
@@ -599,6 +602,8 @@ function CompetitorsTab() {
           </div>
         )}
       </div>
+      </div>
+      </CollapsibleToolbox>
     </div>
   );
 }

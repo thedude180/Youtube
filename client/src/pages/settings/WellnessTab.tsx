@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Heart, ChevronDown, ChevronUp } from "lucide-react";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -603,6 +604,8 @@ function WellnessTab() {
         </div>
       )}
 
+      <CollapsibleToolbox title="AI Wellness Tools" toolCount={30}>
+      <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
@@ -1197,6 +1200,8 @@ function WellnessTab() {
           </div>
         )}
       </div>
+      </div>
+      </CollapsibleToolbox>
     </div>
   );
 }
