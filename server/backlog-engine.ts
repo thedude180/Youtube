@@ -322,9 +322,11 @@ async function processBacklogAsync(
 
 function waitForStreamEnd(userId: string): Promise<void> {
   return new Promise((resolve) => {
+    const MAX_WAIT_MS = 12 * 60 * 60 * 1000;
+    const startTime = Date.now();
     const check = setInterval(() => {
       const session = sessions.get(userId);
-      if (!session || session.state !== "stream_active") {
+      if (!session || session.state !== "stream_active" || (Date.now() - startTime) > MAX_WAIT_MS) {
         clearInterval(check);
         resolve();
       }
@@ -440,16 +442,6 @@ export async function resumeFromStream(userId: string, streamId: number): Promis
     session.state = "processing";
     session.priority = "backlog";
     session.lastActivityAt = new Date();
-
-    const allVideos = await storage.getVideosByUser(userId);
-    const remaining = allVideos.filter(v => {
-      const score = calculateOptimizationScore(v.metadata);
-      return score < 80;
-    });
-    const prioritized = prioritizeVideos(remaining);
-    if (session.jobId && prioritized.length > 0) {
-      processBacklogAsync(userId, prioritized, session.jobId, session.mode);
-    }
   }
 }
 

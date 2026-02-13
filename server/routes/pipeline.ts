@@ -401,18 +401,6 @@ export function registerPipelineRoutes(app: Express) {
     }
   });
 
-  app.get("/api/backlog/status", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const { getBacklogStatus } = await import("../backlog-manager");
-      const status = await getBacklogStatus(userId);
-      res.json(status);
-    } catch (err: any) {
-      console.error("[Backlog] Status error:", err);
-      res.status(500).json({ error: "Failed to get backlog status" });
-    }
-  });
 
   app.post("/api/backlog/start", async (req, res) => {
     const userId = requireAuth(req, res);
