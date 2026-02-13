@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ interface CollapsibleToolboxProps {
   children: React.ReactNode;
   defaultOpen?: boolean;
   icon?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CollapsibleToolbox({
@@ -18,13 +20,23 @@ export function CollapsibleToolbox({
   children,
   defaultOpen = false,
   icon,
+  open: controlledOpen,
+  onOpenChange,
 }: CollapsibleToolboxProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const isOpen = isControlled ? controlledOpen : internalOpen;
+
+  const toggle = () => {
+    const next = !isOpen;
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   return (
     <Card data-testid={`toolbox-${title.toLowerCase().replace(/\s+/g, "-")}`}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         className="w-full flex items-center justify-between gap-3 p-4 text-left hover-elevate rounded-md"
         data-testid={`button-toggle-${title.toLowerCase().replace(/\s+/g, "-")}`}
       >
@@ -38,19 +50,19 @@ export function CollapsibleToolbox({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!open && (
+          {!isOpen && (
             <Badge variant="secondary" className="text-xs">
               Tap to expand
             </Badge>
           )}
-          {open ? (
+          {isOpen ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           )}
         </div>
       </button>
-      {open && (
+      {isOpen && (
         <CardContent className="pt-0 pb-4 px-4">
           {children}
         </CardContent>

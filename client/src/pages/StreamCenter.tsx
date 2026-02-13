@@ -27,6 +27,7 @@ export default function StreamCenter() {
   usePageTitle("Go Live");
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [showAddDest, setShowAddDest] = useState(false);
   const [showNewStream, setShowNewStream] = useState(false);
   const [newDest, setNewDest] = useState({ platform: "youtube", label: "", rtmpUrl: "", streamKey: "" });
@@ -233,329 +234,383 @@ export default function StreamCenter() {
   }, []);
 
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_titles");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamTitles(e.data); return; } else { sessionStorage.removeItem("ai_stream_titles"); } } catch {} }
     setAiStreamTitlesLoading(true);
     apiRequest("POST", "/api/ai/stream-titles", {}).then(r => r.json()).then(d => { setAiStreamTitles(d); sessionStorage.setItem("ai_stream_titles", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamTitlesLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_schedule");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamSchedule(e.data); return; } else { sessionStorage.removeItem("ai_stream_schedule"); } } catch {} }
     setAiStreamScheduleLoading(true);
     apiRequest("POST", "/api/ai/stream-schedule", {}).then(r => r.json()).then(d => { setAiStreamSchedule(d); sessionStorage.setItem("ai_stream_schedule", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamScheduleLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_overlays");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamOverlays(e.data); return; } else { sessionStorage.removeItem("ai_stream_overlays"); } } catch {} }
     setAiStreamOverlaysLoading(true);
     apiRequest("POST", "/api/ai/stream-overlays", {}).then(r => r.json()).then(d => { setAiStreamOverlays(d); sessionStorage.setItem("ai_stream_overlays", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamOverlaysLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_alerts");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamAlerts(e.data); return; } else { sessionStorage.removeItem("ai_stream_alerts"); } } catch {} }
     setAiStreamAlertsLoading(true);
     apiRequest("POST", "/api/ai/stream-alerts", {}).then(r => r.json()).then(d => { setAiStreamAlerts(d); sessionStorage.setItem("ai_stream_alerts", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamAlertsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_mod");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamMod(e.data); return; } else { sessionStorage.removeItem("ai_stream_mod"); } } catch {} }
     setAiStreamModLoading(true);
     apiRequest("POST", "/api/ai/stream-moderation", {}).then(r => r.json()).then(d => { setAiStreamMod(d); sessionStorage.setItem("ai_stream_mod", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamModLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_interact");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamInteract(e.data); return; } else { sessionStorage.removeItem("ai_stream_interact"); } } catch {} }
     setAiStreamInteractLoading(true);
     apiRequest("POST", "/api/ai/stream-interactions", {}).then(r => r.json()).then(d => { setAiStreamInteract(d); sessionStorage.setItem("ai_stream_interact", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamInteractLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_rev");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamRev(e.data); return; } else { sessionStorage.removeItem("ai_stream_rev"); } } catch {} }
     setAiStreamRevLoading(true);
     apiRequest("POST", "/api/ai/stream-revenue", {}).then(r => r.json()).then(d => { setAiStreamRev(d); sessionStorage.setItem("ai_stream_rev", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamRevLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_clips");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamClips(e.data); return; } else { sessionStorage.removeItem("ai_stream_clips"); } } catch {} }
     setAiStreamClipsLoading(true);
     apiRequest("POST", "/api/ai/stream-clips", {}).then(r => r.json()).then(d => { setAiStreamClips(d); sessionStorage.setItem("ai_stream_clips", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamClipsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_cats");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCats(e.data); return; } else { sessionStorage.removeItem("ai_stream_cats"); } } catch {} }
     setAiStreamCatsLoading(true);
     apiRequest("POST", "/api/ai/stream-categories", {}).then(r => r.json()).then(d => { setAiStreamCats(d); sessionStorage.setItem("ai_stream_cats", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamCatsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_panels");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamPanels(e.data); return; } else { sessionStorage.removeItem("ai_stream_panels"); } } catch {} }
     setAiStreamPanelsLoading(true);
     apiRequest("POST", "/api/ai/stream-panels", {}).then(r => r.json()).then(d => { setAiStreamPanels(d); sessionStorage.setItem("ai_stream_panels", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamPanelsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_emotes");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamEmotes(e.data); return; } else { sessionStorage.removeItem("ai_stream_emotes"); } } catch {} }
     setAiStreamEmotesLoading(true);
     apiRequest("POST", "/api/ai/stream-emotes", {}).then(r => r.json()).then(d => { setAiStreamEmotes(d); sessionStorage.setItem("ai_stream_emotes", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamEmotesLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_sub_goals");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamSubGoals(e.data); return; } else { sessionStorage.removeItem("ai_stream_sub_goals"); } } catch {} }
     setAiStreamSubGoalsLoading(true);
     apiRequest("POST", "/api/ai/stream-sub-goals", {}).then(r => r.json()).then(d => { setAiStreamSubGoals(d); sessionStorage.setItem("ai_stream_sub_goals", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamSubGoalsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_network");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamNetwork(e.data); return; } else { sessionStorage.removeItem("ai_stream_network"); } } catch {} }
     setAiStreamNetworkLoading(true);
     apiRequest("POST", "/api/ai/stream-networking", {}).then(r => r.json()).then(d => { setAiStreamNetwork(d); sessionStorage.setItem("ai_stream_network", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamNetworkLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_analytics_exp");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamAnalyticsExp(e.data); return; } else { sessionStorage.removeItem("ai_stream_analytics_exp"); } } catch {} }
     setAiStreamAnalyticsExpLoading(true);
     apiRequest("POST", "/api/ai/stream-analytics-explainer", {}).then(r => r.json()).then(d => { setAiStreamAnalyticsExp(d); sessionStorage.setItem("ai_stream_analytics_exp", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamAnalyticsExpLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_multi_stream");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMultiStream(e.data); return; } else { sessionStorage.removeItem("ai_multi_stream"); } } catch {} }
     setAiMultiStreamLoading(true);
     apiRequest("POST", "/api/ai/multi-stream", {}).then(r => r.json()).then(d => { setAiMultiStream(d); sessionStorage.setItem("ai_multi_stream", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMultiStreamLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_backup");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamBackup(e.data); return; } else { sessionStorage.removeItem("ai_stream_backup"); } } catch {} }
     setAiStreamBackupLoading(true);
     apiRequest("POST", "/api/ai/stream-backup", {}).then(r => r.json()).then(d => { setAiStreamBackup(d); sessionStorage.setItem("ai_stream_backup", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamBackupLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_community");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCommunity(e.data); return; } else { sessionStorage.removeItem("ai_stream_community"); } } catch {} }
     setAiStreamCommunityLoading(true);
     apiRequest("POST", "/api/ai/stream-community", {}).then(r => r.json()).then(d => { setAiStreamCommunity(d); sessionStorage.setItem("ai_stream_community", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamCommunityLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_branding");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamBranding(e.data); return; } else { sessionStorage.removeItem("ai_stream_branding"); } } catch {} }
     setAiStreamBrandingLoading(true);
     apiRequest("POST", "/api/ai/stream-branding", {}).then(r => r.json()).then(d => { setAiStreamBranding(d); sessionStorage.setItem("ai_stream_branding", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamBrandingLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_calendar");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCalendar(e.data); return; } else { sessionStorage.removeItem("ai_stream_calendar"); } } catch {} }
     setAiStreamCalendarLoading(true);
     apiRequest("POST", "/api/ai/stream-content-calendar", {}).then(r => r.json()).then(d => { setAiStreamCalendar(d); sessionStorage.setItem("ai_stream_calendar", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamCalendarLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_growth");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamGrowth(e.data); return; } else { sessionStorage.removeItem("ai_stream_growth"); } } catch {} }
     setAiStreamGrowthLoading(true);
     apiRequest("POST", "/api/ai/stream-growth", {}).then(r => r.json()).then(d => { setAiStreamGrowth(d); sessionStorage.setItem("ai_stream_growth", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamGrowthLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_studio");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTStudio(e.data); return; } else { sessionStorage.removeItem("ai_yt_studio"); } } catch {} }
     setAiYTStudioLoading(true);
     apiRequest("POST", "/api/ai/yt-studio", {}).then(r => r.json()).then(d => { setAiYTStudio(d); sessionStorage.setItem("ai_yt_studio", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTStudioLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_shorts_algo");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTShortsAlgo(e.data); return; } else { sessionStorage.removeItem("ai_yt_shorts_algo"); } } catch {} }
     setAiYTShortsAlgoLoading(true);
     apiRequest("POST", "/api/ai/yt-shorts-algo", {}).then(r => r.json()).then(d => { setAiYTShortsAlgo(d); sessionStorage.setItem("ai_yt_shorts_algo", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTShortsAlgoLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_comments");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTComments(e.data); return; } else { sessionStorage.removeItem("ai_yt_comments"); } } catch {} }
     setAiYTCommentsLoading(true);
     apiRequest("POST", "/api/ai/yt-comments", {}).then(r => r.json()).then(d => { setAiYTComments(d); sessionStorage.setItem("ai_yt_comments", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTCommentsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_playlists");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTPlaylists(e.data); return; } else { sessionStorage.removeItem("ai_yt_playlists"); } } catch {} }
     setAiYTPlaylistsLoading(true);
     apiRequest("POST", "/api/ai/yt-playlists", {}).then(r => r.json()).then(d => { setAiYTPlaylists(d); sessionStorage.setItem("ai_yt_playlists", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTPlaylistsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_premiere");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTPremiere(e.data); return; } else { sessionStorage.removeItem("ai_yt_premiere"); } } catch {} }
     setAiYTPremiereLoading(true);
     apiRequest("POST", "/api/ai/yt-premiere", {}).then(r => r.json()).then(d => { setAiYTPremiere(d); sessionStorage.setItem("ai_yt_premiere", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTPremiereLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_membership");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTMembership(e.data); return; } else { sessionStorage.removeItem("ai_yt_membership"); } } catch {} }
     setAiYTMembershipLoading(true);
     apiRequest("POST", "/api/ai/yt-membership", {}).then(r => r.json()).then(d => { setAiYTMembership(d); sessionStorage.setItem("ai_yt_membership", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTMembershipLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_super_thanks");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTSuperThanks(e.data); return; } else { sessionStorage.removeItem("ai_yt_super_thanks"); } } catch {} }
     setAiYTSuperThanksLoading(true);
     apiRequest("POST", "/api/ai/yt-super-thanks", {}).then(r => r.json()).then(d => { setAiYTSuperThanks(d); sessionStorage.setItem("ai_yt_super_thanks", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTSuperThanksLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_handle");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTHandle(e.data); return; } else { sessionStorage.removeItem("ai_yt_handle"); } } catch {} }
     setAiYTHandleLoading(true);
     apiRequest("POST", "/api/ai/yt-handle", {}).then(r => r.json()).then(d => { setAiYTHandle(d); sessionStorage.setItem("ai_yt_handle", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTHandleLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_channel_pg");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTChannelPg(e.data); return; } else { sessionStorage.removeItem("ai_yt_channel_pg"); } } catch {} }
     setAiYTChannelPgLoading(true);
     apiRequest("POST", "/api/ai/yt-channel-page", {}).then(r => r.json()).then(d => { setAiYTChannelPg(d); sessionStorage.setItem("ai_yt_channel_pg", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTChannelPgLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_yt_hashtags");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTHashtags(e.data); return; } else { sessionStorage.removeItem("ai_yt_hashtags"); } } catch {} }
     setAiYTHashtagsLoading(true);
     apiRequest("POST", "/api/ai/yt-hashtags", {}).then(r => r.json()).then(d => { setAiYTHashtags(d); sessionStorage.setItem("ai_yt_hashtags", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTHashtagsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_emotes");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwEmotes(e.data); return; } else { sessionStorage.removeItem("ai_tw_emotes"); } } catch {} }
     setAiTwEmotesLoading(true);
     apiRequest("POST", "/api/ai/twitch-emotes", {}).then(r => r.json()).then(d => { setAiTwEmotes(d); sessionStorage.setItem("ai_tw_emotes", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwEmotesLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_bits");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwBits(e.data); return; } else { sessionStorage.removeItem("ai_tw_bits"); } } catch {} }
     setAiTwBitsLoading(true);
     apiRequest("POST", "/api/ai/twitch-bits", {}).then(r => r.json()).then(d => { setAiTwBits(d); sessionStorage.setItem("ai_tw_bits", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwBitsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_raids");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwRaids(e.data); return; } else { sessionStorage.removeItem("ai_tw_raids"); } } catch {} }
     setAiTwRaidsLoading(true);
     apiRequest("POST", "/api/ai/twitch-raids", {}).then(r => r.json()).then(d => { setAiTwRaids(d); sessionStorage.setItem("ai_tw_raids", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwRaidsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_points");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPoints(e.data); return; } else { sessionStorage.removeItem("ai_tw_points"); } } catch {} }
     setAiTwPointsLoading(true);
     apiRequest("POST", "/api/ai/twitch-points", {}).then(r => r.json()).then(d => { setAiTwPoints(d); sessionStorage.setItem("ai_tw_points", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwPointsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_predictions");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPredictions(e.data); return; } else { sessionStorage.removeItem("ai_tw_predictions"); } } catch {} }
     setAiTwPredictionsLoading(true);
     apiRequest("POST", "/api/ai/twitch-predictions", {}).then(r => r.json()).then(d => { setAiTwPredictions(d); sessionStorage.setItem("ai_tw_predictions", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwPredictionsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_hype_train");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwHypeTrain(e.data); return; } else { sessionStorage.removeItem("ai_tw_hype_train"); } } catch {} }
     setAiTwHypeTrainLoading(true);
     apiRequest("POST", "/api/ai/twitch-hype-train", {}).then(r => r.json()).then(d => { setAiTwHypeTrain(d); sessionStorage.setItem("ai_tw_hype_train", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwHypeTrainLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_clips");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwClips(e.data); return; } else { sessionStorage.removeItem("ai_tw_clips"); } } catch {} }
     setAiTwClipsLoading(true);
     apiRequest("POST", "/api/ai/twitch-clips", {}).then(r => r.json()).then(d => { setAiTwClips(d); sessionStorage.setItem("ai_tw_clips", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwClipsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_vods");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwVODs(e.data); return; } else { sessionStorage.removeItem("ai_tw_vods"); } } catch {} }
     setAiTwVODsLoading(true);
     apiRequest("POST", "/api/ai/twitch-vods", {}).then(r => r.json()).then(d => { setAiTwVODs(d); sessionStorage.setItem("ai_tw_vods", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwVODsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_tw_panels");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPanels(e.data); return; } else { sessionStorage.removeItem("ai_tw_panels"); } } catch {} }
     setAiTwPanelsLoading(true);
     apiRequest("POST", "/api/ai/twitch-panels", {}).then(r => r.json()).then(d => { setAiTwPanels(d); sessionStorage.setItem("ai_tw_panels", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwPanelsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_kick_stream");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickStream(e.data); return; } else { sessionStorage.removeItem("ai_kick_stream"); } } catch {} }
     setAiKickStreamLoading(true);
     apiRequest("POST", "/api/ai/kick-stream", {}).then(r => r.json()).then(d => { setAiKickStream(d); sessionStorage.setItem("ai_kick_stream", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickStreamLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_kick_money");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickMoney(e.data); return; } else { sessionStorage.removeItem("ai_kick_money"); } } catch {} }
     setAiKickMoneyLoading(true);
     apiRequest("POST", "/api/ai/kick-monetization", {}).then(r => r.json()).then(d => { setAiKickMoney(d); sessionStorage.setItem("ai_kick_money", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickMoneyLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_kick_comm");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickComm(e.data); return; } else { sessionStorage.removeItem("ai_kick_comm"); } } catch {} }
     setAiKickCommLoading(true);
     apiRequest("POST", "/api/ai/kick-community", {}).then(r => r.json()).then(d => { setAiKickComm(d); sessionStorage.setItem("ai_kick_comm", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickCommLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_kick_diff");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickDiff(e.data); return; } else { sessionStorage.removeItem("ai_kick_diff"); } } catch {} }
     setAiKickDiffLoading(true);
     apiRequest("POST", "/api/ai/kick-differentiator", {}).then(r => r.json()).then(d => { setAiKickDiff(d); sessionStorage.setItem("ai_kick_diff", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickDiffLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_kick_disc");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickDisc(e.data); return; } else { sessionStorage.removeItem("ai_kick_disc"); } } catch {} }
     setAiKickDiscLoading(true);
     apiRequest("POST", "/api/ai/kick-discovery", {}).then(r => r.json()).then(d => { setAiKickDisc(d); sessionStorage.setItem("ai_kick_disc", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickDiscLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_router");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamRouter(e.data); return; } else { sessionStorage.removeItem("ai_stream_router"); } } catch {} }
     setAiStreamRouterLoading(true);
     apiRequest("POST", "/api/ai/stream-router", {}).then(r => r.json()).then(d => { setAiStreamRouter(d); sessionStorage.setItem("ai_stream_router", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamRouterLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_deck");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamDeck(e.data); return; } else { sessionStorage.removeItem("ai_stream_deck"); } } catch {} }
     setAiStreamDeckLoading(true);
     apiRequest("POST", "/api/ai/stream-deck", {}).then(r => r.json()).then(d => { setAiStreamDeck(d); sessionStorage.setItem("ai_stream_deck", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamDeckLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_obs_opt");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOBSOpt(e.data); return; } else { sessionStorage.removeItem("ai_obs_opt"); } } catch {} }
     setAiOBSOptLoading(true);
     apiRequest("POST", "/api/ai/obs-optimizer", {}).then(r => r.json()).then(d => { setAiOBSOpt(d); sessionStorage.setItem("ai_obs_opt", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiOBSOptLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_labs");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamLabs(e.data); return; } else { sessionStorage.removeItem("ai_stream_labs"); } } catch {} }
     setAiStreamLabsLoading(true);
     apiRequest("POST", "/api/ai/streamlabs", {}).then(r => r.json()).then(d => { setAiStreamLabs(d); sessionStorage.setItem("ai_stream_labs", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamLabsLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_stream_elem");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamElem(e.data); return; } else { sessionStorage.removeItem("ai_stream_elem"); } } catch {} }
     setAiStreamElemLoading(true);
     apiRequest("POST", "/api/ai/stream-elements", {}).then(r => r.json()).then(d => { setAiStreamElem(d); sessionStorage.setItem("ai_stream_elem", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamElemLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_overlay_designer");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOverlayDesigner(e.data); return; } else { sessionStorage.removeItem("ai_overlay_designer"); } } catch {} }
     setAiOverlayDesignerLoading(true);
     apiRequest("POST", "/api/ai/stream-overlay-designer", {}).then(r => r.json()).then(d => { setAiOverlayDesigner(d); sessionStorage.setItem("ai_overlay_designer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiOverlayDesignerLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_raid_optimizer");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRaidOptimizer(e.data); return; } else { sessionStorage.removeItem("ai_raid_optimizer"); } } catch {} }
     setAiRaidOptimizerLoading(true);
     apiRequest("POST", "/api/ai/raid-target-optimizer", {}).then(r => r.json()).then(d => { setAiRaidOptimizer(d); sessionStorage.setItem("ai_raid_optimizer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRaidOptimizerLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_highlight_clipper");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiHighlightClipper(e.data); return; } else { sessionStorage.removeItem("ai_highlight_clipper"); } } catch {} }
     setAiHighlightClipperLoading(true);
     apiRequest("POST", "/api/ai/stream-highlight-clipper", {}).then(r => r.json()).then(d => { setAiHighlightClipper(d); sessionStorage.setItem("ai_highlight_clipper", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiHighlightClipperLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_donation_goal");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDonationGoal(e.data); return; } else { sessionStorage.removeItem("ai_donation_goal"); } } catch {} }
     setAiDonationGoalLoading(true);
     apiRequest("POST", "/api/ai/donation-goal-strategist", {}).then(r => r.json()).then(d => { setAiDonationGoal(d); sessionStorage.setItem("ai_donation_goal", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDonationGoalLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("ai_chat_unifier");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChatUnifier(e.data); return; } else { sessionStorage.removeItem("ai_chat_unifier"); } } catch {} }
     setAiChatUnifierLoading(true);
     apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiChatUnifierLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
 
   const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
   const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
@@ -1213,7 +1268,7 @@ export default function StreamCenter() {
         </CardContent>
       </Card>
 
-      <CollapsibleToolbox title="AI Stream Tools" toolCount={100}>
+      <CollapsibleToolbox title="AI Stream Tools" toolCount={100} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       <div className="space-y-3">
 
       <div className="border rounded-md overflow-visible">

@@ -21,9 +21,12 @@ const insightCategoryColors: Record<string, string> = {
 
 function LearningTab() {
   const [aiAcademy, setAiAcademy] = useState<AIResponse>(null);
-  const [aiAcademyLoading, setAiAcademyLoading] = useState(true);
+  const [aiAcademyLoading, setAiAcademyLoading] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
   useEffect(() => {
+    if (!aiToolsOpen) return;
+    setAiAcademyLoading(true);
     const cached = sessionStorage.getItem("aiCreatorAcademy");
     if (cached) {
       try { setAiAcademy(JSON.parse(cached)); setAiAcademyLoading(false); return; } catch {}
@@ -33,7 +36,7 @@ function LearningTab() {
       .then((data) => { setAiAcademy(data); sessionStorage.setItem("aiCreatorAcademy", JSON.stringify({ data: data, ts: Date.now() })); })
       .catch(() => {})
       .finally(() => setAiAcademyLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
 
   const [showEducationAI, setShowEducationAI] = useState(false);
   const [aiSkillAssess, setAiSkillAssess] = useState<AIResponse>(null);
@@ -54,53 +57,61 @@ function LearningTab() {
   const [aiPortfolioLoading, setAiPortfolioLoading] = useState(false);
 
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_skill_assess");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSkillAssess(e.data); return; } else { sessionStorage.removeItem("ai_skill_assess"); } } catch {} }
     setAiSkillAssessLoading(true);
     apiRequest("POST", "/api/ai/skill-assessment", {}).then(r => r.json()).then(d => { setAiSkillAssess(d); sessionStorage.setItem("ai_skill_assess", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSkillAssessLoading(false));
-  }, []);
+  }, [showEducationAI]);
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_learn_path");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLearnPath(e.data); return; } else { sessionStorage.removeItem("ai_learn_path"); } } catch {} }
     setAiLearnPathLoading(true);
     apiRequest("POST", "/api/ai/learning-path", {}).then(r => r.json()).then(d => { setAiLearnPath(d); sessionStorage.setItem("ai_learn_path", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLearnPathLoading(false));
-  }, []);
+  }, [showEducationAI]);
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_certs");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCerts(e.data); return; } else { sessionStorage.removeItem("ai_certs"); } } catch {} }
     setAiCertsLoading(true);
     apiRequest("POST", "/api/ai/certification", {}).then(r => r.json()).then(d => { setAiCerts(d); sessionStorage.setItem("ai_certs", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCertsLoading(false));
-  }, []);
+  }, [showEducationAI]);
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_books");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBooks(e.data); return; } else { sessionStorage.removeItem("ai_books"); } } catch {} }
     setAiBooksLoading(true);
     apiRequest("POST", "/api/ai/book-recommend", {}).then(r => r.json()).then(d => { setAiBooks(d); sessionStorage.setItem("ai_books", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiBooksLoading(false));
-  }, []);
+  }, [showEducationAI]);
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_tool_tut");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiToolTut(e.data); return; } else { sessionStorage.removeItem("ai_tool_tut"); } } catch {} }
     setAiToolTutLoading(true);
     apiRequest("POST", "/api/ai/tool-tutorial", {}).then(r => r.json()).then(d => { setAiToolTut(d); sessionStorage.setItem("ai_tool_tut", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiToolTutLoading(false));
-  }, []);
+  }, [showEducationAI]);
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_industry_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiIndustryReport(e.data); return; } else { sessionStorage.removeItem("ai_industry_report"); } } catch {} }
     setAiIndustryReportLoading(true);
     apiRequest("POST", "/api/ai/industry-report", {}).then(r => r.json()).then(d => { setAiIndustryReport(d); sessionStorage.setItem("ai_industry_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiIndustryReportLoading(false));
-  }, []);
+  }, [showEducationAI]);
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_case_study");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCaseStudy(e.data); return; } else { sessionStorage.removeItem("ai_case_study"); } } catch {} }
     setAiCaseStudyLoading(true);
     apiRequest("POST", "/api/ai/case-study", {}).then(r => r.json()).then(d => { setAiCaseStudy(d); sessionStorage.setItem("ai_case_study", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCaseStudyLoading(false));
-  }, []);
+  }, [showEducationAI]);
   useEffect(() => {
+    if (!showEducationAI) return;
     const cached = sessionStorage.getItem("ai_portfolio");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPortfolio(e.data); return; } else { sessionStorage.removeItem("ai_portfolio"); } } catch {} }
     setAiPortfolioLoading(true);
     apiRequest("POST", "/api/ai/portfolio", {}).then(r => r.json()).then(d => { setAiPortfolio(d); sessionStorage.setItem("ai_portfolio", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPortfolioLoading(false));
-  }, []);
+  }, [showEducationAI]);
 
   const renderAIListLearn = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
@@ -326,7 +337,7 @@ function LearningTab() {
         </div>
       )}
 
-      <CollapsibleToolbox title="AI Learning Tools" toolCount={15}>
+      <CollapsibleToolbox title="AI Learning Tools" toolCount={15} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button

@@ -20,6 +20,7 @@ import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 import { format } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
 
@@ -30,6 +31,7 @@ export default function RevenueTab() {
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const [aiPLReport, setAiPLReport] = useState<AIResponse>(null);
   const [aiPLReportLoading, setAiPLReportLoading] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
   const { data: revenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
@@ -79,6 +81,7 @@ export default function RevenueTab() {
   };
 
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cached = sessionStorage.getItem("aiFinancialInsights");
     if (cached) {
       try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiInsights(e.data); } else { sessionStorage.removeItem("aiFinancialInsights"); } } catch {}
@@ -107,7 +110,7 @@ export default function RevenueTab() {
         .catch(() => {})
         .finally(() => setAiPLReportLoading(false));
     }
-  }, []);
+  }, [aiToolsOpen]);
 
   if (revenueLoading) {
     return (
@@ -187,6 +190,7 @@ export default function RevenueTab() {
         </Dialog>
       </div>
 
+      <CollapsibleToolbox title="AI Financial Tools" toolCount={2} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       {aiInsightsLoading && (
         <Card data-testid="card-ai-financial-insights-loading">
           <CardContent className="p-6 space-y-4">
@@ -443,6 +447,7 @@ export default function RevenueTab() {
           </CardContent>
         </Card>
       )}
+      </CollapsibleToolbox>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>

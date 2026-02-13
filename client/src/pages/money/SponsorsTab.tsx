@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,8 +49,10 @@ export default function SponsorsTab() {
   const [aiSponsorshipLoading, setAiSponsorshipLoading] = useState(false);
   const [aiMediaKit, setAiMediaKit] = useState<AIResponse>(null);
   const [aiMediaKitLoading, setAiMediaKitLoading] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
   useEffect(() => {
+    if (!aiToolsOpen) return;
     const cachedSponsor = sessionStorage.getItem("aiSponsorshipManager");
 
     if (cachedSponsor) {
@@ -84,7 +87,7 @@ export default function SponsorsTab() {
         .catch(() => {})
         .finally(() => setAiMediaKitLoading(false));
     }
-  }, []);
+  }, [aiToolsOpen]);
 
   const { data: deals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"] });
 
@@ -169,6 +172,7 @@ export default function SponsorsTab() {
 
   return (
     <div className="space-y-6">
+      <CollapsibleToolbox title="AI Sponsorship Tools" toolCount={2} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       {aiSponsorshipLoading && (
         <Card data-testid="card-ai-sponsorship-loading">
           <CardContent className="p-6 space-y-4">
@@ -434,6 +438,7 @@ export default function SponsorsTab() {
           </CardContent>
         </Card>
       )}
+      </CollapsibleToolbox>
 
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-sponsors-title" className="text-lg font-semibold">Sponsorship Pipeline</h2>

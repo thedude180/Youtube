@@ -28,7 +28,8 @@ function BrandTab() {
   const [assetType, setAssetType] = useState<string>("color");
   const [filterType, setFilterType] = useState<string | null>(null);
   const [aiBrand, setAiBrand] = useState<AIResponse>(null);
-  const [aiBrandLoading, setAiBrandLoading] = useState(true);
+  const [aiBrandLoading, setAiBrandLoading] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
   const [showPersonalBrandAI, setShowPersonalBrandAI] = useState(false);
   const [aiBrandAudit, setAiBrandAudit] = useState<AIResponse>(null);
@@ -53,6 +54,8 @@ function BrandTab() {
   const [aiRepMonitorLoading, setAiRepMonitorLoading] = useState(false);
 
   useEffect(() => {
+    if (!aiToolsOpen) return;
+    setAiBrandLoading(true);
     const cached = sessionStorage.getItem("aiBrandAnalysis");
     if (cached) {
       try {
@@ -69,7 +72,7 @@ function BrandTab() {
       })
       .catch(() => {})
       .finally(() => setAiBrandLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
 
   const { data: assets, isLoading } = useQuery<any[]>({ queryKey: ['/api/brand-assets'] });
 
@@ -116,65 +119,75 @@ function BrandTab() {
   const otherAssets = filtered?.filter((a: any) => a.assetType !== "color") || [];
 
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_brand_audit");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBrandAudit(e.data); return; } else { sessionStorage.removeItem("ai_brand_audit"); } } catch {} }
     setAiBrandAuditLoading(true);
     apiRequest("POST", "/api/ai/brand-audit", {}).then(r => r.json()).then(d => { setAiBrandAudit(d); sessionStorage.setItem("ai_brand_audit", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiBrandAuditLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_elev_pitch");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiElevPitch(e.data); return; } else { sessionStorage.removeItem("ai_elev_pitch"); } } catch {} }
     setAiElevPitchLoading(true);
     apiRequest("POST", "/api/ai/elevator-pitch", {}).then(r => r.json()).then(d => { setAiElevPitch(d); sessionStorage.setItem("ai_elev_pitch", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiElevPitchLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_press_kit");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPressKitPB(e.data); return; } else { sessionStorage.removeItem("ai_press_kit"); } } catch {} }
     setAiPressKitPBLoading(true);
     apiRequest("POST", "/api/ai/press-kit", {}).then(r => r.json()).then(d => { setAiPressKitPB(d); sessionStorage.setItem("ai_press_kit", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPressKitPBLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_speaker_bio");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSpeakerBio(e.data); return; } else { sessionStorage.removeItem("ai_speaker_bio"); } } catch {} }
     setAiSpeakerBioLoading(true);
     apiRequest("POST", "/api/ai/speaker-bio", {}).then(r => r.json()).then(d => { setAiSpeakerBio(d); sessionStorage.setItem("ai_speaker_bio", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSpeakerBioLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_li_profile");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLIProfile(e.data); return; } else { sessionStorage.removeItem("ai_li_profile"); } } catch {} }
     setAiLIProfileLoading(true);
     apiRequest("POST", "/api/ai/linkedin-profile", {}).then(r => r.json()).then(d => { setAiLIProfile(d); sessionStorage.setItem("ai_li_profile", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLIProfileLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_pers_web");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPersWeb(e.data); return; } else { sessionStorage.removeItem("ai_pers_web"); } } catch {} }
     setAiPersWebLoading(true);
     apiRequest("POST", "/api/ai/personal-website", {}).then(r => r.json()).then(d => { setAiPersWeb(d); sessionStorage.setItem("ai_pers_web", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPersWebLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_thought_lead");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiThoughtLead(e.data); return; } else { sessionStorage.removeItem("ai_thought_lead"); } } catch {} }
     setAiThoughtLeadLoading(true);
     apiRequest("POST", "/api/ai/thought-leadership", {}).then(r => r.json()).then(d => { setAiThoughtLead(d); sessionStorage.setItem("ai_thought_lead", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiThoughtLeadLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_pub_speak");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPubSpeak(e.data); return; } else { sessionStorage.removeItem("ai_pub_speak"); } } catch {} }
     setAiPubSpeakLoading(true);
     apiRequest("POST", "/api/ai/public-speaking", {}).then(r => r.json()).then(d => { setAiPubSpeak(d); sessionStorage.setItem("ai_pub_speak", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPubSpeakLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_network_strat");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiNetworkStrat(e.data); return; } else { sessionStorage.removeItem("ai_network_strat"); } } catch {} }
     setAiNetworkStratLoading(true);
     apiRequest("POST", "/api/ai/networking-strategy", {}).then(r => r.json()).then(d => { setAiNetworkStrat(d); sessionStorage.setItem("ai_network_strat", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiNetworkStratLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
   useEffect(() => {
+    if (!showPersonalBrandAI) return;
     const cached = sessionStorage.getItem("ai_rep_monitor");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRepMonitor(e.data); return; } else { sessionStorage.removeItem("ai_rep_monitor"); } } catch {} }
     setAiRepMonitorLoading(true);
     apiRequest("POST", "/api/ai/reputation-monitor", {}).then(r => r.json()).then(d => { setAiRepMonitor(d); sessionStorage.setItem("ai_rep_monitor", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRepMonitorLoading(false));
-  }, []);
+  }, [showPersonalBrandAI]);
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
 
@@ -403,7 +416,7 @@ function BrandTab() {
         </div>
       )}
 
-      <CollapsibleToolbox title="AI Brand Tools" toolCount={15}>
+      <CollapsibleToolbox title="AI Brand Tools" toolCount={15} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button

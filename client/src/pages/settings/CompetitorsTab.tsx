@@ -66,6 +66,7 @@ function CompetitorsTab() {
   const totalSubs = competitors?.reduce((sum: number, c: any) => sum + (c.subscribers || 0), 0) || 0;
   const avgViewsAll = competitors?.length ? Math.round(competitors.reduce((sum: number, c: any) => sum + (c.avgViews || 0), 0) / competitors.length) : 0;
 
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [showCompetitorAI, setShowCompetitorAI] = useState(false);
   const [aiCompAnalysis, setAiCompAnalysis] = useState<AIResponse>(null);
   const [aiCompAnalysisLoading, setAiCompAnalysisLoading] = useState(false);
@@ -97,47 +98,54 @@ function CompetitorsTab() {
   const [aiCompAudienceOverlapLoading, setAiCompAudienceOverlapLoading] = useState(false);
 
   useEffect(() => {
+    if (!showCompetitorAI) return;
     const cached = sessionStorage.getItem("ai_comp_analysis");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompAnalysis(e.data); return; } else { sessionStorage.removeItem("ai_comp_analysis"); } } catch {} }
     setAiCompAnalysisLoading(true);
     apiRequest("POST", "/api/ai/competitor-analysis", {}).then(r => r.json()).then(d => { setAiCompAnalysis(d); sessionStorage.setItem("ai_comp_analysis", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompAnalysisLoading(false));
-  }, []);
+  }, [showCompetitorAI]);
   useEffect(() => {
+    if (!showCompetitorAI) return;
     const cached = sessionStorage.getItem("ai_comp_content");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompContent(e.data); return; } else { sessionStorage.removeItem("ai_comp_content"); } } catch {} }
     setAiCompContentLoading(true);
     apiRequest("POST", "/api/ai/competitor-content", {}).then(r => r.json()).then(d => { setAiCompContent(d); sessionStorage.setItem("ai_comp_content", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompContentLoading(false));
-  }, []);
+  }, [showCompetitorAI]);
   useEffect(() => {
+    if (!showCompetitorAI) return;
     const cached = sessionStorage.getItem("ai_comp_pricing");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompPricing(e.data); return; } else { sessionStorage.removeItem("ai_comp_pricing"); } } catch {} }
     setAiCompPricingLoading(true);
     apiRequest("POST", "/api/ai/competitor-pricing", {}).then(r => r.json()).then(d => { setAiCompPricing(d); sessionStorage.setItem("ai_comp_pricing", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompPricingLoading(false));
-  }, []);
+  }, [showCompetitorAI]);
   useEffect(() => {
+    if (!showCompetitorAI) return;
     const cached = sessionStorage.getItem("ai_mkt_share");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMktShare(e.data); return; } else { sessionStorage.removeItem("ai_mkt_share"); } } catch {} }
     setAiMktShareLoading(true);
     apiRequest("POST", "/api/ai/market-share", {}).then(r => r.json()).then(d => { setAiMktShare(d); sessionStorage.setItem("ai_mkt_share", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMktShareLoading(false));
-  }, []);
+  }, [showCompetitorAI]);
   useEffect(() => {
+    if (!showCompetitorAI) return;
     const cached = sessionStorage.getItem("ai_swot");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSWOT(e.data); return; } else { sessionStorage.removeItem("ai_swot"); } } catch {} }
     setAiSWOTLoading(true);
     apiRequest("POST", "/api/ai/swot", {}).then(r => r.json()).then(d => { setAiSWOT(d); sessionStorage.setItem("ai_swot", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSWOTLoading(false));
-  }, []);
+  }, [showCompetitorAI]);
   useEffect(() => {
+    if (!showCompetitorAI) return;
     const cached = sessionStorage.getItem("ai_comp_social");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompSocial(e.data); return; } else { sessionStorage.removeItem("ai_comp_social"); } } catch {} }
     setAiCompSocialLoading(true);
     apiRequest("POST", "/api/ai/competitor-social", {}).then(r => r.json()).then(d => { setAiCompSocial(d); sessionStorage.setItem("ai_comp_social", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompSocialLoading(false));
-  }, []);
+  }, [showCompetitorAI]);
   useEffect(() => {
+    if (!showCompetitorAI) return;
     const cached = sessionStorage.getItem("ai_blue_ocean");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBlueOcean(e.data); return; } else { sessionStorage.removeItem("ai_blue_ocean"); } } catch {} }
     setAiBlueOceanLoading(true);
     apiRequest("POST", "/api/ai/blue-ocean", {}).then(r => r.json()).then(d => { setAiBlueOcean(d); sessionStorage.setItem("ai_blue_ocean", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiBlueOceanLoading(false));
-  }, []);
+  }, [showCompetitorAI]);
 
   useEffect(() => {
     if (!showCompIntelAI2) return;
@@ -359,7 +367,7 @@ function CompetitorsTab() {
         </div>
       )}
 
-      <CollapsibleToolbox title="AI Competitor Tools" toolCount={20}>
+      <CollapsibleToolbox title="AI Competitor Tools" toolCount={20} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button

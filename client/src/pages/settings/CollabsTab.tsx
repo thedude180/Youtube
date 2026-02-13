@@ -32,7 +32,8 @@ function CollabsTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [aiCollab, setAiCollab] = useState<AIResponse>(null);
-  const [aiCollabLoading, setAiCollabLoading] = useState(true);
+  const [aiCollabLoading, setAiCollabLoading] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
   const [showCollabSuiteAI, setShowCollabSuiteAI] = useState(false);
   const [aiCollabMatch, setAiCollabMatch] = useState<AIResponse>(null);
@@ -51,6 +52,8 @@ function CollabsTab() {
   const [aiNetworkEffLoading, setAiNetworkEffLoading] = useState(false);
 
   useEffect(() => {
+    if (!aiToolsOpen) return;
+    setAiCollabLoading(true);
     const cached = sessionStorage.getItem("aiCollabMatchmaker");
     if (cached) {
       try { setAiCollab(JSON.parse(cached)); setAiCollabLoading(false); return; } catch {}
@@ -60,49 +63,56 @@ function CollabsTab() {
       .then((data) => { setAiCollab(data); sessionStorage.setItem("aiCollabMatchmaker", JSON.stringify({ data: data, ts: Date.now() })); })
       .catch(() => {})
       .finally(() => setAiCollabLoading(false));
-  }, []);
+  }, [aiToolsOpen]);
   useEffect(() => {
+    if (!showCollabSuiteAI) return;
     const cached = sessionStorage.getItem("ai_collab_match2");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCollabMatch(e.data); return; } else { sessionStorage.removeItem("ai_collab_match2"); } } catch {} }
     setAiCollabMatchLoading(true);
     apiRequest("POST", "/api/ai/collab-match", {}).then(r => r.json()).then(d => { setAiCollabMatch(d); sessionStorage.setItem("ai_collab_match2", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCollabMatchLoading(false));
-  }, []);
+  }, [showCollabSuiteAI]);
   useEffect(() => {
+    if (!showCollabSuiteAI) return;
     const cached = sessionStorage.getItem("ai_collab_contract");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCollabContract(e.data); return; } else { sessionStorage.removeItem("ai_collab_contract"); } } catch {} }
     setAiCollabContractLoading(true);
     apiRequest("POST", "/api/ai/collab-contract", {}).then(r => r.json()).then(d => { setAiCollabContract(d); sessionStorage.setItem("ai_collab_contract", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCollabContractLoading(false));
-  }, []);
+  }, [showCollabSuiteAI]);
   useEffect(() => {
+    if (!showCollabSuiteAI) return;
     const cached = sessionStorage.getItem("ai_collab_rev");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCollabRev(e.data); return; } else { sessionStorage.removeItem("ai_collab_rev"); } } catch {} }
     setAiCollabRevLoading(true);
     apiRequest("POST", "/api/ai/collab-revenue", {}).then(r => r.json()).then(d => { setAiCollabRev(d); sessionStorage.setItem("ai_collab_rev", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCollabRevLoading(false));
-  }, []);
+  }, [showCollabSuiteAI]);
   useEffect(() => {
+    if (!showCollabSuiteAI) return;
     const cached = sessionStorage.getItem("ai_collab_ideas");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCollabIdeas(e.data); return; } else { sessionStorage.removeItem("ai_collab_ideas"); } } catch {} }
     setAiCollabIdeasLoading(true);
     apiRequest("POST", "/api/ai/collab-ideas", {}).then(r => r.json()).then(d => { setAiCollabIdeas(d); sessionStorage.setItem("ai_collab_ideas", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCollabIdeasLoading(false));
-  }, []);
+  }, [showCollabSuiteAI]);
   useEffect(() => {
+    if (!showCollabSuiteAI) return;
     const cached = sessionStorage.getItem("ai_collab_outreach");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCollabOutreach(e.data); return; } else { sessionStorage.removeItem("ai_collab_outreach"); } } catch {} }
     setAiCollabOutreachLoading(true);
     apiRequest("POST", "/api/ai/collab-outreach", {}).then(r => r.json()).then(d => { setAiCollabOutreach(d); sessionStorage.setItem("ai_collab_outreach", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCollabOutreachLoading(false));
-  }, []);
+  }, [showCollabSuiteAI]);
   useEffect(() => {
+    if (!showCollabSuiteAI) return;
     const cached = sessionStorage.getItem("ai_collab_perf");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCollabPerf(e.data); return; } else { sessionStorage.removeItem("ai_collab_perf"); } } catch {} }
     setAiCollabPerfLoading(true);
     apiRequest("POST", "/api/ai/collab-performance", {}).then(r => r.json()).then(d => { setAiCollabPerf(d); sessionStorage.setItem("ai_collab_perf", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCollabPerfLoading(false));
-  }, []);
+  }, [showCollabSuiteAI]);
   useEffect(() => {
+    if (!showCollabSuiteAI) return;
     const cached = sessionStorage.getItem("ai_network_eff");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiNetworkEff(e.data); return; } else { sessionStorage.removeItem("ai_network_eff"); } } catch {} }
     setAiNetworkEffLoading(true);
     apiRequest("POST", "/api/ai/network-effect", {}).then(r => r.json()).then(d => { setAiNetworkEff(d); sessionStorage.setItem("ai_network_eff", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiNetworkEffLoading(false));
-  }, []);
+  }, [showCollabSuiteAI]);
 
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
@@ -340,7 +350,7 @@ function CollabsTab() {
         </div>
       )}
 
-      <CollapsibleToolbox title="AI Collaboration Tools" toolCount={15}>
+      <CollapsibleToolbox title="AI Collaboration Tools" toolCount={15} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       <div className="space-y-3">
       <div className="border rounded-md overflow-visible">
         <button
