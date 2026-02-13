@@ -224,6 +224,7 @@ export function registerStreamRoutes(app: Express) {
 
       sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: stream.title });
       sendSSEEvent(userId, "notification", { type: "new" });
+      sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId: stream.id });
 
       const tasks = [
         { name: "seo_optimization", status: "pending" },

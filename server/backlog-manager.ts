@@ -140,6 +140,7 @@ export async function resumeAfterStream(userId: string): Promise<void> {
     return;
   }
 
+  const endedStreamId = session.streamId;
   session.state = "waiting_for_replay";
   session.lastActivityAt = new Date();
   console.log(`[BacklogManager] Stream ended for ${userId} — waiting for replay pipeline to complete, then resuming backlog`);
@@ -147,6 +148,11 @@ export async function resumeAfterStream(userId: string): Promise<void> {
   setTimeout(async () => {
     const current = sessions.get(userId);
     if (!current) return;
+
+    if (current.streamId !== null && current.streamId !== endedStreamId) {
+      console.log(`[BacklogManager] New stream ${current.streamId} started while waiting for replay of stream ${endedStreamId} — skipping resume for ${userId}`);
+      return;
+    }
 
     if (current.state === "waiting_for_replay" || current.state === "paused_for_live") {
       current.state = "running";
