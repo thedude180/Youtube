@@ -13,6 +13,7 @@ import {
   Zap,
   Crown,
   Rocket,
+  KeyRound,
 } from "lucide-react";
 import {
   Sidebar,
@@ -43,7 +44,7 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user, isLoading, logout } = useAuth();
   const { isAdvanced } = useAdvancedMode();
-  const { tier, isPaidUser } = useUserProfile();
+  const { tier, isPaidUser, isAdmin } = useUserProfile();
   const { t } = useTranslation();
 
   const isActive = (href: string) =>
@@ -99,6 +100,22 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/access-codes")} data-testid="link-access-codes">
+                    <Link href="/access-codes">
+                      <KeyRound className="h-4 w-4" />
+                      <span>Access Codes</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-3">
