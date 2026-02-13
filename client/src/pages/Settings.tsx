@@ -7,7 +7,7 @@ import { Shield, Zap, AlertTriangle, Save, LogOut, Link2, Bell,
   Plus, Sparkles, CalendarDays, Heart, BookOpen, CheckCircle2,
   Link as LinkIcon, Users, Eye, Palette, Trash2, Target, Handshake, Mail, Briefcase,
   ChevronDown, ChevronUp, Clock, Globe, Play, UserPlus, CheckCircle, DollarSign,
-  TrendingUp, Download, Loader2, LogIn,
+  TrendingUp, Download, Loader2, LogIn, Settings2, Brush, Swords, Scale, GraduationCap, Workflow, Rocket, Crown, KeyRound, UsersRound,
 } from "lucide-react";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord } from "react-icons/si";
 import { SiX } from "react-icons/si";
@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -4841,6 +4842,20 @@ export default function Settings() {
     }
   };
 
+  const tabIcons: Record<TabKey, any> = {
+    general: Settings2,
+    brand: Brush,
+    collabs: Handshake,
+    competitors: Swords,
+    legal: Scale,
+    learning: GraduationCap,
+    automation: Workflow,
+    growth: Rocket,
+    subscription: Crown,
+    "admin-codes": KeyRound,
+    "admin-users": UsersRound,
+  };
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       <div>
@@ -4848,33 +4863,35 @@ export default function Settings() {
         <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground">Manage your account, brand, and tools</p>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap" data-testid="tab-bar">
-        {tabs.map((t) => (
-          <Button
-            key={t.key}
-            variant={activeTab === t.key ? "default" : "secondary"}
-            size="sm"
-            onClick={() => handleTabClick(t.key)}
-            data-testid={`tab-${t.key}`}
-          >
-            {t.label}
-          </Button>
-        ))}
-      </div>
+      <Tabs value={activeTab} onValueChange={(v) => handleTabClick(v as TabKey)}>
+        <TabsList data-testid="tab-bar" className="flex-wrap h-auto gap-1">
+          {tabs.map((t) => {
+            const Icon = tabIcons[t.key];
+            return (
+              <TabsTrigger key={t.key} value={t.key} data-testid={`tab-${t.key}`}>
+                {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
+                {t.label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
 
-      {activeTab === "general" && <GeneralTab />}
-      <Suspense fallback={<TabFallback />}>
-        {activeTab === "brand" && <BrandTab />}
-        {activeTab === "collabs" && <CollabsTab />}
-        {activeTab === "competitors" && <CompetitorsTab />}
-        {activeTab === "legal" && <LegalTab />}
-        {activeTab === "learning" && <LearningTab />}
-        {activeTab === "automation" && <AutomationTab />}
-        {activeTab === "growth" && <GrowthProgramsTab />}
-        {activeTab === "subscription" && <SubscriptionTab />}
-        {activeTab === "admin-codes" && isAdmin && <AdminCodesTab />}
-        {activeTab === "admin-users" && isAdmin && <AdminUsersTab />}
-      </Suspense>
+        <TabsContent value="general" className="mt-4">
+          <GeneralTab />
+        </TabsContent>
+        <Suspense fallback={<TabFallback />}>
+          <TabsContent value="brand" className="mt-4"><BrandTab /></TabsContent>
+          <TabsContent value="collabs" className="mt-4"><CollabsTab /></TabsContent>
+          <TabsContent value="competitors" className="mt-4"><CompetitorsTab /></TabsContent>
+          <TabsContent value="legal" className="mt-4"><LegalTab /></TabsContent>
+          <TabsContent value="learning" className="mt-4"><LearningTab /></TabsContent>
+          <TabsContent value="automation" className="mt-4"><AutomationTab /></TabsContent>
+          <TabsContent value="growth" className="mt-4"><GrowthProgramsTab /></TabsContent>
+          <TabsContent value="subscription" className="mt-4"><SubscriptionTab /></TabsContent>
+          {isAdmin && <TabsContent value="admin-codes" className="mt-4"><AdminCodesTab /></TabsContent>}
+          {isAdmin && <TabsContent value="admin-users" className="mt-4"><AdminUsersTab /></TabsContent>}
+        </Suspense>
+      </Tabs>
     </div>
   );
 }
