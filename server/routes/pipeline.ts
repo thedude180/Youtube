@@ -3,6 +3,7 @@ import { db } from "../db";
 import { contentPipeline, PIPELINE_STEPS } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getUserId } from "./helpers";
+import { storage } from "../storage";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -52,6 +53,19 @@ function buildPrompts(videoTitle: string, mode: string, existingResults: Record<
     };
   }
 
+  if (mode === "refresh") {
+    return {
+      analyze: `Analyze this OLDER gaming video titled "${videoTitle}" that was published a while ago and needs refreshing for NEW views. Identify: 1) What made this video interesting originally 2) What's changed in the gaming landscape since (new updates, metas, nostalgia angles) 3) Evergreen vs trending hooks 4) Why someone would click on this NOW vs when it was new 5) Fresh discovery angles for ${allPlatforms}. Return as JSON with keys: keyMoments (array), mainTopics (array), targetAudience (string), category (string), engagementPotential (string), summary (string), refreshAngle (string), evergreenScore (number 1-100).`,
+      title: `Generate 5 REFRESHED title options for an older gaming video: "${videoTitle}". Context: ${ctx("analyze")}. These titles should make the video feel NEW and relevant again. Use current trends, nostalgia hooks, "still hits different", "aged like wine", comparison angles ("before vs after update"). Avoid making it obvious the video is old. Each under 60 chars. Return as JSON with key: titles (array of objects with title, hookType, estimatedCTR).`,
+      description: `Rewrite the description for an older video being REFRESHED: "${videoTitle}". Context: ${ctx("analyze")}. Write as if the video is freshly relevant — tie it to current events/updates in gaming, add timestamps, include "still the best" or "this aged perfectly" angles, strong SEO for current search terms. Return as JSON with key: description (string), keywords (array), seoScore (number 1-100).`,
+      tags: `Generate UPDATED tags and hashtags to refresh discoverability for: "${videoTitle}". Context: ${ctx("analyze")}. Include: current trending tags for this game/genre, evergreen discovery tags, nostalgic/throwback tags, tags that match what people search for NOW. Optimize for ALL platforms: ${allPlatforms}. Return as JSON with keys: tags (array), hashtags (array), trendingTags (array).`,
+      thumbnail: `Suggest 3 REFRESHED thumbnail concepts for older video: "${videoTitle}". Context: ${ctx("analyze")}. New thumbnails should look modern and current — updated style, eye-catching colors, text overlays that create curiosity ("this still works?!", "watch before it's patched"). Make viewers think this is new content. Return as JSON with key: concepts (array of objects with visual, textOverlay, colors, emotion, ctrImpact).`,
+      clips: `Identify the best clips to cut from this older video "${videoTitle}" and re-post as Shorts/TikToks to drive NEW traffic back to the full video. Context: ${ctx("analyze")}. Create 5 clips optimized for ${allPlatforms} — each should stand alone as viral content with hooks like "this old clip is insane", "they don't make plays like this anymore", "POV: you found a hidden gem". Return as JSON with key: clips (array of objects with description, hook, caption, platform, estimatedViews).`,
+      repurpose: `Create FRESH cross-platform promotion posts to revive interest in: "${videoTitle}". Context: ${ctx("analyze")}. Generate a unique re-promotion post for EACH platform: YouTube community post (nostalgia/throwback), Twitch reference, Kick highlight, TikTok teaser, X/Twitter throwback post, Discord "remember this?" post. Each should feel natural and create curiosity to rewatch. Sound human, not AI. Return as JSON with key: posts (array of objects with platform, content, hashtags, tone).`,
+      schedule: `Create an optimal RE-PROMOTION schedule for refreshing "${videoTitle}" across ${allPlatforms}. Context: ${ctx("analyze")}. Schedule for maximum re-discovery: post at peak gaming hours, use "Throwback Thursday" or "underrated gem" timing, stagger across platforms over 3-5 days. Space posts to look organic, not like a marketing push. Return as JSON with key: schedule (array of objects with platform, suggestedTime, dayOfWeek, reason).`,
+    };
+  }
+
   return {
     analyze: `Analyze this gaming video titled "${videoTitle}". Identify: 1) Key gaming moments (clutch plays, wins, funny fails) 2) Main topics/games 3) Target audience 4) Content category 5) Estimated engagement potential (low/medium/high). Return as JSON with keys: keyMoments (array), mainTopics (array), targetAudience (string), category (string), engagementPotential (string), summary (string).`,
     title: `Generate 5 optimized YouTube title options for a gaming video. Original title: "${videoTitle}". Context: ${ctx("analyze")}. Each title should: use power words, create curiosity, include relevant keywords, be under 60 chars. Return as JSON with key: titles (array of objects with title, hookType, estimatedCTR).`,
@@ -73,6 +87,8 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
     ? "You are a gaming livestream content expert. The stream is LIVE RIGHT NOW. All content must convey urgency and drive immediate viewers. Always respond with valid JSON only, no markdown."
     : mode === "replay"
     ? "You are a gaming VOD/replay promotion expert. The stream just ended. All content must create FOMO and drive replay views across all platforms. Always respond with valid JSON only, no markdown."
+    : mode === "refresh"
+    ? "You are a YouTube gaming content revival expert. You specialize in refreshing older videos and shorts to get fresh views. You know how to update metadata, create new hooks, and re-promote existing content to make it feel new and relevant again. Always respond with valid JSON only, no markdown."
     : "You are a YouTube gaming content optimization expert. Always respond with valid JSON only, no markdown.";
 
   const openai = await getOpenAI();
@@ -303,6 +319,82 @@ export function registerPipelineRoutes(app: Express) {
       res.json(pipeline);
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch pipeline" });
+    }
+  });
+
+  app.post("/api/pipeline/backlog-refresh", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { limit: maxVideos } = req.body || {};
+      const batchSize = Math.min(maxVideos || 10, 25);
+
+      const allVideos = await storage.getVideosByUser(userId);
+      if (allVideos.length === 0) {
+        return res.json({ queued: 0, message: "No videos found in your library. Connect YouTube first to sync your videos." });
+      }
+
+      const existingPipelines = await db.select().from(contentPipeline)
+        .where(and(
+          eq(contentPipeline.userId, userId),
+          eq(contentPipeline.mode, "refresh"),
+        ));
+
+      const alreadyRefreshedVideoIds = new Set(
+        existingPipelines
+          .filter(p => p.videoId && (p.status === "processing" || p.status === "queued" || p.status === "completed"))
+          .map(p => p.videoId)
+      );
+
+      const videosToRefresh = allVideos
+        .filter(v => v.status === "published" && !alreadyRefreshedVideoIds.has(v.id))
+        .slice(0, batchSize);
+
+      if (videosToRefresh.length === 0) {
+        return res.json({ queued: 0, message: "All videos have already been refreshed or are currently being processed." });
+      }
+
+      const created: any[] = [];
+      for (const video of videosToRefresh) {
+        const [pipeline] = await db.insert(contentPipeline).values({
+          userId,
+          videoId: video.id,
+          videoTitle: video.title,
+          source: "backlog-refresh",
+          mode: "refresh",
+          currentStep: "analyze",
+          status: "queued",
+          completedSteps: [],
+          stepResults: {},
+        }).returning();
+        created.push(pipeline);
+      }
+
+      for (const pipeline of created) {
+        executePipelineInBackground(pipeline.id, pipeline.videoTitle, "refresh", {}, []).catch(err => {
+          console.error(`[Pipeline] Backlog refresh failed for pipeline ${pipeline.id}:`, err);
+        });
+      }
+
+      await storage.createAuditLog({
+        userId,
+        action: "backlog_refresh_started",
+        target: `${created.length} videos queued for refresh`,
+        details: { videoIds: videosToRefresh.map(v => v.id), pipelineIds: created.map(p => p.id) },
+        riskLevel: "low",
+      });
+
+      console.log(`[Pipeline] Backlog refresh: ${created.length} videos queued for user ${userId}`);
+
+      return res.json({
+        queued: created.length,
+        totalVideos: allVideos.length,
+        alreadyRefreshed: alreadyRefreshedVideoIds.size,
+        pipelines: created,
+      });
+    } catch (err: any) {
+      console.error("[Pipeline] Backlog refresh error:", err);
+      res.status(500).json({ error: "Failed to start backlog refresh", details: err.message });
     }
   });
 
