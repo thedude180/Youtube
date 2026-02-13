@@ -335,7 +335,7 @@ export function registerPipelineRoutes(app: Express) {
         .where(eq(contentPipeline.id, id));
 
       const currentResults = (pipeline.stepResults as Record<string, any>) || {};
-      const result = await runPipelineStep(id, step, pipeline.videoTitle, currentResults);
+      const result = await runPipelineStep(id, step, pipeline.videoTitle, pipeline.mode || "vod", currentResults);
       currentResults[step] = result;
       const completedSteps = [...new Set([...(pipeline.completedSteps || []), step])];
       const nextStepIndex = STEP_IDS.indexOf(step) + 1;

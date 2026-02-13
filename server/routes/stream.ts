@@ -751,11 +751,17 @@ export function registerStreamRoutes(app: Express) {
             console.error("[AutoDetect] Thumbnail error:", err);
           }
           try {
+            const recentLogs = await storage.getAuditLogs();
+            const userLogs = recentLogs
+              .filter(l => l.userId === userId)
+              .slice(0, 20)
+              .map(l => ({ action: l.action, target: l.target, details: l.details }));
             await runComplianceCheck({
-              title: broadcast.title,
-              description: broadcast.description,
-              platforms: allPlatforms,
-            });
+              channelName: broadcast.title,
+              platform: "youtube",
+              recentActions: userLogs,
+              settings: { streamType: "live", category: "Gaming" },
+            }, userId);
           } catch (err) {
             console.error("[AutoDetect] Compliance check error:", err);
           }

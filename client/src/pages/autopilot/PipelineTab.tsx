@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -504,8 +504,6 @@ interface BacklogStatus {
 export default function PipelineTab() {
   const { toast } = useToast();
   const [newTitle, setNewTitle] = useState("");
-  const [backlogStarted, setBacklogStarted] = useState(false);
-
   const backlogStatusQuery = useQuery<BacklogStatus>({
     queryKey: ["/api/backlog/status"],
     refetchInterval: 5000,
