@@ -12,6 +12,7 @@ import {
   getFanFunnelData, calculateSponsorRates, getSponsorRates,
   trackEquipmentRoi, getEquipmentRoi, generateInvoice, getInvoices, analyzeDeal,
 } from "../monetization-engine";
+import { syncAllRevenue, syncPlatformRevenue } from "../revenue-sync-engine";
 
 export function registerMoneyRoutes(app: Express) {
   app.post("/api/stripe/create-checkout-session", async (req, res) => {
@@ -626,6 +627,96 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/revenue/sync", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await syncAllRevenue(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Revenue sync error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/revenue/sync/:platform", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await syncPlatformRevenue(userId, req.params.platform);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Platform revenue sync error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/revenue/sync-status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const logs = await storage.getRevenueSyncLogs(userId);
+      const lastSync = logs.length > 0 ? logs[0] : null;
+      const platformStatuses: Record<string, { status: string; lastSynced: string | null; recordsSynced: number; totalAmount: number }> = {};
+      for (const log of logs) {
+        if (!platformStatuses[log.platform]) {
+          platformStatuses[log.platform] = {
+            status: log.status,
+            lastSynced: log.syncedAt?.toISOString() || null,
+            recordsSynced: log.recordsSynced || 0,
+            totalAmount: log.totalAmount || 0,
+          };
+        }
+      }
+      res.json({ lastSync: lastSync?.syncedAt?.toISOString() || null, platformStatuses, recentLogs: logs.slice(0, 10) });
+    } catch (error: any) {
+      console.error("Sync status error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/revenue/breakdown", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const records = await storage.getRevenueRecords(userId);
+      const manual = records.filter(r => r.syncSource === "manual" || !r.syncSource);
+      const autoSynced = records.filter(r => r.syncSource === "auto");
+      const autoEstimated = records.filter(r => r.syncSource === "auto-estimated");
+
+      const manualTotal = manual.reduce((s, r) => s + (r.amount || 0), 0);
+      const autoTotal = autoSynced.reduce((s, r) => s + (r.amount || 0), 0);
+      const estimatedTotal = autoEstimated.reduce((s, r) => s + (r.amount || 0), 0);
+
+      const byPlatform: Record<string, { manual: number; auto: number; estimated: number; total: number }> = {};
+      for (const r of records) {
+        if (!byPlatform[r.platform]) byPlatform[r.platform] = { manual: 0, auto: 0, estimated: 0, total: 0 };
+        byPlatform[r.platform].total += r.amount || 0;
+        if (r.syncSource === "auto") byPlatform[r.platform].auto += r.amount || 0;
+        else if (r.syncSource === "auto-estimated") byPlatform[r.platform].estimated += r.amount || 0;
+        else byPlatform[r.platform].manual += r.amount || 0;
+      }
+
+      const bySource: Record<string, number> = {};
+      for (const r of records) {
+        bySource[r.source] = (bySource[r.source] || 0) + (r.amount || 0);
+      }
+
+      res.json({
+        total: manualTotal + autoTotal + estimatedTotal,
+        manualTotal,
+        autoTotal,
+        estimatedTotal,
+        byPlatform,
+        bySource,
+        recordCount: { manual: manual.length, auto: autoSynced.length, estimated: autoEstimated.length, total: records.length },
+      });
+    } catch (error: any) {
+      console.error("Revenue breakdown error:", error);
       res.status(500).json({ message: error.message });
     }
   });

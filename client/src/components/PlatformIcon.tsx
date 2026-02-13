@@ -8,6 +8,7 @@ import {
   SiTiktok,
   SiX,
   SiDiscord,
+  SiStripe,
 } from "react-icons/si";
 
 const PLATFORM_ICONS: Record<string, any> = {
@@ -17,6 +18,7 @@ const PLATFORM_ICONS: Record<string, any> = {
   tiktok: SiTiktok,
   x: SiX,
   discord: SiDiscord,
+  stripe: SiStripe,
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -26,6 +28,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   tiktok: "TikTok",
   x: "X",
   discord: "Discord",
+  stripe: "Stripe",
 };
 
 export function PlatformIcon({ platform, className = "h-4 w-4" }: { platform: string; className?: string }) {

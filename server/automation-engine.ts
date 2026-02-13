@@ -310,6 +310,20 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("0 */6 * * *", async () => {
+    try {
+      const { syncAllRevenue } = await import("./revenue-sync-engine");
+      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds) {
+        if (userId) await syncAllRevenue(userId);
+      }
+      console.log("[AutomationEngine] Revenue sync completed for", userIds.length, "users");
+    } catch (err) {
+      console.error("[AutomationEngine] Revenue sync error:", err);
+    }
+  });
+
   cron.schedule("0 3 * * *", async () => {
     try {
       const { startBacklogOnLogin } = await import("./backlog-manager");

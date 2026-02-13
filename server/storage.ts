@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   channels, videos, jobs, auditLogs, contentInsights, complianceRecords, growthStrategies,
   streamDestinations, streams, thumbnails, aiAgentActivities, automationRules,
-  scheduleItems, revenueRecords, communityPosts,
+  scheduleItems, revenueRecords, revenueSyncLog, communityPosts,
   notifications, abTests, analyticsSnapshots, learningInsights, contentIdeas,
   creatorMemory, contentClips, videoVersions, streamChatMessages, chatTopics,
   sponsorshipDeals, platformHealth, collaborationLeads, audienceSegments,
@@ -25,6 +25,7 @@ import {
   type AutomationRule, type InsertAutomationRule,
   type ScheduleItem, type InsertScheduleItem,
   type RevenueRecord, type InsertRevenueRecord,
+  type RevenueSyncLog, type InsertRevenueSyncLog,
   type CommunityPost, type InsertCommunityPost,
   type StatsResponse,
   type Notification, type InsertNotification,
@@ -129,6 +130,9 @@ export interface IStorage {
   getRevenueRecords(userId?: string, platform?: string): Promise<RevenueRecord[]>;
   createRevenueRecord(record: InsertRevenueRecord): Promise<RevenueRecord>;
   getRevenueSummary(userId?: string): Promise<{ total: number; byPlatform: Record<string, number>; bySource: Record<string, number> }>;
+  getRevenueByExternalId(userId: string, externalId: string): Promise<RevenueRecord | null>;
+  getRevenueSyncLogs(userId: string): Promise<RevenueSyncLog[]>;
+  createRevenueSyncLog(log: InsertRevenueSyncLog): Promise<RevenueSyncLog>;
 
   getCommunityPosts(userId?: string, platform?: string): Promise<CommunityPost[]>;
   createCommunityPost(post: InsertCommunityPost): Promise<CommunityPost>;
@@ -614,6 +618,25 @@ export class DatabaseStorage implements IStorage {
       bySource[r.source] = (bySource[r.source] || 0) + (r.amount || 0);
     }
     return { total, byPlatform, bySource };
+  }
+
+  async getRevenueByExternalId(userId: string, externalId: string): Promise<RevenueRecord | null> {
+    const [record] = await db.select().from(revenueRecords)
+      .where(and(eq(revenueRecords.userId, userId), eq(revenueRecords.externalId, externalId)))
+      .limit(1);
+    return record || null;
+  }
+
+  async getRevenueSyncLogs(userId: string): Promise<RevenueSyncLog[]> {
+    return await db.select().from(revenueSyncLog)
+      .where(eq(revenueSyncLog.userId, userId))
+      .orderBy(desc(revenueSyncLog.syncedAt))
+      .limit(50);
+  }
+
+  async createRevenueSyncLog(log: InsertRevenueSyncLog): Promise<RevenueSyncLog> {
+    const [newLog] = await db.insert(revenueSyncLog).values(log).returning();
+    return newLog;
   }
 
   async getCommunityPosts(userId?: string, platform?: string): Promise<CommunityPost[]> {

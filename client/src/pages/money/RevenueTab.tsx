@@ -12,13 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DollarSign, Plus, TrendingUp, CalendarDays, CheckCircle2, AlertTriangle,
-  Sparkles, Loader2,
+  Sparkles, Loader2, RefreshCw, Zap, CloudDownload, Clock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
@@ -35,6 +35,27 @@ export default function RevenueTab() {
 
   const { data: revenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
+  const { data: syncStatus } = useQuery<any>({ queryKey: ['/api/revenue/sync-status'] });
+  const { data: breakdown } = useQuery<any>({ queryKey: ['/api/revenue/breakdown'] });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/revenue/sync");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/revenue'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/revenue/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/revenue/sync-status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/revenue/breakdown'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      toast({
+        title: "Revenue synced",
+        description: `${data.totalSynced || 0} new records found ($${(data.totalAmount || 0).toFixed(2)})`,
+      });
+    },
+    onError: (e: any) => toast({ title: "Sync failed", description: e.message, variant: "destructive" }),
+  });
 
   const createRevenueMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -44,6 +65,7 @@ export default function RevenueTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/revenue'] });
       queryClient.invalidateQueries({ queryKey: ['/api/revenue/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/revenue/breakdown'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
       setRevenueDialogOpen(false);
       toast({ title: "Revenue recorded" });
@@ -127,68 +149,222 @@ export default function RevenueTab() {
 
   if (revenueError) return <QueryErrorReset error={revenueError} queryKey={["/api/revenue"]} label="Failed to load revenue" />;
 
+  const autoTotal = breakdown?.autoTotal || 0;
+  const estimatedTotal = breakdown?.estimatedTotal || 0;
+  const manualTotal = breakdown?.manualTotal || 0;
+  const platformBreakdown = breakdown?.byPlatform || {};
+  const recordCount = breakdown?.recordCount || {};
+  const lastSyncTime = syncStatus?.lastSync ? new Date(syncStatus.lastSync) : null;
+  const platformStatuses = syncStatus?.platformStatuses || {};
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-revenue-title" className="text-lg font-semibold">Revenue</h2>
-        <Dialog open={revenueDialogOpen} onOpenChange={setRevenueDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-revenue" size="sm">
-              <Plus className="w-4 h-4 mr-1" />
-              Record Revenue
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Record Revenue</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreateRevenue} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Platform</Label>
-                  <Select name="platform" defaultValue="youtube">
-                    <SelectTrigger data-testid="select-revenue-platform"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="youtube">YouTube</SelectItem>
-                      <SelectItem value="twitch">Twitch</SelectItem>
-                      <SelectItem value="tiktok">TikTok</SelectItem>
-                      <SelectItem value="kick">Kick</SelectItem>
-                      <SelectItem value="instagram">Instagram</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Source</Label>
-                  <Select name="source" defaultValue="adsense">
-                    <SelectTrigger data-testid="select-revenue-source"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="adsense">AdSense</SelectItem>
-                      <SelectItem value="sponsorship">Sponsorship</SelectItem>
-                      <SelectItem value="membership">Membership</SelectItem>
-                      <SelectItem value="superchat">Super Chat</SelectItem>
-                      <SelectItem value="affiliate">Affiliate</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Amount ($)</Label>
-                  <Input name="amount" type="number" step="0.01" required data-testid="input-revenue-amount" placeholder="0.00" />
-                </div>
-                <div>
-                  <Label>Period</Label>
-                  <Input name="period" data-testid="input-revenue-period" placeholder="Jan 2026" />
-                </div>
-              </div>
-              <Button type="submit" className="w-full" disabled={createRevenueMutation.isPending} data-testid="button-submit-revenue">
-                {createRevenueMutation.isPending ? "Saving..." : "Save"}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            data-testid="button-sync-revenue"
+            size="sm"
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+          >
+            {syncMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 mr-1" />
+            )}
+            {syncMutation.isPending ? "Syncing..." : "Sync All Platforms"}
+          </Button>
+          <Dialog open={revenueDialogOpen} onOpenChange={setRevenueDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-revenue" size="sm">
+                <Plus className="w-4 h-4 mr-1" />
+                Record Revenue
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Record Revenue</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateRevenue} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Platform</Label>
+                    <Select name="platform" defaultValue="youtube">
+                      <SelectTrigger data-testid="select-revenue-platform"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="youtube">YouTube</SelectItem>
+                        <SelectItem value="twitch">Twitch</SelectItem>
+                        <SelectItem value="tiktok">TikTok</SelectItem>
+                        <SelectItem value="kick">Kick</SelectItem>
+                        <SelectItem value="x">X</SelectItem>
+                        <SelectItem value="discord">Discord</SelectItem>
+                        <SelectItem value="stripe">Stripe</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Source</Label>
+                    <Select name="source" defaultValue="adsense">
+                      <SelectTrigger data-testid="select-revenue-source"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="adsense">AdSense</SelectItem>
+                        <SelectItem value="sponsorship">Sponsorship</SelectItem>
+                        <SelectItem value="membership">Membership</SelectItem>
+                        <SelectItem value="superchat">Super Chat</SelectItem>
+                        <SelectItem value="affiliate">Affiliate</SelectItem>
+                        <SelectItem value="subscriptions">Subscriptions</SelectItem>
+                        <SelectItem value="bits">Bits/Gifts</SelectItem>
+                        <SelectItem value="payment">Payment</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Amount ($)</Label>
+                    <Input name="amount" type="number" step="0.01" required data-testid="input-revenue-amount" placeholder="0.00" />
+                  </div>
+                  <div>
+                    <Label>Period</Label>
+                    <Input name="period" data-testid="input-revenue-period" placeholder="Jan 2026" />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={createRevenueMutation.isPending} data-testid="button-submit-revenue">
+                  {createRevenueMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      <Card data-testid="card-auto-sync-status">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <CloudDownload className="h-4 w-4 text-purple-400" />
+              <span className="text-sm font-medium">Auto Revenue Sync</span>
+              <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-purple-500/10 text-purple-400" data-testid="badge-auto-sync">
+                <Zap className="h-3 w-3 mr-1" />
+                Autonomous
+              </Badge>
+            </div>
+            {lastSyncTime && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="text-last-sync">
+                <Clock className="h-3 w-3" />
+                Last sync: {formatDistanceToNow(lastSyncTime, { addSuffix: true })}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Auto-Synced</p>
+              <p className="text-sm font-semibold text-emerald-400" data-testid="text-auto-revenue">
+                ${autoTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground">{recordCount.auto || 0} records</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Estimated</p>
+              <p className="text-sm font-semibold text-amber-400" data-testid="text-estimated-revenue">
+                ${estimatedTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground">{recordCount.estimated || 0} records</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Manual</p>
+              <p className="text-sm font-semibold" data-testid="text-manual-revenue">
+                ${manualTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground">{recordCount.manual || 0} records</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-sm font-bold" data-testid="text-total-synced-revenue">
+                ${(autoTotal + estimatedTotal + manualTotal).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground">{recordCount.total || 0} records</p>
+            </div>
+          </div>
+
+          {Object.keys(platformStatuses).length > 0 && (
+            <div className="flex gap-2 mt-3 flex-wrap">
+              {Object.entries(platformStatuses).map(([platform, info]: [string, any]) => (
+                <Badge
+                  key={platform}
+                  variant="secondary"
+                  className={`text-xs capitalize no-default-hover-elevate no-default-active-elevate ${
+                    info.status === "success" ? "bg-emerald-500/10 text-emerald-400" :
+                    info.status === "error" ? "bg-red-500/10 text-red-400" :
+                    ""
+                  }`}
+                  data-testid={`badge-sync-platform-${platform}`}
+                >
+                  <PlatformIcon platform={platform} className="h-3 w-3 mr-1 shrink-0" />
+                  {platform}
+                  {info.status === "success" ? (
+                    <CheckCircle2 className="h-3 w-3 ml-1 shrink-0" />
+                  ) : info.status === "error" ? (
+                    <AlertTriangle className="h-3 w-3 ml-1 shrink-0" />
+                  ) : null}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {Object.keys(platformBreakdown).length > 0 && (
+        <Card data-testid="card-platform-breakdown">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Revenue by Platform</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="space-y-2">
+              {Object.entries(platformBreakdown)
+                .sort((a: any, b: any) => b[1].total - a[1].total)
+                .map(([platform, data]: [string, any]) => {
+                  const maxTotal = Math.max(...Object.values(platformBreakdown).map((d: any) => d.total));
+                  const pct = maxTotal > 0 ? (data.total / maxTotal) * 100 : 0;
+                  return (
+                    <div key={platform} data-testid={`row-platform-breakdown-${platform}`}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <PlatformIcon platform={platform} className="h-4 w-4 shrink-0" />
+                          <span className="text-sm font-medium capitalize">{platform}</span>
+                          {data.auto > 0 && (
+                            <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-emerald-500/10 text-emerald-400">
+                              ${data.auto.toFixed(2)} synced
+                            </Badge>
+                          )}
+                          {data.estimated > 0 && (
+                            <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-500/10 text-amber-400">
+                              ${data.estimated.toFixed(2)} est.
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold" data-testid={`text-platform-total-${platform}`}>
+                          ${data.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-500 rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <CollapsibleToolbox title="AI Financial Tools" toolCount={2} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       {aiInsightsLoading && (
@@ -507,11 +683,12 @@ export default function RevenueTab() {
             <EmptyState
               icon={DollarSign}
               title="No revenue recorded"
-              description="Start tracking income from ads, sponsors, memberships, and other sources."
+              description="Connect your platforms and click 'Sync All Platforms' to automatically pull revenue, or add records manually."
               tips={[
-                "Add revenue records manually or import from CSV",
-                "Connect platforms to auto-track ad revenue",
-                "Revenue data powers AI financial insights and forecasting",
+                "Revenue syncs automatically every 6 hours from connected platforms",
+                "YouTube ad revenue, Twitch subs & bits, TikTok creator fund, and more",
+                "Stripe payments are also tracked automatically",
+                "You can still add manual records for sponsorships and other income",
               ]}
               data-testid="empty-state-revenue"
             />
@@ -525,9 +702,24 @@ export default function RevenueTab() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium capitalize" data-testid={`text-source-${record.id}`}>{record.source}</span>
                       <PlatformBadge platform={record.platform} className="text-xs" data-testid={`badge-record-platform-${record.id}`} />
+                      {record.syncSource === "auto" && (
+                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-emerald-500/10 text-emerald-400" data-testid={`badge-auto-${record.id}`}>
+                          <Zap className="h-2.5 w-2.5 mr-0.5" />
+                          Synced
+                        </Badge>
+                      )}
+                      {record.syncSource === "auto-estimated" && (
+                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-500/10 text-amber-400" data-testid={`badge-estimated-${record.id}`}>
+                          <TrendingUp className="h-2.5 w-2.5 mr-0.5" />
+                          Estimated
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5" data-testid={`text-period-${record.id}`}>
                       {record.period || (record.recordedAt ? format(new Date(record.recordedAt), "MMM d, yyyy") : "")}
+                      {record.metadata?.details && (
+                        <span className="ml-2 text-muted-foreground/60">{record.metadata.details}</span>
+                      )}
                     </p>
                   </div>
                   <span className="text-sm font-semibold text-emerald-400 shrink-0" data-testid={`text-amount-${record.id}`}>

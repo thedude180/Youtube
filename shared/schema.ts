@@ -413,6 +413,8 @@ export const revenueRecords = pgTable("revenue_records", {
   amount: real("amount").notNull().default(0),
   currency: text("currency").default("USD"),
   period: text("period"),
+  syncSource: text("sync_source").default("manual"),
+  externalId: text("external_id"),
   metadata: jsonb("metadata").$type<{
     videoId?: number;
     streamId?: number;
@@ -422,11 +424,29 @@ export const revenueRecords = pgTable("revenue_records", {
     cpm?: number;
     details?: string;
     taxCategory?: string;
+    syncedAt?: string;
+    estimatedRevenue?: number;
+    views?: number;
+    subscribers?: number;
   }>(),
   recordedAt: timestamp("recorded_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("revenue_records_user_id_idx").on(table.userId),
+}));
+
+export const revenueSyncLog = pgTable("revenue_sync_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  status: text("status").notNull().default("pending"),
+  recordsSynced: integer("records_synced").default(0),
+  totalAmount: real("total_amount").default(0),
+  errorMessage: text("error_message"),
+  syncedAt: timestamp("synced_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("revenue_sync_log_user_id_idx").on(table.userId),
 }));
 
 export const communityPosts = pgTable("community_posts", {
@@ -1553,6 +1573,7 @@ export const insertAgentActivitySchema = createInsertSchema(aiAgentActivities).o
 export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({ id: true, createdAt: true, lastTriggeredAt: true, triggerCount: true });
 export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({ id: true, createdAt: true, completedAt: true });
 export const insertRevenueRecordSchema = createInsertSchema(revenueRecords).omit({ id: true, createdAt: true });
+export const insertRevenueSyncLogSchema = createInsertSchema(revenueSyncLog).omit({ id: true, createdAt: true });
 export const insertCommunityPostSchema = createInsertSchema(communityPosts).omit({ id: true, createdAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertAbTestSchema = createInsertSchema(abTests).omit({ id: true, createdAt: true });
@@ -1632,6 +1653,8 @@ export type AgentActivity = typeof aiAgentActivities.$inferSelect;
 export type AutomationRule = typeof automationRules.$inferSelect;
 export type ScheduleItem = typeof scheduleItems.$inferSelect;
 export type RevenueRecord = typeof revenueRecords.$inferSelect;
+export type RevenueSyncLog = typeof revenueSyncLog.$inferSelect;
+export type InsertRevenueSyncLog = z.infer<typeof insertRevenueSyncLogSchema>;
 export type CommunityPost = typeof communityPosts.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type AbTest = typeof abTests.$inferSelect;

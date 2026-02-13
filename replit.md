@@ -43,6 +43,7 @@ The platform is built as a full-stack application with an Express.js backend and
 - **Server Architecture**: Routes split into 10 domain modules (server/routes/): ai.ts, admin.ts, content.ts, stream.ts, money.ts, settings.ts, platform.ts, automation.ts, events.ts, helpers.ts. Main routes.ts is a thin orchestrator (~180 lines).
 - **AI Rate Limiting**: Per-user daily limits by subscription tier (free:10, youtube:50, starter:200, pro:500, ultimate:2000) plus per-minute rate limiting (30 req/min for AI, 120 req/min general).
 - **Database Indexing**: Indexes on userId and channelId columns across 23 frequently-queried tables for query performance.
+- **Auto Revenue Sync** (server/revenue-sync-engine.ts): Pulls revenue from connected platforms every 6 hours. YouTube (Analytics API, memberships, Super Chats), Twitch (subscriptions, bits, ads), TikTok (Creator Fund, live gifts), Kick (subscriptions), X (ads revenue share), Discord (server subscriptions), Stripe (charges). Uses externalId deduplication. Routes: /api/revenue/sync, /api/revenue/sync-status, /api/revenue/breakdown. Tables: revenue_sync_log + syncSource/externalId fields on revenue_records.
 - **Key Features**:
     - **Home**: Dashboard with various AI-powered insights, analytics, and action centers.
     - **Content**: Library, Channels, Calendar, and Localization tabs with AI-powered content quality, repurposing, and localization tools.
