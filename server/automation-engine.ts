@@ -340,8 +340,11 @@ export async function initAutomationEngine() {
   });
 
   const cronTrackedBroadcasts = new Map<string, { streamId: number; broadcastId: string; missCount: number }>();
+  let liveDetectionRunning = false;
 
   cron.schedule("*/2 * * * *", async () => {
+    if (liveDetectionRunning) return;
+    liveDetectionRunning = true;
     try {
       const { checkYouTubeLiveBroadcasts } = await import("./youtube");
       const { createPipelineForStream } = await import("./routes/pipeline");
@@ -361,6 +364,11 @@ export async function initAutomationEngine() {
           const existingLive = streamList.find(s => s.status === "live");
           const existingPlanned = streamList.find(s => s.status === "planned");
           const tracked = cronTrackedBroadcasts.get(userId);
+
+          if (!tracked && existingLive && broadcasts.length > 0) {
+            cronTrackedBroadcasts.set(userId, { streamId: existingLive.id, broadcastId: broadcasts[0].broadcastId, missCount: 0 });
+            console.log(`[AutomationEngine] Reconciled tracked broadcast for ${userId}: stream ${existingLive.id} (server restart recovery)`);
+          }
 
           if (broadcasts.length > 0 && !existingLive && !existingPlanned && !tracked) {
             const broadcast = broadcasts[0];
@@ -454,6 +462,8 @@ export async function initAutomationEngine() {
       }
     } catch (err) {
       console.error("[AutomationEngine] YouTube live detection cron error:", err);
+    } finally {
+      liveDetectionRunning = false;
     }
   });
 
@@ -517,6 +527,7 @@ async function processAllChains() {
         message: `All ${(chain.steps as any[]).length} steps executed successfully`,
         severity: "info",
       });
+      sendSSEEvent(chain.userId, "notification", { type: "new" });
     } catch (err) {
       console.error(`[AutomationEngine] Chain ${chain.id} failed:`, err);
       await db.update(aiChains).set({ status: "error" }).where(eq(aiChains.id, chain.id));
