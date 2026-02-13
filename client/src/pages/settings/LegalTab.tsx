@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, CalendarDays, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, CalendarDays, Shield, ChevronDown, ChevronUp, CheckCircle2, Building2, MapPin, AlertTriangle, DollarSign, FileCheck } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
@@ -45,6 +47,40 @@ function LegalTab() {
   const entityType = activeVenture?.metadata?.entityType || activeVenture?.type || null;
 
   const upcomingTax = taxEstimates?.find((t: any) => !t.paid && t.dueDate && new Date(t.dueDate) > new Date());
+
+  const [location, setLocation] = useState(() => localStorage.getItem("creatorLocation") || "");
+  const [locationInput, setLocationInput] = useState(() => localStorage.getItem("creatorLocation") || "");
+  const [aiStructure, setAiStructure] = useState<AIResponse>(null);
+  const [aiStructureLoading, setAiStructureLoading] = useState(false);
+
+  const fetchStructureAdvice = (loc: string) => {
+    if (!loc.trim()) return;
+    localStorage.setItem("creatorLocation", loc.trim());
+    setLocation(loc.trim());
+    const cacheKey = `ai_structure_${loc.trim().toLowerCase()}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const e = JSON.parse(cached);
+        if (e.ts && Date.now() - e.ts < 1800000) { setAiStructure(e.data); return; }
+        else { sessionStorage.removeItem(cacheKey); }
+      } catch {}
+    }
+    setAiStructureLoading(true);
+    setAiStructure(null);
+    apiRequest("POST", "/api/ai/business-entity", { location: loc.trim(), platform: "gaming content creator", revenue: "growing" })
+      .then(r => r.json())
+      .then(d => {
+        setAiStructure(d);
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data: d, ts: Date.now() }));
+      })
+      .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+      .finally(() => setAiStructureLoading(false));
+  };
+
+  useEffect(() => {
+    if (location) fetchStructureAdvice(location);
+  }, []);
 
   const [showLegalAI, setShowLegalAI] = useState(false);
   const [aiCopyright, setAiCopyright] = useState<AIResponse>(null);
@@ -294,6 +330,145 @@ function LegalTab() {
   return (
     <div className="space-y-6">
       <h2 data-testid="text-legal-title" className="text-lg font-semibold">Legal & Formation</h2>
+
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-3 mb-4">
+            <Building2 className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-sm mb-1" data-testid="text-why-company-title">Why You Need a Business Set Up</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Making money from content means you're running a business, even if it doesn't feel like it yet.
+                Without a proper structure, you're personally on the hook for everything -- taxes, lawsuits, debts, all of it.
+                Setting up the right way protects your personal assets, saves you money on taxes, and makes you look professional to sponsors and brands.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            <div className="flex items-start gap-2 p-3 rounded-md bg-background/50">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium">Personal Protection</p>
+                <p className="text-[11px] text-muted-foreground">Separates your personal stuff from your business. If something goes wrong, your house, car, and savings stay safe.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 p-3 rounded-md bg-background/50">
+              <DollarSign className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium">Tax Savings</p>
+                <p className="text-[11px] text-muted-foreground">The right structure can save you thousands in taxes every year. Write off equipment, internet, games -- all legally.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 p-3 rounded-md bg-background/50">
+              <FileCheck className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium">Look Professional</p>
+                <p className="text-[11px] text-muted-foreground">Brands and sponsors take you seriously when you have a real business. Opens doors to bigger deals and partnerships.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border/50 pt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <p className="text-sm font-medium">AI Business Structure Advisor</p>
+              <Badge variant="outline" className="text-[10px]">Personalized</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Tell us where you live and our AI will recommend the best business structure, tax strategy, and formation steps for your specific location.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                <Input
+                  data-testid="input-location"
+                  placeholder="City, State or Country (e.g. Austin, Texas)"
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") fetchStructureAdvice(locationInput); }}
+                  className="text-sm"
+                />
+              </div>
+              <Button
+                data-testid="button-get-advice"
+                onClick={() => fetchStructureAdvice(locationInput)}
+                disabled={!locationInput.trim() || aiStructureLoading}
+              >
+                {aiStructureLoading ? "Analyzing..." : "Get My Plan"}
+              </Button>
+            </div>
+          </div>
+
+          {aiStructureLoading && (
+            <div className="mt-4 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          )}
+
+          {aiStructure && !aiStructureLoading && (
+            <div className="mt-4 space-y-3" data-testid="section-ai-structure-advice">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="secondary" className="text-xs">
+                  <MapPin className="w-3 h-3 mr-1" />
+                  {location}
+                </Badge>
+                <Badge variant="outline" className="text-[10px]">AI-Generated</Badge>
+              </div>
+              <div className="space-y-2 text-xs text-muted-foreground leading-relaxed">
+                {aiStructure.recommendation && (
+                  <div className="p-3 rounded-md bg-background/50">
+                    <p className="font-medium text-foreground text-sm mb-1">Recommended Structure</p>
+                    <p>{typeof aiStructure.recommendation === "string" ? aiStructure.recommendation : JSON.stringify(aiStructure.recommendation)}</p>
+                  </div>
+                )}
+                {aiStructure.entityType && (
+                  <div className="p-3 rounded-md bg-background/50">
+                    <p className="font-medium text-foreground text-sm mb-1">Best Entity Type</p>
+                    <p>{typeof aiStructure.entityType === "string" ? aiStructure.entityType : JSON.stringify(aiStructure.entityType)}</p>
+                  </div>
+                )}
+                {(aiStructure.taxStrategy || aiStructure.taxBenefits) && (
+                  <div className="p-3 rounded-md bg-background/50">
+                    <p className="font-medium text-foreground text-sm mb-1">Tax Strategy</p>
+                    <p>{typeof (aiStructure.taxStrategy || aiStructure.taxBenefits) === "string" ? (aiStructure.taxStrategy || aiStructure.taxBenefits) as string : JSON.stringify(aiStructure.taxStrategy || aiStructure.taxBenefits)}</p>
+                  </div>
+                )}
+                {(aiStructure.steps || aiStructure.formationSteps) && Array.isArray(aiStructure.steps || aiStructure.formationSteps) && (
+                  <div className="p-3 rounded-md bg-background/50">
+                    <p className="font-medium text-foreground text-sm mb-1">Steps to Get Started</p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      {((aiStructure.steps || aiStructure.formationSteps) as any[]).map((s: any, i: number) => (
+                        <li key={i}>{typeof s === "string" ? s : s.title || s.step || s.description || s.name || JSON.stringify(s)}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {(aiStructure.recommendations || aiStructure.tips || aiStructure.entities || aiStructure.results) && Array.isArray(aiStructure.recommendations || aiStructure.tips || aiStructure.entities || aiStructure.results) && (
+                  <div className="p-3 rounded-md bg-background/50">
+                    <p className="font-medium text-foreground text-sm mb-1">Key Recommendations</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {((aiStructure.recommendations || aiStructure.tips || aiStructure.entities || aiStructure.results) as any[]).slice(0, 8).map((item: any, i: number) => (
+                        <li key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || JSON.stringify(item)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {aiStructure.estimatedCost && (
+                  <div className="p-3 rounded-md bg-background/50">
+                    <p className="font-medium text-foreground text-sm mb-1">Estimated Cost</p>
+                    <p>{typeof aiStructure.estimatedCost === "string" ? aiStructure.estimatedCost : JSON.stringify(aiStructure.estimatedCost)}</p>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground/60 italic">This is AI-generated guidance, not legal advice. Consult a professional for your specific situation.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className={completionPct === 100 ? "border-emerald-500/30 bg-emerald-500/5" : completionPct > 50 ? "border-amber-500/30 bg-amber-500/5" : ""}>
         <CardContent className="p-4">
