@@ -660,17 +660,26 @@ export function registerContentRoutes(app: Express) {
   app.get(api.backlog.status.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const allVideos = await storage.getVideosByUser(userId);
-    const optimized = allVideos.filter(v => v.metadata?.aiOptimized).length;
-    const allJobs = await storage.getJobs();
-    const activeJob = allJobs.find(j => j.type === 'backlog_optimize' && j.status === 'processing') || null;
+    try {
+      const { getBacklogStatus } = await import("../backlog-manager");
+      const managerStatus = await getBacklogStatus(userId);
 
-    res.json({
-      totalVideos: allVideos.length,
-      optimized,
-      pending: allVideos.length - optimized,
-      activeJob,
-    });
+      const allVideos = await storage.getVideosByUser(userId);
+      const optimized = allVideos.filter(v => v.metadata?.aiOptimized).length;
+      const allJobs = await storage.getJobs();
+      const activeJob = allJobs.find(j => j.type === 'backlog_optimize' && j.status === 'processing') || null;
+
+      res.json({
+        ...managerStatus,
+        totalVideos: allVideos.length,
+        optimized,
+        pending: allVideos.length - optimized,
+        activeJob,
+      });
+    } catch (err: any) {
+      console.error("[Backlog] Status error:", err);
+      res.status(500).json({ error: "Failed to get backlog status" });
+    }
   });
 
   app.post(api.backlog.autoStart.path, async (req, res) => {

@@ -15,6 +15,7 @@ import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStre
 import { createPipelineForStream } from "./pipeline";
 import { pauseForLive, resumeAfterStream } from "../backlog-manager";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
+import { sendSSEEvent } from "./events";
 
 
 export function registerStreamRoutes(app: Express) {
@@ -213,6 +214,17 @@ export function registerStreamRoutes(app: Express) {
         console.error("[Pipeline] Auto-pipeline on go-live error:", err)
       );
 
+      sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: stream.title });
+      sendSSEEvent(userId, "notification", { type: "new" });
+
+      await storage.createNotification({
+        userId,
+        type: "stream_live",
+        title: "Stream is LIVE",
+        message: `"${stream.title}" — all platform automations triggered`,
+        severity: "info",
+      });
+
       const tasks = [
         { name: "seo_optimization", status: "pending" },
         { name: "thumbnail_generation", status: "pending" },
@@ -370,6 +382,17 @@ export function registerStreamRoutes(app: Express) {
       resumeAfterStream(userId).catch(err =>
         console.error("[Backlog] Resume after manual stream end error:", err)
       );
+
+      sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: stream.id, title: stream.title });
+      sendSSEEvent(userId, "notification", { type: "new" });
+
+      await storage.createNotification({
+        userId,
+        type: "stream_ended",
+        title: "Stream Ended",
+        message: `"${stream.title}" — REPLAY pipeline started, backlog will resume automatically`,
+        severity: "info",
+      });
 
       const tasks = [
         { name: "vod_optimization", status: "pending" },
