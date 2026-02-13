@@ -58,7 +58,7 @@ export default function AIInsightsSection() {
           setAiNewsFeed(data);
           sessionStorage.setItem("aiNewsFeed", JSON.stringify({ data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiNewsFeedLoading(false));
     }
   }, []);
@@ -75,7 +75,7 @@ export default function AIInsightsSection() {
           setAiMilestones(data);
           sessionStorage.setItem("aiMilestones", JSON.stringify({ data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiMilestonesLoading(false));
     }
   }, []);
@@ -92,7 +92,7 @@ export default function AIInsightsSection() {
           setAiCrossplatform(data);
           sessionStorage.setItem("aiCrossplatform", JSON.stringify({ data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiCrossplatformLoading(false));
     }
   }, []);
@@ -109,7 +109,7 @@ export default function AIInsightsSection() {
           setAiCommentManager(data);
           sessionStorage.setItem("aiCommentManager", JSON.stringify({ data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiCommentManagerLoading(false));
     }
   }, []);

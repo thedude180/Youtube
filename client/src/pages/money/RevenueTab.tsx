@@ -90,7 +90,7 @@ export default function RevenueTab() {
           setAiInsights(data);
           sessionStorage.setItem("aiFinancialInsights", JSON.stringify({ data: data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiInsightsLoading(false));
     }
     const cachedPL = sessionStorage.getItem("aiPLReport");
@@ -104,7 +104,7 @@ export default function RevenueTab() {
           setAiPLReport(data);
           sessionStorage.setItem("aiPLReport", JSON.stringify({ data: data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiPLReportLoading(false));
     }
   }, []);

@@ -302,699 +302,699 @@ export default function AIToolSuites() {
     const cached = sessionStorage.getItem("ai_retention");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRetention(e.data); return; } else { sessionStorage.removeItem("ai_retention"); } } catch {} }
     setAiRetentionLoading(true);
-    apiRequest("POST", "/api/ai/retention-analyzer", {}).then(r => r.json()).then(d => { setAiRetention(d); sessionStorage.setItem("ai_retention", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRetentionLoading(false));
+    apiRequest("POST", "/api/ai/retention-analyzer", {}).then(r => r.json()).then(d => { setAiRetention(d); sessionStorage.setItem("ai_retention", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRetentionLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_demographics");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDemographics(e.data); return; } else { sessionStorage.removeItem("ai_demographics"); } } catch {} }
     setAiDemographicsLoading(true);
-    apiRequest("POST", "/api/ai/audience-demographics", {}).then(r => r.json()).then(d => { setAiDemographics(d); sessionStorage.setItem("ai_demographics", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDemographicsLoading(false));
+    apiRequest("POST", "/api/ai/audience-demographics", {}).then(r => r.json()).then(d => { setAiDemographics(d); sessionStorage.setItem("ai_demographics", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDemographicsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_watch_time");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiWatchTime(e.data); return; } else { sessionStorage.removeItem("ai_watch_time"); } } catch {} }
     setAiWatchTimeLoading(true);
-    apiRequest("POST", "/api/ai/watch-time", {}).then(r => r.json()).then(d => { setAiWatchTime(d); sessionStorage.setItem("ai_watch_time", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiWatchTimeLoading(false));
+    apiRequest("POST", "/api/ai/watch-time", {}).then(r => r.json()).then(d => { setAiWatchTime(d); sessionStorage.setItem("ai_watch_time", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiWatchTimeLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_engagement");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiEngagement(e.data); return; } else { sessionStorage.removeItem("ai_engagement"); } } catch {} }
     setAiEngagementLoading(true);
-    apiRequest("POST", "/api/ai/engagement-rate", {}).then(r => r.json()).then(d => { setAiEngagement(d); sessionStorage.setItem("ai_engagement", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiEngagementLoading(false));
+    apiRequest("POST", "/api/ai/engagement-rate", {}).then(r => r.json()).then(d => { setAiEngagement(d); sessionStorage.setItem("ai_engagement", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiEngagementLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_sub_growth");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSubGrowth(e.data); return; } else { sessionStorage.removeItem("ai_sub_growth"); } } catch {} }
     setAiSubGrowthLoading(true);
-    apiRequest("POST", "/api/ai/subscriber-growth", {}).then(r => r.json()).then(d => { setAiSubGrowth(d); sessionStorage.setItem("ai_sub_growth", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSubGrowthLoading(false));
+    apiRequest("POST", "/api/ai/subscriber-growth", {}).then(r => r.json()).then(d => { setAiSubGrowth(d); sessionStorage.setItem("ai_sub_growth", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSubGrowthLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_rev_forecast");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRevForecast(e.data); return; } else { sessionStorage.removeItem("ai_rev_forecast"); } } catch {} }
     setAiRevForecastLoading(true);
-    apiRequest("POST", "/api/ai/revenue-forecast", {}).then(r => r.json()).then(d => { setAiRevForecast(d); sessionStorage.setItem("ai_rev_forecast", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRevForecastLoading(false));
+    apiRequest("POST", "/api/ai/revenue-forecast", {}).then(r => r.json()).then(d => { setAiRevForecast(d); sessionStorage.setItem("ai_rev_forecast", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRevForecastLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ab_test");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiABTest(e.data); return; } else { sessionStorage.removeItem("ai_ab_test"); } } catch {} }
     setAiABTestLoading(true);
-    apiRequest("POST", "/api/ai/ab-test", {}).then(r => r.json()).then(d => { setAiABTest(d); sessionStorage.setItem("ai_ab_test", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiABTestLoading(false));
+    apiRequest("POST", "/api/ai/ab-test", {}).then(r => r.json()).then(d => { setAiABTest(d); sessionStorage.setItem("ai_ab_test", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiABTestLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ret_heatmap");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRetHeatmap(e.data); return; } else { sessionStorage.removeItem("ai_ret_heatmap"); } } catch {} }
     setAiRetHeatmapLoading(true);
-    apiRequest("POST", "/api/ai/retention-heatmap", {}).then(r => r.json()).then(d => { setAiRetHeatmap(d); sessionStorage.setItem("ai_ret_heatmap", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRetHeatmapLoading(false));
+    apiRequest("POST", "/api/ai/retention-heatmap", {}).then(r => r.json()).then(d => { setAiRetHeatmap(d); sessionStorage.setItem("ai_ret_heatmap", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRetHeatmapLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_traffic_src");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTrafficSrc(e.data); return; } else { sessionStorage.removeItem("ai_traffic_src"); } } catch {} }
     setAiTrafficSrcLoading(true);
-    apiRequest("POST", "/api/ai/traffic-sources", {}).then(r => r.json()).then(d => { setAiTrafficSrc(d); sessionStorage.setItem("ai_traffic_src", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTrafficSrcLoading(false));
+    apiRequest("POST", "/api/ai/traffic-sources", {}).then(r => r.json()).then(d => { setAiTrafficSrc(d); sessionStorage.setItem("ai_traffic_src", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTrafficSrcLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_devices");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDevices(e.data); return; } else { sessionStorage.removeItem("ai_devices"); } } catch {} }
     setAiDevicesLoading(true);
-    apiRequest("POST", "/api/ai/device-analyzer", {}).then(r => r.json()).then(d => { setAiDevices(d); sessionStorage.setItem("ai_devices", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDevicesLoading(false));
+    apiRequest("POST", "/api/ai/device-analyzer", {}).then(r => r.json()).then(d => { setAiDevices(d); sessionStorage.setItem("ai_devices", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDevicesLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_playback");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPlayback(e.data); return; } else { sessionStorage.removeItem("ai_playback"); } } catch {} }
     setAiPlaybackLoading(true);
-    apiRequest("POST", "/api/ai/playback-location", {}).then(r => r.json()).then(d => { setAiPlayback(d); sessionStorage.setItem("ai_playback", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPlaybackLoading(false));
+    apiRequest("POST", "/api/ai/playback-location", {}).then(r => r.json()).then(d => { setAiPlayback(d); sessionStorage.setItem("ai_playback", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPlaybackLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_end_screen");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiEndScreen(e.data); return; } else { sessionStorage.removeItem("ai_end_screen"); } } catch {} }
     setAiEndScreenLoading(true);
-    apiRequest("POST", "/api/ai/end-screen-analyzer", {}).then(r => r.json()).then(d => { setAiEndScreen(d); sessionStorage.setItem("ai_end_screen", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiEndScreenLoading(false));
+    apiRequest("POST", "/api/ai/end-screen-analyzer", {}).then(r => r.json()).then(d => { setAiEndScreen(d); sessionStorage.setItem("ai_end_screen", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiEndScreenLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_card_perf");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCardPerf(e.data); return; } else { sessionStorage.removeItem("ai_card_perf"); } } catch {} }
     setAiCardPerfLoading(true);
-    apiRequest("POST", "/api/ai/card-performance", {}).then(r => r.json()).then(d => { setAiCardPerf(d); sessionStorage.setItem("ai_card_perf", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCardPerfLoading(false));
+    apiRequest("POST", "/api/ai/card-performance", {}).then(r => r.json()).then(d => { setAiCardPerf(d); sessionStorage.setItem("ai_card_perf", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCardPerfLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_imp_funnel");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiImpFunnel(e.data); return; } else { sessionStorage.removeItem("ai_imp_funnel"); } } catch {} }
     setAiImpFunnelLoading(true);
-    apiRequest("POST", "/api/ai/impression-funnel", {}).then(r => r.json()).then(d => { setAiImpFunnel(d); sessionStorage.setItem("ai_imp_funnel", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiImpFunnelLoading(false));
+    apiRequest("POST", "/api/ai/impression-funnel", {}).then(r => r.json()).then(d => { setAiImpFunnel(d); sessionStorage.setItem("ai_imp_funnel", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiImpFunnelLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comp_bench");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompBench(e.data); return; } else { sessionStorage.removeItem("ai_comp_bench"); } } catch {} }
     setAiCompBenchLoading(true);
-    apiRequest("POST", "/api/ai/competitor-benchmark", {}).then(r => r.json()).then(d => { setAiCompBench(d); sessionStorage.setItem("ai_comp_bench", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompBenchLoading(false));
+    apiRequest("POST", "/api/ai/competitor-benchmark", {}).then(r => r.json()).then(d => { setAiCompBench(d); sessionStorage.setItem("ai_comp_bench", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompBenchLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_growth_pred");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiGrowthPred(e.data); return; } else { sessionStorage.removeItem("ai_growth_pred"); } } catch {} }
     setAiGrowthPredLoading(true);
-    apiRequest("POST", "/api/ai/growth-prediction", {}).then(r => r.json()).then(d => { setAiGrowthPred(d); sessionStorage.setItem("ai_growth_pred", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiGrowthPredLoading(false));
+    apiRequest("POST", "/api/ai/growth-prediction", {}).then(r => r.json()).then(d => { setAiGrowthPred(d); sessionStorage.setItem("ai_growth_pred", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiGrowthPredLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_churn");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChurn(e.data); return; } else { sessionStorage.removeItem("ai_churn"); } } catch {} }
     setAiChurnLoading(true);
-    apiRequest("POST", "/api/ai/churn-predictor", {}).then(r => r.json()).then(d => { setAiChurn(d); sessionStorage.setItem("ai_churn", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiChurnLoading(false));
+    apiRequest("POST", "/api/ai/churn-predictor", {}).then(r => r.json()).then(d => { setAiChurn(d); sessionStorage.setItem("ai_churn", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiChurnLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_viral_coeff");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiViralCoeff(e.data); return; } else { sessionStorage.removeItem("ai_viral_coeff"); } } catch {} }
     setAiViralCoeffLoading(true);
-    apiRequest("POST", "/api/ai/viral-coefficient", {}).then(r => r.json()).then(d => { setAiViralCoeff(d); sessionStorage.setItem("ai_viral_coeff", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiViralCoeffLoading(false));
+    apiRequest("POST", "/api/ai/viral-coefficient", {}).then(r => r.json()).then(d => { setAiViralCoeff(d); sessionStorage.setItem("ai_viral_coeff", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiViralCoeffLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_sentiment");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSentiment(e.data); return; } else { sessionStorage.removeItem("ai_sentiment"); } } catch {} }
     setAiSentimentLoading(true);
-    apiRequest("POST", "/api/ai/sentiment", {}).then(r => r.json()).then(d => { setAiSentiment(d); sessionStorage.setItem("ai_sentiment", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSentimentLoading(false));
+    apiRequest("POST", "/api/ai/sentiment", {}).then(r => r.json()).then(d => { setAiSentiment(d); sessionStorage.setItem("ai_sentiment", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSentimentLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_peak_times");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPeakTimes(e.data); return; } else { sessionStorage.removeItem("ai_peak_times"); } } catch {} }
     setAiPeakTimesLoading(true);
-    apiRequest("POST", "/api/ai/peak-times", {}).then(r => r.json()).then(d => { setAiPeakTimes(d); sessionStorage.setItem("ai_peak_times", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPeakTimesLoading(false));
+    apiRequest("POST", "/api/ai/peak-times", {}).then(r => r.json()).then(d => { setAiPeakTimes(d); sessionStorage.setItem("ai_peak_times", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPeakTimesLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_lifecycle");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLifecycle(e.data); return; } else { sessionStorage.removeItem("ai_lifecycle"); } } catch {} }
     setAiLifecycleLoading(true);
-    apiRequest("POST", "/api/ai/video-lifecycle", {}).then(r => r.json()).then(d => { setAiLifecycle(d); sessionStorage.setItem("ai_lifecycle", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLifecycleLoading(false));
+    apiRequest("POST", "/api/ai/video-lifecycle", {}).then(r => r.json()).then(d => { setAiLifecycle(d); sessionStorage.setItem("ai_lifecycle", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLifecycleLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_rpm");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRPM(e.data); return; } else { sessionStorage.removeItem("ai_rpm"); } } catch {} }
     setAiRPMLoading(true);
-    apiRequest("POST", "/api/ai/rpm-optimizer", {}).then(r => r.json()).then(d => { setAiRPM(d); sessionStorage.setItem("ai_rpm", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRPMLoading(false));
+    apiRequest("POST", "/api/ai/rpm-optimizer", {}).then(r => r.json()).then(d => { setAiRPM(d); sessionStorage.setItem("ai_rpm", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRPMLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_overlap");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOverlap(e.data); return; } else { sessionStorage.removeItem("ai_overlap"); } } catch {} }
     setAiOverlapLoading(true);
-    apiRequest("POST", "/api/ai/audience-overlap", {}).then(r => r.json()).then(d => { setAiOverlap(d); sessionStorage.setItem("ai_overlap", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiOverlapLoading(false));
+    apiRequest("POST", "/api/ai/audience-overlap", {}).then(r => r.json()).then(d => { setAiOverlap(d); sessionStorage.setItem("ai_overlap", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiOverlapLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_perf_ranker");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPerfRanker(e.data); return; } else { sessionStorage.removeItem("ai_perf_ranker"); } } catch {} }
     setAiPerfRankerLoading(true);
-    apiRequest("POST", "/api/ai/performance-ranker", {}).then(r => r.json()).then(d => { setAiPerfRanker(d); sessionStorage.setItem("ai_perf_ranker", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPerfRankerLoading(false));
+    apiRequest("POST", "/api/ai/performance-ranker", {}).then(r => r.json()).then(d => { setAiPerfRanker(d); sessionStorage.setItem("ai_perf_ranker", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPerfRankerLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_funnel_leak");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFunnelLeak(e.data); return; } else { sessionStorage.removeItem("ai_funnel_leak"); } } catch {} }
     setAiFunnelLeakLoading(true);
-    apiRequest("POST", "/api/ai/funnel-leaks", {}).then(r => r.json()).then(d => { setAiFunnelLeak(d); sessionStorage.setItem("ai_funnel_leak", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFunnelLeakLoading(false));
+    apiRequest("POST", "/api/ai/funnel-leaks", {}).then(r => r.json()).then(d => { setAiFunnelLeak(d); sessionStorage.setItem("ai_funnel_leak", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiFunnelLeakLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_predictive");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPredictive(e.data); return; } else { sessionStorage.removeItem("ai_predictive"); } } catch {} }
     setAiPredictiveLoading(true);
-    apiRequest("POST", "/api/ai/predictive-analytics", {}).then(r => r.json()).then(d => { setAiPredictive(d); sessionStorage.setItem("ai_predictive", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPredictiveLoading(false));
+    apiRequest("POST", "/api/ai/predictive-analytics", {}).then(r => r.json()).then(d => { setAiPredictive(d); sessionStorage.setItem("ai_predictive", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPredictiveLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_custom_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCustomReport(e.data); return; } else { sessionStorage.removeItem("ai_custom_report"); } } catch {} }
     setAiCustomReportLoading(true);
-    apiRequest("POST", "/api/ai/custom-reports", {}).then(r => r.json()).then(d => { setAiCustomReport(d); sessionStorage.setItem("ai_custom_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCustomReportLoading(false));
+    apiRequest("POST", "/api/ai/custom-reports", {}).then(r => r.json()).then(d => { setAiCustomReport(d); sessionStorage.setItem("ai_custom_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCustomReportLoading(false));
   }, []);
 
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comment_resp");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCommentResp(e.data); return; } else { sessionStorage.removeItem("ai_comment_resp"); } } catch {} }
     setAiCommentRespLoading(true);
-    apiRequest("POST", "/api/ai/comment-response", {}).then(r => r.json()).then(d => { setAiCommentResp(d); sessionStorage.setItem("ai_comment_resp", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCommentRespLoading(false));
+    apiRequest("POST", "/api/ai/comment-response", {}).then(r => r.json()).then(d => { setAiCommentResp(d); sessionStorage.setItem("ai_comment_resp", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCommentRespLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_superfan");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSuperfan(e.data); return; } else { sessionStorage.removeItem("ai_superfan"); } } catch {} }
     setAiSuperfanLoading(true);
-    apiRequest("POST", "/api/ai/superfan-id", {}).then(r => r.json()).then(d => { setAiSuperfan(d); sessionStorage.setItem("ai_superfan", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSuperfanLoading(false));
+    apiRequest("POST", "/api/ai/superfan-id", {}).then(r => r.json()).then(d => { setAiSuperfan(d); sessionStorage.setItem("ai_superfan", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSuperfanLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_discord");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDiscord(e.data); return; } else { sessionStorage.removeItem("ai_discord"); } } catch {} }
     setAiDiscordLoading(true);
-    apiRequest("POST", "/api/ai/discord-planner", {}).then(r => r.json()).then(d => { setAiDiscord(d); sessionStorage.setItem("ai_discord", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDiscordLoading(false));
+    apiRequest("POST", "/api/ai/discord-planner", {}).then(r => r.json()).then(d => { setAiDiscord(d); sessionStorage.setItem("ai_discord", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDiscordLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comm_events");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCommEvents(e.data); return; } else { sessionStorage.removeItem("ai_comm_events"); } } catch {} }
     setAiCommEventsLoading(true);
-    apiRequest("POST", "/api/ai/community-events", {}).then(r => r.json()).then(d => { setAiCommEvents(d); sessionStorage.setItem("ai_comm_events", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCommEventsLoading(false));
+    apiRequest("POST", "/api/ai/community-events", {}).then(r => r.json()).then(d => { setAiCommEvents(d); sessionStorage.setItem("ai_comm_events", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCommEventsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_polls");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPolls(e.data); return; } else { sessionStorage.removeItem("ai_polls"); } } catch {} }
     setAiPollsLoading(true);
-    apiRequest("POST", "/api/ai/poll-creator", {}).then(r => r.json()).then(d => { setAiPolls(d); sessionStorage.setItem("ai_polls", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPollsLoading(false));
+    apiRequest("POST", "/api/ai/poll-creator", {}).then(r => r.json()).then(d => { setAiPolls(d); sessionStorage.setItem("ai_polls", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPollsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_contests");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiContests(e.data); return; } else { sessionStorage.removeItem("ai_contests"); } } catch {} }
     setAiContestsLoading(true);
-    apiRequest("POST", "/api/ai/contest-runner", {}).then(r => r.json()).then(d => { setAiContests(d); sessionStorage.setItem("ai_contests", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiContestsLoading(false));
+    apiRequest("POST", "/api/ai/contest-runner", {}).then(r => r.json()).then(d => { setAiContests(d); sessionStorage.setItem("ai_contests", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiContestsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comm_guidelines");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCommGuidelines(e.data); return; } else { sessionStorage.removeItem("ai_comm_guidelines"); } } catch {} }
     setAiCommGuidelinesLoading(true);
-    apiRequest("POST", "/api/ai/community-guidelines", {}).then(r => r.json()).then(d => { setAiCommGuidelines(d); sessionStorage.setItem("ai_comm_guidelines", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCommGuidelinesLoading(false));
+    apiRequest("POST", "/api/ai/community-guidelines", {}).then(r => r.json()).then(d => { setAiCommGuidelines(d); sessionStorage.setItem("ai_comm_guidelines", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCommGuidelinesLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_mod_trainer");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiModTrainer(e.data); return; } else { sessionStorage.removeItem("ai_mod_trainer"); } } catch {} }
     setAiModTrainerLoading(true);
-    apiRequest("POST", "/api/ai/moderator-trainer", {}).then(r => r.json()).then(d => { setAiModTrainer(d); sessionStorage.setItem("ai_mod_trainer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiModTrainerLoading(false));
+    apiRequest("POST", "/api/ai/moderator-trainer", {}).then(r => r.json()).then(d => { setAiModTrainer(d); sessionStorage.setItem("ai_mod_trainer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiModTrainerLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ama");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAMA(e.data); return; } else { sessionStorage.removeItem("ai_ama"); } } catch {} }
     setAiAMALoading(true);
-    apiRequest("POST", "/api/ai/ama-planner", {}).then(r => r.json()).then(d => { setAiAMA(d); sessionStorage.setItem("ai_ama", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAMALoading(false));
+    apiRequest("POST", "/api/ai/ama-planner", {}).then(r => r.json()).then(d => { setAiAMA(d); sessionStorage.setItem("ai_ama", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAMALoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_loyalty");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLoyalty(e.data); return; } else { sessionStorage.removeItem("ai_loyalty"); } } catch {} }
     setAiLoyaltyLoading(true);
-    apiRequest("POST", "/api/ai/loyalty-program", {}).then(r => r.json()).then(d => { setAiLoyalty(d); sessionStorage.setItem("ai_loyalty", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLoyaltyLoading(false));
+    apiRequest("POST", "/api/ai/loyalty-program", {}).then(r => r.json()).then(d => { setAiLoyalty(d); sessionStorage.setItem("ai_loyalty", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLoyaltyLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ugc");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiUGC(e.data); return; } else { sessionStorage.removeItem("ai_ugc"); } } catch {} }
     setAiUGCLoading(true);
-    apiRequest("POST", "/api/ai/ugc-strategy", {}).then(r => r.json()).then(d => { setAiUGC(d); sessionStorage.setItem("ai_ugc", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiUGCLoading(false));
+    apiRequest("POST", "/api/ai/ugc-strategy", {}).then(r => r.json()).then(d => { setAiUGC(d); sessionStorage.setItem("ai_ugc", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiUGCLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comm_health");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCommHealth(e.data); return; } else { sessionStorage.removeItem("ai_comm_health"); } } catch {} }
     setAiCommHealthLoading(true);
-    apiRequest("POST", "/api/ai/community-health", {}).then(r => r.json()).then(d => { setAiCommHealth(d); sessionStorage.setItem("ai_comm_health", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCommHealthLoading(false));
+    apiRequest("POST", "/api/ai/community-health", {}).then(r => r.json()).then(d => { setAiCommHealth(d); sessionStorage.setItem("ai_comm_health", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCommHealthLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_fan_art");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFanArt(e.data); return; } else { sessionStorage.removeItem("ai_fan_art"); } } catch {} }
     setAiFanArtLoading(true);
-    apiRequest("POST", "/api/ai/fan-art", {}).then(r => r.json()).then(d => { setAiFanArt(d); sessionStorage.setItem("ai_fan_art", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFanArtLoading(false));
+    apiRequest("POST", "/api/ai/fan-art", {}).then(r => r.json()).then(d => { setAiFanArt(d); sessionStorage.setItem("ai_fan_art", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiFanArtLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_milestone_event");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMilestoneEvent(e.data); return; } else { sessionStorage.removeItem("ai_milestone_event"); } } catch {} }
     setAiMilestoneEventLoading(true);
-    apiRequest("POST", "/api/ai/milestone-events", {}).then(r => r.json()).then(d => { setAiMilestoneEvent(d); sessionStorage.setItem("ai_milestone_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMilestoneEventLoading(false));
+    apiRequest("POST", "/api/ai/milestone-events", {}).then(r => r.json()).then(d => { setAiMilestoneEvent(d); sessionStorage.setItem("ai_milestone_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMilestoneEventLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_dm_templates");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDMTemplates(e.data); return; } else { sessionStorage.removeItem("ai_dm_templates"); } } catch {} }
     setAiDMTemplatesLoading(true);
-    apiRequest("POST", "/api/ai/dm-templates", {}).then(r => r.json()).then(d => { setAiDMTemplates(d); sessionStorage.setItem("ai_dm_templates", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDMTemplatesLoading(false));
+    apiRequest("POST", "/api/ai/dm-templates", {}).then(r => r.json()).then(d => { setAiDMTemplates(d); sessionStorage.setItem("ai_dm_templates", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDMTemplatesLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_hashtag_comm");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiHashtagComm(e.data); return; } else { sessionStorage.removeItem("ai_hashtag_comm"); } } catch {} }
     setAiHashtagCommLoading(true);
-    apiRequest("POST", "/api/ai/hashtag-community", {}).then(r => r.json()).then(d => { setAiHashtagComm(d); sessionStorage.setItem("ai_hashtag_comm", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiHashtagCommLoading(false));
+    apiRequest("POST", "/api/ai/hashtag-community", {}).then(r => r.json()).then(d => { setAiHashtagComm(d); sessionStorage.setItem("ai_hashtag_comm", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiHashtagCommLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_live_qa");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLiveQA(e.data); return; } else { sessionStorage.removeItem("ai_live_qa"); } } catch {} }
     setAiLiveQALoading(true);
-    apiRequest("POST", "/api/ai/live-qa", {}).then(r => r.json()).then(d => { setAiLiveQA(d); sessionStorage.setItem("ai_live_qa", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLiveQALoading(false));
+    apiRequest("POST", "/api/ai/live-qa", {}).then(r => r.json()).then(d => { setAiLiveQA(d); sessionStorage.setItem("ai_live_qa", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLiveQALoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_referral");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiReferral(e.data); return; } else { sessionStorage.removeItem("ai_referral"); } } catch {} }
     setAiReferralLoading(true);
-    apiRequest("POST", "/api/ai/referral-program", {}).then(r => r.json()).then(d => { setAiReferral(d); sessionStorage.setItem("ai_referral", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiReferralLoading(false));
+    apiRequest("POST", "/api/ai/referral-program", {}).then(r => r.json()).then(d => { setAiReferral(d); sessionStorage.setItem("ai_referral", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiReferralLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ambassador");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAmbassador(e.data); return; } else { sessionStorage.removeItem("ai_ambassador"); } } catch {} }
     setAiAmbassadorLoading(true);
-    apiRequest("POST", "/api/ai/ambassador-program", {}).then(r => r.json()).then(d => { setAiAmbassador(d); sessionStorage.setItem("ai_ambassador", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAmbassadorLoading(false));
+    apiRequest("POST", "/api/ai/ambassador-program", {}).then(r => r.json()).then(d => { setAiAmbassador(d); sessionStorage.setItem("ai_ambassador", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAmbassadorLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_eng_boost");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiEngBoost(e.data); return; } else { sessionStorage.removeItem("ai_eng_boost"); } } catch {} }
     setAiEngBoostLoading(true);
-    apiRequest("POST", "/api/ai/engagement-boost", {}).then(r => r.json()).then(d => { setAiEngBoost(d); sessionStorage.setItem("ai_eng_boost", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiEngBoostLoading(false));
+    apiRequest("POST", "/api/ai/engagement-boost", {}).then(r => r.json()).then(d => { setAiEngBoost(d); sessionStorage.setItem("ai_eng_boost", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiEngBoostLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_newsletter");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiNewsletter(e.data); return; } else { sessionStorage.removeItem("ai_newsletter"); } } catch {} }
     setAiNewsletterLoading(true);
-    apiRequest("POST", "/api/ai/newsletter", {}).then(r => r.json()).then(d => { setAiNewsletter(d); sessionStorage.setItem("ai_newsletter", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiNewsletterLoading(false));
+    apiRequest("POST", "/api/ai/newsletter", {}).then(r => r.json()).then(d => { setAiNewsletter(d); sessionStorage.setItem("ai_newsletter", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiNewsletterLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_email_seq");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiEmailSeq(e.data); return; } else { sessionStorage.removeItem("ai_email_seq"); } } catch {} }
     setAiEmailSeqLoading(true);
-    apiRequest("POST", "/api/ai/email-sequence", {}).then(r => r.json()).then(d => { setAiEmailSeq(d); sessionStorage.setItem("ai_email_seq", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiEmailSeqLoading(false));
+    apiRequest("POST", "/api/ai/email-sequence", {}).then(r => r.json()).then(d => { setAiEmailSeq(d); sessionStorage.setItem("ai_email_seq", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiEmailSeqLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_lead_magnet");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLeadMagnet(e.data); return; } else { sessionStorage.removeItem("ai_lead_magnet"); } } catch {} }
     setAiLeadMagnetLoading(true);
-    apiRequest("POST", "/api/ai/lead-magnet", {}).then(r => r.json()).then(d => { setAiLeadMagnet(d); sessionStorage.setItem("ai_lead_magnet", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLeadMagnetLoading(false));
+    apiRequest("POST", "/api/ai/lead-magnet", {}).then(r => r.json()).then(d => { setAiLeadMagnet(d); sessionStorage.setItem("ai_lead_magnet", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLeadMagnetLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_email_list");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiEmailList(e.data); return; } else { sessionStorage.removeItem("ai_email_list"); } } catch {} }
     setAiEmailListLoading(true);
-    apiRequest("POST", "/api/ai/email-list", {}).then(r => r.json()).then(d => { setAiEmailList(d); sessionStorage.setItem("ai_email_list", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiEmailListLoading(false));
+    apiRequest("POST", "/api/ai/email-list", {}).then(r => r.json()).then(d => { setAiEmailList(d); sessionStorage.setItem("ai_email_list", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiEmailListLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_email_analytics");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiEmailAnalytics(e.data); return; } else { sessionStorage.removeItem("ai_email_analytics"); } } catch {} }
     setAiEmailAnalyticsLoading(true);
-    apiRequest("POST", "/api/ai/email-analytics", {}).then(r => r.json()).then(d => { setAiEmailAnalytics(d); sessionStorage.setItem("ai_email_analytics", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiEmailAnalyticsLoading(false));
+    apiRequest("POST", "/api/ai/email-analytics", {}).then(r => r.json()).then(d => { setAiEmailAnalytics(d); sessionStorage.setItem("ai_email_analytics", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiEmailAnalyticsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_webinar");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiWebinar(e.data); return; } else { sessionStorage.removeItem("ai_webinar"); } } catch {} }
     setAiWebinarLoading(true);
-    apiRequest("POST", "/api/ai/webinar", {}).then(r => r.json()).then(d => { setAiWebinar(d); sessionStorage.setItem("ai_webinar", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiWebinarLoading(false));
+    apiRequest("POST", "/api/ai/webinar", {}).then(r => r.json()).then(d => { setAiWebinar(d); sessionStorage.setItem("ai_webinar", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiWebinarLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_virt_event");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiVirtEvent(e.data); return; } else { sessionStorage.removeItem("ai_virt_event"); } } catch {} }
     setAiVirtEventLoading(true);
-    apiRequest("POST", "/api/ai/virtual-event", {}).then(r => r.json()).then(d => { setAiVirtEvent(d); sessionStorage.setItem("ai_virt_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiVirtEventLoading(false));
+    apiRequest("POST", "/api/ai/virtual-event", {}).then(r => r.json()).then(d => { setAiVirtEvent(d); sessionStorage.setItem("ai_virt_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiVirtEventLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_meetup");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMeetup(e.data); return; } else { sessionStorage.removeItem("ai_meetup"); } } catch {} }
     setAiMeetupLoading(true);
-    apiRequest("POST", "/api/ai/meetup", {}).then(r => r.json()).then(d => { setAiMeetup(d); sessionStorage.setItem("ai_meetup", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMeetupLoading(false));
+    apiRequest("POST", "/api/ai/meetup", {}).then(r => r.json()).then(d => { setAiMeetup(d); sessionStorage.setItem("ai_meetup", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMeetupLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_conf_prep");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiConfPrep(e.data); return; } else { sessionStorage.removeItem("ai_conf_prep"); } } catch {} }
     setAiConfPrepLoading(true);
-    apiRequest("POST", "/api/ai/conference-prep", {}).then(r => r.json()).then(d => { setAiConfPrep(d); sessionStorage.setItem("ai_conf_prep", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiConfPrepLoading(false));
+    apiRequest("POST", "/api/ai/conference-prep", {}).then(r => r.json()).then(d => { setAiConfPrep(d); sessionStorage.setItem("ai_conf_prep", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiConfPrepLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_award_sub");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAwardSub(e.data); return; } else { sessionStorage.removeItem("ai_award_sub"); } } catch {} }
     setAiAwardSubLoading(true);
-    apiRequest("POST", "/api/ai/award-submission", {}).then(r => r.json()).then(d => { setAiAwardSub(d); sessionStorage.setItem("ai_award_sub", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAwardSubLoading(false));
+    apiRequest("POST", "/api/ai/award-submission", {}).then(r => r.json()).then(d => { setAiAwardSub(d); sessionStorage.setItem("ai_award_sub", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAwardSubLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_panel_prep");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPanelPrep(e.data); return; } else { sessionStorage.removeItem("ai_panel_prep"); } } catch {} }
     setAiPanelPrepLoading(true);
-    apiRequest("POST", "/api/ai/panel-prep", {}).then(r => r.json()).then(d => { setAiPanelPrep(d); sessionStorage.setItem("ai_panel_prep", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPanelPrepLoading(false));
+    apiRequest("POST", "/api/ai/panel-prep", {}).then(r => r.json()).then(d => { setAiPanelPrep(d); sessionStorage.setItem("ai_panel_prep", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPanelPrepLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_retreat");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRetreat(e.data); return; } else { sessionStorage.removeItem("ai_retreat"); } } catch {} }
     setAiRetreatLoading(true);
-    apiRequest("POST", "/api/ai/creator-retreat", {}).then(r => r.json()).then(d => { setAiRetreat(d); sessionStorage.setItem("ai_retreat", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRetreatLoading(false));
+    apiRequest("POST", "/api/ai/creator-retreat", {}).then(r => r.json()).then(d => { setAiRetreat(d); sessionStorage.setItem("ai_retreat", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRetreatLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_workshop");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiWorkshop(e.data); return; } else { sessionStorage.removeItem("ai_workshop"); } } catch {} }
     setAiWorkshopLoading(true);
-    apiRequest("POST", "/api/ai/live-workshop", {}).then(r => r.json()).then(d => { setAiWorkshop(d); sessionStorage.setItem("ai_workshop", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiWorkshopLoading(false));
+    apiRequest("POST", "/api/ai/live-workshop", {}).then(r => r.json()).then(d => { setAiWorkshop(d); sessionStorage.setItem("ai_workshop", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiWorkshopLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_course_launch");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCourseLaunch(e.data); return; } else { sessionStorage.removeItem("ai_course_launch"); } } catch {} }
     setAiCourseLaunchLoading(true);
-    apiRequest("POST", "/api/ai/course-launch", {}).then(r => r.json()).then(d => { setAiCourseLaunch(d); sessionStorage.setItem("ai_course_launch", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCourseLaunchLoading(false));
+    apiRequest("POST", "/api/ai/course-launch", {}).then(r => r.json()).then(d => { setAiCourseLaunch(d); sessionStorage.setItem("ai_course_launch", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCourseLaunchLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_masterclass");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMasterclass(e.data); return; } else { sessionStorage.removeItem("ai_masterclass"); } } catch {} }
     setAiMasterclassLoading(true);
-    apiRequest("POST", "/api/ai/masterclass", {}).then(r => r.json()).then(d => { setAiMasterclass(d); sessionStorage.setItem("ai_masterclass", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMasterclassLoading(false));
+    apiRequest("POST", "/api/ai/masterclass", {}).then(r => r.json()).then(d => { setAiMasterclass(d); sessionStorage.setItem("ai_masterclass", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMasterclassLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_media_app");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMediaApp(e.data); return; } else { sessionStorage.removeItem("ai_media_app"); } } catch {} }
     setAiMediaAppLoading(true);
-    apiRequest("POST", "/api/ai/media-appearance", {}).then(r => r.json()).then(d => { setAiMediaApp(d); sessionStorage.setItem("ai_media_app", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMediaAppLoading(false));
+    apiRequest("POST", "/api/ai/media-appearance", {}).then(r => r.json()).then(d => { setAiMediaApp(d); sessionStorage.setItem("ai_media_app", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMediaAppLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_guest_post");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiGuestPost(e.data); return; } else { sessionStorage.removeItem("ai_guest_post"); } } catch {} }
     setAiGuestPostLoading(true);
-    apiRequest("POST", "/api/ai/guest-post", {}).then(r => r.json()).then(d => { setAiGuestPost(d); sessionStorage.setItem("ai_guest_post", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiGuestPostLoading(false));
+    apiRequest("POST", "/api/ai/guest-post", {}).then(r => r.json()).then(d => { setAiGuestPost(d); sessionStorage.setItem("ai_guest_post", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiGuestPostLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_influencer_event");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiInfluencerEvent(e.data); return; } else { sessionStorage.removeItem("ai_influencer_event"); } } catch {} }
     setAiInfluencerEventLoading(true);
-    apiRequest("POST", "/api/ai/influencer-event", {}).then(r => r.json()).then(d => { setAiInfluencerEvent(d); sessionStorage.setItem("ai_influencer_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiInfluencerEventLoading(false));
+    apiRequest("POST", "/api/ai/influencer-event", {}).then(r => r.json()).then(d => { setAiInfluencerEvent(d); sessionStorage.setItem("ai_influencer_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiInfluencerEventLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_product_launch");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiProductLaunch(e.data); return; } else { sessionStorage.removeItem("ai_product_launch"); } } catch {} }
     setAiProductLaunchLoading(true);
-    apiRequest("POST", "/api/ai/product-launch", {}).then(r => r.json()).then(d => { setAiProductLaunch(d); sessionStorage.setItem("ai_product_launch", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiProductLaunchLoading(false));
+    apiRequest("POST", "/api/ai/product-launch", {}).then(r => r.json()).then(d => { setAiProductLaunch(d); sessionStorage.setItem("ai_product_launch", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiProductLaunchLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_charity_event");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCharityEvent(e.data); return; } else { sessionStorage.removeItem("ai_charity_event"); } } catch {} }
     setAiCharityEventLoading(true);
-    apiRequest("POST", "/api/ai/charity-event", {}).then(r => r.json()).then(d => { setAiCharityEvent(d); sessionStorage.setItem("ai_charity_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCharityEventLoading(false));
+    apiRequest("POST", "/api/ai/charity-event", {}).then(r => r.json()).then(d => { setAiCharityEvent(d); sessionStorage.setItem("ai_charity_event", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCharityEventLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_anniversary");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAnniversary(e.data); return; } else { sessionStorage.removeItem("ai_anniversary"); } } catch {} }
     setAiAnniversaryLoading(true);
-    apiRequest("POST", "/api/ai/anniversary", {}).then(r => r.json()).then(d => { setAiAnniversary(d); sessionStorage.setItem("ai_anniversary", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAnniversaryLoading(false));
+    apiRequest("POST", "/api/ai/anniversary", {}).then(r => r.json()).then(d => { setAiAnniversary(d); sessionStorage.setItem("ai_anniversary", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAnniversaryLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_seasonal_campaign");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSeasonalCampaign(e.data); return; } else { sessionStorage.removeItem("ai_seasonal_campaign"); } } catch {} }
     setAiSeasonalCampaignLoading(true);
-    apiRequest("POST", "/api/ai/seasonal-campaign", {}).then(r => r.json()).then(d => { setAiSeasonalCampaign(d); sessionStorage.setItem("ai_seasonal_campaign", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSeasonalCampaignLoading(false));
+    apiRequest("POST", "/api/ai/seasonal-campaign", {}).then(r => r.json()).then(d => { setAiSeasonalCampaign(d); sessionStorage.setItem("ai_seasonal_campaign", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSeasonalCampaignLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_holiday_content");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiHolidayContent(e.data); return; } else { sessionStorage.removeItem("ai_holiday_content"); } } catch {} }
     setAiHolidayContentLoading(true);
-    apiRequest("POST", "/api/ai/holiday-content", {}).then(r => r.json()).then(d => { setAiHolidayContent(d); sessionStorage.setItem("ai_holiday_content", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiHolidayContentLoading(false));
+    apiRequest("POST", "/api/ai/holiday-content", {}).then(r => r.json()).then(d => { setAiHolidayContent(d); sessionStorage.setItem("ai_holiday_content", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiHolidayContentLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_year_review");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYearReview(e.data); return; } else { sessionStorage.removeItem("ai_year_review"); } } catch {} }
     setAiYearReviewLoading(true);
-    apiRequest("POST", "/api/ai/year-review", {}).then(r => r.json()).then(d => { setAiYearReview(d); sessionStorage.setItem("ai_year_review", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYearReviewLoading(false));
+    apiRequest("POST", "/api/ai/year-review", {}).then(r => r.json()).then(d => { setAiYearReview(d); sessionStorage.setItem("ai_year_review", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYearReviewLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_data_clean");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDataClean(e.data); return; } else { sessionStorage.removeItem("ai_data_clean"); } } catch {} }
     setAiDataCleanLoading(true);
-    apiRequest("POST", "/api/ai/data-cleaning", {}).then(r => r.json()).then(d => { setAiDataClean(d); sessionStorage.setItem("ai_data_clean", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDataCleanLoading(false));
+    apiRequest("POST", "/api/ai/data-cleaning", {}).then(r => r.json()).then(d => { setAiDataClean(d); sessionStorage.setItem("ai_data_clean", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDataCleanLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_data_pipe");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDataPipe(e.data); return; } else { sessionStorage.removeItem("ai_data_pipe"); } } catch {} }
     setAiDataPipeLoading(true);
-    apiRequest("POST", "/api/ai/data-pipeline", {}).then(r => r.json()).then(d => { setAiDataPipe(d); sessionStorage.setItem("ai_data_pipe", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDataPipeLoading(false));
+    apiRequest("POST", "/api/ai/data-pipeline", {}).then(r => r.json()).then(d => { setAiDataPipe(d); sessionStorage.setItem("ai_data_pipe", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDataPipeLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_anomaly");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAnomaly(e.data); return; } else { sessionStorage.removeItem("ai_anomaly"); } } catch {} }
     setAiAnomalyLoading(true);
-    apiRequest("POST", "/api/ai/anomaly-detector", {}).then(r => r.json()).then(d => { setAiAnomaly(d); sessionStorage.setItem("ai_anomaly", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAnomalyLoading(false));
+    apiRequest("POST", "/api/ai/anomaly-detector", {}).then(r => r.json()).then(d => { setAiAnomaly(d); sessionStorage.setItem("ai_anomaly", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAnomalyLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_cohort");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCohort(e.data); return; } else { sessionStorage.removeItem("ai_cohort"); } } catch {} }
     setAiCohortLoading(true);
-    apiRequest("POST", "/api/ai/cohort-analysis", {}).then(r => r.json()).then(d => { setAiCohort(d); sessionStorage.setItem("ai_cohort", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCohortLoading(false));
+    apiRequest("POST", "/api/ai/cohort-analysis", {}).then(r => r.json()).then(d => { setAiCohort(d); sessionStorage.setItem("ai_cohort", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCohortLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_attribution");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAttribution(e.data); return; } else { sessionStorage.removeItem("ai_attribution"); } } catch {} }
     setAiAttributionLoading(true);
-    apiRequest("POST", "/api/ai/attribution-model", {}).then(r => r.json()).then(d => { setAiAttribution(d); sessionStorage.setItem("ai_attribution", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAttributionLoading(false));
+    apiRequest("POST", "/api/ai/attribution-model", {}).then(r => r.json()).then(d => { setAiAttribution(d); sessionStorage.setItem("ai_attribution", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAttributionLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_pred_churn");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPredChurn(e.data); return; } else { sessionStorage.removeItem("ai_pred_churn"); } } catch {} }
     setAiPredChurnLoading(true);
-    apiRequest("POST", "/api/ai/predictive-churn", {}).then(r => r.json()).then(d => { setAiPredChurn(d); sessionStorage.setItem("ai_pred_churn", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPredChurnLoading(false));
+    apiRequest("POST", "/api/ai/predictive-churn", {}).then(r => r.json()).then(d => { setAiPredChurn(d); sessionStorage.setItem("ai_pred_churn", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPredChurnLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ltv");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLTV(e.data); return; } else { sessionStorage.removeItem("ai_ltv"); } } catch {} }
     setAiLTVLoading(true);
-    apiRequest("POST", "/api/ai/ltv-calculator", {}).then(r => r.json()).then(d => { setAiLTV(d); sessionStorage.setItem("ai_ltv", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLTVLoading(false));
+    apiRequest("POST", "/api/ai/ltv-calculator", {}).then(r => r.json()).then(d => { setAiLTV(d); sessionStorage.setItem("ai_ltv", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLTVLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_yt_ads");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTAds(e.data); return; } else { sessionStorage.removeItem("ai_yt_ads"); } } catch {} }
     setAiYTAdsLoading(true);
-    apiRequest("POST", "/api/ai/youtube-ads", {}).then(r => r.json()).then(d => { setAiYTAds(d); sessionStorage.setItem("ai_yt_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiYTAdsLoading(false));
+    apiRequest("POST", "/api/ai/youtube-ads", {}).then(r => r.json()).then(d => { setAiYTAds(d); sessionStorage.setItem("ai_yt_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTAdsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_fb_ads");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFBAds(e.data); return; } else { sessionStorage.removeItem("ai_fb_ads"); } } catch {} }
     setAiFBAdsLoading(true);
-    apiRequest("POST", "/api/ai/facebook-ads", {}).then(r => r.json()).then(d => { setAiFBAds(d); sessionStorage.setItem("ai_fb_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFBAdsLoading(false));
+    apiRequest("POST", "/api/ai/facebook-ads", {}).then(r => r.json()).then(d => { setAiFBAds(d); sessionStorage.setItem("ai_fb_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiFBAdsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_google_ads");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiGoogleAds(e.data); return; } else { sessionStorage.removeItem("ai_google_ads"); } } catch {} }
     setAiGoogleAdsLoading(true);
-    apiRequest("POST", "/api/ai/google-ads", {}).then(r => r.json()).then(d => { setAiGoogleAds(d); sessionStorage.setItem("ai_google_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiGoogleAdsLoading(false));
+    apiRequest("POST", "/api/ai/google-ads", {}).then(r => r.json()).then(d => { setAiGoogleAds(d); sessionStorage.setItem("ai_google_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiGoogleAdsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tt_ads");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTTAds(e.data); return; } else { sessionStorage.removeItem("ai_tt_ads"); } } catch {} }
     setAiTTAdsLoading(true);
-    apiRequest("POST", "/api/ai/tiktok-ads", {}).then(r => r.json()).then(d => { setAiTTAds(d); sessionStorage.setItem("ai_tt_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiTTAdsLoading(false));
+    apiRequest("POST", "/api/ai/tiktok-ads", {}).then(r => r.json()).then(d => { setAiTTAds(d); sessionStorage.setItem("ai_tt_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTTAdsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_infl_ads");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiInflAds(e.data); return; } else { sessionStorage.removeItem("ai_infl_ads"); } } catch {} }
     setAiInflAdsLoading(true);
-    apiRequest("POST", "/api/ai/influencer-ads", {}).then(r => r.json()).then(d => { setAiInflAds(d); sessionStorage.setItem("ai_infl_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiInflAdsLoading(false));
+    apiRequest("POST", "/api/ai/influencer-ads", {}).then(r => r.json()).then(d => { setAiInflAds(d); sessionStorage.setItem("ai_infl_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiInflAdsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_retarget");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRetarget(e.data); return; } else { sessionStorage.removeItem("ai_retarget"); } } catch {} }
     setAiRetargetLoading(true);
-    apiRequest("POST", "/api/ai/retargeting", {}).then(r => r.json()).then(d => { setAiRetarget(d); sessionStorage.setItem("ai_retarget", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRetargetLoading(false));
+    apiRequest("POST", "/api/ai/retargeting", {}).then(r => r.json()).then(d => { setAiRetarget(d); sessionStorage.setItem("ai_retarget", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRetargetLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ad_copy");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAdCopy(e.data); return; } else { sessionStorage.removeItem("ai_ad_copy"); } } catch {} }
     setAiAdCopyLoading(true);
-    apiRequest("POST", "/api/ai/ad-copy", {}).then(r => r.json()).then(d => { setAiAdCopy(d); sessionStorage.setItem("ai_ad_copy", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAdCopyLoading(false));
+    apiRequest("POST", "/api/ai/ad-copy", {}).then(r => r.json()).then(d => { setAiAdCopy(d); sessionStorage.setItem("ai_ad_copy", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAdCopyLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_ad_budget");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAdBudget(e.data); return; } else { sessionStorage.removeItem("ai_ad_budget"); } } catch {} }
     setAiAdBudgetLoading(true);
-    apiRequest("POST", "/api/ai/ad-budget", {}).then(r => r.json()).then(d => { setAiAdBudget(d); sessionStorage.setItem("ai_ad_budget", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAdBudgetLoading(false));
+    apiRequest("POST", "/api/ai/ad-budget", {}).then(r => r.json()).then(d => { setAiAdBudget(d); sessionStorage.setItem("ai_ad_budget", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAdBudgetLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_landing_pg");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLandingPg(e.data); return; } else { sessionStorage.removeItem("ai_landing_pg"); } } catch {} }
     setAiLandingPgLoading(true);
-    apiRequest("POST", "/api/ai/landing-page", {}).then(r => r.json()).then(d => { setAiLandingPg(d); sessionStorage.setItem("ai_landing_pg", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLandingPgLoading(false));
+    apiRequest("POST", "/api/ai/landing-page", {}).then(r => r.json()).then(d => { setAiLandingPg(d); sessionStorage.setItem("ai_landing_pg", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLandingPgLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_conv_rate");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiConvRate(e.data); return; } else { sessionStorage.removeItem("ai_conv_rate"); } } catch {} }
     setAiConvRateLoading(true);
-    apiRequest("POST", "/api/ai/conversion-rate", {}).then(r => r.json()).then(d => { setAiConvRate(d); sessionStorage.setItem("ai_conv_rate", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiConvRateLoading(false));
+    apiRequest("POST", "/api/ai/conversion-rate", {}).then(r => r.json()).then(d => { setAiConvRate(d); sessionStorage.setItem("ai_conv_rate", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiConvRateLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_achievements");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAchievements(e.data); return; } else { sessionStorage.removeItem("ai_achievements"); } } catch {} }
     setAiAchievementsLoading(true);
-    apiRequest("POST", "/api/ai/achievements", {}).then(r => r.json()).then(d => { setAiAchievements(d); sessionStorage.setItem("ai_achievements", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAchievementsLoading(false));
+    apiRequest("POST", "/api/ai/achievements", {}).then(r => r.json()).then(d => { setAiAchievements(d); sessionStorage.setItem("ai_achievements", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAchievementsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_leaderboard");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLeaderboard(e.data); return; } else { sessionStorage.removeItem("ai_leaderboard"); } } catch {} }
     setAiLeaderboardLoading(true);
-    apiRequest("POST", "/api/ai/leaderboard", {}).then(r => r.json()).then(d => { setAiLeaderboard(d); sessionStorage.setItem("ai_leaderboard", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLeaderboardLoading(false));
+    apiRequest("POST", "/api/ai/leaderboard", {}).then(r => r.json()).then(d => { setAiLeaderboard(d); sessionStorage.setItem("ai_leaderboard", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLeaderboardLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_points_econ");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPointsEcon(e.data); return; } else { sessionStorage.removeItem("ai_points_econ"); } } catch {} }
     setAiPointsEconLoading(true);
-    apiRequest("POST", "/api/ai/points-economy", {}).then(r => r.json()).then(d => { setAiPointsEcon(d); sessionStorage.setItem("ai_points_econ", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPointsEconLoading(false));
+    apiRequest("POST", "/api/ai/points-economy", {}).then(r => r.json()).then(d => { setAiPointsEcon(d); sessionStorage.setItem("ai_points_econ", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPointsEconLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_badge_sys");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBadgeSys(e.data); return; } else { sessionStorage.removeItem("ai_badge_sys"); } } catch {} }
     setAiBadgeSysLoading(true);
-    apiRequest("POST", "/api/ai/badge-system", {}).then(r => r.json()).then(d => { setAiBadgeSys(d); sessionStorage.setItem("ai_badge_sys", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiBadgeSysLoading(false));
+    apiRequest("POST", "/api/ai/badge-system", {}).then(r => r.json()).then(d => { setAiBadgeSys(d); sessionStorage.setItem("ai_badge_sys", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiBadgeSysLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_streak_sys");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreakSys(e.data); return; } else { sessionStorage.removeItem("ai_streak_sys"); } } catch {} }
     setAiStreakSysLoading(true);
-    apiRequest("POST", "/api/ai/streak-system", {}).then(r => r.json()).then(d => { setAiStreakSys(d); sessionStorage.setItem("ai_streak_sys", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiStreakSysLoading(false));
+    apiRequest("POST", "/api/ai/streak-system", {}).then(r => r.json()).then(d => { setAiStreakSys(d); sessionStorage.setItem("ai_streak_sys", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreakSysLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_progress_viz");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiProgressViz(e.data); return; } else { sessionStorage.removeItem("ai_progress_viz"); } } catch {} }
     setAiProgressVizLoading(true);
-    apiRequest("POST", "/api/ai/progress-viz", {}).then(r => r.json()).then(d => { setAiProgressViz(d); sessionStorage.setItem("ai_progress_viz", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiProgressVizLoading(false));
+    apiRequest("POST", "/api/ai/progress-viz", {}).then(r => r.json()).then(d => { setAiProgressViz(d); sessionStorage.setItem("ai_progress_viz", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiProgressVizLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_challenge_sys");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChallengeSys(e.data); return; } else { sessionStorage.removeItem("ai_challenge_sys"); } } catch {} }
     setAiChallengeSysLoading(true);
-    apiRequest("POST", "/api/ai/challenge-system", {}).then(r => r.json()).then(d => { setAiChallengeSys(d); sessionStorage.setItem("ai_challenge_sys", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiChallengeSysLoading(false));
+    apiRequest("POST", "/api/ai/challenge-system", {}).then(r => r.json()).then(d => { setAiChallengeSys(d); sessionStorage.setItem("ai_challenge_sys", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiChallengeSysLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_month_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMonthReport(e.data); return; } else { sessionStorage.removeItem("ai_month_report"); } } catch {} }
     setAiMonthReportLoading(true);
-    apiRequest("POST", "/api/ai/monthly-report", {}).then(r => r.json()).then(d => { setAiMonthReport(d); sessionStorage.setItem("ai_month_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMonthReportLoading(false));
+    apiRequest("POST", "/api/ai/monthly-report", {}).then(r => r.json()).then(d => { setAiMonthReport(d); sessionStorage.setItem("ai_month_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMonthReportLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_week_digest");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiWeekDigest(e.data); return; } else { sessionStorage.removeItem("ai_week_digest"); } } catch {} }
     setAiWeekDigestLoading(true);
-    apiRequest("POST", "/api/ai/weekly-digest", {}).then(r => r.json()).then(d => { setAiWeekDigest(d); sessionStorage.setItem("ai_week_digest", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiWeekDigestLoading(false));
+    apiRequest("POST", "/api/ai/weekly-digest", {}).then(r => r.json()).then(d => { setAiWeekDigest(d); sessionStorage.setItem("ai_week_digest", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiWeekDigestLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_qtr_review");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiQtrReview(e.data); return; } else { sessionStorage.removeItem("ai_qtr_review"); } } catch {} }
     setAiQtrReviewLoading(true);
-    apiRequest("POST", "/api/ai/quarterly-review", {}).then(r => r.json()).then(d => { setAiQtrReview(d); sessionStorage.setItem("ai_qtr_review", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiQtrReviewLoading(false));
+    apiRequest("POST", "/api/ai/quarterly-review", {}).then(r => r.json()).then(d => { setAiQtrReview(d); sessionStorage.setItem("ai_qtr_review", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiQtrReviewLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_annual_strat");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAnnualStrat(e.data); return; } else { sessionStorage.removeItem("ai_annual_strat"); } } catch {} }
     setAiAnnualStratLoading(true);
-    apiRequest("POST", "/api/ai/annual-strategy", {}).then(r => r.json()).then(d => { setAiAnnualStrat(d); sessionStorage.setItem("ai_annual_strat", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAnnualStratLoading(false));
+    apiRequest("POST", "/api/ai/annual-strategy", {}).then(r => r.json()).then(d => { setAiAnnualStrat(d); sessionStorage.setItem("ai_annual_strat", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAnnualStratLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comp_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompReport(e.data); return; } else { sessionStorage.removeItem("ai_comp_report"); } } catch {} }
     setAiCompReportLoading(true);
-    apiRequest("POST", "/api/ai/competitor-report", {}).then(r => r.json()).then(d => { setAiCompReport(d); sessionStorage.setItem("ai_comp_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompReportLoading(false));
+    apiRequest("POST", "/api/ai/competitor-report", {}).then(r => r.json()).then(d => { setAiCompReport(d); sessionStorage.setItem("ai_comp_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompReportLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_aud_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAudReport(e.data); return; } else { sessionStorage.removeItem("ai_aud_report"); } } catch {} }
     setAiAudReportLoading(true);
-    apiRequest("POST", "/api/ai/audience-report", {}).then(r => r.json()).then(d => { setAiAudReport(d); sessionStorage.setItem("ai_aud_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAudReportLoading(false));
+    apiRequest("POST", "/api/ai/audience-report", {}).then(r => r.json()).then(d => { setAiAudReport(d); sessionStorage.setItem("ai_aud_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAudReportLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_content_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiContentReport(e.data); return; } else { sessionStorage.removeItem("ai_content_report"); } } catch {} }
     setAiContentReportLoading(true);
-    apiRequest("POST", "/api/ai/content-report", {}).then(r => r.json()).then(d => { setAiContentReport(d); sessionStorage.setItem("ai_content_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiContentReportLoading(false));
+    apiRequest("POST", "/api/ai/content-report", {}).then(r => r.json()).then(d => { setAiContentReport(d); sessionStorage.setItem("ai_content_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiContentReportLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_roi_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiROIReport(e.data); return; } else { sessionStorage.removeItem("ai_roi_report"); } } catch {} }
     setAiROIReportLoading(true);
-    apiRequest("POST", "/api/ai/roi-report", {}).then(r => r.json()).then(d => { setAiROIReport(d); sessionStorage.setItem("ai_roi_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiROIReportLoading(false));
+    apiRequest("POST", "/api/ai/roi-report", {}).then(r => r.json()).then(d => { setAiROIReport(d); sessionStorage.setItem("ai_roi_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiROIReportLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_sub_milestone");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSubMilestone(e.data); return; } else { sessionStorage.removeItem("ai_sub_milestone"); } } catch {} }
     setAiSubMilestoneLoading(true);
-    apiRequest("POST", "/api/ai/sub-milestone", {}).then(r => r.json()).then(d => { setAiSubMilestone(d); sessionStorage.setItem("ai_sub_milestone", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSubMilestoneLoading(false));
+    apiRequest("POST", "/api/ai/sub-milestone", {}).then(r => r.json()).then(d => { setAiSubMilestone(d); sessionStorage.setItem("ai_sub_milestone", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSubMilestoneLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_sub_retention");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSubRetention(e.data); return; } else { sessionStorage.removeItem("ai_sub_retention"); } } catch {} }
     setAiSubRetentionLoading(true);
-    apiRequest("POST", "/api/ai/sub-retention", {}).then(r => r.json()).then(d => { setAiSubRetention(d); sessionStorage.setItem("ai_sub_retention", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSubRetentionLoading(false));
+    apiRequest("POST", "/api/ai/sub-retention", {}).then(r => r.json()).then(d => { setAiSubRetention(d); sessionStorage.setItem("ai_sub_retention", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSubRetentionLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_bell_opt");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBellOpt(e.data); return; } else { sessionStorage.removeItem("ai_bell_opt"); } } catch {} }
     setAiBellOptLoading(true);
-    apiRequest("POST", "/api/ai/bell-optimizer", {}).then(r => r.json()).then(d => { setAiBellOpt(d); sessionStorage.setItem("ai_bell_opt", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiBellOptLoading(false));
+    apiRequest("POST", "/api/ai/bell-optimizer", {}).then(r => r.json()).then(d => { setAiBellOpt(d); sessionStorage.setItem("ai_bell_opt", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiBellOptLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_first_vid");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFirstVid(e.data); return; } else { sessionStorage.removeItem("ai_first_vid"); } } catch {} }
     setAiFirstVidLoading(true);
-    apiRequest("POST", "/api/ai/first-video", {}).then(r => r.json()).then(d => { setAiFirstVid(d); sessionStorage.setItem("ai_first_vid", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFirstVidLoading(false));
+    apiRequest("POST", "/api/ai/first-video", {}).then(r => r.json()).then(d => { setAiFirstVid(d); sessionStorage.setItem("ai_first_vid", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiFirstVidLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_member_perks");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMemberPerks(e.data); return; } else { sessionStorage.removeItem("ai_member_perks"); } } catch {} }
     setAiMemberPerksLoading(true);
-    apiRequest("POST", "/api/ai/membership-perks", {}).then(r => r.json()).then(d => { setAiMemberPerks(d); sessionStorage.setItem("ai_member_perks", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMemberPerksLoading(false));
+    apiRequest("POST", "/api/ai/membership-perks", {}).then(r => r.json()).then(d => { setAiMemberPerks(d); sessionStorage.setItem("ai_member_perks", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMemberPerksLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_sub_countdown");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSubCountdown(e.data); return; } else { sessionStorage.removeItem("ai_sub_countdown"); } } catch {} }
     setAiSubCountdownLoading(true);
-    apiRequest("POST", "/api/ai/sub-countdown", {}).then(r => r.json()).then(d => { setAiSubCountdown(d); sessionStorage.setItem("ai_sub_countdown", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSubCountdownLoading(false));
+    apiRequest("POST", "/api/ai/sub-countdown", {}).then(r => r.json()).then(d => { setAiSubCountdown(d); sessionStorage.setItem("ai_sub_countdown", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSubCountdownLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_unsub_analysis");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiUnsubAnalysis(e.data); return; } else { sessionStorage.removeItem("ai_unsub_analysis"); } } catch {} }
     setAiUnsubAnalysisLoading(true);
-    apiRequest("POST", "/api/ai/unsub-analyzer", {}).then(r => r.json()).then(d => { setAiUnsubAnalysis(d); sessionStorage.setItem("ai_unsub_analysis", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiUnsubAnalysisLoading(false));
+    apiRequest("POST", "/api/ai/unsub-analyzer", {}).then(r => r.json()).then(d => { setAiUnsubAnalysis(d); sessionStorage.setItem("ai_unsub_analysis", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiUnsubAnalysisLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_sub_quality");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSubQuality(e.data); return; } else { sessionStorage.removeItem("ai_sub_quality"); } } catch {} }
     setAiSubQualityLoading(true);
-    apiRequest("POST", "/api/ai/sub-quality", {}).then(r => r.json()).then(d => { setAiSubQuality(d); sessionStorage.setItem("ai_sub_quality", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSubQualityLoading(false));
+    apiRequest("POST", "/api/ai/sub-quality", {}).then(r => r.json()).then(d => { setAiSubQuality(d); sessionStorage.setItem("ai_sub_quality", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSubQualityLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_growth_play");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiGrowthPlay(e.data); return; } else { sessionStorage.removeItem("ai_growth_play"); } } catch {} }
     setAiGrowthPlayLoading(true);
-    apiRequest("POST", "/api/ai/growth-playbook", {}).then(r => r.json()).then(d => { setAiGrowthPlay(d); sessionStorage.setItem("ai_growth_play", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiGrowthPlayLoading(false));
+    apiRequest("POST", "/api/ai/growth-playbook", {}).then(r => r.json()).then(d => { setAiGrowthPlay(d); sessionStorage.setItem("ai_growth_play", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiGrowthPlayLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_viral_engine");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiViralEngine(e.data); return; } else { sessionStorage.removeItem("ai_viral_engine"); } } catch {} }
     setAiViralEngineLoading(true);
-    apiRequest("POST", "/api/ai/viral-engine", {}).then(r => r.json()).then(d => { setAiViralEngine(d); sessionStorage.setItem("ai_viral_engine", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiViralEngineLoading(false));
+    apiRequest("POST", "/api/ai/viral-engine", {}).then(r => r.json()).then(d => { setAiViralEngine(d); sessionStorage.setItem("ai_viral_engine", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiViralEngineLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_cross_promo");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCrossPromo(e.data); return; } else { sessionStorage.removeItem("ai_cross_promo"); } } catch {} }
     setAiCrossPromoLoading(true);
-    apiRequest("POST", "/api/ai/cross-promo", {}).then(r => r.json()).then(d => { setAiCrossPromo(d); sessionStorage.setItem("ai_cross_promo", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCrossPromoLoading(false));
+    apiRequest("POST", "/api/ai/cross-promo", {}).then(r => r.json()).then(d => { setAiCrossPromo(d); sessionStorage.setItem("ai_cross_promo", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCrossPromoLoading(false));
   }, []);
 
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_accountability");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAccountability(e.data); return; } else { sessionStorage.removeItem("ai_accountability"); } } catch {} }
     setAiAccountabilityLoading(true);
-    apiRequest("POST", "/api/ai/accountability", {}).then(r => r.json()).then(d => { setAiAccountability(d); sessionStorage.setItem("ai_accountability", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAccountabilityLoading(false));
+    apiRequest("POST", "/api/ai/accountability", {}).then(r => r.json()).then(d => { setAiAccountability(d); sessionStorage.setItem("ai_accountability", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAccountabilityLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_sabbatical");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSabbatical(e.data); return; } else { sessionStorage.removeItem("ai_sabbatical"); } } catch {} }
     setAiSabbaticalLoading(true);
-    apiRequest("POST", "/api/ai/sabbatical", {}).then(r => r.json()).then(d => { setAiSabbatical(d); sessionStorage.setItem("ai_sabbatical", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSabbaticalLoading(false));
+    apiRequest("POST", "/api/ai/sabbatical", {}).then(r => r.json()).then(d => { setAiSabbatical(d); sessionStorage.setItem("ai_sabbatical", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSabbaticalLoading(false));
   }, []);
 
   useEffect(() => {
@@ -1003,37 +1003,37 @@ export default function AIToolSuites() {
       const cached = sessionStorage.getItem("ai_collab_match");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCollabMatch(e.data); return; } else { sessionStorage.removeItem("ai_collab_match"); } } catch {} }
       setAiCollabMatchLoading(true);
-      apiRequest("POST", "/api/ai/collab-matchmaker", {}).then(r => r.json()).then(d => { setAiCollabMatch(d); sessionStorage.setItem("ai_collab_match", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCollabMatchLoading(false));
+      apiRequest("POST", "/api/ai/collab-matchmaker", {}).then(r => r.json()).then(d => { setAiCollabMatch(d); sessionStorage.setItem("ai_collab_match", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCollabMatchLoading(false));
     }
     if (!aiViralPred && !aiViralPredLoading) {
       const cached = sessionStorage.getItem("ai_viral_pred");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiViralPred(e.data); return; } else { sessionStorage.removeItem("ai_viral_pred"); } } catch {} }
       setAiViralPredLoading(true);
-      apiRequest("POST", "/api/ai/viral-predictor", {}).then(r => r.json()).then(d => { setAiViralPred(d); sessionStorage.setItem("ai_viral_pred", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiViralPredLoading(false));
+      apiRequest("POST", "/api/ai/viral-predictor", {}).then(r => r.json()).then(d => { setAiViralPred(d); sessionStorage.setItem("ai_viral_pred", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiViralPredLoading(false));
     }
     if (!aiOptSchedule && !aiOptScheduleLoading) {
       const cached = sessionStorage.getItem("ai_opt_schedule");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOptSchedule(e.data); return; } else { sessionStorage.removeItem("ai_opt_schedule"); } } catch {} }
       setAiOptScheduleLoading(true);
-      apiRequest("POST", "/api/ai/optimal-schedule", {}).then(r => r.json()).then(d => { setAiOptSchedule(d); sessionStorage.setItem("ai_opt_schedule", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiOptScheduleLoading(false));
+      apiRequest("POST", "/api/ai/optimal-schedule", {}).then(r => r.json()).then(d => { setAiOptSchedule(d); sessionStorage.setItem("ai_opt_schedule", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiOptScheduleLoading(false));
     }
     if (!aiSubMagnet && !aiSubMagnetLoading) {
       const cached = sessionStorage.getItem("ai_sub_magnet");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSubMagnet(e.data); return; } else { sessionStorage.removeItem("ai_sub_magnet"); } } catch {} }
       setAiSubMagnetLoading(true);
-      apiRequest("POST", "/api/ai/subscriber-magnet", {}).then(r => r.json()).then(d => { setAiSubMagnet(d); sessionStorage.setItem("ai_sub_magnet", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSubMagnetLoading(false));
+      apiRequest("POST", "/api/ai/subscriber-magnet", {}).then(r => r.json()).then(d => { setAiSubMagnet(d); sessionStorage.setItem("ai_sub_magnet", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSubMagnetLoading(false));
     }
     if (!aiAudPersona && !aiAudPersonaLoading) {
       const cached = sessionStorage.getItem("ai_aud_persona");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAudPersona(e.data); return; } else { sessionStorage.removeItem("ai_aud_persona"); } } catch {} }
       setAiAudPersonaLoading(true);
-      apiRequest("POST", "/api/ai/audience-persona-builder", {}).then(r => r.json()).then(d => { setAiAudPersona(d); sessionStorage.setItem("ai_aud_persona", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAudPersonaLoading(false));
+      apiRequest("POST", "/api/ai/audience-persona-builder", {}).then(r => r.json()).then(d => { setAiAudPersona(d); sessionStorage.setItem("ai_aud_persona", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAudPersonaLoading(false));
     }
     if (!aiEngBooster && !aiEngBoosterLoading) {
       const cached = sessionStorage.getItem("ai_eng_booster");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiEngBooster(e.data); return; } else { sessionStorage.removeItem("ai_eng_booster"); } } catch {} }
       setAiEngBoosterLoading(true);
-      apiRequest("POST", "/api/ai/engagement-booster", {}).then(r => r.json()).then(d => { setAiEngBooster(d); sessionStorage.setItem("ai_eng_booster", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiEngBoosterLoading(false));
+      apiRequest("POST", "/api/ai/engagement-booster", {}).then(r => r.json()).then(d => { setAiEngBooster(d); sessionStorage.setItem("ai_eng_booster", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiEngBoosterLoading(false));
     }
   }, [showGrowthIntelAI]);
 
@@ -1043,25 +1043,25 @@ export default function AIToolSuites() {
       const cached = sessionStorage.getItem("ai_fan_loyalty");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFanLoyalty(e.data); return; } else { sessionStorage.removeItem("ai_fan_loyalty"); } } catch {} }
       setAiFanLoyaltyLoading(true);
-      apiRequest("POST", "/api/ai/fan-loyalty-tracker", {}).then(r => r.json()).then(d => { setAiFanLoyalty(d); sessionStorage.setItem("ai_fan_loyalty", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFanLoyaltyLoading(false));
+      apiRequest("POST", "/api/ai/fan-loyalty-tracker", {}).then(r => r.json()).then(d => { setAiFanLoyalty(d); sessionStorage.setItem("ai_fan_loyalty", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiFanLoyaltyLoading(false));
     }
     if (!aiCommentStrat && !aiCommentStratLoading) {
       const cached = sessionStorage.getItem("ai_comment_strat");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCommentStrat(e.data); return; } else { sessionStorage.removeItem("ai_comment_strat"); } } catch {} }
       setAiCommentStratLoading(true);
-      apiRequest("POST", "/api/ai/comment-strategy", {}).then(r => r.json()).then(d => { setAiCommentStrat(d); sessionStorage.setItem("ai_comment_strat", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCommentStratLoading(false));
+      apiRequest("POST", "/api/ai/comment-strategy", {}).then(r => r.json()).then(d => { setAiCommentStrat(d); sessionStorage.setItem("ai_comment_strat", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCommentStratLoading(false));
     }
     if (!aiCommPollGen && !aiCommPollGenLoading) {
       const cached = sessionStorage.getItem("ai_comm_poll_gen");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCommPollGen(e.data); return; } else { sessionStorage.removeItem("ai_comm_poll_gen"); } } catch {} }
       setAiCommPollGenLoading(true);
-      apiRequest("POST", "/api/ai/community-poll-generator", {}).then(r => r.json()).then(d => { setAiCommPollGen(d); sessionStorage.setItem("ai_comm_poll_gen", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCommPollGenLoading(false));
+      apiRequest("POST", "/api/ai/community-poll-generator", {}).then(r => r.json()).then(d => { setAiCommPollGen(d); sessionStorage.setItem("ai_comm_poll_gen", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCommPollGenLoading(false));
     }
     if (!aiFanMilestone && !aiFanMilestoneLoading) {
       const cached = sessionStorage.getItem("ai_fan_milestone");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiFanMilestone(e.data); return; } else { sessionStorage.removeItem("ai_fan_milestone"); } } catch {} }
       setAiFanMilestoneLoading(true);
-      apiRequest("POST", "/api/ai/fan-milestone-celebrator", {}).then(r => r.json()).then(d => { setAiFanMilestone(d); sessionStorage.setItem("ai_fan_milestone", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiFanMilestoneLoading(false));
+      apiRequest("POST", "/api/ai/fan-milestone-celebrator", {}).then(r => r.json()).then(d => { setAiFanMilestone(d); sessionStorage.setItem("ai_fan_milestone", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiFanMilestoneLoading(false));
     }
   }, [showCommunityFansAI]);
 
@@ -1071,31 +1071,31 @@ export default function AIToolSuites() {
       const cached = sessionStorage.getItem("ai_rev_forecaster");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRevForecaster(e.data); return; } else { sessionStorage.removeItem("ai_rev_forecaster"); } } catch {} }
       setAiRevForecasterLoading(true);
-      apiRequest("POST", "/api/ai/revenue-forecaster", {}).then(r => r.json()).then(d => { setAiRevForecaster(d); sessionStorage.setItem("ai_rev_forecaster", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiRevForecasterLoading(false));
+      apiRequest("POST", "/api/ai/revenue-forecaster", {}).then(r => r.json()).then(d => { setAiRevForecaster(d); sessionStorage.setItem("ai_rev_forecaster", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRevForecasterLoading(false));
     }
     if (!aiSubMilestonePred && !aiSubMilestonePredLoading) {
       const cached = sessionStorage.getItem("ai_sub_milestone_pred");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSubMilestonePred(e.data); return; } else { sessionStorage.removeItem("ai_sub_milestone_pred"); } } catch {} }
       setAiSubMilestonePredLoading(true);
-      apiRequest("POST", "/api/ai/subscriber-milestone-predictor", {}).then(r => r.json()).then(d => { setAiSubMilestonePred(d); sessionStorage.setItem("ai_sub_milestone_pred", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSubMilestonePredLoading(false));
+      apiRequest("POST", "/api/ai/subscriber-milestone-predictor", {}).then(r => r.json()).then(d => { setAiSubMilestonePred(d); sessionStorage.setItem("ai_sub_milestone_pred", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSubMilestonePredLoading(false));
     }
     if (!aiAlgoDecode && !aiAlgoDecodeLoading) {
       const cached = sessionStorage.getItem("ai_algo_decode");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiAlgoDecode(e.data); return; } else { sessionStorage.removeItem("ai_algo_decode"); } } catch {} }
       setAiAlgoDecodeLoading(true);
-      apiRequest("POST", "/api/ai/algorithm-decoder", {}).then(r => r.json()).then(d => { setAiAlgoDecode(d); sessionStorage.setItem("ai_algo_decode", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiAlgoDecodeLoading(false));
+      apiRequest("POST", "/api/ai/algorithm-decoder", {}).then(r => r.json()).then(d => { setAiAlgoDecode(d); sessionStorage.setItem("ai_algo_decode", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiAlgoDecodeLoading(false));
     }
     if (!aiGrowthTraj && !aiGrowthTrajLoading) {
       const cached = sessionStorage.getItem("ai_growth_traj");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiGrowthTraj(e.data); return; } else { sessionStorage.removeItem("ai_growth_traj"); } } catch {} }
       setAiGrowthTrajLoading(true);
-      apiRequest("POST", "/api/ai/growth-trajectory-modeler", {}).then(r => r.json()).then(d => { setAiGrowthTraj(d); sessionStorage.setItem("ai_growth_traj", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiGrowthTrajLoading(false));
+      apiRequest("POST", "/api/ai/growth-trajectory-modeler", {}).then(r => r.json()).then(d => { setAiGrowthTraj(d); sessionStorage.setItem("ai_growth_traj", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiGrowthTrajLoading(false));
     }
     if (!aiDailyAction && !aiDailyActionLoading) {
       const cached = sessionStorage.getItem("ai_daily_action");
       if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDailyAction(e.data); return; } else { sessionStorage.removeItem("ai_daily_action"); } } catch {} }
       setAiDailyActionLoading(true);
-      apiRequest("POST", "/api/ai/daily-action-plan", {}).then(r => r.json()).then(d => { setAiDailyAction(d); sessionStorage.setItem("ai_daily_action", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiDailyActionLoading(false));
+      apiRequest("POST", "/api/ai/daily-action-plan", {}).then(r => r.json()).then(d => { setAiDailyAction(d); sessionStorage.setItem("ai_daily_action", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDailyActionLoading(false));
     }
   }, [showAnalyticsPredAI]);
 

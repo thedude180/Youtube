@@ -31,7 +31,7 @@ function LearningTab() {
     apiRequest("POST", "/api/ai/creator-academy")
       .then((res) => res.json())
       .then((data) => { setAiAcademy(data); sessionStorage.setItem("aiCreatorAcademy", JSON.stringify({ data: data, ts: Date.now() })); })
-      .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+      .catch(() => {})
       .finally(() => setAiAcademyLoading(false));
   }, []);
 
@@ -57,49 +57,49 @@ function LearningTab() {
     const cached = sessionStorage.getItem("ai_skill_assess");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSkillAssess(e.data); return; } else { sessionStorage.removeItem("ai_skill_assess"); } } catch {} }
     setAiSkillAssessLoading(true);
-    apiRequest("POST", "/api/ai/skill-assessment", {}).then(r => r.json()).then(d => { setAiSkillAssess(d); sessionStorage.setItem("ai_skill_assess", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSkillAssessLoading(false));
+    apiRequest("POST", "/api/ai/skill-assessment", {}).then(r => r.json()).then(d => { setAiSkillAssess(d); sessionStorage.setItem("ai_skill_assess", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSkillAssessLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_learn_path");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiLearnPath(e.data); return; } else { sessionStorage.removeItem("ai_learn_path"); } } catch {} }
     setAiLearnPathLoading(true);
-    apiRequest("POST", "/api/ai/learning-path", {}).then(r => r.json()).then(d => { setAiLearnPath(d); sessionStorage.setItem("ai_learn_path", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiLearnPathLoading(false));
+    apiRequest("POST", "/api/ai/learning-path", {}).then(r => r.json()).then(d => { setAiLearnPath(d); sessionStorage.setItem("ai_learn_path", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiLearnPathLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_certs");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCerts(e.data); return; } else { sessionStorage.removeItem("ai_certs"); } } catch {} }
     setAiCertsLoading(true);
-    apiRequest("POST", "/api/ai/certification", {}).then(r => r.json()).then(d => { setAiCerts(d); sessionStorage.setItem("ai_certs", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCertsLoading(false));
+    apiRequest("POST", "/api/ai/certification", {}).then(r => r.json()).then(d => { setAiCerts(d); sessionStorage.setItem("ai_certs", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCertsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_books");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBooks(e.data); return; } else { sessionStorage.removeItem("ai_books"); } } catch {} }
     setAiBooksLoading(true);
-    apiRequest("POST", "/api/ai/book-recommend", {}).then(r => r.json()).then(d => { setAiBooks(d); sessionStorage.setItem("ai_books", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiBooksLoading(false));
+    apiRequest("POST", "/api/ai/book-recommend", {}).then(r => r.json()).then(d => { setAiBooks(d); sessionStorage.setItem("ai_books", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiBooksLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_tool_tut");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiToolTut(e.data); return; } else { sessionStorage.removeItem("ai_tool_tut"); } } catch {} }
     setAiToolTutLoading(true);
-    apiRequest("POST", "/api/ai/tool-tutorial", {}).then(r => r.json()).then(d => { setAiToolTut(d); sessionStorage.setItem("ai_tool_tut", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiToolTutLoading(false));
+    apiRequest("POST", "/api/ai/tool-tutorial", {}).then(r => r.json()).then(d => { setAiToolTut(d); sessionStorage.setItem("ai_tool_tut", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiToolTutLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_industry_report");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiIndustryReport(e.data); return; } else { sessionStorage.removeItem("ai_industry_report"); } } catch {} }
     setAiIndustryReportLoading(true);
-    apiRequest("POST", "/api/ai/industry-report", {}).then(r => r.json()).then(d => { setAiIndustryReport(d); sessionStorage.setItem("ai_industry_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiIndustryReportLoading(false));
+    apiRequest("POST", "/api/ai/industry-report", {}).then(r => r.json()).then(d => { setAiIndustryReport(d); sessionStorage.setItem("ai_industry_report", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiIndustryReportLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_case_study");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCaseStudy(e.data); return; } else { sessionStorage.removeItem("ai_case_study"); } } catch {} }
     setAiCaseStudyLoading(true);
-    apiRequest("POST", "/api/ai/case-study", {}).then(r => r.json()).then(d => { setAiCaseStudy(d); sessionStorage.setItem("ai_case_study", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCaseStudyLoading(false));
+    apiRequest("POST", "/api/ai/case-study", {}).then(r => r.json()).then(d => { setAiCaseStudy(d); sessionStorage.setItem("ai_case_study", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCaseStudyLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_portfolio");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiPortfolio(e.data); return; } else { sessionStorage.removeItem("ai_portfolio"); } } catch {} }
     setAiPortfolioLoading(true);
-    apiRequest("POST", "/api/ai/portfolio", {}).then(r => r.json()).then(d => { setAiPortfolio(d); sessionStorage.setItem("ai_portfolio", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiPortfolioLoading(false));
+    apiRequest("POST", "/api/ai/portfolio", {}).then(r => r.json()).then(d => { setAiPortfolio(d); sessionStorage.setItem("ai_portfolio", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiPortfolioLoading(false));
   }, []);
 
   const renderAIListLearn = (arr: any[] | undefined, limit = 5) => {

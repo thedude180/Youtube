@@ -64,7 +64,7 @@ export default function SponsorsTab() {
           setAiSponsorship(data);
           sessionStorage.setItem("aiSponsorshipManager", JSON.stringify({ data: data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiSponsorshipLoading(false));
     }
     const cachedKit = sessionStorage.getItem("aiMediaKit");
@@ -81,7 +81,7 @@ export default function SponsorsTab() {
           setAiMediaKit(data);
           sessionStorage.setItem("aiMediaKit", JSON.stringify({ data: data, ts: Date.now() }));
         })
-        .catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); })
+        .catch(() => {})
         .finally(() => setAiMediaKitLoading(false));
     }
   }, []);

@@ -100,43 +100,43 @@ function CompetitorsTab() {
     const cached = sessionStorage.getItem("ai_comp_analysis");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompAnalysis(e.data); return; } else { sessionStorage.removeItem("ai_comp_analysis"); } } catch {} }
     setAiCompAnalysisLoading(true);
-    apiRequest("POST", "/api/ai/competitor-analysis", {}).then(r => r.json()).then(d => { setAiCompAnalysis(d); sessionStorage.setItem("ai_comp_analysis", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompAnalysisLoading(false));
+    apiRequest("POST", "/api/ai/competitor-analysis", {}).then(r => r.json()).then(d => { setAiCompAnalysis(d); sessionStorage.setItem("ai_comp_analysis", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompAnalysisLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comp_content");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompContent(e.data); return; } else { sessionStorage.removeItem("ai_comp_content"); } } catch {} }
     setAiCompContentLoading(true);
-    apiRequest("POST", "/api/ai/competitor-content", {}).then(r => r.json()).then(d => { setAiCompContent(d); sessionStorage.setItem("ai_comp_content", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompContentLoading(false));
+    apiRequest("POST", "/api/ai/competitor-content", {}).then(r => r.json()).then(d => { setAiCompContent(d); sessionStorage.setItem("ai_comp_content", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompContentLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comp_pricing");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompPricing(e.data); return; } else { sessionStorage.removeItem("ai_comp_pricing"); } } catch {} }
     setAiCompPricingLoading(true);
-    apiRequest("POST", "/api/ai/competitor-pricing", {}).then(r => r.json()).then(d => { setAiCompPricing(d); sessionStorage.setItem("ai_comp_pricing", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompPricingLoading(false));
+    apiRequest("POST", "/api/ai/competitor-pricing", {}).then(r => r.json()).then(d => { setAiCompPricing(d); sessionStorage.setItem("ai_comp_pricing", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompPricingLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_mkt_share");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMktShare(e.data); return; } else { sessionStorage.removeItem("ai_mkt_share"); } } catch {} }
     setAiMktShareLoading(true);
-    apiRequest("POST", "/api/ai/market-share", {}).then(r => r.json()).then(d => { setAiMktShare(d); sessionStorage.setItem("ai_mkt_share", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiMktShareLoading(false));
+    apiRequest("POST", "/api/ai/market-share", {}).then(r => r.json()).then(d => { setAiMktShare(d); sessionStorage.setItem("ai_mkt_share", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMktShareLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_swot");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSWOT(e.data); return; } else { sessionStorage.removeItem("ai_swot"); } } catch {} }
     setAiSWOTLoading(true);
-    apiRequest("POST", "/api/ai/swot", {}).then(r => r.json()).then(d => { setAiSWOT(d); sessionStorage.setItem("ai_swot", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiSWOTLoading(false));
+    apiRequest("POST", "/api/ai/swot", {}).then(r => r.json()).then(d => { setAiSWOT(d); sessionStorage.setItem("ai_swot", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSWOTLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comp_social");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompSocial(e.data); return; } else { sessionStorage.removeItem("ai_comp_social"); } } catch {} }
     setAiCompSocialLoading(true);
-    apiRequest("POST", "/api/ai/competitor-social", {}).then(r => r.json()).then(d => { setAiCompSocial(d); sessionStorage.setItem("ai_comp_social", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompSocialLoading(false));
+    apiRequest("POST", "/api/ai/competitor-social", {}).then(r => r.json()).then(d => { setAiCompSocial(d); sessionStorage.setItem("ai_comp_social", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompSocialLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_blue_ocean");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiBlueOcean(e.data); return; } else { sessionStorage.removeItem("ai_blue_ocean"); } } catch {} }
     setAiBlueOceanLoading(true);
-    apiRequest("POST", "/api/ai/blue-ocean", {}).then(r => r.json()).then(d => { setAiBlueOcean(d); sessionStorage.setItem("ai_blue_ocean", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiBlueOceanLoading(false));
+    apiRequest("POST", "/api/ai/blue-ocean", {}).then(r => r.json()).then(d => { setAiBlueOcean(d); sessionStorage.setItem("ai_blue_ocean", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiBlueOceanLoading(false));
   }, []);
 
   useEffect(() => {
@@ -144,42 +144,42 @@ function CompetitorsTab() {
     const cached = sessionStorage.getItem("ai_comp_tracker");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompTracker(e.data); return; } else { sessionStorage.removeItem("ai_comp_tracker"); } } catch {} }
     setAiCompTrackerLoading(true);
-    apiRequest("POST", "/api/ai/competitor-tracker", {}).then(r => r.json()).then(d => { setAiCompTracker(d); sessionStorage.setItem("ai_comp_tracker", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompTrackerLoading(false));
+    apiRequest("POST", "/api/ai/competitor-tracker", {}).then(r => r.json()).then(d => { setAiCompTracker(d); sessionStorage.setItem("ai_comp_tracker", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompTrackerLoading(false));
   }, [showCompIntelAI2]);
   useEffect(() => {
     if (!showCompIntelAI2) return;
     const cached = sessionStorage.getItem("ai_comp_gap_analysis");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompGapAnalysis(e.data); return; } else { sessionStorage.removeItem("ai_comp_gap_analysis"); } } catch {} }
     setAiCompGapAnalysisLoading(true);
-    apiRequest("POST", "/api/ai/competitor-gap-analysis", {}).then(r => r.json()).then(d => { setAiCompGapAnalysis(d); sessionStorage.setItem("ai_comp_gap_analysis", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompGapAnalysisLoading(false));
+    apiRequest("POST", "/api/ai/competitor-gap-analysis", {}).then(r => r.json()).then(d => { setAiCompGapAnalysis(d); sessionStorage.setItem("ai_comp_gap_analysis", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompGapAnalysisLoading(false));
   }, [showCompIntelAI2]);
   useEffect(() => {
     if (!showCompIntelAI2) return;
     const cached = sessionStorage.getItem("ai_comp_alerts");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompAlerts(e.data); return; } else { sessionStorage.removeItem("ai_comp_alerts"); } } catch {} }
     setAiCompAlertsLoading(true);
-    apiRequest("POST", "/api/ai/competitor-alerts", {}).then(r => r.json()).then(d => { setAiCompAlerts(d); sessionStorage.setItem("ai_comp_alerts", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompAlertsLoading(false));
+    apiRequest("POST", "/api/ai/competitor-alerts", {}).then(r => r.json()).then(d => { setAiCompAlerts(d); sessionStorage.setItem("ai_comp_alerts", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompAlertsLoading(false));
   }, [showCompIntelAI2]);
   useEffect(() => {
     if (!showCompIntelAI2) return;
     const cached = sessionStorage.getItem("ai_comp_content_scorer");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompContentScorer(e.data); return; } else { sessionStorage.removeItem("ai_comp_content_scorer"); } } catch {} }
     setAiCompContentScorerLoading(true);
-    apiRequest("POST", "/api/ai/competitor-content-scorer", {}).then(r => r.json()).then(d => { setAiCompContentScorer(d); sessionStorage.setItem("ai_comp_content_scorer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompContentScorerLoading(false));
+    apiRequest("POST", "/api/ai/competitor-content-scorer", {}).then(r => r.json()).then(d => { setAiCompContentScorer(d); sessionStorage.setItem("ai_comp_content_scorer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompContentScorerLoading(false));
   }, [showCompIntelAI2]);
   useEffect(() => {
     if (!showCompIntelAI2) return;
     const cached = sessionStorage.getItem("ai_niche_dom_map");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiNicheDomMap(e.data); return; } else { sessionStorage.removeItem("ai_niche_dom_map"); } } catch {} }
     setAiNicheDomMapLoading(true);
-    apiRequest("POST", "/api/ai/niche-domination-map", {}).then(r => r.json()).then(d => { setAiNicheDomMap(d); sessionStorage.setItem("ai_niche_dom_map", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiNicheDomMapLoading(false));
+    apiRequest("POST", "/api/ai/niche-domination-map", {}).then(r => r.json()).then(d => { setAiNicheDomMap(d); sessionStorage.setItem("ai_niche_dom_map", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiNicheDomMapLoading(false));
   }, [showCompIntelAI2]);
   useEffect(() => {
     if (!showCompIntelAI2) return;
     const cached = sessionStorage.getItem("ai_comp_audience_overlap");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiCompAudienceOverlap(e.data); return; } else { sessionStorage.removeItem("ai_comp_audience_overlap"); } } catch {} }
     setAiCompAudienceOverlapLoading(true);
-    apiRequest("POST", "/api/ai/competitor-audience-overlap", {}).then(r => r.json()).then(d => { setAiCompAudienceOverlap(d); sessionStorage.setItem("ai_comp_audience_overlap", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => { toast({ title: "AI feature unavailable", variant: "destructive" }); }).finally(() => setAiCompAudienceOverlapLoading(false));
+    apiRequest("POST", "/api/ai/competitor-audience-overlap", {}).then(r => r.json()).then(d => { setAiCompAudienceOverlap(d); sessionStorage.setItem("ai_comp_audience_overlap", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiCompAudienceOverlapLoading(false));
   }, [showCompIntelAI2]);
 
   const renderAIListComp = (arr: any[] | undefined, limit = 5) => {
