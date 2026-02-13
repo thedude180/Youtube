@@ -16,7 +16,7 @@ import { PlatformBadge } from "@/components/PlatformIcon";
 import { Sparkles, Plus, Eye, Trash2, Link as LinkIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 function CompetitorsTab() {
   const { toast } = useToast();

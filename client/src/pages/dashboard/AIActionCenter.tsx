@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, CheckCircle2, TrendingUp } from "lucide-react";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 interface AIActionCenterProps {
   aiActions: AIResponse;

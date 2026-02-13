@@ -186,7 +186,7 @@ export function registerContentRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     try {
-      const video = await storage.updateVideo(Number(req.params.id), parsed.data);
+      const video = await storage.updateVideo(Number(req.params.id), parsed.data as any);
       await storage.createAuditLog({
         userId,
         action: "video_updated",

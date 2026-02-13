@@ -8,10 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
 import { Sparkles, Heart, ChevronDown, ChevronUp } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 const MOOD_LABELS = ["Terrible", "Bad", "Okay", "Good", "Great"];
 const ENERGY_LABELS = ["Exhausted", "Low", "Moderate", "High", "Energized"];

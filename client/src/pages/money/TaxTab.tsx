@@ -12,7 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 const US_STATES = [
   "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",

@@ -124,7 +124,7 @@ export async function registerAutomationRoutes(app: Express) {
     }
     try {
       const input = { ...parsed.data, userId: userId };
-      const rule = await storage.createAutomationRule(input);
+      const rule = await storage.createAutomationRule(input as any);
       res.status(201).json(rule);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -171,7 +171,7 @@ export async function registerAutomationRoutes(app: Express) {
     }
     try {
       const input = { ...parsed.data, userId: userId };
-      const item = await storage.createScheduleItem(input);
+      const item = await storage.createScheduleItem(input as any);
       await storage.createAuditLog({
         userId,
         action: "schedule_item_created",
@@ -429,7 +429,7 @@ export async function registerAutomationRoutes(app: Express) {
         agentId: parsed.data.agentId || parsed.data.actionType || "system",
         actions: parsed.data.actions || [{ type: parsed.data.actionType, config: parsed.data.actionConfig || {} }],
         enabled: parsed.data.enabled !== false,
-      });
+      } as any);
       res.json(rule);
     } catch (err) { res.status(500).json({ error: "Failed to create rule" }); }
   });

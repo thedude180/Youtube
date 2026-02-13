@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sparkles, CalendarDays, Shield, ChevronDown, ChevronUp, CheckCircle2, Building2, MapPin, AlertTriangle, DollarSign, FileCheck, ExternalLink, Globe, ArrowRight, CircleDot, Briefcase } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 const ENTITY_TYPES = ["sole_proprietor", "llc", "s_corp", "c_corp", "partnership"] as const;
 const entityTypeLabels: Record<string, string> = { sole_proprietor: "Sole Proprietor", llc: "LLC", s_corp: "S-Corp", c_corp: "C-Corp", partnership: "Partnership" };

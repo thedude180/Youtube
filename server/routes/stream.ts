@@ -32,7 +32,7 @@ export function registerStreamRoutes(app: Express) {
     const schema = z.object({
       platform: z.string().min(1),
       label: z.string().min(1),
-      rtmpUrl: z.string().optional(),
+      rtmpUrl: z.string().default(""),
       streamKey: z.string().optional(),
       enabled: z.boolean().optional(),
     });

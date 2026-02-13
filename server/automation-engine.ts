@@ -272,7 +272,7 @@ export async function initAutomationEngine() {
       const { refreshAllUserChannelStats } = await import("./youtube");
       const { runComplianceCheck } = await import("./growth-programs-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) {
           await refreshAllUserChannelStats(userId);
@@ -288,7 +288,7 @@ export async function initAutomationEngine() {
     try {
       const { processCommentResponses } = await import("./autopilot-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) await processCommentResponses(userId);
       }
@@ -301,7 +301,7 @@ export async function initAutomationEngine() {
     try {
       const { processContentRecycling } = await import("./autopilot-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) await processContentRecycling(userId);
       }
@@ -314,7 +314,7 @@ export async function initAutomationEngine() {
     try {
       const { syncAllRevenue } = await import("./revenue-sync-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) await syncAllRevenue(userId);
       }
@@ -328,7 +328,7 @@ export async function initAutomationEngine() {
     try {
       const { startBacklogOnLogin } = await import("./backlog-manager");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) {
           const result = await startBacklogOnLogin(userId);
@@ -346,7 +346,7 @@ export async function initAutomationEngine() {
     try {
       const { processCrossPromotion } = await import("./autopilot-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) await processCrossPromotion(userId);
       }
@@ -612,7 +612,7 @@ async function processAutoPayments() {
 
 async function processAutoLocalization() {
   const allChannels = await db.select().from(channels);
-  const userIds = [...new Set(allChannels.map((c) => c.userId))];
+  const userIds = Array.from(new Set(allChannels.map((c) => c.userId)));
   if (userIds.length === 0) userIds.push("system");
 
   for (const userId of userIds) {
@@ -629,23 +629,23 @@ async function processAutoLocalization() {
 
       const analyzerResult = await aiAudienceLanguageAnalyzer(
         { analyticsData: channelAnalytics, viewerLocations: { channels: channelAnalytics.length } },
-        userId,
+        userId!,
       );
       const priority = analyzerResult.priorityRanking || analyzerResult.primaryLanguages || [];
       if (Array.isArray(priority) && priority.length > 0) {
         trafficDrivenLangs = priority.map((p: any) => (typeof p === "string" ? p : p.code || p.language || "es")).slice(0, 8);
       }
-      await storage.upsertLocalizationRecommendations(userId, {
-        userId,
+      await storage.upsertLocalizationRecommendations(userId!, {
+        userId: userId!,
         recommendedLanguages: trafficDrivenLangs,
         trafficData: analyzerResult,
         source: "ai-audience-analyzer",
       });
       await db.insert(aiResults).values({
-        userId,
+        userId: userId!,
         featureKey: "ai-audience-language-analyzer",
         result: { ...analyzerResult, source: "auto-localization", processedAt: new Date().toISOString() },
-      });
+      } as any);
       console.log(`[AutomationEngine] Traffic analysis complete for user ${userId}. Priority languages: ${trafficDrivenLangs.join(", ")}`);
     } catch (err) {
       console.error(`[AutomationEngine] Audience language analysis failed for user ${userId}, using defaults:`, err);
@@ -672,12 +672,12 @@ async function processAutoLocalization() {
 
     for (const runner of langAwareRunners) {
       try {
-        const result = await runner.fn(runner.dataBuilder(), userId);
+        const result = await runner.fn(runner.dataBuilder(), userId!);
         await db.insert(aiResults).values({
-          userId,
+          userId: userId!,
           featureKey: runner.key,
           result: { ...result, source: "auto-localization", trafficDrivenLanguages: trafficDrivenLangs, processedAt: new Date().toISOString() },
-        });
+        } as any);
       } catch (err) {
         console.error(`[AutomationEngine] Auto-localization ${runner.key} failed for user ${userId}:`, err);
       }

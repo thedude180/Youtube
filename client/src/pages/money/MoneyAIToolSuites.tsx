@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 export default function MoneyAIToolSuites() {
   const { toast } = useToast();

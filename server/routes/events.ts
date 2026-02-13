@@ -7,15 +7,15 @@ export function sendSSEEvent(userId: string, event: string, data: any) {
   const userClients = clients.get(userId);
   if (!userClients) return;
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const res of userClients) {
+  for (const res of Array.from(userClients)) {
     try { res.write(payload); } catch { userClients.delete(res); }
   }
 }
 
 export function broadcastSSEEvent(event: string, data: any) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const [, userClients] of clients) {
-    for (const res of userClients) {
+  for (const [, userClients] of Array.from(clients)) {
+    for (const res of Array.from(userClients)) {
       try { res.write(payload); } catch { userClients.delete(res); }
     }
   }

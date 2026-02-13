@@ -131,11 +131,11 @@ export function registerAdminRoutes(app: Express) {
     try {
       const [user, channels, videos, goals, deals, expenses, aiResults] = await Promise.all([
         storage.getUser(userId),
-        storage.getChannels(userId),
-        storage.getVideos(userId),
+        storage.getChannelsByUser(userId),
+        storage.getVideosByUser(userId),
         storage.getGoals(userId),
-        storage.getDeals(userId),
-        storage.getExpenses(userId),
+        storage.getSponsorshipDeals(userId),
+        storage.getExpenseRecords(userId),
         storage.getAiResults(userId),
       ]);
       const exportData = {

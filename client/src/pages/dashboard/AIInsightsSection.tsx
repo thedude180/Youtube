@@ -20,7 +20,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
   const milestoneIconMap: Record<string, any> = {
     trophy: Trophy,

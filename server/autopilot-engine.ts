@@ -173,7 +173,7 @@ async function generateFullThrottleDistribution(
     const scheduledAt = schedule.get(platform) || generateHumanScheduledTime({
       platform,
       userId,
-      contentType: contentType === "go-live" || contentType === "post-stream" ? "new-video" : contentType,
+      contentType: contentType === "go-live" || contentType === "post-stream" ? "new-video" : contentType as any,
       urgency,
     });
 
@@ -200,7 +200,7 @@ async function generateFullThrottleDistribution(
         safetyGrade: safety.overallGrade,
         schedulingMethod: "human-behavior-engine",
       },
-    });
+    } as any);
   }
 
   await createNotification(userId, "autopilot", "Content distributed",
@@ -231,7 +231,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
   await db.insert(autopilotQueue).values({
     userId,
     sourceVideoId: video.id,
-    type: "discord-announce",
+    type: "discord-announce" as any,
     targetPlatform: "discord",
     content: result.content,
     caption: `Discord announcement for: ${video.title}`,
@@ -245,7 +245,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
       fingerprint: result.fingerprint,
       schedulingMethod: "human-behavior-engine",
     },
-  });
+  } as any);
 }
 
 export async function processGoLiveAnnouncements(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
@@ -290,7 +290,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
       await db.insert(autopilotQueue).values({
         userId,
         sourceVideoId: streamId,
-        type: "go-live",
+        type: "go-live" as any,
         targetPlatform: "discord",
         content: result.content,
         caption: `LIVE NOW: ${streamTitle}`,
@@ -306,7 +306,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
           fingerprint: result.fingerprint,
           schedulingMethod: "human-behavior-engine",
         },
-      });
+      } as any);
     }
   }
 
@@ -429,7 +429,7 @@ Write a quick reply as yourself. Output ONLY the reply text.`;
         responseDelay: getCommentResponseDelay(),
         typingDelay: simulateTypingDelay(processedResponse.length),
       },
-    });
+    } as any);
   }
 }
 

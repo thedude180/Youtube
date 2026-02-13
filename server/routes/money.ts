@@ -228,7 +228,7 @@ export function registerMoneyRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     const input = { ...parsed.data, userId: userId };
-    const record = await storage.createRevenueRecord(input);
+    const record = await storage.createRevenueRecord(input as any);
     res.status(201).json(record);
   });
 
@@ -259,7 +259,7 @@ export function registerMoneyRoutes(app: Express) {
     try {
       const expenseSchema = z.object({ category: z.string(), description: z.string(), amount: z.number(), date: z.string().optional() }).passthrough();
       const parsed = expenseSchema.parse(req.body);
-      const record = await storage.createExpenseRecord({ ...parsed, userId });
+      const record = await storage.createExpenseRecord({ ...parsed, userId } as any);
       res.status(201).json(record);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
@@ -365,7 +365,7 @@ export function registerMoneyRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const venture = await storage.createBusinessVenture({ ...parsed.data, userId });
+    const venture = await storage.createBusinessVenture({ ...parsed.data, userId } as any);
     res.status(201).json(venture);
   });
 
@@ -407,7 +407,7 @@ export function registerMoneyRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const goal = await storage.createBusinessGoal({ ...parsed.data, userId });
+    const goal = await storage.createBusinessGoal({ ...parsed.data, userId } as any);
     res.status(201).json(goal);
   });
 
@@ -448,7 +448,7 @@ export function registerMoneyRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const estimate = await storage.createTaxEstimate({ ...parsed.data, userId });
+    const estimate = await storage.createTaxEstimate({ ...parsed.data, userId } as any);
     res.status(201).json(estimate);
   });
 
@@ -485,7 +485,7 @@ export function registerMoneyRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     try {
-      const deal = await storage.createSponsorshipDeal({ ...parsed.data, userId });
+      const deal = await storage.createSponsorshipDeal({ ...parsed.data, userId } as any);
       res.status(201).json(deal);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

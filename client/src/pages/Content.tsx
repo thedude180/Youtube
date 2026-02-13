@@ -41,7 +41,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 type ContentTab = "library" | "channels" | "calendar" | "localization";
 
@@ -2498,15 +2498,15 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
               <Badge variant="secondary">Auto-generated</Badge>
             </div>
 
-            {(aiContentIdeas as any).trendAlert && (
+            {aiContentIdeas?.trendAlert && (
               <div data-testid="text-trend-alert" className="text-xs text-muted-foreground bg-secondary/50 rounded-md p-2">
-                {(aiContentIdeas as any).trendAlert}
+                {aiContentIdeas.trendAlert}
               </div>
             )}
 
-            {(aiContentIdeas as any).ideas && (aiContentIdeas as any).ideas.length > 0 && (
+            {aiContentIdeas?.ideas && aiContentIdeas.ideas.length > 0 && (
               <div className="space-y-2">
-                {(aiContentIdeas as any).ideas.slice(0, 5).map((idea: any, idx: number) => (
+                {aiContentIdeas.ideas.slice(0, 5).map((idea: any, idx: number) => (
                   <div key={idx} data-testid={`ai-idea-${idx}`} className="flex flex-col gap-1 border-b last:border-b-0 pb-2 last:pb-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{idea.title}</span>
@@ -2532,10 +2532,10 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
               </div>
             )}
 
-            {(aiContentIdeas as any).seriesIdeas && (aiContentIdeas as any).seriesIdeas.length > 0 && (
+            {aiContentIdeas?.seriesIdeas && aiContentIdeas.seriesIdeas.length > 0 && (
               <div data-testid="section-series-ideas" className="pt-2 border-t space-y-1.5">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Series Ideas</span>
-                {(aiContentIdeas as any).seriesIdeas.map((series: any, idx: number) => (
+                {aiContentIdeas.seriesIdeas.map((series: any, idx: number) => (
                   <div key={idx} data-testid={`series-idea-${idx}`} className="text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">{series.title || series.name}</span>
                     {series.description && <span> — {series.description}</span>}
@@ -2869,7 +2869,7 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
                   "Use the Calendar tab to schedule upcoming uploads",
                 ]}
                 actionLabel="Go to Channels"
-                onAction={() => setActiveTab("channels")}
+                onAction={() => { window.location.href = "/content/channels"; }}
                 data-testid="empty-state-videos"
               />
             )}

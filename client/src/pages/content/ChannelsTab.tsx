@@ -147,7 +147,7 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
   const platformOAuth = oauthStatus?.[platform];
   const hasOAuth = platformOAuth?.hasOAuth || false;
   const isOAuthConfigured = platformOAuth?.configured || false;
-  const isYouTube = platform === "youtube" || platform === "youtubeshorts";
+  const isYouTube = platform === "youtube" || (platform as string) === "youtubeshorts";
 
   const handleOAuthLogin = async () => {
     setOauthLoading(true);

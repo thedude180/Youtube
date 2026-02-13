@@ -528,7 +528,7 @@ function RecommendedPlatforms({
   const individualRecommended = recommendedList.filter(p => !GROUPED_PLATFORMS.has(p));
 
   const allGroups = LOGIN_GROUPS;
-  const allIndividual = allPlatformsList.filter(p => !GROUPED_PLATFORMS.has(p) && !recommendedList.includes(p) && p !== "youtubeshorts");
+  const allIndividual = allPlatformsList.filter(p => !GROUPED_PLATFORMS.has(p) && !recommendedList.includes(p) && (p as string) !== "youtubeshorts");
 
   return (
     <div className="space-y-6">
@@ -594,7 +594,7 @@ function RecommendedPlatforms({
           onClick={onToggleShowAll}
         >
           {showAll ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-          {showAll ? "Hide Other Platforms" : `Show All ${PLATFORMS.filter(p => p !== "youtubeshorts").length} Platforms`}
+          {showAll ? "Hide Other Platforms" : `Show All ${PLATFORMS.filter(p => (p as string) !== "youtubeshorts").length} Platforms`}
         </Button>
       </div>
 
@@ -1139,7 +1139,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
           </div>
           {step !== "choice" && (
             <Badge variant="secondary" data-testid="badge-progress">
-              {connectedCount} of {PLATFORMS.filter(p => p !== "youtubeshorts").length} connected
+              {connectedCount} of {PLATFORMS.filter(p => (p as string) !== "youtubeshorts").length} connected
             </Badge>
           )}
         </div>
@@ -1254,7 +1254,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
                   </Button>
                 )}
                 <p className="text-sm text-muted-foreground" data-testid="text-progress-summary">
-                  {connectedCount} of {PLATFORMS.filter(p => p !== "youtubeshorts").length} platforms connected
+                  {connectedCount} of {PLATFORMS.filter(p => (p as string) !== "youtubeshorts").length} platforms connected
                 </p>
                 <Button
                   data-testid="button-finish-setup"

@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Plus, Palette, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 const ASSET_TYPES = ["color", "logo", "font", "tone"] as const;
 const assetTypeLabels: Record<string, string> = { color: "Colors", logo: "Logos", font: "Fonts", tone: "Tone of Voice" };

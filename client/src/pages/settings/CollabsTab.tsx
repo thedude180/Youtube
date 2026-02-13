@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Plus, Users, Link as LinkIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 const COLLAB_STATUSES = ["suggested", "contacted", "active", "completed", "declined"] as const;
 const collabStatusColors: Record<string, string> = {

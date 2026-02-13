@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 export default function AIToolSuites() {
   const { toast } = useToast();

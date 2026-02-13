@@ -115,7 +115,7 @@ export function registerSettingsRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const asset = await storage.createBrandAsset({ ...parsed.data, userId });
+    const asset = await storage.createBrandAsset({ ...parsed.data, userId } as any);
     res.status(201).json(asset);
   });
 
@@ -154,7 +154,7 @@ export function registerSettingsRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const competitor = await storage.createCompetitorTrack({ ...parsed.data, userId });
+    const competitor = await storage.createCompetitorTrack({ ...parsed.data, userId } as any);
     res.status(201).json(competitor);
   });
 
@@ -193,7 +193,7 @@ export function registerSettingsRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const milestone = await storage.createKnowledgeMilestone({ ...parsed.data, userId });
+    const milestone = await storage.createKnowledgeMilestone({ ...parsed.data, userId } as any);
     res.status(201).json(milestone);
   });
 

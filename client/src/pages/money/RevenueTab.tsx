@@ -22,7 +22,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 export default function RevenueTab() {
   const { toast } = useToast();

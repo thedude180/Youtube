@@ -27,7 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 const SPONSOR_STAGES = ["Prospect", "Contacted", "Negotiating", "Active", "Completed", "Declined"] as const;
 

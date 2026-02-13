@@ -21,7 +21,7 @@ import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { LiveChatPanel } from "@/components/LiveChatPanel";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 export default function StreamCenter() {
   usePageTitle("Go Live");

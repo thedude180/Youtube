@@ -623,7 +623,7 @@ async function checkAndNotifyEligible(userId: string) {
           type: "growth_program",
           priority: "high",
           actionUrl: `/settings?tab=growth`,
-        });
+        } as any);
       } catch (err) {
         console.error("[GrowthPrograms] Notification error:", err);
       }
@@ -677,7 +677,7 @@ export async function activateMonetization(userId: string, programId: number) {
       type: "growth_program",
       priority: "high",
       actionUrl: `/settings?tab=growth`,
-    });
+    } as any);
   } catch (err) {
     console.error("[GrowthPrograms] Activation notification error:", err);
   }
@@ -754,7 +754,7 @@ export async function runComplianceCheck(userId: string) {
           type: "growth_program",
           priority: "high",
           actionUrl: `/settings?tab=growth`,
-        });
+        } as any);
       } catch (err) {
         console.error("[GrowthPrograms] Compliance notification error:", err);
       }

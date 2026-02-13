@@ -43,7 +43,7 @@ const LazySponsorsTab = lazy(() => import("./money/SponsorsTab"));
 const LazyTaxTab = lazy(() => import("./money/TaxTab"));
 const LazyMoneyAIToolSuites = lazy(() => import("./money/MoneyAIToolSuites"));
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 type TabKey = "revenue" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors";
 

@@ -329,7 +329,7 @@ function calculateUniqueness(newText: string, existingTexts: string[]): number {
   for (const existing of existingTexts) {
     const existingWords = new Set(existing.toLowerCase().split(/\s+/));
     let overlap = 0;
-    for (const word of newWords) {
+    for (const word of Array.from(newWords)) {
       if (existingWords.has(word) && word.length > 3) overlap++;
     }
     const overlapRatio = overlap / Math.max(newWords.size, 1);

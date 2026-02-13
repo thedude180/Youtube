@@ -71,15 +71,15 @@ export async function registerPlatformRoutes(app: Express) {
         const channels = await storage.getChannelsByUser(userId);
         const videos = await storage.getVideosByUser(userId);
         const generated = await generateCommunityPost({
-          platform: input.platform,
+          platform: input.platform || "youtube",
           channelName: channels[0]?.channelName || "My Channel",
           recentTitles: videos.slice(0, 5).map(v => v.title),
           type: input.type || 'engagement',
         });
         input.content = generated.content;
-        input.aiGenerated = true;
+        (input as any).aiGenerated = true;
       }
-      const post = await storage.createCommunityPost(input);
+      const post = await storage.createCommunityPost(input as any);
       res.status(201).json(post);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -238,8 +238,8 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/subscriptions", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const subscriptions = await storage.getSubscriptions(userId);
-    res.json(subscriptions);
+    const subscription = await storage.getSubscription(userId);
+    res.json(subscription ? [subscription] : []);
   });
 
   app.post("/api/subscriptions", async (req, res) => {
@@ -285,14 +285,14 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
-    const analytics = await storage.getAnalytics(userId, channelId);
+    const analytics = await storage.getAnalyticsSnapshots(userId);
     res.json(analytics);
   });
 
   app.post("/api/analytics", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const record = await storage.createAnalyticsRecord({ ...req.body, userId });
+    const record = await storage.createAnalyticsSnapshot({ ...req.body, userId });
     res.status(201).json(record);
   });
 
@@ -716,7 +716,7 @@ export async function registerPlatformRoutes(app: Express) {
 
   function cleanupOAuthStates() {
     const now = Date.now();
-    for (const [key, val] of pendingOAuthStates.entries()) {
+    for (const [key, val] of Array.from(pendingOAuthStates.entries())) {
       if (now - val.timestamp > 10 * 60 * 1000) pendingOAuthStates.delete(key);
     }
   }

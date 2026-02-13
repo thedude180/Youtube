@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Sparkles, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 const insightCategoryColors: Record<string, string> = {
   content: "bg-purple-500/10 text-purple-500",

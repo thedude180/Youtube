@@ -58,7 +58,7 @@ const LazyAIToolSuites = lazy(() => import("./dashboard/AIToolSuites"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
 const LazyDailyBriefing = lazy(() => import("./dashboard/DailyBriefingSection"));
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 interface AgentStatus {
   id: string;

@@ -267,7 +267,7 @@ async function autoConnectYouTubeFromGoogle(
           ytChannel.statistics?.subscriberCount || "0",
           10
         ),
-      });
+      } as any);
     }
 
     console.log(

@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { storage } from "../storage";
 import { requireAuth } from "./helpers";
 import {
   aiCategorizeExpenses,

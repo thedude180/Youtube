@@ -50,7 +50,7 @@ const AdminUsersTab = lazy(() => import("./settings/AdminTabs").then(m => ({ def
 
 const TabFallback = () => <Skeleton className="h-96 w-full rounded-lg" />;
 
-type AIResponse = Record<string, unknown> | null;
+type AIResponse = any;
 
 type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "learning" | "automation" | "growth" | "admin-codes" | "admin-users" | "subscription";
 

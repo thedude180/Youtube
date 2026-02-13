@@ -618,7 +618,7 @@ async function fetchWhatsAppData(accessToken: string, channelId: string): Promis
   return result;
 }
 
-const PLATFORM_FETCHERS: Partial<Record<Platform, PlatformFetcher>> = {
+const PLATFORM_FETCHERS: Partial<Record<string, PlatformFetcher>> = {
   twitch: fetchTwitchData,
   facebook: fetchFacebookData,
   tiktok: fetchTikTokData,
