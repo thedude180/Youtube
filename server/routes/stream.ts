@@ -12,6 +12,7 @@ import {
 import { pivotToStream, resumeFromStream } from "../backlog-engine";
 import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
 import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStreamStatus } from "../live-chat-engine";
+import { createPipelineForStream } from "./pipeline";
 
 export function registerStreamRoutes(app: Express) {
   app.get(api.streamDestinations.list.path, async (req, res) => {
@@ -352,6 +353,10 @@ export function registerStreamRoutes(app: Express) {
         stream.description || "",
         (stream.platforms as string[]) || ["youtube"],
       ).catch(err => console.error("[Autopilot] Post-stream highlights error:", err));
+
+      createPipelineForStream(userId, stream.title).catch(err =>
+        console.error("[Pipeline] Auto-pipeline for stream error:", err)
+      );
 
       const tasks = [
         { name: "vod_optimization", status: "pending" },

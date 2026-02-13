@@ -53,6 +53,77 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
   return JSON.parse(content);
 }
 
+async function executePipelineInBackground(id: number, videoTitle: string, existingResults: Record<string, any>, existingCompleted: string[]) {
+  const currentResults = { ...existingResults };
+  const completedSteps = [...existingCompleted];
+
+  for (const step of STEP_IDS) {
+    if (completedSteps.includes(step)) continue;
+
+    try {
+      await db.update(contentPipeline)
+        .set({ currentStep: step, status: "processing" })
+        .where(eq(contentPipeline.id, id));
+
+      const result = await runPipelineStep(id, step, videoTitle, currentResults);
+      currentResults[step] = result;
+      completedSteps.push(step);
+
+      await db.update(contentPipeline)
+        .set({ completedSteps, stepResults: currentResults })
+        .where(eq(contentPipeline.id, id));
+    } catch (stepErr: any) {
+      console.error(`[Pipeline] Step "${step}" failed for pipeline ${id}:`, stepErr.message);
+      await db.update(contentPipeline)
+        .set({
+          status: "error",
+          errorMessage: `Step "${step}" failed: ${stepErr.message}`,
+          completedSteps,
+          stepResults: currentResults,
+        })
+        .where(eq(contentPipeline.id, id));
+      return;
+    }
+  }
+
+  await db.update(contentPipeline)
+    .set({
+      status: "completed",
+      completedAt: new Date(),
+      completedSteps,
+      stepResults: currentResults,
+      currentStep: "schedule",
+    })
+    .where(eq(contentPipeline.id, id));
+  console.log(`[Pipeline] Pipeline ${id} completed all 8 steps`);
+}
+
+export async function createPipelineForStream(userId: string, streamTitle: string) {
+  try {
+    const [pipeline] = await db.insert(contentPipeline).values({
+      userId,
+      videoId: null,
+      videoTitle: streamTitle,
+      source: "livestream",
+      currentStep: "analyze",
+      status: "queued",
+      completedSteps: [],
+      stepResults: {},
+    }).returning();
+
+    console.log(`[Pipeline] Auto-created pipeline ${pipeline.id} for stream "${streamTitle}"`);
+
+    executePipelineInBackground(pipeline.id, streamTitle, {}, []).catch(err => {
+      console.error(`[Pipeline] Auto-run failed for stream pipeline ${pipeline.id}:`, err);
+    });
+
+    return pipeline;
+  } catch (err) {
+    console.error("[Pipeline] Failed to auto-create pipeline for stream:", err);
+    return null;
+  }
+}
+
 export function registerPipelineRoutes(app: Express) {
   app.get("/api/pipeline", async (req, res) => {
     const userId = requireAuth(req, res);
@@ -93,51 +164,6 @@ export function registerPipelineRoutes(app: Express) {
       res.status(500).json({ error: "Failed to create pipeline" });
     }
   });
-
-  async function executePipelineInBackground(id: number, videoTitle: string, existingResults: Record<string, any>, existingCompleted: string[]) {
-    const currentResults = { ...existingResults };
-    const completedSteps = [...existingCompleted];
-
-    for (const step of STEP_IDS) {
-      if (completedSteps.includes(step)) continue;
-
-      try {
-        await db.update(contentPipeline)
-          .set({ currentStep: step, status: "processing" })
-          .where(eq(contentPipeline.id, id));
-
-        const result = await runPipelineStep(id, step, videoTitle, currentResults);
-        currentResults[step] = result;
-        completedSteps.push(step);
-
-        await db.update(contentPipeline)
-          .set({ completedSteps, stepResults: currentResults })
-          .where(eq(contentPipeline.id, id));
-      } catch (stepErr: any) {
-        console.error(`[Pipeline] Step "${step}" failed for pipeline ${id}:`, stepErr.message);
-        await db.update(contentPipeline)
-          .set({
-            status: "error",
-            errorMessage: `Step "${step}" failed: ${stepErr.message}`,
-            completedSteps,
-            stepResults: currentResults,
-          })
-          .where(eq(contentPipeline.id, id));
-        return;
-      }
-    }
-
-    await db.update(contentPipeline)
-      .set({
-        status: "completed",
-        completedAt: new Date(),
-        completedSteps,
-        stepResults: currentResults,
-        currentStep: "schedule",
-      })
-      .where(eq(contentPipeline.id, id));
-    console.log(`[Pipeline] Pipeline ${id} completed all 8 steps`);
-  }
 
   app.post("/api/pipeline/:id/run", async (req, res) => {
     const userId = requireAuth(req, res);
