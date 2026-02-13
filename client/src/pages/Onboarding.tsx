@@ -28,6 +28,7 @@ import {
   TrendingUp,
   Eye,
   EyeOff,
+  KeyRound,
 } from "lucide-react";
 import {
   SiYoutube,
@@ -924,7 +925,74 @@ function NewCreatorFlow({
   );
 }
 
-type OnboardingStep = "choice" | "new-creator" | "existing-creator";
+type OnboardingStep = "choice" | "new-creator" | "existing-creator" | "redeem-code";
+
+function RedeemCodeScreen({ onBack, onRedeemed }: { onBack: () => void; onRedeemed: () => void }) {
+  const { toast } = useToast();
+  const [code, setCode] = useState("");
+
+  const redeemMutation = useMutation({
+    mutationFn: async (c: string) => {
+      const res = await apiRequest("POST", "/api/redeem-code", { code: c });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.success) {
+        toast({ title: "Code Redeemed!", description: `You now have ${data.tier} access.` });
+        queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
+        setTimeout(() => onRedeemed(), 1000);
+      } else {
+        toast({ title: "Invalid Code", description: data.error || "This code is not valid.", variant: "destructive" });
+      }
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="flex items-center gap-2 mb-8 self-start">
+        <Button size="sm" variant="ghost" onClick={onBack} data-testid="button-back-from-redeem">
+          <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
+          Back
+        </Button>
+      </div>
+
+      <div className="h-14 w-14 rounded-md bg-primary flex items-center justify-center mb-6">
+        <KeyRound className="h-7 w-7 text-primary-foreground" />
+      </div>
+      <h1 className="text-2xl sm:text-3xl font-display font-bold text-center" data-testid="text-redeem-heading">
+        Enter Your Access Code
+      </h1>
+      <p className="mt-2 text-sm text-muted-foreground text-center max-w-md">
+        Paste the code you received to unlock your account.
+      </p>
+
+      <div className="mt-8 w-full max-w-sm space-y-4">
+        <Input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="e.g. A1B2C3-D4E5"
+          className="text-center font-mono text-lg tracking-widest"
+          data-testid="input-onboarding-access-code"
+        />
+        <Button
+          size="lg"
+          className="w-full"
+          onClick={() => redeemMutation.mutate(code)}
+          disabled={!code.trim() || redeemMutation.isPending}
+          data-testid="button-onboarding-redeem-code"
+        >
+          {redeemMutation.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <KeyRound className="h-4 w-4 mr-2" />
+          )}
+          {redeemMutation.isPending ? "Redeeming..." : "Redeem Code"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function ChoiceScreen({ onChoose }: { onChoose: (choice: OnboardingStep) => void }) {
   return (
@@ -978,6 +1046,16 @@ function ChoiceScreen({ onChoose }: { onChoose: (choice: OnboardingStep) => void
           </CardContent>
         </Card>
       </div>
+
+      <Button
+        variant="outline"
+        className="mt-6"
+        onClick={() => onChoose("redeem-code")}
+        data-testid="button-choice-access-code"
+      >
+        <KeyRound className="h-4 w-4 mr-2" />
+        I have an access code
+      </Button>
     </div>
   );
 }
@@ -1153,6 +1231,11 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
             </div>
           ) : step === "choice" ? (
             <ChoiceScreen onChoose={setStep} />
+          ) : step === "redeem-code" ? (
+            <RedeemCodeScreen
+              onBack={() => setStep("choice")}
+              onRedeemed={finishOnboarding}
+            />
           ) : step === "new-creator" ? (
             <>
               <div className="mb-8">
