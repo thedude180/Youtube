@@ -1059,6 +1059,34 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  app.delete("/api/oauth/:platform/disconnect", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const platform = req.params.platform;
+    try {
+      const userChannels = await storage.getChannelsByUser(userId);
+      const platformChannels = userChannels.filter(c => c.platform === platform);
+      for (const ch of platformChannels) {
+        await storage.deleteChannel(ch.id);
+      }
+      await db.delete(linkedChannels)
+        .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
+      await db.delete(streamDestinations)
+        .where(and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform)));
+      await storage.createAuditLog({
+        userId,
+        action: "platform_disconnected",
+        target: platform,
+        details: { platform },
+        riskLevel: "medium",
+      });
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error(`[OAuth ${platform}] Disconnect error:`, error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.delete("/api/linked-channels/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
