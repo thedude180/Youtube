@@ -214,9 +214,6 @@ export function registerStreamRoutes(app: Express) {
         console.error("[Pipeline] Auto-pipeline on go-live error:", err)
       );
 
-      sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: stream.title });
-      sendSSEEvent(userId, "notification", { type: "new" });
-
       await storage.createNotification({
         userId,
         type: "stream_live",
@@ -224,6 +221,9 @@ export function registerStreamRoutes(app: Express) {
         message: `"${stream.title}" — all platform automations triggered`,
         severity: "info",
       });
+
+      sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: stream.title });
+      sendSSEEvent(userId, "notification", { type: "new" });
 
       const tasks = [
         { name: "seo_optimization", status: "pending" },
@@ -383,9 +383,6 @@ export function registerStreamRoutes(app: Express) {
         console.error("[Backlog] Resume after manual stream end error:", err)
       );
 
-      sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: stream.id, title: stream.title });
-      sendSSEEvent(userId, "notification", { type: "new" });
-
       await storage.createNotification({
         userId,
         type: "stream_ended",
@@ -393,6 +390,9 @@ export function registerStreamRoutes(app: Express) {
         message: `"${stream.title}" — REPLAY pipeline started, backlog will resume automatically`,
         severity: "info",
       });
+
+      sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: stream.id, title: stream.title });
+      sendSSEEvent(userId, "notification", { type: "new" });
 
       const tasks = [
         { name: "vod_optimization", status: "pending" },

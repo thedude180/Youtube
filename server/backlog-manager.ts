@@ -37,6 +37,22 @@ export async function startBacklogOnLogin(userId: string): Promise<{ started: bo
     return { started: false, message: "Backlog paused for live stream", state: existing.state };
   }
 
+  const userStreams = await storage.getStreams(userId);
+  const activeLiveStream = userStreams.find(s => s.status === "live");
+  if (activeLiveStream) {
+    const session: UserBacklogSession = existing || {
+      userId, state: "paused_for_live", currentPipelineId: null, currentVideoTitle: null,
+      totalQueued: 0, totalProcessed: 0, totalRemaining: 0,
+      startedAt: new Date(), pausedAt: new Date(), lastActivityAt: new Date(),
+      streamId: activeLiveStream.id,
+    };
+    session.state = "paused_for_live";
+    session.streamId = activeLiveStream.id;
+    session.pausedAt = new Date();
+    sessions.set(userId, session);
+    return { started: false, message: "Backlog paused — live stream active", state: "paused_for_live" };
+  }
+
   const userChannels = await storage.getChannelsByUser(userId);
   if (userChannels.length === 0) {
     return { started: false, message: "No channels connected", state: "idle" };
@@ -297,7 +313,7 @@ export async function getBacklogStatus(userId: string): Promise<{
       .where(and(
         eq(contentPipeline.userId, userId),
         eq(contentPipeline.mode, "refresh"),
-        inArray(contentPipeline.status, ["completed", "processing", "queued"]),
+        inArray(contentPipeline.status, ["completed", "processing", "queued", "error"]),
       ));
 
     const doneIds = new Set(existingRefreshPipelines.filter(p => p.videoId).map(p => p.videoId));

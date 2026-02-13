@@ -395,10 +395,6 @@ export async function initAutomationEngine() {
             processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(() => {});
             createPipelineForStream(userId, broadcast.title, "live").catch(() => {});
 
-            sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: broadcast.title });
-            sendSSEEvent(userId, "notification", { type: "new" });
-            sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId: stream.id });
-
             await storage.createNotification({
               userId,
               type: "stream_live",
@@ -406,6 +402,10 @@ export async function initAutomationEngine() {
               message: `"${broadcast.title}" — all 6 platform automations triggered automatically`,
               severity: "info",
             });
+
+            sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: broadcast.title });
+            sendSSEEvent(userId, "notification", { type: "new" });
+            sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId: stream.id });
 
             await storage.createAuditLog({
               userId,
@@ -433,10 +433,6 @@ export async function initAutomationEngine() {
 
               cronTrackedBroadcasts.delete(userId);
 
-              sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: existingLive.id, title: existingLive.title });
-              sendSSEEvent(userId, "notification", { type: "new" });
-              sendSSEEvent(userId, "backlog_update", { state: "waiting_for_replay" });
-
               await storage.createNotification({
                 userId,
                 type: "stream_ended",
@@ -444,6 +440,10 @@ export async function initAutomationEngine() {
                 message: `"${existingLive.title}" — REPLAY pipeline started, backlog will resume automatically`,
                 severity: "info",
               });
+
+              sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: existingLive.id, title: existingLive.title });
+              sendSSEEvent(userId, "notification", { type: "new" });
+              sendSSEEvent(userId, "backlog_update", { state: "waiting_for_replay" });
 
               await storage.createAuditLog({
                 userId,
