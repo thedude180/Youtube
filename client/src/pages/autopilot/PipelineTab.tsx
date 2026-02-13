@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +33,7 @@ import {
   Globe,
   RefreshCw,
   Library,
+  Zap,
 } from "lucide-react";
 
 const STEP_ICONS: Record<string, any> = {
@@ -376,9 +377,139 @@ function PipelineCard({ pipeline, onRun, onDelete, isRunning }: {
   );
 }
 
+function BacklogStatusCard({ status, refreshCount, refreshProcessing, refreshCompleted }: {
+  status?: BacklogStatus;
+  refreshCount: number;
+  refreshProcessing: number;
+  refreshCompleted: number;
+}) {
+  const state = status?.state || "idle";
+  const totalProcessed = status?.totalProcessed || 0;
+  const totalQueued = status?.totalQueued || 0;
+  const totalRemaining = status?.totalRemaining || 0;
+  const currentVideo = status?.currentVideoTitle;
+  const progressPct = totalQueued > 0 ? Math.round((totalProcessed / totalQueued) * 100) : 0;
+
+  const stateConfig: Record<string, { label: string; color: string; bgColor: string; borderColor: string; icon: any }> = {
+    running: { label: "Processing", color: "text-green-500", bgColor: "bg-green-500/15", borderColor: "border-green-500/30", icon: Loader2 },
+    idle: { label: totalRemaining === 0 ? "Complete" : "Idle", color: totalRemaining === 0 ? "text-green-500" : "text-muted-foreground", bgColor: totalRemaining === 0 ? "bg-green-500/15" : "bg-muted/50", borderColor: totalRemaining === 0 ? "border-green-500/30" : "border-muted", icon: totalRemaining === 0 ? CheckCircle2 : Library },
+    paused_for_live: { label: "Paused — LIVE", color: "text-red-500", bgColor: "bg-red-500/15", borderColor: "border-red-500/30", icon: Radio },
+    finishing_current: { label: "Finishing current...", color: "text-yellow-500", bgColor: "bg-yellow-500/15", borderColor: "border-yellow-500/30", icon: Zap },
+    waiting_for_replay: { label: "Processing replay...", color: "text-blue-500", bgColor: "bg-blue-500/15", borderColor: "border-blue-500/30", icon: RotateCcw },
+  };
+
+  const cfg = stateConfig[state] || stateConfig.idle;
+  const StateIcon = cfg.icon;
+
+  return (
+    <Card data-testid="card-backlog-refresh">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="space-y-1 flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Library className="h-5 w-5 text-amber-500" />
+              <h2 className="font-semibold">Backlog Refresh</h2>
+              <Badge variant="secondary" className={`${cfg.bgColor} ${cfg.color} ${cfg.borderColor} text-[10px]`}>
+                {state === "running" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                {state !== "running" && <StateIcon className="h-3 w-3 mr-1" />}
+                {cfg.label}
+              </Badge>
+              {totalQueued > 0 && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {totalProcessed}/{totalQueued} videos
+                </Badge>
+              )}
+            </div>
+
+            {state === "running" && currentVideo && (
+              <p className="text-sm text-muted-foreground truncate">
+                Now refreshing: <span className="text-foreground font-medium">{currentVideo}</span>
+              </p>
+            )}
+
+            {state === "paused_for_live" && (
+              <p className="text-sm text-muted-foreground">
+                Backlog paused while you're live. All resources shifted to LIVE pipeline. Will resume automatically when stream ends.
+              </p>
+            )}
+
+            {state === "finishing_current" && (
+              <p className="text-sm text-muted-foreground">
+                Finishing current video, then shifting all resources to your live stream.
+              </p>
+            )}
+
+            {state === "waiting_for_replay" && (
+              <p className="text-sm text-muted-foreground">
+                Stream ended — processing REPLAY pipeline. Backlog will resume automatically after replay is done.
+              </p>
+            )}
+
+            {state === "idle" && totalRemaining === 0 && totalQueued > 0 && (
+              <p className="text-sm text-muted-foreground">
+                All {totalQueued} videos in your library have been refreshed with updated titles, SEO, thumbnails, and cross-platform posts.
+              </p>
+            )}
+
+            {state === "idle" && totalRemaining > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {totalRemaining} videos waiting to be refreshed. Backlog starts automatically on login.
+              </p>
+            )}
+
+            {state === "idle" && totalQueued === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No videos in library yet. Backlog refresh will start automatically once you have content.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {totalQueued > 0 && (
+          <div className="space-y-1">
+            <div className="w-full bg-muted/50 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all ${
+                  state === "paused_for_live" ? "bg-red-500" :
+                  state === "running" || state === "finishing_current" ? "bg-primary" :
+                  totalRemaining === 0 ? "bg-green-500" :
+                  "bg-muted-foreground/50"
+                }`}
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>{totalProcessed} refreshed</span>
+              <span>{totalRemaining} remaining</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface BacklogStatus {
+  state: "idle" | "running" | "paused_for_live" | "finishing_current" | "waiting_for_replay";
+  currentVideoTitle: string | null;
+  totalQueued: number;
+  totalProcessed: number;
+  totalRemaining: number;
+  currentPipelineId: number | null;
+  streamId: number | null;
+  startedAt: string | null;
+  pausedAt: string | null;
+}
+
 export default function PipelineTab() {
   const { toast } = useToast();
   const [newTitle, setNewTitle] = useState("");
+  const [backlogStarted, setBacklogStarted] = useState(false);
+
+  const backlogStatusQuery = useQuery<BacklogStatus>({
+    queryKey: ["/api/backlog/status"],
+    refetchInterval: 5000,
+  });
 
   const pipelinesQuery = useQuery<ContentPipeline[]>({
     queryKey: ["/api/pipeline"],
@@ -466,36 +597,7 @@ export default function PipelineTab() {
         </CardContent>
       </Card>
 
-      <Card data-testid="card-backlog-refresh">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Library className="h-5 w-5 text-amber-500" />
-                <h2 className="font-semibold">Backlog Refresh</h2>
-                <Badge variant="secondary" className="bg-green-500/15 text-green-500 border-green-500/30 text-[10px]">
-                  Auto-running
-                </Badge>
-                {refreshCount > 0 && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {refreshCompleted}/{refreshCount} refreshed
-                  </Badge>
-                )}
-                {refreshProcessing > 0 && (
-                  <Badge variant="secondary" className="bg-amber-500/15 text-amber-500 border-amber-500/30 text-[10px]">
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    {refreshProcessing} processing
-                  </Badge>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                AI automatically refreshes your old VODs and Shorts with updated titles, descriptions, tags, thumbnails, 
-                clips, and cross-platform posts. Runs daily at 3 AM and after every stream ends — no action needed.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <BacklogStatusCard status={backlogStatusQuery.data} refreshCount={refreshCount} refreshProcessing={refreshProcessing} refreshCompleted={refreshCompleted} />
 
       {pipelinesQuery.isLoading ? (
         <div className="space-y-3">

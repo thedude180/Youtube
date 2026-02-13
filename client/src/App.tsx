@@ -424,6 +424,12 @@ function AppContent() {
     }
   }, [isAuthenticated, user, location, setLocation]);
 
+  useEffect(() => {
+    if (isAuthenticated && user && needsOnboarding === false) {
+      fetch("/api/backlog/start", { method: "POST", credentials: "include" }).catch(() => {});
+    }
+  }, [isAuthenticated, user, needsOnboarding]);
+
   const completeOnboarding = useCallback(async () => {
     if (user?.id) {
       localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");

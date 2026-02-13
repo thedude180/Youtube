@@ -13,6 +13,7 @@ import { pivotToStream, resumeFromStream } from "../backlog-engine";
 import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
 import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStreamStatus } from "../live-chat-engine";
 import { createPipelineForStream, runBacklogRefresh } from "./pipeline";
+import { pauseForLive, resumeAfterStream } from "../backlog-manager";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 
 const activeDetectedBroadcasts = new Map<string, { streamId: number; broadcastId: string }>();
@@ -195,6 +196,8 @@ export function registerStreamRoutes(app: Express) {
         startedAt: new Date(),
       });
 
+      pauseForLive(userId, stream.id);
+
       pivotToStream(userId, stream.id).catch(err =>
         console.error("Stream pivot error:", err)
       );
@@ -363,6 +366,10 @@ export function registerStreamRoutes(app: Express) {
 
       createPipelineForStream(userId, stream.title, "replay").catch(err =>
         console.error("[Pipeline] REPLAY pipeline for ended stream error:", err)
+      );
+
+      resumeAfterStream(userId).catch(err =>
+        console.error("[Backlog] Resume after manual stream end error:", err)
       );
 
       const tasks = [
@@ -676,6 +683,8 @@ export function registerStreamRoutes(app: Express) {
 
         activeDetectedBroadcasts.set(trackedKey, { streamId: stream.id, broadcastId: broadcast.broadcastId });
 
+        pauseForLive(userId, stream.id);
+
         pivotToStream(userId, stream.id).catch(err =>
           console.error("[AutoDetect] Stream pivot error:", err)
         );
@@ -784,21 +793,19 @@ export function registerStreamRoutes(app: Express) {
             console.error("[AutoDetect] REPLAY pipeline error:", err)
           );
 
-          runBacklogRefresh(userId, 5).then(result => {
-            if (result.queued > 0) {
-              console.log(`[AutoDetect] Post-stream backlog refresh: ${result.queued} old videos queued for refresh`);
-            }
-          }).catch(err => console.error("[AutoDetect] Backlog refresh error:", err));
+          resumeAfterStream(userId).catch(err =>
+            console.error("[AutoDetect] Backlog resume error:", err)
+          );
 
           await storage.createAuditLog({
             userId,
             action: "youtube_live_auto_ended",
             target: stream.title,
-            details: { broadcastId: tracked.broadcastId, backlogRefreshTriggered: true },
+            details: { broadcastId: tracked.broadcastId, backlogResumed: true },
             riskLevel: "low",
           });
 
-          console.log(`[AutoDetect] YouTube stream ended for ${userId}: "${stream.title}" — REPLAY pipeline + backlog refresh triggered`);
+          console.log(`[AutoDetect] YouTube stream ended for ${userId}: "${stream.title}" — REPLAY pipeline triggered, backlog resuming`);
         }
 
         activeDetectedBroadcasts.delete(trackedKey);

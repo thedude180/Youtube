@@ -23,7 +23,7 @@ async function getOpenAI() {
   });
 }
 
-function buildPrompts(videoTitle: string, mode: string, existingResults: Record<string, any>): Record<string, string> {
+export function buildPrompts(videoTitle: string, mode: string, existingResults: Record<string, any>): Record<string, string> {
   const ctx = (key: string) => JSON.stringify(existingResults[key] || {});
   const allPlatforms = "YouTube, Twitch, Kick, TikTok, X (Twitter), Discord";
 
@@ -398,6 +398,32 @@ export function registerPipelineRoutes(app: Express) {
     } catch (err: any) {
       console.error("[Pipeline] Backlog refresh error:", err);
       res.status(500).json({ error: "Failed to start backlog refresh", details: err.message });
+    }
+  });
+
+  app.get("/api/backlog/status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getBacklogStatus } = await import("../backlog-manager");
+      const status = await getBacklogStatus(userId);
+      res.json(status);
+    } catch (err: any) {
+      console.error("[Backlog] Status error:", err);
+      res.status(500).json({ error: "Failed to get backlog status" });
+    }
+  });
+
+  app.post("/api/backlog/start", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { startBacklogOnLogin } = await import("../backlog-manager");
+      const result = await startBacklogOnLogin(userId);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Backlog] Start error:", err);
+      res.status(500).json({ error: "Failed to start backlog" });
     }
   });
 
