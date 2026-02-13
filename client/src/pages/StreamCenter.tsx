@@ -623,19 +623,13 @@ export default function StreamCenter() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/streams"] });
       qc.invalidateQueries({ queryKey: ["/api/youtube/live-status"] });
-      if (data.action === "created") {
-        toast({ title: "YouTube LIVE Detected!", description: `"${data.broadcast?.title}" — all 6 platform automations triggered` });
-      } else if (data.action === "ended") {
-        toast({ title: "Stream ended", description: "REPLAY pipeline started — promoting your VOD across all platforms" });
+      if (data.detected && data.activeStream) {
+        toast({ title: "YouTube LIVE Active", description: `"${data.activeStream.title}" — server auto-detection managing all automations` });
+      } else if (!data.detected && !data.activeStream) {
+        toast({ title: "No live stream detected", description: "Server checks every 2 minutes automatically" });
       }
     },
   });
-
-  useEffect(() => {
-    if (ytLiveStatus?.connected) {
-      detectLive.mutate();
-    }
-  }, [ytLiveStatus?.broadcasts?.length]);
 
   const liveStream = streamList.find(s => s.status === 'live');
   const plannedStreams = streamList.filter(s => s.status === 'planned');

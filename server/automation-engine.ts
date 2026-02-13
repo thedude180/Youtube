@@ -645,19 +645,24 @@ function getNextRunTime(schedule: string): Date {
 }
 
 export async function processWebhookEvent(userId: string, source: string, eventType: string, payload: any) {
-  const event = await storage.createWebhookEvent({ userId, source, eventType, payload, processed: false });
+  try {
+    const event = await storage.createWebhookEvent({ userId, source, eventType, payload, processed: false });
 
-  await storage.createNotification({
-    userId,
-    type: "webhook",
-    title: `${source} Event: ${eventType}`,
-    message: `Received ${eventType} event from ${source}`,
-    severity: "info",
-  });
-  sendSSEEvent(userId, "notification", { type: "new" });
+    await storage.createNotification({
+      userId,
+      type: "webhook",
+      title: `${source} Event: ${eventType}`,
+      message: `Received ${eventType} event from ${source}`,
+      severity: "info",
+    });
+    sendSSEEvent(userId, "notification", { type: "new" });
 
-  await storage.markWebhookProcessed(event.id);
-  return event;
+    await storage.markWebhookProcessed(event.id);
+    return event;
+  } catch (err) {
+    console.error(`[AutomationEngine] Webhook event processing failed for ${userId}:`, err);
+    throw err;
+  }
 }
 
 export async function runChainManually(chainId: number) {
@@ -681,27 +686,32 @@ export async function runChainManually(chainId: number) {
 }
 
 export async function evaluateRules(userId: string, eventType: string, _eventData: any) {
-  const rules = await storage.getAutomationRules(userId);
-  const activeRules = (rules || []).filter((r: any) => r.enabled !== false);
-  const triggered: any[] = [];
+  try {
+    const rules = await storage.getAutomationRules(userId);
+    const activeRules = (rules || []).filter((r: any) => r.enabled !== false);
+    const triggered: any[] = [];
 
-  for (const rule of activeRules) {
-    const ruleData = rule as any;
-    if (ruleData.trigger === eventType || ruleData.agentId === eventType) {
-      triggered.push({ ruleId: rule.id, name: rule.name, action: "executed" });
+    for (const rule of activeRules) {
+      const ruleData = rule as any;
+      if (ruleData.trigger === eventType || ruleData.agentId === eventType) {
+        triggered.push({ ruleId: rule.id, name: rule.name, action: "executed" });
 
-      await storage.createNotification({
-        userId,
-        type: "rule_triggered",
-        title: `Rule "${rule.name}" triggered`,
-        message: `Auto-action executed for ${eventType}`,
-        severity: "info",
-      });
-      sendSSEEvent(userId, "notification", { type: "new" });
+        await storage.createNotification({
+          userId,
+          type: "rule_triggered",
+          title: `Rule "${rule.name}" triggered`,
+          message: `Auto-action executed for ${eventType}`,
+          severity: "info",
+        });
+        sendSSEEvent(userId, "notification", { type: "new" });
+      }
     }
-  }
 
-  return triggered;
+    return triggered;
+  } catch (err) {
+    console.error(`[AutomationEngine] Rule evaluation failed for ${userId}:`, err);
+    return [];
+  }
 }
 
 export {
