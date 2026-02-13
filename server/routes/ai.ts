@@ -31,7 +31,6 @@ import {
   aiCrossplatformAnalytics,
   aiCommentManager,
   aiCollabMatchmaker,
-  aiWellnessAdvisor,
   aiSEOAudit,
   aiContentCalendarPlanner,
   aiStoryboardGenerator,
@@ -364,10 +363,8 @@ import {
   aiInsuranceAdvisor,
   aiBusinessEntityAdvisor,
   aiIntellectualPropertyProtector,
-  aiBurnoutRiskAssessor,
   aiMeditationGuide,
   aiWorkLifeBalancer,
-  aiCreatorMentalHealthMonitor,
   aiSleepOptimizer,
   aiExerciseForCreators,
   aiEyeStrainPreventer,
@@ -797,7 +794,6 @@ import {
   aiControversyNavigator,
   aiCancelCultureDefender,
   aiDiversityInclusionAdvisor,
-  aiMentalHealthContentGuide,
   aiPoliticalContentNavigator,
   aiReligiousSensitivityChecker,
   aiCulturalSensitivityAdvisor,
@@ -873,7 +869,6 @@ import {
   aiVocalHealthCoach,
   aiNutritionForCreators,
   aiWorkLifeBalanceOptimizer,
-  aiCreatorBurnoutRecovery,
   aiMeditationGuideForCreators,
 } from "../ai-engine";
 import {
@@ -973,7 +968,6 @@ import {
   aiContentDecayRefresher,
 } from "../ai-engine";
 import {
-  aiBurnoutPrevention,
   aiContentBatchingPlanner,
   aiCreativeBlockSolver,
   aiWorkLifeBalanceTracker,
@@ -1488,21 +1482,6 @@ export function registerAiRoutes(app: Express) {
       const result = await aiCollabMatchmaker({ channelName: channels[0]?.channelName || "My Channel", niche: (channels[0] as any)?.category || undefined, ...req.body }, userId);
       res.json(result);
     } catch (e: any) { console.error("AI collab error:", e); res.status(500).json({ message: e.message }); }
-  });
-
-  app.post("/api/ai/wellness-advisor", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiWellnessAdvisor({
-        hoursWorked: req.body?.hoursWorked,
-        videosThisWeek: req.body?.videosThisWeek,
-        streamsThisWeek: req.body?.streamsThisWeek,
-        lastBreak: req.body?.lastBreak,
-        mood: req.body?.mood,
-      }, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI wellness error:", e); res.status(500).json({ message: e.message }); }
   });
 
   app.post("/api/ai/storyboard", async (req, res) => {
@@ -3971,15 +3950,6 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
 
-  app.post("/api/ai/burnout-risk", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiBurnoutRiskAssessor(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
-  });
-
   app.post("/api/ai/meditation", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -3994,15 +3964,6 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try {
       const result = await aiWorkLifeBalancer(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
-  });
-
-  app.post("/api/ai/mental-health", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiCreatorMentalHealthMonitor(req.body, userId);
       res.json(result);
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
@@ -7283,15 +7244,6 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
 
-  app.post("/api/ai/mental-health-content", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiMentalHealthContentGuide(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
-  });
-
   app.post("/api/ai/political-content", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -7882,15 +7834,6 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try {
       const result = await aiWorkLifeBalanceOptimizer(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
-  });
-
-  app.post("/api/ai/burnout-recovery", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiCreatorBurnoutRecovery(req.body, userId);
       res.json(result);
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: e.message }); }
   });
@@ -8541,13 +8484,6 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try { const result = await aiContentDecayRefresher(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-decay-refresher error:", e); res.status(500).json({ message: e.message }); }
-  });
-
-  app.post("/api/ai/burnout-prevention", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try { const result = await aiBurnoutPrevention(req.body, userId); res.json(result); }
-    catch (e: any) { console.error("AI burnout-prevention error:", e); res.status(500).json({ message: e.message }); }
   });
 
   app.post("/api/ai/content-batching-planner", async (req, res) => {
