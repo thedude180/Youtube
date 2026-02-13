@@ -308,6 +308,24 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("0 3 * * *", async () => {
+    try {
+      const { runBacklogRefresh } = await import("./routes/pipeline");
+      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+      const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds) {
+        if (userId) {
+          const result = await runBacklogRefresh(userId, 5);
+          if (result.queued > 0) {
+            console.log(`[AutomationEngine] Daily backlog refresh: ${result.queued} videos queued for ${userId}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[AutomationEngine] Daily backlog refresh error:", err);
+    }
+  });
+
   cron.schedule("0 */12 * * *", async () => {
     try {
       const { processCrossPromotion } = await import("./autopilot-engine");

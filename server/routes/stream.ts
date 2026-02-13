@@ -12,7 +12,7 @@ import {
 import { pivotToStream, resumeFromStream } from "../backlog-engine";
 import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
 import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStreamStatus } from "../live-chat-engine";
-import { createPipelineForStream } from "./pipeline";
+import { createPipelineForStream, runBacklogRefresh } from "./pipeline";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 
 const activeDetectedBroadcasts = new Map<string, { streamId: number; broadcastId: string }>();
@@ -784,15 +784,21 @@ export function registerStreamRoutes(app: Express) {
             console.error("[AutoDetect] REPLAY pipeline error:", err)
           );
 
+          runBacklogRefresh(userId, 5).then(result => {
+            if (result.queued > 0) {
+              console.log(`[AutoDetect] Post-stream backlog refresh: ${result.queued} old videos queued for refresh`);
+            }
+          }).catch(err => console.error("[AutoDetect] Backlog refresh error:", err));
+
           await storage.createAuditLog({
             userId,
             action: "youtube_live_auto_ended",
             target: stream.title,
-            details: { broadcastId: tracked.broadcastId },
+            details: { broadcastId: tracked.broadcastId, backlogRefreshTriggered: true },
             riskLevel: "low",
           });
 
-          console.log(`[AutoDetect] YouTube stream ended for ${userId}: "${stream.title}" — REPLAY pipeline triggered`);
+          console.log(`[AutoDetect] YouTube stream ended for ${userId}: "${stream.title}" — REPLAY pipeline + backlog refresh triggered`);
         }
 
         activeDetectedBroadcasts.delete(trackedKey);

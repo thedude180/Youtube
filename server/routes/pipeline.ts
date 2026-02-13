@@ -179,6 +179,72 @@ export async function createPipelineForStream(userId: string, streamTitle: strin
   }
 }
 
+export async function runBacklogRefresh(userId: string, batchSize = 10): Promise<{ queued: number; message?: string }> {
+  try {
+    const maxBatch = Math.min(batchSize, 25);
+    const allVideos = await storage.getVideosByUser(userId);
+    if (allVideos.length === 0) {
+      return { queued: 0, message: "No videos in library" };
+    }
+
+    const existingPipelines = await db.select().from(contentPipeline)
+      .where(and(
+        eq(contentPipeline.userId, userId),
+        eq(contentPipeline.mode, "refresh"),
+      ));
+
+    const alreadyRefreshedVideoIds = new Set(
+      existingPipelines
+        .filter(p => p.videoId && (p.status === "processing" || p.status === "queued" || p.status === "completed"))
+        .map(p => p.videoId)
+    );
+
+    const videosToRefresh = allVideos
+      .filter(v => v.status === "published" && !alreadyRefreshedVideoIds.has(v.id))
+      .slice(0, maxBatch);
+
+    if (videosToRefresh.length === 0) {
+      return { queued: 0, message: "All videos already refreshed" };
+    }
+
+    const created: any[] = [];
+    for (const video of videosToRefresh) {
+      const [pipeline] = await db.insert(contentPipeline).values({
+        userId,
+        videoId: video.id,
+        videoTitle: video.title,
+        source: "backlog-refresh",
+        mode: "refresh",
+        currentStep: "analyze",
+        status: "queued",
+        completedSteps: [],
+        stepResults: {},
+      }).returning();
+      created.push(pipeline);
+    }
+
+    for (const pipeline of created) {
+      executePipelineInBackground(pipeline.id, pipeline.videoTitle, "refresh", {}, []).catch(err => {
+        console.error(`[Pipeline] Backlog refresh failed for pipeline ${pipeline.id}:`, err);
+      });
+    }
+
+    await storage.createAuditLog({
+      userId,
+      action: "backlog_refresh_auto",
+      target: `${created.length} videos queued for refresh`,
+      details: { videoIds: videosToRefresh.map(v => v.id), pipelineIds: created.map(p => p.id) },
+      riskLevel: "low",
+    });
+
+    console.log(`[Pipeline] Backlog refresh: ${created.length} videos queued for user ${userId}`);
+    return { queued: created.length };
+  } catch (err: any) {
+    console.error("[Pipeline] Auto backlog refresh error:", err);
+    return { queued: 0, message: err.message };
+  }
+}
+
 export function registerPipelineRoutes(app: Express) {
   app.get("/api/pipeline", async (req, res) => {
     const userId = requireAuth(req, res);
@@ -327,71 +393,8 @@ export function registerPipelineRoutes(app: Express) {
     if (!userId) return;
     try {
       const { limit: maxVideos } = req.body || {};
-      const batchSize = Math.min(maxVideos || 10, 25);
-
-      const allVideos = await storage.getVideosByUser(userId);
-      if (allVideos.length === 0) {
-        return res.json({ queued: 0, message: "No videos found in your library. Connect YouTube first to sync your videos." });
-      }
-
-      const existingPipelines = await db.select().from(contentPipeline)
-        .where(and(
-          eq(contentPipeline.userId, userId),
-          eq(contentPipeline.mode, "refresh"),
-        ));
-
-      const alreadyRefreshedVideoIds = new Set(
-        existingPipelines
-          .filter(p => p.videoId && (p.status === "processing" || p.status === "queued" || p.status === "completed"))
-          .map(p => p.videoId)
-      );
-
-      const videosToRefresh = allVideos
-        .filter(v => v.status === "published" && !alreadyRefreshedVideoIds.has(v.id))
-        .slice(0, batchSize);
-
-      if (videosToRefresh.length === 0) {
-        return res.json({ queued: 0, message: "All videos have already been refreshed or are currently being processed." });
-      }
-
-      const created: any[] = [];
-      for (const video of videosToRefresh) {
-        const [pipeline] = await db.insert(contentPipeline).values({
-          userId,
-          videoId: video.id,
-          videoTitle: video.title,
-          source: "backlog-refresh",
-          mode: "refresh",
-          currentStep: "analyze",
-          status: "queued",
-          completedSteps: [],
-          stepResults: {},
-        }).returning();
-        created.push(pipeline);
-      }
-
-      for (const pipeline of created) {
-        executePipelineInBackground(pipeline.id, pipeline.videoTitle, "refresh", {}, []).catch(err => {
-          console.error(`[Pipeline] Backlog refresh failed for pipeline ${pipeline.id}:`, err);
-        });
-      }
-
-      await storage.createAuditLog({
-        userId,
-        action: "backlog_refresh_started",
-        target: `${created.length} videos queued for refresh`,
-        details: { videoIds: videosToRefresh.map(v => v.id), pipelineIds: created.map(p => p.id) },
-        riskLevel: "low",
-      });
-
-      console.log(`[Pipeline] Backlog refresh: ${created.length} videos queued for user ${userId}`);
-
-      return res.json({
-        queued: created.length,
-        totalVideos: allVideos.length,
-        alreadyRefreshed: alreadyRefreshedVideoIds.size,
-        pipelines: created,
-      });
+      const result = await runBacklogRefresh(userId, maxVideos || 10);
+      res.json(result);
     } catch (err: any) {
       console.error("[Pipeline] Backlog refresh error:", err);
       res.status(500).json({ error: "Failed to start backlog refresh", details: err.message });

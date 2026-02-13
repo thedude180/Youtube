@@ -424,24 +424,6 @@ export default function PipelineTab() {
     },
   });
 
-  const backlogRefreshMutation = useMutation({
-    mutationFn: async (limit: number) => {
-      const res = await apiRequest("POST", "/api/pipeline/backlog-refresh", { limit });
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline"] });
-      if (data.queued > 0) {
-        toast({ title: "Backlog refresh started", description: `${data.queued} videos queued for AI refresh across all platforms` });
-      } else {
-        toast({ title: "Nothing to refresh", description: data.message || "All videos are already refreshed" });
-      }
-    },
-    onError: (err: any) => {
-      toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
-    },
-  });
-
   const pipelines = pipelinesQuery.data || [];
   const refreshCount = pipelines.filter(p => p.mode === "refresh").length;
   const refreshProcessing = pipelines.filter(p => p.mode === "refresh" && p.status === "processing").length;
@@ -488,12 +470,15 @@ export default function PipelineTab() {
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Library className="h-5 w-5 text-amber-500" />
                 <h2 className="font-semibold">Backlog Refresh</h2>
+                <Badge variant="secondary" className="bg-green-500/15 text-green-500 border-green-500/30 text-[10px]">
+                  Auto-running
+                </Badge>
                 {refreshCount > 0 && (
                   <Badge variant="secondary" className="text-[10px]">
-                    {refreshCompleted}/{refreshCount} done
+                    {refreshCompleted}/{refreshCount} refreshed
                   </Badge>
                 )}
                 {refreshProcessing > 0 && (
@@ -504,22 +489,10 @@ export default function PipelineTab() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                Run the full 8-step pipeline on your existing VODs and Shorts to generate fresh titles, descriptions, tags, 
-                thumbnails, clips, and cross-platform posts — bringing old content back to life for new views.
+                AI automatically refreshes your old VODs and Shorts with updated titles, descriptions, tags, thumbnails, 
+                clips, and cross-platform posts. Runs daily at 3 AM and after every stream ends — no action needed.
               </p>
             </div>
-            <Button
-              onClick={() => backlogRefreshMutation.mutate(10)}
-              disabled={backlogRefreshMutation.isPending}
-              data-testid="button-backlog-refresh"
-            >
-              {backlogRefreshMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              <span className="ml-1">Refresh Backlog</span>
-            </Button>
           </div>
         </CardContent>
       </Card>
