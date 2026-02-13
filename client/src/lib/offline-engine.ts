@@ -57,7 +57,7 @@ async function syncQueue() {
     let failed = 0;
 
     for (const item of pending) {
-      if (currentStatus === 'offline') break;
+      if ((currentStatus as string) === 'offline') break;
       try {
         await offlineStore.updateQueueItem(item.id!, { status: 'syncing' });
         const res = await fetch(item.url, {

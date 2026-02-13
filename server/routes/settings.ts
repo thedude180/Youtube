@@ -472,4 +472,39 @@ export function registerSettingsRoutes(app: Express) {
       res.status(500).json({ message: error.message });
     }
   });
+
+  app.get("/api/wellness", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const checks = await storage.getWellnessChecks(userId);
+      res.json(checks);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wellness", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { mood, energy, stress, hoursWorked, notes } = req.body;
+      const wellnessInput = z.object({
+        mood: z.number().min(1).max(10),
+        energy: z.number().min(1).max(10),
+        stress: z.number().min(1).max(10),
+        hoursWorked: z.number().nullable().optional(),
+        notes: z.string().nullable().optional(),
+      }).parse({ mood, energy, stress, hoursWorked, notes });
+
+      const check = await storage.createWellnessCheck({
+        userId,
+        ...wellnessInput,
+      });
+      res.status(201).json(check);
+    } catch (error: any) {
+      if (error.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: error.message });
+    }
+  });
 }

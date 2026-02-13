@@ -2498,15 +2498,15 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
               <Badge variant="secondary">Auto-generated</Badge>
             </div>
 
-            {aiContentIdeas.trendAlert && (
+            {(aiContentIdeas as any).trendAlert && (
               <div data-testid="text-trend-alert" className="text-xs text-muted-foreground bg-secondary/50 rounded-md p-2">
-                {aiContentIdeas.trendAlert}
+                {(aiContentIdeas as any).trendAlert}
               </div>
             )}
 
-            {aiContentIdeas.ideas && aiContentIdeas.ideas.length > 0 && (
+            {(aiContentIdeas as any).ideas && (aiContentIdeas as any).ideas.length > 0 && (
               <div className="space-y-2">
-                {aiContentIdeas.ideas.slice(0, 5).map((idea: any, idx: number) => (
+                {(aiContentIdeas as any).ideas.slice(0, 5).map((idea: any, idx: number) => (
                   <div key={idx} data-testid={`ai-idea-${idx}`} className="flex flex-col gap-1 border-b last:border-b-0 pb-2 last:pb-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{idea.title}</span>
@@ -2532,10 +2532,10 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
               </div>
             )}
 
-            {aiContentIdeas.seriesIdeas && aiContentIdeas.seriesIdeas.length > 0 && (
+            {(aiContentIdeas as any).seriesIdeas && (aiContentIdeas as any).seriesIdeas.length > 0 && (
               <div data-testid="section-series-ideas" className="pt-2 border-t space-y-1.5">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Series Ideas</span>
-                {aiContentIdeas.seriesIdeas.map((series: any, idx: number) => (
+                {(aiContentIdeas as any).seriesIdeas.map((series: any, idx: number) => (
                   <div key={idx} data-testid={`series-idea-${idx}`} className="text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">{series.title || series.name}</span>
                     {series.description && <span> — {series.description}</span>}

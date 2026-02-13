@@ -114,7 +114,7 @@ export default function CommandPalette({
 
   const flatItems = useMemo(() => {
     const result: CommandItem[] = [];
-    for (const groupItems of groups.values()) {
+    for (const groupItems of Array.from(groups.values())) {
       result.push(...groupItems);
     }
     return result;

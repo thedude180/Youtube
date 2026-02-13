@@ -144,6 +144,13 @@ import {
   aiDocumentaryStylePlanner,
 } from "../ai-engine";
 import {
+  aiBurnoutRiskAssessor,
+  aiCreatorMentalHealthMonitor,
+  aiCreatorBurnoutRecovery,
+  aiBurnoutPrevention,
+  aiMentalHealthContentGuide,
+} from "../ai-engine";
+import {
   aiShortFormStrategy,
   aiShortsIdeaGenerator,
   aiShortsToLongPipeline,
@@ -8834,5 +8841,47 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try { const result = await aiDailyActionPlan(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI daily-action-plan error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/burnout-risk", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiBurnoutRiskAssessor(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI burnout-risk error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/mental-health", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiCreatorMentalHealthMonitor(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI mental-health error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/burnout-recovery", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiCreatorBurnoutRecovery(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI burnout-recovery error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/burnout-prevention", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiBurnoutPrevention(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI burnout-prevention error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/mental-health-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiMentalHealthContentGuide(req.body, userId); res.json(result); }
+    catch (e: any) { console.error("AI mental-health-content error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ai/autumn-content", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try { const result = await aiSeasonalContentPlanner({ ...req.body, quarter: "Q4" }, userId); res.json(result); }
+    catch (e: any) { console.error("AI autumn-content error:", e); res.status(500).json({ message: e.message }); }
   });
 }
