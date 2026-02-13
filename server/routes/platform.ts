@@ -904,6 +904,14 @@ export async function registerPlatformRoutes(app: Express) {
       const existingChannels = await storage.getChannelsByUser(userId);
       const existing = existingChannels.find(c => c.platform === platform);
 
+      const fetchedVideoCount = platformDataObj.videoCount
+        ? Number(platformDataObj.videoCount)
+        : platformDataObj.tweetCount
+        ? Number(platformDataObj.tweetCount)
+        : platformDataObj.mediaCount
+        ? Number(platformDataObj.mediaCount)
+        : null;
+
       if (existing) {
         await storage.updateChannel(existing.id, {
           accessToken,
@@ -913,6 +921,9 @@ export async function registerPlatformRoutes(app: Express) {
           channelId,
           streamKey: streamKey || existing.streamKey || null,
           rtmpUrl: rtmpUrl || existing.rtmpUrl || null,
+          subscriberCount: fetchedFollowerCount ?? existing.subscriberCount ?? null,
+          videoCount: fetchedVideoCount ?? existing.videoCount ?? null,
+          lastSyncAt: new Date(),
           platformData: { ...((existing.platformData as any) || {}), ...platformDataObj, lastFetchedAt: new Date().toISOString() },
         });
       } else {
@@ -926,6 +937,8 @@ export async function registerPlatformRoutes(app: Express) {
           tokenExpiresAt,
           streamKey: streamKey || null,
           rtmpUrl: rtmpUrl || null,
+          subscriberCount: fetchedFollowerCount ?? null,
+          videoCount: fetchedVideoCount ?? null,
           platformData: { ...platformDataObj, lastFetchedAt: new Date().toISOString() },
           settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
         });

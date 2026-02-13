@@ -226,16 +226,45 @@ export async function refreshChannelStats(channelId: number): Promise<void> {
 
 export async function refreshAllUserChannelStats(userId: string): Promise<void> {
   const userChannels = await storage.getChannelsByUser(userId);
+
   const ytChannels = userChannels.filter(c => c.platform === "youtube" && c.accessToken);
   for (const ch of ytChannels) {
     await refreshChannelStats(ch.id);
   }
-  if (ytChannels.length > 0) {
+
+  const nonYtChannels = userChannels.filter(c => c.platform !== "youtube" && c.platform !== "youtubeshorts" && c.accessToken);
+  for (const ch of nonYtChannels) {
+    try {
+      const { fetchPlatformData } = await import("./platform-data-fetcher");
+      const fetched = await fetchPlatformData(ch.platform as any, ch.accessToken!, ch.channelId);
+      const updates: any = { lastSyncAt: new Date() };
+      if (fetched.followerCount !== undefined) updates.subscriberCount = fetched.followerCount;
+      const pd = fetched.platformData || {};
+      const vidCount = pd.videoCount ? Number(pd.videoCount)
+        : pd.tweetCount ? Number(pd.tweetCount)
+        : pd.mediaCount ? Number(pd.mediaCount)
+        : null;
+      if (vidCount !== null) updates.videoCount = vidCount;
+      const vwCount = pd.totalViewCount ? Number(pd.totalViewCount)
+        : pd.recentVideoViews ? Number(pd.recentVideoViews)
+        : pd.likesCount ? Number(pd.likesCount)
+        : null;
+      if (vwCount !== null) updates.viewCount = vwCount;
+      if (Object.keys(pd).length > 0) {
+        updates.platformData = { ...((ch.platformData as any) || {}), ...pd, lastFetchedAt: new Date().toISOString() };
+      }
+      await storage.updateChannel(ch.id, updates);
+    } catch (err) {
+      console.error(`[ChannelStats] Failed to refresh stats for ${ch.platform} channel ${ch.id}:`, err);
+    }
+  }
+
+  if (userChannels.some(c => c.accessToken)) {
     try {
       const { autoDetectAndUpdateMetrics } = await import("./growth-programs-engine");
       await autoDetectAndUpdateMetrics(userId);
     } catch (err) {
-      console.error(`[YouTube] Failed to update growth metrics for ${userId}:`, err);
+      console.error(`[ChannelStats] Failed to update growth metrics for ${userId}:`, err);
     }
   }
 }

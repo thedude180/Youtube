@@ -76,6 +76,32 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
     console.error("[PlatformFetcher:twitch] Follower count fetch failed:", e);
   }
 
+  try {
+    const subsRes = await fetch(`https://api.twitch.tv/helix/subscriptions?broadcaster_id=${channelId}&first=1`, { headers });
+    if (subsRes.ok) {
+      const data = await subsRes.json() as any;
+      result.platformData!.subscriberCount = data.total || 0;
+    }
+  } catch (e) {
+    // Subscription endpoint requires affiliate/partner status
+  }
+
+  try {
+    const videosRes = await fetch(`https://api.twitch.tv/helix/videos?user_id=${channelId}&type=archive&first=100`, { headers });
+    if (videosRes.ok) {
+      const data = await videosRes.json() as any;
+      const videos = data.data || [];
+      result.platformData!.videoCount = videos.length;
+      let totalViewCount = 0;
+      for (const v of videos) {
+        totalViewCount += v.view_count || 0;
+      }
+      result.platformData!.totalViewCount = totalViewCount;
+    }
+  } catch (e) {
+    console.error("[PlatformFetcher:twitch] Videos fetch failed:", e);
+  }
+
   return result;
 }
 
@@ -150,6 +176,26 @@ async function fetchTikTokData(accessToken: string, channelId: string): Promise<
     }
   } catch (e) {
     console.error("[PlatformFetcher:tiktok] User info fetch failed:", e);
+  }
+
+  try {
+    const videosRes = await fetch("https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,share_count,create_time", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ max_count: 20 }),
+    });
+    if (videosRes.ok) {
+      const data = await videosRes.json() as any;
+      const videos = data.data?.videos || [];
+      let totalViews = 0;
+      for (const v of videos) {
+        totalViews += v.view_count || 0;
+      }
+      result.platformData!.recentVideoViews = totalViews;
+      result.platformData!.recentVideoCount = videos.length;
+    }
+  } catch (e) {
+    console.error("[PlatformFetcher:tiktok] Video list fetch failed:", e);
   }
 
   return result;
