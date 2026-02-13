@@ -286,6 +286,15 @@ async function processBacklogContinuously(userId: string): Promise<void> {
   }
   } finally {
     activeLoops.delete(userId);
+    const finalSession = sessions.get(userId);
+    if (finalSession && finalSession.state === "running") {
+      finalSession.state = "idle";
+      finalSession.currentPipelineId = null;
+      finalSession.currentVideoTitle = null;
+      finalSession.lastActivityAt = new Date();
+      console.log(`[BacklogManager] Loop exited unexpectedly for ${userId} — reset state to idle`);
+      sendSSEEvent(userId, "backlog_update", { state: "idle", crashed: true });
+    }
   }
 }
 

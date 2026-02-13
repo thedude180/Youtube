@@ -420,6 +420,11 @@ export async function initAutomationEngine() {
             tracked.missCount = 0;
           }
 
+          if (broadcasts.length === 0 && tracked && !existingLive) {
+            cronTrackedBroadcasts.delete(userId);
+            console.log(`[AutomationEngine] Cleaned up orphaned tracked broadcast for ${userId} — no matching live stream in DB`);
+          }
+
           if (broadcasts.length === 0 && tracked && existingLive) {
             tracked.missCount++;
             if (tracked.missCount >= 2) {

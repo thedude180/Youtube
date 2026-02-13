@@ -394,6 +394,7 @@ export function registerStreamRoutes(app: Express) {
 
       sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: stream.id, title: stream.title });
       sendSSEEvent(userId, "notification", { type: "new" });
+      sendSSEEvent(userId, "backlog_update", { state: "waiting_for_replay" });
 
       const tasks = [
         { name: "vod_optimization", status: "pending" },

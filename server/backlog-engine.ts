@@ -271,14 +271,15 @@ async function processBacklogAsync(
         }
       }
 
+      const allStepsFinished = chainResult.steps.every(s => s.status === "completed" || s.status === "failed");
       const updatedVideo = await storage.getVideo(video.id);
       const updatedMeta: any = {
         ...updatedVideo?.metadata,
-        chainCompleted: true,
-        chainCompletedAt: new Date().toISOString(),
+        chainCompleted: allStepsFinished,
+        chainCompletedAt: allStepsFinished ? new Date().toISOString() : null,
         optimizationScore: calculateOptimizationScore({
           ...updatedVideo?.metadata,
-          chainCompleted: true,
+          chainCompleted: allStepsFinished,
         }),
       };
       await storage.updateVideo(video.id, { metadata: updatedMeta });

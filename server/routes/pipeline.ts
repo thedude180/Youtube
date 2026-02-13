@@ -195,7 +195,7 @@ export async function runBacklogRefresh(userId: string, batchSize = 10): Promise
 
     const alreadyRefreshedVideoIds = new Set(
       existingPipelines
-        .filter(p => p.videoId && (p.status === "processing" || p.status === "queued" || p.status === "completed"))
+        .filter(p => p.videoId && (p.status === "processing" || p.status === "queued" || p.status === "completed" || p.status === "error"))
         .map(p => p.videoId)
     );
 
