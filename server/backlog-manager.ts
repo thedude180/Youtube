@@ -250,81 +250,13 @@ async function processBacklogContinuously(userId: string): Promise<void> {
   }
 }
 
-async function getOpenAI() {
-  const OpenAI = (await import("openai")).default;
-  return new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  });
-}
-
-const STEP_IDS = ["analyze", "title", "description", "tags", "thumbnail", "clips", "repurpose", "schedule"];
-
 async function runSinglePipeline(pipelineId: number, videoTitle: string, mode: string): Promise<void> {
-  const currentResults: Record<string, any> = {};
-  const completedSteps: string[] = [];
-
   await db.update(contentPipeline)
     .set({ status: "processing", startedAt: new Date() })
     .where(eq(contentPipeline.id, pipelineId));
 
-  for (const step of STEP_IDS) {
-    try {
-      await db.update(contentPipeline)
-        .set({ currentStep: step, status: "processing" })
-        .where(eq(contentPipeline.id, pipelineId));
-
-      const { buildPrompts } = await import("./routes/pipeline");
-      const prompts = buildPrompts(videoTitle, mode, currentResults);
-      const prompt = prompts[step];
-      if (!prompt) continue;
-
-      const openai = await getOpenAI();
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a YouTube gaming content revival expert. You specialize in refreshing older videos and shorts to get fresh views. Always respond with valid JSON only, no markdown.",
-          },
-          { role: "user", content: prompt },
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 1000,
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) throw new Error("No AI response");
-
-      currentResults[step] = JSON.parse(content);
-      completedSteps.push(step);
-
-      await db.update(contentPipeline)
-        .set({ completedSteps, stepResults: currentResults })
-        .where(eq(contentPipeline.id, pipelineId));
-    } catch (stepErr: any) {
-      console.error(`[BacklogManager] Step "${step}" failed for pipeline ${pipelineId}:`, stepErr.message);
-      await db.update(contentPipeline)
-        .set({
-          status: "error",
-          errorMessage: `Step "${step}" failed: ${stepErr.message}`,
-          completedSteps,
-          stepResults: currentResults,
-        })
-        .where(eq(contentPipeline.id, pipelineId));
-      return;
-    }
-  }
-
-  await db.update(contentPipeline)
-    .set({
-      status: "completed",
-      completedAt: new Date(),
-      completedSteps,
-      stepResults: currentResults,
-      currentStep: "schedule",
-    })
-    .where(eq(contentPipeline.id, pipelineId));
+  const { executePipelineInBackground } = await import("./routes/pipeline");
+  await executePipelineInBackground(pipelineId, videoTitle, mode, {}, []);
 }
 
 export async function getBacklogStatus(userId: string): Promise<{

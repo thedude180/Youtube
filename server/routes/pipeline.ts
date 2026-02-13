@@ -107,7 +107,7 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
   return JSON.parse(content);
 }
 
-async function executePipelineInBackground(id: number, videoTitle: string, mode: string, existingResults: Record<string, any>, existingCompleted: string[]) {
+export async function executePipelineInBackground(id: number, videoTitle: string, mode: string, existingResults: Record<string, any>, existingCompleted: string[]) {
   const currentResults = { ...existingResults };
   const completedSteps = [...existingCompleted];
 
