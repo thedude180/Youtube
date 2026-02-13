@@ -190,6 +190,8 @@ async function processBacklogAsync(
       const gamingCtx = detectGamingContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
       const newMetadata = {
         ...video.metadata,
+        duration: video.metadata?.duration,
+        privacyStatus: video.metadata?.privacyStatus,
         seoScore: suggestions.seoScore || 0,
         aiSuggestions: {
           titleHooks: suggestions.titleHooks || [],
