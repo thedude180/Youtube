@@ -647,7 +647,7 @@ export default function StreamCenter() {
 
   const endStream = useMutation({
     mutationFn: async (id: number) => { const res = await apiRequest("POST", `/api/streams/${id}/end`, {}); return res.json(); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/streams"] }); toast({ title: "Stream ended", description: "Pipeline results ready — check Autopilot for your optimized content" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/streams"] }); toast({ title: "Stream ended", description: "REPLAY pipeline started — AI is creating VOD promotion content for all 6 platforms" }); },
   });
 
   const optimizeSeo = useMutation({

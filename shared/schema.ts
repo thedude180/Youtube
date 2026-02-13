@@ -2036,6 +2036,7 @@ export const contentPipeline = pgTable("content_pipeline", {
   videoId: integer("video_id").references(() => videos.id),
   videoTitle: text("video_title").notNull(),
   source: text("source").notNull().default("vod"),
+  mode: text("mode").notNull().default("vod"),
   currentStep: text("current_step").notNull().default("analyze"),
   status: text("status").notNull().default("queued"),
   completedSteps: text("completed_steps").array().notNull().default([]),

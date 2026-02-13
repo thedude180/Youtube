@@ -28,6 +28,9 @@ import {
   Sparkles,
   ArrowRight,
   Pause,
+  Radio,
+  RotateCcw,
+  Globe,
 } from "lucide-react";
 
 const STEP_ICONS: Record<string, any> = {
@@ -253,8 +256,26 @@ function PipelineCard({ pipeline, onRun, onDelete, isRunning }: {
             <h3 className="font-semibold text-sm truncate" data-testid={`text-pipeline-title-${pipeline.id}`}>
               {pipeline.videoTitle}
             </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary">{pipeline.source}</Badge>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {pipeline.mode === "live" ? (
+                <Badge variant="destructive" data-testid={`badge-mode-${pipeline.id}`}>
+                  <Radio className="h-3 w-3 mr-1 animate-pulse" />
+                  LIVE
+                </Badge>
+              ) : pipeline.mode === "replay" ? (
+                <Badge variant="secondary" className="bg-blue-500/15 text-blue-500 border-blue-500/30" data-testid={`badge-mode-${pipeline.id}`}>
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  REPLAY
+                </Badge>
+              ) : (
+                <Badge variant="secondary" data-testid={`badge-mode-${pipeline.id}`}>{pipeline.source}</Badge>
+              )}
+              {pipeline.source === "livestream" && (
+                <Badge variant="outline" className="text-[10px]">
+                  <Globe className="h-3 w-3 mr-1" />
+                  6 Platforms
+                </Badge>
+              )}
               <span className={`text-xs font-medium ${statusColor}`}>{statusLabel}</span>
               {pipeline.status !== "completed" && pipeline.status !== "error" && (
                 <span className="text-xs text-muted-foreground">{completedCount}/{totalSteps} steps</span>

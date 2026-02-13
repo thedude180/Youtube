@@ -22,26 +22,64 @@ async function getOpenAI() {
   });
 }
 
-async function runPipelineStep(pipelineId: number, step: string, videoTitle: string, existingResults: Record<string, any>) {
-  const prompts: Record<string, string> = {
-    analyze: `Analyze this gaming video titled "${videoTitle}". Identify: 1) Key gaming moments (clutch plays, wins, funny fails) 2) Main topics/games 3) Target audience 4) Content category 5) Estimated engagement potential (low/medium/high). Return as JSON with keys: keyMoments (array), mainTopics (array), targetAudience (string), category (string), engagementPotential (string), summary (string).`,
-    title: `Generate 5 optimized YouTube title options for a gaming video. Original title: "${videoTitle}". Context: ${JSON.stringify(existingResults.analyze?.summary || "")}. Each title should: use power words, create curiosity, include relevant keywords, be under 60 chars. Return as JSON with key: titles (array of objects with title, hookType, estimatedCTR).`,
-    description: `Write an SEO-optimized YouTube description for: "${videoTitle}". Context: ${JSON.stringify(existingResults.analyze || {})}. Include: compelling first 2 lines (shown in search), timestamps placeholder, relevant keywords, call-to-action, social links placeholder. Return as JSON with key: description (string), keywords (array), seoScore (number 1-100).`,
-    tags: `Generate optimized tags and hashtags for: "${videoTitle}". Context: ${JSON.stringify(existingResults.analyze || {})}. Provide: 15 YouTube tags (mix of broad and specific), 5 hashtags for shorts/social, trending tag suggestions. Return as JSON with keys: tags (array), hashtags (array), trendingTags (array).`,
-    thumbnail: `Suggest 3 thumbnail concepts for: "${videoTitle}". Context: ${JSON.stringify(existingResults.analyze || {})}. Each concept should include: visual description, text overlay suggestion, color scheme, emotion/expression, estimated CTR impact. Return as JSON with key: concepts (array of objects with visual, textOverlay, colors, emotion, ctrImpact).`,
-    clips: `Identify the best clip opportunities from: "${videoTitle}". Context: ${JSON.stringify(existingResults.analyze || {})}. Suggest 3-5 clips for TikTok/Shorts/Reels with: suggested start/end time descriptions, hook for first 3 seconds, caption, target platform. Return as JSON with key: clips (array of objects with description, hook, caption, platform, estimatedViews).`,
-    repurpose: `Create unique social media posts for: "${videoTitle}". Context: ${JSON.stringify(existingResults.analyze || {})}. Generate unique content for each platform: YouTube community post, Twitter/X post, TikTok caption, Discord announcement, Kick clip description. Each must sound completely different and human. Return as JSON with key: posts (array of objects with platform, content, hashtags, tone).`,
-    schedule: `Recommend optimal posting schedule for: "${videoTitle}". Context: ${JSON.stringify(existingResults.analyze || {})}. Suggest posting times for each platform considering: gaming audience peak hours, day of week, platform-specific best times, stagger strategy to look human. Return as JSON with key: schedule (array of objects with platform, suggestedTime, dayOfWeek, reason).`,
-  };
+function buildPrompts(videoTitle: string, mode: string, existingResults: Record<string, any>): Record<string, string> {
+  const ctx = (key: string) => JSON.stringify(existingResults[key] || {});
+  const allPlatforms = "YouTube, Twitch, Kick, TikTok, X (Twitter), Discord";
 
+  if (mode === "live") {
+    return {
+      analyze: `Analyze this LIVE gaming stream titled "${videoTitle}" that is happening RIGHT NOW. Identify: 1) What game/content is being streamed 2) Key selling points for viewers to tune in NOW 3) Target audience 4) Urgency hooks (limited time, live interaction, exclusive gameplay) 5) Cross-platform promotion angles for ${allPlatforms}. Return as JSON with keys: keyMoments (array), mainTopics (array), targetAudience (string), category (string), engagementPotential (string), summary (string), urgencyHooks (array).`,
+      title: `Generate 5 LIVE STREAM title options that drive IMMEDIATE viewers. Stream: "${videoTitle}". Context: ${ctx("analyze")}. Titles MUST convey urgency — the stream is LIVE RIGHT NOW. Use words like "LIVE", "RIGHT NOW", "HAPPENING NOW", "COME WATCH". Each under 60 chars. Return as JSON with key: titles (array of objects with title, hookType, estimatedCTR).`,
+      description: `Write a LIVE STREAM description for: "${videoTitle}" — stream is LIVE RIGHT NOW. Context: ${ctx("analyze")}. Include: urgency-driven first 2 lines ("I'm LIVE right now playing..."), link to stream placeholder, what viewers will see if they join NOW, call-to-action to tune in immediately. Return as JSON with key: description (string), keywords (array), seoScore (number 1-100).`,
+      tags: `Generate tags and hashtags for a LIVE gaming stream: "${videoTitle}". Context: ${ctx("analyze")}. Include: live-specific tags (#live #livestream #gaming), game-specific tags, trending live tags. Optimize for ALL platforms: ${allPlatforms}. Return as JSON with keys: tags (array), hashtags (array), trendingTags (array).`,
+      thumbnail: `Suggest 3 LIVE STREAM thumbnail concepts for: "${videoTitle}". Context: ${ctx("analyze")}. Each MUST include a prominent "LIVE" indicator (red dot, "LIVE NOW" badge). Include: visual description, text overlay (must say LIVE), color scheme with red accent, high-energy emotion. Return as JSON with key: concepts (array of objects with visual, textOverlay, colors, emotion, ctrImpact).`,
+      clips: `Create real-time clip ideas to post WHILE the stream "${videoTitle}" is LIVE. Context: ${ctx("analyze")}. Generate 3-5 clip concepts to post across ${allPlatforms} RIGHT NOW to drive viewers to the live stream. Each clip should tease what's happening and say "LIVE NOW — come watch". Return as JSON with key: clips (array of objects with description, hook, caption, platform, estimatedViews).`,
+      repurpose: `Create LIVE STREAM cross-platform announcements for "${videoTitle}" — happening RIGHT NOW. Context: ${ctx("analyze")}. Generate a unique "I'M LIVE" post for EACH platform: YouTube community post, Twitch announcement, Kick post, TikTok caption, X/Twitter post, Discord announcement. Each must sound human, urgent, and platform-native. Include stream link placeholder. Return as JSON with key: posts (array of objects with platform, content, hashtags, tone).`,
+      schedule: `Create an IMMEDIATE cross-platform posting schedule for LIVE stream "${videoTitle}". Context: ${ctx("analyze")}. Schedule "I'M LIVE" posts across ${allPlatforms} — staggered by 2-5 minutes to look human, not botted. First post goes out NOW, others follow. Include re-announcement 30-60 min into stream. Return as JSON with key: schedule (array of objects with platform, suggestedTime, dayOfWeek, reason).`,
+    };
+  }
+
+  if (mode === "replay") {
+    return {
+      analyze: `Analyze the REPLAY/VOD of a gaming stream titled "${videoTitle}" that just ended. Identify: 1) Best moments viewers missed 2) Highlight-reel worthy segments 3) FOMO-inducing content angles 4) Cross-platform promotion strategy for ${allPlatforms} 5) Replay vs live differentiation. Return as JSON with keys: keyMoments (array), mainTopics (array), targetAudience (string), category (string), engagementPotential (string), summary (string), bestMoments (array).`,
+      title: `Generate 5 REPLAY/VOD title options for the stream "${videoTitle}" that already happened. Context: ${ctx("analyze")}. Titles should create FOMO — "you missed this", "insane moment", highlight the best moments. Use words like "MISSED IT?", "REPLAY", "BEST MOMENTS", "FULL STREAM". Each under 60 chars. Return as JSON with key: titles (array of objects with title, hookType, estimatedCTR).`,
+      description: `Write a REPLAY VOD description for: "${videoTitle}" — stream is OVER, this is the recording. Context: ${ctx("analyze")}. Include: compelling hook about the best moment, timestamps for highlights, "you missed the live but here's the replay" angle, call-to-action to follow for next stream. Return as JSON with key: description (string), keywords (array), seoScore (number 1-100).`,
+      tags: `Generate tags and hashtags for a REPLAY/VOD of stream: "${videoTitle}". Context: ${ctx("analyze")}. Include: replay-specific tags (#replay #vod #highlights), game-specific tags, evergreen discovery tags. Optimize for ALL platforms: ${allPlatforms}. Return as JSON with keys: tags (array), hashtags (array), trendingTags (array).`,
+      thumbnail: `Suggest 3 REPLAY thumbnail concepts for: "${videoTitle}". Context: ${ctx("analyze")}. Thumbnails should highlight the BEST moment from the stream. Include "FULL STREAM" or "REPLAY" text. Show reaction/outcome of biggest moment. No red LIVE dot — this is a replay. Return as JSON with key: concepts (array of objects with visual, textOverlay, colors, emotion, ctrImpact).`,
+      clips: `Identify the best clip opportunities from the completed stream "${videoTitle}" for REPLAY promotion. Context: ${ctx("analyze")}. Create 5 clips for cross-platform posting across ${allPlatforms}. Each clip should tease the best moments and link back to the full VOD. Use "you missed this" / "watch the full replay" hooks. Return as JSON with key: clips (array of objects with description, hook, caption, platform, estimatedViews).`,
+      repurpose: `Create REPLAY cross-platform posts for "${videoTitle}" — stream is OVER. Context: ${ctx("analyze")}. Generate a unique "replay" post for EACH platform: YouTube community post, Twitch VOD promo, Kick highlight, TikTok teaser caption, X/Twitter highlight post, Discord replay announcement. Each must create FOMO and drive viewers to the full VOD. Sound human, not AI. Return as JSON with key: posts (array of objects with platform, content, hashtags, tone).`,
+      schedule: `Create an optimal REPLAY promotion schedule for "${videoTitle}" across ${allPlatforms}. Context: ${ctx("analyze")}. Schedule replay/VOD promotion posts: first batch 15-30 min after stream ends, second wave next day at peak hours, third wave 2-3 days later as "throwback". Stagger across platforms to look human. Return as JSON with key: schedule (array of objects with platform, suggestedTime, dayOfWeek, reason).`,
+    };
+  }
+
+  return {
+    analyze: `Analyze this gaming video titled "${videoTitle}". Identify: 1) Key gaming moments (clutch plays, wins, funny fails) 2) Main topics/games 3) Target audience 4) Content category 5) Estimated engagement potential (low/medium/high). Return as JSON with keys: keyMoments (array), mainTopics (array), targetAudience (string), category (string), engagementPotential (string), summary (string).`,
+    title: `Generate 5 optimized YouTube title options for a gaming video. Original title: "${videoTitle}". Context: ${ctx("analyze")}. Each title should: use power words, create curiosity, include relevant keywords, be under 60 chars. Return as JSON with key: titles (array of objects with title, hookType, estimatedCTR).`,
+    description: `Write an SEO-optimized YouTube description for: "${videoTitle}". Context: ${ctx("analyze")}. Include: compelling first 2 lines (shown in search), timestamps placeholder, relevant keywords, call-to-action, social links placeholder. Return as JSON with key: description (string), keywords (array), seoScore (number 1-100).`,
+    tags: `Generate optimized tags and hashtags for: "${videoTitle}". Context: ${ctx("analyze")}. Provide: 15 YouTube tags (mix of broad and specific), 5 hashtags for shorts/social, trending tag suggestions. Return as JSON with keys: tags (array), hashtags (array), trendingTags (array).`,
+    thumbnail: `Suggest 3 thumbnail concepts for: "${videoTitle}". Context: ${ctx("analyze")}. Each concept should include: visual description, text overlay suggestion, color scheme, emotion/expression, estimated CTR impact. Return as JSON with key: concepts (array of objects with visual, textOverlay, colors, emotion, ctrImpact).`,
+    clips: `Identify the best clip opportunities from: "${videoTitle}". Context: ${ctx("analyze")}. Suggest 3-5 clips for TikTok/Shorts/Reels across ${allPlatforms} with: suggested start/end time descriptions, hook for first 3 seconds, caption, target platform. Return as JSON with key: clips (array of objects with description, hook, caption, platform, estimatedViews).`,
+    repurpose: `Create unique social media posts for: "${videoTitle}". Context: ${ctx("analyze")}. Generate unique content for EACH platform: ${allPlatforms}. Each must sound completely different and human. Return as JSON with key: posts (array of objects with platform, content, hashtags, tone).`,
+    schedule: `Recommend optimal posting schedule for: "${videoTitle}" across ${allPlatforms}. Context: ${ctx("analyze")}. Suggest posting times for each platform considering: gaming audience peak hours, day of week, platform-specific best times, stagger strategy to look human. Return as JSON with key: schedule (array of objects with platform, suggestedTime, dayOfWeek, reason).`,
+  };
+}
+
+async function runPipelineStep(pipelineId: number, step: string, videoTitle: string, mode: string, existingResults: Record<string, any>) {
+  const prompts = buildPrompts(videoTitle, mode, existingResults);
   const prompt = prompts[step];
   if (!prompt) throw new Error(`Unknown step: ${step}`);
+
+  const systemMsg = mode === "live"
+    ? "You are a gaming livestream content expert. The stream is LIVE RIGHT NOW. All content must convey urgency and drive immediate viewers. Always respond with valid JSON only, no markdown."
+    : mode === "replay"
+    ? "You are a gaming VOD/replay promotion expert. The stream just ended. All content must create FOMO and drive replay views across all platforms. Always respond with valid JSON only, no markdown."
+    : "You are a YouTube gaming content optimization expert. Always respond with valid JSON only, no markdown.";
 
   const openai = await getOpenAI();
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: "You are a YouTube gaming content optimization expert. Always respond with valid JSON only, no markdown." },
+      { role: "system", content: systemMsg },
       { role: "user", content: prompt },
     ],
     response_format: { type: "json_object" },
@@ -53,7 +91,7 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
   return JSON.parse(content);
 }
 
-async function executePipelineInBackground(id: number, videoTitle: string, existingResults: Record<string, any>, existingCompleted: string[]) {
+async function executePipelineInBackground(id: number, videoTitle: string, mode: string, existingResults: Record<string, any>, existingCompleted: string[]) {
   const currentResults = { ...existingResults };
   const completedSteps = [...existingCompleted];
 
@@ -65,7 +103,7 @@ async function executePipelineInBackground(id: number, videoTitle: string, exist
         .set({ currentStep: step, status: "processing" })
         .where(eq(contentPipeline.id, id));
 
-      const result = await runPipelineStep(id, step, videoTitle, currentResults);
+      const result = await runPipelineStep(id, step, videoTitle, mode, currentResults);
       currentResults[step] = result;
       completedSteps.push(step);
 
@@ -98,28 +136,29 @@ async function executePipelineInBackground(id: number, videoTitle: string, exist
   console.log(`[Pipeline] Pipeline ${id} completed all 8 steps`);
 }
 
-export async function createPipelineForStream(userId: string, streamTitle: string) {
+export async function createPipelineForStream(userId: string, streamTitle: string, mode: "live" | "replay" = "live") {
   try {
     const [pipeline] = await db.insert(contentPipeline).values({
       userId,
       videoId: null,
       videoTitle: streamTitle,
       source: "livestream",
+      mode,
       currentStep: "analyze",
       status: "queued",
       completedSteps: [],
       stepResults: {},
     }).returning();
 
-    console.log(`[Pipeline] Auto-created pipeline ${pipeline.id} for stream "${streamTitle}"`);
+    console.log(`[Pipeline] Auto-created ${mode.toUpperCase()} pipeline ${pipeline.id} for stream "${streamTitle}"`);
 
-    executePipelineInBackground(pipeline.id, streamTitle, {}, []).catch(err => {
-      console.error(`[Pipeline] Auto-run failed for stream pipeline ${pipeline.id}:`, err);
+    executePipelineInBackground(pipeline.id, streamTitle, mode, {}, []).catch(err => {
+      console.error(`[Pipeline] Auto-run failed for ${mode} stream pipeline ${pipeline.id}:`, err);
     });
 
     return pipeline;
   } catch (err) {
-    console.error("[Pipeline] Failed to auto-create pipeline for stream:", err);
+    console.error(`[Pipeline] Failed to auto-create ${mode} pipeline for stream:`, err);
     return null;
   }
 }
@@ -144,7 +183,7 @@ export function registerPipelineRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { videoId, videoTitle, source } = req.body;
+      const { videoId, videoTitle, source, mode } = req.body;
       if (!videoTitle) return res.status(400).json({ error: "videoTitle is required" });
 
       const [pipeline] = await db.insert(contentPipeline).values({
@@ -152,6 +191,7 @@ export function registerPipelineRoutes(app: Express) {
         videoId: videoId || null,
         videoTitle,
         source: source || "manual",
+        mode: mode || "vod",
         currentStep: "analyze",
         status: "queued",
         completedSteps: [],
@@ -184,7 +224,7 @@ export function registerPipelineRoutes(app: Express) {
       const currentResults = (pipeline.stepResults as Record<string, any>) || {};
       const completedSteps = [...(pipeline.completedSteps || [])];
 
-      executePipelineInBackground(id, pipeline.videoTitle, currentResults, completedSteps).catch(err => {
+      executePipelineInBackground(id, pipeline.videoTitle, pipeline.mode || "vod", currentResults, completedSteps).catch(err => {
         console.error(`[Pipeline] Background execution failed for ${id}:`, err);
       });
 

@@ -358,6 +358,10 @@ export function registerStreamRoutes(app: Express) {
         (stream.platforms as string[]) || ["youtube"],
       ).catch(err => console.error("[Autopilot] Post-stream highlights error:", err));
 
+      createPipelineForStream(userId, stream.title, "replay").catch(err =>
+        console.error("[Pipeline] REPLAY pipeline for ended stream error:", err)
+      );
+
       const tasks = [
         { name: "vod_optimization", status: "pending" },
         { name: "vod_thumbnail", status: "pending" },
