@@ -46,6 +46,7 @@ import {
   type Subscription, type InsertSubscription,
   type ExpenseRecord, type InsertExpenseRecord,
   type BusinessVenture, type InsertBusinessVenture,
+  type BusinessDetails, type InsertBusinessDetails, businessDetails,
   type BusinessGoal, type InsertBusinessGoal,
   type TaxEstimate, type InsertTaxEstimate,
   type BrandAsset, type InsertBrandAsset,
@@ -266,6 +267,10 @@ export interface IStorage {
 
   getGoals(userId: string): Promise<BusinessGoal[]>;
   getVentures(userId: string): Promise<BusinessVenture[]>;
+
+  getBusinessDetails(userId: string): Promise<BusinessDetails | undefined>;
+  upsertBusinessDetails(userId: string, details: Partial<InsertBusinessDetails>): Promise<BusinessDetails>;
+  updateBusinessDetailsSteps(id: number, steps: any[]): Promise<BusinessDetails>;
 
   getLocalizationRecommendations(userId: string): Promise<LocalizationRecommendation | undefined>;
   upsertLocalizationRecommendations(userId: string, data: InsertLocalizationRecommendation): Promise<LocalizationRecommendation>;
@@ -1186,6 +1191,39 @@ export class DatabaseStorage implements IStorage {
 
   async getVentures(userId: string): Promise<BusinessVenture[]> {
     return await db.select().from(businessVentures).where(eq(businessVentures.userId, userId));
+  }
+
+  async getBusinessDetails(userId: string): Promise<BusinessDetails | undefined> {
+    const [details] = await db.select().from(businessDetails).where(eq(businessDetails.userId, userId));
+    return details;
+  }
+
+  async upsertBusinessDetails(userId: string, details: Partial<InsertBusinessDetails>): Promise<BusinessDetails> {
+    const existing = await this.getBusinessDetails(userId);
+    if (existing) {
+      const [updated] = await db.update(businessDetails)
+        .set({ ...details, updatedAt: new Date() })
+        .where(eq(businessDetails.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(businessDetails)
+      .values({ ...details, userId } as InsertBusinessDetails)
+      .returning();
+    return created;
+  }
+
+  async updateBusinessDetailsSteps(id: number, steps: any[]): Promise<BusinessDetails> {
+    const allComplete = steps.every((s: any) => s.completed);
+    const [updated] = await db.update(businessDetails)
+      .set({
+        registrationSteps: steps,
+        registrationStatus: allComplete ? "complete" : "in_progress",
+        updatedAt: new Date(),
+      })
+      .where(eq(businessDetails.id, id))
+      .returning();
+    return updated;
   }
 
   async getLocalizationRecommendations(userId: string): Promise<LocalizationRecommendation | undefined> {

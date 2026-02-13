@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, CalendarDays, Shield, ChevronDown, ChevronUp, CheckCircle2, Building2, MapPin, AlertTriangle, DollarSign, FileCheck } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sparkles, CalendarDays, Shield, ChevronDown, ChevronUp, CheckCircle2, Building2, MapPin, AlertTriangle, DollarSign, FileCheck, ExternalLink, Globe, ArrowRight, CircleDot, Briefcase } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = Record<string, unknown> | null;
@@ -22,6 +23,564 @@ const FORMATION_STEPS = [
   { key: "insurance", label: "Business Insurance", desc: "Get coverage for your business" },
   { key: "trademark", label: "Trademark", desc: "Protect your brand name" },
 ];
+
+const COUNTRIES: { code: string; name: string; entityTypes: string[]; steps: { stepId: string; label: string; url: string }[] }[] = [
+  {
+    code: "US", name: "United States", entityTypes: ["Sole Proprietor", "LLC", "S-Corp", "C-Corp", "Partnership"],
+    steps: [
+      { stepId: "ein", label: "Apply for an EIN (Tax ID)", url: "https://www.irs.gov/businesses/small-businesses-self-employed/apply-for-an-employer-identification-number-ein-online" },
+      { stepId: "state", label: "Register with your State", url: "https://www.sba.gov/business-guide/launch-your-business/register-your-business" },
+      { stepId: "llc", label: "Form an LLC (if applicable)", url: "https://www.sba.gov/business-guide/launch-your-business/choose-business-structure" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.nerdwallet.com/best/small-business/business-checking-accounts" },
+    ],
+  },
+  {
+    code: "GB", name: "United Kingdom", entityTypes: ["Sole Trader", "Limited Company (Ltd)", "Partnership", "LLP"],
+    steps: [
+      { stepId: "hmrc", label: "Register with HMRC", url: "https://www.gov.uk/register-for-self-assessment" },
+      { stepId: "company", label: "Register a Company", url: "https://www.gov.uk/set-up-limited-company" },
+      { stepId: "utr", label: "Get your UTR Number", url: "https://www.gov.uk/find-utr-number" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.starlingbank.com/business-account/" },
+    ],
+  },
+  {
+    code: "CA", name: "Canada", entityTypes: ["Sole Proprietorship", "Corporation", "Partnership", "Co-operative"],
+    steps: [
+      { stepId: "bn", label: "Get a Business Number (BN)", url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/registering-your-business/register.html" },
+      { stepId: "register", label: "Register Your Business Name", url: "https://www.canada.ca/en/services/business/start/register-with-gov.html" },
+      { stepId: "incorporate", label: "Incorporate (if applicable)", url: "https://ised-isde.canada.ca/site/corporations-canada/en/incorporating-federally" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.wealthsimple.com/en-ca/learn/best-business-bank-accounts-canada" },
+    ],
+  },
+  {
+    code: "AU", name: "Australia", entityTypes: ["Sole Trader", "Company (Pty Ltd)", "Partnership", "Trust"],
+    steps: [
+      { stepId: "abn", label: "Apply for an ABN", url: "https://www.abr.gov.au/business-super-funds-702charities/applying-abn" },
+      { stepId: "register", label: "Register a Business Name", url: "https://www.asic.gov.au/for-business/registering-a-business-name/" },
+      { stepId: "gst", label: "Register for GST", url: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/registering-for-gst" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.commbank.com.au/business/accounts.html" },
+    ],
+  },
+  {
+    code: "DE", name: "Germany", entityTypes: ["Einzelunternehmen (Sole Proprietor)", "GmbH", "UG (haftungsbeschrankt)", "GbR"],
+    steps: [
+      { stepId: "gewerbe", label: "Register at Gewerbeamt", url: "https://www.existenzgruender.de/EN/Die-ersten-Schritte/Anmeldungen-und-Genehmigungen/inhalt.html" },
+      { stepId: "finanzamt", label: "Register with Finanzamt", url: "https://www.elster.de/eportal/start" },
+      { stepId: "handelsregister", label: "Commercial Register (if GmbH)", url: "https://www.handelsregister.de/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://n26.com/en-de/business" },
+    ],
+  },
+  {
+    code: "FR", name: "France", entityTypes: ["Auto-Entrepreneur", "SARL", "SAS", "EURL"],
+    steps: [
+      { stepId: "guichet", label: "Register at Guichet Unique", url: "https://formalites.entreprises.gouv.fr/" },
+      { stepId: "siret", label: "Get your SIRET Number", url: "https://www.insee.fr/fr/information/2015441" },
+      { stepId: "impots", label: "Register for Taxes", url: "https://www.impots.gouv.fr/professionnel" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.shine.fr/" },
+    ],
+  },
+  {
+    code: "JP", name: "Japan", entityTypes: ["Individual Business (Kojin Jigyo)", "KK (Kabushiki Kaisha)", "GK (Godo Kaisha)"],
+    steps: [
+      { stepId: "tax", label: "File Opening Notification", url: "https://www.nta.go.jp/english/" },
+      { stepId: "register", label: "Register at Legal Affairs Bureau", url: "https://houmukyoku.moj.go.jp/homu/touki1.html" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.smbc.co.jp/kojin/english/" },
+    ],
+  },
+  {
+    code: "KR", name: "South Korea", entityTypes: ["Individual Business", "Corporation (Jusik Hoesa)"],
+    steps: [
+      { stepId: "register", label: "Register at CRIS", url: "https://www.startbiz.go.kr/" },
+      { stepId: "tax", label: "Register for Business Tax", url: "https://www.nts.go.kr/english/main.do" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.shinhan.com/eng/index.jsp" },
+    ],
+  },
+  {
+    code: "BR", name: "Brazil", entityTypes: ["MEI", "EIRELI", "LTDA", "S/A"],
+    steps: [
+      { stepId: "mei", label: "Register as MEI", url: "https://www.gov.br/empresas-e-negocios/pt-br/empreendedor/quero-ser-mei" },
+      { stepId: "cnpj", label: "Get your CNPJ", url: "https://www.gov.br/receitafederal/pt-br" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.nubank.com.br/empresas/" },
+    ],
+  },
+  {
+    code: "IN", name: "India", entityTypes: ["Sole Proprietorship", "OPC", "LLP", "Private Limited"],
+    steps: [
+      { stepId: "register", label: "Register on MCA Portal", url: "https://www.mca.gov.in/content/mca/global/en/home.html" },
+      { stepId: "pan", label: "Get Business PAN", url: "https://www.onlineservices.nsdl.com/paam/endUserRegisterContact.html" },
+      { stepId: "gst", label: "Register for GST", url: "https://www.gst.gov.in/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.razorpayx.com/current-account" },
+    ],
+  },
+  {
+    code: "MX", name: "Mexico", entityTypes: ["Persona Fisica", "S.A. de C.V.", "S. de R.L."],
+    steps: [
+      { stepId: "rfc", label: "Get your RFC", url: "https://www.sat.gob.mx/aplicacion/53027/genera-tu-constancia-de-situacion-fiscal" },
+      { stepId: "sat", label: "Register with SAT", url: "https://www.sat.gob.mx/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.bancomer.com/empresas.html" },
+    ],
+  },
+  {
+    code: "NL", name: "Netherlands", entityTypes: ["Eenmanszaak (Sole Proprietor)", "BV", "VOF"],
+    steps: [
+      { stepId: "kvk", label: "Register at KVK", url: "https://www.kvk.nl/english/registration/" },
+      { stepId: "tax", label: "Register with Belastingdienst", url: "https://www.belastingdienst.nl/wps/wcm/connect/en/businesses/businesses" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.bunq.com/business" },
+    ],
+  },
+  {
+    code: "ES", name: "Spain", entityTypes: ["Autonomo", "Sociedad Limitada (S.L.)", "Sociedad Anonima (S.A.)"],
+    steps: [
+      { stepId: "nie", label: "Get NIE/NIF", url: "https://sede.administracionespublicas.gob.es/" },
+      { stepId: "autonomo", label: "Register as Autonomo", url: "https://sede.seg-social.gob.es/" },
+      { stepId: "hacienda", label: "Register with Hacienda", url: "https://sede.agenciatributaria.gob.es/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.openbank.es/" },
+    ],
+  },
+  {
+    code: "IT", name: "Italy", entityTypes: ["Ditta Individuale", "S.r.l.", "S.p.A."],
+    steps: [
+      { stepId: "partita", label: "Get Partita IVA", url: "https://www.agenziaentrate.gov.it/portale/" },
+      { stepId: "register", label: "Register at Camera di Commercio", url: "https://www.registroimprese.it/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.qonto.com/it" },
+    ],
+  },
+  {
+    code: "PH", name: "Philippines", entityTypes: ["Sole Proprietorship", "Partnership", "Corporation"],
+    steps: [
+      { stepId: "dti", label: "Register with DTI", url: "https://bnrs.dti.gov.ph/" },
+      { stepId: "bir", label: "Register with BIR", url: "https://www.bir.gov.ph/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.bdo.com.ph/business" },
+    ],
+  },
+  {
+    code: "NG", name: "Nigeria", entityTypes: ["Enterprise (Sole Proprietor)", "Limited Company"],
+    steps: [
+      { stepId: "cac", label: "Register with CAC", url: "https://pre.cac.gov.ng/" },
+      { stepId: "tin", label: "Get a TIN", url: "https://www.firs.gov.ng/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.gtbank.com/" },
+    ],
+  },
+  {
+    code: "ZA", name: "South Africa", entityTypes: ["Sole Proprietor", "Pty Ltd", "Partnership"],
+    steps: [
+      { stepId: "cipc", label: "Register with CIPC", url: "https://www.cipc.co.za/" },
+      { stepId: "sars", label: "Register with SARS", url: "https://www.sars.gov.za/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://www.fnb.co.za/business-banking/index.html" },
+    ],
+  },
+  {
+    code: "OTHER", name: "Other Country", entityTypes: ["Sole Proprietor", "Limited Company", "Corporation", "Partnership"],
+    steps: [
+      { stepId: "local", label: "Register with Local Government", url: "https://www.doingbusiness.org/en/doingbusiness" },
+      { stepId: "tax", label: "Register for Taxes", url: "https://www.oecd.org/tax/" },
+      { stepId: "bank", label: "Open a Business Bank Account", url: "https://wise.com/us/business/" },
+    ],
+  },
+];
+
+function BusinessStructureSection() {
+  const { toast } = useToast();
+  const { data: bizDetails, isLoading: bizLoading } = useQuery<any>({ queryKey: ["/api/business-details"] });
+
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [hasBusiness, setHasBusiness] = useState<boolean | null>(null);
+  const [formData, setFormData] = useState({
+    businessName: "",
+    entityType: "",
+    registrationNumber: "",
+    taxId: "",
+    address: "",
+    city: "",
+    stateProvince: "",
+    postalCode: "",
+  });
+
+  useEffect(() => {
+    if (bizDetails) {
+      setSelectedCountry(bizDetails.country || "");
+      setHasBusiness(bizDetails.hasExistingBusiness ?? null);
+      setFormData({
+        businessName: bizDetails.businessName || "",
+        entityType: bizDetails.entityType || "",
+        registrationNumber: bizDetails.registrationNumber || "",
+        taxId: bizDetails.taxId || "",
+        address: bizDetails.address || "",
+        city: bizDetails.city || "",
+        stateProvince: bizDetails.stateProvince || "",
+        postalCode: bizDetails.postalCode || "",
+      });
+    }
+  }, [bizDetails]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/business-details", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/business-details"] });
+      toast({ title: "Business details saved" });
+      setEditMode(false);
+    },
+    onError: (e: any) => toast({ title: "Error saving", description: e.message, variant: "destructive" }),
+  });
+
+  const stepsMutation = useMutation({
+    mutationFn: async (steps: any[]) => {
+      const res = await apiRequest("PUT", "/api/business-details/steps", { steps });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/business-details"] });
+    },
+    onError: (e: any) => toast({ title: "Error updating steps", description: e.message, variant: "destructive" }),
+  });
+
+  const [editMode, setEditMode] = useState(false);
+
+  const countryData = COUNTRIES.find(c => c.code === selectedCountry);
+  const registrationSteps: any[] = bizDetails?.registrationSteps || [];
+  const allStepsComplete = registrationSteps.length > 0 && registrationSteps.every((s: any) => s.completed);
+  const regStatus = bizDetails?.registrationStatus || "not_started";
+
+  const handleSaveOwnBusiness = () => {
+    if (!selectedCountry) return toast({ title: "Please select your country first", variant: "destructive" });
+    saveMutation.mutate({
+      hasExistingBusiness: true,
+      country: selectedCountry,
+      ...formData,
+      registrationStatus: "complete",
+    });
+  };
+
+  const handleStartRegistration = () => {
+    if (!selectedCountry || !countryData) return;
+    const steps = countryData.steps.map(s => ({
+      stepId: s.stepId,
+      label: s.label,
+      url: s.url,
+      completed: false,
+    }));
+    saveMutation.mutate({
+      hasExistingBusiness: false,
+      country: selectedCountry,
+      registrationStatus: "in_progress",
+      registrationSteps: steps,
+    });
+  };
+
+  const handleVisitStep = (stepId: string, url: string) => {
+    const updatedSteps = registrationSteps.map((s: any) =>
+      s.stepId === stepId ? { ...s, visitedAt: s.visitedAt || new Date().toISOString() } : s
+    );
+    stepsMutation.mutate(updatedSteps);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleMarkComplete = (stepId: string) => {
+    const step = registrationSteps.find((s: any) => s.stepId === stepId);
+    if (!step?.visitedAt) {
+      toast({ title: "Visit the link first", description: "You need to open and go through the registration link before marking it complete.", variant: "destructive" });
+      return;
+    }
+    const updatedSteps = registrationSteps.map((s: any) =>
+      s.stepId === stepId ? { ...s, completed: true, completedAt: new Date().toISOString() } : s
+    );
+    stepsMutation.mutate(updatedSteps);
+    toast({ title: "Step marked complete" });
+  };
+
+  if (bizLoading) {
+    return (
+      <Card>
+        <CardContent className="p-5">
+          <Skeleton className="h-6 w-48 mb-4" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-3/4" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!editMode && (regStatus === "complete" || (bizDetails?.hasExistingBusiness && bizDetails?.registrationStatus === "complete"))) {
+    return (
+      <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+            <h3 className="font-semibold text-sm" data-testid="text-biz-complete">Business Structure Complete</h3>
+            <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate">Done</Badge>
+          </div>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            {bizDetails?.businessName && <p><span className="text-foreground font-medium">Business:</span> {bizDetails.businessName}</p>}
+            {bizDetails?.entityType && <p><span className="text-foreground font-medium">Type:</span> {bizDetails.entityType}</p>}
+            {bizDetails?.country && <p><span className="text-foreground font-medium">Country:</span> {COUNTRIES.find(c => c.code === bizDetails.country)?.name || bizDetails.country}</p>}
+            {bizDetails?.registrationNumber && <p><span className="text-foreground font-medium">Reg #:</span> {bizDetails.registrationNumber}</p>}
+            {bizDetails?.taxId && <p><span className="text-foreground font-medium">Tax ID:</span> {bizDetails.taxId}</p>}
+            {!bizDetails?.hasExistingBusiness && (
+              <p><span className="text-foreground font-medium">Registered via:</span> Guided registration steps</p>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onClick={() => {
+              setEditMode(true);
+              setHasBusiness(bizDetails?.hasExistingBusiness ? true : null);
+            }}
+            data-testid="button-edit-business"
+          >
+            Edit Details
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardContent className="p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <Building2 className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-sm mb-1" data-testid="text-business-setup-title">Set Up Your Business</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Making money from content means you're running a business. Set up the right structure to protect yourself, save on taxes, and look professional to sponsors.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium mb-1.5 block">Where are you located?</label>
+            <Select value={selectedCountry} onValueChange={(v) => { setSelectedCountry(v); setHasBusiness(null); }}>
+              <SelectTrigger data-testid="select-country">
+                <SelectValue placeholder="Select your country" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRIES.map(c => (
+                  <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedCountry && hasBusiness === null && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium">Do you already have a registered business?</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Card className="cursor-pointer hover-elevate" onClick={() => setHasBusiness(true)} data-testid="card-has-business">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Briefcase className="w-5 h-5 text-primary shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">Yes, I have a business</p>
+                        <p className="text-xs text-muted-foreground">Enter your existing business details</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="cursor-pointer hover-elevate" onClick={() => { setHasBusiness(false); handleStartRegistration(); }} data-testid="card-no-business">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Globe className="w-5 h-5 text-primary shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">No, help me register</p>
+                        <p className="text-xs text-muted-foreground">We'll guide you through the steps</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {selectedCountry && hasBusiness === true && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-primary" />
+                Enter Your Business Details
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">Business Name</label>
+                  <Input
+                    data-testid="input-biz-name"
+                    placeholder="Your Business Name"
+                    value={formData.businessName}
+                    onChange={e => setFormData(p => ({ ...p, businessName: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">Entity Type</label>
+                  <Select value={formData.entityType} onValueChange={v => setFormData(p => ({ ...p, entityType: v }))}>
+                    <SelectTrigger data-testid="select-entity-type">
+                      <SelectValue placeholder="Select entity type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(countryData?.entityTypes || []).map(t => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">Registration Number</label>
+                  <Input
+                    data-testid="input-reg-number"
+                    placeholder="Business registration number"
+                    value={formData.registrationNumber}
+                    onChange={e => setFormData(p => ({ ...p, registrationNumber: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">Tax ID</label>
+                  <Input
+                    data-testid="input-tax-id"
+                    placeholder="EIN, VAT, ABN, etc."
+                    value={formData.taxId}
+                    onChange={e => setFormData(p => ({ ...p, taxId: e.target.value }))}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-[11px] text-muted-foreground mb-1 block">Address</label>
+                  <Input
+                    data-testid="input-address"
+                    placeholder="Street address"
+                    value={formData.address}
+                    onChange={e => setFormData(p => ({ ...p, address: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">City</label>
+                  <Input
+                    data-testid="input-city"
+                    placeholder="City"
+                    value={formData.city}
+                    onChange={e => setFormData(p => ({ ...p, city: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">State / Province</label>
+                  <Input
+                    data-testid="input-state"
+                    placeholder="State or Province"
+                    value={formData.stateProvince}
+                    onChange={e => setFormData(p => ({ ...p, stateProvince: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">Postal Code</label>
+                  <Input
+                    data-testid="input-postal"
+                    placeholder="Postal / Zip code"
+                    value={formData.postalCode}
+                    onChange={e => setFormData(p => ({ ...p, postalCode: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap pt-1">
+                <Button onClick={handleSaveOwnBusiness} disabled={!formData.businessName || saveMutation.isPending} data-testid="button-save-business">
+                  {saveMutation.isPending ? "Saving..." : "Save Business Details"}
+                </Button>
+                <Button variant="outline" onClick={() => { setHasBusiness(null); if (bizDetails) setEditMode(false); }} data-testid="button-cancel-business">
+                  Back
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {selectedCountry && hasBusiness === false && registrationSteps.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Globe className="w-4 h-4 text-primary" />
+                <p className="text-xs font-medium">
+                  Registration Steps for {countryData?.name || selectedCountry}
+                </p>
+                {allStepsComplete ? (
+                  <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate">All Complete</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px]">
+                    {registrationSteps.filter((s: any) => s.completed).length} / {registrationSteps.length} done
+                  </Badge>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {registrationSteps.map((step: any, idx: number) => (
+                  <Card
+                    key={step.stepId}
+                    className={step.completed ? "border-emerald-500/20" : ""}
+                    data-testid={`card-reg-step-${step.stepId}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                          step.completed
+                            ? "border-emerald-500 bg-emerald-500"
+                            : step.visitedAt
+                              ? "border-amber-500 bg-amber-500/20"
+                              : "border-muted-foreground/30"
+                        }`}>
+                          {step.completed ? (
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          ) : (
+                            <span className="text-[10px] font-bold text-muted-foreground">{idx + 1}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium ${step.completed ? "line-through text-muted-foreground" : ""}`}>
+                            {step.label}
+                          </p>
+                          {step.visitedAt && !step.completed && (
+                            <p className="text-[10px] text-amber-500">Visited - complete registration then mark done</p>
+                          )}
+                          {step.completedAt && (
+                            <p className="text-[10px] text-emerald-500">Completed {new Date(step.completedAt).toLocaleDateString()}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {!step.completed && (
+                            <>
+                              <Button
+                                variant="outline"
+                                onClick={() => handleVisitStep(step.stepId, step.url)}
+                                data-testid={`button-visit-${step.stepId}`}
+                              >
+                                <ExternalLink className="w-3 h-3 mr-1.5" />
+                                {step.visitedAt ? "Visit Again" : "Open Link"}
+                              </Button>
+                              <Button
+                                variant={step.visitedAt ? "default" : "outline"}
+                                onClick={() => handleMarkComplete(step.stepId)}
+                                disabled={!step.visitedAt}
+                                data-testid={`button-complete-${step.stepId}`}
+                              >
+                                <CheckCircle2 className="w-3 h-3 mr-1.5" />
+                                Mark Done
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap pt-1">
+                <Button variant="outline" onClick={() => { setHasBusiness(null); if (bizDetails) setEditMode(false); }} data-testid="button-back-choice">
+                  Back
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function LegalTab() {
   const { toast } = useToast();
@@ -355,10 +914,12 @@ function LegalTab() {
     <div className="space-y-6">
       <h2 data-testid="text-legal-title" className="text-lg font-semibold">Legal & Formation</h2>
 
+      <BusinessStructureSection />
+
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="p-5">
           <div className="flex items-start gap-3 mb-4">
-            <Building2 className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+            <Sparkles className="w-6 h-6 text-purple-400 shrink-0 mt-0.5" />
             <div>
               <h3 className="font-semibold text-sm mb-1" data-testid="text-why-company-title">Why You Need a Business Set Up</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">

@@ -419,4 +419,57 @@ export function registerSettingsRoutes(app: Express) {
       res.status(500).json({ message: error.message });
     }
   });
+
+  app.get("/api/business-details", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const details = await storage.getBusinessDetails(userId);
+      res.json(details || null);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/business-details", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const schema = z.object({
+        hasExistingBusiness: z.boolean(),
+        country: z.string().min(1),
+        businessName: z.string().optional().nullable(),
+        entityType: z.string().optional().nullable(),
+        registrationNumber: z.string().optional().nullable(),
+        taxId: z.string().optional().nullable(),
+        address: z.string().optional().nullable(),
+        city: z.string().optional().nullable(),
+        stateProvince: z.string().optional().nullable(),
+        postalCode: z.string().optional().nullable(),
+        registrationStatus: z.string().optional(),
+        registrationSteps: z.any().optional(),
+      });
+      const data = schema.parse(req.body);
+      const result = await storage.upsertBusinessDetails(userId, data);
+      res.json(result);
+    } catch (error: any) {
+      if (error.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/business-details/steps", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const details = await storage.getBusinessDetails(userId);
+      if (!details) return res.status(404).json({ message: "No business details found" });
+      const { steps } = req.body;
+      if (!Array.isArray(steps)) return res.status(400).json({ message: "steps must be an array" });
+      const result = await storage.updateBusinessDetailsSteps(details.id, steps);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 }

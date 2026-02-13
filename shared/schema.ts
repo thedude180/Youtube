@@ -829,6 +829,38 @@ export const businessVentures = pgTable("business_ventures", {
   userIdIdx: index("business_ventures_user_id_idx").on(table.userId),
 }));
 
+export const businessDetails = pgTable("business_details", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  hasExistingBusiness: boolean("has_existing_business").notNull().default(false),
+  country: text("country").notNull(),
+  businessName: text("business_name"),
+  entityType: text("entity_type"),
+  registrationNumber: text("registration_number"),
+  taxId: text("tax_id"),
+  address: text("address"),
+  city: text("city"),
+  stateProvince: text("state_province"),
+  postalCode: text("postal_code"),
+  registrationStatus: text("registration_status").notNull().default("not_started"),
+  registrationSteps: jsonb("registration_steps").$type<{
+    stepId: string;
+    label: string;
+    url: string;
+    completed: boolean;
+    visitedAt?: string;
+    completedAt?: string;
+  }[]>(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("business_details_user_id_idx").on(table.userId),
+}));
+
+export const insertBusinessDetailsSchema = createInsertSchema(businessDetails).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertBusinessDetails = z.infer<typeof insertBusinessDetailsSchema>;
+export type BusinessDetails = typeof businessDetails.$inferSelect;
+
 export const businessGoals = pgTable("business_goals", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
