@@ -13,6 +13,9 @@ import { pivotToStream, resumeFromStream } from "../backlog-engine";
 import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
 import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStreamStatus } from "../live-chat-engine";
 import { createPipelineForStream } from "./pipeline";
+import { checkYouTubeLiveBroadcasts } from "../youtube";
+
+const activeDetectedBroadcasts = new Map<string, { streamId: number; broadcastId: string }>();
 
 export function registerStreamRoutes(app: Express) {
   app.get(api.streamDestinations.list.path, async (req, res) => {
@@ -599,6 +602,216 @@ export function registerStreamRoutes(app: Express) {
       res.json({ stored: true, aiResponse: result });
     } catch (error: any) {
       console.error("Live chat error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/youtube/live-status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const ytChannel = channels.find(c => c.platform === "youtube" && c.accessToken);
+      if (!ytChannel) {
+        return res.json({ connected: false, broadcasts: [], activeStream: null });
+      }
+
+      const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
+      const streamList = await storage.getStreams(userId);
+      const liveStream = streamList.find(s => s.status === "live");
+      const trackedKey = `${userId}`;
+      const tracked = activeDetectedBroadcasts.get(trackedKey);
+
+      res.json({
+        connected: true,
+        channelName: ytChannel.channelName,
+        broadcasts,
+        activeStream: liveStream || null,
+        isTracked: !!tracked,
+        trackedBroadcastId: tracked?.broadcastId || null,
+      });
+    } catch (error: any) {
+      console.error("[YouTube] Live status error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/youtube/detect-live", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const channels = await storage.getChannelsByUser(userId);
+      const ytChannel = channels.find(c => c.platform === "youtube" && c.accessToken);
+      if (!ytChannel) {
+        return res.json({ detected: false, reason: "YouTube not connected" });
+      }
+
+      const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
+      const streamList = await storage.getStreams(userId);
+      const existingLive = streamList.find(s => s.status === "live");
+      const trackedKey = `${userId}`;
+      const tracked = activeDetectedBroadcasts.get(trackedKey);
+
+      if (existingLive && !tracked) {
+        activeDetectedBroadcasts.set(trackedKey, { streamId: existingLive.id, broadcastId: broadcasts[0]?.broadcastId || "recovered" });
+      }
+
+      if (broadcasts.length > 0 && !existingLive) {
+        const broadcast = broadcasts[0];
+        const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
+
+        const stream = await storage.createStream({
+          userId,
+          title: broadcast.title,
+          description: broadcast.description,
+          category: "Gaming",
+          platforms: allPlatforms,
+          status: "planned",
+        });
+
+        const updatedStream = await storage.updateStream(stream.id, {
+          status: "live",
+          startedAt: broadcast.startedAt ? new Date(broadcast.startedAt) : new Date(),
+        });
+
+        activeDetectedBroadcasts.set(trackedKey, { streamId: stream.id, broadcastId: broadcast.broadcastId });
+
+        pivotToStream(userId, stream.id).catch(err =>
+          console.error("[AutoDetect] Stream pivot error:", err)
+        );
+
+        processGoLiveAnnouncements(
+          userId, stream.id, broadcast.title, broadcast.description,
+          allPlatforms,
+        ).catch(err => console.error("[AutoDetect] Go-live announcement error:", err));
+
+        createPipelineForStream(userId, broadcast.title, "live").catch(err =>
+          console.error("[AutoDetect] LIVE pipeline error:", err)
+        );
+
+        const tasks = [
+          { name: "seo_optimization", status: "pending" },
+          { name: "thumbnail_generation", status: "pending" },
+          { name: "compliance_check", status: "pending" },
+        ];
+
+        const job = await storage.createJob({
+          type: "stream_automation",
+          status: "processing",
+          priority: 1,
+          payload: { streamId: stream.id, platforms: allPlatforms, tasks },
+        });
+
+        await storage.createAuditLog({
+          userId,
+          action: "youtube_live_auto_detected",
+          target: broadcast.title,
+          details: { broadcastId: broadcast.broadcastId, platforms: allPlatforms },
+          riskLevel: "low",
+        });
+
+        (async () => {
+          try {
+            const seoData = await generateStreamSeo({
+              title: broadcast.title,
+              description: broadcast.description,
+              category: "Gaming",
+              platforms: allPlatforms,
+            });
+            await storage.updateStream(stream.id, { seoData });
+          } catch (err) {
+            console.error("[AutoDetect] SEO optimization error:", err);
+          }
+          try {
+            const thumbData = await generateThumbnailPrompt({
+              title: broadcast.title,
+              description: broadcast.description,
+              platform: "youtube",
+              type: "stream",
+            });
+            await storage.createThumbnail({
+              videoId: null,
+              streamId: stream.id,
+              prompt: thumbData.prompt,
+              platform: "youtube",
+              resolution: "1280x720",
+              status: "generated",
+              metadata: thumbData,
+            });
+          } catch (err) {
+            console.error("[AutoDetect] Thumbnail error:", err);
+          }
+          try {
+            await runComplianceCheck({
+              title: broadcast.title,
+              description: broadcast.description,
+              platforms: allPlatforms,
+            });
+          } catch (err) {
+            console.error("[AutoDetect] Compliance check error:", err);
+          }
+        })();
+
+        console.log(`[AutoDetect] YouTube LIVE detected for ${userId}: "${broadcast.title}" — stream ${stream.id} created, all automations triggered`);
+
+        return res.json({
+          detected: true,
+          action: "created",
+          stream: updatedStream,
+          broadcast,
+        });
+      }
+
+      if (broadcasts.length === 0 && tracked) {
+        const stream = await storage.getStream(tracked.streamId);
+        if (stream && stream.status === "live") {
+          const endedAt = new Date();
+          await storage.updateStream(stream.id, {
+            status: "ended",
+            endedAt,
+          });
+
+          resumeFromStream(userId, stream.id).catch(err =>
+            console.error("[AutoDetect] Stream resume error:", err)
+          );
+
+          processPostStreamHighlights(
+            userId, stream.id, stream.title, stream.description || "",
+            (stream.platforms as string[]) || ["youtube"],
+          ).catch(err => console.error("[AutoDetect] Post-stream highlights error:", err));
+
+          createPipelineForStream(userId, stream.title, "replay").catch(err =>
+            console.error("[AutoDetect] REPLAY pipeline error:", err)
+          );
+
+          await storage.createAuditLog({
+            userId,
+            action: "youtube_live_auto_ended",
+            target: stream.title,
+            details: { broadcastId: tracked.broadcastId },
+            riskLevel: "low",
+          });
+
+          console.log(`[AutoDetect] YouTube stream ended for ${userId}: "${stream.title}" — REPLAY pipeline triggered`);
+        }
+
+        activeDetectedBroadcasts.delete(trackedKey);
+
+        return res.json({
+          detected: false,
+          action: "ended",
+          streamId: tracked.streamId,
+        });
+      }
+
+      return res.json({
+        detected: broadcasts.length > 0,
+        action: "none",
+        isAlreadyTracked: !!tracked,
+        hasExistingLive: !!existingLive,
+      });
+    } catch (error: any) {
+      console.error("[YouTube] Detect live error:", error);
       res.status(500).json({ message: error.message });
     }
   });

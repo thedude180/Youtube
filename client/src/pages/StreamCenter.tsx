@@ -29,9 +29,7 @@ export default function StreamCenter() {
   const qc = useQueryClient();
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [showAddDest, setShowAddDest] = useState(false);
-  const [showNewStream, setShowNewStream] = useState(false);
   const [newDest, setNewDest] = useState({ platform: "youtube", label: "", rtmpUrl: "", streamKey: "" });
-  const [newStream, setNewStream] = useState({ title: "", description: "", category: "Gaming", platforms: [] as string[] });
   const [aiStreamRecs, setAiStreamRecs] = useState<AIResponse>(null);
   const [aiStreamRecsLoading, setAiStreamRecsLoading] = useState(true);
   const [aiChatBot, setAiChatBot] = useState<AIResponse>(null);
@@ -615,6 +613,29 @@ export default function StreamCenter() {
   const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
   const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
   const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"] });
+  const { data: ytLiveStatus } = useQuery<any>({
+    queryKey: ["/api/youtube/live-status"],
+    refetchInterval: 30000,
+  });
+
+  const detectLive = useMutation({
+    mutationFn: async () => { const res = await apiRequest("POST", "/api/youtube/detect-live", {}); return res.json(); },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/streams"] });
+      qc.invalidateQueries({ queryKey: ["/api/youtube/live-status"] });
+      if (data.action === "created") {
+        toast({ title: "YouTube LIVE Detected!", description: `"${data.broadcast?.title}" — all 6 platform automations triggered` });
+      } else if (data.action === "ended") {
+        toast({ title: "Stream ended", description: "REPLAY pipeline started — promoting your VOD across all platforms" });
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (ytLiveStatus?.connected) {
+      detectLive.mutate();
+    }
+  }, [ytLiveStatus?.broadcasts?.length]);
 
   const liveStream = streamList.find(s => s.status === 'live');
   const plannedStreams = streamList.filter(s => s.status === 'planned');
@@ -633,11 +654,6 @@ export default function StreamCenter() {
   const toggleDest = useMutation({
     mutationFn: async ({ id, enabled }: { id: number; enabled: boolean }) => { const res = await apiRequest("PUT", `/api/stream-destinations/${id}`, { enabled }); return res.json(); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/stream-destinations"] }); },
-  });
-
-  const createStream = useMutation({
-    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/streams", data); return res.json(); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/streams"] }); setShowNewStream(false); setNewStream({ title: "", description: "", category: "Gaming", platforms: [] }); toast({ title: "Stream created" }); },
   });
 
   const goLive = useMutation({
@@ -690,13 +706,6 @@ export default function StreamCenter() {
     }
   };
 
-  const toggleStreamPlatform = (platform: string) => {
-    setNewStream(prev => ({
-      ...prev,
-      platforms: prev.platforms.includes(platform) ? prev.platforms.filter(p => p !== platform) : [...prev.platforms, platform],
-    }));
-  };
-
   const renderAIList = (arr: any[] | undefined, limit = 5) => {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return <p className="text-xs text-muted-foreground italic">No results available</p>;
     return arr.slice(0, limit).map((item: any, i: number) => (
@@ -740,42 +749,17 @@ export default function StreamCenter() {
               </div>
             </DialogContent>
           </Dialog>
-          <Dialog open={showNewStream} onOpenChange={setShowNewStream}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-new-stream" size="sm"><Zap className="h-3.5 w-3.5 mr-1.5" />New Stream</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Plan Stream</DialogTitle></DialogHeader>
-              <div className="space-y-3 mt-2">
-                <div><label className="text-sm font-medium">Title</label><Input data-testid="input-stream-title" placeholder="Friday Night Gaming" value={newStream.title} onChange={(e) => setNewStream(prev => ({ ...prev, title: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Description</label><Textarea data-testid="input-stream-description" placeholder="What's the stream about?" value={newStream.description} onChange={(e) => setNewStream(prev => ({ ...prev, description: e.target.value }))} className="resize-none" /></div>
-                <div>
-                  <label className="text-sm font-medium">Category</label>
-                  <Select value={newStream.category} onValueChange={(val) => setNewStream(prev => ({ ...prev, category: val }))}>
-                    <SelectTrigger data-testid="select-stream-category"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["Gaming", "IRL", "Creative", "Music", "Education"].map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Platforms</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PLATFORMS.map(p => (
-                      <Badge key={p} data-testid={`toggle-platform-${p}`} className="cursor-pointer toggle-elevate" variant={newStream.platforms.includes(p) ? "default" : "outline"} onClick={() => toggleStreamPlatform(p)}>
-                        <PlatformIcon platform={p} className="h-3 w-3 mr-1" />{PLATFORM_INFO[p].label}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <Button data-testid="button-create-stream" className="w-full" onClick={() => createStream.mutate(newStream)} disabled={!newStream.title || newStream.platforms.length === 0 || createStream.isPending}>
-                  {createStream.isPending ? "Creating..." : "Create"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {ytLiveStatus?.connected ? (
+            <Badge variant={ytLiveStatus?.broadcasts?.length > 0 ? "destructive" : "secondary"} data-testid="badge-yt-detection-status">
+              <Radio className={`h-3 w-3 mr-1 ${ytLiveStatus?.broadcasts?.length > 0 ? "animate-pulse" : ""}`} />
+              {ytLiveStatus?.broadcasts?.length > 0 ? "LIVE Detected" : "Monitoring YouTube"}
+            </Badge>
+          ) : (
+            <Badge variant="outline" data-testid="badge-yt-not-connected">
+              <WifiOff className="h-3 w-3 mr-1" />
+              YouTube Not Connected
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -863,21 +847,9 @@ export default function StreamCenter() {
                             ))}
                           </div>
                         </div>
-                        <Button
-                          data-testid={`button-create-idea-${i}`}
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0"
-                          onClick={() => createStream.mutate({
-                            title: idea.title,
-                            description: idea.description || "",
-                            category: idea.category || "Gaming",
-                            platforms: idea.platforms || [],
-                          })}
-                          disabled={createStream.isPending}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />Create
-                        </Button>
+                        <Badge variant="outline" className="shrink-0 text-[10px]">
+                          <Sparkles className="h-3 w-3 mr-1" />Suggested
+                        </Badge>
                       </div>
                     ))}
                   </div>
@@ -2229,28 +2201,65 @@ export default function StreamCenter() {
 
       <MultiPlatformStatus channels={connectedChannels} destinations={destinations} />
 
-      {plannedStreams.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Ready to Go Live</h2>
-          {plannedStreams.map(stream => (
-            <Card key={stream.id} data-testid={`card-planned-stream-${stream.id}`}>
-              <CardContent className="p-4 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p data-testid={`text-stream-title-${stream.id}`} className="text-sm font-medium">{stream.title}</p>
-                  <div className="flex items-center gap-1 mt-1 flex-wrap">
-                    {((stream.platforms as string[]) || []).map(p => (
-                      <Badge key={p} variant="outline" className="text-[10px]">{PLATFORM_INFO[p as Platform]?.label || p}</Badge>
-                    ))}
-                  </div>
+      <Card data-testid="card-youtube-detection">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Wifi className={`h-5 w-5 ${ytLiveStatus?.connected ? "text-green-500" : "text-muted-foreground"}`} />
+              <h2 className="font-semibold text-sm">YouTube Auto-Detect</h2>
+              {ytLiveStatus?.connected && (
+                <Badge variant="secondary" className="text-[10px]">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  {ytLiveStatus?.channelName || "Connected"}
+                </Badge>
+              )}
+            </div>
+            {ytLiveStatus?.connected && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => detectLive.mutate()}
+                disabled={detectLive.isPending}
+                data-testid="button-check-live"
+              >
+                {detectLive.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radio className="h-3.5 w-3.5" />}
+                <span className="ml-1.5">Check Now</span>
+              </Button>
+            )}
+          </div>
+
+          {!ytLiveStatus?.connected ? (
+            <div className="text-center py-4">
+              <WifiOff className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Connect your YouTube account in Settings to enable auto-detection</p>
+              <p className="text-xs text-muted-foreground mt-1">When you go live on YouTube, CreatorOS will automatically detect it and fire all automations across all 6 platforms</p>
+            </div>
+          ) : liveStream ? (
+            <div className="flex items-center gap-3 rounded-md border border-red-500/30 bg-red-500/5 p-3">
+              <Radio className="h-5 w-5 text-red-500 animate-pulse shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-red-500">LIVE NOW</p>
+                <p className="text-sm font-medium truncate">{liveStream.title}</p>
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  {PLATFORMS.map(p => (
+                    <Badge key={p} variant="outline" className="text-[10px]">
+                      <PlatformIcon platform={p} className="h-3 w-3 mr-1" />{PLATFORM_INFO[p].label}
+                    </Badge>
+                  ))}
                 </div>
-                <Button data-testid={`button-go-live-${stream.id}`} size="sm" variant="destructive" onClick={() => goLive.mutate(stream.id)} disabled={goLive.isPending || !!liveStream} className="shrink-0">
-                  {goLive.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}Go Live
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 rounded-md border p-3">
+              <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Watching for your next YouTube livestream</p>
+                <p className="text-xs text-muted-foreground">Start streaming on YouTube and CreatorOS will detect it within 30 seconds — then automatically run LIVE pipeline, post announcements, generate thumbnails, and optimize SEO across all 6 platforms</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">Destinations ({destinations.filter(d => d.enabled).length} active)</h2>

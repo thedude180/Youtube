@@ -360,6 +360,34 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
   return synced;
 }
 
+export async function checkYouTubeLiveBroadcasts(channelId: number) {
+  try {
+    const { oauth2Client } = await getAuthenticatedClient(channelId);
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+
+    const response = await youtube.liveBroadcasts.list({
+      part: ["snippet", "status", "contentDetails"],
+      broadcastStatus: "active",
+      broadcastType: "all",
+    });
+
+    const broadcasts = response.data.items || [];
+    return broadcasts.map(b => ({
+      broadcastId: b.id || "",
+      title: b.snippet?.title || "Untitled Stream",
+      description: b.snippet?.description || "",
+      status: b.status?.lifeCycleStatus || "unknown",
+      startedAt: b.snippet?.actualStartTime || null,
+      scheduledStartTime: b.snippet?.scheduledStartTime || null,
+      thumbnailUrl: b.snippet?.thumbnails?.high?.url || b.snippet?.thumbnails?.default?.url || "",
+      liveChatId: b.snippet?.liveChatId || null,
+    }));
+  } catch (err: any) {
+    console.error("[YouTube] Live broadcast check failed:", err.message);
+    return [];
+  }
+}
+
 function parseDuration(iso: string): number {
   const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return 0;
