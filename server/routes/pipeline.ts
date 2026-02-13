@@ -111,6 +111,12 @@ export async function executePipelineInBackground(id: number, videoTitle: string
   const currentResults = { ...existingResults };
   const completedSteps = [...existingCompleted];
 
+  const SYNC_STEPS = ["title", "description", "tags", "thumbnail"];
+
+  const [pipelineRow] = await db.select().from(contentPipeline).where(eq(contentPipeline.id, id));
+  const pipelineVideoId = pipelineRow?.videoId || null;
+  const pipelineUserId = pipelineRow?.userId || null;
+
   for (const step of STEP_IDS) {
     if (completedSteps.includes(step)) continue;
 
@@ -126,6 +132,17 @@ export async function executePipelineInBackground(id: number, videoTitle: string
       await db.update(contentPipeline)
         .set({ completedSteps, stepResults: currentResults })
         .where(eq(contentPipeline.id, id));
+
+      if (SYNC_STEPS.includes(step) && pipelineVideoId && pipelineUserId) {
+        try {
+          const { syncPipelineResultsToYouTube } = await import("../platform-sync-engine");
+          syncPipelineResultsToYouTube(pipelineUserId, pipelineVideoId, currentResults, step).catch(err => {
+            console.error(`[Pipeline] Platform sync after "${step}" failed:`, err.message);
+          });
+        } catch (syncErr: any) {
+          console.error(`[Pipeline] Platform sync import failed:`, syncErr.message);
+        }
+      }
     } catch (stepErr: any) {
       console.error(`[Pipeline] Step "${step}" failed for pipeline ${id}:`, stepErr.message);
       await db.update(contentPipeline)
