@@ -69,7 +69,6 @@ function Router() {
       <Route path="/business/collabs">{() => <Redirect to="/settings/collabs" />}</Route>
       <Route path="/business/competitors">{() => <Redirect to="/settings/competitors" />}</Route>
       <Route path="/business/legal">{() => <Redirect to="/settings/legal" />}</Route>
-      <Route path="/business/wellness">{() => <Redirect to="/settings/wellness" />}</Route>
       <Route path="/business/learning">{() => <Redirect to="/settings/learning" />}</Route>
       <Route path="/videos">{() => <Redirect to="/content" />}</Route>
       <Route path="/videos/:id">{() => <Redirect to="/content" />}</Route>
@@ -88,11 +87,11 @@ function Router() {
       <Route path="/competitors">{() => <Redirect to="/settings/competitors" />}</Route>
       <Route path="/formation">{() => <Redirect to="/settings/legal" />}</Route>
       <Route path="/protections">{() => <Redirect to="/settings/legal" />}</Route>
-      <Route path="/wellness">{() => <Redirect to="/settings/wellness" />}</Route>
+      <Route path="/wellness">{() => <Redirect to="/settings" />}</Route>
       <Route path="/knowledge">{() => <Redirect to="/settings/learning" />}</Route>
       <Route path="/growth">{() => <Redirect to="/settings/brand" />}</Route>
       <Route path="/legal">{() => <Redirect to="/settings/legal" />}</Route>
-      <Route path="/you">{() => <Redirect to="/settings/wellness" />}</Route>
+      <Route path="/you">{() => <Redirect to="/settings" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -236,7 +235,6 @@ const ROUTE_LABELS: Record<string, string> = {
   "/settings/collabs": "Collaborations",
   "/settings/competitors": "Competitors",
   "/settings/legal": "Legal",
-  "/settings/wellness": "Wellness",
   "/settings/learning": "Learning",
   "/settings/automation": "Automation",
   "/notifications": "Notifications",

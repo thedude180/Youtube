@@ -41,7 +41,6 @@ const BrandTab = lazy(() => import("./settings/BrandTab"));
 const CollabsTab = lazy(() => import("./settings/CollabsTab"));
 const CompetitorsTab = lazy(() => import("./settings/CompetitorsTab"));
 const LegalTab = lazy(() => import("./settings/LegalTab"));
-const WellnessTab = lazy(() => import("./settings/WellnessTab"));
 const LearningTab = lazy(() => import("./settings/LearningTab"));
 const AutomationTab = lazy(() => import("./settings/AutomationTab"));
 const GrowthProgramsTab = lazy(() => import("./settings/GrowthProgramsTab"));
@@ -53,9 +52,9 @@ const TabFallback = () => <Skeleton className="h-96 w-full rounded-lg" />;
 
 type AIResponse = Record<string, unknown> | null;
 
-type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "wellness" | "learning" | "automation" | "growth" | "admin-codes" | "admin-users" | "subscription";
+type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "learning" | "automation" | "growth" | "admin-codes" | "admin-users" | "subscription";
 
-const VALID_TABS: TabKey[] = ["general", "brand", "collabs", "competitors", "legal", "wellness", "learning", "automation", "growth", "admin-codes", "admin-users", "subscription"];
+const VALID_TABS: TabKey[] = ["general", "brand", "collabs", "competitors", "legal", "learning", "automation", "growth", "admin-codes", "admin-users", "subscription"];
 
 const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "general", label: "General" },
@@ -63,7 +62,6 @@ const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "collabs", label: "Collabs" },
   { key: "competitors", label: "Competitors" },
   { key: "legal", label: "Legal" },
-  { key: "wellness", label: "Wellness" },
   { key: "learning", label: "Learning" },
   { key: "automation", label: "Automation Hub" },
   { key: "growth", label: "Growth Programs" },
@@ -4695,7 +4693,6 @@ export default function Settings() {
         {activeTab === "collabs" && <CollabsTab />}
         {activeTab === "competitors" && <CompetitorsTab />}
         {activeTab === "legal" && <LegalTab />}
-        {activeTab === "wellness" && <WellnessTab />}
         {activeTab === "learning" && <LearningTab />}
         {activeTab === "automation" && <AutomationTab />}
         {activeTab === "growth" && <GrowthProgramsTab />}

@@ -63,7 +63,6 @@ const items: CommandItem[] = [
   { label: "Collabs", icon: Link2, group: "Settings", path: "/settings/collabs" },
   { label: "Competitors", icon: Shield, group: "Settings", path: "/settings/competitors" },
   { label: "Legal", icon: FileText, group: "Settings", path: "/settings/legal" },
-  { label: "Wellness", icon: Heart, group: "Settings", path: "/settings/wellness" },
   { label: "Learning", icon: BookOpen, group: "Settings", path: "/settings/learning" },
   { label: "Automation Hub", icon: Zap, group: "Settings", path: "/settings/automation" },
   { label: "Subscription", icon: Crown, group: "Settings", path: "/settings/subscription" },
