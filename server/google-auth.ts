@@ -152,6 +152,18 @@ export function setupGoogleAuth(app: Express) {
           console.error("Auto YouTube connect after Google auth failed:", error);
         }
 
+        if (user.claims?.sub) {
+          try {
+            const { startBacklogOnLogin } = await import("./backlog-manager");
+            const backlogResult = await startBacklogOnLogin(user.claims.sub);
+            if (backlogResult.started) {
+              console.log(`[GoogleAuth] Auto-started backlog for ${user.claims.sub}: ${backlogResult.message}`);
+            }
+          } catch (backlogErr) {
+            console.error("[GoogleAuth] Auto-start backlog on login failed:", backlogErr);
+          }
+        }
+
         req.session.save((saveErr) => {
           if (saveErr) console.error("Google auth session save error:", saveErr);
           console.log("Google auth: session saved, redirecting to /");

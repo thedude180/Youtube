@@ -387,6 +387,18 @@ export async function initAutomationEngine() {
             processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(() => {});
             createPipelineForStream(userId, broadcast.title, "live").catch(() => {});
 
+            sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: broadcast.title });
+            sendSSEEvent(userId, "notification", { type: "new" });
+            sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId: stream.id });
+
+            await storage.createNotification({
+              userId,
+              type: "stream_live",
+              title: "YouTube LIVE Detected",
+              message: `"${broadcast.title}" — all 6 platform automations triggered automatically`,
+              severity: "info",
+            });
+
             await storage.createAuditLog({
               userId,
               action: "youtube_live_auto_detected_cron",
@@ -412,6 +424,18 @@ export async function initAutomationEngine() {
               resumeAfterStream(userId).catch(() => {});
 
               cronTrackedBroadcasts.delete(userId);
+
+              sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: existingLive.id, title: existingLive.title });
+              sendSSEEvent(userId, "notification", { type: "new" });
+              sendSSEEvent(userId, "backlog_update", { state: "waiting_for_replay" });
+
+              await storage.createNotification({
+                userId,
+                type: "stream_ended",
+                title: "Stream Ended",
+                message: `"${existingLive.title}" — REPLAY pipeline started, backlog will resume automatically`,
+                severity: "info",
+              });
 
               await storage.createAuditLog({
                 userId,
@@ -669,20 +693,26 @@ export async function runChainManually(chainId: number) {
   const chain = await storage.getAiChain(chainId);
   if (!chain) throw new Error("Chain not found");
 
-  await db.update(aiChains).set({ status: "running", lastRun: new Date() }).where(eq(aiChains.id, chain.id));
-  const results = await executeChainSteps(chain);
-  await db.update(aiChains).set({ status: "idle", lastResult: { steps: results, completedAt: new Date().toISOString() } }).where(eq(aiChains.id, chain.id));
+  try {
+    await db.update(aiChains).set({ status: "running", lastRun: new Date() }).where(eq(aiChains.id, chain.id));
+    const results = await executeChainSteps(chain);
+    await db.update(aiChains).set({ status: "idle", lastResult: { steps: results, completedAt: new Date().toISOString() } }).where(eq(aiChains.id, chain.id));
 
-  await db.insert(notifications).values({
-    userId: chain.userId,
-    type: "chain_complete",
-    title: `AI Chain "${chain.name}" completed`,
-    message: `All ${(chain.steps as any[]).length} steps executed successfully`,
-    severity: "info",
-  });
-  sendSSEEvent(chain.userId, "notification", { type: "new" });
+    await db.insert(notifications).values({
+      userId: chain.userId,
+      type: "chain_complete",
+      title: `AI Chain "${chain.name}" completed`,
+      message: `All ${(chain.steps as any[]).length} steps executed successfully`,
+      severity: "info",
+    });
+    sendSSEEvent(chain.userId, "notification", { type: "new" });
 
-  return { chainId, steps: results };
+    return { chainId, steps: results };
+  } catch (err) {
+    console.error(`[AutomationEngine] Manual chain execution failed for chain ${chainId}:`, err);
+    await db.update(aiChains).set({ status: "error" }).where(eq(aiChains.id, chainId));
+    throw err;
+  }
 }
 
 export async function evaluateRules(userId: string, eventType: string, _eventData: any) {

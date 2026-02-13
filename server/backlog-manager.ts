@@ -2,6 +2,7 @@ import { db } from "./db";
 import { contentPipeline, channels } from "@shared/schema";
 import { eq, and, not, inArray } from "drizzle-orm";
 import { storage } from "./storage";
+import { sendSSEEvent } from "./routes/events";
 
 export type BacklogState = "idle" | "running" | "paused_for_live" | "finishing_current" | "waiting_for_replay";
 
@@ -90,6 +91,8 @@ export async function startBacklogOnLogin(userId: string): Promise<{ started: bo
     });
   }
 
+  sendSSEEvent(userId, "backlog_update", { state: "running", totalRemaining: remaining.length, totalQueued: remaining.length });
+
   console.log(`[BacklogManager] Started continuous backlog for ${userId}: ${remaining.length} videos to process`);
   return { started: true, message: `Processing ${remaining.length} videos`, state: "running" };
 }
@@ -102,12 +105,14 @@ export function pauseForLive(userId: string, streamId: number): void {
     session.state = "finishing_current";
     session.streamId = streamId;
     session.lastActivityAt = new Date();
+    sendSSEEvent(userId, "backlog_update", { state: "finishing_current", streamId });
     console.log(`[BacklogManager] User ${userId} went live — finishing current video then pausing`);
   } else if (session.state === "idle") {
     session.state = "paused_for_live";
     session.streamId = streamId;
     session.pausedAt = new Date();
     session.lastActivityAt = new Date();
+    sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId });
     console.log(`[BacklogManager] User ${userId} went live — backlog paused (was idle)`);
   }
 }
@@ -132,6 +137,7 @@ export async function resumeAfterStream(userId: string): Promise<void> {
       current.streamId = null;
       current.pausedAt = null;
       current.lastActivityAt = new Date();
+      sendSSEEvent(userId, "backlog_update", { state: "running", resumed: true });
       console.log(`[BacklogManager] Replay done, resuming backlog for ${userId}`);
 
       if (!activeLoops.has(userId)) {
@@ -166,6 +172,7 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       current.pausedAt = new Date();
       current.currentPipelineId = null;
       current.currentVideoTitle = null;
+      sendSSEEvent(userId, "backlog_update", { state: "paused_for_live" });
       console.log(`[BacklogManager] Current video done, pausing backlog for live stream (user ${userId})`);
       break;
     }
@@ -198,7 +205,17 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       current.currentPipelineId = null;
       current.currentVideoTitle = null;
       current.lastActivityAt = new Date();
+      sendSSEEvent(userId, "backlog_update", { state: "idle", completed: true, totalProcessed: publishedVideos.length });
       console.log(`[BacklogManager] All ${publishedVideos.length} videos processed for ${userId}`);
+
+      await storage.createNotification({
+        userId,
+        type: "backlog_complete",
+        title: "Backlog Refresh Complete",
+        message: `All ${publishedVideos.length} videos refreshed with updated titles, SEO, thumbnails, and cross-platform posts`,
+        severity: "info",
+      });
+      sendSSEEvent(userId, "notification", { type: "new" });
 
       await storage.createAuditLog({
         userId,

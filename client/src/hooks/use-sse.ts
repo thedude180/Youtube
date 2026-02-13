@@ -47,6 +47,20 @@ export function useSSE() {
       } catch {}
     });
 
+    es.addEventListener("stream_update", (e) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ["/api/streams"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/youtube/live-status"] });
+      } catch {}
+    });
+
+    es.addEventListener("backlog_update", (e) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ["/api/backlog/status"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/pipeline"] });
+      } catch {}
+    });
+
     es.onerror = () => {
       es.close();
       eventSourceRef.current = null;
