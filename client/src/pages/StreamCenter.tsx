@@ -642,12 +642,12 @@ export default function StreamCenter() {
 
   const goLive = useMutation({
     mutationFn: async (id: number) => { const res = await apiRequest("POST", `/api/streams/${id}/go-live`, {}); return res.json(); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/streams"] }); toast({ title: "You're LIVE!" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/streams"] }); toast({ title: "You're LIVE!", description: "Content Pipeline running — AI is optimizing your stream in real-time" }); },
   });
 
   const endStream = useMutation({
     mutationFn: async (id: number) => { const res = await apiRequest("POST", `/api/streams/${id}/end`, {}); return res.json(); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/streams"] }); toast({ title: "Stream ended", description: "Content Pipeline auto-started — optimizing your VOD through 8 AI steps" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/streams"] }); toast({ title: "Stream ended", description: "Pipeline results ready — check Autopilot for your optimized content" }); },
   });
 
   const optimizeSeo = useMutation({

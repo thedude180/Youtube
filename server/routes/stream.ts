@@ -204,6 +204,10 @@ export function registerStreamRoutes(app: Express) {
         (stream.platforms as string[]) || ["youtube"],
       ).catch(err => console.error("[Autopilot] Go-live announcement error:", err));
 
+      createPipelineForStream(userId, stream.title).catch(err =>
+        console.error("[Pipeline] Auto-pipeline on go-live error:", err)
+      );
+
       const tasks = [
         { name: "seo_optimization", status: "pending" },
         { name: "thumbnail_generation", status: "pending" },
@@ -353,10 +357,6 @@ export function registerStreamRoutes(app: Express) {
         stream.description || "",
         (stream.platforms as string[]) || ["youtube"],
       ).catch(err => console.error("[Autopilot] Post-stream highlights error:", err));
-
-      createPipelineForStream(userId, stream.title).catch(err =>
-        console.error("[Pipeline] Auto-pipeline for stream error:", err)
-      );
 
       const tasks = [
         { name: "vod_optimization", status: "pending" },
