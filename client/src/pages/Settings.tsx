@@ -20,6 +20,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1734,6 +1739,8 @@ function GeneralTab() {
             const unconnected = FOCUSED_PLATFORMS.filter(p => !connectedSet.has(p.key));
             const connected = FOCUSED_PLATFORMS.filter(p => connectedSet.has(p.key));
 
+            const [disconnecting, setDisconnecting] = useState<string | null>(null);
+
             const handleOAuthLogin = async (platform: string, isYouTube: boolean) => {
               setOauthLoading(platform);
               try {
@@ -1748,15 +1755,70 @@ function GeneralTab() {
               }
             };
 
+            const handleDisconnect = async (platform: string, label: string) => {
+              setDisconnecting(platform);
+              try {
+                await apiRequest("DELETE", `/api/oauth/${platform}/disconnect`);
+                queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
+                toast({ title: "Disconnected", description: `${label} has been disconnected.` });
+              } catch (error: any) {
+                toast({ title: "Error", description: error.message, variant: "destructive" });
+              } finally {
+                setDisconnecting(null);
+              }
+            };
+
             return (
               <>
                 {connected.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="space-y-2">
                     {connected.map(p => (
-                      <Badge key={p.key} variant="secondary" className="text-xs" data-testid={`badge-connected-${p.key}`}>
-                        <CheckCircle className="w-3 h-3 mr-1 text-emerald-400" />
-                        {p.label}
-                      </Badge>
+                      <div key={p.key} className="flex items-center justify-between gap-2" data-testid={`row-connected-${p.key}`}>
+                        <div className="flex items-center gap-2">
+                          <p.Icon className="h-4 w-4" style={{ color: p.color === "#000000" ? "#999" : p.color }} />
+                          <span className="text-sm font-medium">{p.label}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            <CheckCircle className="w-3 h-3 mr-1 text-emerald-400" />
+                            Connected
+                          </Badge>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive"
+                              disabled={disconnecting === p.key}
+                              data-testid={`button-disconnect-${p.key}`}
+                            >
+                              {disconnecting === p.key ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Disconnect {p.label}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will remove your {p.label} connection, including any saved tokens and stream keys. You can reconnect at any time.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel data-testid={`button-cancel-disconnect-${p.key}`}>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDisconnect(p.key, p.label)}
+                                className="bg-destructive text-destructive-foreground"
+                                data-testid={`button-confirm-disconnect-${p.key}`}
+                              >
+                                Disconnect
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     ))}
                   </div>
                 )}
