@@ -269,11 +269,13 @@ export async function initAutomationEngine() {
 
   cron.schedule("0 */2 * * *", async () => {
     try {
+      const { refreshAllUserChannelStats } = await import("./youtube");
       const { runComplianceCheck } = await import("./growth-programs-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = [...new Set(allChannelUsers.map(c => c.userId).filter(Boolean))];
       for (const userId of userIds) {
         if (userId) {
+          await refreshAllUserChannelStats(userId);
           await runComplianceCheck(userId);
         }
       }

@@ -141,6 +141,9 @@ export const channels = pgTable("channels", {
     maxEditsPerDay: number;
     cooldownMinutes: number;
   }>().default({ preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 }),
+  subscriberCount: integer("subscriber_count"),
+  videoCount: integer("video_count"),
+  viewCount: integer("view_count"),
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({

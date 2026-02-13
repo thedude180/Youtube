@@ -154,6 +154,14 @@ export function setupGoogleAuth(app: Express) {
 
         if (user.claims?.sub) {
           try {
+            const { refreshAllUserChannelStats } = await import("./youtube");
+            await refreshAllUserChannelStats(user.claims.sub);
+            console.log(`[GoogleAuth] Refreshed YouTube channel stats for ${user.claims.sub}`);
+          } catch (statsErr) {
+            console.error("[GoogleAuth] Channel stats refresh on login failed:", statsErr);
+          }
+
+          try {
             const { startBacklogOnLogin } = await import("./backlog-manager");
             const backlogResult = await startBacklogOnLogin(user.claims.sub);
             if (backlogResult.started) {

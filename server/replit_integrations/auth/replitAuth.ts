@@ -117,9 +117,28 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/callback", (req, res, next) => {
     ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+    passport.authenticate(`replitauth:${req.hostname}`, (err: any, user: any) => {
+      if (err) return next(err);
+      if (!user) return res.redirect("/api/login");
+      req.logIn(user, async (loginErr) => {
+        if (loginErr) return next(loginErr);
+        const userId = user?.claims?.sub;
+        if (userId) {
+          try {
+            const { refreshAllUserChannelStats } = await import("../../youtube");
+            await refreshAllUserChannelStats(userId);
+          } catch (e) {
+            console.error("[ReplitAuth] Channel stats refresh on login failed:", e);
+          }
+          try {
+            const { startBacklogOnLogin } = await import("../../backlog-manager");
+            await startBacklogOnLogin(userId);
+          } catch (e) {
+            console.error("[ReplitAuth] Backlog start on login failed:", e);
+          }
+        }
+        res.redirect("/");
+      });
     })(req, res, next);
   });
 

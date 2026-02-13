@@ -80,6 +80,10 @@ export async function handleCallback(code: string, userId: string) {
   const existingChannels = await storage.getChannelsByUser(userId);
   const existingYt = existingChannels.find(c => c.platform === "youtube");
 
+  const subCount = ytChannel.statistics?.subscriberCount ? Number(ytChannel.statistics.subscriberCount) : null;
+  const vidCount = ytChannel.statistics?.videoCount ? Number(ytChannel.statistics.videoCount) : null;
+  const vwCount = ytChannel.statistics?.viewCount ? Number(ytChannel.statistics.viewCount) : null;
+
   const channelData = {
     userId,
     platform: "youtube" as const,
@@ -88,6 +92,9 @@ export async function handleCallback(code: string, userId: string) {
     accessToken: tokens.access_token || null,
     refreshToken: tokens.refresh_token || null,
     tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+    subscriberCount: subCount,
+    videoCount: vidCount,
+    viewCount: vwCount,
     settings: { preset: "normal" as const, autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
   };
 
@@ -98,6 +105,9 @@ export async function handleCallback(code: string, userId: string) {
       channelId: channelData.channelId,
       accessToken: channelData.accessToken,
       tokenExpiresAt: channelData.tokenExpiresAt,
+      subscriberCount: subCount,
+      videoCount: vidCount,
+      viewCount: vwCount,
       lastSyncAt: new Date(),
     };
     if (tokens.refresh_token) {
@@ -199,6 +209,35 @@ export async function fetchYouTubeChannelInfo(channelId: number) {
     viewCount: ch.statistics?.viewCount,
     uploadsPlaylistId: ch.contentDetails?.relatedPlaylists?.uploads,
   };
+}
+
+export async function refreshChannelStats(channelId: number): Promise<void> {
+  try {
+    const info = await fetchYouTubeChannelInfo(channelId);
+    const updates: any = { lastSyncAt: new Date() };
+    if (info.subscriberCount) updates.subscriberCount = Number(info.subscriberCount);
+    if (info.videoCount) updates.videoCount = Number(info.videoCount);
+    if (info.viewCount) updates.viewCount = Number(info.viewCount);
+    await storage.updateChannel(channelId, updates);
+  } catch (err) {
+    console.error(`[YouTube] Failed to refresh stats for channel ${channelId}:`, err);
+  }
+}
+
+export async function refreshAllUserChannelStats(userId: string): Promise<void> {
+  const userChannels = await storage.getChannelsByUser(userId);
+  const ytChannels = userChannels.filter(c => c.platform === "youtube" && c.accessToken);
+  for (const ch of ytChannels) {
+    await refreshChannelStats(ch.id);
+  }
+  if (ytChannels.length > 0) {
+    try {
+      const { autoDetectAndUpdateMetrics } = await import("./growth-programs-engine");
+      await autoDetectAndUpdateMetrics(userId);
+    } catch (err) {
+      console.error(`[YouTube] Failed to update growth metrics for ${userId}:`, err);
+    }
+  }
 }
 
 export async function fetchYouTubeVideos(channelId: number, maxResults = 200) {
