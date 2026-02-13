@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -33,8 +33,11 @@ import {
   Fingerprint,
   Shuffle,
   TrendingUp,
+  Sparkles,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
+
+const PipelineTab = lazy(() => import("@/pages/autopilot/PipelineTab"));
 
 interface StealthData {
   overallScore: number;
@@ -372,6 +375,10 @@ export default function Autopilot() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview" data-testid="tab-overview">Systems</TabsTrigger>
+          <TabsTrigger value="pipeline" data-testid="tab-pipeline">
+            <Sparkles className="h-3 w-3 mr-1" />
+            Pipeline
+          </TabsTrigger>
           <TabsTrigger value="queue" data-testid="tab-queue">Queue ({queue.length})</TabsTrigger>
           <TabsTrigger value="comments" data-testid="tab-comments">Comments ({comments.length})</TabsTrigger>
           <TabsTrigger value="stealth" data-testid="tab-stealth">
@@ -379,6 +386,12 @@ export default function Autopilot() {
             Stealth
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="pipeline" className="mt-4">
+          <Suspense fallback={<Skeleton className="h-64" />}>
+            <PipelineTab />
+          </Suspense>
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-3 mt-4">
           {FEATURES.map((feature) => {

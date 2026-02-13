@@ -2018,3 +2018,37 @@ export type WebhookEvent = typeof webhookEvents.$inferSelect;
 export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
 export type LocalizationRecommendation = typeof localizationRecommendations.$inferSelect;
 export type InsertLocalizationRecommendation = z.infer<typeof insertLocalizationRecommendationSchema>;
+
+export const PIPELINE_STEPS = [
+  { id: "analyze", label: "Analyze Content", description: "AI scans video for key moments, topics, and highlights" },
+  { id: "title", label: "Optimize Title", description: "Generate click-worthy titles with hooks and keywords" },
+  { id: "description", label: "Write Description", description: "SEO-optimized description with timestamps and links" },
+  { id: "tags", label: "Generate Tags", description: "Research and add high-performing tags and hashtags" },
+  { id: "thumbnail", label: "Thumbnail Ideas", description: "AI suggests thumbnail concepts that drive clicks" },
+  { id: "clips", label: "Extract Clips", description: "Find best moments for TikTok, Shorts, and Reels" },
+  { id: "repurpose", label: "Repurpose Content", description: "Create unique posts for each platform" },
+  { id: "schedule", label: "Schedule Posts", description: "Queue posts at peak hours with human-like timing" },
+] as const;
+
+export const contentPipeline = pgTable("content_pipeline", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  videoTitle: text("video_title").notNull(),
+  source: text("source").notNull().default("vod"),
+  currentStep: text("current_step").notNull().default("analyze"),
+  status: text("status").notNull().default("queued"),
+  completedSteps: text("completed_steps").array().notNull().default([]),
+  stepResults: jsonb("step_results").$type<Record<string, any>>().default({}),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("content_pipeline_user_id_idx").on(table.userId),
+  statusIdx: index("content_pipeline_status_idx").on(table.status),
+}));
+
+export const insertContentPipelineSchema = createInsertSchema(contentPipeline).omit({ id: true, createdAt: true });
+export type ContentPipeline = typeof contentPipeline.$inferSelect;
+export type InsertContentPipeline = z.infer<typeof insertContentPipelineSchema>;
