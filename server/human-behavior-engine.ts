@@ -202,10 +202,10 @@ export function getActivityWindow(): { start: number; end: number; isActive: boo
   };
 }
 
-export function calculateDailyPostBudget(platform: string): number {
+export function calculateDailyPostBudget(platform: string, date?: Date): number {
   const timing = PLATFORM_TIMING[platform] || PLATFORM_TIMING.x;
-  const now = new Date();
-  const weekend = isWeekend(now);
+  const targetDate = date || new Date();
+  const weekend = isWeekend(targetDate);
 
   let budget = timing.maxPostsPerDay;
   if (weekend) {
@@ -232,4 +232,112 @@ export function simulateTypingDelay(textLength: number): number {
   const typingMs = (textLength / charsPerMinute) * 60000;
   const thinkingMs = gaussianRandom(5000, 3000);
   return Math.max(2000, typingMs + thinkingMs);
+}
+
+export async function getAudienceDrivenTime(options: HumanScheduleOptions): Promise<Date> {
+  try {
+    const { getOptimalPostingTimes } = await import("./smart-scheduler");
+    const result = await getOptimalPostingTimes(options.userId, options.platform);
+
+    if (result.source === "data" && result.slots?.length > 0) {
+      const sorted = [...result.slots]
+        .filter((s: any) => s.dayOfWeek != null && s.hourOfDay != null && (s.activityLevel ?? 0) > 0)
+        .sort((a: any, b: any) => (b.activityLevel ?? 0) - (a.activityLevel ?? 0));
+
+      if (sorted.length > 0) {
+        const topSlots = sorted.slice(0, Math.min(5, sorted.length));
+        const picked = topSlots[Math.floor(Math.random() * topSlots.length)] as any;
+        const now = new Date();
+
+        if (options.urgency === "immediate") {
+          const delayMinutes = gaussianRandom(8, 4);
+          return new Date(now.getTime() + Math.max(3, delayMinutes) * 60000);
+        }
+
+        const candidate = new Date(now);
+        const currentDay = candidate.getDay();
+        let daysUntil = (picked.dayOfWeek - currentDay + 7) % 7;
+        if (daysUntil === 0 && candidate.getHours() >= (picked.hourOfDay + 1)) {
+          daysUntil = 7;
+        }
+        candidate.setDate(candidate.getDate() + daysUntil);
+        const minuteJitter = Math.floor(gaussianRandom(25, 15));
+        candidate.setHours(picked.hourOfDay, Math.max(0, Math.min(59, minuteJitter)), 0, 0);
+
+        return candidate;
+      }
+    }
+  } catch {
+  }
+
+  return generateHumanScheduledTime(options);
+}
+
+export async function getAudienceDrivenStaggeredSchedule(
+  platforms: string[],
+  contentType: "new-video" | "recycle" | "engagement",
+  userId: string,
+): Promise<Map<string, Date>> {
+  const schedule = new Map<string, Date>();
+  let lastTime = new Date();
+
+  const shuffled = [...platforms].sort(() => Math.random() - 0.5);
+
+  for (let i = 0; i < shuffled.length; i++) {
+    const platform = shuffled[i];
+    const timing = PLATFORM_TIMING[platform] || PLATFORM_TIMING.x;
+
+    let time: Date;
+    if (i === 0) {
+      time = await getAudienceDrivenTime({
+        platform,
+        userId,
+        contentType,
+        urgency: contentType === "new-video" ? "normal" : "low",
+      });
+    } else {
+      const gapMinutes = gaussianRandom(timing.avgGapMinutes, timing.avgGapMinutes * 0.3);
+      const actualGap = Math.max(timing.minGapMinutes, gapMinutes);
+      const afterGap = new Date(lastTime.getTime() + actualGap * 60000);
+
+      try {
+        const { getOptimalPostingTimes } = await import("./smart-scheduler");
+        const result = await getOptimalPostingTimes(userId, platform);
+
+        if (result.source === "data" && result.slots?.length > 0) {
+          const sorted = [...result.slots]
+            .filter((s: any) => s.dayOfWeek != null && s.hourOfDay != null && (s.activityLevel ?? 0) > 0)
+            .sort((a: any, b: any) => (b.activityLevel ?? 0) - (a.activityLevel ?? 0));
+
+          if (sorted.length > 0) {
+            const topSlots = sorted.slice(0, Math.min(5, sorted.length));
+            const picked = topSlots[Math.floor(Math.random() * topSlots.length)] as any;
+            const candidate = new Date(afterGap);
+            const currentDay = candidate.getDay();
+            let daysUntil = (picked.dayOfWeek - currentDay + 7) % 7;
+            candidate.setDate(candidate.getDate() + daysUntil);
+            candidate.setHours(picked.hourOfDay, Math.floor(Math.random() * 45) + 5, 0, 0);
+            if (candidate.getTime() < afterGap.getTime()) {
+              candidate.setDate(candidate.getDate() + 7);
+            }
+            time = candidate;
+          } else {
+            time = afterGap;
+          }
+        } else {
+          time = afterGap;
+        }
+      } catch {
+        time = afterGap;
+      }
+    }
+
+    const jitterMinutes = gaussianRandom(0, 7);
+    time = new Date(time.getTime() + jitterMinutes * 60000);
+
+    schedule.set(platform, time);
+    lastTime = time;
+  }
+
+  return schedule;
 }

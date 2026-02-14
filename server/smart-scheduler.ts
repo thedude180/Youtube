@@ -186,44 +186,22 @@ Analyze and recommend as JSON:
 
 export async function autoScheduleContent(userId: string, videoId: number, platforms: string[]) {
   try {
+    const { getAudienceDrivenTime } = await import("./human-behavior-engine");
     const video = await storage.getVideo(videoId);
     if (!video) return { scheduled: [], error: "Video not found" };
 
-    const scheduled: Array<{ platform: string; scheduledAt: Date; id: number }> = [];
+    const scheduled: Array<{ platform: string; scheduledAt: Date; id: number; source: string }> = [];
 
     for (const platform of platforms) {
+      const scheduledAt = await getAudienceDrivenTime({
+        platform,
+        userId,
+        contentType: "new-video",
+        urgency: "normal",
+      });
+
       const optimalTimes = await getOptimalPostingTimes(userId, platform);
-      const slots = optimalTimes.slots || [];
-
-      if (slots.length === 0) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(12, 0, 0, 0);
-
-        const item = await storage.createScheduleItem({
-          userId,
-          title: `${video.title} - ${platform}`,
-          type: video.type,
-          platform,
-          videoId,
-          status: "draft",
-          scheduledAt: tomorrow,
-          metadata: { autoScheduled: true } as any,
-        });
-        scheduled.push({ platform, scheduledAt: tomorrow, id: item.id });
-        continue;
-      }
-
-      const bestSlot = slots[0];
-      const now = new Date();
-      const targetDate = new Date();
-
-      const currentDay = now.getDay();
-      const targetDay = bestSlot.dayOfWeek ?? currentDay;
-      let daysUntil = targetDay - currentDay;
-      if (daysUntil <= 0) daysUntil += 7;
-      targetDate.setDate(now.getDate() + daysUntil);
-      targetDate.setHours(bestSlot.hourOfDay ?? 12, 0, 0, 0);
+      const source = optimalTimes.source === "data" ? "audience-data" : "default-timing";
 
       const item = await storage.createScheduleItem({
         userId,
@@ -232,10 +210,10 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
         platform,
         videoId,
         status: "draft",
-        scheduledAt: targetDate,
-        metadata: { autoScheduled: true, activityLevel: bestSlot.activityLevel } as any,
+        scheduledAt,
+        metadata: { autoScheduled: true, schedulingSource: source } as any,
       });
-      scheduled.push({ platform, scheduledAt: targetDate, id: item.id });
+      scheduled.push({ platform, scheduledAt, id: item.id, source });
     }
 
     return { scheduled, total: scheduled.length };

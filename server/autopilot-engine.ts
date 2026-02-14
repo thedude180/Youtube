@@ -5,8 +5,8 @@ import { sendSSEEvent } from "./routes/events";
 import OpenAI from "openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import {
-  generateHumanScheduledTime,
-  generateStaggeredSchedule,
+  getAudienceDrivenTime,
+  getAudienceDrivenStaggeredSchedule,
   addHumanMicroDelay,
   shouldPostToday,
   getActivityWindow,
@@ -111,7 +111,7 @@ async function generateFullThrottleDistribution(
   });
 
   const scheduleType = contentType === "cross-promo" ? "engagement" : contentType === "go-live" ? "new-video" : contentType === "post-stream" ? "new-video" : contentType;
-  const schedule = generateStaggeredSchedule(activePlatforms, scheduleType, userId);
+  const schedule = await getAudienceDrivenStaggeredSchedule(activePlatforms, scheduleType, userId);
 
   for (const platform of activePlatforms) {
     const budget = calculateDailyPostBudget(platform);
@@ -170,7 +170,7 @@ async function generateFullThrottleDistribution(
     }
 
     const urgency = contentType === "go-live" ? "immediate" as const : contentType === "new-video" || contentType === "post-stream" ? "normal" as const : "low" as const;
-    const scheduledAt = schedule.get(platform) || generateHumanScheduledTime({
+    const scheduledAt = schedule.get(platform) || await getAudienceDrivenTime({
       platform,
       userId,
       contentType: contentType === "go-live" || contentType === "post-stream" ? "new-video" : contentType as any,
@@ -198,13 +198,13 @@ async function generateFullThrottleDistribution(
         uniquenessScore: result.uniquenessScore,
         fingerprint: result.fingerprint,
         safetyGrade: safety.overallGrade,
-        schedulingMethod: "human-behavior-engine",
+        schedulingMethod: "audience-driven",
       },
     } as any);
   }
 
   await createNotification(userId, "autopilot", "Content distributed",
-    `${activePlatforms.length} platform${activePlatforms.length !== 1 ? "s" : ""} queued for "${video.title}" with human-like scheduling`,
+    `${activePlatforms.length} platform${activePlatforms.length !== 1 ? "s" : ""} queued for "${video.title}" with audience-driven scheduling`,
     "info");
 }
 
@@ -221,7 +221,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
 
   if (!result.content) return;
 
-  const scheduledAt = generateHumanScheduledTime({
+  const scheduledAt = await getAudienceDrivenTime({
     platform: "discord",
     userId,
     contentType: "new-video",
@@ -243,7 +243,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
       humanScore: result.stealthScore,
       uniquenessScore: result.uniquenessScore,
       fingerprint: result.fingerprint,
-      schedulingMethod: "human-behavior-engine",
+      schedulingMethod: "audience-driven",
     },
   } as any);
 }
@@ -280,7 +280,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
     });
 
     if (result.content) {
-      const scheduledAt = generateHumanScheduledTime({
+      const scheduledAt = await getAudienceDrivenTime({
         platform: "discord",
         userId,
         contentType: "new-video",
@@ -304,7 +304,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
           humanScore: result.stealthScore,
           uniquenessScore: result.uniquenessScore,
           fingerprint: result.fingerprint,
-          schedulingMethod: "human-behavior-engine",
+          schedulingMethod: "audience-driven",
         },
       } as any);
     }

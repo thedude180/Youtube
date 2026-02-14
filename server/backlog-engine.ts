@@ -633,53 +633,12 @@ export async function bulkOptimize(
 }
 
 export async function autoScheduleOptimizedContent(userId: string): Promise<number> {
-  const { generateStaggeredSchedule } = await import("./human-behavior-engine");
+  const { getAudienceDrivenTime, calculateDailyPostBudget } = await import("./human-behavior-engine");
   const { getOptimalPostingTimes } = await import("./smart-scheduler");
 
-  const PLATFORM_MAX_DAILY: Record<string, number> = {
-    youtube: 2, tiktok: 3, x: 5, discord: 2, twitch: 2, kick: 2,
-  };
   const PLATFORM_MIN_GAP: Record<string, number> = {
     youtube: 120, tiktok: 90, x: 45, discord: 180, twitch: 180, kick: 180,
   };
-  const WEEKEND_MULT: Record<string, number> = {
-    youtube: 0.7, tiktok: 1.2, x: 0.8, discord: 1.3, twitch: 1.1, kick: 1.1,
-  };
-
-  function getBudgetForDate(platform: string, date: Date): number {
-    const day = date.getDay();
-    const isWeekend = day === 0 || day === 6;
-    const base = PLATFORM_MAX_DAILY[platform] || 2;
-    let budget = isWeekend ? Math.round(base * (WEEKEND_MULT[platform] || 1)) : base;
-    const variance = Math.random() < 0.3 ? -1 : 0;
-    return Math.max(1, budget + variance);
-  }
-
-  function buildAudienceScheduledTime(
-    slots: Array<{ dayOfWeek: number | null; hourOfDay: number | null; activityLevel: number | null }>,
-    afterTime: Date,
-  ): Date {
-    const now = new Date(Math.max(afterTime.getTime(), Date.now()));
-    const sorted = [...slots]
-      .filter(s => s.dayOfWeek != null && s.hourOfDay != null && (s.activityLevel ?? 0) > 0)
-      .sort((a, b) => (b.activityLevel ?? 0) - (a.activityLevel ?? 0));
-
-    if (sorted.length === 0) return now;
-
-    const topSlots = sorted.slice(0, Math.min(5, sorted.length));
-    const picked = topSlots[Math.floor(Math.random() * topSlots.length)];
-
-    const candidate = new Date(now);
-    const currentDay = candidate.getDay();
-    let daysUntil = (picked.dayOfWeek! - currentDay + 7) % 7;
-    if (daysUntil === 0 && candidate.getHours() >= (picked.hourOfDay! + 1)) {
-      daysUntil = 7;
-    }
-    candidate.setDate(candidate.getDate() + daysUntil);
-    candidate.setHours(picked.hourOfDay!, Math.floor(Math.random() * 45) + 5, 0, 0);
-
-    return candidate;
-  }
 
   const allVideos = await storage.getVideosByUser(userId);
   const fullyOptimized = allVideos.filter(v => {
@@ -709,118 +668,75 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
 
   const platforms = ["youtube", "tiktok", "x", "discord"];
 
-  const audienceData = new Map<string, { source: string; slots: any[] }>();
+  const audienceSourceByPlatform = new Map<string, string>();
   for (const platform of platforms) {
     try {
       const result = await getOptimalPostingTimes(userId, platform);
-      if (result.source === "data" && result.slots?.length > 0) {
-        audienceData.set(platform, result);
-      }
+      audienceSourceByPlatform.set(platform, result.source === "data" ? "audience-data" : "default-timing");
     } catch {
+      audienceSourceByPlatform.set(platform, "default-timing");
     }
   }
 
   let totalScheduled = 0;
 
   for (const video of fullyOptimized) {
-    const hasAudienceData = audienceData.size > 0;
     let videoScheduledCount = 0;
-    let schedulingSource = hasAudienceData ? "audience-data" : "default-timing";
+    const sourcesUsed = new Set<string>();
 
-    if (hasAudienceData) {
-      for (const platform of platforms) {
-        const audience = audienceData.get(platform);
-        const afterTime = lastScheduledPerPlatform.get(platform) || now;
-        let scheduledTime: Date;
+    for (const platform of platforms) {
+      let scheduledTime = await getAudienceDrivenTime({
+        platform,
+        userId,
+        contentType: "new-video",
+        urgency: "normal",
+      });
 
-        if (audience) {
-          scheduledTime = buildAudienceScheduledTime(audience.slots, afterTime);
-        } else {
-          const fallback = generateStaggeredSchedule([platform], "new-video", userId);
-          scheduledTime = fallback.get(platform) || new Date(afterTime.getTime() + 3600000);
-        }
-
-        const minGap = (PLATFORM_MIN_GAP[platform] || 120) * 60000;
-        const lastForPlatform = lastScheduledPerPlatform.get(platform);
-        if (lastForPlatform && scheduledTime.getTime() - lastForPlatform.getTime() < minGap) {
-          scheduledTime = new Date(lastForPlatform.getTime() + minGap + Math.floor(Math.random() * 30) * 60000);
-        }
-
-        const finalDayKey = `${platform}:${scheduledTime.toISOString().slice(0, 10)}`;
-        const currentDayCount = scheduledPerPlatformPerDay.get(finalDayKey) || 0;
-        const budget = getBudgetForDate(platform, scheduledTime);
-        if (currentDayCount >= budget) continue;
-
-        try {
-          await storage.createScheduleItem({
-            userId,
-            title: video.title,
-            type: "social_post",
-            platform,
-            scheduledAt: scheduledTime,
-            status: "scheduled",
-            videoId: video.id,
-            metadata: {
-              description: `Scheduled using audience activity data`,
-              tags: video.metadata?.tags || [],
-              autoPublish: true,
-              crossPost: platforms,
-              aiOptimized: true,
-            },
-          });
-          videoScheduledCount++;
-          totalScheduled++;
-          scheduledPerPlatformPerDay.set(finalDayKey, currentDayCount + 1);
-          lastScheduledPerPlatform.set(platform, scheduledTime);
-        } catch (err: any) {
-          console.error(`[AutoSchedule] Failed for video ${video.id} on ${platform}:`, err.message);
-        }
+      const minGap = (PLATFORM_MIN_GAP[platform] || 120) * 60000;
+      const lastForPlatform = lastScheduledPerPlatform.get(platform);
+      if (lastForPlatform && scheduledTime.getTime() - lastForPlatform.getTime() < minGap) {
+        scheduledTime = new Date(lastForPlatform.getTime() + minGap + Math.floor(Math.random() * 30) * 60000);
       }
-    } else {
-      const staggeredSchedule = generateStaggeredSchedule(platforms, "new-video", userId);
 
-      for (const [platform, rawTime] of staggeredSchedule.entries()) {
-        let scheduledTime = new Date(rawTime);
+      const finalDayKey = `${platform}:${scheduledTime.toISOString().slice(0, 10)}`;
+      const currentDayCount = scheduledPerPlatformPerDay.get(finalDayKey) || 0;
+      const budget = calculateDailyPostBudget(platform, scheduledTime);
+      if (currentDayCount >= budget) continue;
 
-        const minGap = (PLATFORM_MIN_GAP[platform] || 120) * 60000;
-        const lastForPlatform = lastScheduledPerPlatform.get(platform);
-        if (lastForPlatform && scheduledTime.getTime() - lastForPlatform.getTime() < minGap) {
-          scheduledTime = new Date(lastForPlatform.getTime() + minGap + Math.floor(Math.random() * 30) * 60000);
-        }
+      const source = audienceSourceByPlatform.get(platform) || "default-timing";
+      sourcesUsed.add(source);
 
-        const finalDayKey = `${platform}:${scheduledTime.toISOString().slice(0, 10)}`;
-        const currentDayCount = scheduledPerPlatformPerDay.get(finalDayKey) || 0;
-        const budget = getBudgetForDate(platform, scheduledTime);
-        if (currentDayCount >= budget) continue;
-
-        try {
-          await storage.createScheduleItem({
-            userId,
-            title: video.title,
-            type: "social_post",
-            platform,
-            scheduledAt: scheduledTime,
-            status: "scheduled",
-            videoId: video.id,
-            metadata: {
-              description: `Scheduled using default timing (no audience data yet)`,
-              tags: video.metadata?.tags || [],
-              autoPublish: true,
-              crossPost: platforms,
-              aiOptimized: true,
-            },
-          });
-          videoScheduledCount++;
-          totalScheduled++;
-          scheduledPerPlatformPerDay.set(finalDayKey, currentDayCount + 1);
-          lastScheduledPerPlatform.set(platform, scheduledTime);
-        } catch (err: any) {
-          console.error(`[AutoSchedule] Failed for video ${video.id} on ${platform}:`, err.message);
-        }
+      try {
+        await storage.createScheduleItem({
+          userId,
+          title: video.title,
+          type: "social_post",
+          platform,
+          scheduledAt: scheduledTime,
+          status: "scheduled",
+          videoId: video.id,
+          metadata: {
+            description: source === "audience-data"
+              ? `Scheduled using audience activity data`
+              : `Scheduled using default timing (no audience data yet)`,
+            tags: video.metadata?.tags || [],
+            autoPublish: true,
+            crossPost: platforms,
+            aiOptimized: true,
+            schedulingSource: source,
+          },
+        });
+        videoScheduledCount++;
+        totalScheduled++;
+        scheduledPerPlatformPerDay.set(finalDayKey, currentDayCount + 1);
+        lastScheduledPerPlatform.set(platform, scheduledTime);
+      } catch (err: any) {
+        console.error(`[AutoSchedule] Failed for video ${video.id} on ${platform}:`, err.message);
       }
     }
 
     if (videoScheduledCount > 0) {
+      const schedulingSource = sourcesUsed.has("audience-data") ? "audience-data" : "default-timing";
       const updatedAutoMeta: any = { ...video.metadata, autoScheduled: true, autoScheduledAt: new Date().toISOString(), schedulingSource };
       await storage.updateVideo(video.id, { metadata: updatedAutoMeta });
 
