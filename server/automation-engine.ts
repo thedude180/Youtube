@@ -392,6 +392,24 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("15 */2 * * *", async () => {
+    try {
+      const { autoScheduleOptimizedContent } = await import("./backlog-engine");
+      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+      for (const userId of userIds) {
+        if (!userId) continue;
+        const count = await autoScheduleOptimizedContent(userId);
+        if (count > 0) {
+          console.log(`[AutomationEngine] Auto-scheduled ${count} post(s) with human-like timing for ${userId}`);
+          sendSSEEvent(userId, { type: "schedule_updated", data: { scheduled: count } });
+        }
+      }
+    } catch (err) {
+      console.error("[AutomationEngine] Auto-schedule optimized content error:", err);
+    }
+  });
+
   cron.schedule("0 */12 * * *", async () => {
     try {
       const { processCrossPromotion } = await import("./autopilot-engine");

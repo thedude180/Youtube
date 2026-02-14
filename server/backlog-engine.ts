@@ -633,6 +633,45 @@ export async function bulkOptimize(
 }
 
 export async function autoScheduleOptimizedContent(userId: string): Promise<number> {
+  const {
+    generateStaggeredSchedule,
+    calculateDailyPostBudget,
+  } = await import("./human-behavior-engine");
+
+  const PLATFORM_MAX_DAILY: Record<string, number> = {
+    youtube: 2, tiktok: 3, x: 5, discord: 2, twitch: 2, kick: 2,
+  };
+  const PLATFORM_MIN_GAP: Record<string, number> = {
+    youtube: 120, tiktok: 90, x: 45, discord: 180, twitch: 180, kick: 180,
+  };
+  const TIMEZONE_OFFSET = -5;
+
+  function getLocalHour(d: Date): number {
+    return ((d.getUTCHours() + TIMEZONE_OFFSET) % 24 + 24) % 24;
+  }
+  function snapToValidHours(d: Date): Date {
+    const localHour = getLocalHour(d);
+    if (localHour >= 8 && localHour <= 23) return d;
+    const snapped = new Date(d);
+    const targetUtcHour = ((10 - TIMEZONE_OFFSET) % 24 + 24) % 24;
+    snapped.setUTCHours(targetUtcHour, Math.floor(Math.random() * 45) + 5, 0, 0);
+    if (snapped.getTime() <= d.getTime()) {
+      snapped.setTime(snapped.getTime() + 86400000);
+    }
+    return snapped;
+  }
+  function getBudgetForDate(platform: string, date: Date): number {
+    const day = date.getDay();
+    const isWeekend = day === 0 || day === 6;
+    const base = PLATFORM_MAX_DAILY[platform] || 2;
+    const WEEKEND_MULT: Record<string, number> = {
+      youtube: 0.7, tiktok: 1.2, x: 0.8, discord: 1.3, twitch: 1.1, kick: 1.1,
+    };
+    let budget = isWeekend ? Math.round(base * (WEEKEND_MULT[platform] || 1)) : base;
+    const variance = Math.random() < 0.3 ? -1 : 0;
+    return Math.max(1, budget + variance);
+  }
+
   const allVideos = await storage.getVideosByUser(userId);
   const fullyOptimized = allVideos.filter(v => {
     const score = calculateOptimizationScore(v.metadata);
@@ -640,53 +679,94 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
     return score >= 80 && meta?.chainCompleted && !meta?.autoScheduled;
   });
 
-  let scheduled = 0;
-  for (const video of fullyOptimized) {
-    const platforms = ["youtube", "tiktok", "x", "instagram"];
-    const baseTime = new Date();
-    baseTime.setHours(baseTime.getHours() + 2 + scheduled * 4);
+  if (fullyOptimized.length === 0) return 0;
 
-    for (const platform of platforms) {
+  const now = new Date();
+  const fourteenDaysOut = new Date(now.getTime() + 14 * 86400000);
+  const existingSchedule = await storage.getScheduleItems(userId, now, fourteenDaysOut);
+
+  const scheduledPerPlatformPerDay = new Map<string, number>();
+  const lastScheduledPerPlatform = new Map<string, Date>();
+  for (const item of existingSchedule) {
+    if (item.status === "cancelled") continue;
+    const dayKey = `${item.platform}:${new Date(item.scheduledAt).toISOString().slice(0, 10)}`;
+    scheduledPerPlatformPerDay.set(dayKey, (scheduledPerPlatformPerDay.get(dayKey) || 0) + 1);
+    const itemTime = new Date(item.scheduledAt);
+    const existing = lastScheduledPerPlatform.get(item.platform || "");
+    if (!existing || itemTime > existing) {
+      lastScheduledPerPlatform.set(item.platform || "", itemTime);
+    }
+  }
+
+  const platforms = ["youtube", "tiktok", "x", "discord"];
+  let totalScheduled = 0;
+
+  for (const video of fullyOptimized) {
+    const staggeredSchedule = generateStaggeredSchedule(platforms, "new-video", userId);
+    let videoScheduledCount = 0;
+
+    for (const [platform, rawTime] of staggeredSchedule.entries()) {
+      let scheduledTime = new Date(rawTime);
+
+      const minGap = (PLATFORM_MIN_GAP[platform] || 120) * 60000;
+      const lastForPlatform = lastScheduledPerPlatform.get(platform);
+      if (lastForPlatform && scheduledTime.getTime() - lastForPlatform.getTime() < minGap) {
+        scheduledTime = new Date(lastForPlatform.getTime() + minGap + Math.floor(Math.random() * 30) * 60000);
+      }
+
+      scheduledTime = snapToValidHours(scheduledTime);
+
+      const finalDayKey = `${platform}:${scheduledTime.toISOString().slice(0, 10)}`;
+      const currentDayCount = scheduledPerPlatformPerDay.get(finalDayKey) || 0;
+      const budget = getBudgetForDate(platform, scheduledTime);
+      if (currentDayCount >= budget) continue;
+
       try {
         await storage.createScheduleItem({
           userId,
-          title: `Share: ${video.title}`,
+          title: video.title,
           type: "social_post",
           platform,
-          scheduledAt: new Date(baseTime.getTime() + platforms.indexOf(platform) * 3600000),
+          scheduledAt: scheduledTime,
           status: "scheduled",
           videoId: video.id,
           metadata: {
-            description: `Auto-scheduled social post for optimized video`,
+            description: `AI-optimized & auto-scheduled using human-like timing`,
             tags: video.metadata?.tags || [],
             autoPublish: true,
             crossPost: platforms,
             aiOptimized: true,
           },
         });
-        scheduled++;
+        videoScheduledCount++;
+        totalScheduled++;
+        scheduledPerPlatformPerDay.set(finalDayKey, currentDayCount + 1);
+        lastScheduledPerPlatform.set(platform, scheduledTime);
       } catch (err: any) {
-        console.error(`Failed to auto-schedule for video ${video.id} on ${platform}:`, err.message);
+        console.error(`[AutoSchedule] Failed for video ${video.id} on ${platform}:`, err.message);
       }
     }
 
-    const updatedAutoMeta: any = { ...video.metadata, autoScheduled: true, autoScheduledAt: new Date().toISOString() };
-    await storage.updateVideo(video.id, { metadata: updatedAutoMeta });
+    if (videoScheduledCount > 0) {
+      const updatedAutoMeta: any = { ...video.metadata, autoScheduled: true, autoScheduledAt: new Date().toISOString() };
+      await storage.updateVideo(video.id, { metadata: updatedAutoMeta });
 
-    await storage.createAgentActivity({
-      userId,
-      agentId: "social_manager",
-      action: `Auto-scheduled "${video.title}" across ${platforms.length} platforms`,
-      target: video.title,
-      status: "completed",
-      details: {
-        description: `Automatically scheduled social media posts for fully optimized video across ${platforms.join(", ")}`,
-        impact: `${platforms.length} posts scheduled for optimal engagement times`,
-      },
-    });
+      await storage.createAgentActivity({
+        userId,
+        agentId: "social_manager",
+        action: `Auto-scheduled "${video.title}" across ${videoScheduledCount} platform(s) with human-like timing`,
+        target: video.title,
+        status: "completed",
+        details: {
+          description: `Scheduled using peak hours, daily budgets, and natural gaps within platform limits`,
+          impact: `${videoScheduledCount} posts scheduled at optimal times`,
+        },
+      });
+      console.log(`[AutoSchedule] Scheduled "${video.title}" across ${videoScheduledCount} platform(s) for user ${userId}`);
+    }
   }
 
-  return scheduled;
+  return totalScheduled;
 }
 
 export async function getStaleVideos(userId: string): Promise<any[]> {
