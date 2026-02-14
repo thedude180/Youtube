@@ -100,12 +100,10 @@ function UpdatedVideosTab() {
     );
   }
 
-  const updatedYoutubeIds = new Set<string>();
   const grouped = new Map<string, SyncLog[]>();
   if (syncLogs) {
     for (const log of syncLogs) {
       const youtubeId = log.details?.youtubeId || "unknown";
-      updatedYoutubeIds.add(youtubeId);
       if (!grouped.has(youtubeId)) {
         grouped.set(youtubeId, []);
       }
@@ -126,8 +124,6 @@ function UpdatedVideosTab() {
   });
 
   const processingEntries = (processing || []).filter(p => p.status === "queued" || p.status === "processing");
-
-  const processingVideoIds = new Set(processingEntries.map(p => p.videoId).filter(Boolean));
 
   const publicVideos = (allVideos || []).filter((v: VideoEntry) =>
     v.status === "published" || v.status === "public"
@@ -249,7 +245,7 @@ function UpdatedVideosTab() {
       <section data-testid="section-public-videos">
         <div className="flex items-center gap-2 mb-3">
           <Eye className="h-4 w-4 text-blue-500" />
-          <h3 className="font-semibold text-sm">Public Videos</h3>
+          <h3 className="font-semibold text-sm">Public on YouTube</h3>
           <Badge variant="secondary" className="text-xs">{publicVideos.length}</Badge>
         </div>
         {publicVideos.length === 0 ? (
@@ -262,8 +258,6 @@ function UpdatedVideosTab() {
           <div className="space-y-2">
             {publicVideos.map((video: VideoEntry) => {
               const youtubeId = video.metadata?.youtubeId;
-              const isUpdated = youtubeId && updatedYoutubeIds.has(youtubeId);
-              const isProcessing = processingVideoIds.has(video.id);
               return (
                 <Card key={video.id} data-testid={`card-public-video-${video.id}`}>
                   <CardContent className="p-3">
@@ -278,18 +272,6 @@ function UpdatedVideosTab() {
                             <Badge variant="outline" className="text-xs">
                               {video.type === "short" ? "Short" : "VOD"}
                             </Badge>
-                            {isUpdated && (
-                              <Badge variant="secondary" className="text-xs">
-                                <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
-                                Optimized
-                              </Badge>
-                            )}
-                            {isProcessing && (
-                              <Badge variant="secondary" className="text-xs">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                In Progress
-                              </Badge>
-                            )}
                           </div>
                         </div>
                       </div>
