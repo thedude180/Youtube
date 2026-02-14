@@ -202,8 +202,8 @@ export default function ExpensesTab() {
 
   if (expensesLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
@@ -216,7 +216,7 @@ export default function ExpensesTab() {
   if (expensesError) return <QueryErrorReset error={expensesError} queryKey={["/api/expenses"]} label="Failed to load expenses" />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-expenses-title" className="text-lg font-semibold">Expense Tracker</h2>
         <div className="flex items-center gap-2 flex-wrap">
@@ -325,9 +325,9 @@ export default function ExpensesTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Total Expenses</span>
@@ -338,7 +338,7 @@ export default function ExpensesTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Tax Deductible</span>
@@ -349,7 +349,7 @@ export default function ExpensesTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <Tag className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Top Category</span>
@@ -388,7 +388,7 @@ export default function ExpensesTab() {
           <CardContent className="p-0">
             <div className="divide-y divide-border/50">
               {filteredExpenses.map((expense: any) => (
-                <div key={expense.id} data-testid={`row-expense-${expense.id}`} className="px-6 py-4 flex items-center justify-between gap-4">
+                <div key={expense.id} data-testid={`row-expense-${expense.id}`} className="px-3 py-2 flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium" data-testid={`text-description-${expense.id}`}>{expense.description}</span>

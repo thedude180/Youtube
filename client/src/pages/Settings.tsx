@@ -1812,7 +1812,7 @@ function GeneralTab() {
         <CardHeader className="pb-0">
           <CardTitle className="text-base">AI Autonomy</CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-3 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <Label htmlFor="human-review" className="text-sm font-medium">Human Review Mode</Label>
@@ -1837,7 +1837,7 @@ function GeneralTab() {
             Notification Preferences
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-3 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <Label htmlFor="notif-compliance" className="text-sm font-medium">Compliance Warnings</Label>
@@ -1899,7 +1899,7 @@ function GeneralTab() {
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-3">
+        <CardContent className="p-3 space-y-3">
           {(() => {
             const FOCUSED_PLATFORMS = [
               { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true },
@@ -2035,7 +2035,7 @@ function GeneralTab() {
             {t("settings.language")}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-3 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium">{t("settings.selectLanguage")}</p>
@@ -2071,7 +2071,7 @@ function GeneralTab() {
         <CardHeader className="pb-0">
           <CardTitle className="text-base">{t("settings.account") || "Account"}</CardTitle>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-3">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium" data-testid="text-settings-user-name">{userName}</p>
@@ -4857,7 +4857,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
       <div>
         <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Settings</h1>
         <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground">Manage your account, brand, and tools</p>

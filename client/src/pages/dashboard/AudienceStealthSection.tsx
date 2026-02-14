@@ -19,7 +19,7 @@ export default function AudienceStealthSection() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <Skeleton className="h-40 rounded-xl" />
         <Skeleton className="h-40 rounded-xl" />
       </div>
@@ -35,10 +35,10 @@ export default function AudienceStealthSection() {
   );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
       <Card data-testid="card-audience-insights">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <CardContent className="p-3">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Users className="h-4 w-4 text-purple-400" />
             <span className="text-sm font-medium">Audience Activity</span>
             <Badge
@@ -87,8 +87,8 @@ export default function AudienceStealthSection() {
       </Card>
 
       <Card data-testid="card-stealth-status">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <CardContent className="p-3">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Shield className="h-4 w-4 text-emerald-400" />
             <span className="text-sm font-medium">Stealth Engine</span>
             {stealthReport && (

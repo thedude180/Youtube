@@ -311,7 +311,7 @@ export default function Autopilot() {
 
   if (statsQuery.isLoading) {
     return (
-      <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
+      <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto">
         <Skeleton className="h-10 w-60" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-28" />)}
@@ -324,7 +324,7 @@ export default function Autopilot() {
   const activeFeatureCount = Object.values(stats?.featureStatuses || {}).filter(Boolean).length;
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto overflow-y-auto h-full">
+    <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto overflow-y-auto h-full">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Rocket className="h-6 w-6 text-primary" />
@@ -621,7 +621,7 @@ export default function Autopilot() {
 
         <TabsContent value="stealth" className="space-y-4 mt-4">
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3">
               <div className="flex items-center gap-3 mb-4">
                 <Shield className="h-5 w-5 text-emerald-500" />
                 <h3 className="font-semibold">Stealth Report</h3>

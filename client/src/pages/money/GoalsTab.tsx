@@ -87,8 +87,8 @@ export default function GoalsTab() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid gap-4">
+      <div className="space-y-3">
+        <div className="grid gap-2">
           <Skeleton className="h-40 rounded-xl" />
           <Skeleton className="h-40 rounded-xl" />
         </div>
@@ -99,7 +99,7 @@ export default function GoalsTab() {
   if (error) return <QueryErrorReset error={error} queryKey={["/api/goals"]} label="Failed to load goals" />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-goals-title" className="text-lg font-semibold">Business Goals</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -180,7 +180,7 @@ export default function GoalsTab() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-2">
           {goals.map((goal: any) => {
             const current = goal.currentValue || 0;
             const target = goal.targetValue || 1;

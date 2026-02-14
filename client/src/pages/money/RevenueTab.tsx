@@ -136,8 +136,8 @@ export default function RevenueTab() {
 
   if (revenueLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
@@ -158,7 +158,7 @@ export default function RevenueTab() {
   const platformStatuses = syncStatus?.platformStatuses || {};
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-revenue-title" className="text-lg font-semibold">Revenue</h2>
         <div className="flex items-center gap-2 flex-wrap">
@@ -369,7 +369,7 @@ export default function RevenueTab() {
       <CollapsibleToolbox title="AI Financial Tools" toolCount={2} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       {aiInsightsLoading && (
         <Card data-testid="card-ai-financial-insights-loading">
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-3 space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               <Skeleton className="h-5 w-48" />
@@ -486,7 +486,7 @@ export default function RevenueTab() {
 
       {aiPLReportLoading && (
         <Card data-testid="card-ai-pl-report-loading">
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-3 space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               <Skeleton className="h-5 w-40" />
@@ -625,9 +625,9 @@ export default function RevenueTab() {
       )}
       </CollapsibleToolbox>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Total Revenue</span>
@@ -638,7 +638,7 @@ export default function RevenueTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">This Month</span>
@@ -649,7 +649,7 @@ export default function RevenueTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Avg per Record</span>
@@ -697,7 +697,7 @@ export default function RevenueTab() {
           <CardContent className="p-0">
             <div className="divide-y divide-border/50">
               {revenueRecords.map((record: any) => (
-                <div key={record.id} data-testid={`row-revenue-${record.id}`} className="px-6 py-4 flex items-center justify-between gap-4">
+                <div key={record.id} data-testid={`row-revenue-${record.id}`} className="px-3 py-2 flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium capitalize" data-testid={`text-source-${record.id}`}>{record.source}</span>

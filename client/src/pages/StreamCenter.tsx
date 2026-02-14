@@ -707,12 +707,12 @@ export default function StreamCenter() {
     ));
   };
 
-  if (destError) return <div className="p-6 lg:p-8 max-w-5xl mx-auto"><QueryErrorReset error={destError} queryKey={["/api/stream-destinations"]} label="Failed to load stream destinations" /></div>;
-  if (streamsError) return <div className="p-6 lg:p-8 max-w-5xl mx-auto"><QueryErrorReset error={streamsError} queryKey={["/api/streams"]} label="Failed to load streams" /></div>;
-  if (channelsError) return <div className="p-6 lg:p-8 max-w-5xl mx-auto"><QueryErrorReset error={channelsError} queryKey={["/api/channels"]} label="Failed to load channels" /></div>;
+  if (destError) return <div className="p-3 lg:p-4 max-w-5xl mx-auto"><QueryErrorReset error={destError} queryKey={["/api/stream-destinations"]} label="Failed to load stream destinations" /></div>;
+  if (streamsError) return <div className="p-3 lg:p-4 max-w-5xl mx-auto"><QueryErrorReset error={streamsError} queryKey={["/api/streams"]} label="Failed to load streams" /></div>;
+  if (channelsError) return <div className="p-3 lg:p-4 max-w-5xl mx-auto"><QueryErrorReset error={channelsError} queryKey={["/api/channels"]} label="Failed to load channels" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Stream Center</h1>
         <div className="flex items-center gap-2">

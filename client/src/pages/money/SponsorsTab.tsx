@@ -152,8 +152,8 @@ export default function SponsorsTab() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2">
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
@@ -171,11 +171,11 @@ export default function SponsorsTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <CollapsibleToolbox title="AI Sponsorship Tools" toolCount={2} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       {aiSponsorshipLoading && (
         <Card data-testid="card-ai-sponsorship-loading">
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-3 space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               <Skeleton className="h-5 w-48" />
@@ -321,7 +321,7 @@ export default function SponsorsTab() {
 
       {aiMediaKitLoading && (
         <Card data-testid="card-ai-media-kit-loading">
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-3 space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               <Skeleton className="h-5 w-40" />
@@ -491,9 +491,9 @@ export default function SponsorsTab() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Total Pipeline</span>
@@ -504,7 +504,7 @@ export default function SponsorsTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Active Deals</span>
@@ -513,7 +513,7 @@ export default function SponsorsTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Completed Total</span>
@@ -555,7 +555,7 @@ export default function SponsorsTab() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-2">
           {filtered.map((deal: any) => (
             <Card key={deal.id} data-testid={`card-deal-${deal.id}`}>
               <CardHeader className="pb-2">

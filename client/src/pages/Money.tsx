@@ -143,7 +143,7 @@ export default function Money() {
 
   if (isLoading) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+      <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
         <Skeleton className="h-8 w-48" data-testid="skeleton-title" />
         <Skeleton className="h-10 w-full rounded-md" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -158,16 +158,16 @@ export default function Money() {
 
   if (activeError) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+      <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
         <QueryErrorReset error={activeError instanceof Error ? activeError : null} queryKey={activeErrorQueryKey} label={`Failed to load ${activeTab}`} />
       </div>
     );
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
       <div>
-        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Money & Business</h1>
+        <h1 data-testid="text-page-title" className="text-xl font-display font-bold">Money & Business</h1>
         <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground mt-1">Revenue, expenses, taxes, ventures & deals</p>
       </div>
 
@@ -199,32 +199,32 @@ export default function Money() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="revenue" className="mt-4">
+        <TabsContent value="revenue" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazyRevenueTab />
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="opportunities" className="mt-4">
+        <TabsContent value="opportunities" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazyOpportunitiesTab />
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="expenses" className="mt-4">
+        <TabsContent value="expenses" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazyExpensesTab />
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="taxes" className="mt-4">
+        <TabsContent value="taxes" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazyTaxTab />
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="payments" className="mt-4">
-          <div className="space-y-6">
+        <TabsContent value="payments" className="mt-2">
+          <div className="space-y-3">
             <div className="flex justify-between items-center gap-4 flex-wrap">
               <h2 data-testid="text-payments-title" className="text-lg font-semibold">Stripe Payments</h2>
               <Dialog open={paymentDialogOpen} onOpenChange={(open) => { setPaymentDialogOpen(open); if (!open) setPaymentUrl(""); }}>
@@ -335,17 +335,17 @@ export default function Money() {
           </div>
         </TabsContent>
 
-        <TabsContent value="ventures" className="mt-4">
+        <TabsContent value="ventures" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazyVenturesTab />
           </Suspense>
         </TabsContent>
-        <TabsContent value="goals" className="mt-4">
+        <TabsContent value="goals" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazyGoalsTab />
           </Suspense>
         </TabsContent>
-        <TabsContent value="sponsors" className="mt-4">
+        <TabsContent value="sponsors" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazySponsorsTab />
           </Suspense>

@@ -37,13 +37,13 @@ export default function BusinessHealthSection({ healthAreas, getHealthStatus, st
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
             {healthAreas.map((area) => {
               const health = getHealthStatus(area.key);
               const Icon = area.icon;
               return (
                 <Link key={area.key} href={area.link}>
-                  <div className="flex flex-col items-center gap-2 p-3 rounded-md hover-elevate cursor-pointer" data-testid={`health-${area.key}`}>
+                  <div className="flex flex-col items-center gap-1.5 p-2 rounded-md hover-elevate cursor-pointer" data-testid={`health-${area.key}`}>
                     <div className="relative">
                       <Icon className="h-5 w-5 text-muted-foreground" />
                       <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ${statusDot(health.status)}`} />

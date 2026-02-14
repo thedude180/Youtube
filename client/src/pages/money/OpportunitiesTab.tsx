@@ -134,9 +134,9 @@ export default function OpportunitiesTab() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-2">
         <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Skeleton className="h-20 rounded-xl" />
           <Skeleton className="h-20 rounded-xl" />
           <Skeleton className="h-20 rounded-xl" />
@@ -169,7 +169,7 @@ export default function OpportunitiesTab() {
   const lowCount = opportunities.filter((o: any) => o.priority === "low").length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-opportunities-title" className="text-lg font-semibold">Opportunities</h2>
         <Badge
@@ -182,7 +182,7 @@ export default function OpportunitiesTab() {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Card>
           <CardContent className="p-3">
             <p className="text-xs text-muted-foreground">Total Revenue</p>

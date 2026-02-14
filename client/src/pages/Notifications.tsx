@@ -85,7 +85,7 @@ export default function Notifications() {
 
   if (isLoading) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-3xl mx-auto">
+      <div className="p-3 lg:p-4 space-y-3 max-w-3xl mx-auto">
         <Skeleton className="h-8 w-48" />
         <div className="flex gap-2">
           {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-9 w-20 rounded-md" />)}
@@ -99,14 +99,14 @@ export default function Notifications() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-3xl mx-auto">
+      <div className="p-3 lg:p-4 space-y-3 max-w-3xl mx-auto">
         <QueryErrorReset error={error} queryKey={["/api/notifications"]} label="Failed to load notifications" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-3xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Notifications</h1>

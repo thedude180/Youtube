@@ -66,9 +66,9 @@ export default function Content() {
   const { t } = useTranslation();
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-6xl mx-auto">
       <div>
-        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">{t("content.title")}</h1>
+        <h1 data-testid="text-page-title" className="text-xl font-display font-bold">{t("content.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t("content.subtitle", "Manage your videos, channels, and schedule")}</p>
       </div>
 
@@ -91,25 +91,25 @@ export default function Content() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="library" className="mt-4">
+        <TabsContent value="library" className="mt-2">
           <LibraryTab isAdvanced={isAdvanced} />
         </TabsContent>
-        <TabsContent value="updated" className="mt-4">
+        <TabsContent value="updated" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <UpdatedVideosTab />
           </Suspense>
         </TabsContent>
-        <TabsContent value="channels" className="mt-4">
+        <TabsContent value="channels" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <ChannelsTab />
           </Suspense>
         </TabsContent>
-        <TabsContent value="calendar" className="mt-4">
+        <TabsContent value="calendar" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <CalendarTab />
           </Suspense>
         </TabsContent>
-        <TabsContent value="localization" className="mt-4">
+        <TabsContent value="localization" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LocalizationTab />
           </Suspense>

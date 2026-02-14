@@ -73,7 +73,7 @@ export default function AccessCodes() {
   const usedCodes = codes?.filter((c: any) => !c.active) || [];
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-3 max-w-3xl mx-auto space-y-3">
       <div className="flex items-center gap-3 mb-2">
         <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
           <KeyRound className="h-5 w-5 text-primary-foreground" />

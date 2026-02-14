@@ -92,7 +92,7 @@ export default function TaxTab() {
 
   if (taxLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-3">
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -102,7 +102,7 @@ export default function TaxTab() {
   if (taxError) return <QueryErrorReset error={taxError} queryKey={['/api/tax-estimates', '?year=2026']} label="Failed to load tax data" />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <Card>
         <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
@@ -151,7 +151,7 @@ export default function TaxTab() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             {taxEstimates.map((est: any, idx: number) => (
               <Card key={est.id || idx} data-testid={`card-quarter-${idx}`}>
                 <CardHeader className="pb-2">
@@ -242,7 +242,7 @@ export default function TaxTab() {
           {selectedState && (
             <div data-testid="text-state-info" className="space-y-2 text-sm">
               <p className="font-medium">{selectedState} Tax Information</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-muted-foreground">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-muted-foreground">
                 <div>
                   <p className="font-medium text-foreground mb-1">Filing Requirements</p>
                   <p>State income tax return required if you earned income in {selectedState}. Self-employed individuals must file quarterly estimates.</p>

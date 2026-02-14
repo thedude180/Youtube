@@ -60,9 +60,9 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center shrink-0">
+      <SidebarHeader className="p-3">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center shrink-0">
             <Zap className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
@@ -118,15 +118,15 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-3">
+      <SidebarFooter className="p-2">
         {isLoading ? (
-          <div className="flex items-center gap-3 p-2">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <Skeleton className="h-4 w-24" />
+          <div className="flex items-center gap-2 p-1.5">
+            <Skeleton className="h-7 w-7 rounded-full" />
+            <Skeleton className="h-4 w-20" />
           </div>
         ) : user ? (
-          <div className="flex items-center gap-3 p-2">
-            <Avatar className="h-8 w-8">
+          <div className="flex items-center gap-2 p-1.5">
+            <Avatar className="h-7 w-7">
               {user.profileImageUrl && <AvatarImage src={user.profileImageUrl} alt={userName} />}
               <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
             </Avatar>

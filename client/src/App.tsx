@@ -101,8 +101,8 @@ function Router() {
 
 function AppFooter() {
   return (
-    <footer className="border-t border-border mt-8 py-4 px-6" data-testid="app-footer">
-      <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+    <footer className="border-t border-border mt-3 py-2 px-3" data-testid="app-footer">
+      <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-muted-foreground">CreatorOS</p>
         <div className="flex items-center gap-4">
           <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-privacy">
@@ -341,7 +341,7 @@ function AuthenticatedApp() {
         </a>
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-4 border-b border-border bg-background shrink-0">
+          <header className="sticky top-0 z-40 flex items-center justify-between gap-1 h-10 px-3 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden" />
               <div className="hidden md:flex items-center gap-2">

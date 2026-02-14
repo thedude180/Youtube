@@ -26,9 +26,9 @@ export default function AIActionCenter({ aiActions, aiActionsLoading }: AIAction
             <Badge variant="secondary" className="text-xs">Auto-running</Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-2">
           {aiActionsLoading ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Skeleton className="h-4 w-3/4" />
               <Skeleton className="h-12 rounded-md" />
               <Skeleton className="h-12 rounded-md" />
@@ -42,7 +42,7 @@ export default function AIActionCenter({ aiActions, aiActionsLoading }: AIAction
                 <div className="space-y-2">
                   <p className="text-xs font-medium">What AI is handling</p>
                   {(aiActions as any).actionItems.slice(0, 4).map((item: any, i: number) => (
-                    <div key={i} className="flex items-start gap-3 p-2 rounded-md bg-muted/30" data-testid={`ai-action-${i}`}>
+                    <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-muted/30" data-testid={`ai-action-${i}`}>
                       <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${
                         item.priority === "high" ? "bg-red-400" : item.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"
                       }`} />
@@ -66,7 +66,7 @@ export default function AIActionCenter({ aiActions, aiActionsLoading }: AIAction
                 <div className="space-y-2">
                   <p className="text-xs font-medium">Opportunities detected</p>
                   {(aiActions as any).opportunities.slice(0, 3).map((opp: any, i: number) => (
-                    <div key={i} className="flex items-start gap-3 p-2 rounded-md bg-purple-500/5" data-testid={`ai-opportunity-${i}`}>
+                    <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-purple-500/5" data-testid={`ai-opportunity-${i}`}>
                       <TrendingUp className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium">{opp.title}</p>

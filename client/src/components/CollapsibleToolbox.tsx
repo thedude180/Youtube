@@ -37,10 +37,10 @@ export function CollapsibleToolbox({
     <Card data-testid={`toolbox-${title.toLowerCase().replace(/\s+/g, "-")}`}>
       <button
         onClick={toggle}
-        className="w-full flex items-center justify-between gap-3 p-4 text-left hover-elevate rounded-md"
+        className="w-full flex items-center justify-between gap-2 p-3 text-left hover-elevate rounded-md"
         data-testid={`button-toggle-${title.toLowerCase().replace(/\s+/g, "-")}`}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           {icon || <Sparkles className="h-5 w-5 text-primary shrink-0" />}
           <div className="min-w-0">
             <p className="text-sm font-semibold">{title}</p>
@@ -63,7 +63,7 @@ export function CollapsibleToolbox({
         </div>
       </button>
       {isOpen && (
-        <CardContent className="pt-0 pb-4 px-4">
+        <CardContent className="pt-0 pb-3 px-3">
           {children}
         </CardContent>
       )}

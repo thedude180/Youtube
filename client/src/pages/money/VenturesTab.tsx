@@ -61,13 +61,13 @@ export default function VenturesTab() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-3">
         <div className="flex gap-2 flex-wrap">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-7 w-20 rounded-full" />
           ))}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <Skeleton className="h-40 rounded-xl" />
           <Skeleton className="h-40 rounded-xl" />
           <Skeleton className="h-40 rounded-xl" />
@@ -79,7 +79,7 @@ export default function VenturesTab() {
   if (error) return <QueryErrorReset error={error} queryKey={["/api/ventures"]} label="Failed to load ventures" />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-ventures-title" className="text-lg font-semibold">Business Ventures</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -172,7 +172,7 @@ export default function VenturesTab() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {filtered.map((venture: any) => {
             const revenue = venture.revenue || 0;
             const expenses = venture.expenses || 0;

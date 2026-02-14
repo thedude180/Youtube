@@ -238,7 +238,7 @@ export default function Dashboard() {
 
   if (statsError) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+      <div className="p-3 lg:p-4 space-y-3 max-w-6xl mx-auto">
         <QueryErrorReset error={statsError} queryKey={["/api/dashboard/stats"]} label="Failed to load dashboard" />
       </div>
     );
@@ -261,9 +261,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
       <div>
-        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">
+        <h1 data-testid="text-page-title" className="text-xl font-display font-bold">
           {greeting()}, {userName}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">Here's your command center overview.</p>
