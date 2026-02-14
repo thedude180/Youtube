@@ -736,42 +736,109 @@ export function registerMoneyRoutes(app: Express) {
         platformSources.set(key, (platformSources.get(key) || 0) + (r.amount || 0));
       }
 
+      const channelsByPlatform = new Map<string, any[]>();
+      for (const ch of channels) {
+        const p = ch.platform || "unknown";
+        if (!channelsByPlatform.has(p)) channelsByPlatform.set(p, []);
+        channelsByPlatform.get(p)!.push(ch);
+      }
+
+      const totalVideos = videos.length;
+      const totalSubs = channels.reduce((sum, ch) => sum + ((ch as any).subscriberCount || 0), 0);
+      const avgViews = videos.length > 0
+        ? Math.round(videos.reduce((sum, v) => sum + ((v.metadata as any)?.stats?.views || 0), 0) / videos.length)
+        : 0;
+
       const connectedPlatforms = new Set(channels.map(c => c.platform));
       const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
       const unmonetized = allPlatforms.filter(p => connectedPlatforms.has(p) && !records.some(r => r.platform === p));
       const notConnected = allPlatforms.filter(p => !connectedPlatforms.has(p));
 
-      const opportunities: Array<{
+      interface Opportunity {
         type: string;
         title: string;
         description: string;
         platform?: string;
         estimatedImpact: string;
         priority: "high" | "medium" | "low";
-      }> = [];
+        channelContext: string;
+        audienceRelevance: string;
+        steps: string[];
+      }
+
+      const opportunities: Opportunity[] = [];
+
+      const platformMonetizationInfo: Record<string, { methods: string[]; audienceHook: string; steps: string[] }> = {
+        youtube: {
+          methods: ["AdSense", "Super Chats", "Memberships", "Merch Shelf", "YouTube Premium revenue"],
+          audienceHook: "Your YouTube subscribers watch long-form content, making them ideal for ad revenue and memberships.",
+          steps: ["Enable monetization in YouTube Studio", "Set up Super Chats for live streams", "Create membership tiers with exclusive perks", "Add products to Merch Shelf"],
+        },
+        twitch: {
+          methods: ["Subscriptions", "Bits", "Ads", "Bounties"],
+          audienceHook: "Twitch viewers are live-stream natives who actively support creators through subs and bits.",
+          steps: ["Apply for Twitch Affiliate/Partner", "Set up sub tiers and emotes", "Enable Bits and cheering", "Run ad breaks during natural pauses"],
+        },
+        kick: {
+          methods: ["Subscriptions", "Tips", "Creator Fund"],
+          audienceHook: "Kick's growing audience tends to be younger and very engaged with gaming content.",
+          steps: ["Apply for Kick monetization", "Promote subscription benefits", "Set up tip alerts", "Cross-promote from other platforms"],
+        },
+        tiktok: {
+          methods: ["Creator Fund", "Live Gifts", "Brand Partnerships", "TikTok Shop"],
+          audienceHook: "TikTok's algorithm-driven discovery means even small accounts can reach millions of viewers.",
+          steps: ["Join TikTok Creator Fund", "Go live regularly for gifts", "Create shoppable content", "Pitch brands with your engagement rate"],
+        },
+        x: {
+          methods: ["Ad Revenue Sharing", "Subscriptions", "Tips", "Sponsored Posts"],
+          audienceHook: "X audiences value real-time takes and authentic commentary, perfect for building thought leadership.",
+          steps: ["Enable X Premium for ad revenue share", "Offer subscriber-only content", "Build a consistent posting schedule", "Engage in trending conversations"],
+        },
+        discord: {
+          methods: ["Server Subscriptions", "Premium Roles", "Merchandise", "Exclusive Access"],
+          audienceHook: "Discord is your community's home base — the most engaged fans willing to pay for close access.",
+          steps: ["Set up Server Subscriptions", "Create premium role tiers", "Offer exclusive content channels", "Run paid events and workshops"],
+        },
+      };
 
       if (unmonetized.length > 0) {
         for (const p of unmonetized) {
+          const pLabel = p.charAt(0).toUpperCase() + p.slice(1);
+          const pChannels = channelsByPlatform.get(p) || [];
+          const channelNames = pChannels.map((c: any) => c.channelName || c.platform).join(", ");
+          const info = platformMonetizationInfo[p];
           opportunities.push({
             type: "monetize",
-            title: `Monetize ${p.charAt(0).toUpperCase() + p.slice(1)}`,
-            description: `You're active on ${p} but haven't recorded any revenue. Explore monetization options.`,
+            title: `Monetize ${pLabel}`,
+            description: `You're connected to ${pLabel}${channelNames ? ` (${channelNames})` : ""} but haven't earned from it yet. ${info?.methods?.length ? `Available methods: ${info.methods.join(", ")}.` : ""}`,
             platform: p,
             estimatedImpact: "New revenue stream",
             priority: "high",
+            channelContext: channelNames
+              ? `Your ${pLabel} channel "${channelNames}" is connected and active. ${pChannels.length > 1 ? `You have ${pChannels.length} channels on this platform.` : ""}`
+              : `Your ${pLabel} account is connected but has no channel data yet.`,
+            audienceRelevance: info?.audienceHook || `Your ${pLabel} audience is an untapped revenue source waiting to be activated.`,
+            steps: info?.steps || [`Research ${pLabel} monetization options`, `Enable monetization features`, `Track performance and iterate`],
           });
         }
       }
 
-      if (notConnected.length > 0 && notConnected.length <= 3) {
+      if (notConnected.length > 0 && notConnected.length <= 4) {
         for (const p of notConnected) {
+          const pLabel = p.charAt(0).toUpperCase() + p.slice(1);
+          const info = platformMonetizationInfo[p];
           opportunities.push({
             type: "expand",
-            title: `Expand to ${p.charAt(0).toUpperCase() + p.slice(1)}`,
-            description: `Connect your ${p} account to tap into a new audience and revenue source.`,
+            title: `Expand to ${pLabel}`,
+            description: `Connect your ${pLabel} account to reach a new audience. ${info?.methods?.length ? `Revenue options include: ${info.methods.slice(0, 3).join(", ")}.` : ""}`,
             platform: p,
-            estimatedImpact: "Audience growth + revenue",
+            estimatedImpact: "Audience growth + new revenue",
             priority: "medium",
+            channelContext: totalVideos > 0
+              ? `You have ${totalVideos} video${totalVideos !== 1 ? "s" : ""} across your connected platforms${totalSubs > 0 ? ` and ${totalSubs.toLocaleString()} total subscribers` : ""}. Repurposing this content for ${pLabel} requires minimal extra effort.`
+              : `Adding ${pLabel} gives you another platform for content distribution with CreatorOS handling cross-posting automatically.`,
+            audienceRelevance: info?.audienceHook || `${pLabel} has a distinct audience that could expand your reach and revenue potential.`,
+            steps: [`Connect your ${pLabel} account in Settings`, `CreatorOS will auto-configure cross-posting`, `Review first cross-posted content`, `Monitor audience growth`],
           });
         }
       }
@@ -781,10 +848,13 @@ export function registerMoneyRoutes(app: Express) {
         opportunities.push({
           type: "membership",
           title: "Launch Channel Memberships",
-          description: "With your content library, memberships can add recurring revenue.",
+          description: `With ${videos.length} videos in your library${totalSubs > 0 ? ` and ${totalSubs.toLocaleString()} subscribers` : ""}, you have enough content and audience to offer exclusive membership perks.`,
           platform: "youtube",
           estimatedImpact: "$50-500/mo recurring",
           priority: "high",
+          channelContext: `Your YouTube channel has ${videos.length} video${videos.length !== 1 ? "s" : ""}${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views each` : ""}. This signals an engaged audience ready for deeper connection.`,
+          audienceRelevance: "Memberships convert your most loyal viewers into recurring supporters. Even a small percentage of your audience joining at $4.99/mo creates steady income independent of ad revenue fluctuations.",
+          steps: ["Meet YouTube Partner Program requirements", "Design 3-5 membership tiers with clear perks", "Create members-only content (behind-the-scenes, early access)", "Promote memberships in your videos and community posts", "Use CreatorOS to auto-generate membership promotion posts"],
         });
       }
 
@@ -793,9 +863,12 @@ export function registerMoneyRoutes(app: Express) {
         opportunities.push({
           type: "sponsorship",
           title: "Attract Brand Sponsorships",
-          description: "Your content volume makes you attractive to sponsors. AI can help pitch.",
+          description: `With ${videos.length} videos${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views` : ""}, your channel is attractive to brands looking for gaming creator partnerships.`,
           estimatedImpact: "$200-5,000 per deal",
           priority: "high",
+          channelContext: `${videos.length} published videos demonstrate consistency, which brands value highly. ${totalSubs > 100 ? `Your ${totalSubs.toLocaleString()} subscribers represent a targetable audience for advertisers.` : "Even growing channels can land niche sponsorships."}`,
+          audienceRelevance: "Gaming audiences are among the most valuable for tech, peripherals, energy drinks, and subscription services. Brands pay premiums for authentic creator endorsements over traditional ads.",
+          steps: ["Build a media kit with your channel stats and audience demographics", "Join creator marketplaces (e.g., Grin, AspireIQ, or direct outreach)", "Start with smaller brands to build sponsorship experience", "Use CreatorOS Sponsor Rates calculator to set fair pricing", "Negotiate long-term deals for better rates"],
         });
       }
 
@@ -804,9 +877,29 @@ export function registerMoneyRoutes(app: Express) {
         opportunities.push({
           type: "affiliate",
           title: "Start Affiliate Marketing",
-          description: "Add affiliate links to your gaming gear, software, and recommended products.",
+          description: "Add affiliate links to your gaming gear, software, and recommended products. Earn commission on every purchase your audience makes through your links.",
           estimatedImpact: "$50-1,000/mo passive",
           priority: "medium",
+          channelContext: totalVideos > 0
+            ? `Your ${totalVideos} video${totalVideos !== 1 ? "s" : ""} are perfect vehicles for affiliate links in descriptions. Gear reviews, tutorials, and setup tours naturally include product recommendations.`
+            : "Every video you publish is an opportunity to include affiliate links in the description. Start building passive income from day one.",
+          audienceRelevance: "Your gaming audience actively researches gear, software, and peripherals. When a trusted creator recommends a product, conversion rates are 3-5x higher than banner ads.",
+          steps: ["Sign up for Amazon Associates, gaming peripheral programs (Razer, SteelSeries, etc.)", "Add affiliate links to all video descriptions", "Create dedicated gear/setup videos that naturally feature products", "Track which products convert best and double down", "Use CreatorOS to auto-insert affiliate links in cross-posted content"],
+        });
+      }
+
+      const hasSuperChat = records.some(r => r.source === "superchat");
+      if (!hasSuperChat && connectedPlatforms.has("youtube")) {
+        opportunities.push({
+          type: "superchat",
+          title: "Maximize Super Chat Revenue",
+          description: "Live streams with Super Chats enabled let your most engaged viewers contribute directly during broadcasts.",
+          platform: "youtube",
+          estimatedImpact: "$20-500 per stream",
+          priority: "medium",
+          channelContext: `As a YouTube-connected creator${totalSubs > 0 ? ` with ${totalSubs.toLocaleString()} subscribers` : ""}, Super Chats turn your live streams into direct revenue events.`,
+          audienceRelevance: "Live stream viewers are your most engaged fans. Super Chats give them a way to stand out and interact directly with you, and they're willing to pay for that spotlight.",
+          steps: ["Enable Super Chat in YouTube Studio monetization settings", "Stream regularly to build a live audience habit", "Acknowledge and react to Super Chats during stream", "Set up incentives (reading messages, shoutouts)", "Use CreatorOS live stream advisor for optimal engagement"],
         });
       }
 
@@ -815,14 +908,43 @@ export function registerMoneyRoutes(app: Express) {
         if (topSource) {
           const [key, amount] = topSource;
           const [platform, source] = key.split(":");
+          const pctOfTotal = totalRevenue > 0 ? Math.round((amount / totalRevenue) * 100) : 0;
           opportunities.push({
             type: "optimize",
             title: `Double Down on ${source}`,
-            description: `${source} from ${platform} is your top earner at $${amount.toFixed(0)}. Focus on growing this stream.`,
+            description: `${source} from ${platform} is your top earner at $${amount.toFixed(0)} (${pctOfTotal}% of total revenue). Focused optimization could grow this stream significantly.`,
             platform,
             estimatedImpact: `+$${Math.round(amount * 0.5)}/mo potential`,
             priority: "medium",
+            channelContext: `Your ${platform} ${source} revenue is $${amount.toFixed(2)} across ${records.filter(r => r.platform === platform && r.source === source).length} records. This is your strongest revenue channel.`,
+            audienceRelevance: `Your audience is already responding well to ${source} on ${platform}. Doubling down means optimizing what's proven to work rather than experimenting with unknowns.`,
+            steps: [`Analyze your top-performing ${source} content to find patterns`, `Create more content in the same style/format`, `Test different approaches to increase per-viewer ${source} revenue`, `Track growth weekly and adjust strategy`],
           });
+        }
+      }
+
+      if (connectedPlatforms.size >= 2 && records.length > 0) {
+        const platformRevenues = new Map<string, number>();
+        for (const r of records) {
+          platformRevenues.set(r.platform || "unknown", (platformRevenues.get(r.platform || "unknown") || 0) + (r.amount || 0));
+        }
+        const topPlatform = [...platformRevenues.entries()].sort((a, b) => b[1] - a[1])[0];
+        const bottomPlatforms = [...platformRevenues.entries()].filter(([p]) => p !== topPlatform?.[0]).sort((a, b) => a[1] - b[1]);
+        if (bottomPlatforms.length > 0 && topPlatform) {
+          const weakest = bottomPlatforms[0];
+          if (topPlatform[1] > weakest[1] * 3) {
+            opportunities.push({
+              type: "rebalance",
+              title: `Grow ${weakest[0].charAt(0).toUpperCase() + weakest[0].slice(1)} Revenue`,
+              description: `${topPlatform[0]} earns $${topPlatform[1].toFixed(0)} while ${weakest[0]} only earns $${weakest[1].toFixed(0)}. Balancing revenue across platforms reduces risk.`,
+              platform: weakest[0],
+              estimatedImpact: `Reduce platform dependency`,
+              priority: "low",
+              channelContext: `Your revenue is heavily concentrated on ${topPlatform[0]} (${Math.round((topPlatform[1] / totalRevenue) * 100)}% of total). If that platform changes its algorithm or policies, your income takes a direct hit.`,
+              audienceRelevance: `Your ${weakest[0]} audience may respond to different content formats or monetization methods than what works on ${topPlatform[0]}. Experimenting here could unlock a significant secondary revenue stream.`,
+              steps: [`Study what content performs best on ${weakest[0]}`, `Adapt your top-performing content for ${weakest[0]}'s audience`, `Enable all available monetization on ${weakest[0]}`, `Set a 90-day growth target and track weekly`],
+            });
+          }
         }
       }
 
@@ -833,6 +955,9 @@ export function registerMoneyRoutes(app: Express) {
         }),
         summary: {
           totalRevenue,
+          totalVideos,
+          totalSubscribers: totalSubs,
+          avgViewsPerVideo: avgViews,
           platformCount: connectedPlatforms.size,
           revenueStreams: new Set(records.map(r => r.source)).size,
           unmonetizedPlatforms: unmonetized.length,

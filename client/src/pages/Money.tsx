@@ -42,11 +42,12 @@ const LazyVenturesTab = lazy(() => import("./money/VenturesTab"));
 const LazyGoalsTab = lazy(() => import("./money/GoalsTab"));
 const LazySponsorsTab = lazy(() => import("./money/SponsorsTab"));
 const LazyTaxTab = lazy(() => import("./money/TaxTab"));
+const LazyOpportunitiesTab = lazy(() => import("./money/OpportunitiesTab"));
 const LazyMoneyAIToolSuites = lazy(() => import("./money/MoneyAIToolSuites"));
 
 type AIResponse = any;
 
-type TabKey = "revenue" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors";
+type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors";
 
 const ventureTypes = ["All", "Merch", "Courses", "Membership", "Affiliate", "Consulting", "Podcast", "SaaS", "Events", "Licensing"] as const;
 
@@ -175,6 +176,9 @@ export default function Money() {
           <TabsTrigger value="revenue" data-testid="tab-revenue">
             <DollarSign className="h-3.5 w-3.5 mr-1.5" />Revenue
           </TabsTrigger>
+          <TabsTrigger value="opportunities" data-testid="tab-opportunities">
+            <Sparkles className="h-3.5 w-3.5 mr-1.5" />Opportunities
+          </TabsTrigger>
           <TabsTrigger value="expenses" data-testid="tab-expenses">
             <Receipt className="h-3.5 w-3.5 mr-1.5" />Expenses
           </TabsTrigger>
@@ -198,6 +202,12 @@ export default function Money() {
         <TabsContent value="revenue" className="mt-4">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LazyRevenueTab />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="opportunities" className="mt-4">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <LazyOpportunitiesTab />
           </Suspense>
         </TabsContent>
 
