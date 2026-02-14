@@ -253,16 +253,60 @@ export async function syncVideoAfterProcessing(
     const meta = video.metadata as any;
     if (!meta) return results;
 
-    const syncable: SyncableMetadata = {
-      title: video.title,
-      description: video.description || undefined,
-      tags: meta.tags,
-      seoScore: meta.seoScore,
-      aiSuggestions: meta.aiSuggestions,
-    };
+    if (!meta.aiOptimized) {
+      console.log(`[PlatformSync] Skipping sync for video ${videoDbId}: not AI-optimized yet`);
+      return results;
+    }
 
-    const ytResult = await pushVideoUpdateToYouTube(userId, videoDbId, syncable);
-    if (ytResult) results.push(ytResult);
+    const ctx = await getYouTubeChannel(userId, videoDbId);
+    if (!ctx) {
+      console.log(`[PlatformSync] No YouTube channel found for video ${videoDbId}, skipping push`);
+      return results;
+    }
+    const { youtubeId, ytChannel } = ctx;
+
+    const updates: { title?: string; description?: string; tags?: string[] } = {};
+    const updatedFields: string[] = [];
+
+    if (meta.aiSuggestions?.titleHooks?.length && meta.aiSuggestions.titleHooks[0]) {
+      updates.title = meta.aiSuggestions.titleHooks[0];
+      updatedFields.push("title");
+    } else if (video.title && meta.originalTitle && video.title !== meta.originalTitle) {
+      updates.title = video.title;
+      updatedFields.push("title");
+    } else if (video.title) {
+      updates.title = video.title;
+      updatedFields.push("title");
+    }
+
+    if (meta.aiSuggestions?.descriptionTemplate) {
+      updates.description = meta.aiSuggestions.descriptionTemplate;
+      updatedFields.push("description");
+    } else if (video.description && meta.originalDescription && video.description !== meta.originalDescription) {
+      updates.description = video.description;
+      updatedFields.push("description");
+    } else if (video.description) {
+      updates.description = video.description;
+      updatedFields.push("description");
+    }
+
+    if (meta.tags?.length) {
+      updates.tags = meta.tags;
+      updatedFields.push("tags");
+    }
+
+    if (updatedFields.length === 0) {
+      console.log(`[PlatformSync] No optimized fields to push for video ${videoDbId}`);
+      return results;
+    }
+
+    console.log(`[PlatformSync] Pushing ${updatedFields.join(", ")} to YouTube for video "${video.title}" (${youtubeId})`);
+
+    const result = await pushAndUpdateLocal(
+      userId, videoDbId, youtubeId, ytChannel.id, video.title,
+      updates, updatedFields, "backlog_processing"
+    );
+    if (result) results.push(result);
 
     console.log(`[PlatformSync] Sync complete for video ${videoDbId}: ${results.filter(r => r.success).length} platforms updated`);
   } catch (err: any) {

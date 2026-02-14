@@ -269,7 +269,7 @@ export async function refreshAllUserChannelStats(userId: string): Promise<void> 
   }
 }
 
-export async function fetchYouTubeVideos(channelId: number, maxResults = 200) {
+export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 

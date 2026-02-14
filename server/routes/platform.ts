@@ -167,7 +167,7 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
-      const videos = await fetchYouTubeVideos(Number(req.params.channelId), Number(req.query.maxResults) || 50);
+      const videos = await fetchYouTubeVideos(Number(req.params.channelId), Number(req.query.maxResults) || 200);
       res.json(videos);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

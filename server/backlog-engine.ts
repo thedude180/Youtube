@@ -211,7 +211,18 @@ async function processBacklogAsync(
       chainResult.steps[0].status = "completed";
       chainResult.steps[0].completedAt = new Date();
 
-      await storage.updateVideo(video.id, { metadata: newMetadata });
+      const videoUpdate: any = { metadata: newMetadata };
+      if (suggestions.titleHooks?.length && suggestions.titleHooks[0]) {
+        newMetadata.originalTitle = newMetadata.originalTitle || video.title;
+        videoUpdate.title = suggestions.titleHooks[0];
+      }
+      if (suggestions.descriptionTemplate) {
+        newMetadata.originalDescription = newMetadata.originalDescription || video.description;
+        videoUpdate.description = suggestions.descriptionTemplate;
+      }
+      videoUpdate.metadata = newMetadata;
+
+      await storage.updateVideo(video.id, videoUpdate);
 
       try {
         const { syncVideoAfterProcessing } = await import("./platform-sync-engine");
