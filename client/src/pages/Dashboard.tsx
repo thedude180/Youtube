@@ -57,6 +57,7 @@ const LazyAIInsightsSection = lazy(() => import("./dashboard/AIInsightsSection")
 const LazyAIToolSuites = lazy(() => import("./dashboard/AIToolSuites"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
 const LazyDailyBriefing = lazy(() => import("./dashboard/DailyBriefingSection"));
+const LazyAudienceStealth = lazy(() => import("./dashboard/AudienceStealthSection"));
 
 type AIResponse = any;
 
@@ -314,6 +315,10 @@ export default function Dashboard() {
       </Card>
 
       <MetricsGrid metrics={metrics} />
+
+      <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+        <LazyAudienceStealth />
+      </Suspense>
 
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
 

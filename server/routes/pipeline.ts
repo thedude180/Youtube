@@ -125,7 +125,23 @@ export async function executePipelineInBackground(id: number, videoTitle: string
         .set({ currentStep: step, status: "processing" })
         .where(eq(contentPipeline.id, id));
 
-      const result = await runPipelineStep(id, step, videoTitle, mode, currentResults);
+      let result = await runPipelineStep(id, step, videoTitle, mode, currentResults);
+
+      if (step === "repurpose" && result?.posts && pipelineUserId) {
+        try {
+          const { applyGuardrails } = await import("../stealth-guardrails");
+          for (let i = 0; i < result.posts.length; i++) {
+            const post = result.posts[i];
+            if (post?.content) {
+              const guardrailed = await applyGuardrails(post.content, pipelineUserId, post.platform || "youtube", { contentType: "social-post" });
+              result.posts[i].content = guardrailed.content;
+              result.posts[i].stealthScore = guardrailed.stealthScore;
+              result.posts[i].safetyGrade = guardrailed.safetyGrade;
+            }
+          }
+        } catch {}
+      }
+
       currentResults[step] = result;
       completedSteps.push(step);
 

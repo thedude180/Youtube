@@ -589,7 +589,19 @@ Create an engaging community post as JSON:
 
   const communityContent = communityResponse.choices[0]?.message?.content;
   if (!communityContent) throw new Error("No response from AI");
-  return JSON.parse(communityContent);
+  const parsed = JSON.parse(communityContent);
+
+  if (parsed.content && userId) {
+    try {
+      const { applyGuardrails } = await import("./stealth-guardrails");
+      const guardrailed = await applyGuardrails(parsed.content, userId, data.platform, { contentType: "community-post" });
+      parsed.content = guardrailed.content;
+      parsed.stealthScore = guardrailed.stealthScore;
+      parsed.safetyGrade = guardrailed.safetyGrade;
+    } catch {}
+  }
+
+  return parsed;
 }
 
 export async function generateTaxStrategy(data: {

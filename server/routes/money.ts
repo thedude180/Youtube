@@ -720,4 +720,127 @@ export function registerMoneyRoutes(app: Express) {
       res.status(500).json({ message: error.message });
     }
   });
+
+  app.get("/api/revenue/opportunities", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const records = await storage.getRevenueRecords(userId);
+      const channels = await storage.getChannelsByUser(userId);
+      const videos = await storage.getVideosByUser(userId);
+
+      const totalRevenue = records.reduce((sum, r) => sum + (r.amount || 0), 0);
+      const platformSources = new Map<string, number>();
+      for (const r of records) {
+        const key = `${r.platform}:${r.source}`;
+        platformSources.set(key, (platformSources.get(key) || 0) + (r.amount || 0));
+      }
+
+      const connectedPlatforms = new Set(channels.map(c => c.platform));
+      const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
+      const unmonetized = allPlatforms.filter(p => connectedPlatforms.has(p) && !records.some(r => r.platform === p));
+      const notConnected = allPlatforms.filter(p => !connectedPlatforms.has(p));
+
+      const opportunities: Array<{
+        type: string;
+        title: string;
+        description: string;
+        platform?: string;
+        estimatedImpact: string;
+        priority: "high" | "medium" | "low";
+      }> = [];
+
+      if (unmonetized.length > 0) {
+        for (const p of unmonetized) {
+          opportunities.push({
+            type: "monetize",
+            title: `Monetize ${p.charAt(0).toUpperCase() + p.slice(1)}`,
+            description: `You're active on ${p} but haven't recorded any revenue. Explore monetization options.`,
+            platform: p,
+            estimatedImpact: "New revenue stream",
+            priority: "high",
+          });
+        }
+      }
+
+      if (notConnected.length > 0 && notConnected.length <= 3) {
+        for (const p of notConnected) {
+          opportunities.push({
+            type: "expand",
+            title: `Expand to ${p.charAt(0).toUpperCase() + p.slice(1)}`,
+            description: `Connect your ${p} account to tap into a new audience and revenue source.`,
+            platform: p,
+            estimatedImpact: "Audience growth + revenue",
+            priority: "medium",
+          });
+        }
+      }
+
+      const hasMemberships = records.some(r => r.source === "membership");
+      if (!hasMemberships && videos.length >= 5) {
+        opportunities.push({
+          type: "membership",
+          title: "Launch Channel Memberships",
+          description: "With your content library, memberships can add recurring revenue.",
+          platform: "youtube",
+          estimatedImpact: "$50-500/mo recurring",
+          priority: "high",
+        });
+      }
+
+      const hasSponsors = records.some(r => r.source === "sponsorship");
+      if (!hasSponsors && videos.length >= 10) {
+        opportunities.push({
+          type: "sponsorship",
+          title: "Attract Brand Sponsorships",
+          description: "Your content volume makes you attractive to sponsors. AI can help pitch.",
+          estimatedImpact: "$200-5,000 per deal",
+          priority: "high",
+        });
+      }
+
+      const hasAffiliate = records.some(r => r.source === "affiliate");
+      if (!hasAffiliate) {
+        opportunities.push({
+          type: "affiliate",
+          title: "Start Affiliate Marketing",
+          description: "Add affiliate links to your gaming gear, software, and recommended products.",
+          estimatedImpact: "$50-1,000/mo passive",
+          priority: "medium",
+        });
+      }
+
+      if (totalRevenue > 0 && records.length > 5) {
+        const topSource = [...platformSources.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (topSource) {
+          const [key, amount] = topSource;
+          const [platform, source] = key.split(":");
+          opportunities.push({
+            type: "optimize",
+            title: `Double Down on ${source}`,
+            description: `${source} from ${platform} is your top earner at $${amount.toFixed(0)}. Focus on growing this stream.`,
+            platform,
+            estimatedImpact: `+$${Math.round(amount * 0.5)}/mo potential`,
+            priority: "medium",
+          });
+        }
+      }
+
+      res.json({
+        opportunities: opportunities.sort((a, b) => {
+          const priorityOrder = { high: 0, medium: 1, low: 2 };
+          return priorityOrder[a.priority] - priorityOrder[b.priority];
+        }),
+        summary: {
+          totalRevenue,
+          platformCount: connectedPlatforms.size,
+          revenueStreams: new Set(records.map(r => r.source)).size,
+          unmonetizedPlatforms: unmonetized.length,
+        },
+      });
+    } catch (error: any) {
+      console.error("Revenue opportunities error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
 }

@@ -37,6 +37,7 @@ export default function RevenueTab() {
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
   const { data: syncStatus } = useQuery<any>({ queryKey: ['/api/revenue/sync-status'] });
   const { data: breakdown } = useQuery<any>({ queryKey: ['/api/revenue/breakdown'] });
+  const { data: opportunities } = useQuery<any>({ queryKey: ['/api/revenue/opportunities'] });
 
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -361,6 +362,53 @@ export default function RevenueTab() {
                     </div>
                   );
                 })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {opportunities?.opportunities?.length > 0 && (
+        <Card data-testid="card-revenue-opportunities">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              <CardTitle className="text-sm">Money Opportunities</CardTitle>
+              <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-500/10 text-amber-400">
+                {opportunities.opportunities.length} found
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="space-y-3">
+              {opportunities.opportunities.slice(0, 5).map((opp: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="flex items-start gap-3"
+                  data-testid={`row-opportunity-${idx}`}
+                >
+                  <Badge
+                    variant="secondary"
+                    className={`text-xs shrink-0 mt-0.5 no-default-hover-elevate no-default-active-elevate ${
+                      opp.priority === "high" ? "bg-red-500/10 text-red-400" :
+                      opp.priority === "medium" ? "bg-amber-500/10 text-amber-400" :
+                      "bg-blue-500/10 text-blue-400"
+                    }`}
+                    data-testid={`badge-opportunity-priority-${idx}`}
+                  >
+                    {opp.priority}
+                  </Badge>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium" data-testid={`text-opportunity-title-${idx}`}>{opp.title}</p>
+                      {opp.platform && <PlatformBadge platform={opp.platform} />}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{opp.description}</p>
+                    <p className="text-xs text-emerald-400 mt-0.5" data-testid={`text-opportunity-impact-${idx}`}>
+                      {opp.estimatedImpact}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

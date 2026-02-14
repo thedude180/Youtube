@@ -281,6 +281,53 @@ export async function registerPlatformRoutes(app: Express) {
     res.status(201).json(test);
   });
 
+  app.get("/api/audience-analytics", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getOptimalPostingTimes } = await import("../smart-scheduler");
+      const platforms = ["youtube", "tiktok", "x", "discord", "twitch", "kick"];
+      const audienceData: Record<string, any> = {};
+      let hasAnyData = false;
+
+      for (const platform of platforms) {
+        try {
+          const result = await getOptimalPostingTimes(userId, platform);
+          audienceData[platform] = {
+            source: result.source,
+            topSlots: (result.slots || []).slice(0, 5).map((s: any) => ({
+              dayOfWeek: s.dayOfWeek,
+              hourOfDay: s.hourOfDay,
+              activityLevel: s.activityLevel,
+              dayName: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][s.dayOfWeek ?? 0],
+            })),
+            peakHour: result.slots?.[0]?.hourOfDay ?? null,
+            peakDay: result.slots?.[0]?.dayOfWeek ?? null,
+          };
+          if (result.source === "data") hasAnyData = true;
+        } catch {
+          audienceData[platform] = { source: "none", topSlots: [], peakHour: null, peakDay: null };
+        }
+      }
+
+      const { getGuardrailStatus } = await import("../stealth-guardrails");
+      let stealthStatus = null;
+      try {
+        stealthStatus = await getGuardrailStatus(userId);
+      } catch {}
+
+      res.json({
+        hasAudienceData: hasAnyData,
+        platforms: audienceData,
+        stealthStatus,
+        dataSource: hasAnyData ? "real-viewer-data" : "optimized-defaults",
+      });
+    } catch (error: any) {
+      console.error("Audience analytics error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/analytics", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

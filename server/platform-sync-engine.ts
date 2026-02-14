@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import { sendSSEEvent } from "./routes/events";
+import { applyGuardrails, removeBannedPhrases } from "./stealth-guardrails";
 
 interface PlatformSyncResult {
   platform: string;
@@ -49,6 +50,15 @@ async function pushAndUpdateLocal(
   updatedFields: string[],
   source: string
 ): Promise<PlatformSyncResult> {
+  if (updates.title) {
+    updates.title = removeBannedPhrases(updates.title);
+  }
+  if (updates.description) {
+    const guardrailed = await applyGuardrails(updates.description, userId, "youtube", { contentType: "description" });
+    updates.description = guardrailed.content;
+    console.log(`[PlatformSync] Guardrails applied: grade=${guardrailed.safetyGrade}, stealth=${guardrailed.stealthScore}`);
+  }
+
   const { updateYouTubeVideo } = await import("./youtube");
   await updateYouTubeVideo(ytChannelId, youtubeId, updates);
 
