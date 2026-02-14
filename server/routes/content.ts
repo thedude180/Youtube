@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { z } from "zod";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
+import { contentPipeline } from "@shared/schema";
+import { db } from "../db";
 import { storage } from "../storage";
 import { requireAuth, getUserId } from "./helpers";
 import { sendSSEEvent } from "./events";
@@ -312,6 +315,22 @@ export function registerContentRoutes(app: Express) {
     try {
       const syncLogs = await storage.getAuditLogsByUser(userId, "platform_sync_push");
       res.json(syncLogs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/videos/processing", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const pipelines = await db.select().from(contentPipeline)
+        .where(and(
+          eq(contentPipeline.userId, userId),
+          inArray(contentPipeline.status, ["queued", "processing"]),
+        ))
+        .orderBy(desc(contentPipeline.createdAt));
+      res.json(pipelines);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
