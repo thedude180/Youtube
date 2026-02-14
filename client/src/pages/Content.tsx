@@ -43,13 +43,14 @@ import {
 
 type AIResponse = any;
 
-type ContentTab = "library" | "channels" | "calendar" | "localization";
+type ContentTab = "library" | "updated" | "channels" | "calendar" | "localization";
 
 const TYPE_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   vod: "default", short: "secondary", live_replay: "outline",
 };
 const TYPE_LABEL: Record<string, string> = { vod: "VOD", short: "Short", live_replay: "Live Replay" };
 
+const UpdatedVideosTab = lazy(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazy(() => import("./content/ChannelsTab"));
 const CalendarTab = lazy(() => import("./content/CalendarTab"));
 const LocalizationTab = lazy(() => import("./content/LocalizationTab"));
@@ -58,7 +59,7 @@ export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "channels", "calendar", "localization"];
+  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "localization"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useState<ContentTab>(initialTab);
   const { isAdvanced } = useAdvancedMode();
@@ -76,6 +77,9 @@ export default function Content() {
           <TabsTrigger value="library" data-testid="tab-library">
             <Video className="h-3.5 w-3.5 mr-1.5" />{t("content.library")}
           </TabsTrigger>
+          <TabsTrigger value="updated" data-testid="tab-updated">
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Updated
+          </TabsTrigger>
           <TabsTrigger value="channels" data-testid="tab-channels">
             <Radio className="h-3.5 w-3.5 mr-1.5" />{t("content.channels")}
           </TabsTrigger>
@@ -89,6 +93,11 @@ export default function Content() {
 
         <TabsContent value="library" className="mt-4">
           <LibraryTab isAdvanced={isAdvanced} />
+        </TabsContent>
+        <TabsContent value="updated" className="mt-4">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <UpdatedVideosTab />
+          </Suspense>
         </TabsContent>
         <TabsContent value="channels" className="mt-4">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>

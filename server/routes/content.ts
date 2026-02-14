@@ -306,6 +306,17 @@ export function registerContentRoutes(app: Express) {
     res.json(logs);
   });
 
+  app.get("/api/videos/updated", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const syncLogs = await storage.getAuditLogsByUser(userId, "platform_sync_push");
+      res.json(syncLogs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get(api.insights.list.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

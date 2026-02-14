@@ -86,6 +86,7 @@ export interface IStorage {
   updateJobPayload(id: number, payload: any): Promise<Job>;
 
   getAuditLogs(): Promise<AuditLog[]>;
+  getAuditLogsByUser(userId: string, action?: string): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 
   getContentInsights(channelId?: number): Promise<ContentInsight[]>;
@@ -403,6 +404,17 @@ export class DatabaseStorage implements IStorage {
 
   async getAuditLogs(): Promise<AuditLog[]> {
     return await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(100);
+  }
+
+  async getAuditLogsByUser(userId: string, action?: string): Promise<AuditLog[]> {
+    const conditions = [eq(auditLogs.userId, userId)];
+    if (action) {
+      conditions.push(eq(auditLogs.action, action));
+    }
+    return await db.select().from(auditLogs)
+      .where(and(...conditions))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(200);
   }
 
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
