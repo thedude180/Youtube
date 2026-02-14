@@ -155,14 +155,6 @@ export function generateStaggeredSchedule(
       const gapMinutes = gaussianRandom(timing.avgGapMinutes, timing.avgGapMinutes * 0.3);
       const actualGap = Math.max(timing.minGapMinutes, gapMinutes);
       baseTime = new Date(lastScheduledTime.getTime() + actualGap * 60000);
-
-      const localHour = getLocalHour(baseTime);
-      if (localHour < 8 || localHour > 23) {
-        baseTime.setUTCHours(((10 - TIMEZONE_OFFSET_HOURS) % 24 + 24) % 24);
-        if (baseTime.getTime() < lastScheduledTime.getTime()) {
-          baseTime = new Date(baseTime.getTime() + 86400000);
-        }
-      }
     }
 
     const jitterMinutes = gaussianRandom(0, 7);

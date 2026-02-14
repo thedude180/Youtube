@@ -644,22 +644,6 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
   const PLATFORM_MIN_GAP: Record<string, number> = {
     youtube: 120, tiktok: 90, x: 45, discord: 180, twitch: 180, kick: 180,
   };
-  const TIMEZONE_OFFSET = -5;
-
-  function getLocalHour(d: Date): number {
-    return ((d.getUTCHours() + TIMEZONE_OFFSET) % 24 + 24) % 24;
-  }
-  function snapToValidHours(d: Date): Date {
-    const localHour = getLocalHour(d);
-    if (localHour >= 8 && localHour <= 23) return d;
-    const snapped = new Date(d);
-    const targetUtcHour = ((10 - TIMEZONE_OFFSET) % 24 + 24) % 24;
-    snapped.setUTCHours(targetUtcHour, Math.floor(Math.random() * 45) + 5, 0, 0);
-    if (snapped.getTime() <= d.getTime()) {
-      snapped.setTime(snapped.getTime() + 86400000);
-    }
-    return snapped;
-  }
   function getBudgetForDate(platform: string, date: Date): number {
     const day = date.getDay();
     const isWeekend = day === 0 || day === 6;
@@ -713,8 +697,6 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
       if (lastForPlatform && scheduledTime.getTime() - lastForPlatform.getTime() < minGap) {
         scheduledTime = new Date(lastForPlatform.getTime() + minGap + Math.floor(Math.random() * 30) * 60000);
       }
-
-      scheduledTime = snapToValidHours(scheduledTime);
 
       const finalDayKey = `${platform}:${scheduledTime.toISOString().slice(0, 10)}`;
       const currentDayCount = scheduledPerPlatformPerDay.get(finalDayKey) || 0;
