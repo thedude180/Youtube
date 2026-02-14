@@ -46,9 +46,9 @@ type AIResponse = any;
 type ContentTab = "library" | "updated" | "channels" | "calendar" | "localization";
 
 const TYPE_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
-  vod: "default", short: "secondary", live_replay: "outline",
+  vod: "default", short: "secondary",
 };
-const TYPE_LABEL: Record<string, string> = { vod: "VOD", short: "Short", live_replay: "Live Replay" };
+const TYPE_LABEL: Record<string, string> = { vod: "VOD", short: "Short" };
 
 const UpdatedVideosTab = lazy(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazy(() => import("./content/ChannelsTab"));
@@ -2834,7 +2834,7 @@ function LibraryTab({ isAdvanced }: { isAdvanced: boolean }) {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex gap-2 flex-wrap">
-          {["all", "vod", "short", "live_replay"].map((t) => (
+          {["all", "vod", "short"].map((t) => (
             <Button
               key={t}
               size="sm"
