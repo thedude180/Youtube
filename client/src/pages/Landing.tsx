@@ -458,8 +458,14 @@ export default function Landing() {
             <a href="/pricing" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-pricing">
               Pricing
             </a>
+            <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-privacy">
+              Privacy Policy
+            </a>
+            <a href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-terms">
+              Terms of Service
+            </a>
             <p className="text-xs text-muted-foreground">
-              CreatorOS &copy; {new Date().getFullYear()}. AI-powered creator management.
+              CreatorOS &copy; {new Date().getFullYear()}
             </p>
           </div>
         </div>

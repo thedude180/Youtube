@@ -99,6 +99,24 @@ function Router() {
   );
 }
 
+function AppFooter() {
+  return (
+    <footer className="border-t border-border mt-8 py-4 px-6" data-testid="app-footer">
+      <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+        <p className="text-xs text-muted-foreground">CreatorOS</p>
+        <div className="flex items-center gap-4">
+          <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-privacy">
+            Privacy Policy
+          </a>
+          <a href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-terms">
+            Terms of Service
+          </a>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
   return (
@@ -355,6 +373,7 @@ function AuthenticatedApp() {
             <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
               <Router />
             </Suspense>
+            <AppFooter />
           </main>
         </div>
       </div>
