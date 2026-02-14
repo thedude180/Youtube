@@ -386,11 +386,12 @@ export async function setYouTubeThumbnail(
   return response.data;
 }
 
-export async function syncYouTubeVideosToLibrary(channelId: number, userId: string) {
+export async function syncYouTubeVideosToLibrary(channelId: number, userId: string): Promise<{ synced: any[]; newVideos: any[] }> {
   const ytVideos = await fetchYouTubeVideos(channelId);
   const existingVideos = await storage.getVideosByUser(userId);
 
   const synced: any[] = [];
+  const newVideos: any[] = [];
   for (const ytVideo of ytVideos) {
     const existing = existingVideos.find(v =>
       v.metadata?.youtubeId === ytVideo.youtubeId
@@ -422,10 +423,14 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
       },
     });
     synced.push(video);
+    newVideos.push(video);
   }
 
   await storage.updateChannel(channelId, { lastSyncAt: new Date() });
-  return synced;
+  if (newVideos.length > 0) {
+    console.log(`[YouTube] Synced ${newVideos.length} new video(s) for channel ${channelId}`);
+  }
+  return { synced, newVideos };
 }
 
 export async function checkYouTubeLiveBroadcasts(channelId: number) {

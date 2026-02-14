@@ -324,7 +324,29 @@ export async function initAutomationEngine() {
     }
   });
 
-  cron.schedule("0 3 * * *", async () => {
+  cron.schedule("0 */2 * * *", async () => {
+    try {
+      const { syncYouTubeVideosToLibrary } = await import("./youtube");
+      const allChannelRows = await db.select().from(channels);
+      const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.accessToken && c.userId);
+      let totalNew = 0;
+      for (const ch of ytChannels) {
+        try {
+          const result = await syncYouTubeVideosToLibrary(ch.id, ch.userId!);
+          totalNew += result.newVideos.length;
+        } catch (chErr: any) {
+          console.error(`[AutomationEngine] Video sync failed for channel ${ch.id}:`, chErr.message);
+        }
+      }
+      if (totalNew > 0) {
+        console.log(`[AutomationEngine] Continuous video sync: pulled ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
+      }
+    } catch (err) {
+      console.error("[AutomationEngine] Continuous video sync error:", err);
+    }
+  });
+
+  cron.schedule("0 */4 * * *", async () => {
     try {
       const { startBacklogOnLogin } = await import("./backlog-manager");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
@@ -333,12 +355,40 @@ export async function initAutomationEngine() {
         if (userId) {
           const result = await startBacklogOnLogin(userId);
           if (result.started) {
-            console.log(`[AutomationEngine] Daily backlog refresh: ${result.message} for ${userId}`);
+            console.log(`[AutomationEngine] Continuous backlog processing: ${result.message} for ${userId}`);
           }
         }
       }
     } catch (err) {
-      console.error("[AutomationEngine] Daily backlog refresh error:", err);
+      console.error("[AutomationEngine] Continuous backlog processing error:", err);
+    }
+  });
+
+  cron.schedule("30 */1 * * *", async () => {
+    try {
+      const { startBacklogProcessing, getBacklogSession } = await import("./backlog-engine");
+      const { getBacklogState } = await import("./backlog-manager");
+      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+      for (const userId of userIds) {
+        if (!userId) continue;
+        const engineSession = getBacklogSession(userId);
+        if (engineSession && engineSession.state === "processing") continue;
+        const managerState = getBacklogState(userId);
+        if (managerState && (managerState.state === "running" || managerState.state === "finishing_current")) continue;
+        try {
+          const result = await startBacklogProcessing(userId, "deep");
+          if (!result.alreadyRunning && result.totalVideos > 0) {
+            console.log(`[AutomationEngine] New video optimizer: queued ${result.totalVideos} unoptimized video(s) for ${userId}`);
+          }
+        } catch (bErr: any) {
+          if (!bErr.message?.includes("already")) {
+            console.error(`[AutomationEngine] New video optimizer failed for ${userId}:`, bErr.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[AutomationEngine] New video optimizer error:", err);
     }
   });
 

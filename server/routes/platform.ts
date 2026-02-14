@@ -180,8 +180,8 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
-      const synced = await syncYouTubeVideosToLibrary(Number(req.params.channelId), userId);
-      res.json({ synced: synced.length, videos: synced });
+      const result = await syncYouTubeVideosToLibrary(Number(req.params.channelId), userId);
+      res.json({ synced: result.synced.length, newVideos: result.newVideos.length, videos: result.synced });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
