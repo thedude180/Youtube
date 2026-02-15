@@ -33,6 +33,7 @@ const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
 const Autopilot = lazy(() => import("@/pages/Autopilot"));
 const AccessCodes = lazy(() => import("@/pages/AccessCodes"));
+const Community = lazy(() => import("@/pages/Community"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazy(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazy(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/money/:tab" component={Money} />
       <Route path="/autopilot" component={Autopilot} />
       <Route path="/access-codes" component={AccessCodes} />
+      <Route path="/community" component={Community} />
       <Route path="/notifications" component={Notifications} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/privacy" component={PrivacyPolicy} />
@@ -257,6 +259,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/settings/legal": "Legal",
   "/settings/learning": "Learning",
   "/settings/automation": "Automation",
+  "/community": "Community",
   "/notifications": "Notifications",
   "/pricing": "Pricing",
 };

@@ -2355,3 +2355,174 @@ export type InsertUploadQueue = z.infer<typeof insertUploadQueueSchema>;
 
 export const KANBAN_STAGES = ["idea", "script", "filming", "editing", "review", "scheduled", "published"] as const;
 export type KanbanStage = typeof KANBAN_STAGES[number];
+
+export const LIVE_PIPELINE_STEPS = [
+  { id: "detect", label: "Detect Stream", description: "Auto-detect when a live stream starts or ends" },
+  { id: "analyze", label: "Analyze Stream", description: "AI analyzes stream content, highlights, and key moments" },
+  { id: "title", label: "Optimize Titles", description: "Generate click-worthy titles for live/replay content" },
+  { id: "description", label: "Write Description", description: "SEO-optimized description with timestamps" },
+  { id: "tags", label: "Generate Tags", description: "Platform-specific tags and hashtags" },
+  { id: "thumbnail", label: "Thumbnail Ideas", description: "Thumbnail concepts for replay/clips" },
+  { id: "clips", label: "Extract Clips", description: "AI identifies best moments for clips" },
+  { id: "cut_vods", label: "Cut VODs", description: "Auto-cut stream into audience-optimized VOD lengths" },
+  { id: "repurpose", label: "Repurpose", description: "Create unique posts for each platform" },
+  { id: "schedule", label: "Schedule & Post", description: "Queue content at peak hours with human timing" },
+] as const;
+
+export const VOD_PIPELINE_STEPS = [
+  { id: "ingest", label: "Ingest Video", description: "Import video and extract metadata" },
+  { id: "analyze", label: "Analyze Content", description: "AI analyzes video for key moments and topics" },
+  { id: "title", label: "Optimize Title", description: "Generate click-worthy title variations" },
+  { id: "description", label: "Write Description", description: "SEO-optimized description" },
+  { id: "tags", label: "Generate Tags", description: "Research and add high-performing tags" },
+  { id: "thumbnail", label: "Thumbnail Ideas", description: "AI suggests thumbnail concepts" },
+  { id: "seo_audit", label: "SEO Audit", description: "Full SEO analysis and optimization" },
+  { id: "clips", label: "Extract Clips", description: "Find best moments for Shorts/TikTok" },
+  { id: "repurpose", label: "Repurpose", description: "Create unique posts for each platform" },
+  { id: "schedule", label: "Schedule & Post", description: "Queue posts at peak hours" },
+] as const;
+
+export const vodCuts = pgTable("vod_cuts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceStreamId: integer("source_stream_id").references(() => streams.id),
+  sourceVideoId: integer("source_video_id").references(() => videos.id),
+  pipelineId: integer("pipeline_id"),
+  title: text("title").notNull(),
+  targetLength: integer("target_length").notNull(),
+  actualLength: integer("actual_length"),
+  lengthCategory: text("length_category").notNull().default("medium"),
+  startTimestamp: real("start_timestamp"),
+  endTimestamp: real("end_timestamp"),
+  isExperiment: boolean("is_experiment").default(false),
+  experimentGroup: text("experiment_group"),
+  status: text("status").notNull().default("pending"),
+  platform: text("platform").default("youtube"),
+  highlights: jsonb("highlights").$type<{
+    type: string;
+    timestamp: number;
+    duration: number;
+    score: number;
+    description: string;
+  }[]>(),
+  performance: jsonb("performance").$type<{
+    views?: number;
+    likes?: number;
+    comments?: number;
+    watchTime?: number;
+    avgPercentWatched?: number;
+    ctr?: number;
+    retentionDropoffs?: number[];
+  }>(),
+  aiSuggestion: jsonb("ai_suggestion").$type<{
+    reasoning: string;
+    confidenceScore: number;
+    suggestedHooks: string[];
+    cutPoints: { start: number; end: number; reason: string }[];
+  }>(),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("vod_cuts_user_id_idx").on(table.userId),
+  statusIdx: index("vod_cuts_status_idx").on(table.status),
+}));
+
+export const lengthExperiments = pgTable("length_experiments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  experimentName: text("experiment_name").notNull(),
+  status: text("status").notNull().default("running"),
+  lengthsToTest: jsonb("lengths_to_test").$type<number[]>().notNull().default([]),
+  completedLengths: jsonb("completed_lengths").$type<number[]>().default([]),
+  results: jsonb("results").$type<{
+    length: number;
+    vodCutId: number;
+    views: number;
+    avgPercentWatched: number;
+    engagement: number;
+    score: number;
+  }[]>().default([]),
+  winningLength: integer("winning_length"),
+  confidence: real("confidence"),
+  contentCategory: text("content_category"),
+  platform: text("platform").default("youtube"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("length_experiments_user_id_idx").on(table.userId),
+}));
+
+export const audienceLengthPreferences = pgTable("audience_length_preferences", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull().default("youtube"),
+  contentCategory: text("content_category").notNull(),
+  preferredMinLength: integer("preferred_min_length"),
+  preferredMaxLength: integer("preferred_max_length"),
+  optimalLength: integer("optimal_length"),
+  sampleSize: integer("sample_size").default(0),
+  confidence: real("confidence").default(0),
+  dataSource: text("data_source").default("experiment"),
+  lengthPerformance: jsonb("length_performance").$type<{
+    length: number;
+    avgViews: number;
+    avgRetention: number;
+    avgEngagement: number;
+    sampleCount: number;
+  }[]>().default([]),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("audience_length_prefs_user_id_idx").on(table.userId),
+  categoryIdx: index("audience_length_prefs_category_idx").on(table.contentCategory),
+}));
+
+export const streamPipelines = pgTable("stream_pipelines", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: integer("stream_id").references(() => streams.id),
+  videoId: integer("video_id").references(() => videos.id),
+  pipelineType: text("pipeline_type").notNull().default("live"),
+  currentStep: text("current_step").notNull().default("detect"),
+  status: text("status").notNull().default("queued"),
+  completedSteps: text("completed_steps").array().notNull().default([]),
+  stepResults: jsonb("step_results").$type<Record<string, any>>().default({}),
+  vodCutIds: jsonb("vod_cut_ids").$type<number[]>().default([]),
+  sourceTitle: text("source_title").notNull(),
+  sourceDuration: integer("source_duration"),
+  mode: text("mode").notNull().default("live"),
+  autoProcess: boolean("auto_process").default(true),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("stream_pipelines_user_id_idx").on(table.userId),
+  statusIdx: index("stream_pipelines_status_idx").on(table.status),
+  typeIdx: index("stream_pipelines_type_idx").on(table.pipelineType),
+}));
+
+export const insertVodCutSchema = createInsertSchema(vodCuts).omit({ id: true, createdAt: true, publishedAt: true });
+export const insertLengthExperimentSchema = createInsertSchema(lengthExperiments).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
+export const insertAudienceLengthPreferenceSchema = createInsertSchema(audienceLengthPreferences).omit({ id: true, createdAt: true, lastUpdated: true });
+export const insertStreamPipelineSchema = createInsertSchema(streamPipelines).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
+
+export type VodCut = typeof vodCuts.$inferSelect;
+export type LengthExperiment = typeof lengthExperiments.$inferSelect;
+export type AudienceLengthPreference = typeof audienceLengthPreferences.$inferSelect;
+export type StreamPipelineRecord = typeof streamPipelines.$inferSelect;
+
+export type InsertVodCut = z.infer<typeof insertVodCutSchema>;
+export type InsertLengthExperiment = z.infer<typeof insertLengthExperimentSchema>;
+export type InsertAudienceLengthPreference = z.infer<typeof insertAudienceLengthPreferenceSchema>;
+export type InsertStreamPipeline = z.infer<typeof insertStreamPipelineSchema>;
+
+export const LENGTH_CATEGORIES = {
+  micro: { min: 15, max: 60, label: "Micro (15-60s)", description: "Shorts, TikTok, Reels" },
+  short: { min: 60, max: 300, label: "Short (1-5 min)", description: "Quick highlights, compilations" },
+  medium: { min: 300, max: 900, label: "Medium (5-15 min)", description: "Edited highlights, best moments" },
+  long: { min: 900, max: 1800, label: "Long (15-30 min)", description: "Extended highlights, gameplay sessions" },
+  full: { min: 1800, max: 14400, label: "Full (30 min+)", description: "Full stream replay, uncut gameplay" },
+} as const;
+export type LengthCategory = keyof typeof LENGTH_CATEGORIES;
