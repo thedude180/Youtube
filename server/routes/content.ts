@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { contentPipeline } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
-import { requireAuth, getUserId } from "./helpers";
+import { requireAuth, getUserId, requireTier } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
   generateVideoMetadata,
@@ -221,7 +221,7 @@ export function registerContentRoutes(app: Express) {
   });
 
   app.post(api.videos.generateMetadata.path, async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Metadata Generation");
     if (!userId) return;
     const videoId = Number(req.params.id);
     const video = await storage.getVideo(videoId);
@@ -345,7 +345,7 @@ export function registerContentRoutes(app: Express) {
   });
 
   app.post(api.insights.generate.path, async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Insights");
     if (!userId) return;
     const schema = z.object({
       channelId: z.number().optional(),
@@ -408,7 +408,7 @@ export function registerContentRoutes(app: Express) {
   });
 
   app.post(api.compliance.run.path, async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Compliance Checks");
     if (!userId) return;
     const schema = z.object({
       channelId: z.number().optional(),
@@ -483,7 +483,7 @@ export function registerContentRoutes(app: Express) {
   });
 
   app.post(api.strategies.generate.path, async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Growth Strategies");
     if (!userId) return;
     const schema = z.object({
       channelId: z.number().optional(),

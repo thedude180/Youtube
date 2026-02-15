@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
+import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { EmptyState } from "@/components/EmptyState";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
@@ -113,24 +114,32 @@ export default function Content() {
           </Suspense>
         </TabsContent>
         <TabsContent value="calendar" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <CalendarTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="starter" featureName="Content Calendar" description="Plan and schedule your content across all platforms with our intelligent calendar. Never miss a posting window again.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <CalendarTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="localization" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LocalizationTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="pro" featureName="Content Localization" description="Automatically translate and adapt your content for global audiences. Reach viewers in 12+ languages.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LocalizationTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="ai-tools" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <AIToolsTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="starter" featureName="AI Content Tools" description="Supercharge your content with AI-powered scripts, thumbnails, keyword research, and more.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <AIToolsTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="seo" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <SEOTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="pro" featureName="SEO Optimizer" description="Dominate search results with AI-powered SEO analysis, keyword optimization, and competitor gap analysis.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <SEOTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
       </Tabs>
     </div>

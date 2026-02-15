@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from "react";
+import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -362,6 +363,7 @@ export default function Autopilot() {
 
   return (
     <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto overflow-y-auto h-full">
+      <UpgradeTabGate requiredTier="pro" featureName="Autopilot" description="Automate your entire content workflow with AI-powered auto-clipping, smart scheduling, comment responses, and cross-platform posting.">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Rocket className="h-6 w-6 text-primary" />
@@ -847,6 +849,7 @@ export default function Autopilot() {
           </Card>
         </TabsContent>
       </Tabs>
+      </UpgradeTabGate>
     </div>
   );
 }

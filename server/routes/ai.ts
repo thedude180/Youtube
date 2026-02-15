@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../storage";
-import { requireAuth } from "./helpers";
+import { requireAuth, requireTier } from "./helpers";
 import {
   aiCategorizeExpenses,
   aiFinancialInsights,
@@ -1047,7 +1047,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/financial-insights", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Financial Insights");
     if (!userId) return;
     try {
       const allRevenue = await storage.getRevenueRecords(userId);
@@ -1073,7 +1073,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/stream-recommendations", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Stream Recommendations");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1093,7 +1093,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/content-ideas", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Ideas");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1113,7 +1113,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/new-creator-plan", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "AI New Creator Plan");
     if (!userId) return;
     try {
       const { niche, customIdea } = req.body;
@@ -1203,7 +1203,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/dashboard-actions", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Dashboard Actions");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1232,7 +1232,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/brand-analysis", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Brand Analysis");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1251,7 +1251,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/script-writer", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Script Writer");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1262,7 +1262,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/thumbnail-concepts", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Thumbnail Concepts");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1272,7 +1272,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/chapter-markers", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Chapter Markers");
     if (!userId) return;
     try {
       const result = await aiChapterMarkers(req.body, userId);
@@ -1281,7 +1281,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/keyword-research", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Keyword Research");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1291,7 +1291,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/repurpose", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Content Repurposer");
     if (!userId) return;
     try {
       const result = await aiRepurposeContent(req.body, userId);
@@ -1300,7 +1300,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/seo-audit", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI SEO Audit");
     if (!userId) return;
     try {
       const result = await aiSEOAudit(req.body, userId);
@@ -1309,7 +1309,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/content-calendar", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1319,7 +1319,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/sponsorship-manager", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Sponsorship Manager");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1336,7 +1336,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/media-kit", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Media Kit");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1351,7 +1351,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/pl-report", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI P&L Report");
     if (!userId) return;
     try {
       const revenue = await storage.getRevenueRecords(userId);
@@ -1378,7 +1378,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/stream-checklist", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Stream Checklist");
     if (!userId) return;
     try {
       const result = await aiStreamChecklist(req.body, userId);
@@ -1387,7 +1387,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/raid-strategy", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Raid Strategy");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1397,7 +1397,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/post-stream-report", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Post-Stream Report");
     if (!userId) return;
     try {
       const result = await aiPostStreamReport(req.body, userId);
@@ -1406,7 +1406,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/team-manager", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Team Manager");
     if (!userId) return;
     try {
       const result = await aiTeamManager(req.body, userId);
@@ -1415,7 +1415,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/automation-builder", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Automation Builder");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1425,7 +1425,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/creator-academy", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Creator Academy");
     if (!userId) return;
     try {
       const result = await aiCreatorAcademy(req.body, userId);
@@ -1455,7 +1455,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/crossplatform-analytics", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Cross-Platform Analytics");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1473,7 +1473,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/comment-manager", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Comment Manager");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1483,7 +1483,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/collab-matchmaker", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Collab Matchmaker");
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1493,7 +1493,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/storyboard", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Storyboard");
     if (!userId) return;
     try {
       const result = await aiStoryboardGenerator(req.body, userId);

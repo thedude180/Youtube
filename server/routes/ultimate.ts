@@ -680,6 +680,23 @@ export function registerUltimateRoutes(app: Express) {
     res.json({ currentTier: userTier, gates });
   }));
 
+  app.get("/api/app/tier-gates", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getUserTier, TIER_RANK, APP_TIER_GATES: allGates } = await import("./helpers");
+    const userTier = await getUserTier(userId);
+    const userRank = TIER_RANK[userTier] ?? 0;
+    const gates: Record<string, { minTier: string; label: string; category: string; unlocked: boolean }> = {};
+    for (const [key, gate] of Object.entries(allGates)) {
+      gates[key] = { ...gate, unlocked: userRank >= (TIER_RANK[gate.minTier] ?? 0) };
+    }
+    const empireGates: Record<string, { minTier: string; label: string; unlocked: boolean }> = {};
+    for (const [key, gate] of Object.entries(EMPIRE_TIER_GATES)) {
+      empireGates[key] = { ...gate, unlocked: userRank >= (TIER_RANK[gate.minTier] ?? 0) };
+    }
+    res.json({ currentTier: userTier, gates, empireGates });
+  }));
+
   app.get("/api/security/dashboard", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

@@ -48,7 +48,7 @@ export function registerSettingsRoutes(app: Express) {
   });
 
   app.post("/api/style-scan/:channelId", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Style Scanner");
     if (!userId) return;
     try {
       const channel = await storage.getChannel(Number(req.params.channelId));
@@ -80,7 +80,7 @@ export function registerSettingsRoutes(app: Express) {
   });
 
   app.get("/api/creator-memory", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "ultimate", "Creator Memory");
     if (!userId) return;
     const memoryType = req.query.type as string | undefined;
     const memories = await storage.getCreatorMemory(userId, memoryType);
@@ -349,7 +349,7 @@ export function registerSettingsRoutes(app: Express) {
   });
 
   app.post("/api/growth-programs/recommendations", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Growth Programs");
     if (!userId) return;
     try {
       const recommendations = await generateGrowthRecommendations(userId);

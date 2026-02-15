@@ -35,6 +35,7 @@ import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
+import { UpgradeTabGate } from "@/components/UpgradeGate";
 
 const LazyRevenueTab = lazy(() => import("./money/RevenueTab"));
 const LazyExpensesTab = lazy(() => import("./money/ExpensesTab"));
@@ -200,27 +201,35 @@ export default function Money() {
         </TabsList>
 
         <TabsContent value="revenue" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LazyRevenueTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="youtube" featureName="Revenue Tracking" description="Track your income across all platforms with real-time revenue dashboards and analytics.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazyRevenueTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
 
         <TabsContent value="opportunities" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LazyOpportunitiesTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="pro" featureName="Revenue Opportunities" description="Discover new monetization opportunities with AI analysis of your content and audience.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazyOpportunitiesTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
 
         <TabsContent value="expenses" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LazyExpensesTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="starter" featureName="Expense Tracking" description="Track business expenses, categorize spending, and stay on top of your creator finances.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazyExpensesTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
 
         <TabsContent value="taxes" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LazyTaxTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="pro" featureName="Tax Intelligence" description="AI-powered tax analysis, deduction finder, and quarterly estimates to maximize your savings.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazyTaxTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
 
         <TabsContent value="payments" className="mt-2">
@@ -336,25 +345,33 @@ export default function Money() {
         </TabsContent>
 
         <TabsContent value="ventures" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LazyVenturesTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="starter" featureName="Business Ventures" description="Launch and manage side businesses, merch stores, courses, and other revenue streams.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazyVenturesTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="goals" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LazyGoalsTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="starter" featureName="Financial Goals" description="Set and track financial milestones for your creator business.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazyGoalsTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="sponsors" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <LazySponsorsTab />
-          </Suspense>
+          <UpgradeTabGate requiredTier="pro" featureName="Sponsorship Manager" description="Find, negotiate, and manage brand deals with AI-powered sponsorship tools.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazySponsorsTab />
+            </Suspense>
+          </UpgradeTabGate>
         </TabsContent>
       </Tabs>
 
-      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-        <LazyMoneyAIToolSuites />
-      </Suspense>
+      <UpgradeTabGate requiredTier="pro" featureName="Financial AI Tools">
+        <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+          <LazyMoneyAIToolSuites />
+        </Suspense>
+      </UpgradeTabGate>
     </div>
   );
 }

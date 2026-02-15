@@ -22,6 +22,7 @@ import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { LiveChatPanel } from "@/components/LiveChatPanel";
+import { UpgradeTabGate } from "@/components/UpgradeGate";
 
 type AIResponse = any;
 
@@ -715,6 +716,7 @@ export default function StreamCenter() {
 
   return (
     <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
+      <UpgradeTabGate requiredTier="youtube" featureName="Stream Center" description="Go live across multiple platforms simultaneously with AI-powered stream optimization, chat management, and post-stream analytics.">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Stream Center</h1>
         <div className="flex items-center gap-2">
@@ -2359,6 +2361,7 @@ export default function StreamCenter() {
           </CardContent>
         </Card>
       )}
+      </UpgradeTabGate>
     </div>
   );
 }

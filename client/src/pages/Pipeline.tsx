@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -880,6 +881,7 @@ export default function Pipeline() {
 
   return (
     <div className="p-2 lg:p-3 space-y-2 max-w-6xl mx-auto">
+      <UpgradeTabGate requiredTier="starter" featureName="Pipeline Dashboard" description="Track every step of your content pipeline from intake to publication. Visualize your entire workflow in one place.">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h1 data-testid="text-page-title" className="text-lg font-display font-bold">Pipeline</h1>
@@ -920,6 +922,7 @@ export default function Pipeline() {
           <LengthLabTab />
         </TabsContent>
       </Tabs>
+      </UpgradeTabGate>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
-import { requireAuth, getUserId } from "./helpers";
+import { requireAuth, getUserId, requireTier } from "./helpers";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
 import {
@@ -321,7 +321,7 @@ export function registerMoneyRoutes(app: Express) {
   });
 
   app.post("/api/tax-analyze", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Tax Intelligence");
     if (!userId) return;
     try {
       const result = await generateTaxStrategy(req.body, userId);
@@ -332,7 +332,7 @@ export function registerMoneyRoutes(app: Express) {
   });
 
   app.post("/api/expense-analyze", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Financial AI Tools");
     if (!userId) return;
     try {
       const result = await generateExpenseAnalysis(req.body, userId);

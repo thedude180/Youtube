@@ -12,7 +12,7 @@ import {
   processCrossPromotion,
 } from "../autopilot-engine";
 import { getStealthReport } from "../content-variation-engine";
-import { getUserId } from "./helpers";
+import { getUserId, requireTier } from "./helpers";
 import { storage } from "../storage";
 import {
   getAudienceDrivenTime,
@@ -29,7 +29,7 @@ function requireAuth(req: Request, res: Response): string | null {
 
 export function registerAutopilotRoutes(app: Express) {
   app.get("/api/autopilot/stats", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
     try {
       const stats = await getAutopilotStats(userId);
@@ -41,7 +41,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.get("/api/autopilot/activity", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
     try {
       const limit = parseInt(req.query.limit as string) || 50;
@@ -54,7 +54,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.get("/api/autopilot/queue", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
     try {
       const status = req.query.status as string;
@@ -71,7 +71,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.get("/api/autopilot/comments", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Comment Responder");
     if (!userId) return;
     try {
       const comments = await db.select().from(commentResponses)
@@ -85,7 +85,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/comments/:id/approve", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Comment Responder");
     if (!userId) return;
     try {
       const id = parseInt(req.params.id);
@@ -100,7 +100,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/comments/:id/reject", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Comment Responder");
     if (!userId) return;
     try {
       const id = parseInt(req.params.id);
@@ -115,7 +115,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.get("/api/autopilot/config", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
     try {
       const configs = await db.select().from(autopilotConfig)
@@ -127,7 +127,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/config", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
     try {
       const { feature, enabled, settings } = req.body;
@@ -143,7 +143,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/trigger/clip", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Auto-Clip & Post");
     if (!userId) return;
     try {
       const { videoId } = req.body;
@@ -156,7 +156,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/trigger/comments", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Comment Responder");
     if (!userId) return;
     try {
       await processCommentResponses(userId);
@@ -167,7 +167,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/trigger/recycle", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "ultimate", "Content Recycler");
     if (!userId) return;
     try {
       await processContentRecycling(userId);
@@ -191,7 +191,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.get("/api/autopilot/stealth", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "ultimate", "Stealth Mode Scoring");
     if (!userId) return;
     try {
       const report = await getStealthReport(userId);
@@ -203,7 +203,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/trigger/cross-promo", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "ultimate", "Cross-Platform Promotion");
     if (!userId) return;
     try {
       await processCrossPromotion(userId);
@@ -331,7 +331,7 @@ export function registerAutopilotRoutes(app: Express) {
   });
 
   app.post("/api/autopilot/activate", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
     try {
       const reseed = req.body?.reseed === true;

@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link, useParams, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
+import { UpgradeTabGate } from "@/components/UpgradeGate";
 
 const BrandTab = lazy(() => import("./settings/BrandTab"));
 const CollabsTab = lazy(() => import("./settings/CollabsTab"));
@@ -4884,14 +4885,14 @@ export default function Settings() {
           <GeneralTab />
         </TabsContent>
         <Suspense fallback={<TabFallback />}>
-          <TabsContent value="brand" className="mt-4"><BrandTab /></TabsContent>
-          <TabsContent value="collabs" className="mt-4"><CollabsTab /></TabsContent>
-          <TabsContent value="competitors" className="mt-4"><CompetitorsTab /></TabsContent>
-          <TabsContent value="legal" className="mt-4"><LegalTab /></TabsContent>
-          <TabsContent value="learning" className="mt-4"><LearningTab /></TabsContent>
-          <TabsContent value="automation" className="mt-4"><AutomationTab /></TabsContent>
-          <TabsContent value="growth" className="mt-4"><GrowthProgramsTab /></TabsContent>
-          <TabsContent value="security" className="mt-4"><SecurityTab /></TabsContent>
+          <TabsContent value="brand" className="mt-4"><UpgradeTabGate requiredTier="starter" featureName="Brand Kit" description="Build and manage your brand identity with AI-powered brand guidelines, color palettes, and voice profiles."><BrandTab /></UpgradeTabGate></TabsContent>
+          <TabsContent value="collabs" className="mt-4"><UpgradeTabGate requiredTier="pro" featureName="Collaboration Manager" description="Find perfect collaboration partners and manage partnerships with AI matchmaking."><CollabsTab /></UpgradeTabGate></TabsContent>
+          <TabsContent value="competitors" className="mt-4"><UpgradeTabGate requiredTier="pro" featureName="Competitor Intelligence" description="Track competitor performance, content strategies, and discover opportunities they're missing."><CompetitorsTab /></UpgradeTabGate></TabsContent>
+          <TabsContent value="legal" className="mt-4"><UpgradeTabGate requiredTier="pro" featureName="Legal Protection" description="Protect your content with AI-powered copyright monitoring, contract templates, and DMCA tools."><LegalTab /></UpgradeTabGate></TabsContent>
+          <TabsContent value="learning" className="mt-4"><UpgradeTabGate requiredTier="starter" featureName="Learning Center" description="Level up your skills with personalized learning paths and creator academy content."><LearningTab /></UpgradeTabGate></TabsContent>
+          <TabsContent value="automation" className="mt-4"><UpgradeTabGate requiredTier="pro" featureName="Automation Hub" description="Configure powerful automation rules that run your business while you create."><AutomationTab /></UpgradeTabGate></TabsContent>
+          <TabsContent value="growth" className="mt-4"><UpgradeTabGate requiredTier="pro" featureName="Growth Programs" description="Access growth programs, mentorship matching, and accelerator opportunities."><GrowthProgramsTab /></UpgradeTabGate></TabsContent>
+          <TabsContent value="security" className="mt-4"><UpgradeTabGate requiredTier="starter" featureName="Security Center" description="Monitor account security, detect threats, and protect your creator accounts."><SecurityTab /></UpgradeTabGate></TabsContent>
           <TabsContent value="accessibility" className="mt-4"><AccessibilityTab /></TabsContent>
           <TabsContent value="subscription" className="mt-4"><SubscriptionTab /></TabsContent>
           {isAdmin && <TabsContent value="admin-codes" className="mt-4"><AdminCodesTab /></TabsContent>}

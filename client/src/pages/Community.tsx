@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -872,19 +873,29 @@ export default function Community() {
         </TabsList>
 
         <TabsContent value="giveaways" className="mt-2">
-          <GiveawaysTab />
+          <UpgradeTabGate requiredTier="starter" featureName="Giveaways" description="Run engaging giveaways across all your platforms to grow your audience and reward loyal fans.">
+            <GiveawaysTab />
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="polls" className="mt-2">
-          <PollsTab />
+          <UpgradeTabGate requiredTier="starter" featureName="Polls" description="Create interactive polls to engage your community and gather valuable audience insights.">
+            <PollsTab />
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="challenges" className="mt-2">
-          <ChallengesTab />
+          <UpgradeTabGate requiredTier="pro" featureName="Community Challenges" description="Create engaging challenges that boost audience participation and build a loyal community.">
+            <ChallengesTab />
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="loyalty" className="mt-2">
-          <LoyaltyTab />
+          <UpgradeTabGate requiredTier="pro" featureName="Loyalty Program" description="Build a loyalty points system to reward your most engaged community members and drive retention.">
+            <LoyaltyTab />
+          </UpgradeTabGate>
         </TabsContent>
         <TabsContent value="moderation" className="mt-2">
-          <ModerationTab />
+          <UpgradeTabGate requiredTier="pro" featureName="Moderation Tools" description="Advanced moderation tools to keep your community safe and maintain a positive environment.">
+            <ModerationTab />
+          </UpgradeTabGate>
         </TabsContent>
       </Tabs>
     </div>

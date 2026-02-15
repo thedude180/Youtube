@@ -16,6 +16,8 @@ import {
   KeyRound,
   GitBranch,
   Users,
+  Lock,
+  ArrowRight,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,22 +35,38 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
+const TIER_ORDER = ["free", "youtube", "starter", "pro", "ultimate"];
+
 const navLinks = [
-  { href: "/", labelKey: "nav.home", icon: LayoutDashboard },
-  { href: "/content", labelKey: "nav.content", icon: Video },
-  { href: "/pipeline", labelKey: "Pipeline", icon: GitBranch },
-  { href: "/stream", labelKey: "nav.goLive", icon: Radio },
-  { href: "/autopilot", labelKey: "Autopilot", icon: Rocket },
-  { href: "/community", labelKey: "Community", icon: Users },
-  { href: "/money", labelKey: "nav.money", icon: DollarSign },
-  { href: "/settings", labelKey: "nav.settings", icon: Settings },
+  { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free" },
+  { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free" },
+  { href: "/pipeline", labelKey: "Pipeline", icon: GitBranch, minTier: "starter" },
+  { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube" },
+  { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro" },
+  { href: "/community", labelKey: "Community", icon: Users, minTier: "starter" },
+  { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free" },
+  { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free" },
 ];
+
+const TIER_BADGE_LABELS: Record<string, string> = {
+  youtube: "YT",
+  starter: "STR",
+  pro: "PRO",
+  ultimate: "ULT",
+};
+
+const TIER_BADGE_COLORS: Record<string, string> = {
+  youtube: "text-red-400",
+  starter: "text-blue-400",
+  pro: "text-purple-400",
+  ultimate: "text-yellow-400",
+};
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, isLoading, logout } = useAuth();
   const { isAdvanced } = useAdvancedMode();
-  const { tier, isPaidUser, isAdmin } = useUserProfile();
+  const { tier, isPaidUser, isAdmin, hasTierAccess } = useUserProfile();
   const { t } = useTranslation();
 
   const isActive = (href: string) =>
@@ -90,12 +108,19 @@ export function AppSidebar() {
                 const Icon = link.icon;
                 const active = isActive(link.href);
                 const label = t(link.labelKey);
+                const locked = !hasTierAccess(link.minTier);
                 return (
                   <SidebarMenuItem key={link.href}>
                     <SidebarMenuButton asChild isActive={active} data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}>
-                      <Link href={link.href}>
-                        <Icon className="h-4 w-4" />
-                        <span>{label}</span>
+                      <Link href={locked ? "/pricing" : link.href}>
+                        <Icon className={`h-4 w-4 ${locked ? "opacity-40" : ""}`} />
+                        <span className={locked ? "opacity-40" : ""}>{label}</span>
+                        {locked && (
+                          <span className={`ml-auto flex items-center gap-0.5 text-[10px] font-medium ${TIER_BADGE_COLORS[link.minTier] || "text-muted-foreground"}`}>
+                            <Lock className="w-2.5 h-2.5" />
+                            {TIER_BADGE_LABELS[link.minTier] || link.minTier}
+                          </span>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -104,6 +129,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
         {isAdmin && (
           <SidebarGroup>
             <SidebarGroupContent>
@@ -117,6 +143,28 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {user && !isPaidUser && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <div className="mx-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Crown className="w-3.5 h-3.5 text-yellow-400" />
+                  <span className="text-xs font-semibold">Unlock Everything</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  Get AI automation, multi-platform tools, and more.
+                </p>
+                <Link href="/pricing">
+                  <Button variant="default" size="sm" className="w-full gap-1.5" data-testid="button-sidebar-upgrade">
+                    View Plans
+                    <ArrowRight className="w-3 h-3" />
+                  </Button>
+                </Link>
+              </div>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
@@ -136,11 +184,17 @@ export function AppSidebar() {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p data-testid="text-user-name" className="text-sm font-medium truncate">{userName}</p>
-              {isPaidUser && (
+              {isPaidUser ? (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0" data-testid="badge-user-tier">
                   <Crown className="w-2.5 h-2.5 mr-0.5" />
                   {tier.charAt(0).toUpperCase() + tier.slice(1)}
                 </Badge>
+              ) : (
+                <Link href="/pricing">
+                  <span className="text-[10px] text-primary cursor-pointer" data-testid="link-upgrade-tier">
+                    Upgrade
+                  </span>
+                </Link>
               )}
             </div>
             <Button data-testid="button-logout" size="icon" variant="ghost" onClick={() => logout()}>
