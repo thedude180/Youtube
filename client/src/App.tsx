@@ -46,7 +46,24 @@ const sidebarStyle = {
   "--sidebar-width-icon": "3rem",
 } as React.CSSProperties;
 
+function useRouteMetaSync() {
+  const [location] = useLocation();
+  useEffect(() => {
+    const url = window.location.href;
+    const ogUrl = document.querySelector('meta[property="og:url"]');
+    if (ogUrl) ogUrl.setAttribute("content", url);
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = url;
+  }, [location]);
+}
+
 function Router() {
+  useRouteMetaSync();
   return (
     <Switch>
       <Route path="/" component={Dashboard} />

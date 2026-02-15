@@ -105,7 +105,7 @@ const healthAreas = [
 ];
 
 export default function Dashboard() {
-  usePageTitle("Dashboard");
+  usePageTitle("Dashboard", "Your AI-powered creator command center. Track content, revenue, growth, and automation across all connected platforms.");
   useSSE();
   const { toast } = useToast();
   const { user } = useAuth();

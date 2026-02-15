@@ -86,7 +86,7 @@ const TRUST_NUMBERS = [
 ];
 
 export default function Landing() {
-  usePageTitle("AI-Powered Creator Management");
+  usePageTitle("AI-Powered Creator Management Platform", "CreatorOS replaces your entire creator team with 832 AI features. Manage content, streaming, revenue, and growth across 25 platforms on full autopilot. Start free today.");
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="border-b border-border/50 sticky top-0 z-50 bg-background/80 backdrop-blur-xl">

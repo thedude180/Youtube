@@ -171,18 +171,44 @@ export async function registerRoutes(
   });
 
   app.get("/robots.txt", (_req, res) => {
+    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app");
     res.type("text/plain").send(
-      "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /settings\nSitemap: https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "etgaming247.com") + "/sitemap.xml"
+      [
+        "User-agent: *",
+        "Allow: /",
+        "Allow: /pricing",
+        "Allow: /launch",
+        "Disallow: /api/",
+        "Disallow: /settings",
+        "Disallow: /onboarding",
+        "Disallow: /access-codes",
+        "",
+        "User-agent: Googlebot",
+        "Allow: /",
+        "",
+        "User-agent: Bingbot",
+        "Allow: /",
+        "",
+        `Sitemap: ${domain}/sitemap.xml`,
+      ].join("\n")
     );
   });
 
   app.get("/sitemap.xml", (_req, res) => {
-    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "etgaming247.com");
-    const urls = ["/", "/pricing", "/content", "/stream", "/money"].map(
-      (path) => `<url><loc>${domain}${path}</loc><changefreq>weekly</changefreq></url>`
-    ).join("");
+    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app");
+    const today = new Date().toISOString().split("T")[0];
+    const pages = [
+      { path: "/", changefreq: "daily", priority: "1.0" },
+      { path: "/pricing", changefreq: "weekly", priority: "0.9" },
+      { path: "/launch", changefreq: "monthly", priority: "0.8" },
+      { path: "/privacy", changefreq: "monthly", priority: "0.3" },
+      { path: "/terms", changefreq: "monthly", priority: "0.3" },
+    ];
+    const urls = pages.map(
+      (p) => `  <url>\n    <loc>${domain}${p.path}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+    ).join("\n");
     res.type("application/xml").send(
-      '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + '</urlset>'
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`
     );
   });
 
