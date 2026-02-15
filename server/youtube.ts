@@ -3,8 +3,14 @@ import { storage } from "./storage";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube",
-  "https://www.googleapis.com/auth/youtube.upload",
+  "https://www.googleapis.com/auth/youtube.force-ssl",
   "https://www.googleapis.com/auth/youtube.readonly",
+  "https://www.googleapis.com/auth/youtube.upload",
+  "https://www.googleapis.com/auth/youtube.channel-memberships.creator",
+  "https://www.googleapis.com/auth/youtubepartner",
+  "https://www.googleapis.com/auth/youtubepartner-channel-audit",
+  "https://www.googleapis.com/auth/yt-analytics.readonly",
+  "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",
 ];
 
 const pendingOAuthUsers = new Map<string, { userId: string; timestamp: number }>();
