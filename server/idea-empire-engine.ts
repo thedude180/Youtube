@@ -12,6 +12,7 @@ import {
   simulateTypingDelay,
   getCommentResponseDelay,
 } from "./human-behavior-engine";
+import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -621,56 +622,340 @@ This should read like a battle plan. Every action should have a clear purpose. T
   return result;
 }
 
+const FULL_BANNED_AI_PHRASES = [
+  "check out", "don't miss", "smash that like", "hit subscribe",
+  "ring the bell", "without further ado", "let's dive in",
+  "it's worth noting", "furthermore", "leverage", "utilize",
+  "at the end of the day", "game-changer", "groundbreaking",
+  "revolutionize", "seamlessly", "delve", "elevate your",
+  "unlock the", "comprehensive guide", "in conclusion",
+  "in today's digital", "in this video", "today we're going to",
+  "buckle up", "stay tuned", "moving forward", "on another note",
+  "that being said", "having said that", "needless to say",
+  "it goes without saying", "last but not least", "first and foremost",
+  "navigate the", "landscape", "paradigm", "synergy", "optimize",
+  "streamline", "robust", "cutting-edge", "state-of-the-art",
+  "take it to the next level", "deep dive", "unpack", "break down",
+  "journey", "embark", "explore the world of", "realm of",
+  "shed light on", "touch upon", "address the elephant",
+  "at its core", "when it comes to", "not only...but also",
+  "in order to", "the fact of the matter", "it is important to note",
+  "with that being said", "as we all know", "as you may know",
+  "without a doubt", "goes without saying", "rest assured",
+  "on a daily basis", "each and every", "at this point in time",
+  "prior to", "in terms of", "with regards to", "in light of",
+  "plays a crucial role", "is a testament to", "stands as a",
+  "continues to", "remains a", "has become increasingly",
+  "marks a significant", "represents a", "offers a unique",
+  "provides a comprehensive", "delivers a", "ensures a seamless",
+];
+
+const HUMAN_TITLE_PATTERNS = [
+  "Use lowercase or mixed case naturally - not every word needs capitalization",
+  "Real creators sometimes use ALL CAPS for one word for emphasis, not the whole title",
+  "Include numbers and specifics ('5 things' not 'several things')",
+  "Use curiosity gaps but make them feel genuine, not clickbaity",
+  "Abbreviate naturally (idk, ngl, fr, lowkey, tbh, imo)",
+  "Reference inside jokes or community things the audience would get",
+  "Use dashes or pipes instead of perfectly formatted colons",
+  "Sometimes just describe what happens, no clever wordplay needed",
+  "Use 'I' and personal perspective - this is YOUR video, own it",
+  "Real titles are sometimes grammatically imperfect and that's fine",
+];
+
+const HUMAN_DESCRIPTION_PATTERNS = [
+  "Start with a casual sentence, not a formal summary",
+  "Include personal context ('So I was playing ____ and this happened')",
+  "Timestamps should look hand-typed (some slightly misformatted is ok)",
+  "Don't list every single social media with a pretty format - be messy",
+  "Use line breaks inconsistently like a real person typing fast",
+  "Add a genuine personal note somewhere ('thanks for watching, seriously')",
+  "Social links section should look like you copy-pasted it from last time",
+  "Typos in descriptions are actually MORE human (leave one or two subtle ones)",
+  "Reference inside jokes or past videos naturally",
+  "Some descriptions are literally 2 sentences and that's fine for shorts",
+];
+
+const HUMAN_TAG_PATTERNS = [
+  "Mix proper tags with casual/slang tags ('minecraft pvp' AND 'minecraft is insane')",
+  "Include at least one tag that's slightly misspelled or a common search typo",
+  "Add personal brand tags mixed with generic ones",
+  "Include trending game/topic names as real people search them",
+  "Some tags should be full phrases people actually search ('how to get better at ____')",
+  "Don't perfectly optimize every tag - real creators throw in random ones",
+  "Include at least one tag that's just a reaction ('bruh moment', 'no way this worked')",
+];
+
+function pickRandom<T>(arr: T[], count: number): T[] {
+  const shuffled = [...arr].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(count, arr.length));
+}
+
 function generateHumanWritingContext(platform: string, format: string): string {
-  const BANNED_AI_PHRASES = [
-    "check out", "don't miss", "smash that like", "hit subscribe",
-    "ring the bell", "without further ado", "let's dive in",
-    "it's worth noting", "furthermore", "leverage", "utilize",
-    "at the end of the day", "game-changer", "groundbreaking",
-    "revolutionize", "seamlessly", "delve", "elevate your",
-    "unlock the", "comprehensive guide", "in conclusion",
-  ];
-
   const naturalPatterns = [
-    "Use contractions naturally (don't, can't, it's, we're)",
-    "Vary sentence length - mix short punchy lines with longer explanations",
-    "Include conversational fillers occasionally ('honestly', 'look', 'here's the thing')",
-    "Use incomplete sentences sometimes for emphasis",
-    "Reference personal experience and opinions ('I personally think', 'in my experience')",
-    "Add natural pauses and breath marks in scripts [PAUSE] [BREATH]",
-    "Include self-corrections ('actually, wait - let me rephrase that')",
-    "Use rhetorical questions to engage viewers",
-    "Add genuine reactions ('this blew my mind', 'I was NOT expecting that')",
-    "Write like you're talking to a friend, not presenting to a crowd",
+    "Use contractions ALWAYS (don't, can't, it's, we're, they're, wouldn't) - formal speech is an instant AI tell",
+    "Vary sentence length dramatically - some sentences should be 2 words. Others should ramble on for a while like you're thinking out loud and can't quite figure out where to end the thought",
+    "Include filler words that humans use when thinking ('honestly', 'look', 'here's the thing', 'okay so', 'right', 'basically', 'like')",
+    "Use sentence fragments. On purpose. For emphasis.",
+    "Reference personal experience ('I personally think', 'in my experience', 'I swear', 'no joke')",
+    "Add natural breath marks and pauses in scripts: [PAUSE], [BREATH], '...', or just '- '",
+    "Self-correct mid-thought ('actually, wait - let me rephrase that', 'no that's not right', 'okay scratch that')",
+    "Use rhetorical questions then immediately answer them ('Why does this work? Because...')",
+    "React genuinely to your own content ('this blew my mind', 'I was NOT expecting that', 'bro WHAT')",
+    "Talk to the camera/audience like they're your friend sitting next to you",
+    "Start some sentences with 'And' or 'But' - grammar teachers hate it but real people do it",
+    "Use emphasis through repetition ('this is good. this is REALLY good')",
+    "Include moments where you seem to lose your train of thought and recover",
+    "Add personal tangents that feel unscripted then bring it back ('sorry, anyway back to-')",
+    "Express uncertainty sometimes ('I think?', 'I'm not 100% sure but', 'don't quote me on this')",
+    "Use internet speak where natural ('literally', 'lowkey', 'ngl', 'fr fr', 'deadass')",
   ];
 
-  const platformSpecific: Record<string, string> = {
-    youtube: "Write for a conversational YouTube style - imagine you're talking directly to ONE viewer through the camera. Use 'you' frequently.",
-    tiktok: "Ultra-casual TikTok energy. Short sentences. Trending language. Hook in the first 2 seconds.",
-    twitch: "Stream-culture language. Reference chat, viewers, and the gaming community naturally.",
-    kick: "Raw, unfiltered energy. Community-first. Authentic gamer voice.",
-    x: "Punchy, opinion-driven. Every word counts. Hot takes welcome.",
-    discord: "Insider community vibe. Talk like you're in a group chat with friends.",
+  const platformVoice: Record<string, string> = {
+    youtube: `YOUTUBE VOICE: You're talking to ONE person through the camera. Not 'dear viewers' - literally 'you'. 
+Use 'you know what I mean?' and 'right?' as conversational anchors.
+Imagine you just sat down, hit record, and you're telling your friend about this thing.
+Your energy should shift naturally - excited parts, calm parts, confused parts.
+Don't open with 'Hey guys welcome back' unless it feels genuinely natural. Sometimes just... start talking about the topic.`,
+    tiktok: `TIKTOK VOICE: Ultra-casual. You're recording this on your phone mid-thought.
+First 2 seconds are EVERYTHING. No intro, no setup, just the hook.
+Use trending audio references, stitch/duet language, 'POV:' format when it fits.
+Lowercase energy. Abbreviated everything. This isn't a presentation.
+Sound like you're texting your group chat but out loud.`,
+    twitch: `TWITCH VOICE: Stream culture runs deep. Reference chat, raids, bits, subs naturally.
+You're talking to your chat - real-time energy, reactive, unpredictable.
+Gaming callouts, clutch reactions, genuine hype or tilt energy.
+Twitch viewers can smell a fake a mile away - be raw.`,
+    kick: `KICK VOICE: Even more raw than Twitch. Community-first, unfiltered.
+This platform rewards authenticity over production value.
+Be real, be edgy (within reason), be yourself with zero corporate polish.`,
+    x: `X VOICE: Every. Word. Counts. You have limited characters.
+Hot takes > safe takes. Opinions > summaries. Questions > statements.
+Write like you're typing fast between games. No drafts, no overthinking.
+Sometimes a 4-word post hits harder than a paragraph.`,
+    discord: `DISCORD VOICE: You're in your server, talking to your people.
+Insider vibes. Reference server jokes, community moments, shared experiences.
+This isn't content creation, this is hanging out with your crew.
+Use reactions, brief messages, casual energy.`,
   };
 
   const formatGuidance: Record<string, string> = {
-    "long-form": "Write detailed but never boring. Every 60-90 seconds should have a mini-hook to prevent drop-off. Include 'pattern interrupts' (unexpected jokes, surprising facts, sudden energy shifts).",
-    "short": "Maximum impact in minimum time. The first sentence IS the hook. No warm-up, no introduction. Get straight to the point.",
-    "live": "Write for spontaneity. Include suggested riffs, tangent points, and audience interaction prompts. Leave room for improvisation.",
+    "long-form": `LONG-FORM PACING: Every 60-90 seconds needs a 'pattern interrupt' - an unexpected joke, surprising fact, sudden energy shift, or 'wait hold on' moment.
+Structure should feel organic, not like a numbered list. Real creators don't perfectly outline everything.
+Include at least one tangent that adds personality even if it doesn't add information.
+The conclusion should NOT summarize everything - just land the final point and move on. Real people don't say 'in conclusion'.
+Add 'editor notes' in brackets that feel like an afterthought: [insert clip here], [this is where it gets crazy].`,
+    "short": `SHORT-FORM: The first 0.5 seconds decide everything. No warmup. No intro. Just the most interesting thing FIRST.
+This should feel like you grabbed your phone mid-realization and started recording.
+Under 60 seconds total. Cut everything that isn't essential.
+End abruptly - don't wrap up neatly. Just... stop. Or loop back to the start.`,
+    "live": `LIVE FORMAT: Write loose talking points, NOT a script. Include:
+- Riff points where the creator should go off-script and be spontaneous
+- Chat interaction moments ('chat, what do you think?', 'someone in chat said-')
+- Tangent topics to fill dead time naturally
+- Energy markers showing where to hype up vs calm down
+- Leave 40% of the content to be improvised in the moment`,
   };
 
+  const selectedPatterns = pickRandom(naturalPatterns, 5);
+  const selectedTitlePatterns = pickRandom(HUMAN_TITLE_PATTERNS, 3);
+  const selectedDescPatterns = pickRandom(HUMAN_DESCRIPTION_PATTERNS, 3);
+  const selectedTagPatterns = pickRandom(HUMAN_TAG_PATTERNS, 2);
+
   return `
-CRITICAL - Make this sound like a REAL HUMAN wrote it, not AI:
-- NEVER use these phrases: ${BANNED_AI_PHRASES.slice(0, 8).join(", ")}
-- ${naturalPatterns[Math.floor(Math.random() * naturalPatterns.length)]}
-- ${naturalPatterns[Math.floor(Math.random() * naturalPatterns.length)]}
-- ${naturalPatterns[Math.floor(Math.random() * naturalPatterns.length)]}
-- ${platformSpecific[platform.toLowerCase()] || platformSpecific.youtube}
-- ${formatGuidance[format] || formatGuidance["long-form"]}
-- Include at least one moment of genuine personality (a joke, a hot take, a personal story reference)
-- The script should feel like a creator who's been making content for years, not a template
-- Add natural speech imperfections: stammers, self-interruptions, excited tangents
-- Use slang and internet culture references where appropriate for the niche`;
+=== ABSOLUTE PRIORITY: HUMAN AUTHENTICITY ===
+This content MUST pass as written by a real human creator. AI detection tools will flag anything that sounds polished, formulaic, or too well-structured.
+
+BANNED PHRASES (instant AI detection flag - NEVER use ANY of these):
+${FULL_BANNED_AI_PHRASES.slice(0, 25).join(", ")}
+Also avoid: ${FULL_BANNED_AI_PHRASES.slice(25, 50).join(", ")}
+
+WRITING DNA - How real humans write:
+${selectedPatterns.map(p => `- ${p}`).join("\n")}
+
+TITLE AUTHENTICITY:
+${selectedTitlePatterns.map(p => `- ${p}`).join("\n")}
+- The title should look like a real creator typed it in 5 seconds, not like a marketing team workshopped it
+
+DESCRIPTION AUTHENTICITY:
+${selectedDescPatterns.map(p => `- ${p}`).join("\n")}
+
+TAG AUTHENTICITY:
+${selectedTagPatterns.map(p => `- ${p}`).join("\n")}
+
+${platformVoice[platform.toLowerCase()] || platformVoice.youtube}
+
+${formatGuidance[format] || formatGuidance["long-form"]}
+
+PERSONALITY INJECTION (pick 2-3 and weave throughout):
+- A moment of genuine frustration or excitement about the topic
+- A personal anecdote that's slightly off-topic but endearing
+- An opinion that not everyone agrees with (hot take)
+- Self-deprecating humor about your own gameplay/content/editing
+- A callback to something 'chat' or 'the community' said
+- Breaking the fourth wall ('I know this video is getting long but hear me out')
+- Genuine uncertainty about something ('I honestly don't know if this is the best way')
+
+SCRIPT TEXTURE (makes it sound human-recorded, not AI-read):
+- Include [LAUGH], [SIGH], [EXCITED], [CONFUSED] cues for the creator
+- Mark tone shifts: move between casual chatting, focused explaining, and hyped reactions
+- Add breathing room - not every second needs to be filled with words
+- Include moments where the script acknowledges the audience might disagree
+- Reference time of day, current events, or recent games/updates naturally
+- Mix up how you start sections - don't always use the same transition pattern`;
+}
+
+function humanizeGeneratedContent(content: any): any {
+  if (!content || typeof content !== "object") return content;
+
+  const scrubText = (text: string): string => {
+    if (!text || typeof text !== "string") return text;
+    let cleaned = text;
+    for (const phrase of FULL_BANNED_AI_PHRASES) {
+      const regex = new RegExp(phrase, "gi");
+      cleaned = cleaned.replace(regex, "").replace(/\s{2,}/g, " ").trim();
+    }
+    cleaned = cleaned
+      .replace(/\bIn conclusion,?\s*/gi, "")
+      .replace(/\bFurthermore,?\s*/gi, "Also, ")
+      .replace(/\bMoreover,?\s*/gi, "Plus, ")
+      .replace(/\bAdditionally,?\s*/gi, "Oh and ")
+      .replace(/\bHowever,?\s*/gi, "But ")
+      .replace(/\bNevertheless,?\s*/gi, "Still, ")
+      .replace(/\bConsequently,?\s*/gi, "So ")
+      .replace(/\bSubsequently,?\s*/gi, "Then ")
+      .replace(/\bIt is worth noting that\s*/gi, "")
+      .replace(/\bIt should be noted that\s*/gi, "")
+      .replace(/\bThis (comprehensive|ultimate|definitive) guide\s*/gi, "This ")
+      .replace(/\b(Elevate|Unlock|Unleash|Harness|Leverage) your\b/gi, "Improve your")
+      .replace(/\bseamless(ly)?\b/gi, "smooth$1")
+      .replace(/\brobust\b/gi, "solid")
+      .replace(/\bcutting-edge\b/gi, "new")
+      .replace(/\bstate-of-the-art\b/gi, "latest")
+      .replace(/\bgroundbreaking\b/gi, "cool")
+      .replace(/\brevolutionize\b/gi, "change")
+      .replace(/\bgame-changer\b/gi, "big deal")
+      .replace(/\bparadigm\b/gi, "approach")
+      .replace(/\bsynergy\b/gi, "combo")
+      .replace(/\boptimize\b/gi, "improve")
+      .replace(/\bstreamline\b/gi, "simplify")
+      .replace(/\butilize\b/gi, "use")
+      .replace(/\bleverage\b/gi, "use")
+      .replace(/\bdelve\b/gi, "get into")
+      .replace(/\bin order to\b/gi, "to")
+      .replace(/\bprior to\b/gi, "before")
+      .replace(/\bat this point in time\b/gi, "right now")
+      .replace(/\bon a daily basis\b/gi, "every day")
+      .replace(/\beach and every\b/gi, "every")
+      .replace(/\bwith regards to\b/gi, "about")
+      .replace(/\bin terms of\b/gi, "for")
+      .replace(/\bin light of\b/gi, "because of");
+    return cleaned.replace(/\s{2,}/g, " ").trim();
+  };
+
+  const injectTitleImperfections = (title: string): string => {
+    if (!title || typeof title !== "string") return title;
+    let t = scrubText(title);
+    if (Math.random() < 0.3) {
+      t = t.charAt(0).toLowerCase() + t.slice(1);
+    }
+    if (Math.random() < 0.2 && t.length > 20) {
+      const words = t.split(" ");
+      const idx = Math.floor(Math.random() * (words.length - 2)) + 1;
+      if (words[idx] && words[idx].length > 4) {
+        words[idx] = words[idx].toUpperCase();
+      }
+      t = words.join(" ");
+    }
+    if (Math.random() < 0.15 && t.endsWith("?")) {
+      t = t.slice(0, -1) + "??";
+    }
+    t = t.replace(/: /g, Math.random() < 0.5 ? " - " : " | ");
+    return t;
+  };
+
+  const injectDescriptionImperfections = (desc: string): string => {
+    if (!desc || typeof desc !== "string") return desc;
+    let d = scrubText(desc);
+    if (Math.random() < 0.2) {
+      const lines = d.split("\n");
+      if (lines.length > 3) {
+        const idx = Math.floor(Math.random() * (lines.length - 2)) + 1;
+        lines.splice(idx, 0, "");
+      }
+      d = lines.join("\n");
+    }
+    if (Math.random() < 0.15 && d.length > 100) {
+      const words = d.split(" ");
+      const typoIdx = Math.floor(Math.random() * words.length);
+      if (words[typoIdx] && words[typoIdx].length > 5) {
+        const w = words[typoIdx];
+        const charIdx = Math.floor(Math.random() * (w.length - 2)) + 1;
+        words[typoIdx] = w.slice(0, charIdx) + w[charIdx + 1] + w[charIdx] + w.slice(charIdx + 2);
+      }
+      d = words.join(" ");
+    }
+    return d;
+  };
+
+  const injectTagImperfections = (tags: any[]): any[] => {
+    if (!Array.isArray(tags)) return tags;
+    const cleaned = tags.map((t: any) => typeof t === "string" ? scrubText(t) : t);
+    if (cleaned.length > 5 && Math.random() < 0.3) {
+      const idx = Math.floor(Math.random() * cleaned.length);
+      const tag = cleaned[idx];
+      if (typeof tag === "string" && tag.length > 6) {
+        cleaned[idx] = tag.toLowerCase();
+      }
+    }
+    if (Math.random() < 0.2) {
+      const casualTags = ["bruh", "no way", "insane gameplay", "you won't believe this", "actual pain", "lets gooo", "gaming moment"];
+      cleaned.push(casualTags[Math.floor(Math.random() * casualTags.length)]);
+    }
+    return cleaned;
+  };
+
+  const result = JSON.parse(JSON.stringify(content));
+
+  if (result.videoScript) {
+    if (result.videoScript.title) result.videoScript.title = injectTitleImperfections(result.videoScript.title);
+    if (result.videoScript.hook?.text) result.videoScript.hook.text = scrubText(result.videoScript.hook.text);
+    if (result.videoScript.intro?.text) result.videoScript.intro.text = scrubText(result.videoScript.intro.text);
+    if (result.videoScript.climax?.text) result.videoScript.climax.text = scrubText(result.videoScript.climax.text);
+    if (result.videoScript.outro?.text) result.videoScript.outro.text = scrubText(result.videoScript.outro.text);
+    if (Array.isArray(result.videoScript.sections)) {
+      for (const section of result.videoScript.sections) {
+        if (section.script) section.script = scrubText(section.script);
+        if (section.engagementHook) section.engagementHook = scrubText(section.engagementHook);
+      }
+    }
+  }
+
+  if (result.seoPackage) {
+    if (result.seoPackage.finalTitle) result.seoPackage.finalTitle = injectTitleImperfections(result.seoPackage.finalTitle);
+    if (result.seoPackage.description) result.seoPackage.description = injectDescriptionImperfections(result.seoPackage.description);
+    if (Array.isArray(result.seoPackage.tags)) result.seoPackage.tags = injectTagImperfections(result.seoPackage.tags);
+  }
+
+  if (result.voiceoverScript?.fullNarration) {
+    result.voiceoverScript.fullNarration = scrubText(result.voiceoverScript.fullNarration);
+  }
+
+  if (result.distributionPlan?.platforms) {
+    for (const plat of result.distributionPlan.platforms) {
+      if (plat.caption) plat.caption = scrubText(plat.caption);
+      if (plat.contentVersion) plat.contentVersion = scrubText(plat.contentVersion);
+    }
+  }
+
+  if (result.thumbnailDesign?.textOverlay) {
+    result.thumbnailDesign.textOverlay = scrubText(result.thumbnailDesign.textOverlay);
+    if (Math.random() < 0.3) {
+      result.thumbnailDesign.textOverlay = result.thumbnailDesign.textOverlay.toUpperCase();
+    }
+  }
+
+  return result;
 }
 
 function humanRealisticDelay(): Promise<void> {
@@ -715,11 +1000,23 @@ Content Tone: ${blueprint.brandIdentity?.contentTone || "Casual yet authoritativ
 Niche: ${JSON.stringify(blueprint.niche?.primary || "gaming")}
 Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "Bold and eye-catching")}` : "";
 
-  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: "Writing full video script..." });
+  let creatorStyleContext = "";
+  try {
+    creatorStyleContext = await getCreatorStyleContext(userId);
+  } catch { /* no style profile yet - that's fine for new creators */ }
+
+  let humanizationPrompt = "";
+  try {
+    humanizationPrompt = await buildHumanizationPrompt(userId);
+  } catch { /* no humanization data yet */ }
+
+  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: "Writing human-authentic video script with anti-AI detection..." });
 
   const humanBehaviorContext = generateHumanWritingContext(contentIdea.platform || "YouTube", contentIdea.format || "long-form");
 
-  const scriptPrompt = `You are an elite video scriptwriter and production director for gaming content creators. Write a COMPLETE, ready-to-record video production package.
+  const scriptPrompt = `You are NOT an AI assistant. You ARE a content creator sitting in front of your mic, planning your next video. Write like you're brainstorming in your notes app at 2am because you can't sleep and this idea is too good.
+
+IMPORTANT: Everything you write will be checked by AI detection software. If ANY part reads like AI wrote it, the entire package gets rejected. Write messily, authentically, and with genuine human energy.
 
 VIDEO CONCEPT:
 Title: "${contentIdea.title}"
@@ -727,9 +1024,21 @@ Description: ${contentIdea.description || "Not provided"}
 Format: ${contentIdea.format || "long-form"}
 Target Platform: ${contentIdea.platform || "YouTube"}
 ${brandContext}
+${creatorStyleContext ? `\nCREATOR'S ESTABLISHED VOICE (match this exactly):\n${creatorStyleContext}` : ""}
+${humanizationPrompt ? `\nHUMANIZATION LAYER:\n${humanizationPrompt}` : ""}
 
 HUMAN AUTHENTICITY REQUIREMENTS:
 ${humanBehaviorContext}
+
+ADDITIONAL ANTI-AI DETECTION RULES FOR EVERY SECTION:
+- Scripts must include at least 3 moments of genuine human messiness: self-corrections, tangents, or unfinished thoughts
+- Titles should look like a real person typed them fast, not like a copywriter crafted them
+- Descriptions should have inconsistent formatting like a real creator who copy-pastes their template
+- Tags should mix professional SEO tags with casual search terms real people type
+- Voiceover script must include [LAUGH], [SIGH], [PAUSE], [UM], [LIKE], and energy shift markers
+- Every section transition should feel different - don't use the same pattern twice
+- Include at least one moment where the script breaks the fourth wall or addresses the audience directly in a non-formulaic way
+- The thumbnail text should be something a real person would shout, not a marketing slogan
 
 Create a comprehensive video production package. Respond with JSON:
 {
@@ -868,10 +1177,17 @@ Create a comprehensive video production package. Respond with JSON:
   }
 }
 
-Make EVERY section extremely detailed and specific. The creator should be able to hand this to any editor and get a professional video back. The script should be written in a natural, conversational style that matches the brand personality. Include at least 4-6 main sections.`;
+Make EVERY section extremely detailed and specific. The creator should be able to hand this to any editor and get a professional video back. The script must sound like a real person talking, NOT like an AI template. Include at least 4-6 main sections.
 
-  const videoPackage = await aiGenerate(scriptPrompt);
-  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "completed", message: "Full video script and production guide ready!" });
+FINAL CHECK: Before outputting, re-read every script section. If any sentence sounds like something ChatGPT would write, rewrite it to sound like a tired creator recording at midnight after their 4th energy drink.`;
+
+  const rawVideoPackage = await aiGenerate(scriptPrompt);
+
+  sendSSEEvent(userId, "video-creation-progress", { step: "humanize", status: "started", message: "Running anti-AI detection scrubber and humanization layer..." });
+  const videoPackage = humanizeGeneratedContent(rawVideoPackage);
+  sendSSEEvent(userId, "video-creation-progress", { step: "humanize", status: "completed", message: "Content humanized - passed stealth authenticity checks" });
+
+  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "completed", message: "Human-authentic video script and production guide ready!" });
 
   const videoKey = `video-creation-${Date.now()}`;
   await db.insert(aiResults).values({
@@ -879,6 +1195,17 @@ Make EVERY section extremely detailed and specific. The creator should be able t
     featureKey: videoKey,
     result: {
       ...videoPackage,
+      _humanized: true,
+      _stealthVersion: 2,
+      _antiAiDetection: {
+        bannedPhrasesScanned: FULL_BANNED_AI_PHRASES.length,
+        postProcessed: true,
+        titleImperfections: true,
+        descriptionImperfections: true,
+        tagImperfections: true,
+        creatorIntelligenceUsed: !!creatorStyleContext,
+        humanizationLayerUsed: !!humanizationPrompt,
+      },
       sourceIdea: contentIdea,
       createdAt: new Date().toISOString(),
     },
@@ -903,7 +1230,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
 
   sendSSEEvent(userId, "empire-auto-pipeline", { step: "human-timing", status: "completed", message: `Scheduled for ${scheduleInfo.scheduledTime.toLocaleString()} (${scheduleInfo.peakHourTarget ? "peak hours" : "off-peak"}, ${scheduleInfo.humanDelay} from now)` });
 
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-creation", status: "started", message: `Writing human-authentic script for "${contentIdea.title}"...` });
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-creation", status: "started", message: `Writing human-authentic script for "${contentIdea.title}" (anti-AI detection active, ${FULL_BANNED_AI_PHRASES.length} phrases blocked)...` });
 
   const videoPackage = await createVideoFromIdea(userId, contentIdea);
 

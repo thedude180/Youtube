@@ -968,11 +968,16 @@ function NewCreatorFlow({
               <Badge variant="secondary" data-testid="badge-videos-created">{videosLaunched ?? "..."} Videos Created</Badge>
               <Badge variant="secondary" data-testid="badge-pipelines-active">{videosLaunched ?? "..."} VOD Pipelines Active</Badge>
               <Badge variant="outline" data-testid="badge-human-behavior">Human Behavior Engine</Badge>
+              <Badge variant="outline" data-testid="badge-anti-ai">Anti-AI Detection</Badge>
             </div>
-            <div className="mt-2 p-2 rounded-md bg-muted/50">
+            <div className="mt-2 p-2 rounded-md bg-muted/50 space-y-1">
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <Shield className="h-3 w-3 shrink-0" />
-                Scripts written with natural speech patterns, platform-specific voice, and anti-AI-detection. Publishing scheduled with gaussian timing, peak-hour targeting, and cross-platform staggering.
+                Every script, title, description and tag is written to pass AI detection. 70+ banned AI phrases are scrubbed. Natural imperfections, self-corrections, and personality are injected throughout.
+              </p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Shield className="h-3 w-3 shrink-0" />
+                Creator Intelligence adapts content to your voice. Platform-specific writing styles ensure each post sounds native. Publishing uses gaussian timing with peak-hour targeting.
               </p>
             </div>
           </CardContent>

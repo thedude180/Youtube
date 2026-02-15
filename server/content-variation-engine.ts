@@ -148,7 +148,18 @@ const BANNED_AI_PHRASES = [
   "elevate your", "unlock the", "comprehensive guide",
   "in conclusion", "moving forward", "on another note",
   "that being said", "having said that", "needless to say",
-  "it goes without saying", "last but not least",
+  "it goes without saying", "last but not least", "first and foremost",
+  "navigate the", "landscape", "paradigm", "synergy", "optimize",
+  "streamline", "robust", "cutting-edge", "state-of-the-art",
+  "take it to the next level", "deep dive", "unpack",
+  "journey", "embark", "explore the world of", "realm of",
+  "shed light on", "at its core", "when it comes to",
+  "the fact of the matter", "it is important to note",
+  "without a doubt", "rest assured", "each and every",
+  "prior to", "in terms of", "with regards to", "in light of",
+  "plays a crucial role", "is a testament to", "continues to",
+  "has become increasingly", "offers a unique", "ensures a seamless",
+  "provides a comprehensive", "delivers a", "marks a significant",
 ];
 
 const NATURAL_IMPERFECTIONS = [
