@@ -24,6 +24,7 @@ import { createLocalizationJob, processLocalizationJob, getLocalizationJobs, bat
 import { generateTaxEstimate, getTaxEstimates, analyzeTeamNeeds, getHiringRecommendations, generateHiringRoadmap } from "../business-intel-engine";
 
 import { buildEmpireFromIdea, generateContentIdeasFromEmpire, getEmpireBlueprint, expandEmpirePillar, generateLaunchSequence, createVideoFromIdea, createVideoAndSpawnPipeline, autoLaunchEmpireContent, getVideoCreations, getVideoCreation } from "../idea-empire-engine";
+import { launchEmpire, getEmpireBuildStatus } from "../empire-launcher";
 import { getSecurityDashboard, learnFromAttack, getBlockedIPs, getSecurityRules, getSecurityStats } from "../security-engine";
 import { createOrUpdateCustomerProfile, getCustomerProfile, getAllCustomers, updateCustomerActivity, recordTierChange, getCustomerStats, enrichCustomerProfile, searchCustomers, exportCustomerData, getCustomerTimeline } from "../customer-database-engine";
 
@@ -765,5 +766,66 @@ export function registerUltimateRoutes(app: Express) {
     const { newTier, reason } = req.body;
     await recordTierChange(targetUserId, newTier, reason);
     res.json({ success: true });
+  }));
+
+
+  const empireLaunchRateLimitEmail = new Map<string, number>();
+  const empireLaunchRateLimitIP = new Map<string, number>();
+
+  const empireLaunchSchema = z.object({
+    email: z.string().email("Please provide a valid email address").max(320),
+    idea: z.string().min(3, "Please provide your content idea (at least 3 characters)").max(1000, "Idea must be under 1000 characters"),
+  });
+
+  app.post("/api/empire/launch", asyncHandler(async (req, res) => {
+    const parsed = empireLaunchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+      return;
+    }
+
+    const { email, idea } = parsed.data;
+    const normalizedEmail = email.trim().toLowerCase();
+    const clientIP = req.ip || req.socket.remoteAddress || "unknown";
+
+    const lastEmailRequest = empireLaunchRateLimitEmail.get(normalizedEmail);
+    if (lastEmailRequest && Date.now() - lastEmailRequest < 120000) {
+      res.status(429).json({ error: "Please wait at least 2 minutes between empire builds for the same email" });
+      return;
+    }
+
+    const lastIPRequest = empireLaunchRateLimitIP.get(clientIP);
+    if (lastIPRequest && Date.now() - lastIPRequest < 30000) {
+      res.status(429).json({ error: "Too many requests. Please wait a moment and try again." });
+      return;
+    }
+
+    empireLaunchRateLimitEmail.set(normalizedEmail, Date.now());
+    empireLaunchRateLimitIP.set(clientIP, Date.now());
+
+    const result = await launchEmpire(normalizedEmail, idea.trim());
+    res.json({
+      success: true,
+      buildToken: result.buildToken,
+      buildId: result.buildId,
+      message: "Your empire build has started! AI is now building everything autonomously. You'll only be notified if something critical needs your attention.",
+      statusUrl: `/api/empire/launch/${result.buildToken}`,
+    });
+  }));
+
+  app.get("/api/empire/launch/:buildToken", asyncHandler(async (req, res) => {
+    const { buildToken } = req.params;
+    if (!buildToken || buildToken.length < 10) {
+      res.status(400).json({ error: "Invalid build token" });
+      return;
+    }
+
+    const status = await getEmpireBuildStatus(buildToken);
+    if (!status) {
+      res.status(404).json({ error: "Build not found" });
+      return;
+    }
+
+    res.json(status);
   }));
 }

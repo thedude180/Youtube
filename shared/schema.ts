@@ -3009,3 +3009,46 @@ export const customerProfiles = pgTable("customer_profiles", {
 }));
 
 export type CustomerProfile = typeof customerProfiles.$inferSelect;
+
+// === EMPIRE BUILDS ===
+export const EMPIRE_BUILD_STAGES = [
+  "queued",
+  "creating_user",
+  "building_blueprint",
+  "auto_launching_content",
+  "seeding_autopilot",
+  "completed",
+  "failed",
+] as const;
+
+export const empireBuilds = pgTable("empire_builds", {
+  id: serial("id").primaryKey(),
+  buildToken: text("build_token").notNull().unique(),
+  email: text("email").notNull(),
+  idea: text("idea").notNull(),
+  userId: text("user_id"),
+  stage: text("stage").notNull().default("queued"),
+  progress: integer("progress").default(0),
+  stageMessage: text("stage_message"),
+  blueprintSummary: jsonb("blueprint_summary").$type<{
+    niche?: string;
+    brandName?: string;
+    platforms?: string[];
+    pillarsCount?: number;
+    planDays?: number;
+  }>(),
+  videosLaunched: integer("videos_launched").default(0),
+  autopilotSeeded: boolean("autopilot_seeded").default(false),
+  failureReason: text("failure_reason"),
+  failureSeverity: text("failure_severity"),
+  notifiedAt: timestamp("notified_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  tokenIdx: index("empire_builds_token_idx").on(table.buildToken),
+  emailIdx: index("empire_builds_email_idx").on(table.email),
+}));
+
+export const insertEmpireBuildSchema = createInsertSchema(empireBuilds).omit({ id: true, createdAt: true, completedAt: true, notifiedAt: true });
+export type EmpireBuild = typeof empireBuilds.$inferSelect;
+export type InsertEmpireBuild = z.infer<typeof insertEmpireBuildSchema>;

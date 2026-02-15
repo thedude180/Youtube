@@ -35,6 +35,7 @@ const Autopilot = lazy(() => import("@/pages/Autopilot"));
 const PipelinePage = lazy(() => import("@/pages/Pipeline"));
 const AccessCodes = lazy(() => import("@/pages/AccessCodes"));
 const Community = lazy(() => import("@/pages/Community"));
+const EmpireLauncher = lazy(() => import("@/pages/EmpireLauncher"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazy(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazy(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -488,6 +489,9 @@ function AppContent() {
     }
     if (location === "/terms") {
       return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><TermsOfService /></Suspense>;
+    }
+    if (location === "/launch") {
+      return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><EmpireLauncher /></Suspense>;
     }
     return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><Landing /></Suspense>;
   }
