@@ -6,10 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/use-user-profile";
-import { Shield, Plus, Trash2, Copy, Check, KeyRound, Users, Gift } from "lucide-react";
+import { Shield, Trash2, Copy, Check, KeyRound, Users, Gift, Sparkles, Crown, Zap, Rocket } from "lucide-react";
+import { SiYoutube } from "react-icons/si";
+
+const TIERS = [
+  { value: "youtube", label: "YouTube", price: "$9.99/mo", icon: SiYoutube, color: "text-red-500", border: "border-red-500/40", bg: "bg-red-500/10" },
+  { value: "starter", label: "Starter", price: "$29.99/mo", icon: Zap, color: "text-blue-400", border: "border-blue-400/40", bg: "bg-blue-400/10" },
+  { value: "pro", label: "Pro", price: "$79.99/mo", icon: Rocket, color: "text-purple-400", border: "border-purple-400/40", bg: "bg-purple-400/10" },
+  { value: "ultimate", label: "Ultimate", price: "$149.99/mo", icon: Crown, color: "text-yellow-400", border: "border-yellow-400/40", bg: "bg-yellow-400/10" },
+];
 
 export default function AccessCodes() {
   const { toast } = useToast();
@@ -31,7 +38,7 @@ export default function AccessCodes() {
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: "Access Code Created", description: `Code: ${data.code} — share this with someone to give them full access.` });
+      toast({ title: "Code Generated!", description: `${data.code} — ready to share` });
       setLabel("");
       queryClient.invalidateQueries({ queryKey: ["/api/admin/access-codes"] });
     },
@@ -44,14 +51,14 @@ export default function AccessCodes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/access-codes"] });
-      toast({ title: "Code Revoked", description: "This code can no longer be used." });
+      toast({ title: "Code Revoked" });
     },
   });
 
   const copyCode = (code: string, id: number) => {
     navigator.clipboard.writeText(code);
     setCopiedId(id);
-    toast({ title: "Copied!", description: "Access code copied to clipboard." });
+    toast({ title: "Copied!", description: "Code copied to clipboard" });
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -71,73 +78,99 @@ export default function AccessCodes() {
 
   const activeCodes = codes?.filter((c: any) => c.active) || [];
   const usedCodes = codes?.filter((c: any) => !c.active) || [];
+  const selectedTier = TIERS.find(t => t.value === tier) || TIERS[3];
 
   return (
-    <div className="p-3 max-w-3xl mx-auto space-y-3">
-      <div className="flex items-center gap-3 mb-2">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
+      <div className="flex items-center gap-3 mb-4">
         <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
           <KeyRound className="h-5 w-5 text-primary-foreground" />
         </div>
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-access-codes-title">Access Codes</h1>
-          <p className="text-sm text-muted-foreground">Generate codes to give people full access to CreatorOS</p>
+          <p className="text-sm text-muted-foreground">Give anyone instant access to any tier</p>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
             <Gift className="w-5 h-5 text-primary" />
-            Generate New Code
+            Generate Code
           </CardTitle>
-          <CardDescription>Create a code that grants full platform access. Only you can generate these.</CardDescription>
+          <CardDescription>Pick a tier, hit the button, share the code. That's it.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Who is this for? (optional)"
-              data-testid="input-access-code-label"
-            />
-            <Select value={tier} onValueChange={setTier}>
-              <SelectTrigger data-testid="select-access-code-tier"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="youtube">YouTube Tier</SelectItem>
-                <SelectItem value="starter">Starter Tier</SelectItem>
-                <SelectItem value="pro">Pro Tier</SelectItem>
-                <SelectItem value="ultimate">Ultimate Tier</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={maxUses}
-              onChange={(e) => setMaxUses(e.target.value)}
-              type="number"
-              min="1"
-              placeholder="Max uses"
-              data-testid="input-access-code-max-uses"
-            />
+        <CardContent className="space-y-5">
+          <div>
+            <p className="text-sm font-medium mb-2">Select Tier</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {TIERS.map((t) => {
+                const Icon = t.icon;
+                const isSelected = tier === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => setTier(t.value)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors cursor-pointer ${
+                      isSelected
+                        ? `${t.border} ${t.bg}`
+                        : "border-transparent bg-muted/50 hover:bg-muted"
+                    }`}
+                    data-testid={`button-tier-select-${t.value}`}
+                  >
+                    <Icon className={`w-6 h-6 ${isSelected ? t.color : "text-muted-foreground"}`} />
+                    <span className={`text-sm font-semibold ${isSelected ? t.color : ""}`}>{t.label}</span>
+                    <span className="text-[11px] text-muted-foreground">{t.price}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <p className="text-sm font-medium mb-1.5">Who is this for?</p>
+              <Input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Name or note (optional)"
+                data-testid="input-access-code-label"
+              />
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-1.5">Max uses</p>
+              <Input
+                value={maxUses}
+                onChange={(e) => setMaxUses(e.target.value)}
+                type="number"
+                min="1"
+                placeholder="1"
+                data-testid="input-access-code-max-uses"
+              />
+            </div>
+          </div>
+
           <Button
             size="lg"
             onClick={() => createMutation.mutate()}
             disabled={createMutation.isPending}
-            className="w-full sm:w-auto"
+            className={`w-full text-lg py-6 gap-2 font-bold`}
             data-testid="button-generate-access-code"
           >
-            <Plus className="w-4 h-4 mr-2" />
-            {createMutation.isPending ? "Generating..." : "Generate Access Code"}
+            <Sparkles className="w-5 h-5" />
+            {createMutation.isPending
+              ? "Generating..."
+              : `Generate ${selectedTier.label} Code`}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="w-4 h-4 text-primary" />
             Active Codes ({activeCodes.length})
           </CardTitle>
-          <CardDescription>Share these codes with people to grant them access</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -147,48 +180,53 @@ export default function AccessCodes() {
             </div>
           ) : !activeCodes.length ? (
             <div className="text-center py-8">
-              <KeyRound className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-muted-foreground">No active codes yet. Generate one above.</p>
+              <KeyRound className="w-10 h-10 mx-auto mb-3 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">No active codes. Generate one above.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {activeCodes.map((c: any) => (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-md bg-muted/50 flex-wrap"
-                  data-testid={`access-code-row-${c.id}`}
-                >
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <code className="font-mono text-base font-bold tracking-wider" data-testid={`text-access-code-${c.id}`}>
-                      {c.code}
-                    </code>
-                    <Badge variant="outline">{c.tier}</Badge>
-                    {c.label && <span className="text-sm text-muted-foreground">{c.label}</span>}
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {c.useCount || 0}/{c.maxUses || "unlimited"}
-                    </span>
+              {activeCodes.map((c: any) => {
+                const tierInfo = TIERS.find(t => t.value === c.tier);
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50 flex-wrap"
+                    data-testid={`access-code-row-${c.id}`}
+                  >
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <code className="font-mono text-lg font-bold tracking-widest" data-testid={`text-access-code-${c.id}`}>
+                        {c.code}
+                      </code>
+                      <Badge variant="outline" className={tierInfo?.color || ""}>
+                        {c.tier?.charAt(0).toUpperCase() + c.tier?.slice(1)}
+                      </Badge>
+                      {c.label && <span className="text-sm text-muted-foreground">{c.label}</span>}
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        {c.useCount || 0}/{c.maxUses || "unlimited"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => copyCode(c.code, c.id)}
+                        data-testid={`button-copy-code-${c.id}`}
+                      >
+                        {copiedId === c.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => revokeMutation.mutate(c.id)}
+                        data-testid={`button-revoke-code-${c.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => copyCode(c.code, c.id)}
-                      data-testid={`button-copy-code-${c.id}`}
-                    >
-                      {copiedId === c.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => revokeMutation.mutate(c.id)}
-                      data-testid={`button-revoke-code-${c.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -196,8 +234,8 @@ export default function AccessCodes() {
 
       {usedCodes.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base text-muted-foreground">Revoked Codes ({usedCodes.length})</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-muted-foreground">Revoked ({usedCodes.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
