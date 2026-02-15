@@ -3072,3 +3072,34 @@ export const creatorSkillProgress = pgTable("creator_skill_progress", {
 }));
 
 export type CreatorSkillProgress = typeof creatorSkillProgress.$inferSelect;
+
+export const feedbackSubmissions = pgTable("feedback_submissions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  type: text("type").notNull().default("improvement"),
+  message: text("message").notNull(),
+  category: text("category"),
+  aiAnalysis: jsonb("ai_analysis").$type<{
+    actionable: boolean;
+    category: string;
+    priority: string;
+    suggestedTier: string;
+    implementationPlan: string;
+    similarIssueCount: number;
+    autoResolvable: boolean;
+    resolution?: string;
+  }>(),
+  status: text("status").notNull().default("pending"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+  adminNotified: boolean("admin_notified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("feedback_user_idx").on(table.userId),
+  statusIdx: index("feedback_status_idx").on(table.status),
+  categoryIdx: index("feedback_category_idx").on(table.category),
+}));
+
+export const insertFeedbackSchema = createInsertSchema(feedbackSubmissions).omit({ id: true, createdAt: true, resolvedAt: true, adminNotified: true });
+export type FeedbackSubmission = typeof feedbackSubmissions.$inferSelect;
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;

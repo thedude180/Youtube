@@ -16,6 +16,7 @@ import { registerPipelineRoutes } from "./routes/pipeline";
 import { registerDualPipelineRoutes } from "./routes/dual-pipeline";
 import { registerUpgradeRoutes } from "./routes/upgrades";
 import { registerUltimateRoutes } from "./routes/ultimate";
+import { registerFeedbackRoutes } from "./routes/feedback";
 import { getUserId } from "./routes/helpers";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -161,6 +162,7 @@ export async function registerRoutes(
   await registerAutomationRoutes(app);
   registerUpgradeRoutes(app);
   registerUltimateRoutes(app);
+  registerFeedbackRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

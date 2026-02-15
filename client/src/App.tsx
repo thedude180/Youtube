@@ -40,6 +40,7 @@ const NotFound = lazy(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazy(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazy(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
 const FloatingChat = lazy(() => import("@/components/FloatingChat"));
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 
 const sidebarStyle = {
   "--sidebar-width": "13rem",
@@ -403,6 +404,7 @@ function AuthenticatedApp() {
       <Suspense fallback={null}>
         <FloatingChat externalOpen={chatOpen} onExternalClose={() => setChatOpen(false)} />
       </Suspense>
+      <FeedbackWidget />
       <Suspense fallback={null}>
         <CommandPalette onNavigate={handlePaletteNavigate} onToggleTheme={toggleTheme} onToggleAdvanced={toggleAdvanced} onOpenChat={handleOpenChat} />
       </Suspense>

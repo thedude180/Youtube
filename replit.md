@@ -57,11 +57,21 @@ CreatorOS is built as a full-stack application with an Express.js backend and a 
 -   **Login Groups**: Platforms sharing login providers are grouped for simplified onboarding.
 -   **Subscription & Access System**: Multi-tier subscription model with role-based access and admin capabilities.
 
+### Notification & Feedback Systems
+-   **Gmail Integration**: Email notifications via Replit Connectors (google-mail). Used for admin escalation alerts when recurring issues aren't auto-resolved. Client at `server/services/gmail-client.ts`.
+-   **Notification Engine**: `server/services/notifications.ts` - sends email (Gmail) and SMS (Twilio, optional) alerts. Only contacts users for warnings/critical issues; info-level events are silent.
+-   **AI Feedback Processor**: `server/services/feedback-processor.ts` - analyzes user feedback with OpenAI, auto-categorizes, determines tier placement, auto-resolves config-type issues. Only notifies admin when the same issue category hits 3+ unresolved reports in 30 days.
+-   **Autopilot Monitor**: `server/services/autopilot-monitor.ts` - background health checker running every 30 minutes for all users with autopilot enabled. Starts on server boot.
+-   **Feedback Widget**: `client/src/components/FeedbackWidget.tsx` - floating UI for users to submit improvement suggestions, bug reports, and feature requests. Positioned bottom-right.
+-   **Note**: SendGrid integration was dismissed by user. Gmail is the primary email transport. If Gmail connector becomes unavailable, re-propose SendGrid or add SENDGRID_API_KEY secret manually.
+
 ## External Dependencies
 -   **Replit Auth**: User authentication.
 -   **OpenAI API**: All AI-driven functionalities.
+-   **Gmail API**: Email notifications via Replit Connectors.
 -   **react-i18next / i18next**: Internationalization.
 -   **PostgreSQL (Neon-backed)**: Primary database.
 -   **YouTube Data API v3**: YouTube integration and OAuth2.
 -   **Stripe**: Payment processing and subscription management.
 -   **node-cron**: Background task scheduling.
+-   **googleapis**: Gmail API client for sending notification emails.
