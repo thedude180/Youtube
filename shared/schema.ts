@@ -2370,6 +2370,10 @@ export const PIPELINE_PHASES = [
 
 export const LIVE_PIPELINE_STEPS = [
   { id: "detect", label: "Detect Stream", description: "Auto-detect live stream start/end", phase: "intake" },
+  { id: "live_seo_boost", label: "Live SEO Boost", description: "Optimize title/tags/description on all platforms while live", phase: "intake" },
+  { id: "live_thumbnail", label: "Live Thumbnail", description: "Generate & push optimized thumbnails to all live platforms", phase: "intake" },
+  { id: "live_announce", label: "Go-Live Announce", description: "Auto-post 'I'm live!' across all 6 platforms", phase: "intake" },
+  { id: "live_discovery_tags", label: "Discovery Tags", description: "Push trending tags & hashtags to all live platforms in real-time", phase: "intake" },
   { id: "analyze", label: "Analyze Stream", description: "AI deep-scan content, highlights, key moments", phase: "intake" },
   { id: "chat_sentiment", label: "Chat Sentiment", description: "Real-time chat mood & toxicity scan", phase: "intake" },
   { id: "highlights", label: "Extract Highlights", description: "AI marks peak moments, kills, clutches", phase: "intake" },
