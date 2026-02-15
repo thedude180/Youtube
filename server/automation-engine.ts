@@ -549,6 +549,12 @@ export async function initAutomationEngine() {
           console.error(`[AutomationEngine] YouTube live check failed for channel ${ytChannel.id}:`, err);
         }
       }
+      try {
+        const { runMultiPlatformLiveDetection } = await import("./services/live-detection");
+        await runMultiPlatformLiveDetection();
+      } catch (err) {
+        console.error("[AutomationEngine] Multi-platform live detection error:", err);
+      }
     } catch (err) {
       console.error("[AutomationEngine] YouTube live detection cron error:", err);
     } finally {

@@ -1,0 +1,263 @@
+import { db } from "../db";
+import { channels } from "@shared/schema";
+import { storage } from "../storage";
+import { sendSSEEvent } from "../routes/events";
+
+interface DetectedBroadcast {
+  platform: string;
+  broadcastId: string;
+  title: string;
+  description: string;
+  startedAt?: string;
+  viewerCount?: number;
+}
+
+const trackedBroadcasts = new Map<string, { streamId: number; platform: string; broadcastId: string; missCount: number }>();
+let running = false;
+
+function trackingKey(userId: string, platform: string, channelId: number) {
+  return `${userId}:${platform}:${channelId}`;
+}
+
+async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
+  const token = channelRow.accessToken;
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  if (!token || !clientId) return [];
+
+  try {
+    let twitchUserId = channelRow.channelId;
+
+    if (!twitchUserId) {
+      const userInfoRes = await fetch("https://api.twitch.tv/helix/users", {
+        headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
+      });
+      if (!userInfoRes.ok) return [];
+      const userInfo = await userInfoRes.json();
+      twitchUserId = userInfo.data?.[0]?.id;
+      if (!twitchUserId) return [];
+    }
+
+    const streamsRes = await fetch(`https://api.twitch.tv/helix/streams?user_id=${twitchUserId}`, {
+      headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
+    });
+    if (!streamsRes.ok) return [];
+    const streamsData = await streamsRes.json();
+
+    return (streamsData.data || [])
+      .filter((s: any) => s.type === "live")
+      .map((s: any) => ({
+        platform: "twitch",
+        broadcastId: s.id,
+        title: s.title || "Twitch Stream",
+        description: `${s.game_name || "Streaming"} on Twitch`,
+        startedAt: s.started_at,
+        viewerCount: s.viewer_count,
+      }));
+  } catch (err) {
+    console.error(`[LiveDetection] Twitch check failed for channel ${channelRow.id}:`, err);
+    return [];
+  }
+}
+
+async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
+  const token = channelRow.accessToken;
+  if (!token) return [];
+
+  const slug = channelRow.channelName || channelRow.channelId;
+  if (!slug) return [];
+
+  try {
+    const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(slug)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    const channelList = Array.isArray(data.data) ? data.data : data.data ? [data.data] : [];
+
+    return channelList
+      .filter((ch: any) => ch.is_live || ch.livestream)
+      .map((ch: any) => {
+        const ls = ch.livestream || {};
+        return {
+          platform: "kick",
+          broadcastId: String(ls.id || ch.id || Date.now()),
+          title: ls.session_title || ls.title || ch.slug || "Kick Stream",
+          description: `${ls.categories?.[0]?.name || "Streaming"} on Kick`,
+          startedAt: ls.created_at || ls.start_time,
+          viewerCount: ls.viewer_count || ch.viewer_count,
+        };
+      });
+  } catch (err) {
+    console.error(`[LiveDetection] Kick check failed for channel ${channelRow.id}:`, err);
+    return [];
+  }
+}
+
+async function handleDetectedBroadcast(userId: string, channelId: number, broadcast: DetectedBroadcast) {
+  const key = trackingKey(userId, broadcast.platform, channelId);
+  const tracked = trackedBroadcasts.get(key);
+
+  if (tracked) {
+    tracked.missCount = 0;
+    if (tracked.broadcastId !== broadcast.broadcastId) {
+      tracked.broadcastId = broadcast.broadcastId;
+    }
+    return;
+  }
+
+  const streamList = await storage.getStreams(userId);
+  const existingLiveOnPlatform = streamList.find(s =>
+    s.status === "live" && Array.isArray(s.platforms) && (s.platforms as string[]).includes(broadcast.platform)
+  );
+
+  if (existingLiveOnPlatform) {
+    trackedBroadcasts.set(key, { streamId: existingLiveOnPlatform.id, platform: broadcast.platform, broadcastId: broadcast.broadcastId, missCount: 0 });
+    return;
+  }
+
+  const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
+
+  const stream = await storage.createStream({
+    userId,
+    title: broadcast.title,
+    description: broadcast.description,
+    category: "Gaming",
+    platforms: allPlatforms,
+    status: "planned",
+  });
+
+  await storage.updateStream(stream.id, {
+    status: "live",
+    startedAt: broadcast.startedAt ? new Date(broadcast.startedAt) : new Date(),
+  });
+
+  trackedBroadcasts.set(key, { streamId: stream.id, platform: broadcast.platform, broadcastId: broadcast.broadcastId, missCount: 0 });
+
+  try {
+    const { pauseForLive } = await import("../backlog-manager");
+    const { pivotToStream } = await import("../backlog-engine");
+    const { processGoLiveAnnouncements } = await import("../autopilot-engine");
+    const { createPipelineForStream } = await import("../routes/pipeline");
+
+    pauseForLive(userId, stream.id);
+    pivotToStream(userId, stream.id).catch(() => {});
+    processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(() => {});
+    createPipelineForStream(userId, broadcast.title, "live").catch(() => {});
+  } catch (err) {
+    console.error(`[LiveDetection] Pipeline trigger error for ${broadcast.platform}:`, err);
+  }
+
+  await storage.createNotification({
+    userId,
+    type: "stream_live",
+    title: `${broadcast.platform.charAt(0).toUpperCase() + broadcast.platform.slice(1)} LIVE Detected`,
+    message: `"${broadcast.title}" — all platform automations triggered automatically`,
+    severity: "info",
+  });
+
+  sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: broadcast.title, platform: broadcast.platform });
+  sendSSEEvent(userId, "notification", { type: "new" });
+  sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId: stream.id });
+
+  await storage.createAuditLog({
+    userId,
+    action: `${broadcast.platform}_live_auto_detected`,
+    target: broadcast.title,
+    details: { broadcastId: broadcast.broadcastId, platforms: allPlatforms, viewerCount: broadcast.viewerCount },
+    riskLevel: "low",
+  });
+
+  console.log(`[LiveDetection] ${broadcast.platform.toUpperCase()} LIVE detected for ${userId}: "${broadcast.title}"`);
+}
+
+async function handleBroadcastEnded(userId: string, platform: string, channelId: number) {
+  const key = trackingKey(userId, platform, channelId);
+  const tracked = trackedBroadcasts.get(key);
+  if (!tracked) return;
+
+  tracked.missCount++;
+
+  if (tracked.missCount < 2) return;
+
+  const streamList = await storage.getStreams(userId);
+  const liveStream = streamList.find(s => s.id === tracked.streamId && s.status === "live");
+
+  trackedBroadcasts.delete(key);
+
+  if (!liveStream) return;
+
+  const endedAt = new Date();
+  await storage.updateStream(liveStream.id, { status: "ended", endedAt });
+
+  try {
+    const { resumeFromStream } = await import("../backlog-engine");
+    const { processPostStreamHighlights } = await import("../autopilot-engine");
+    const { createPipelineForStream } = await import("../routes/pipeline");
+    const { resumeAfterStream } = await import("../backlog-manager");
+
+    resumeFromStream(userId, liveStream.id).catch(() => {});
+    processPostStreamHighlights(userId, liveStream.id, liveStream.title, liveStream.description || "", (liveStream.platforms as string[]) || ["youtube"]).catch(() => {});
+    createPipelineForStream(userId, liveStream.title, "replay").catch(() => {});
+    resumeAfterStream(userId).catch(() => {});
+  } catch (err) {
+    console.error(`[LiveDetection] Post-stream pipeline error for ${platform}:`, err);
+  }
+
+  await storage.createNotification({
+    userId,
+    type: "stream_ended",
+    title: "Stream Ended",
+    message: `"${liveStream.title}" — REPLAY pipeline started, backlog will resume automatically`,
+    severity: "info",
+  });
+
+  sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: liveStream.id, title: liveStream.title });
+  sendSSEEvent(userId, "notification", { type: "new" });
+  sendSSEEvent(userId, "backlog_update", { state: "waiting_for_replay" });
+
+  await storage.createAuditLog({
+    userId,
+    action: `${platform}_live_auto_ended`,
+    target: liveStream.title,
+    details: { backlogResumed: true },
+    riskLevel: "low",
+  });
+
+  console.log(`[LiveDetection] ${platform.toUpperCase()} stream ended for ${userId}: "${liveStream.title}"`);
+}
+
+export async function runMultiPlatformLiveDetection() {
+  if (running) return;
+  running = true;
+
+  try {
+    const allChannelRows = await db.select().from(channels);
+    const platformCheckers: Record<string, (ch: any) => Promise<DetectedBroadcast[]>> = {
+      twitch: checkTwitchLive,
+      kick: checkKickLive,
+    };
+
+    for (const ch of allChannelRows) {
+      if (!ch.userId || !ch.accessToken) continue;
+      const checker = platformCheckers[ch.platform];
+      if (!checker) continue;
+
+      try {
+        const broadcasts = await checker(ch);
+
+        if (broadcasts.length > 0) {
+          await handleDetectedBroadcast(ch.userId, ch.id, broadcasts[0]);
+        } else {
+          await handleBroadcastEnded(ch.userId, ch.platform, ch.id);
+        }
+      } catch (err) {
+        console.error(`[LiveDetection] ${ch.platform} check failed for channel ${ch.id}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("[LiveDetection] Multi-platform detection error:", err);
+  } finally {
+    running = false;
+  }
+}

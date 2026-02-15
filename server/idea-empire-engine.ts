@@ -397,8 +397,19 @@ Every formula should be so specific that a beginner can follow it like a recipe.
   const nicheLabel = nicheAndBrand.niche?.primary || idea;
   await db
     .update(users)
-    .set({ contentNiche: nicheLabel })
+    .set({ contentNiche: nicheLabel, autopilotActive: true })
     .where(eq(users.id, userId));
+
+  try {
+    const { updateAutopilotFeatureConfig } = await import("./autopilot-engine");
+    const autopilotFeatures = ["auto-clip", "smart-schedule", "comment-responder", "discord-announce", "content-recycler", "cross-promo", "stealth-mode"];
+    for (const feature of autopilotFeatures) {
+      await updateAutopilotFeatureConfig(userId, feature, true, {});
+    }
+    console.log(`[Empire] Autopilot fully enabled for new creator ${userId} — live detection active`);
+  } catch (err: any) {
+    console.error(`[Empire] Autopilot setup failed (non-fatal):`, err.message);
+  }
 
   sendSSEEvent(userId, "empire-progress", { step: "complete", status: "completed", message: "Your content empire blueprint is ready!" });
 
