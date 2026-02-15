@@ -18,6 +18,7 @@ import {
   Users,
   Lock,
   ArrowRight,
+  Sparkles,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,8 +35,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-
-const TIER_ORDER = ["free", "youtube", "starter", "pro", "ultimate"];
 
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free" },
@@ -83,12 +82,12 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-3">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0 glow-sm">
             <Zap className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span data-testid="text-app-name" className="font-display font-bold text-sm">
+            <span data-testid="text-app-name" className="font-display font-bold text-sm tracking-tight">
               Creator<span className="text-primary">OS</span>
             </span>
             {isAdvanced && (
@@ -113,10 +112,10 @@ export function AppSidebar() {
                   <SidebarMenuItem key={link.href}>
                     <SidebarMenuButton asChild isActive={active} data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}>
                       <Link href={locked ? "/pricing" : link.href}>
-                        <Icon className={`h-4 w-4 ${locked ? "opacity-40" : ""}`} />
-                        <span className={locked ? "opacity-40" : ""}>{label}</span>
+                        <Icon className={`h-4 w-4 ${locked ? "opacity-30" : ""}`} />
+                        <span className={locked ? "opacity-30" : ""}>{label}</span>
                         {locked && (
-                          <span className={`ml-auto flex items-center gap-0.5 text-[10px] font-medium ${TIER_BADGE_COLORS[link.minTier] || "text-muted-foreground"}`}>
+                          <span className={`ml-auto flex items-center gap-0.5 text-[10px] font-semibold ${TIER_BADGE_COLORS[link.minTier] || "text-muted-foreground"}`}>
                             <Lock className="w-2.5 h-2.5" />
                             {TIER_BADGE_LABELS[link.minTier] || link.minTier}
                           </span>
@@ -150,13 +149,13 @@ export function AppSidebar() {
         {user && !isPaidUser && (
           <SidebarGroup>
             <SidebarGroupContent>
-              <div className="mx-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <div className="mx-2 p-3 rounded-lg gradient-border bg-primary/[0.03]">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <Crown className="w-3.5 h-3.5 text-yellow-400" />
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
                   <span className="text-xs font-semibold">Unlock Everything</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground mb-2">
-                  Get AI automation, multi-platform tools, and more.
+                <p className="text-[11px] text-muted-foreground mb-2.5 leading-relaxed">
+                  AI automation, multi-platform tools, and more.
                 </p>
                 <Link href="/pricing">
                   <Button variant="default" size="sm" className="w-full gap-1.5" data-testid="button-sidebar-upgrade">
@@ -173,14 +172,14 @@ export function AppSidebar() {
       <SidebarFooter className="p-2">
         {isLoading ? (
           <div className="flex items-center gap-2 p-1.5">
-            <Skeleton className="h-7 w-7 rounded-full" />
+            <Skeleton className="h-8 w-8 rounded-full" />
             <Skeleton className="h-4 w-20" />
           </div>
         ) : user ? (
-          <div className="flex items-center gap-2 p-1.5">
-            <Avatar className="h-7 w-7">
+          <div className="flex items-center gap-2.5 p-2">
+            <Avatar className="h-8 w-8">
               {user.profileImageUrl && <AvatarImage src={user.profileImageUrl} alt={userName} />}
-              <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
+              <AvatarFallback className="text-xs font-medium">{userInitials}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p data-testid="text-user-name" className="text-sm font-medium truncate">{userName}</p>
@@ -191,8 +190,8 @@ export function AppSidebar() {
                 </Badge>
               ) : (
                 <Link href="/pricing">
-                  <span className="text-[10px] text-primary cursor-pointer" data-testid="link-upgrade-tier">
-                    Upgrade
+                  <span className="text-[10px] text-primary font-medium cursor-pointer" data-testid="link-upgrade-tier">
+                    Upgrade plan
                   </span>
                 </Link>
               )}

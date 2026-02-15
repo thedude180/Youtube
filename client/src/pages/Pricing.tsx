@@ -246,11 +246,12 @@ export default function Pricing() {
   const tierHeaderColors = ["text-muted-foreground", "text-red-500", "text-blue-400", "text-purple-400", "text-yellow-400"];
 
   return (
-    <div className="min-h-screen p-4 md:p-8" data-testid="pricing-page">
+    <div className="min-h-screen p-4 md:p-8 fade-in" data-testid="pricing-page">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2" data-testid="text-pricing-title">Choose Your Plan</h1>
-          <p className="text-muted-foreground">Scale your creator business with AI-powered automation</p>
+        <div className="text-center mb-10">
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Pricing</p>
+          <h1 className="text-3xl sm:text-4xl font-display font-bold mb-3" data-testid="text-pricing-title">Choose Your Plan</h1>
+          <p className="text-base text-muted-foreground max-w-md mx-auto">Scale your creator business with AI-powered automation</p>
           {currentTier !== "free" && (
             <Badge variant="secondary" className="mt-2" data-testid="badge-current-tier">
               Current: {currentTier.charAt(0).toUpperCase() + currentTier.slice(1)}

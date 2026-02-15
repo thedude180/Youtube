@@ -106,15 +106,15 @@ function Router() {
 
 function AppFooter() {
   return (
-    <footer className="border-t border-border mt-3 py-2 px-3" data-testid="app-footer">
+    <footer className="border-t border-border/50 mt-4 py-3 px-4" data-testid="app-footer">
       <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-xs text-muted-foreground">CreatorOS</p>
+        <p className="text-[11px] text-muted-foreground/60 font-medium">&copy; {new Date().getFullYear()} CreatorOS</p>
         <div className="flex items-center gap-4">
-          <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-privacy">
-            Privacy Policy
+          <a href="/privacy" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors" data-testid="link-footer-privacy">
+            Privacy
           </a>
-          <a href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-terms">
-            Terms of Service
+          <a href="/terms" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors" data-testid="link-footer-terms">
+            Terms
           </a>
         </div>
       </div>
@@ -347,20 +347,20 @@ function AuthenticatedApp() {
         </a>
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="sticky top-0 z-40 flex items-center justify-between gap-1 h-10 px-3 border-b border-border bg-background shrink-0">
+          <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-4 border-b border-border/50 bg-background/80 backdrop-blur-xl shrink-0">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden" />
-              <div className="hidden md:flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2.5">
                 <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
                   <Zap className="h-3 w-3 text-primary-foreground" />
                 </div>
-                <span data-testid="text-header-app-name" className="font-display font-bold text-sm">
+                <span data-testid="text-header-app-name" className="font-display font-bold text-sm tracking-tight">
                   Creator<span className="text-primary">OS</span>
                 </span>
               </div>
               <RouteBreadcrumb />
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button size="icon" variant="ghost" onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))} data-testid="button-search">

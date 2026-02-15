@@ -13,17 +13,19 @@ interface MetricsGridProps {
 
 export default function MetricsGrid({ metrics }: MetricsGridProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {metrics.map((m) => {
         const Icon = m.icon;
         return (
-          <Card key={m.label} data-testid={`metric-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between gap-1 mb-1 flex-wrap">
-                <span className="text-xs text-muted-foreground">{m.label}</span>
-                <Icon className="h-4 w-4 text-muted-foreground" />
+          <Card key={m.label} className="shine" data-testid={`metric-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-1 mb-2 flex-wrap">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{m.label}</span>
+                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Icon className="h-4 w-4 text-primary" />
+                </div>
               </div>
-              <p className="text-xl font-bold font-display">{m.value}</p>
+              <p className="text-2xl font-extrabold font-display">{m.value}</p>
             </CardContent>
           </Card>
         );
