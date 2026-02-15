@@ -24,11 +24,24 @@ export function registerAdminRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const profileSchema = z.object({ contentNiche: z.string().optional(), onboardingCompleted: z.boolean().optional() });
+      const profileSchema = z.object({
+        contentNiche: z.string().optional(),
+        onboardingCompleted: z.boolean().optional(),
+        phone: z.string().optional(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        notifyEmail: z.boolean().optional(),
+        notifyPhone: z.boolean().optional(),
+        autopilotActive: z.boolean().optional(),
+      });
       const parsed = profileSchema.parse(req.body);
-      const updateData: { contentNiche?: string; onboardingCompleted?: Date } = {};
+      const updateData: Record<string, any> = {};
       if (parsed.contentNiche !== undefined) updateData.contentNiche = parsed.contentNiche;
       if (parsed.onboardingCompleted) updateData.onboardingCompleted = new Date();
+      if (parsed.phone !== undefined) updateData.phone = parsed.phone;
+      if (parsed.notifyEmail !== undefined) updateData.notifyEmail = parsed.notifyEmail;
+      if (parsed.notifyPhone !== undefined) updateData.notifyPhone = parsed.notifyPhone;
+      if (parsed.autopilotActive !== undefined) updateData.autopilotActive = parsed.autopilotActive;
       const user = await storage.updateUserProfile(userId, updateData);
       res.json(user);
     } catch (err: any) {

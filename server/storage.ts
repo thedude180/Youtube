@@ -285,7 +285,7 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   updateUserRole(userId: string, role: string, tier: string): Promise<User>;
   updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string; tier?: string }): Promise<User>;
-  updateUserProfile(userId: string, info: { contentNiche?: string; onboardingCompleted?: Date }): Promise<User>;
+  updateUserProfile(userId: string, info: { contentNiche?: string; onboardingCompleted?: Date; phone?: string; notifyEmail?: boolean; notifyPhone?: boolean; autopilotActive?: boolean }): Promise<User>;
 
   getAccessCodes(createdBy?: string): Promise<AccessCode[]>;
   getAccessCode(code: string): Promise<AccessCode | undefined>;
@@ -1311,9 +1311,16 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updateUserProfile(userId: string, info: { contentNiche?: string; onboardingCompleted?: Date }): Promise<User> {
+  async updateUserProfile(userId: string, info: { contentNiche?: string; onboardingCompleted?: Date; phone?: string; notifyEmail?: boolean; notifyPhone?: boolean; autopilotActive?: boolean }): Promise<User> {
+    const updateData: Record<string, any> = { updatedAt: new Date() };
+    if (info.contentNiche !== undefined) updateData.contentNiche = info.contentNiche;
+    if (info.onboardingCompleted !== undefined) updateData.onboardingCompleted = info.onboardingCompleted;
+    if (info.phone !== undefined) updateData.phone = info.phone;
+    if (info.notifyEmail !== undefined) updateData.notifyEmail = info.notifyEmail;
+    if (info.notifyPhone !== undefined) updateData.notifyPhone = info.notifyPhone;
+    if (info.autopilotActive !== undefined) updateData.autopilotActive = info.autopilotActive;
     const [updated] = await db.update(users)
-      .set({ ...info, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(users.id, userId))
       .returning();
     return updated;
