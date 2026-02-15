@@ -369,6 +369,84 @@ export async function updateYouTubeVideo(
   };
 }
 
+export async function uploadVideoToYouTube(
+  channelId: number,
+  options: {
+    title: string;
+    description: string;
+    tags?: string[];
+    categoryId?: string;
+    privacyStatus?: "public" | "private" | "unlisted";
+    scheduledStartTime?: string;
+    videoFilePath?: string;
+    videoBuffer?: Buffer;
+  }
+): Promise<{ youtubeId: string; title: string; status: string } | null> {
+  const { oauth2Client } = await getAuthenticatedClient(channelId);
+  const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+  const { Readable } = await import("stream");
+  const fs = await import("fs");
+
+  let mediaBody: any;
+  if (options.videoBuffer) {
+    mediaBody = Readable.from(options.videoBuffer);
+  } else if (options.videoFilePath && fs.existsSync(options.videoFilePath)) {
+    mediaBody = fs.createReadStream(options.videoFilePath);
+  } else {
+    console.log(`[YouTube] No video file provided for upload, skipping`);
+    return null;
+  }
+
+  let privacyStatus = options.privacyStatus || "public";
+  const statusBody: any = { privacyStatus };
+
+  if (options.scheduledStartTime && privacyStatus === "public") {
+    const scheduledDate = new Date(options.scheduledStartTime);
+    if (scheduledDate.getTime() > Date.now() + 60_000) {
+      statusBody.privacyStatus = "private";
+      statusBody.publishAt = scheduledDate.toISOString();
+    }
+  }
+
+  const { removeBannedPhrases } = await import("./stealth-guardrails");
+  const cleanTitle = removeBannedPhrases(options.title).slice(0, 100);
+  const cleanDescription = removeBannedPhrases(options.description).slice(0, 5000);
+  const cleanTags = (options.tags || []).map(t => removeBannedPhrases(t)).filter(Boolean).slice(0, 500);
+
+  console.log(`[YouTube] Uploading video "${cleanTitle}" (privacy: ${statusBody.privacyStatus})`);
+
+  const response = await youtube.videos.insert({
+    part: ["snippet", "status"],
+    requestBody: {
+      snippet: {
+        title: cleanTitle,
+        description: cleanDescription,
+        tags: cleanTags,
+        categoryId: options.categoryId || "22",
+        defaultLanguage: "en",
+      },
+      status: statusBody,
+    },
+    media: {
+      mimeType: "video/mp4",
+      body: mediaBody,
+    },
+  });
+
+  const youtubeId = response.data.id;
+  if (!youtubeId) {
+    throw new Error("YouTube upload succeeded but no video ID returned");
+  }
+
+  console.log(`[YouTube] Upload complete — YouTube ID: ${youtubeId}, title: "${cleanTitle}"`);
+
+  return {
+    youtubeId,
+    title: response.data.snippet?.title || cleanTitle,
+    status: response.data.status?.privacyStatus || statusBody.privacyStatus,
+  };
+}
+
 export async function setYouTubeThumbnail(
   channelId: number,
   videoId: string,

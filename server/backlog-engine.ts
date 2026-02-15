@@ -225,12 +225,10 @@ async function processBacklogAsync(
       await storage.updateVideo(video.id, videoUpdate);
 
       try {
-        const { syncVideoAfterProcessing } = await import("./platform-sync-engine");
-        syncVideoAfterProcessing(userId, video.id).catch(err => {
-          console.error(`[BacklogEngine] Platform sync failed for video ${video.id}:`, err.message);
-        });
+        const { queueMetadataUpdate } = await import("./services/push-scheduler");
+        queueMetadataUpdate(userId, video.id, "immediate");
       } catch (syncErr: any) {
-        console.error(`[BacklogEngine] Platform sync import failed:`, syncErr.message);
+        console.error(`[BacklogEngine] Push scheduler queue failed:`, syncErr.message);
       }
 
       await storage.createAgentActivity({

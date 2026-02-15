@@ -151,12 +151,10 @@ export async function executePipelineInBackground(id: number, videoTitle: string
 
       if (SYNC_STEPS.includes(step) && pipelineVideoId && pipelineUserId) {
         try {
-          const { syncPipelineResultsToYouTube } = await import("../platform-sync-engine");
-          syncPipelineResultsToYouTube(pipelineUserId, pipelineVideoId, currentResults, step).catch(err => {
-            console.error(`[Pipeline] Platform sync after "${step}" failed:`, err.message);
-          });
+          const { queueMetadataUpdate } = await import("../services/push-scheduler");
+          queueMetadataUpdate(pipelineUserId, pipelineVideoId, "high", { pipelineStep: step });
         } catch (syncErr: any) {
-          console.error(`[Pipeline] Platform sync import failed:`, syncErr.message);
+          console.error(`[Pipeline] Push scheduler queue failed:`, syncErr.message);
         }
       }
     } catch (stepErr: any) {

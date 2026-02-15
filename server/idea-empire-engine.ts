@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { users, aiResults, streamPipelines } from "@shared/schema";
+import { storage } from "./storage";
 import { sendSSEEvent } from "./routes/events";
 import {
   generateHumanScheduledTime,
@@ -1364,6 +1365,38 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
     distributionSchedule[plat] = time.toISOString();
   });
 
+  const userChannels = await storage.getChannelsByUser(userId);
+  const ytChannel = userChannels.find(c => c.platform === "youtube" && c.accessToken && c.channelId);
+
+  let videoRecord: any = null;
+  if (ytChannel) {
+    const seoDesc = videoPackage.seoPackage?.description || videoPackage.videoScript?.sections?.[0]?.script?.slice(0, 500) || contentIdea.description || "";
+    const seoTags = videoPackage.seoPackage?.tags || [];
+
+    videoRecord = await storage.createVideo({
+      channelId: ytChannel.id,
+      title: finalTitle,
+      description: seoDesc,
+      thumbnailUrl: null,
+      type: contentIdea.format === "short" ? "short" : "long",
+      status: "queued",
+      platform: "youtube",
+      metadata: {
+        empireGenerated: true,
+        videoPackageKey: videoPackage.videoKey,
+        tags: seoTags,
+        aiOptimized: true,
+        aiOptimizedAt: new Date().toISOString(),
+        scheduledPublishTime: scheduleInfo.scheduledTime.toISOString(),
+        crossPlatformSchedule: distributionSchedule,
+        seoPackage: videoPackage.seoPackage,
+        contentIdea,
+      },
+    });
+
+    sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-record", status: "completed", message: `Video record created (ID: ${videoRecord.id}) — queued for YouTube upload` });
+  }
+
   const [pipeline] = await db.insert(streamPipelines).values({
     userId,
     pipelineType: "vod",
@@ -1374,6 +1407,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
       _empireSource: true,
       _videoPackage: videoPackage.videoKey,
       _contentIdea: contentIdea,
+      _videoDbId: videoRecord?.id || null,
       _humanBehavior: {
         scheduledPublishTime: scheduleInfo.scheduledTime.toISOString(),
         peakHourTarget: scheduleInfo.peakHourTarget,
@@ -1391,11 +1425,25 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
     startedAt: new Date(),
   }).returning();
 
+  if (videoRecord && ytChannel) {
+    try {
+      const { queueVideoUpload } = await import("./services/push-scheduler");
+      queueVideoUpload(userId, videoRecord.id, "normal", {
+        scheduledPublishTime: scheduleInfo.scheduledTime.toISOString(),
+        privacyStatus: "public",
+      });
+      sendSSEEvent(userId, "empire-auto-pipeline", { step: "upload-queued", status: "completed", message: `Video "${finalTitle}" queued for YouTube upload with human-realistic timing` });
+    } catch (err: any) {
+      console.error(`[Empire] Failed to queue video upload:`, err.message);
+    }
+  }
+
   const distributionPlatforms = Object.keys(distributionSchedule);
   sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "completed", message: `VOD pipeline #${pipeline.id} spawned for "${finalTitle}" with human-realistic scheduling across ${distributionPlatforms.length + 1} platforms!` });
 
   return {
     videoPackage,
+    videoDbId: videoRecord?.id || null,
     pipeline: {
       id: pipeline.id,
       title: finalTitle,
