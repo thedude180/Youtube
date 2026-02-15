@@ -3,7 +3,6 @@ import {
   Monitor, CheckCircle2, Link2, Cpu, TrendingUp,
   Brain, Calendar,
 } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -153,14 +152,14 @@ export default function Landing() {
                 Pricing
               </Button>
             </a>
-            <Button
-              data-testid="button-sign-in-nav"
-              size="sm"
-              onClick={() => { window.location.href = "/api/auth/google"; }}
-            >
-              <SiGoogle className="h-3.5 w-3.5 mr-1.5" />
-              Sign In
-            </Button>
+            <a href="/login">
+              <Button
+                data-testid="button-sign-in-nav"
+                size="sm"
+              >
+                Sign In
+              </Button>
+            </a>
           </div>
         </div>
       </nav>
@@ -185,15 +184,15 @@ export default function Landing() {
                 832 AI-powered features manage your content, streaming, revenue, and growth across 25 platforms in 12 languages — all on autopilot.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Button
-                  data-testid="button-hero-get-started"
-                  size="lg"
-                  onClick={() => { window.location.href = "/api/auth/google"; }}
-                >
-                  <SiGoogle className="h-4 w-4 mr-2" />
-                  Get Started Free
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
+                <a href="/login">
+                  <Button
+                    data-testid="button-hero-get-started"
+                    size="lg"
+                  >
+                    Get Started Free
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </a>
                 <a href="/pricing">
                   <Button
                     data-testid="button-hero-view-pricing"
@@ -415,23 +414,15 @@ export default function Landing() {
             Join thousands of creators who let AI handle the heavy lifting while they focus on what they love.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button
-              data-testid="button-cta-get-started"
-              size="lg"
-              onClick={() => { window.location.href = "/api/auth/google"; }}
-            >
-              <SiGoogle className="h-4 w-4 mr-2" />
-              Get Started Free
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-            <Button
-              data-testid="button-cta-sign-in-replit"
-              variant="secondary"
-              size="lg"
-              onClick={() => { window.location.href = "/api/login"; }}
-            >
-              Sign in with Replit
-            </Button>
+            <a href="/login">
+              <Button
+                data-testid="button-cta-get-started"
+                size="lg"
+              >
+                Get Started Free
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </a>
           </div>
           <div className="flex items-center justify-center gap-6 mt-6 flex-wrap">
             {HERO_STATS.map((stat) => (

@@ -142,12 +142,57 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
+  app.post("/api/auth/guest", async (req, res) => {
+    const crypto = await import("crypto");
+    const guestId = `guest_${crypto.randomBytes(8).toString("hex")}`;
+    const guestEmail = `creator_${crypto.randomBytes(4).toString("hex")}@creatoros.demo`;
+
+    try {
+      await authStorage.upsertUser({
+        id: guestId,
+        email: guestEmail,
+        firstName: "New",
+        lastName: "Creator",
+        profileImageUrl: null,
+      });
+
+      const guestUser = {
+        claims: {
+          sub: guestId,
+          email: guestEmail,
+          first_name: "New",
+          last_name: "Creator",
+          profile_image_url: null,
+        },
+        access_token: null,
+        refresh_token: null,
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+        auth_provider: "guest",
+      };
+
+      req.login(guestUser, (loginErr) => {
+        if (loginErr) {
+          console.error("Guest login error:", loginErr);
+          return res.status(500).json({ error: "Failed to create guest session" });
+        }
+        req.session.save((saveErr) => {
+          if (saveErr) console.error("Guest session save error:", saveErr);
+          res.json({ ok: true, userId: guestId, email: guestEmail });
+        });
+      });
+    } catch (err) {
+      console.error("Guest creation error:", err);
+      res.status(500).json({ error: "Failed to create guest account" });
+    }
+  });
+
   app.get("/api/logout", (req, res) => {
     const user = req.user as any;
     const isGoogleAuth = user?.auth_provider === "google";
+    const isGuest = user?.auth_provider === "guest";
     
     req.logout(() => {
-      if (isGoogleAuth) {
+      if (isGoogleAuth || isGuest) {
         res.redirect("/");
       } else {
         res.redirect(
@@ -168,7 +213,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (user.auth_provider === "google") {
+  if (user.auth_provider === "google" || user.auth_provider === "guest") {
     if (user.claims?.sub) {
       return next();
     }
