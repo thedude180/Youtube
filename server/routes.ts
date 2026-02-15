@@ -13,6 +13,7 @@ import { registerAiRoutes } from "./routes/ai";
 import { registerEventRoutes } from "./routes/events";
 import { registerAutopilotRoutes } from "./routes/autopilot";
 import { registerPipelineRoutes } from "./routes/pipeline";
+import { registerUpgradeRoutes } from "./routes/upgrades";
 import { getUserId } from "./routes/helpers";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -155,6 +156,7 @@ export async function registerRoutes(
   registerAutopilotRoutes(app);
   registerPipelineRoutes(app);
   await registerAutomationRoutes(app);
+  registerUpgradeRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
