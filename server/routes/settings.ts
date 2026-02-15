@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { requireAuth, getUserId } from "./helpers";
+import { requireAuth, getUserId, requireTier, EMPIRE_TIER_GATES } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
   runStyleScan,
@@ -277,7 +277,8 @@ export function registerSettingsRoutes(app: Express) {
   });
 
   app.get("/api/learning/skill-progress", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["skill-progress"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     try {
       const { getSkillLevelFromVideosCreated, getCreatorVideosCreated, getYouTubeResearch } = await import("../youtube-learning-engine");
@@ -297,7 +298,8 @@ export function registerSettingsRoutes(app: Express) {
   });
 
   app.post("/api/learning/youtube-research", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["youtube-research"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     try {
       const { niche } = req.body;
@@ -315,7 +317,8 @@ export function registerSettingsRoutes(app: Express) {
   });
 
   app.post("/api/learning/analyze-video", async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["analyze-video"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     try {
       const { videoId } = req.body;

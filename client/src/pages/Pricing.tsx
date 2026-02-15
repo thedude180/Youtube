@@ -7,9 +7,95 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, Crown, Zap, Star, Rocket, Shield, Gift } from "lucide-react";
+import { Check, Loader2, Crown, Zap, Star, Rocket, Gift, Lock, X } from "lucide-react";
 import { useState } from "react";
 import { SiYoutube } from "react-icons/si";
+
+const EMPIRE_FEATURES_BY_TIER: Record<string, { included: string[]; locked: string[] }> = {
+  free: {
+    included: [],
+    locked: [
+      "Empire Blueprint Builder",
+      "AI Content Ideas",
+      "Skill Progression Tracking",
+      "Deep Pillar Expansion",
+      "YouTube Niche Research",
+      "AI Video Creation",
+      "14-Day Launch Sequence",
+      "Video + Auto Pipeline",
+      "Auto-Launch Empire Content",
+      "Full Empire Launcher",
+    ],
+  },
+  youtube: {
+    included: [],
+    locked: [
+      "Empire Blueprint Builder",
+      "AI Content Ideas",
+      "Skill Progression Tracking",
+      "Deep Pillar Expansion",
+      "YouTube Niche Research",
+      "AI Video Creation",
+      "14-Day Launch Sequence",
+      "Video + Auto Pipeline",
+      "Auto-Launch Empire Content",
+      "Full Empire Launcher",
+    ],
+  },
+  starter: {
+    included: [
+      "Empire Blueprint Builder",
+      "AI Content Ideas",
+      "Skill Progression Tracking",
+      "Video Creation History",
+    ],
+    locked: [
+      "Deep Pillar Expansion",
+      "YouTube Niche Research",
+      "AI Video Creation",
+      "14-Day Launch Sequence",
+      "Video Performance Analysis",
+      "Video + Auto Pipeline",
+      "Auto-Launch Empire Content",
+      "Full Empire Launcher",
+    ],
+  },
+  pro: {
+    included: [
+      "Empire Blueprint Builder",
+      "AI Content Ideas",
+      "Skill Progression Tracking",
+      "Video Creation History",
+      "Deep Pillar Expansion",
+      "YouTube Niche Research",
+      "AI Video Creation",
+      "14-Day Launch Sequence",
+      "Video Performance Analysis",
+    ],
+    locked: [
+      "Video + Auto Pipeline",
+      "Auto-Launch Empire Content",
+      "Full Empire Launcher",
+    ],
+  },
+  ultimate: {
+    included: [
+      "Empire Blueprint Builder",
+      "AI Content Ideas",
+      "Skill Progression Tracking",
+      "Video Creation History",
+      "Deep Pillar Expansion",
+      "YouTube Niche Research",
+      "AI Video Creation",
+      "14-Day Launch Sequence",
+      "Video Performance Analysis",
+      "Video + Auto Pipeline",
+      "Auto-Launch Empire Content",
+      "Full Empire Launcher",
+    ],
+    locked: [],
+  },
+};
 
 const TIER_INFO = [
   {
@@ -37,6 +123,7 @@ const TIER_INFO = [
     color: "text-blue-400",
     platforms: 3,
     features: ["3 platforms", "200 AI features", "Core automation", "Content optimization", "Revenue tracking", "i18n support"],
+    empireHighlight: "Empire Builder basics",
     badge: null,
   },
   {
@@ -46,6 +133,7 @@ const TIER_INFO = [
     color: "text-purple-400",
     platforms: 10,
     features: ["10 platforms", "500 AI features", "Full automation suite", "Advanced analytics", "Competitor intelligence", "Legal protection", "Wellness tools"],
+    empireHighlight: "Empire Builder + Video Creation",
     badge: "Popular",
   },
   {
@@ -55,6 +143,7 @@ const TIER_INFO = [
     color: "text-yellow-400",
     platforms: 25,
     features: ["All 25 platforms", "832 AI features", "6 automation systems", "Creator Intelligence", "Priority support", "Everything included"],
+    empireHighlight: "Full Empire Builder",
     badge: "God Tier",
   },
 ];
@@ -64,6 +153,7 @@ export default function Pricing() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [accessCode, setAccessCode] = useState("");
+  const [expandedTier, setExpandedTier] = useState<string | null>(null);
 
   const { data: profile } = useQuery<any>({
     queryKey: ["/api/user/profile"],
@@ -141,6 +231,8 @@ export default function Pricing() {
             const isCurrent = currentTier === info.tier;
             const price = getPriceForTier(info.tier);
             const Icon = info.icon;
+            const empireInfo = EMPIRE_FEATURES_BY_TIER[info.tier];
+            const isExpanded = expandedTier === info.tier;
 
             return (
               <Card
@@ -177,7 +269,7 @@ export default function Pricing() {
                   </p>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <ul className="space-y-1.5 mb-4 text-sm">
+                  <ul className="space-y-1.5 mb-3 text-sm">
                     {info.features.map((f) => (
                       <li key={f} className="flex items-start gap-1.5">
                         <Check className="w-3.5 h-3.5 mt-0.5 text-green-500 shrink-0" />
@@ -185,6 +277,36 @@ export default function Pricing() {
                       </li>
                     ))}
                   </ul>
+
+                  {empireInfo && (empireInfo.included.length > 0 || empireInfo.locked.length > 0) && (
+                    <div className="border-t pt-2 mb-3">
+                      <button
+                        onClick={() => setExpandedTier(isExpanded ? null : info.tier)}
+                        className="flex items-center gap-1 text-xs font-medium text-muted-foreground w-full justify-between"
+                        data-testid={`button-empire-details-${info.tier}`}
+                      >
+                        <span>Empire Builder {empireInfo.included.length > 0 ? `(${empireInfo.included.length}/${empireInfo.included.length + empireInfo.locked.length})` : "(locked)"}</span>
+                        <span className="text-[10px]">{isExpanded ? "Hide" : "Show"}</span>
+                      </button>
+                      {isExpanded && (
+                        <ul className="mt-2 space-y-1 text-xs" data-testid={`list-empire-features-${info.tier}`}>
+                          {empireInfo.included.map((f) => (
+                            <li key={f} className="flex items-start gap-1.5">
+                              <Check className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                          {empireInfo.locked.map((f) => (
+                            <li key={f} className="flex items-start gap-1.5 text-muted-foreground">
+                              <Lock className="w-3 h-3 mt-0.5 shrink-0" />
+                              <span className="line-through">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
                   {isCurrent ? (
                     <Button variant="secondary" className="w-full" disabled data-testid={`button-current-${info.tier}`}>
                       Current Plan
@@ -205,6 +327,63 @@ export default function Pricing() {
             );
           })}
         </div>
+
+        <Card className="max-w-3xl mx-auto mb-8" data-testid="card-empire-comparison">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Crown className="w-5 h-5 text-yellow-400" />
+              Empire Builder Feature Comparison
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              The Empire Builder creates your entire content business from a single idea. Higher tiers unlock more powerful automation.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" data-testid="table-empire-comparison">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 pr-4 font-medium">Feature</th>
+                    <th className="text-center py-2 px-2 font-medium text-muted-foreground">Free</th>
+                    <th className="text-center py-2 px-2 font-medium text-red-500">YT</th>
+                    <th className="text-center py-2 px-2 font-medium text-blue-400">Starter</th>
+                    <th className="text-center py-2 px-2 font-medium text-purple-400">Pro</th>
+                    <th className="text-center py-2 px-2 font-medium text-yellow-400">Ultimate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { feature: "Empire Blueprint Builder", tiers: [false, false, true, true, true] },
+                    { feature: "AI Content Ideas", tiers: [false, false, true, true, true] },
+                    { feature: "Skill Progression Tracking", tiers: [false, false, true, true, true] },
+                    { feature: "Video Creation History", tiers: [false, false, true, true, true] },
+                    { feature: "Deep Pillar Expansion", tiers: [false, false, false, true, true] },
+                    { feature: "YouTube Niche Research", tiers: [false, false, false, true, true] },
+                    { feature: "AI Video Creation", tiers: [false, false, false, true, true] },
+                    { feature: "14-Day Launch Sequence", tiers: [false, false, false, true, true] },
+                    { feature: "Video Performance Analysis", tiers: [false, false, false, true, true] },
+                    { feature: "Video + Auto Pipeline", tiers: [false, false, false, false, true] },
+                    { feature: "Auto-Launch Empire Content", tiers: [false, false, false, false, true] },
+                    { feature: "Full Empire Launcher", tiers: [false, false, false, false, true] },
+                  ].map((row) => (
+                    <tr key={row.feature} className="border-b last:border-0">
+                      <td className="py-2 pr-4">{row.feature}</td>
+                      {row.tiers.map((available, i) => (
+                        <td key={i} className="text-center py-2 px-2">
+                          {available ? (
+                            <Check className="w-4 h-4 text-green-500 mx-auto" />
+                          ) : (
+                            <X className="w-4 h-4 text-muted-foreground/30 mx-auto" />
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
 
         {user && (
           <Card className="max-w-md mx-auto">

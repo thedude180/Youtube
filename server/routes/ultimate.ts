@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { getUserId } from "./helpers";
+import { getUserId, requireTier, EMPIRE_TIER_GATES } from "./helpers";
 
 import { detectAndHealFailure, getFailureHistory, getHealingStats } from "../pipeline-healing-engine";
 import { getOptimizedRoute, updateRoutingRule, getRoutingRules, analyzeRoutePerformance } from "../pipeline-router";
@@ -550,7 +550,8 @@ export function registerUltimateRoutes(app: Express) {
 
 
   app.post("/api/empire/build", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-blueprint"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const { idea } = req.body;
     if (!idea || typeof idea !== "string" || idea.trim().length < 3) {
@@ -561,14 +562,16 @@ export function registerUltimateRoutes(app: Express) {
   }));
 
   app.get("/api/empire/blueprint", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-blueprint-view"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const blueprint = await getEmpireBlueprint(userId);
     res.json(blueprint || { message: "No empire blueprint yet. Submit your idea to /api/empire/build" });
   }));
 
   app.post("/api/empire/content-ideas", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-content-ideas"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const { count } = req.body;
     const ideas = await generateContentIdeasFromEmpire(userId, count || 10);
@@ -576,7 +579,8 @@ export function registerUltimateRoutes(app: Express) {
   }));
 
   app.post("/api/empire/expand-pillar", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-expand-pillar"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const { pillarIndex } = req.body;
     const expanded = await expandEmpirePillar(userId, pillarIndex ?? 0);
@@ -584,7 +588,8 @@ export function registerUltimateRoutes(app: Express) {
   }));
 
   app.post("/api/empire/launch-sequence", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-launch-sequence"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const sequence = await generateLaunchSequence(userId);
     res.json(sequence);
@@ -603,7 +608,8 @@ export function registerUltimateRoutes(app: Express) {
   });
 
   app.post("/api/empire/create-video", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-create-video"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const parsed = videoIdeaSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -615,7 +621,8 @@ export function registerUltimateRoutes(app: Express) {
   }));
 
   app.post("/api/empire/create-video-pipeline", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-create-video-pipeline"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const parsed = videoIdeaSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -627,7 +634,8 @@ export function registerUltimateRoutes(app: Express) {
   }));
 
   app.post("/api/empire/auto-launch", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-auto-launch"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const parsed = autoLaunchSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -639,14 +647,16 @@ export function registerUltimateRoutes(app: Express) {
   }));
 
   app.get("/api/empire/videos", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-video-list"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const videos = await getVideoCreations(userId);
     res.json(videos);
   }));
 
   app.get("/api/empire/videos/:videoKey", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const gate = EMPIRE_TIER_GATES["empire-video-detail"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     const video = await getVideoCreation(userId, req.params.videoKey);
     if (!video) {
@@ -656,6 +666,19 @@ export function registerUltimateRoutes(app: Express) {
     res.json(video);
   }));
 
+
+  app.get("/api/empire/tier-gates", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getUserTier, TIER_RANK } = await import("./helpers");
+    const userTier = await getUserTier(userId);
+    const userRank = TIER_RANK[userTier] ?? 0;
+    const gates: Record<string, { minTier: string; label: string; unlocked: boolean }> = {};
+    for (const [key, gate] of Object.entries(EMPIRE_TIER_GATES)) {
+      gates[key] = { ...gate, unlocked: userRank >= (TIER_RANK[gate.minTier] ?? 0) };
+    }
+    res.json({ currentTier: userTier, gates });
+  }));
 
   app.get("/api/security/dashboard", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
@@ -778,6 +801,10 @@ export function registerUltimateRoutes(app: Express) {
   });
 
   app.post("/api/empire/launch", asyncHandler(async (req, res) => {
+    const gate = EMPIRE_TIER_GATES["empire-full-launch"];
+    const userId = await requireTier(req, res, gate.minTier, gate.label);
+    if (!userId) return;
+
     const parsed = empireLaunchSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
