@@ -2111,3 +2111,247 @@ export const contentPipeline = pgTable("content_pipeline", {
 export const insertContentPipelineSchema = createInsertSchema(contentPipeline).omit({ id: true, createdAt: true });
 export type ContentPipeline = typeof contentPipeline.$inferSelect;
 export type InsertContentPipeline = z.infer<typeof insertContentPipelineSchema>;
+
+export const contentKanban = pgTable("content_kanban", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  stage: text("stage").notNull().default("idea"),
+  priority: text("priority").default("medium"),
+  assignedTo: text("assigned_to"),
+  platform: text("platform"),
+  videoId: integer("video_id").references(() => videos.id),
+  dueDate: timestamp("due_date"),
+  metadata: jsonb("metadata").$type<{
+    thumbnailDone?: boolean;
+    scriptDone?: boolean;
+    filmingDone?: boolean;
+    editingDone?: boolean;
+    tags?: string[];
+    estimatedLength?: string;
+    notes?: string;
+  }>(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("content_kanban_user_id_idx").on(table.userId),
+}));
+
+export const streamHighlights = pgTable("stream_highlights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: integer("stream_id").references(() => streams.id),
+  title: text("title"),
+  timestampStart: real("timestamp_start"),
+  timestampEnd: real("timestamp_end"),
+  triggerType: text("trigger_type").default("chat_spike"),
+  chatRate: real("chat_rate"),
+  viewerCount: integer("viewer_count"),
+  clipUrl: text("clip_url"),
+  status: text("status").default("detected"),
+  metadata: jsonb("metadata").$type<{
+    topEmotes?: string[];
+    sentiment?: string;
+    suggestedTitle?: string;
+    platforms?: string[];
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const communityGiveaways = pgTable("community_giveaways", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  prize: text("prize").notNull(),
+  platforms: jsonb("platforms").$type<string[]>().default([]),
+  entryMethod: text("entry_method").default("comment"),
+  status: text("status").default("draft"),
+  maxEntries: integer("max_entries"),
+  currentEntries: integer("current_entries").default(0),
+  winnerId: text("winner_id"),
+  winnerName: text("winner_name"),
+  startsAt: timestamp("starts_at"),
+  endsAt: timestamp("ends_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const loyaltyPoints = pgTable("loyalty_points", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  fanIdentifier: text("fan_identifier").notNull(),
+  platform: text("platform"),
+  points: integer("points").default(0),
+  level: text("level").default("bronze"),
+  actions: jsonb("actions").$type<{
+    action: string;
+    points: number;
+    date: string;
+  }[]>().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const communityPolls = pgTable("community_polls", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  question: text("question").notNull(),
+  options: jsonb("options").$type<{
+    text: string;
+    votes: number;
+  }[]>().default([]),
+  platform: text("platform"),
+  status: text("status").default("draft"),
+  totalVotes: integer("total_votes").default(0),
+  publishedAt: timestamp("published_at"),
+  endsAt: timestamp("ends_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const communityChallenges = pgTable("community_challenges", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: text("type").default("content"),
+  prize: text("prize"),
+  platforms: jsonb("platforms").$type<string[]>().default([]),
+  status: text("status").default("draft"),
+  participantCount: integer("participant_count").default(0),
+  submissionCount: integer("submission_count").default(0),
+  startsAt: timestamp("starts_at"),
+  endsAt: timestamp("ends_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const seoScores = pgTable("seo_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  overallScore: integer("overall_score"),
+  titleScore: integer("title_score"),
+  descriptionScore: integer("description_score"),
+  tagScore: integer("tag_score"),
+  thumbnailScore: integer("thumbnail_score"),
+  suggestions: jsonb("suggestions").$type<{
+    category: string;
+    issue: string;
+    fix: string;
+    impact: string;
+  }[]>(),
+  lastCheckedAt: timestamp("last_checked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const searchRankings = pgTable("search_rankings", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  keyword: text("keyword").notNull(),
+  platform: text("platform").default("youtube"),
+  currentRank: integer("current_rank"),
+  previousRank: integer("previous_rank"),
+  searchVolume: integer("search_volume"),
+  competition: text("competition"),
+  lastCheckedAt: timestamp("last_checked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const moderationActions = pgTable("moderation_actions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  actionType: text("action_type").notNull(),
+  targetUser: text("target_user"),
+  reason: text("reason"),
+  content: text("content"),
+  isAutomatic: boolean("is_automatic").default(false),
+  status: text("status").default("completed"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userPreferences = pgTable("user_preferences", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  highContrastMode: boolean("high_contrast_mode").default(false),
+  dyslexiaFont: boolean("dyslexia_font").default(false),
+  reducedMotion: boolean("reduced_motion").default(false),
+  fontSize: text("font_size").default("normal"),
+  keyboardShortcuts: jsonb("keyboard_shortcuts").$type<Record<string, string>>(),
+  voiceNavEnabled: boolean("voice_nav_enabled").default(false),
+  language: text("language").default("en"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const editingNotes = pgTable("editing_notes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  timestamp: real("timestamp"),
+  note: text("note").notNull(),
+  category: text("category").default("general"),
+  resolved: boolean("resolved").default(false),
+  assignedTo: text("assigned_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const uploadQueue = pgTable("upload_queue", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  platform: text("platform").notNull(),
+  status: text("status").default("queued"),
+  scheduledAt: timestamp("scheduled_at"),
+  uploadedAt: timestamp("uploaded_at"),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").$type<{
+    title?: string;
+    description?: string;
+    tags?: string[];
+    privacy?: string;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertContentKanbanSchema = createInsertSchema(contentKanban).omit({ id: true, createdAt: true, completedAt: true });
+export const insertStreamHighlightSchema = createInsertSchema(streamHighlights).omit({ id: true, createdAt: true });
+export const insertCommunityGiveawaySchema = createInsertSchema(communityGiveaways).omit({ id: true, createdAt: true });
+export const insertLoyaltyPointSchema = createInsertSchema(loyaltyPoints).omit({ id: true, createdAt: true });
+export const insertCommunityPollSchema = createInsertSchema(communityPolls).omit({ id: true, createdAt: true });
+export const insertCommunityChallengeSchema = createInsertSchema(communityChallenges).omit({ id: true, createdAt: true });
+export const insertSeoScoreSchema = createInsertSchema(seoScores).omit({ id: true, createdAt: true });
+export const insertSearchRankingSchema = createInsertSchema(searchRankings).omit({ id: true, createdAt: true });
+export const insertModerationActionSchema = createInsertSchema(moderationActions).omit({ id: true, createdAt: true });
+export const insertUserPreferenceSchema = createInsertSchema(userPreferences).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEditingNoteSchema = createInsertSchema(editingNotes).omit({ id: true, createdAt: true });
+export const insertUploadQueueSchema = createInsertSchema(uploadQueue).omit({ id: true, createdAt: true });
+
+export type ContentKanbanItem = typeof contentKanban.$inferSelect;
+export type StreamHighlight = typeof streamHighlights.$inferSelect;
+export type CommunityGiveaway = typeof communityGiveaways.$inferSelect;
+export type LoyaltyPointRecord = typeof loyaltyPoints.$inferSelect;
+export type CommunityPoll = typeof communityPolls.$inferSelect;
+export type CommunityChallenge = typeof communityChallenges.$inferSelect;
+export type SeoScore = typeof seoScores.$inferSelect;
+export type SearchRanking = typeof searchRankings.$inferSelect;
+export type ModerationAction = typeof moderationActions.$inferSelect;
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type EditingNote = typeof editingNotes.$inferSelect;
+export type UploadQueueItem = typeof uploadQueue.$inferSelect;
+
+export type InsertContentKanban = z.infer<typeof insertContentKanbanSchema>;
+export type InsertStreamHighlight = z.infer<typeof insertStreamHighlightSchema>;
+export type InsertCommunityGiveaway = z.infer<typeof insertCommunityGiveawaySchema>;
+export type InsertLoyaltyPoint = z.infer<typeof insertLoyaltyPointSchema>;
+export type InsertCommunityPoll = z.infer<typeof insertCommunityPollSchema>;
+export type InsertCommunityChallenge = z.infer<typeof insertCommunityChallengeSchema>;
+export type InsertSeoScore = z.infer<typeof insertSeoScoreSchema>;
+export type InsertSearchRanking = z.infer<typeof insertSearchRankingSchema>;
+export type InsertModerationAction = z.infer<typeof insertModerationActionSchema>;
+export type InsertUserPreference = z.infer<typeof insertUserPreferenceSchema>;
+export type InsertEditingNote = z.infer<typeof insertEditingNoteSchema>;
+export type InsertUploadQueue = z.infer<typeof insertUploadQueueSchema>;
+
+export const KANBAN_STAGES = ["idea", "script", "filming", "editing", "review", "scheduled", "published"] as const;
+export type KanbanStage = typeof KANBAN_STAGES[number];
