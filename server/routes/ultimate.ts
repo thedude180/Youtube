@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { z } from "zod";
 import { getUserId } from "./helpers";
 
 import { detectAndHealFailure, getFailureHistory, getHealingStats } from "../pipeline-healing-engine";
@@ -22,7 +23,7 @@ import { scanForAnomalies, getAnomalies, generateRecoveryPlan, checkShadowBanSta
 import { createLocalizationJob, processLocalizationJob, getLocalizationJobs, batchLocalize } from "../localization-engine";
 import { generateTaxEstimate, getTaxEstimates, analyzeTeamNeeds, getHiringRecommendations, generateHiringRoadmap } from "../business-intel-engine";
 
-import { buildEmpireFromIdea, generateContentIdeasFromEmpire, getEmpireBlueprint, expandEmpirePillar, generateLaunchSequence } from "../idea-empire-engine";
+import { buildEmpireFromIdea, generateContentIdeasFromEmpire, getEmpireBlueprint, expandEmpirePillar, generateLaunchSequence, createVideoFromIdea, createVideoAndSpawnPipeline, autoLaunchEmpireContent, getVideoCreations, getVideoCreation } from "../idea-empire-engine";
 import { getSecurityDashboard, learnFromAttack, getBlockedIPs, getSecurityRules, getSecurityStats } from "../security-engine";
 import { createOrUpdateCustomerProfile, getCustomerProfile, getAllCustomers, updateCustomerActivity, recordTierChange, getCustomerStats, enrichCustomerProfile, searchCustomers, exportCustomerData, getCustomerTimeline } from "../customer-database-engine";
 
@@ -586,6 +587,72 @@ export function registerUltimateRoutes(app: Express) {
     if (!userId) return;
     const sequence = await generateLaunchSequence(userId);
     res.json(sequence);
+  }));
+
+  const videoIdeaSchema = z.object({
+    title: z.string().min(1, "title is required").max(300),
+    description: z.string().max(2000).optional(),
+    pillar: z.string().max(200).optional(),
+    format: z.enum(["long-form", "short", "live", "stream"]).optional(),
+    platform: z.enum(["YouTube", "Twitch", "Kick", "TikTok", "X", "Discord"]).optional(),
+  });
+
+  const autoLaunchSchema = z.object({
+    count: z.number().int().min(1).max(10).optional().default(3),
+  });
+
+  app.post("/api/empire/create-video", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const parsed = videoIdeaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+      return;
+    }
+    const result = await createVideoFromIdea(userId, parsed.data);
+    res.json(result);
+  }));
+
+  app.post("/api/empire/create-video-pipeline", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const parsed = videoIdeaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+      return;
+    }
+    const result = await createVideoAndSpawnPipeline(userId, parsed.data);
+    res.json(result);
+  }));
+
+  app.post("/api/empire/auto-launch", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const parsed = autoLaunchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+      return;
+    }
+    const result = await autoLaunchEmpireContent(userId, parsed.data.count);
+    res.json(result);
+  }));
+
+  app.get("/api/empire/videos", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const videos = await getVideoCreations(userId);
+    res.json(videos);
+  }));
+
+  app.get("/api/empire/videos/:videoKey", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const video = await getVideoCreation(userId, req.params.videoKey);
+    if (!video) {
+      res.status(404).json({ error: "Video creation not found" });
+      return;
+    }
+    res.json(video);
   }));
 
 

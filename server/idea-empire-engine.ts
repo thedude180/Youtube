@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
-import { users, aiResults } from "@shared/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { users, aiResults, streamPipelines } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 
 const openai = new OpenAI({
@@ -350,6 +350,14 @@ Every formula should be so specific that a beginner can follow it like a recipe.
 
   sendSSEEvent(userId, "empire-progress", { step: "complete", status: "completed", message: "Your content empire blueprint is ready!" });
 
+  sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "started", message: "Auto-creating videos and spawning VOD pipelines from your blueprint..." });
+  autoLaunchEmpireContent(userId, 3).then(launchResult => {
+    sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "completed", message: `Auto-launched ${launchResult.totalLaunched} videos into VOD pipelines!` });
+  }).catch(err => {
+    console.error(`[Empire] Auto-launch failed for user ${userId}:`, err.message);
+    sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "error", message: "Auto-launch encountered an issue but your blueprint is saved." });
+  });
+
   return blueprintData;
 }
 
@@ -602,4 +610,369 @@ This should read like a battle plan. Every action should have a clear purpose. T
 
   const result = await aiGenerate(prompt);
   return result;
+}
+
+export async function createVideoFromIdea(userId: string, contentIdea: {
+  title: string;
+  description?: string;
+  pillar?: string;
+  format?: string;
+  platform?: string;
+}) {
+  const blueprint = await getEmpireBlueprint(userId);
+  const brandContext = blueprint ? `
+Brand Personality: ${blueprint.brandIdentity?.personality || "Energetic and helpful"}
+Content Tone: ${blueprint.brandIdentity?.contentTone || "Casual yet authoritative"}
+Niche: ${JSON.stringify(blueprint.niche?.primary || "gaming")}
+Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "Bold and eye-catching")}` : "";
+
+  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: "Writing full video script..." });
+
+  const scriptPrompt = `You are an elite video scriptwriter and production director for gaming content creators. Write a COMPLETE, ready-to-record video production package.
+
+VIDEO CONCEPT:
+Title: "${contentIdea.title}"
+Description: ${contentIdea.description || "Not provided"}
+Format: ${contentIdea.format || "long-form"}
+Target Platform: ${contentIdea.platform || "YouTube"}
+${brandContext}
+
+Create a comprehensive video production package. Respond with JSON:
+{
+  "videoScript": {
+    "title": "Final optimized title",
+    "totalDuration": "Estimated video length in minutes",
+    "hook": {
+      "text": "The exact first 5-10 seconds the creator should say (word for word)",
+      "visualDirection": "What viewers should see during the hook",
+      "musicCue": "Background music style/mood for the hook",
+      "onScreenText": "Any text overlays during hook"
+    },
+    "intro": {
+      "text": "Full intro script (15-30 seconds, word for word)",
+      "visualDirection": "Camera angles, graphics, transitions",
+      "subscribeCTA": "Natural subscribe reminder woven into intro"
+    },
+    "sections": [
+      {
+        "sectionNumber": 1,
+        "sectionTitle": "Section heading for editor reference",
+        "duration": "Estimated length of this section",
+        "script": "Full word-for-word script for this section (200+ words per section)",
+        "visualNotes": "B-roll suggestions, screen recordings, graphics, animations",
+        "transitions": "How to transition into and out of this section",
+        "engagementHook": "Mid-section hook to keep viewers watching",
+        "editingNotes": "Specific editing instructions (zoom ins, cuts, effects)"
+      }
+    ],
+    "climax": {
+      "text": "The most exciting/valuable part of the video (word for word)",
+      "visualDirection": "Make this visually impactful",
+      "musicShift": "Music change for emotional impact"
+    },
+    "outro": {
+      "text": "Closing script with CTA (word for word)",
+      "endScreenSetup": "What to show on end screen",
+      "nextVideoTease": "Tease for next video to drive series watching"
+    }
+  },
+  "productionGuide": {
+    "recordingSetup": {
+      "cameraSettings": "Resolution, frame rate, lighting tips",
+      "audioSetup": "Mic placement, background noise tips",
+      "screenRecording": "Software and settings for game capture",
+      "facecamPosition": "Where to place facecam if using one"
+    },
+    "editingTimeline": [
+      {
+        "timestamp": "0:00",
+        "action": "Specific editing action",
+        "effect": "Effect to apply",
+        "duration": "How long this lasts",
+        "notes": "Additional editing notes"
+      }
+    ],
+    "bRollList": [
+      {
+        "description": "What B-roll footage is needed",
+        "source": "Where to get it (record, stock, game footage)",
+        "timestamp": "When to insert it in the video",
+        "duration": "How long the B-roll clip should be"
+      }
+    ],
+    "musicAndSFX": {
+      "backgroundMusic": [
+        {
+          "section": "Which section",
+          "mood": "Music mood/genre",
+          "source": "Suggested royalty-free source",
+          "volume": "Volume level relative to voice"
+        }
+      ],
+      "soundEffects": [
+        {
+          "timestamp": "When to add",
+          "effect": "What sound effect",
+          "purpose": "Why this sound effect"
+        }
+      ]
+    },
+    "graphicsNeeded": [
+      {
+        "type": "Lower third / title card / overlay / animation",
+        "content": "What text or visual",
+        "timestamp": "When it appears",
+        "style": "Design direction",
+        "duration": "How long on screen"
+      }
+    ]
+  },
+  "thumbnailDesign": {
+    "concept": "Detailed thumbnail description",
+    "mainImage": "What the main visual should be",
+    "textOverlay": "Exact text to put on thumbnail (3-5 words max)",
+    "colorScheme": ["Primary color", "Secondary color", "Accent color"],
+    "emotionalTrigger": "What emotion this thumbnail triggers",
+    "composition": "Layout description (rule of thirds, etc.)",
+    "faceExpression": "If using face, what expression"
+  },
+  "seoPackage": {
+    "finalTitle": "SEO-optimized title under 60 chars",
+    "description": "Full YouTube description with timestamps, links, keywords (500+ words)",
+    "tags": ["20 SEO-optimized tags"],
+    "hashtags": ["5 hashtags for shorts/social"],
+    "category": "YouTube category",
+    "language": "Content language"
+  },
+  "distributionPlan": {
+    "platforms": [
+      {
+        "platform": "YouTube/TikTok/X/Discord/Twitch/Kick",
+        "contentVersion": "How to adapt this video for this platform",
+        "caption": "Platform-specific caption/description",
+        "postingTime": "Optimal time to post",
+        "hashtags": ["Platform-specific hashtags"],
+        "crossPromotion": "How to cross-promote from this platform"
+      }
+    ],
+    "shortsVersion": {
+      "clipTimestamps": [
+        {
+          "start": "Start time of clip",
+          "end": "End time of clip",
+          "hook": "Short-form hook for this clip",
+          "caption": "TikTok/Shorts caption"
+        }
+      ]
+    }
+  },
+  "voiceoverScript": {
+    "fullNarration": "Complete word-for-word voiceover script from start to finish, including pauses marked as [PAUSE], emphasis marked as [EMPHASIS], and tone shifts marked as [TONE: excited/calm/serious]",
+    "wordCount": 0,
+    "estimatedReadTime": "X minutes at natural pace",
+    "toneNotes": "Overall tone guidance for recording"
+  }
+}
+
+Make EVERY section extremely detailed and specific. The creator should be able to hand this to any editor and get a professional video back. The script should be written in a natural, conversational style that matches the brand personality. Include at least 4-6 main sections.`;
+
+  const videoPackage = await aiGenerate(scriptPrompt);
+  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "completed", message: "Full video script and production guide ready!" });
+
+  const videoKey = `video-creation-${Date.now()}`;
+  await db.insert(aiResults).values({
+    userId,
+    featureKey: videoKey,
+    result: {
+      ...videoPackage,
+      sourceIdea: contentIdea,
+      createdAt: new Date().toISOString(),
+    },
+  });
+
+  return { videoKey, ...videoPackage };
+}
+
+export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
+  title: string;
+  description?: string;
+  pillar?: string;
+  format?: string;
+  platform?: string;
+}) {
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-creation", status: "started", message: `Creating video production package for "${contentIdea.title}"...` });
+
+  const videoPackage = await createVideoFromIdea(userId, contentIdea);
+
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "started", message: "Spawning VOD pipeline to process through all 56 steps..." });
+
+  const rawDuration = videoPackage.videoScript?.totalDuration || "10";
+  const parsedMinutes = parseFloat(String(rawDuration).replace(/[^0-9.]/g, "")) || 10;
+  const estimatedDuration = Math.round(Math.max(1, Math.min(180, parsedMinutes)) * 60);
+  const finalTitle = videoPackage.seoPackage?.finalTitle || videoPackage.videoScript?.title || contentIdea.title;
+
+  const [pipeline] = await db.insert(streamPipelines).values({
+    userId,
+    pipelineType: "vod",
+    currentStep: "ingest",
+    status: "queued",
+    completedSteps: [],
+    stepResults: {
+      _empireSource: true,
+      _videoPackage: videoPackage.videoKey,
+      _contentIdea: contentIdea,
+    },
+    vodCutIds: [],
+    sourceTitle: finalTitle,
+    sourceDuration: estimatedDuration,
+    mode: "vod",
+    autoProcess: true,
+    publishedContentType: "empire_generated",
+    startedAt: new Date(),
+  }).returning();
+
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "completed", message: `VOD pipeline #${pipeline.id} spawned and processing "${finalTitle}" through all 56 steps autonomously!` });
+
+  return {
+    videoPackage,
+    pipeline: {
+      id: pipeline.id,
+      title: finalTitle,
+      status: pipeline.status,
+      pipelineType: "vod",
+      totalSteps: 56,
+    },
+  };
+}
+
+export async function autoLaunchEmpireContent(userId: string, count: number = 3) {
+  const blueprint = await getEmpireBlueprint(userId);
+  if (!blueprint) {
+    throw new Error("No empire blueprint found. Build your empire first.");
+  }
+
+  sendSSEEvent(userId, "empire-auto-launch", { step: "generating", status: "started", message: `Generating ${count} video production packages from your empire blueprint...` });
+
+  const contentIdeas: Array<{ title: string; description: string; pillar: string; format: string; platform: string }> = [];
+
+  const plan = blueprint.first30DaysPlan || [];
+  for (const day of plan) {
+    if (contentIdeas.length >= count) break;
+    const content = day.contentToPost;
+    if (content && content.title && content.title !== "N/A" && content.type !== "post") {
+      contentIdeas.push({
+        title: content.title,
+        description: content.description || `Content from Day ${day.day}: ${day.theme}`,
+        pillar: day.theme || "General",
+        format: content.type === "stream" ? "live" : content.type === "short" ? "short" : "long-form",
+        platform: content.platform || "YouTube",
+      });
+    }
+  }
+
+  if (contentIdeas.length < count) {
+    const pillars = blueprint.contentPillars || [];
+    for (const pillar of pillars) {
+      if (contentIdeas.length >= count) break;
+      const titles = pillar.exampleTitles || [];
+      for (const title of titles) {
+        if (contentIdeas.length >= count) break;
+        if (!contentIdeas.some((ci: any) => ci.title === title)) {
+          contentIdeas.push({
+            title,
+            description: pillar.description || "",
+            pillar: pillar.name || "General",
+            format: pillar.format?.includes("short") ? "short" : pillar.format?.includes("stream") ? "live" : "long-form",
+            platform: "YouTube",
+          });
+        }
+      }
+    }
+  }
+
+  if (contentIdeas.length === 0) {
+    const ideas = await generateContentIdeasFromEmpire(userId, count);
+    for (const idea of ideas.slice(0, count)) {
+      contentIdeas.push({
+        title: idea.title,
+        description: idea.description || "",
+        pillar: idea.pillar || "General",
+        format: idea.format || "long-form",
+        platform: idea.platform || "YouTube",
+      });
+    }
+  }
+
+  const results = [];
+  for (let i = 0; i < contentIdeas.length; i++) {
+    const idea = contentIdeas[i];
+    sendSSEEvent(userId, "empire-auto-launch", { step: "creating", status: "in_progress", message: `Creating video ${i + 1}/${contentIdeas.length}: "${idea.title}"...`, progress: Math.round(((i) / contentIdeas.length) * 100) });
+
+    try {
+      const result = await createVideoAndSpawnPipeline(userId, idea);
+      results.push({ success: true, ...result });
+    } catch (err: any) {
+      console.error(`[Empire] Failed to create video for "${idea.title}":`, err.message);
+      results.push({ success: false, title: idea.title, error: err.message });
+    }
+  }
+
+  sendSSEEvent(userId, "empire-auto-launch", { step: "complete", status: "completed", message: `Launched ${results.filter(r => r.success).length}/${contentIdeas.length} videos into VOD pipelines!` });
+
+  await db.insert(aiResults).values({
+    userId,
+    featureKey: "empire-auto-launch",
+    result: {
+      launchedAt: new Date().toISOString(),
+      totalRequested: count,
+      totalLaunched: results.filter(r => r.success).length,
+      results: results.map(r => ({
+        success: r.success,
+        title: r.success ? r.pipeline?.title : r.title,
+        pipelineId: r.success ? r.pipeline?.id : null,
+        error: r.success ? null : r.error,
+      })),
+    },
+  });
+
+  return {
+    totalLaunched: results.filter(r => r.success).length,
+    totalFailed: results.filter(r => !r.success).length,
+    results,
+  };
+}
+
+export async function getVideoCreations(userId: string) {
+  const results = await db
+    .select()
+    .from(aiResults)
+    .where(and(
+      eq(aiResults.userId, userId),
+      sql`${aiResults.featureKey} LIKE 'video-creation-%'`
+    ))
+    .orderBy(desc(aiResults.createdAt))
+    .limit(20);
+
+  return results.map(r => ({
+    id: r.id,
+    featureKey: r.featureKey,
+    createdAt: r.createdAt,
+    title: (r.result as any)?.videoScript?.title || (r.result as any)?.sourceIdea?.title || "Untitled",
+    format: (r.result as any)?.sourceIdea?.format || "long-form",
+    platform: (r.result as any)?.sourceIdea?.platform || "YouTube",
+  }));
+}
+
+export async function getVideoCreation(userId: string, videoKey: string) {
+  const [result] = await db
+    .select()
+    .from(aiResults)
+    .where(and(
+      eq(aiResults.userId, userId),
+      eq(aiResults.featureKey, videoKey)
+    ))
+    .limit(1);
+
+  if (!result) return null;
+  return result.result;
 }
