@@ -3,6 +3,15 @@ import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { users, aiResults, streamPipelines } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
+import {
+  generateHumanScheduledTime,
+  generateStaggeredSchedule,
+  addHumanMicroDelay,
+  shouldPostToday,
+  getActivityWindow,
+  simulateTypingDelay,
+  getCommentResponseDelay,
+} from "./human-behavior-engine";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -612,6 +621,86 @@ This should read like a battle plan. Every action should have a clear purpose. T
   return result;
 }
 
+function generateHumanWritingContext(platform: string, format: string): string {
+  const BANNED_AI_PHRASES = [
+    "check out", "don't miss", "smash that like", "hit subscribe",
+    "ring the bell", "without further ado", "let's dive in",
+    "it's worth noting", "furthermore", "leverage", "utilize",
+    "at the end of the day", "game-changer", "groundbreaking",
+    "revolutionize", "seamlessly", "delve", "elevate your",
+    "unlock the", "comprehensive guide", "in conclusion",
+  ];
+
+  const naturalPatterns = [
+    "Use contractions naturally (don't, can't, it's, we're)",
+    "Vary sentence length - mix short punchy lines with longer explanations",
+    "Include conversational fillers occasionally ('honestly', 'look', 'here's the thing')",
+    "Use incomplete sentences sometimes for emphasis",
+    "Reference personal experience and opinions ('I personally think', 'in my experience')",
+    "Add natural pauses and breath marks in scripts [PAUSE] [BREATH]",
+    "Include self-corrections ('actually, wait - let me rephrase that')",
+    "Use rhetorical questions to engage viewers",
+    "Add genuine reactions ('this blew my mind', 'I was NOT expecting that')",
+    "Write like you're talking to a friend, not presenting to a crowd",
+  ];
+
+  const platformSpecific: Record<string, string> = {
+    youtube: "Write for a conversational YouTube style - imagine you're talking directly to ONE viewer through the camera. Use 'you' frequently.",
+    tiktok: "Ultra-casual TikTok energy. Short sentences. Trending language. Hook in the first 2 seconds.",
+    twitch: "Stream-culture language. Reference chat, viewers, and the gaming community naturally.",
+    kick: "Raw, unfiltered energy. Community-first. Authentic gamer voice.",
+    x: "Punchy, opinion-driven. Every word counts. Hot takes welcome.",
+    discord: "Insider community vibe. Talk like you're in a group chat with friends.",
+  };
+
+  const formatGuidance: Record<string, string> = {
+    "long-form": "Write detailed but never boring. Every 60-90 seconds should have a mini-hook to prevent drop-off. Include 'pattern interrupts' (unexpected jokes, surprising facts, sudden energy shifts).",
+    "short": "Maximum impact in minimum time. The first sentence IS the hook. No warm-up, no introduction. Get straight to the point.",
+    "live": "Write for spontaneity. Include suggested riffs, tangent points, and audience interaction prompts. Leave room for improvisation.",
+  };
+
+  return `
+CRITICAL - Make this sound like a REAL HUMAN wrote it, not AI:
+- NEVER use these phrases: ${BANNED_AI_PHRASES.slice(0, 8).join(", ")}
+- ${naturalPatterns[Math.floor(Math.random() * naturalPatterns.length)]}
+- ${naturalPatterns[Math.floor(Math.random() * naturalPatterns.length)]}
+- ${naturalPatterns[Math.floor(Math.random() * naturalPatterns.length)]}
+- ${platformSpecific[platform.toLowerCase()] || platformSpecific.youtube}
+- ${formatGuidance[format] || formatGuidance["long-form"]}
+- Include at least one moment of genuine personality (a joke, a hot take, a personal story reference)
+- The script should feel like a creator who's been making content for years, not a template
+- Add natural speech imperfections: stammers, self-interruptions, excited tangents
+- Use slang and internet culture references where appropriate for the niche`;
+}
+
+function humanRealisticDelay(): Promise<void> {
+  const delayMs = Math.max(2000, Math.floor(Math.random() * 8000) + 3000);
+  return new Promise(resolve => setTimeout(resolve, delayMs));
+}
+
+function generateHumanScheduleInfo(userId: string, platform: string): {
+  scheduledTime: Date;
+  humanDelay: string;
+  peakHourTarget: boolean;
+} {
+  const scheduledTime = generateHumanScheduledTime({
+    platform,
+    userId,
+    contentType: "new-video",
+    urgency: "normal",
+  });
+
+  const now = new Date();
+  const diffMs = scheduledTime.getTime() - now.getTime();
+  const diffHours = Math.round(diffMs / 3600000);
+  const humanDelay = diffHours < 1 ? `${Math.round(diffMs / 60000)} minutes` : `${diffHours} hours`;
+
+  const hour = scheduledTime.getHours();
+  const peakHourTarget = hour >= 10 && hour <= 20;
+
+  return { scheduledTime, humanDelay, peakHourTarget };
+}
+
 export async function createVideoFromIdea(userId: string, contentIdea: {
   title: string;
   description?: string;
@@ -628,6 +717,8 @@ Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "
 
   sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: "Writing full video script..." });
 
+  const humanBehaviorContext = generateHumanWritingContext(contentIdea.platform || "YouTube", contentIdea.format || "long-form");
+
   const scriptPrompt = `You are an elite video scriptwriter and production director for gaming content creators. Write a COMPLETE, ready-to-record video production package.
 
 VIDEO CONCEPT:
@@ -636,6 +727,9 @@ Description: ${contentIdea.description || "Not provided"}
 Format: ${contentIdea.format || "long-form"}
 Target Platform: ${contentIdea.platform || "YouTube"}
 ${brandContext}
+
+HUMAN AUTHENTICITY REQUIREMENTS:
+${humanBehaviorContext}
 
 Create a comprehensive video production package. Respond with JSON:
 {
@@ -800,16 +894,36 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
   format?: string;
   platform?: string;
 }) {
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-creation", status: "started", message: `Creating video production package for "${contentIdea.title}"...` });
+  const platform = contentIdea.platform?.toLowerCase() || "youtube";
+
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "human-timing", status: "started", message: `Calculating human-realistic schedule for "${contentIdea.title}"...` });
+
+  const scheduleInfo = generateHumanScheduleInfo(userId, platform);
+  const activityWindow = getActivityWindow();
+
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "human-timing", status: "completed", message: `Scheduled for ${scheduleInfo.scheduledTime.toLocaleString()} (${scheduleInfo.peakHourTarget ? "peak hours" : "off-peak"}, ${scheduleInfo.humanDelay} from now)` });
+
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-creation", status: "started", message: `Writing human-authentic script for "${contentIdea.title}"...` });
 
   const videoPackage = await createVideoFromIdea(userId, contentIdea);
 
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "started", message: "Spawning VOD pipeline to process through all 56 steps..." });
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "started", message: "Spawning VOD pipeline with human-realistic timing..." });
 
   const rawDuration = videoPackage.videoScript?.totalDuration || "10";
   const parsedMinutes = parseFloat(String(rawDuration).replace(/[^0-9.]/g, "")) || 10;
   const estimatedDuration = Math.round(Math.max(1, Math.min(180, parsedMinutes)) * 60);
   const finalTitle = videoPackage.seoPackage?.finalTitle || videoPackage.videoScript?.title || contentIdea.title;
+
+  const crossPlatformSchedule = generateStaggeredSchedule(
+    ["youtube", "tiktok", "x", "discord", "twitch", "kick"].filter(p => p !== platform),
+    "new-video",
+    userId,
+  );
+
+  const distributionSchedule: Record<string, string> = {};
+  crossPlatformSchedule.forEach((time, plat) => {
+    distributionSchedule[plat] = time.toISOString();
+  });
 
   const [pipeline] = await db.insert(streamPipelines).values({
     userId,
@@ -821,6 +935,13 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
       _empireSource: true,
       _videoPackage: videoPackage.videoKey,
       _contentIdea: contentIdea,
+      _humanBehavior: {
+        scheduledPublishTime: scheduleInfo.scheduledTime.toISOString(),
+        peakHourTarget: scheduleInfo.peakHourTarget,
+        activityWindow: activityWindow,
+        crossPlatformSchedule: distributionSchedule,
+        humanDelayApplied: true,
+      },
     },
     vodCutIds: [],
     sourceTitle: finalTitle,
@@ -831,7 +952,8 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
     startedAt: new Date(),
   }).returning();
 
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "completed", message: `VOD pipeline #${pipeline.id} spawned and processing "${finalTitle}" through all 56 steps autonomously!` });
+  const distributionPlatforms = Object.keys(distributionSchedule);
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "completed", message: `VOD pipeline #${pipeline.id} spawned for "${finalTitle}" with human-realistic scheduling across ${distributionPlatforms.length + 1} platforms!` });
 
   return {
     videoPackage,
@@ -841,6 +963,10 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
       status: pipeline.status,
       pipelineType: "vod",
       totalSteps: 56,
+      scheduledPublishTime: scheduleInfo.scheduledTime.toISOString(),
+      humanDelay: scheduleInfo.humanDelay,
+      peakHourTarget: scheduleInfo.peakHourTarget,
+      crossPlatformSchedule: distributionSchedule,
     },
   };
 }
@@ -851,7 +977,14 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
     throw new Error("No empire blueprint found. Build your empire first.");
   }
 
-  sendSSEEvent(userId, "empire-auto-launch", { step: "generating", status: "started", message: `Generating ${count} video production packages from your empire blueprint...` });
+  sendSSEEvent(userId, "empire-auto-launch", { step: "generating", status: "started", message: `Generating ${count} human-authentic video packages from your empire blueprint...` });
+
+  sendSSEEvent(userId, "empire-auto-launch", { step: "human-behavior", status: "started", message: "Activating Human Behavior Engine for realistic creation patterns..." });
+
+  const activityWindow = getActivityWindow();
+  if (!activityWindow.isActive) {
+    sendSSEEvent(userId, "empire-auto-launch", { step: "human-behavior", status: "in_progress", message: `Outside waking hours (${activityWindow.start}:00-${activityWindow.end}:00). Queuing for next active window for stealth.` });
+  }
 
   const contentIdeas: Array<{ title: string; description: string; pillar: string; format: string; platform: string }> = [];
 
@@ -903,10 +1036,28 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
     }
   }
 
+  sendSSEEvent(userId, "empire-auto-launch", { step: "human-behavior", status: "completed", message: `Human Behavior Engine active: ${contentIdeas.length} videos queued with gaussian timing, peak-hour targeting, and micro-delays` });
+
   const results = [];
   for (let i = 0; i < contentIdeas.length; i++) {
     const idea = contentIdeas[i];
-    sendSSEEvent(userId, "empire-auto-launch", { step: "creating", status: "in_progress", message: `Creating video ${i + 1}/${contentIdeas.length}: "${idea.title}"...`, progress: Math.round(((i) / contentIdeas.length) * 100) });
+
+    if (i > 0) {
+      const typingDelay = Math.max(0, simulateTypingDelay(idea.title.length + (idea.description?.length || 0)));
+      const microDelay = Math.max(0, addHumanMicroDelay());
+      const totalDelay = Math.max(3000, Math.min(typingDelay + microDelay, 15000));
+      sendSSEEvent(userId, "empire-auto-launch", { step: "human-delay", status: "in_progress", message: `Simulating human creation pause before video ${i + 1} (${Math.round(totalDelay / 1000)}s delay)...` });
+      await new Promise(resolve => setTimeout(resolve, totalDelay));
+    }
+
+    const scheduledTime = generateHumanScheduledTime({
+      platform: idea.platform.toLowerCase(),
+      userId,
+      contentType: "new-video",
+      urgency: i === 0 ? "normal" : "low",
+    });
+
+    sendSSEEvent(userId, "empire-auto-launch", { step: "creating", status: "in_progress", message: `Creating video ${i + 1}/${contentIdeas.length}: "${idea.title}" (publish: ${scheduledTime.toLocaleString()})...`, progress: Math.round(((i) / contentIdeas.length) * 100) });
 
     try {
       const result = await createVideoAndSpawnPipeline(userId, idea);
@@ -917,7 +1068,8 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
     }
   }
 
-  sendSSEEvent(userId, "empire-auto-launch", { step: "complete", status: "completed", message: `Launched ${results.filter(r => r.success).length}/${contentIdeas.length} videos into VOD pipelines!` });
+  const successResults = results.filter(r => r.success);
+  sendSSEEvent(userId, "empire-auto-launch", { step: "complete", status: "completed", message: `Launched ${successResults.length}/${contentIdeas.length} videos with human-realistic scheduling into VOD pipelines!` });
 
   await db.insert(aiResults).values({
     userId,
@@ -925,19 +1077,26 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
     result: {
       launchedAt: new Date().toISOString(),
       totalRequested: count,
-      totalLaunched: results.filter(r => r.success).length,
+      totalLaunched: successResults.length,
+      humanBehaviorEnabled: true,
+      activityWindow,
       results: results.map(r => ({
         success: r.success,
         title: r.success ? r.pipeline?.title : r.title,
         pipelineId: r.success ? r.pipeline?.id : null,
+        scheduledPublishTime: r.success ? r.pipeline?.scheduledPublishTime : null,
+        humanDelay: r.success ? r.pipeline?.humanDelay : null,
+        peakHourTarget: r.success ? r.pipeline?.peakHourTarget : null,
+        crossPlatformSchedule: r.success ? r.pipeline?.crossPlatformSchedule : null,
         error: r.success ? null : r.error,
       })),
     },
   });
 
   return {
-    totalLaunched: results.filter(r => r.success).length,
+    totalLaunched: successResults.length,
     totalFailed: results.filter(r => !r.success).length,
+    humanBehaviorEnabled: true,
     results,
   };
 }

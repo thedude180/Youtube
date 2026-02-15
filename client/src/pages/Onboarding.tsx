@@ -29,6 +29,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Shield,
 } from "lucide-react";
 import {
   SiYoutube,
@@ -652,7 +653,7 @@ const EMPIRE_STEPS = [
   { key: "growth", label: "Mapping Growth & Monetization" },
   { key: "formulas", label: "Building Content Formulas" },
   { key: "complete", label: "Empire Blueprint Ready" },
-  { key: "auto-video", label: "Auto-Creating Videos & VOD Pipelines" },
+  { key: "auto-video", label: "Auto-Creating Human-Authentic Videos & VOD Pipelines" },
 ];
 
 function EmpireProgressTracker({ steps }: { steps: { key: string; status: string; message: string }[] }) {
@@ -793,7 +794,7 @@ function NewCreatorFlow({
           </div>
           <div>
             <h2 data-testid="text-empire-building-heading" className="text-lg font-display font-bold">Building Your Content Empire</h2>
-            <p className="text-sm text-muted-foreground">AI is creating your complete blueprint, videos, and launch plan...</p>
+            <p className="text-sm text-muted-foreground">AI is creating your complete blueprint with human-authentic videos and launch plan...</p>
           </div>
         </div>
 
@@ -953,19 +954,26 @@ function NewCreatorFlow({
         )}
 
         <Card className="border-primary/30">
-          <CardContent className="p-4 space-y-2">
+          <CardContent className="p-4 space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <Video className="h-4 w-4 text-primary" />
               Auto-Launched Content
             </h3>
             <p className="text-sm text-muted-foreground">
               {videosLaunched
-                ? `${videosLaunched} videos have been auto-created with full scripts, production guides, and SEO packages. VOD pipelines (56 steps each) are processing them now.`
-                : "Videos are being auto-created with full scripts, production guides, and SEO packages. VOD pipelines will process them through all 56 steps."}
+                ? `${videosLaunched} videos have been auto-created with human-authentic scripts, production guides, and SEO packages. VOD pipelines (56 steps each) are processing them with realistic scheduling.`
+                : "Videos are being auto-created with human-authentic scripts and production guides. VOD pipelines will process them through all 56 steps with realistic timing."}
             </p>
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2">
               <Badge variant="secondary" data-testid="badge-videos-created">{videosLaunched ?? "..."} Videos Created</Badge>
               <Badge variant="secondary" data-testid="badge-pipelines-active">{videosLaunched ?? "..."} VOD Pipelines Active</Badge>
+              <Badge variant="outline" data-testid="badge-human-behavior">Human Behavior Engine</Badge>
+            </div>
+            <div className="mt-2 p-2 rounded-md bg-muted/50">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Shield className="h-3 w-3 shrink-0" />
+                Scripts written with natural speech patterns, platform-specific voice, and anti-AI-detection. Publishing scheduled with gaussian timing, peak-hour targeting, and cross-platform staggering.
+              </p>
             </div>
           </CardContent>
         </Card>
