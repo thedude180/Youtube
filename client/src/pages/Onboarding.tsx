@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { PLATFORMS, PLATFORM_INFO, type Platform, type LinkedChannel } from "@shared/schema";
@@ -645,6 +645,54 @@ function RecommendedPlatforms({
   );
 }
 
+const EMPIRE_STEPS = [
+  { key: "niche", label: "Analyzing Niche & Brand Identity" },
+  { key: "pillars", label: "Building Content Pillars & Strategy" },
+  { key: "plan", label: "Creating 30-Day Launch Plan" },
+  { key: "growth", label: "Mapping Growth & Monetization" },
+  { key: "formulas", label: "Building Content Formulas" },
+  { key: "complete", label: "Empire Blueprint Ready" },
+  { key: "auto-video", label: "Auto-Creating Videos & VOD Pipelines" },
+];
+
+function EmpireProgressTracker({ steps }: { steps: { key: string; status: string; message: string }[] }) {
+  return (
+    <div className="space-y-2" data-testid="empire-progress-tracker">
+      {EMPIRE_STEPS.map((step) => {
+        const liveStep = steps.find(s => s.key === step.key);
+        const status = liveStep?.status || "pending";
+        const message = liveStep?.message || step.label;
+        return (
+          <div key={step.key} className="flex items-center gap-3" data-testid={`empire-step-${step.key}`}>
+            <div className="shrink-0">
+              {status === "completed" ? (
+                <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                </div>
+              ) : status === "started" ? (
+                <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
+                </div>
+              ) : status === "error" ? (
+                <div className="h-6 w-6 rounded-full bg-destructive/20 flex items-center justify-center">
+                  <Zap className="h-3.5 w-3.5 text-destructive" />
+                </div>
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+                  <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                </div>
+              )}
+            </div>
+            <span className={`text-sm ${status === "started" ? "text-foreground font-medium" : status === "completed" ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+              {message}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function NewCreatorFlow({
   onFinish,
   onSkipToPlatforms,
@@ -664,38 +712,103 @@ function NewCreatorFlow({
 }) {
   const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
   const [customIdea, setCustomIdea] = useState("");
-  const [aiResult, setAiResult] = useState<any>(null);
+  const [empireResult, setEmpireResult] = useState<any>(null);
+  const [empireBuilding, setEmpireBuilding] = useState(false);
+  const [empireSteps, setEmpireSteps] = useState<{ key: string; status: string; message: string }[]>([]);
+  const [videosLaunched, setVideosLaunched] = useState<number | null>(null);
   const [showPlatforms, setShowPlatforms] = useState(false);
   const [showAllPlatforms, setShowAllPlatforms] = useState(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const { toast } = useToast();
 
-  const generateMutation = useMutation({
-    mutationFn: async (niche: string) => {
-      const res = await apiRequest("POST", "/api/ai/new-creator-plan", {
-        niche,
-        customIdea: niche === "other" ? customIdea : undefined,
-      });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setAiResult(data);
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
+
+  const startEmpireBuild = async () => {
+    if (!selectedNiche) return;
+    const idea = selectedNiche === "other" ? customIdea || "general content creation" : selectedNiche;
+
+    setEmpireBuilding(true);
+    setEmpireSteps([]);
+
+    const es = new EventSource("/api/events");
+    eventSourceRef.current = es;
+
+    es.addEventListener("empire-progress", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setEmpireSteps(prev => {
+          const existing = prev.findIndex(s => s.key === data.step);
+          if (existing >= 0) {
+            const next = [...prev];
+            next[existing] = { key: data.step, status: data.status, message: data.message };
+            return next;
+          }
+          return [...prev, { key: data.step, status: data.status, message: data.message }];
+        });
+        if (data.step === "auto-video" && data.status === "completed") {
+          const match = data.message?.match(/(\d+)/);
+          if (match) setVideosLaunched(parseInt(match[1]));
+        }
+      } catch {}
+    });
+
+    es.onerror = () => {
+      es.close();
+      eventSourceRef.current = null;
+    };
+
+    try {
+      const res = await apiRequest("POST", "/api/empire/build", { idea });
+      const blueprint = await res.json();
+      setEmpireResult(blueprint);
       if (selectedNiche) onNicheSelected(selectedNiche);
-    },
-    onError: () => {
+    } catch (err: any) {
       toast({
-        title: "AI is thinking...",
-        description: "We'll generate your plan in a moment. Try again.",
+        title: "Empire Builder",
+        description: "Something went wrong. Try again in a moment.",
         variant: "destructive",
       });
-    },
-  });
-
-  const handleGenerate = () => {
-    if (!selectedNiche) return;
-    generateMutation.mutate(selectedNiche === "other" ? customIdea || "general content creation" : selectedNiche);
+    } finally {
+      setEmpireBuilding(false);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    }
   };
 
-  if (aiResult && showPlatforms && selectedNiche) {
+  if (empireBuilding) {
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
+            <Rocket className="h-5 w-5 text-primary-foreground animate-pulse" />
+          </div>
+          <div>
+            <h2 data-testid="text-empire-building-heading" className="text-lg font-display font-bold">Building Your Content Empire</h2>
+            <p className="text-sm text-muted-foreground">AI is creating your complete blueprint, videos, and launch plan...</p>
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="p-6">
+            <EmpireProgressTracker steps={empireSteps} />
+          </CardContent>
+        </Card>
+
+        <p className="text-xs text-muted-foreground text-center">This takes a minute or two — we're building your entire content operation from scratch.</p>
+      </div>
+    );
+  }
+
+  if (empireResult && showPlatforms && selectedNiche) {
     return (
       <div className="space-y-6">
         <RecommendedPlatforms
@@ -710,13 +823,13 @@ function NewCreatorFlow({
 
         <div className="mt-6 flex items-center justify-between gap-4 flex-wrap border-t border-border pt-6">
           <Button
-            data-testid="button-back-to-roadmap"
+            data-testid="button-back-to-empire"
             variant="ghost"
             size="sm"
             onClick={() => setShowPlatforms(false)}
           >
             <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
-            Back to Roadmap
+            Back to Empire Blueprint
           </Button>
           <Button
             data-testid="button-finish-setup"
@@ -730,100 +843,132 @@ function NewCreatorFlow({
     );
   }
 
-  if (aiResult) {
+  if (empireResult) {
+    const niche = empireResult.niche;
+    const brand = empireResult.brandIdentity;
+    const pillars = empireResult.contentPillars;
+    const planItems = empireResult.first30DaysPlan;
+    const growth = empireResult.growthRoadmap;
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center shrink-0">
-            <Sparkles className="h-5 w-5 text-primary-foreground" />
+          <div className="h-10 w-10 rounded-md bg-emerald-500 flex items-center justify-center shrink-0">
+            <Check className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h2 data-testid="text-ai-plan-heading" className="text-lg font-display font-bold">Your Creator Roadmap</h2>
-            <p className="text-sm text-muted-foreground">AI-generated plan based on your niche</p>
+            <h2 data-testid="text-empire-ready-heading" className="text-lg font-display font-bold">Your Content Empire is Ready</h2>
+            <p className="text-sm text-muted-foreground">Complete blueprint built — videos auto-created and pipelines launched</p>
           </div>
         </div>
 
-        {aiResult.channelName && (
+        {(niche || brand) && (
           <Card>
-            <CardContent className="p-4 space-y-2">
-              <h3 className="text-sm font-semibold">Suggested Channel Name</h3>
-              <p data-testid="text-suggested-name" className="text-base font-medium text-primary">{aiResult.channelName}</p>
-              {aiResult.channelDescription && (
-                <>
-                  <h3 className="text-sm font-semibold mt-3">Channel Description</h3>
-                  <p data-testid="text-suggested-description" className="text-sm text-muted-foreground">{aiResult.channelDescription}</p>
-                </>
+            <CardContent className="p-4 space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Your Niche & Brand
+              </h3>
+              {niche?.primary && (
+                <p data-testid="text-empire-niche" className="text-base font-medium text-primary">{niche.primary}</p>
+              )}
+              {brand?.channelName && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Channel Name</span>
+                  <p data-testid="text-empire-channel" className="text-sm font-medium">{brand.channelName}</p>
+                </div>
+              )}
+              {brand?.tagline && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Tagline</span>
+                  <p data-testid="text-empire-tagline" className="text-sm">{brand.tagline}</p>
+                </div>
               )}
             </CardContent>
           </Card>
         )}
 
-        {aiResult.videoIdeas?.length > 0 && (
+        {pillars?.length > 0 && (
           <Card>
             <CardContent className="p-4 space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Video className="h-4 w-4" />
-                Your First 10 Video Ideas
+                <Sparkles className="h-4 w-4" />
+                Content Pillars
               </h3>
-              <ol className="space-y-1.5 mt-2">
-                {aiResult.videoIdeas.map((idea: string, i: number) => (
-                  <li key={i} className="text-sm text-muted-foreground flex gap-2" data-testid={`text-video-idea-${i}`}>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {pillars.map((p: any, i: number) => (
+                  <Badge key={i} variant="secondary" data-testid={`badge-pillar-${i}`}>
+                    {typeof p === "string" ? p : p.name || p.title || `Pillar ${i + 1}`}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {planItems?.length > 0 && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                30-Day Launch Plan
+              </h3>
+              <p className="text-xs text-muted-foreground">{planItems.length} content pieces planned for your first month</p>
+              <ol className="space-y-1.5 mt-2 max-h-48 overflow-y-auto">
+                {planItems.slice(0, 10).map((item: any, i: number) => (
+                  <li key={i} className="text-sm text-muted-foreground flex gap-2" data-testid={`text-plan-item-${i}`}>
                     <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
-                    <span>{idea}</span>
+                    <span>{typeof item === "string" ? item : item.title || item.topic || JSON.stringify(item)}</span>
                   </li>
                 ))}
+                {planItems.length > 10 && (
+                  <li className="text-xs text-muted-foreground">+ {planItems.length - 10} more in your dashboard</li>
+                )}
               </ol>
             </CardContent>
           </Card>
         )}
 
-        {aiResult.schedule && (
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Recommended Posting Schedule
-              </h3>
-              <p data-testid="text-schedule" className="text-sm text-muted-foreground">{aiResult.schedule}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {aiResult.growthStrategy && (
+        {growth && (
           <Card>
             <CardContent className="p-4 space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Growth Strategy
+                Growth & Monetization
               </h3>
-              <p data-testid="text-growth-strategy" className="text-sm text-muted-foreground">{aiResult.growthStrategy}</p>
+              {growth.milestones?.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {growth.milestones.slice(0, 4).map((m: any, i: number) => (
+                    <Badge key={i} variant="outline" data-testid={`badge-milestone-${i}`}>
+                      {typeof m === "string" ? m : m.name || m.title || `Milestone ${i + 1}`}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {growth.monetizationTimeline && (
+                <p className="text-sm text-muted-foreground mt-2">{typeof growth.monetizationTimeline === "string" ? growth.monetizationTimeline : "Monetization plan included in your dashboard"}</p>
+              )}
             </CardContent>
           </Card>
         )}
 
-        {aiResult.brandingTips && (
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                Branding Suggestions
-              </h3>
-              <p data-testid="text-branding-tips" className="text-sm text-muted-foreground">{aiResult.brandingTips}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {aiResult.nicheAnalysis && (
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                Niche Analysis
-              </h3>
-              <p data-testid="text-niche-analysis" className="text-sm text-muted-foreground">{aiResult.nicheAnalysis}</p>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="border-primary/30">
+          <CardContent className="p-4 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Video className="h-4 w-4 text-primary" />
+              Auto-Launched Content
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {videosLaunched
+                ? `${videosLaunched} videos have been auto-created with full scripts, production guides, and SEO packages. VOD pipelines (56 steps each) are processing them now.`
+                : "Videos are being auto-created with full scripts, production guides, and SEO packages. VOD pipelines will process them through all 56 steps."}
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="secondary" data-testid="badge-videos-created">{videosLaunched ?? "..."} Videos Created</Badge>
+              <Badge variant="secondary" data-testid="badge-pipelines-active">{videosLaunched ?? "..."} VOD Pipelines Active</Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <Button
@@ -846,12 +991,12 @@ function NewCreatorFlow({
             variant="ghost"
             onClick={onFinish}
           >
-            Skip to Dashboard
+            Go to Dashboard
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Connect platforms best suited for your {NICHE_OPTIONS.find((n) => n.id === selectedNiche)?.label?.toLowerCase() || ""} content, or go straight to the dashboard.
+          Connect platforms best suited for your {NICHE_OPTIONS.find((n) => n.id === selectedNiche)?.label?.toLowerCase() || ""} content, or go straight to the dashboard to see your full empire blueprint.
         </p>
       </div>
     );
@@ -865,7 +1010,7 @@ function NewCreatorFlow({
         </div>
         <div>
           <h2 data-testid="text-new-creator-heading" className="text-lg font-display font-bold">Start Your Creator Journey</h2>
-          <p className="text-sm text-muted-foreground">Pick your niche and we'll build your roadmap and recommend the best platforms.</p>
+          <p className="text-sm text-muted-foreground">Pick your niche and we'll build your entire content empire — brand, strategy, videos, and launch plan.</p>
         </div>
       </div>
 
@@ -897,21 +1042,12 @@ function NewCreatorFlow({
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Button
-          data-testid="button-generate-plan"
-          onClick={handleGenerate}
-          disabled={!selectedNiche || generateMutation.isPending || (selectedNiche === "other" && !customIdea.trim())}
+          data-testid="button-build-empire"
+          onClick={startEmpireBuild}
+          disabled={!selectedNiche || (selectedNiche === "other" && !customIdea.trim())}
         >
-          {generateMutation.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              AI is building your roadmap...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate My Creator Roadmap
-            </>
-          )}
+          <Rocket className="h-4 w-4 mr-2" />
+          Build My Content Empire
         </Button>
         <Button
           data-testid="button-skip-to-platforms"
@@ -1260,7 +1396,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
                   data-testid="text-onboarding-subtitle"
                   className="mt-2 text-sm text-muted-foreground max-w-xl"
                 >
-                  Let's help you turn your idea into a content empire. Pick your niche and we'll build your roadmap.
+                  Pick your niche and we'll build your complete content empire — brand identity, content strategy, videos, and launch plan, all automated.
                 </p>
               </div>
               <NewCreatorFlow
