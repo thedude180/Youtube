@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, lte, isNotNull } from "drizzle-orm";
 import { requireAuth, getUserId, asyncHandler } from "./helpers";
 import {
   streamPipelines, vodCuts, lengthExperiments, audienceLengthPreferences,
@@ -25,6 +25,127 @@ function getStepsForType(pipelineType: string) {
 function getStepDefinitions(pipelineType: string) {
   return pipelineType === "live" ? LIVE_PIPELINE_STEPS : VOD_PIPELINE_STEPS;
 }
+
+function gaussianRandom(mean: number, stddev: number): number {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  const num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  return num * stddev + mean;
+}
+
+function calculateHumanVodDelay(): { delayMinutes: number; scheduledAt: Date } {
+  const baseDelayHours = gaussianRandom(4, 2);
+  const clampedHours = Math.max(1.5, Math.min(12, baseDelayHours));
+
+  const now = new Date();
+  const currentHour = now.getUTCHours();
+
+  const isNighttime = currentHour >= 1 && currentHour <= 8;
+  let extraHours = 0;
+  if (isNighttime) {
+    extraHours = 8 - currentHour + gaussianRandom(2, 1);
+  }
+
+  const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+  const weekendMultiplier = isWeekend ? 1.3 : 1.0;
+
+  const totalMinutes = Math.round((clampedHours + extraHours) * weekendMultiplier * 60);
+  const jitterMinutes = Math.round(gaussianRandom(0, 15));
+  const finalMinutes = Math.max(90, totalMinutes + jitterMinutes);
+
+  const scheduledAt = new Date(now.getTime() + finalMinutes * 60000);
+  return { delayMinutes: finalMinutes, scheduledAt };
+}
+
+async function spawnVodPipelineAfterPublish(
+  sourcePipelineId: number,
+  userId: string,
+  sourceTitle: string,
+  sourceDuration: number | null,
+  publishedContentType: string
+) {
+  const existing = await db.select().from(streamPipelines)
+    .where(and(
+      eq(streamPipelines.userId, userId),
+      eq(streamPipelines.pipelineType, "vod"),
+      eq(streamPipelines.sourcePipelineId, sourcePipelineId)
+    ));
+
+  if (existing.length > 0) {
+    console.log(`[DualPipeline] VOD pipeline already exists for source ${sourcePipelineId}, skipping`);
+    return existing[0];
+  }
+
+  const { delayMinutes, scheduledAt } = calculateHumanVodDelay();
+
+  const [vodPipeline] = await db.insert(streamPipelines).values({
+    userId,
+    pipelineType: "vod",
+    currentStep: "ingest",
+    status: "waiting",
+    completedSteps: [],
+    stepResults: {},
+    vodCutIds: [],
+    sourceTitle: `[VOD] ${sourceTitle}`,
+    sourceDuration: sourceDuration || null,
+    mode: "vod",
+    autoProcess: true,
+    sourcePipelineId,
+    publishedContentType,
+    scheduledStartAt: scheduledAt,
+    humanDelayMinutes: delayMinutes,
+  }).returning();
+
+  console.log(`[DualPipeline] VOD pipeline ${vodPipeline.id} queued for source ${sourcePipelineId} — starts in ${delayMinutes} min (${scheduledAt.toISOString()})`);
+  return vodPipeline;
+}
+
+async function processWaitingVodPipelines() {
+  const now = new Date();
+  const waiting = await db.select().from(streamPipelines)
+    .where(and(
+      eq(streamPipelines.pipelineType, "vod"),
+      eq(streamPipelines.status, "waiting"),
+      isNotNull(streamPipelines.scheduledStartAt),
+      lte(streamPipelines.scheduledStartAt, now)
+    ));
+
+  for (const pipeline of waiting) {
+    if (pipeline.sourcePipelineId) {
+      const [srcPipeline] = await db.select().from(streamPipelines)
+        .where(eq(streamPipelines.id, pipeline.sourcePipelineId));
+      if (!srcPipeline || srcPipeline.status !== "completed") {
+        console.log(`[DualPipeline] VOD pipeline ${pipeline.id} source ${pipeline.sourcePipelineId} not completed — skipping`);
+        continue;
+      }
+    }
+
+    console.log(`[DualPipeline] VOD pipeline ${pipeline.id} delay elapsed — starting execution`);
+    await db.update(streamPipelines)
+      .set({ status: "processing", startedAt: new Date(), errorMessage: null })
+      .where(eq(streamPipelines.id, pipeline.id));
+
+    const currentResults = (pipeline.stepResults as Record<string, any>) || {};
+    const completedSteps = [...(pipeline.completedSteps || [])];
+
+    executeStreamPipelineInBackground(
+      pipeline.id, pipeline.sourceTitle, "vod",
+      currentResults, completedSteps,
+      pipeline.sourceDuration, pipeline.userId
+    ).catch(err => console.error(`[DualPipeline] Auto VOD pipeline ${pipeline.id} failed:`, err));
+  }
+
+  if (waiting.length > 0) {
+    console.log(`[DualPipeline] Started ${waiting.length} waiting VOD pipeline(s)`);
+  }
+}
+
+setInterval(() => {
+  processWaitingVodPipelines().catch(err =>
+    console.error("[DualPipeline] VOD waiting check error:", err)
+  );
+}, 60000);
 
 async function runStreamPipelineStep(
   stepId: string,
@@ -190,6 +311,21 @@ async function executeStreamPipelineInBackground(
     })
     .where(eq(streamPipelines.id, pipelineId));
   console.log(`[DualPipeline] Pipeline ${pipelineId} completed all steps`);
+
+  if (pipelineType === "live" && userId) {
+    try {
+      const [completedPipeline] = await db.select().from(streamPipelines)
+        .where(eq(streamPipelines.id, pipelineId));
+      if (completedPipeline) {
+        await spawnVodPipelineAfterPublish(
+          pipelineId, userId, completedPipeline.sourceTitle,
+          completedPipeline.sourceDuration, "live_stream_completed"
+        );
+      }
+    } catch (vodSpawnErr: any) {
+      console.error(`[DualPipeline] Failed to spawn VOD pipeline after live ${pipelineId}:`, vodSpawnErr.message);
+    }
+  }
 }
 
 async function generateVodCutsInternal(
@@ -353,11 +489,45 @@ export function registerDualPipelineRoutes(app: Express) {
   app.post("/api/stream-pipeline", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const { streamId, videoId, sourceTitle, sourceDuration, pipelineType, mode, autoProcess } = req.body;
+    const { streamId, videoId, sourceTitle, sourceDuration, pipelineType, mode, autoProcess, sourcePipelineId } = req.body;
     if (!sourceTitle) return res.status(400).json({ error: "sourceTitle is required" });
 
     const type = pipelineType || "live";
     const firstStep = type === "live" ? "detect" : "ingest";
+
+    if (type === "vod") {
+      if (!sourcePipelineId) {
+        return res.status(400).json({ error: "VOD pipelines require a sourcePipelineId — they only run on already-published content from a completed live pipeline" });
+      }
+
+      const [srcPipeline] = await db.select().from(streamPipelines)
+        .where(and(eq(streamPipelines.id, sourcePipelineId), eq(streamPipelines.userId, userId)));
+      if (!srcPipeline) return res.status(404).json({ error: "Source pipeline not found" });
+      if (srcPipeline.status !== "completed") return res.status(400).json({ error: "Source pipeline must be completed first — VOD pipeline only runs on published content" });
+      if (srcPipeline.pipelineType !== "live") return res.status(400).json({ error: "Source must be a live pipeline" });
+
+      const { delayMinutes, scheduledAt } = calculateHumanVodDelay();
+      const [pipeline] = await db.insert(streamPipelines).values({
+        userId,
+        streamId: streamId || srcPipeline.streamId || null,
+        videoId: videoId || srcPipeline.videoId || null,
+        pipelineType: "vod",
+        currentStep: firstStep,
+        status: "waiting",
+        completedSteps: [],
+        stepResults: {},
+        vodCutIds: [],
+        sourceTitle: `[VOD] ${srcPipeline.sourceTitle}`,
+        sourceDuration: srcPipeline.sourceDuration || sourceDuration || null,
+        mode: mode || "vod",
+        autoProcess: autoProcess !== false,
+        sourcePipelineId,
+        scheduledStartAt: scheduledAt,
+        humanDelayMinutes: delayMinutes,
+        publishedContentType: "linked_from_live",
+      }).returning();
+      return res.json(pipeline);
+    }
 
     const [pipeline] = await db.insert(streamPipelines).values({
       userId,
@@ -479,6 +649,7 @@ export function registerDualPipelineRoutes(app: Express) {
 
     const allowedTransitions: Record<string, string[]> = {
       queued: ["processing", "cancelled"],
+      waiting: ["processing", "cancelled"],
       processing: ["paused", "cancelled"],
       paused: ["processing", "cancelled"],
       error: ["queued", "cancelled"],

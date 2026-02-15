@@ -18,7 +18,7 @@ import {
   Zap, Play, Pause, Video, Radio, Scissors, FlaskConical, Brain, Clock,
   BarChart3, TrendingUp, Target, CheckCircle2, AlertCircle, Loader2, Plus,
   ChevronDown, ChevronUp, RefreshCw, Shield, Users, Megaphone, Eye,
-  Search, Lock, Gauge, Sparkles,
+  Search, Lock, Gauge, Sparkles, Timer, Link2,
 } from "lucide-react";
 import {
   LIVE_PIPELINE_STEPS, VOD_PIPELINE_STEPS, PIPELINE_PHASES, LENGTH_CATEGORIES,
@@ -40,6 +40,7 @@ function formatDuration(seconds: number): string {
 
 const STATUS_STYLES: Record<string, { className: string; label: string }> = {
   queued: { className: "bg-muted text-muted-foreground", label: "Queued" },
+  waiting: { className: "bg-violet-500/20 text-violet-400", label: "Waiting" },
   processing: { className: "bg-blue-500/20 text-blue-400 animate-pulse", label: "Running" },
   completed: { className: "bg-emerald-500/20 text-emerald-400", label: "Done" },
   paused: { className: "bg-amber-500/20 text-amber-400", label: "Paused" },
@@ -252,11 +253,17 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
           <span className="text-[10px] text-muted-foreground/50">{steps.length} steps across {phaseSummary.length} phases</span>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" data-testid={`button-create-${pipelineType}-pipeline`}>
-              <Plus className="h-3 w-3 mr-1" />New
-            </Button>
-          </DialogTrigger>
+          {pipelineType === "live" ? (
+            <DialogTrigger asChild>
+              <Button size="sm" data-testid={`button-create-${pipelineType}-pipeline`}>
+                <Plus className="h-3 w-3 mr-1" />New
+              </Button>
+            </DialogTrigger>
+          ) : (
+            <Badge variant="outline" className="text-[9px] bg-violet-500/10 text-violet-400">
+              <Timer className="h-2 w-2 mr-0.5" />Auto-spawns from live
+            </Badge>
+          )}
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create {pipelineType === "live" ? "Live" : "VOD"} Pipeline</DialogTitle>
@@ -302,6 +309,12 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
                   })}
                 </div>
                 <p className="text-[9px] text-muted-foreground/50">{steps.length} total sequential steps - no gaps</p>
+                {pipelineType === "vod" && (
+                  <div className="flex items-center gap-1 bg-violet-500/10 rounded p-1 mt-1">
+                    <Timer className="h-3 w-3 text-violet-400 shrink-0" />
+                    <p className="text-[9px] text-violet-400">VOD pipelines start with a human-realistic delay (1.5-12h) to look natural. Auto-spawns when live content is published.</p>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -337,7 +350,11 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
           <CardContent className="p-4 text-center">
             <Video className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1.5" />
             <p className="text-xs text-muted-foreground" data-testid="text-empty-pipelines">No {pipelineType} pipelines yet</p>
-            <p className="text-[10px] text-muted-foreground/60 mt-0.5">{steps.length} steps ready to execute</p>
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+              {pipelineType === "vod"
+                ? "VOD pipelines auto-spawn after live content is published with human-realistic delays"
+                : `${steps.length} steps ready to execute`}
+            </p>
           </CardContent>
         </Card>
       )}
@@ -348,11 +365,19 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
         const stepResults = (pipeline.stepResults as Record<string, any>) || {};
         const isRunning = pipeline.status === "processing";
         const isDone = pipeline.status === "completed";
+        const isWaiting = pipeline.status === "waiting";
         const currentPhase = steps.find(s => s.id === pipeline.currentStep)?.phase;
         const currentPhaseLabel = currentPhase ? PIPELINE_PHASES.find(p => p.id === currentPhase)?.label : "";
 
+        const scheduledAt = pipeline.scheduledStartAt ? new Date(pipeline.scheduledStartAt) : null;
+        const now = new Date();
+        const minutesRemaining = scheduledAt ? Math.max(0, Math.round((scheduledAt.getTime() - now.getTime()) / 60000)) : 0;
+        const hoursRemaining = Math.floor(minutesRemaining / 60);
+        const minsRemainder = minutesRemaining % 60;
+        const delayLabel = hoursRemaining > 0 ? `${hoursRemaining}h ${minsRemainder}m` : `${minsRemainder}m`;
+
         return (
-          <Card key={pipeline.id} data-testid={`card-pipeline-${pipeline.id}`}>
+          <Card key={pipeline.id} data-testid={`card-pipeline-${pipeline.id}`} className={isWaiting ? "border-violet-500/30" : ""}>
             <CardContent className="p-1.5 space-y-1">
               <div className="flex items-start justify-between gap-1.5 flex-wrap">
                 <div className="flex-1 min-w-0">
@@ -366,14 +391,33 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
                   </button>
                   <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                     <StatusBadgeInline status={pipeline.status} />
-                    {currentPhaseLabel && (
+                    {isWaiting && scheduledAt && (
+                      <Badge variant="outline" className="text-[9px] bg-violet-500/10 text-violet-400" data-testid={`badge-delay-${pipeline.id}`}>
+                        <Timer className="h-2 w-2 mr-0.5" />
+                        {minutesRemaining > 0 ? `${delayLabel} left` : "Starting soon"}
+                      </Badge>
+                    )}
+                    {pipeline.sourcePipelineId && (
+                      <Badge variant="outline" className="text-[9px] bg-blue-500/10 text-blue-400" data-testid={`badge-source-${pipeline.id}`}>
+                        <Link2 className="h-2 w-2 mr-0.5" />
+                        From #{pipeline.sourcePipelineId}
+                      </Badge>
+                    )}
+                    {pipeline.publishedContentType && (
+                      <span className="text-[9px] text-muted-foreground/50">
+                        {pipeline.publishedContentType === "live_stream_completed" ? "post-publish" : pipeline.publishedContentType}
+                      </span>
+                    )}
+                    {!isWaiting && currentPhaseLabel && (
                       <Badge variant="outline" className={`text-[9px] ${PHASE_COLORS[currentPhase || ""]?.bg || ""} ${PHASE_COLORS[currentPhase || ""]?.text || ""}`}>
                         {currentPhaseLabel}
                       </Badge>
                     )}
-                    <span className="text-[10px] text-muted-foreground">
-                      {steps.find(s => s.id === pipeline.currentStep)?.label || pipeline.currentStep}
-                    </span>
+                    {!isWaiting && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {steps.find(s => s.id === pipeline.currentStep)?.label || pipeline.currentStep}
+                      </span>
+                    )}
                     <span className="text-[10px] text-muted-foreground/50 font-mono">
                       {completedSteps.length}/{steps.length}
                     </span>
@@ -386,7 +430,12 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-0.5">
-                  {!isDone && (
+                  {isWaiting && (
+                    <Badge variant="outline" className="text-[9px] bg-violet-500/10 text-violet-400">
+                      <Timer className="h-2.5 w-2.5 mr-0.5" />Human Delay
+                    </Badge>
+                  )}
+                  {!isDone && !isWaiting && (
                     <>
                       <Button
                         size="sm"
@@ -417,13 +466,34 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
                 </div>
               </div>
 
-              <PhaseStepGrid
-                steps={steps}
-                completedSteps={completedSteps}
-                currentStep={pipeline.currentStep}
-                stepResults={stepResults}
-                isExpanded={isExpanded}
-              />
+              {isWaiting && pipeline.humanDelayMinutes && (
+                <div className="flex items-center gap-1.5 bg-violet-500/10 rounded p-1 text-[9px] text-violet-400" data-testid={`delay-info-${pipeline.id}`}>
+                  <Timer className="h-3 w-3 shrink-0" />
+                  <div>
+                    <span className="font-bold">Waiting to look human</span>
+                    <span className="text-violet-400/60 ml-1">
+                      {pipeline.humanDelayMinutes >= 60
+                        ? `${Math.floor(pipeline.humanDelayMinutes / 60)}h ${pipeline.humanDelayMinutes % 60}m total delay`
+                        : `${pipeline.humanDelayMinutes}m total delay`}
+                    </span>
+                    {scheduledAt && (
+                      <span className="text-violet-400/40 ml-1">
+                        starts {scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!isWaiting && (
+                <PhaseStepGrid
+                  steps={steps}
+                  completedSteps={completedSteps}
+                  currentStep={pipeline.currentStep}
+                  stepResults={stepResults}
+                  isExpanded={isExpanded}
+                />
+              )}
 
               {pipeline.errorMessage && (
                 <div className="flex items-start gap-1 text-[10px] text-red-400 bg-red-500/10 rounded p-1">
