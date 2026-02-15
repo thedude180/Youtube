@@ -48,14 +48,16 @@ const GrowthProgramsTab = lazy(() => import("./settings/GrowthProgramsTab"));
 const SubscriptionTab = lazy(() => import("./settings/AdminTabs"));
 const AdminCodesTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminCodesTab })));
 const AdminUsersTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminUsersTab })));
+const SecurityTab = lazy(() => import("./settings/SecurityTab"));
+const AccessibilityTab = lazy(() => import("./settings/AccessibilityTab"));
 
 const TabFallback = () => <Skeleton className="h-96 w-full rounded-lg" />;
 
 type AIResponse = any;
 
-type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "learning" | "automation" | "growth" | "admin-codes" | "admin-users" | "subscription";
+type TabKey = "general" | "brand" | "collabs" | "competitors" | "legal" | "learning" | "automation" | "growth" | "security" | "accessibility" | "admin-codes" | "admin-users" | "subscription";
 
-const VALID_TABS: TabKey[] = ["general", "brand", "collabs", "competitors", "legal", "learning", "automation", "growth", "admin-codes", "admin-users", "subscription"];
+const VALID_TABS: TabKey[] = ["general", "brand", "collabs", "competitors", "legal", "learning", "automation", "growth", "security", "accessibility", "admin-codes", "admin-users", "subscription"];
 
 const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "general", label: "General" },
@@ -66,6 +68,8 @@ const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "learning", label: "Learning" },
   { key: "automation", label: "Automation Hub" },
   { key: "growth", label: "Growth Programs" },
+  { key: "security", label: "Security" },
+  { key: "accessibility", label: "Accessibility" },
   { key: "subscription", label: "Subscription" },
   { key: "admin-codes", label: "Access Codes", adminOnly: true },
   { key: "admin-users", label: "Users", adminOnly: true },
@@ -4887,6 +4891,8 @@ export default function Settings() {
           <TabsContent value="learning" className="mt-4"><LearningTab /></TabsContent>
           <TabsContent value="automation" className="mt-4"><AutomationTab /></TabsContent>
           <TabsContent value="growth" className="mt-4"><GrowthProgramsTab /></TabsContent>
+          <TabsContent value="security" className="mt-4"><SecurityTab /></TabsContent>
+          <TabsContent value="accessibility" className="mt-4"><AccessibilityTab /></TabsContent>
           <TabsContent value="subscription" className="mt-4"><SubscriptionTab /></TabsContent>
           {isAdmin && <TabsContent value="admin-codes" className="mt-4"><AdminCodesTab /></TabsContent>}
           {isAdmin && <TabsContent value="admin-users" className="mt-4"><AdminUsersTab /></TabsContent>}

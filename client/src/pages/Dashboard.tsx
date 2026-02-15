@@ -58,6 +58,7 @@ const LazyAIToolSuites = lazy(() => import("./dashboard/AIToolSuites"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
 const LazyDailyBriefing = lazy(() => import("./dashboard/DailyBriefingSection"));
 const LazyAudienceStealth = lazy(() => import("./dashboard/AudienceStealthSection"));
+const LazyAudienceGrowth = lazy(() => import("./dashboard/AudienceGrowthSection"));
 
 type AIResponse = any;
 
@@ -333,6 +334,12 @@ export default function Dashboard() {
       </Suspense>
 
       <div ref={belowFoldRef} />
+
+      <CollapsibleToolbox title="Audience & Growth" toolCount={6}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <LazyAudienceGrowth />
+        </Suspense>
+      </CollapsibleToolbox>
 
       <CollapsibleToolbox title="AI Insights & Briefing" toolCount={3}>
         <div className="space-y-4">

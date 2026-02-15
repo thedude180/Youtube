@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
+
+const StreamUpgradesSection = lazy(() => import("./stream/StreamUpgradesSection"));
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1233,6 +1235,12 @@ export default function StreamCenter() {
           )}
         </CardContent>
       </Card>
+
+      <CollapsibleToolbox title="Stream Upgrades" toolCount={5}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <StreamUpgradesSection />
+        </Suspense>
+      </CollapsibleToolbox>
 
       <CollapsibleToolbox title="AI Stream Tools" toolCount={100} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       <div className="space-y-3">

@@ -14,6 +14,8 @@ import {
   Crown,
   Rocket,
   KeyRound,
+  GitBranch,
+  Users,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,8 +36,10 @@ import { Badge } from "@/components/ui/badge";
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard },
   { href: "/content", labelKey: "nav.content", icon: Video },
+  { href: "/pipeline", labelKey: "Pipeline", icon: GitBranch },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio },
   { href: "/autopilot", labelKey: "Autopilot", icon: Rocket },
+  { href: "/community", labelKey: "Community", icon: Users },
   { href: "/money", labelKey: "nav.money", icon: DollarSign },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ];

@@ -43,7 +43,7 @@ import {
 
 type AIResponse = any;
 
-type ContentTab = "library" | "updated" | "channels" | "calendar" | "localization";
+type ContentTab = "library" | "updated" | "channels" | "calendar" | "localization" | "ai-tools" | "seo";
 
 const TYPE_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   vod: "default", short: "secondary",
@@ -54,12 +54,14 @@ const UpdatedVideosTab = lazy(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazy(() => import("./content/ChannelsTab"));
 const CalendarTab = lazy(() => import("./content/CalendarTab"));
 const LocalizationTab = lazy(() => import("./content/LocalizationTab"));
+const AIToolsTab = lazy(() => import("./content/AIToolsTab"));
+const SEOTab = lazy(() => import("./content/SEOTab"));
 
 export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "localization"];
+  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "localization", "ai-tools", "seo"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useState<ContentTab>(initialTab);
   const { isAdvanced } = useAdvancedMode();
@@ -89,6 +91,12 @@ export default function Content() {
           <TabsTrigger value="localization" data-testid="tab-localization">
             <Globe className="h-3.5 w-3.5 mr-1.5" />{t("content.localization")}
           </TabsTrigger>
+          <TabsTrigger value="ai-tools" data-testid="tab-ai-tools">
+            <Sparkles className="h-3.5 w-3.5 mr-1.5" />AI Tools
+          </TabsTrigger>
+          <TabsTrigger value="seo" data-testid="tab-seo">
+            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />SEO
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="library" className="mt-2">
@@ -112,6 +120,16 @@ export default function Content() {
         <TabsContent value="localization" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <LocalizationTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="ai-tools" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <AIToolsTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="seo" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <SEOTab />
           </Suspense>
         </TabsContent>
       </Tabs>
