@@ -38,7 +38,7 @@ export const PLATFORM_INFO: Record<Platform, {
     rtmpUrlTemplate: "rtmp://a.rtmp.youtube.com/live2",
     category: "streaming",
     connectionType: "oauth",
-    signupUrl: "https://www.youtube.com",
+    signupUrl: "https://www.youtube.com/create_channel",
     strategyDescription: "The world's largest video platform. Essential for long-form content, SEO-driven discovery, and ad revenue. Your home base for building a sustainable creator business.",
     setupSteps: ["Click 'Connect YouTube' to sign in with your Google account", "Grant CreatorOS permission to manage your videos", "Your channel will sync automatically"],
   },

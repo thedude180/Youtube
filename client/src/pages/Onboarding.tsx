@@ -294,7 +294,7 @@ function PlatformCard({
         </div>
 
         {!isConnected && canOAuth && !expanded && (
-          <div className="mt-3">
+          <div className="mt-3 space-y-2">
             <Button
               data-testid={`button-oauth-${platform}`}
               onClick={handleOAuthLogin}
@@ -303,7 +303,17 @@ function PlatformCard({
               style={{ backgroundColor: info.color === "#000000" ? "#333" : info.color, borderColor: info.color, color: "#fff" }}
             >
               {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : PLATFORM_ICONS[platform] ? (() => { const PIcon = PLATFORM_ICONS[platform]; return <PIcon className="h-4 w-4 mr-2" />; })() : <LogIn className="h-4 w-4 mr-2" />}
-              {oauthLoading ? "Redirecting..." : `Login with ${info.label}`}
+              {oauthLoading ? "Redirecting..." : `Connect ${info.label}`}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => window.open(info.signupUrl, "_blank")}
+              data-testid={`button-signup-quick-${platform}`}
+            >
+              {isYouTube ? "Need a YouTube channel? Create one" : "No account yet? Sign up free"}
+              <ExternalLink className="h-3 w-3 ml-1.5" />
             </Button>
           </div>
         )}
@@ -319,7 +329,7 @@ function PlatformCard({
                 style={{ backgroundColor: info.color === "#000000" ? "#333" : info.color, borderColor: info.color, color: "#fff" }}
               >
                 {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : PLATFORM_ICONS[platform] ? (() => { const PIcon = PLATFORM_ICONS[platform]; return <PIcon className="h-4 w-4 mr-2" />; })() : <LogIn className="h-4 w-4 mr-2" />}
-                {oauthLoading ? "Redirecting..." : `Login with ${info.label}`}
+                {oauthLoading ? "Redirecting..." : `Connect ${info.label}`}
               </Button>
             )}
 
@@ -329,14 +339,33 @@ function PlatformCard({
               </div>
             )}
 
+            <div className="rounded-md bg-muted/50 p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {isYouTube ? "Need a YouTube channel?" : `Don't have a ${info.label} account?`}
+              </p>
+              <Button
+                data-testid={`button-signup-${platform}`}
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => window.open(info.signupUrl, "_blank")}
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                {isYouTube ? "Create YouTube Channel" : `Sign Up for ${info.label}`}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                {isYouTube
+                  ? "Opens YouTube — create your channel, then come back and connect"
+                  : "Opens in a new tab — sign up, then come back and connect"}
+              </p>
+            </div>
+
             {!isYouTube && (
               <>
-                {canOAuth && (
-                  <div className="relative my-1">
-                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or manually</span></div>
-                  </div>
-                )}
+                <div className="relative my-1">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or connect manually</span></div>
+                </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Input
                     data-testid={`input-${platform}`}
@@ -354,17 +383,6 @@ function PlatformCard({
                     {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
                   </Button>
                 </div>
-
-                <a
-                  href={info.signupUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid={`link-signup-${platform}`}
-                >
-                  Don't have an account? Sign up
-                  <ExternalLink className="h-3 w-3" />
-                </a>
               </>
             )}
           </div>
@@ -466,7 +484,7 @@ function GroupedPlatformCard({
         </div>
 
         {!allConnected && (
-          <div className="mt-3">
+          <div className="mt-3 space-y-2">
             <Button
               data-testid={`button-group-login-${group.id}`}
               onClick={handleGroupLogin}
@@ -479,9 +497,21 @@ function GroupedPlatformCard({
                 ? "Connecting..."
                 : someConnected
                 ? `Connect Remaining with ${group.label}`
-                : `Login with ${group.label}`
+                : `Connect with ${group.label}`
               }
             </Button>
+            {group.id === "google" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs text-muted-foreground"
+                onClick={() => window.open("https://www.youtube.com/create_channel", "_blank")}
+                data-testid="button-signup-quick-youtube-group"
+              >
+                Need a YouTube channel? Create one
+                <ExternalLink className="h-3 w-3 ml-1.5" />
+              </Button>
+            )}
           </div>
         )}
       </CardContent>
@@ -983,21 +1013,43 @@ function NewCreatorFlow({
           </CardContent>
         </Card>
 
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <h3 data-testid="text-setup-platforms-heading" className="text-sm font-semibold flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              Set Up Your Platforms
+            </h3>
+            <p data-testid="text-setup-platforms-description" className="text-xs text-muted-foreground">
+              Sign up for any platforms you don't have yet, then connect them to activate full automation.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {(NICHE_PLATFORMS[selectedNiche || "other"]?.platforms || NICHE_PLATFORMS["other"].platforms).map((p) => {
+                const pInfo = PLATFORM_INFO[p as Platform];
+                return (
+                  <Button
+                    key={p}
+                    data-testid={`button-signup-platform-${p}`}
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2"
+                    onClick={() => window.open(pInfo.signupUrl, "_blank")}
+                  >
+                    {PLATFORM_ICONS[p] ? (() => { const PIcon = PLATFORM_ICONS[p]; return <PIcon className="h-3.5 w-3.5 shrink-0" />; })() : null}
+                    <span className="truncate">{p === "youtube" ? "Create YouTube" : `Sign Up ${pInfo.label}`}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <Button
             data-testid="button-connect-platforms"
             onClick={() => setShowPlatforms(true)}
           >
-            <Zap className="h-4 w-4 mr-2" />
+            <LogIn className="h-4 w-4 mr-2" />
             Connect Your Platforms
-          </Button>
-          <Button
-            data-testid="button-create-youtube-channel"
-            variant="secondary"
-            onClick={() => window.open("https://www.youtube.com/create_channel", "_blank")}
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Create YouTube Channel
           </Button>
           <Button
             data-testid="button-continue-without-channel"
@@ -1009,7 +1061,7 @@ function NewCreatorFlow({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Connect platforms best suited for your {NICHE_OPTIONS.find((n) => n.id === selectedNiche)?.label?.toLowerCase() || ""} content, or go straight to the dashboard to see your full empire blueprint.
+          Sign up for platforms first, then connect them — or go straight to the dashboard and connect later.
         </p>
       </div>
     );
