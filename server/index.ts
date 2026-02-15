@@ -11,6 +11,7 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { seedStripeProducts } from "./stripe-seed";
 import { pool } from "./db";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
+import { startAutopilotMonitor } from "./services/autopilot-monitor";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -249,6 +250,7 @@ app.use((req: any, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      startAutopilotMonitor();
     },
   );
 

@@ -1074,7 +1074,7 @@ function NewCreatorFlow({
   );
 }
 
-type OnboardingStep = "choice" | "new-creator" | "existing-creator" | "redeem-code";
+type OnboardingStep = "contact-info" | "choice" | "new-creator" | "existing-creator" | "redeem-code";
 
 function RedeemCodeScreen({ onBack, onRedeemed }: { onBack: () => void; onRedeemed: () => void }) {
   const { toast } = useToast();
@@ -1137,6 +1137,128 @@ function RedeemCodeScreen({ onBack, onRedeemed }: { onBack: () => void; onRedeem
             <KeyRound className="h-4 w-4 mr-2" />
           )}
           {redeemMutation.isPending ? "Redeeming..." : "Redeem Code"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ContactInfoScreen({
+  onComplete,
+  user,
+}: {
+  onComplete: () => void;
+  user: any;
+}) {
+  const { toast } = useToast();
+  const [firstName, setFirstName] = useState(user?.firstName || "");
+  const [lastName, setLastName] = useState(user?.lastName || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!firstName.trim()) {
+      toast({ title: "First name is required", variant: "destructive" });
+      return;
+    }
+    if (!email.trim() || !email.includes("@")) {
+      toast({ title: "Valid email is required", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiRequest("PATCH", "/api/user/profile", {
+        phone: phone.trim() || undefined,
+        notifyEmail: true,
+        notifyPhone: !!phone.trim(),
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
+      onComplete();
+    } catch (err: any) {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="h-14 w-14 rounded-md bg-primary flex items-center justify-center mb-6">
+        <Shield className="h-7 w-7 text-primary-foreground" />
+      </div>
+      <h1
+        data-testid="text-contact-heading"
+        className="text-2xl sm:text-3xl font-display font-bold text-center"
+      >
+        Almost there
+      </h1>
+      <p
+        data-testid="text-contact-subtitle"
+        className="mt-2 text-sm text-muted-foreground text-center max-w-md"
+      >
+        We'll only contact you when something needs your attention — everything else runs on autopilot.
+      </p>
+
+      <div className="w-full max-w-sm mt-10 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">First Name</label>
+            <Input
+              data-testid="input-first-name"
+              placeholder="First name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              disabled={!!user?.firstName}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Last Name</label>
+            <Input
+              data-testid="input-last-name"
+              placeholder="Last name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              disabled={!!user?.lastName}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Email</label>
+          <Input
+            data-testid="input-email"
+            type="email"
+            placeholder="you@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={!!user?.email}
+          />
+          <p className="text-xs text-muted-foreground">Problem alerts sent here</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Phone (optional)</label>
+          <Input
+            data-testid="input-phone"
+            type="tel"
+            placeholder="+1 (555) 000-0000"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">Get text alerts for urgent issues</p>
+        </div>
+
+        <Button
+          data-testid="button-contact-continue"
+          className="w-full mt-6"
+          onClick={handleSubmit}
+          disabled={saving || !firstName.trim() || !email.includes("@")}
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          Continue
+          <ArrowRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
     </div>
@@ -1252,7 +1374,9 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [step, setStep] = useState<OnboardingStep>("choice");
+  const [step, setStep] = useState<OnboardingStep>(
+    user?.phone || user?.email ? "choice" : "contact-info"
+  );
   const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
   const [showAllPlatforms, setShowAllPlatforms] = useState(false);
 
@@ -1378,6 +1502,11 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
+          ) : step === "contact-info" ? (
+            <ContactInfoScreen
+              user={user}
+              onComplete={() => setStep("choice")}
+            />
           ) : step === "choice" ? (
             <ChoiceScreen onChoose={setStep} />
           ) : step === "redeem-code" ? (
