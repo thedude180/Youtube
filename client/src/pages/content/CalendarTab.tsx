@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Calendar as CalendarIcon,
   ChevronLeft, ChevronRight, Video, Radio, FileText,
-  Eye,
+  Eye, Rocket, Bot,
 } from "lucide-react";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
@@ -40,7 +40,7 @@ interface CalendarEntry {
   id: number | string;
   title: string;
   date: Date;
-  type: "schedule" | "video";
+  type: "schedule" | "video" | "autopilot";
   platform?: string;
   contentType?: string;
   status?: string;
@@ -64,18 +64,21 @@ function CalendarTab() {
   const [formPlatform, setFormPlatform] = useState("youtube");
   const [detailDate, setDetailDate] = useState<Date | null>(null);
 
-  const { data: scheduleItems, isLoading: schedLoading, error: schedError } =
+  const { data: scheduleItemsData, isLoading: schedLoading, error: schedError } =
     useQuery<any[]>({ queryKey: ["/api/schedule"] });
 
   const { data: videosList, isLoading: vidsLoading, error: vidsError } =
     useQuery<any[]>({ queryKey: ["/api/videos"] });
 
-  const isLoading = schedLoading || vidsLoading;
+  const { data: autopilotFeed, isLoading: apLoading } =
+    useQuery<any[]>({ queryKey: ["/api/autopilot/calendar-feed"] });
+
+  const isLoading = schedLoading || vidsLoading || apLoading;
 
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
-    if (scheduleItems) {
-      for (const item of scheduleItems) {
+    if (scheduleItemsData) {
+      for (const item of scheduleItemsData) {
         entries.push({
           id: `s-${item.id}`,
           title: item.title,
@@ -110,8 +113,24 @@ function CalendarTab() {
         });
       }
     }
+    if (autopilotFeed) {
+      for (const item of autopilotFeed) {
+        const d = item.date ? new Date(item.date) : new Date();
+        entries.push({
+          id: item.id,
+          title: item.title,
+          date: d,
+          type: "autopilot",
+          platform: item.platform,
+          contentType: item.contentType,
+          status: item.status,
+          time: format(d, "h:mm a"),
+          raw: item,
+        });
+      }
+    }
     return entries.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [scheduleItems, videosList]);
+  }, [scheduleItemsData, videosList, autopilotFeed]);
 
   const getEntriesForDate = (date: Date) =>
     calendarEntries.filter((e) => isSameDay(e.date, date));
@@ -526,6 +545,9 @@ function EntryBadge({ entry }: { entry: CalendarEntry }) {
 }
 
 function EntryIcon({ entry }: { entry: CalendarEntry }) {
+  if (entry.type === "autopilot") {
+    return <Rocket className="w-3 h-3 shrink-0 text-purple-400" />;
+  }
   if (entry.type === "video") {
     return <Video className="w-3 h-3 shrink-0 text-red-400" />;
   }
@@ -635,6 +657,15 @@ function EntryRow({
               >
                 <Video className="w-3 h-3 mr-1" />
                 Upload
+              </Badge>
+            )}
+            {entry.type === "autopilot" && (
+              <Badge
+                variant="secondary"
+                className="text-xs no-default-hover-elevate no-default-active-elevate bg-purple-500/10 text-purple-400"
+              >
+                <Bot className="w-3 h-3 mr-1" />
+                Autopilot
               </Badge>
             )}
           </div>

@@ -34,6 +34,12 @@ import {
   Shuffle,
   TrendingUp,
   Sparkles,
+  Youtube,
+  Wifi,
+  WifiOff,
+  Play,
+  Calendar,
+  ExternalLink,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 
@@ -221,6 +227,37 @@ export default function Autopilot() {
     queryKey: ["/api/autopilot/comments"],
   });
 
+  interface YouTubeStatus {
+    connected: boolean;
+    channelName: string | null;
+    channelId: string | null;
+    lastSyncAt: string | null;
+    subscriberCount: number | null;
+    videoCount: number;
+    tokenValid: boolean;
+    syncHealthy: boolean;
+    scheduledUpdates?: number;
+    message: string;
+  }
+
+  const ytStatusQuery = useQuery<YouTubeStatus>({
+    queryKey: ["/api/autopilot/youtube-status"],
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async (reseed?: boolean) => {
+      const res = await apiRequest("POST", "/api/autopilot/activate", { reseed: reseed || false });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/calendar-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/youtube-status"] });
+      toast({ title: data.message || "Autopilot activated!" });
+    },
+  });
+
   const configMutation = useMutation({
     mutationFn: async ({ feature, enabled, settings }: { feature: string; enabled: boolean; settings?: any }) => {
       return apiRequest("POST", "/api/autopilot/config", { feature, enabled, settings });
@@ -371,6 +408,96 @@ export default function Autopilot() {
           </CardContent>
         </Card>
       </div>
+
+      {(() => {
+        const yt = ytStatusQuery.data;
+        return (
+          <Card data-testid="card-youtube-status">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Youtube className="h-5 w-5 text-red-500 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-sm">YouTube Connection</h3>
+                      {yt?.connected ? (
+                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-green-500/15 text-green-400">
+                          <Wifi className="h-3 w-3 mr-1" />
+                          Connected
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-red-500/15 text-red-400">
+                          <WifiOff className="h-3 w-3 mr-1" />
+                          Not Connected
+                        </Badge>
+                      )}
+                      {yt?.connected && yt?.syncHealthy && (
+                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-emerald-500/15 text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Sync Active
+                        </Badge>
+                      )}
+                      {yt?.connected && !yt?.syncHealthy && (
+                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-500/15 text-amber-400">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Sync Issue
+                        </Badge>
+                      )}
+                    </div>
+                    {yt?.connected ? (
+                      <div className="flex items-center gap-4 mt-1 flex-wrap">
+                        <span className="text-xs text-muted-foreground" data-testid="text-yt-channel">{yt.channelName}</span>
+                        {yt.videoCount > 0 && (
+                          <span className="text-xs text-muted-foreground">{yt.videoCount} videos tracked</span>
+                        )}
+                        {yt.subscriberCount != null && yt.subscriberCount > 0 && (
+                          <span className="text-xs text-muted-foreground">{yt.subscriberCount.toLocaleString()} subscribers</span>
+                        )}
+                        {yt.lastSyncAt && (
+                          <span className="text-xs text-muted-foreground">
+                            Last sync: {formatDistanceToNow(new Date(yt.lastSyncAt), { addSuffix: true })}
+                          </span>
+                        )}
+                        {(yt.scheduledUpdates ?? 0) > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            <Calendar className="h-3 w-3 inline mr-1" />
+                            {yt.scheduledUpdates} updates scheduled
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">{yt?.message || "Connect YouTube to enable autopilot sync"}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {!yt?.connected && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => window.location.href = "/api/youtube/auth"}
+                      data-testid="button-connect-youtube"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Connect YouTube
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={stats?.scheduledPosts ? "outline" : "default"}
+                    onClick={() => activateMutation.mutate(!!stats?.scheduledPosts)}
+                    disabled={activateMutation.isPending}
+                    data-testid="button-activate-autopilot"
+                  >
+                    <Play className="h-3 w-3 mr-1" />
+                    {activateMutation.isPending ? "Activating..." : stats?.scheduledPosts ? "Re-Seed Schedule" : "Activate Autopilot"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap">

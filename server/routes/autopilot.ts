@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { autopilotQueue, commentResponses, autopilotConfig } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { autopilotQueue, commentResponses, autopilotConfig, channels, videos, scheduleItems } from "@shared/schema";
+import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 import {
   getAutopilotStats,
   getAutopilotActivity,
@@ -13,6 +13,11 @@ import {
 } from "../autopilot-engine";
 import { getStealthReport } from "../content-variation-engine";
 import { getUserId } from "./helpers";
+import { storage } from "../storage";
+import {
+  getAudienceDrivenTime,
+  addHumanMicroDelay,
+} from "../human-behavior-engine";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -220,6 +225,244 @@ export function registerAutopilotRoutes(app: Express) {
       res.json(updated);
     } catch (err) {
       res.status(500).json({ error: "Failed to publish" });
+    }
+  });
+
+  app.get("/api/autopilot/youtube-status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const userChannels = await storage.getChannelsByUser(userId);
+      const ytChannel = userChannels.find(
+        (c) => c.platform === "youtube" && c.accessToken && c.channelId
+      );
+
+      if (!ytChannel) {
+        return res.json({
+          connected: false,
+          channelName: null,
+          channelId: null,
+          lastSyncAt: null,
+          subscriberCount: null,
+          videoCount: null,
+          tokenValid: false,
+          syncHealthy: false,
+          message: "YouTube is not connected. Connect your channel to enable autopilot sync.",
+        });
+      }
+
+      const tokenValid = ytChannel.tokenExpiresAt
+        ? new Date(ytChannel.tokenExpiresAt) > new Date()
+        : !!ytChannel.accessToken;
+
+      const lastSync = ytChannel.lastSyncAt;
+      const syncRecent = lastSync
+        ? Date.now() - new Date(lastSync).getTime() < 24 * 60 * 60 * 1000
+        : false;
+
+      const [videoCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(videos)
+        .where(eq(videos.channelId, ytChannel.id));
+
+      const [autopilotCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.status, "scheduled"),
+        ));
+
+      res.json({
+        connected: true,
+        channelName: ytChannel.channelName,
+        channelId: ytChannel.channelId,
+        lastSyncAt: lastSync,
+        subscriberCount: ytChannel.subscriberCount,
+        videoCount: videoCount?.count || 0,
+        tokenValid,
+        syncHealthy: tokenValid && (syncRecent || !lastSync),
+        scheduledUpdates: autopilotCount?.count || 0,
+        message: tokenValid
+          ? "YouTube is connected and sync is active."
+          : "YouTube token may have expired. Re-connect to restore sync.",
+      });
+    } catch (err) {
+      console.error("[Autopilot] YouTube status error:", err);
+      res.status(500).json({ error: "Failed to check YouTube status" });
+    }
+  });
+
+  app.get("/api/autopilot/calendar-feed", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const from = req.query.from ? new Date(req.query.from as string) : undefined;
+      const to = req.query.to ? new Date(req.query.to as string) : undefined;
+
+      const conditions = [eq(autopilotQueue.userId, userId)];
+      if (from) conditions.push(gte(autopilotQueue.scheduledAt, from));
+      if (to) conditions.push(lte(autopilotQueue.scheduledAt, to));
+
+      const queueItems = await db
+        .select()
+        .from(autopilotQueue)
+        .where(and(...conditions))
+        .orderBy(desc(autopilotQueue.scheduledAt))
+        .limit(500);
+
+      const calendarItems = queueItems.map((item) => ({
+        id: `ap-${item.id}`,
+        title: item.caption || item.content?.slice(0, 60) || "Autopilot Post",
+        date: item.scheduledAt || item.createdAt,
+        type: "autopilot" as const,
+        platform: item.targetPlatform,
+        contentType: item.type,
+        status: item.status,
+        metadata: item.metadata,
+        sourceVideoId: item.sourceVideoId,
+      }));
+
+      res.json(calendarItems);
+    } catch (err) {
+      console.error("[Autopilot] Calendar feed error:", err);
+      res.status(500).json({ error: "Failed to fetch calendar feed" });
+    }
+  });
+
+  app.post("/api/autopilot/activate", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const reseed = req.body?.reseed === true;
+
+      const [existingScheduled] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.status, "scheduled"),
+          gte(autopilotQueue.scheduledAt, new Date()),
+        ));
+
+      if ((existingScheduled?.count || 0) > 0 && !reseed) {
+        return res.json({
+          success: true,
+          message: `Autopilot is already active with ${existingScheduled?.count} scheduled posts.`,
+          seeded: 0,
+        });
+      }
+
+      if (reseed) {
+        await db.delete(autopilotQueue)
+          .where(and(
+            eq(autopilotQueue.userId, userId),
+            eq(autopilotQueue.status, "scheduled"),
+            gte(autopilotQueue.scheduledAt, new Date()),
+          ));
+      }
+
+      const userVideos = await db
+        .select()
+        .from(videos)
+        .where(eq(videos.platform, "youtube"))
+        .orderBy(desc(videos.createdAt))
+        .limit(5);
+
+      const platforms = ["youtube", "tiktok", "x", "discord", "twitch", "kick"];
+      const contentTypes = ["auto-clip", "content-recycle", "cross-promo"];
+      let seeded = 0;
+      const now = new Date();
+
+      for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+        for (const platform of platforms) {
+          const postsPerDay = platform === "x" ? 2 : 1;
+
+          for (let postIdx = 0; postIdx < postsPerDay; postIdx++) {
+            const contentType = contentTypes[seeded % contentTypes.length];
+            const video = userVideos.length > 0
+              ? userVideos[seeded % userVideos.length]
+              : null;
+
+            const scheduledAt = await getAudienceDrivenTime({
+              platform,
+              userId,
+              contentType: "new-video",
+              urgency: "low",
+            });
+
+            const targetDate = new Date(now);
+            targetDate.setDate(targetDate.getDate() + dayOffset);
+            scheduledAt.setFullYear(targetDate.getFullYear());
+            scheduledAt.setMonth(targetDate.getMonth());
+            scheduledAt.setDate(targetDate.getDate());
+
+            const microDelay = addHumanMicroDelay();
+            let finalSchedule = new Date(scheduledAt.getTime() + microDelay);
+
+            if (finalSchedule < now) {
+              if (dayOffset === 0) {
+                finalSchedule = new Date(now.getTime() + (30 + Math.random() * 90) * 60 * 1000);
+              } else {
+                continue;
+              }
+            }
+
+            const titleBase = video?.title || `Scheduled ${platform} post`;
+            const content = `${contentType === "auto-clip" ? "New content" : contentType === "content-recycle" ? "Throwback" : "Cross-platform"}: ${titleBase}`;
+
+            await db.insert(autopilotQueue).values({
+              userId,
+              sourceVideoId: video?.id || null,
+              type: contentType,
+              targetPlatform: platform,
+              content,
+              caption: `${platform} - ${titleBase}`,
+              status: "scheduled",
+              scheduledAt: finalSchedule,
+              metadata: {
+                style: "human",
+                schedulingMethod: "autopilot-activation",
+                aiModel: "seeded",
+                humanScore: 0.95,
+              },
+            } as any);
+
+            seeded++;
+          }
+        }
+      }
+
+      for (const feature of ["auto-clip", "smart-schedule", "comment-responder", "discord-announce", "content-recycler", "cross-promo", "stealth-mode"]) {
+        const [existingConfig] = await db
+          .select()
+          .from(autopilotConfig)
+          .where(and(eq(autopilotConfig.userId, userId), eq(autopilotConfig.feature, feature)))
+          .limit(1);
+
+        if (!existingConfig) {
+          await db.insert(autopilotConfig).values({
+            userId,
+            feature,
+            enabled: true,
+            settings: {},
+          });
+        } else if (!existingConfig.enabled) {
+          await db.update(autopilotConfig)
+            .set({ enabled: true, updatedAt: new Date() })
+            .where(eq(autopilotConfig.id, existingConfig.id));
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Autopilot activated! ${seeded} posts scheduled across 6 platforms over the next 14 days.`,
+        seeded,
+        startDate: now.toISOString(),
+      });
+    } catch (err) {
+      console.error("[Autopilot] Activation error:", err);
+      res.status(500).json({ error: "Failed to activate autopilot" });
     }
   });
 }
