@@ -556,7 +556,63 @@ export async function initAutomationEngine() {
     }
   });
 
-  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode)");
+  cron.schedule("0 */4 * * *", async () => {
+    try {
+      const { scanAlgorithmChanges } = await import("./algorithm-monitor");
+      for (const platform of ["youtube", "twitch", "kick", "tiktok", "x"]) {
+        await scanAlgorithmChanges(platform);
+      }
+      console.log("[UltimateEngine] Algorithm scan complete");
+    } catch (err) {
+      console.error("[UltimateEngine] Algorithm scan error:", err);
+    }
+  });
+
+  cron.schedule("0 */6 * * *", async () => {
+    try {
+      const { scanForTrends } = await import("./trend-predictor");
+      const allUsers = await db.select().from(channels);
+      const userIds = [...new Set(allUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds.slice(0, 10)) {
+        await scanForTrends(userId!);
+      }
+      console.log("[UltimateEngine] Trend prediction scan complete");
+    } catch (err) {
+      console.error("[UltimateEngine] Trend scan error:", err);
+    }
+  });
+
+  cron.schedule("0 */8 * * *", async () => {
+    try {
+      const { scanForCompoundingOpportunities } = await import("./compounding-engine");
+      const allUsers = await db.select().from(channels);
+      const userIds = [...new Set(allUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds.slice(0, 10)) {
+        await scanForCompoundingOpportunities(userId!);
+      }
+      console.log("[UltimateEngine] Content compounding scan complete");
+    } catch (err) {
+      console.error("[UltimateEngine] Compounding scan error:", err);
+    }
+  });
+
+  cron.schedule("0 */12 * * *", async () => {
+    try {
+      const { scanForAnomalies } = await import("./shadowban-detector");
+      const allUsers = await db.select().from(channels);
+      const userIds = [...new Set(allUsers.map(c => c.userId).filter(Boolean))];
+      for (const userId of userIds.slice(0, 10)) {
+        for (const platform of ["youtube", "twitch", "kick"]) {
+          await scanForAnomalies(userId!, platform);
+        }
+      }
+      console.log("[UltimateEngine] Shadow ban detection scan complete");
+    } catch (err) {
+      console.error("[UltimateEngine] Shadow ban scan error:", err);
+    }
+  });
+
+  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine)");
 }
 
 async function processAllCronJobs() {

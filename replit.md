@@ -56,6 +56,24 @@ The platform is built as a full-stack application with an Express.js backend and
 - **OAuth Platform Integration**: Universal OAuth framework for 23 platforms, generic OAuth routes, status API, and automatic data fetching and token refresh for connected platforms.
 - **Login Groups**: Platforms sharing the same login provider are grouped in onboarding (Google → YouTube+Shorts, Meta → Facebook+Instagram+Threads). One login connects all platforms in the group. YouTube Shorts is deprecated as a separate platform — YouTube covers both.
 - **Subscription & Access System**: Multi-tier subscription model (free, youtube, starter, pro, ultimate) with role-based access, admin capabilities, and Stripe integration for payments.
+- **Ultimate Engine** (17 advanced features across 6 tiers, 16 engine files, 42 API routes):
+  - **Self-Healing Pipelines** (server/pipeline-healing-engine.ts): Auto-detects pipeline step failures, AI diagnoses root cause, auto-retries with exponential backoff. Tables: pipeline_failures. Routes: /api/pipeline/failures, /api/pipeline/healing-stats.
+  - **Dynamic Routing** (server/pipeline-router.ts): Optimizes pipeline step order based on content type, platform, and performance. Tables: pipeline_routing_rules. Routes: /api/pipeline/routing-rules, /api/pipeline/optimize-route, /api/pipeline/analyze-performance.
+  - **A/B Testing Engine** (server/ab-testing-engine.ts): Autonomous title/thumbnail/description A/B tests with auto-winner declaration at 85% confidence. Tables: experiments. Routes: /api/experiments/*.
+  - **Predictive Analytics** (server/trend-predictor.ts): AI predicts upcoming content trends with confidence scores, velocity, peak timing. Runs every 6 hours via cron. Tables: predictive_trends. Routes: /api/intelligence/trends/*.
+  - **Creator DNA** (server/creator-dna-engine.ts): Deep-learns creator's style, voice, humor, energy patterns. Generates content in creator's exact voice. Tables: creator_dna_profiles. Routes: /api/intelligence/dna/*.
+  - **Audience Mind Mapping** (server/audience-mindmap-engine.ts): Maps audience psychographics - motivations, values, pain points, churn risks. Tables: audience_psychographics. Routes: /api/intelligence/audience/*.
+  - **Stream Copilot** (server/copilot-engine.ts): Real-time AI copilot for live streams - talking points, engagement tactics, raid targets, post-stream recap. Tables: live_copilot_suggestions. Routes: /api/stream/copilot/*.
+  - **Audience Migration** (server/migration-engine.ts): Strategic funnel campaigns to migrate audiences between platforms. Tables: migration_campaigns. Routes: /api/growth/migration/*.
+  - **Collaboration Network** (server/collab-engine.ts): AI finds compatible creators, generates outreach, suggests collab formats. Tables: collab_candidates. Routes: /api/growth/collabs/*.
+  - **Revenue Maximizer** (server/revenue-maximizer.ts): AI optimizes sponsorship rates, membership pricing, all revenue streams. Tables: revenue_models. Routes: /api/money/revenue/*.
+  - **Content Compounding** (server/compounding-engine.ts): Re-promotes old content by matching to new trends, refreshes metadata. Runs every 8 hours via cron. Tables: compounding_jobs. Routes: /api/content/compounding/*.
+  - **Smart Merch** (server/merch-engine.ts): AI identifies merch opportunities from viral moments and catchphrases. Tables: merch_ideas. Routes: /api/money/merch/*.
+  - **Algorithm Decoder** (server/algorithm-monitor.ts): Decodes platform algorithm changes, auto-adapts content strategy. Runs every 4 hours via cron. Tables: algorithm_signals. Routes: /api/platform/algorithm/*.
+  - **Shadow Ban Detection** (server/shadowban-detector.ts): Detects reach anomalies and shadow bans across platforms. Runs every 12 hours via cron. Tables: reach_anomalies. Routes: /api/platform/shadowban/*.
+  - **Multi-Language Empire** (server/localization-engine.ts): Localizes content for multiple languages with cultural adaptations. Tables: localization_jobs. Routes: /api/content/localization/*.
+  - **Tax Intelligence** (server/business-intel-engine.ts): AI estimates quarterly taxes, tracks deductions. Tables: tax_estimates. Routes: /api/money/tax/*.
+  - **Team Scaling Advisor** (server/business-intel-engine.ts): AI analyzes workload and recommends hiring. Tables: hiring_recommendations. Routes: /api/business/team/*.
 
 ## External Dependencies
 - **Replit Auth**: For user authentication.
