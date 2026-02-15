@@ -3052,3 +3052,23 @@ export const empireBuilds = pgTable("empire_builds", {
 export const insertEmpireBuildSchema = createInsertSchema(empireBuilds).omit({ id: true, createdAt: true, completedAt: true, notifiedAt: true });
 export type EmpireBuild = typeof empireBuilds.$inferSelect;
 export type InsertEmpireBuild = z.infer<typeof insertEmpireBuildSchema>;
+
+export const creatorSkillProgress = pgTable("creator_skill_progress", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videosCreated: integer("videos_created").default(0),
+  skillLevel: integer("skill_level").default(1),
+  skillLabel: text("skill_label").default("complete_beginner"),
+  qualityMultiplier: real("quality_multiplier").default(0.15),
+  strengths: jsonb("strengths").$type<string[]>().default([]),
+  weaknesses: jsonb("weaknesses").$type<string[]>().default([]),
+  lessonsLearned: jsonb("lessons_learned").$type<string[]>().default([]),
+  youtubeResearchSeeded: boolean("youtube_research_seeded").default(false),
+  lastVideoAt: timestamp("last_video_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("creator_skill_user_idx").on(table.userId),
+}));
+
+export type CreatorSkillProgress = typeof creatorSkillProgress.$inferSelect;

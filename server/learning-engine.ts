@@ -253,7 +253,9 @@ export async function recordLearningEvent(
 
 export async function getLearningContext(userId: string): Promise<string> {
   try {
-    const [insights, dna, styleMemory] = await Promise.all([
+    const { getYouTubeLearningContext } = await import("./youtube-learning-engine");
+
+    const [insights, dna, styleMemory, youtubeContext] = await Promise.all([
       db.select().from(learningInsights)
         .where(eq(learningInsights.userId, userId))
         .orderBy(desc(sql`${learningInsights.confidence} * COALESCE(${learningInsights.sampleSize}, 1)`))
@@ -263,13 +265,19 @@ export async function getLearningContext(userId: string): Promise<string> {
         .orderBy(desc(contentDnaProfiles.lastUpdatedAt))
         .limit(1),
       storage.getCreatorMemory(userId),
+      getYouTubeLearningContext(userId).catch(() => ""),
     ]);
 
-    if (insights.length === 0 && styleMemory.length === 0) {
+    if (insights.length === 0 && styleMemory.length === 0 && !youtubeContext) {
       return "";
     }
 
     const parts: string[] = [];
+
+    if (youtubeContext) {
+      parts.push(youtubeContext);
+      parts.push("");
+    }
 
     if (insights.length > 0) {
       parts.push("LEARNING INSIGHTS:");

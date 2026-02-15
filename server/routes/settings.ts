@@ -276,6 +276,62 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
+  app.get("/api/learning/skill-progress", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getSkillLevelFromVideosCreated, getCreatorVideosCreated, getYouTubeResearch } = await import("../youtube-learning-engine");
+      const videosCreated = await getCreatorVideosCreated(userId);
+      const skill = getSkillLevelFromVideosCreated(videosCreated);
+      const research = await getYouTubeResearch(userId);
+      res.json({
+        videosCreated,
+        ...skill,
+        hasYouTubeResearch: !!research,
+        nicheResearched: research ? "yes" : "not yet",
+      });
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/learning/youtube-research", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { niche } = req.body;
+      if (!niche || typeof niche !== "string") {
+        res.status(400).json({ message: "Niche is required" });
+        return;
+      }
+      const { researchYouTubeNiche } = await import("../youtube-learning-engine");
+      const research = await researchYouTubeNiche(userId, niche);
+      res.json({ success: true, research });
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/learning/analyze-video", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { videoId } = req.body;
+      if (!videoId) {
+        res.status(400).json({ message: "videoId is required" });
+        return;
+      }
+      const { analyzeVideoPerformanceAndLearn } = await import("../youtube-learning-engine");
+      const analysis = await analyzeVideoPerformanceAndLearn(userId, videoId);
+      res.json({ success: true, analysis });
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/growth-programs", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

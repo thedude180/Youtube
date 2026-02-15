@@ -13,6 +13,15 @@ import {
   getCommentResponseDelay,
 } from "./human-behavior-engine";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
+import {
+  getCreatorVideosCreated,
+  getCreatorMaturityPrompt,
+  getSkillLevelFromVideosCreated,
+  getYouTubeLearningContext,
+  researchYouTubeNiche,
+  getYouTubeResearch,
+} from "./youtube-learning-engine";
+import { creatorSkillProgress } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -32,9 +41,42 @@ async function aiGenerate(prompt: string): Promise<any> {
 }
 
 export async function buildEmpireFromIdea(userId: string, idea: string) {
+  sendSSEEvent(userId, "empire-progress", { step: "research", status: "started", message: "Researching YouTube trends and successful creators in your niche..." });
+
+  let researchSucceeded = false;
+  try {
+    await researchYouTubeNiche(userId, idea);
+    researchSucceeded = true;
+    sendSSEEvent(userId, "empire-progress", { step: "research", status: "completed", message: "YouTube niche intelligence gathered!" });
+  } catch (err: any) {
+    console.error(`[Empire] YouTube research failed (non-fatal):`, err.message);
+    sendSSEEvent(userId, "empire-progress", { step: "research", status: "completed", message: "Proceeding with AI knowledge base..." });
+  }
+
+  const [existingSkill] = await db.select().from(creatorSkillProgress)
+    .where(eq(creatorSkillProgress.userId, userId)).limit(1);
+
+  if (!existingSkill) {
+    await db.insert(creatorSkillProgress).values({
+      userId,
+      videosCreated: 0,
+      skillLevel: 1,
+      skillLabel: "complete_beginner",
+      qualityMultiplier: 0.15,
+      youtubeResearchSeeded: researchSucceeded,
+    });
+  } else if (researchSucceeded && !existingSkill.youtubeResearchSeeded) {
+    await db.update(creatorSkillProgress).set({ youtubeResearchSeeded: true })
+      .where(eq(creatorSkillProgress.id, existingSkill.id));
+  }
+
   sendSSEEvent(userId, "empire-progress", { step: "niche", status: "started", message: "Analyzing your idea and refining your niche..." });
 
+  const youtubeContext = await getYouTubeLearningContext(userId, idea);
+
   const nicheAndBrandPrompt = `You are an elite content strategy consultant who has helped hundreds of creators build million-subscriber channels from scratch. A complete beginner has come to you with this idea: "${idea}"
+
+${youtubeContext ? `YOUTUBE INTELLIGENCE (use this to inform your strategy):\n${youtubeContext}\n` : ""}
 
 Your job is to turn this raw idea into a refined, profitable content niche with a full brand identity.
 
@@ -1010,13 +1052,34 @@ Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "
     humanizationPrompt = await buildHumanizationPrompt(userId);
   } catch { /* no humanization data yet */ }
 
-  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: "Writing human-authentic video script with anti-AI detection..." });
+  const videosCreated = await getCreatorVideosCreated(userId);
+  const creatorMaturityContext = getCreatorMaturityPrompt(videosCreated);
+  const skillInfo = getSkillLevelFromVideosCreated(videosCreated);
+
+  let youtubeLearnContext = "";
+  try {
+    youtubeLearnContext = await getYouTubeLearningContext(userId);
+  } catch { /* no research yet */ }
+
+  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: `Writing video script (Creator Skill: ${skillInfo.label}, Video #${videosCreated + 1})...` });
 
   const humanBehaviorContext = generateHumanWritingContext(contentIdea.platform || "YouTube", contentIdea.format || "long-form");
 
   const scriptPrompt = `You are NOT an AI assistant. You ARE a content creator sitting in front of your mic, planning your next video. Write like you're brainstorming in your notes app at 2am because you can't sleep and this idea is too good.
 
 IMPORTANT: Everything you write will be checked by AI detection software. If ANY part reads like AI wrote it, the entire package gets rejected. Write messily, authentically, and with genuine human energy.
+
+${creatorMaturityContext}
+
+${youtubeLearnContext ? `\nYOUTUBE INTELLIGENCE (use to inform quality at the creator's current skill level):\n${youtubeLearnContext}` : ""}
+
+CRITICAL SKILL-BASED QUALITY RULE:
+The creator's skill level is ${skillInfo.level}/100 (${skillInfo.label}). Quality multiplier: ${skillInfo.qualityMultiplier}.
+- At low skill levels, content should have REALISTIC imperfections matching a real beginner
+- The quality of hooks, titles, scripts, thumbnails, and SEO should all reflect this skill level
+- Do NOT produce polished, professional content for a beginner - that's unrealistic and will trigger suspicion
+- Each video should show SLIGHT improvement over the last, never huge jumps
+- Think about what video #${videosCreated + 1} from a real creator looks like
 
 VIDEO CONCEPT:
 Title: "${contentIdea.title}"
@@ -1190,6 +1253,9 @@ FINAL CHECK: Before outputting, re-read every script section. If any sentence so
   sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "completed", message: "Human-authentic video script and production guide ready!" });
 
   const videoKey = `video-creation-${Date.now()}`;
+  const newVideoCount = videosCreated + 1;
+  const updatedSkill = getSkillLevelFromVideosCreated(newVideoCount);
+
   await db.insert(aiResults).values({
     userId,
     featureKey: videoKey,
@@ -1197,6 +1263,14 @@ FINAL CHECK: Before outputting, re-read every script section. If any sentence so
       ...videoPackage,
       _humanized: true,
       _stealthVersion: 2,
+      _skillProgression: {
+        videoNumber: newVideoCount,
+        skillLevel: skillInfo.level,
+        skillLabel: skillInfo.label,
+        qualityMultiplier: skillInfo.qualityMultiplier,
+        nextSkillLevel: updatedSkill.level,
+        nextSkillLabel: updatedSkill.label,
+      },
       _antiAiDetection: {
         bannedPhrasesScanned: FULL_BANNED_AI_PHRASES.length,
         postProcessed: true,
@@ -1210,6 +1284,33 @@ FINAL CHECK: Before outputting, re-read every script section. If any sentence so
       createdAt: new Date().toISOString(),
     },
   });
+
+  try {
+    const [existing] = await db.select().from(creatorSkillProgress)
+      .where(eq(creatorSkillProgress.userId, userId)).limit(1);
+
+    if (existing) {
+      await db.update(creatorSkillProgress).set({
+        videosCreated: newVideoCount,
+        skillLevel: updatedSkill.level,
+        skillLabel: updatedSkill.label,
+        qualityMultiplier: updatedSkill.qualityMultiplier,
+        lastVideoAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(creatorSkillProgress.id, existing.id));
+    } else {
+      await db.insert(creatorSkillProgress).values({
+        userId,
+        videosCreated: newVideoCount,
+        skillLevel: updatedSkill.level,
+        skillLabel: updatedSkill.label,
+        qualityMultiplier: updatedSkill.qualityMultiplier,
+        lastVideoAt: new Date(),
+      });
+    }
+  } catch (err: any) {
+    console.error(`[Empire] Failed to update skill progression:`, err.message);
+  }
 
   return { videoKey, ...videoPackage };
 }
