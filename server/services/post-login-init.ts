@@ -32,7 +32,50 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       results.channelStats = "error";
     }
 
-    if (user.autopilotActive) {
+    try {
+      const userChannels = await storage.getChannelsByUser(userId);
+      results.connectedPlatforms = String(userChannels.length);
+
+      if (userChannels.length > 0 && !user.autopilotActive) {
+        await storage.updateUserProfile(userId, { autopilotActive: true });
+        results.autopilotAutoEnabled = "true";
+        console.log(`[PostLoginInit] Auto-enabled autopilot for ${userId} (has ${userChannels.length} channels)`);
+      }
+
+      for (const channel of userChannels) {
+        if (channel.accessToken && channel.refreshToken) {
+          const expiresAt = channel.tokenExpiresAt ? new Date(channel.tokenExpiresAt) : null;
+          const now = new Date();
+          if (expiresAt && expiresAt.getTime() - now.getTime() < 60 * 60 * 1000) {
+            try {
+              const { refreshExpiringTokens } = await import("../token-refresh");
+              const refreshResult = await refreshExpiringTokens();
+              results.tokenRefresh = `${refreshResult.refreshed} refreshed, ${refreshResult.failed} failed`;
+
+              if (refreshResult.failed > 0) {
+                try {
+                  const { sendReconnectEmail } = await import("./auto-reconnect");
+                  await sendReconnectEmail(userId, channel.platform);
+                  results.reconnectEmail = "sent";
+                } catch (e) {
+                  results.reconnectEmail = "error";
+                }
+              }
+            } catch (e) {
+              results.tokenRefresh = "error";
+            }
+            break;
+          }
+        }
+      }
+      if (!results.tokenRefresh) results.tokenRefresh = "not_needed";
+    } catch (err) {
+      console.error(`[PostLoginInit] Platform sync failed for ${userId}:`, err);
+      results.connectedPlatforms = "error";
+    }
+
+    const shouldRunAutopilot = user.autopilotActive || results.autopilotAutoEnabled === "true";
+    if (shouldRunAutopilot) {
       try {
         const { processCommentResponses, processContentRecycling, processCrossPromotion } = await import("../autopilot-engine");
         setTimeout(async () => {
@@ -82,29 +125,23 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
     }
 
     try {
-      const userChannels = await storage.getChannelsByUser(userId);
-      results.connectedPlatforms = String(userChannels.length);
-
-      for (const channel of userChannels) {
-        if (channel.accessToken && channel.refreshToken) {
-          const expiresAt = channel.tokenExpiresAt ? new Date(channel.tokenExpiresAt) : null;
-          const now = new Date();
-          if (expiresAt && expiresAt.getTime() - now.getTime() < 30 * 60 * 1000) {
-            try {
-              const { refreshExpiringTokens } = await import("../token-refresh");
-              await refreshExpiringTokens();
-              results.tokenRefresh = "refreshed";
-            } catch (e) {
-              results.tokenRefresh = "error";
-            }
-            break;
-          }
-        }
-      }
-      if (!results.tokenRefresh) results.tokenRefresh = "not_needed";
+      const { autoOptimizeSettings } = await import("./auto-settings-optimizer");
+      const settingsResult = await autoOptimizeSettings(userId);
+      results.settingsOptimized = settingsResult.optimized ? settingsResult.summary : "already_optimal";
     } catch (err) {
-      console.error(`[PostLoginInit] Platform sync failed for ${userId}:`, err);
-      results.connectedPlatforms = "error";
+      console.error(`[PostLoginInit] Settings optimization failed for ${userId}:`, err);
+      results.settingsOptimized = "error";
+    }
+
+    try {
+      const { analyzeAndRecommendTier } = await import("./auto-tier-optimizer");
+      const tierResult = await analyzeAndRecommendTier(userId);
+      results.tierRecommendation = tierResult.autoApplied
+        ? "optimal"
+        : `recommend_${tierResult.recommendedTier}`;
+    } catch (err) {
+      console.error(`[PostLoginInit] Tier analysis failed for ${userId}:`, err);
+      results.tierRecommendation = "error";
     }
 
     console.log(`[PostLoginInit] Systems initialized for user ${userId}:`, JSON.stringify(results));
@@ -120,9 +157,12 @@ export async function initializePostOnboarding(userId: string, niche?: string): 
   console.log(`[PostLoginInit] Post-onboarding initialization for ${userId}, niche: ${niche || "unknown"}`);
 
   try {
-    const updateData: Record<string, any> = { onboardingCompleted: new Date() };
+    const updateData: Record<string, any> = {
+      onboardingCompleted: new Date(),
+      autopilotActive: true,
+      notifyEmail: true,
+    };
     if (niche) updateData.contentNiche = niche;
-    updateData.autopilotActive = true;
     await storage.updateUserProfile(userId, updateData);
   } catch (err) {
     console.error(`[PostLoginInit] Profile update failed for ${userId}:`, err);
