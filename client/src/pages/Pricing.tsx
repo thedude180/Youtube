@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Button } from "@/components/ui/button";
@@ -206,6 +206,7 @@ export default function Pricing() {
       if (data.success) {
         toast({ title: "Code Redeemed!", description: `You now have ${data.tier} access` });
         setAccessCode("");
+        queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
       } else {
         toast({ title: "Invalid Code", description: "Please check your code and try again", variant: "destructive" });
       }
