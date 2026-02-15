@@ -13,6 +13,7 @@ import { registerAiRoutes } from "./routes/ai";
 import { registerEventRoutes } from "./routes/events";
 import { registerAutopilotRoutes } from "./routes/autopilot";
 import { registerPipelineRoutes } from "./routes/pipeline";
+import { registerDualPipelineRoutes } from "./routes/dual-pipeline";
 import { registerUpgradeRoutes } from "./routes/upgrades";
 import { getUserId } from "./routes/helpers";
 
@@ -155,6 +156,7 @@ export async function registerRoutes(
   registerAiRoutes(app);
   registerAutopilotRoutes(app);
   registerPipelineRoutes(app);
+  registerDualPipelineRoutes(app);
   await registerAutomationRoutes(app);
   registerUpgradeRoutes(app);
 
