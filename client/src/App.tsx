@@ -29,7 +29,6 @@ const StreamCenter = lazy(() => import("@/pages/StreamCenter"));
 const Money = lazy(() => import("@/pages/Money"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const Landing = lazy(() => import("@/pages/Landing"));
-const AuthPage = lazy(() => import("@/pages/Auth"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
 const Autopilot = lazy(() => import("@/pages/Autopilot"));
@@ -481,20 +480,16 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
-    const loadingFallback = <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-    if (location === "/login") {
-      return <Suspense fallback={loadingFallback}><AuthPage /></Suspense>;
-    }
     if (location === "/pricing") {
-      return <Suspense fallback={loadingFallback}><Pricing /></Suspense>;
+      return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><Pricing /></Suspense>;
     }
     if (location === "/privacy") {
-      return <Suspense fallback={loadingFallback}><PrivacyPolicy /></Suspense>;
+      return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><PrivacyPolicy /></Suspense>;
     }
     if (location === "/terms") {
-      return <Suspense fallback={loadingFallback}><TermsOfService /></Suspense>;
+      return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><TermsOfService /></Suspense>;
     }
-    return <Suspense fallback={loadingFallback}><Landing /></Suspense>;
+    return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><Landing /></Suspense>;
   }
 
   if (needsOnboarding === null) {
