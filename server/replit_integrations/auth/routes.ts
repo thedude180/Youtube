@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { authStorage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
+import { createOrUpdateCustomerProfile, updateCustomerActivity } from "../../customer-database-engine";
 
 export function registerAuthRoutes(app: Express): void {
   app.get("/api/auth/debug-session", (req: any, res) => {
@@ -40,6 +41,18 @@ export function registerAuthRoutes(app: Express): void {
 
       if (!user) {
         return res.status(404).json({ message: "User not found" });
+      }
+
+      try {
+        await createOrUpdateCustomerProfile(userId, {
+          signupMethod: req.user.auth_provider || "replit_auth",
+          signupIp: req.ip || req.socket?.remoteAddress,
+          signupUserAgent: req.headers["user-agent"],
+          signupSource: req.headers.referer,
+        });
+        await updateCustomerActivity(userId);
+      } catch (profileErr) {
+        console.error("Customer profile update error (non-critical):", profileErr);
       }
 
       res.json(user);

@@ -2943,3 +2943,69 @@ export type AlgorithmSignal = typeof algorithmSignals.$inferSelect;
 export type ReachAnomaly = typeof reachAnomalies.$inferSelect;
 export type LocalizationJob = typeof localizationJobs.$inferSelect;
 export type HiringRecommendation = typeof hiringRecommendations.$inferSelect;
+
+export const securityEvents = pgTable("security_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  eventType: text("event_type").notNull(),
+  severity: text("severity").notNull().default("info"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  endpoint: text("endpoint"),
+  details: jsonb("details").$type<Record<string, any>>().default({}),
+  blocked: boolean("blocked").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  typeIdx: index("security_events_type_idx").on(table.eventType),
+  ipIdx: index("security_events_ip_idx").on(table.ipAddress),
+  userIdx: index("security_events_user_idx").on(table.userId),
+}));
+
+export const securityRules = pgTable("security_rules", {
+  id: serial("id").primaryKey(),
+  ruleName: text("rule_name").notNull(),
+  ruleType: text("rule_type").notNull(),
+  pattern: text("pattern"),
+  threshold: integer("threshold"),
+  windowSeconds: integer("window_seconds"),
+  action: text("action").notNull().default("block"),
+  enabled: boolean("enabled").default(true),
+  learnedFrom: text("learned_from"),
+  confidence: real("confidence").default(1.0),
+  triggeredCount: integer("triggered_count").default(0),
+  lastTriggered: timestamp("last_triggered"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type SecurityEvent = typeof securityEvents.$inferSelect;
+export type SecurityRule = typeof securityRules.$inferSelect;
+
+export const customerProfiles = pgTable("customer_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  signupMethod: text("signup_method").notNull().default("replit_auth"),
+  signupSource: text("signup_source"),
+  signupReferrer: text("signup_referrer"),
+  signupIp: text("signup_ip"),
+  signupUserAgent: text("signup_user_agent"),
+  currentTier: text("current_tier").notNull().default("free"),
+  tierHistory: jsonb("tier_history").$type<Array<{ tier: string; changedAt: string; reason?: string }>>().default([]),
+  platformsConnected: text("platforms_connected").array().default([]),
+  totalContentCreated: integer("total_content_created").default(0),
+  totalStreams: integer("total_streams").default(0),
+  totalAiRequests: integer("total_ai_requests").default(0),
+  lastActiveAt: timestamp("last_active_at"),
+  engagementScore: real("engagement_score").default(0),
+  lifetimeRevenue: real("lifetime_revenue").default(0),
+  churnRisk: real("churn_risk").default(0),
+  tags: text("tags").array().default([]),
+  notes: text("notes"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("customer_profiles_user_idx").on(table.userId),
+  tierIdx: index("customer_profiles_tier_idx").on(table.currentTier),
+}));
+
+export type CustomerProfile = typeof customerProfiles.$inferSelect;

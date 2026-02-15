@@ -1,7 +1,7 @@
 # CreatorOS - YouTube Team In A Box
 
 ## Overview
-CreatorOS is a comprehensive, multi-platform content management and live streaming platform designed for creators. It supports 6 focused platforms (YouTube, Twitch, Kick, TikTok, X, Discord), offering AI-powered insights, compliance checks, growth strategies, and content optimization. The platform integrates 832 AI-powered features, 6 autonomous automation systems, and a 5-system Autopilot engine to provide near-100% automated end-to-end business management. CreatorOS aims to be a "YouTube Team In A Box," empowering creators with advanced tools for content creation, distribution, and business growth.
+CreatorOS is a comprehensive, multi-platform content management and live streaming platform designed to empower creators. It offers AI-powered insights, compliance checks, growth strategies, and content optimization across YouTube, Twitch, Kick, TikTok, X, and Discord. The platform integrates extensive AI features and autonomous automation systems to provide near-100% automated end-to-end business management, aiming to be a "YouTube Team In A Box" for content creators.
 
 ## User Preferences
 - Dark mode design with deep purple/blue tones
@@ -16,70 +16,49 @@ CreatorOS is a comprehensive, multi-platform content management and live streami
 - No manual trigger buttons - everything runs autonomously in background
 
 ## System Architecture
-The platform is built as a full-stack application with an Express.js backend and a React/Vite frontend, utilizing a PostgreSQL database. It features a multi-tenant architecture with user ID scoping on all data.
+CreatorOS is built as a full-stack application with an Express.js backend and a React/Vite frontend, using a PostgreSQL database. It features a multi-tenant architecture with user ID scoping on all data.
 
-- **Frontend**: React + Vite, leveraging TanStack Query, wouter for routing, Tailwind CSS and shadcn/ui for UI components, and lucide-react for iconography.
-- **Backend**: Express.js with Drizzle ORM.
-- **Database**: PostgreSQL.
-- **AI Integration**: OpenAI via Replit AI Integrations (gpt-5-mini model).
-- **Authentication**: Replit Auth (OIDC-based).
-- **Design System**: Dark theme with a purple accent for a "God Tier" power-user aesthetic, emphasizing simplicity and clear status indicators.
-- **Internationalization (i18n)**: react-i18next with 12 languages (English, Spanish, French, Portuguese, German, Japanese, Korean, Chinese, Arabic, Hindi, Russian, Italian), including RTL support.
-- **Dual Pipeline System**: Live Stream Pipeline (65 steps) + VOD Pipeline (56 steps) across 9 phases (INTAKE, INTELLIGENCE, CONTENT OPS, SEO & GROWTH, DISTRIBUTION, AUDIENCE, COMMUNITY, PRODUCTION, SECURITY). Live pipeline includes 4 live discovery steps (Live SEO Boost, Live Thumbnail, Go-Live Announce, Discovery Tags) that fire immediately when stream starts to maximize discoverability across all 6 platforms. Both pipelines include 4 retention steps (Retention Hooks, Pattern Interrupts, Engage Inserts, Pacing Optimizer) for maximum watch-through. VOD pipelines auto-spawn only after live content is published with human-realistic delays (1.5-12h gaussian, nighttime skip, weekend multiplier). Manual VOD creation forbidden — requires sourcePipelineId from completed live pipeline.
-- **Automation Engine**: 6 autonomous systems (Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store) for background processing.
-- **Autopilot Engine**: 5 hands-off automation systems: Auto-Clip & Post (TikTok/X), Smart Schedule (staggered posting), AI Comment Responder (YouTube), Discord Announcements, Content Recycler (re-promote old videos). Tables: autopilot_queue, comment_responses, autopilot_config. Routes: /api/autopilot/*. Page: /autopilot.
-- **Human Behavior Engine** (server/human-behavior-engine.ts): Realistic posting patterns with per-platform peak hours, gaussian-distributed timing, waking-hours-only scheduling, weekend multipliers, daily post budgets, micro-delays, and activity windows. Makes all automation look like a dedicated human.
-- **Content Variation Engine** (server/content-variation-engine.ts): Generates completely unique content per platform using 15 content angles, platform-specific voice profiles, banned AI-phrase filtering, natural imperfections, content fingerprinting, uniqueness scoring, and stealth scoring. Self-monitors with safety checks and retry logic.
-- **Full Throttle Stealth Mode**: 7 autopilot features (auto-clip, smart-schedule, comment-responder, discord-announce, content-recycler, cross-promo, stealth-mode). Cross-platform loops auto-promote performing content. Stealth dashboard shows per-platform safety grades, overall stealth score, issues, and recommendations.
-- **Creator Intelligence System**: Style Scanner, Creator Memory, Humanization Layer, and Learning Engine for personalized AI outputs.
-- **PWA Support**: Full Progressive Web App capabilities for installability and offline access.
-- **UI/UX**: Consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, floating AI chat with message persistence, command palette (Ctrl+K), keyboard shortcuts help (?), rich empty states with contextual tips.
-- **State Management**: ThemeProvider and AdvancedModeProvider context providers with localStorage persistence.
-- **Offline System**: IndexedDB storage with cache eviction (500 entry max, TTL cleanup every 50 writes), offline mutation queuing, service worker API caching, connection monitoring with toast notifications, PWA install prompt.
-- **Performance**: Dashboard lazy-loading with IntersectionObserver for below-fold API queries, session expiry detection with graceful toast + redirect. Content.tsx, Settings.tsx, Dashboard.tsx, and Money.tsx all use React.lazy + Suspense for tab/section-level code splitting (extracted to client/src/pages/content/, client/src/pages/settings/, client/src/pages/dashboard/, client/src/pages/money/).
-- **Error Handling**: QueryErrorReset component provides retry buttons for failed queries. SectionErrorBoundary wraps 8 dashboard sections for isolated error recovery. Toast notifications replace silent .catch({}) handlers. Zod validation on 38 critical server routes.
-- **AI Caching**: sessionStorage with 30-minute TTL via client/src/lib/ai-cache.ts utilities (getCachedAI, setCachedAI, fetchAIWithCache). Empty AI results show "No results available" message.
-- **Type Safety**: AIResponse type (Record<string, unknown> | null) replaces useState<any> for AI result states across all pages.
-- **Real-Time Updates**: Server-Sent Events (SSE) via /api/events endpoint with client hook (use-sse.ts) for live dashboard/notification/content updates with exponential backoff reconnection.
-- **Server Architecture**: Routes split into 10 domain modules (server/routes/): ai.ts, admin.ts, content.ts, stream.ts, money.ts, settings.ts, platform.ts, automation.ts, events.ts, helpers.ts. Main routes.ts is a thin orchestrator (~180 lines).
-- **AI Rate Limiting**: Per-user daily limits by subscription tier (free:10, youtube:50, starter:200, pro:500, ultimate:2000) plus per-minute rate limiting (30 req/min for AI, 120 req/min general).
-- **Database Indexing**: Indexes on userId and channelId columns across 23 frequently-queried tables for query performance.
-- **Auto Revenue Sync** (server/revenue-sync-engine.ts): Pulls revenue from connected platforms every 6 hours. YouTube (Analytics API, memberships, Super Chats), Twitch (subscriptions, bits, ads), TikTok (Creator Fund, live gifts), Kick (subscriptions), X (ads revenue share), Discord (server subscriptions), Stripe (charges). Uses externalId deduplication. Routes: /api/revenue/sync, /api/revenue/sync-status, /api/revenue/breakdown. Tables: revenue_sync_log + syncSource/externalId fields on revenue_records.
-- **Platform Sync Engine** (server/platform-sync-engine.ts): Real-time push of updated video metadata (title, description, tags) to YouTube immediately after processing. Triggered from two paths: (1) Backlog engine — after metadata update (syncVideoAfterProcessing), and (2) Pipeline — after each metadata step completes (title, description, tags, thumbnail via syncPipelineResultsToYouTube). Updates local video record to stay consistent with YouTube. Supports thumbnail push via pushThumbnailToYouTube when a real image URL is available. SSE events broadcast sync status in real-time. Thumbnail concepts from pipeline are broadcast as "thumbnail_concepts_ready" for UI display.
-- **Key Features**:
-    - **Home**: Dashboard with various AI-powered insights, analytics, and action centers.
-    - **Content**: Library, Channels, Calendar, and Localization tabs with AI-powered content quality, repurposing, and localization tools.
-    - **Go Live**: Stream Center with AI Stream Advisor, chatbot builder, and advanced live streaming features.
-    - **Money**: Revenue management with AI financial insights, P&L reports, and revenue optimization tools.
-    - **Settings**: General settings, brand management, collaboration tools, competitor analysis, legal protection, wellness, and an Automation Hub.
-- **Security & Performance**: Includes Helmet security headers, response compression, request body size limits, request IDs, structured logging, request timeouts, rate limiting, subscription tier enforcement, async error handling, global 401 handler, smart query caching, global error toasts, PWA service worker, keyboard shortcuts, accessibility, SEO, data export, and database indexing.
-- **OAuth Platform Integration**: Universal OAuth framework for 23 platforms, generic OAuth routes, status API, and automatic data fetching and token refresh for connected platforms.
-- **Login Groups**: Platforms sharing the same login provider are grouped in onboarding (Google → YouTube+Shorts, Meta → Facebook+Instagram+Threads). One login connects all platforms in the group. YouTube Shorts is deprecated as a separate platform — YouTube covers both.
-- **Subscription & Access System**: Multi-tier subscription model (free, youtube, starter, pro, ultimate) with role-based access, admin capabilities, and Stripe integration for payments.
-- **Ultimate Engine** (17 advanced features across 6 tiers, 16 engine files, 42 API routes):
-  - **Self-Healing Pipelines** (server/pipeline-healing-engine.ts): Auto-detects pipeline step failures, AI diagnoses root cause, auto-retries with exponential backoff. Tables: pipeline_failures. Routes: /api/pipeline/failures, /api/pipeline/healing-stats.
-  - **Dynamic Routing** (server/pipeline-router.ts): Optimizes pipeline step order based on content type, platform, and performance. Tables: pipeline_routing_rules. Routes: /api/pipeline/routing-rules, /api/pipeline/optimize-route, /api/pipeline/analyze-performance.
-  - **A/B Testing Engine** (server/ab-testing-engine.ts): Autonomous title/thumbnail/description A/B tests with auto-winner declaration at 85% confidence. Tables: experiments. Routes: /api/experiments/*.
-  - **Predictive Analytics** (server/trend-predictor.ts): AI predicts upcoming content trends with confidence scores, velocity, peak timing. Runs every 6 hours via cron. Tables: predictive_trends. Routes: /api/intelligence/trends/*.
-  - **Creator DNA** (server/creator-dna-engine.ts): Deep-learns creator's style, voice, humor, energy patterns. Generates content in creator's exact voice. Tables: creator_dna_profiles. Routes: /api/intelligence/dna/*.
-  - **Audience Mind Mapping** (server/audience-mindmap-engine.ts): Maps audience psychographics - motivations, values, pain points, churn risks. Tables: audience_psychographics. Routes: /api/intelligence/audience/*.
-  - **Stream Copilot** (server/copilot-engine.ts): Real-time AI copilot for live streams - talking points, engagement tactics, raid targets, post-stream recap. Tables: live_copilot_suggestions. Routes: /api/stream/copilot/*.
-  - **Audience Migration** (server/migration-engine.ts): Strategic funnel campaigns to migrate audiences between platforms. Tables: migration_campaigns. Routes: /api/growth/migration/*.
-  - **Collaboration Network** (server/collab-engine.ts): AI finds compatible creators, generates outreach, suggests collab formats. Tables: collab_candidates. Routes: /api/growth/collabs/*.
-  - **Revenue Maximizer** (server/revenue-maximizer.ts): AI optimizes sponsorship rates, membership pricing, all revenue streams. Tables: revenue_models. Routes: /api/money/revenue/*.
-  - **Content Compounding** (server/compounding-engine.ts): Re-promotes old content by matching to new trends, refreshes metadata. Runs every 8 hours via cron. Tables: compounding_jobs. Routes: /api/content/compounding/*.
-  - **Smart Merch** (server/merch-engine.ts): AI identifies merch opportunities from viral moments and catchphrases. Tables: merch_ideas. Routes: /api/money/merch/*.
-  - **Algorithm Decoder** (server/algorithm-monitor.ts): Decodes platform algorithm changes, auto-adapts content strategy. Runs every 4 hours via cron. Tables: algorithm_signals. Routes: /api/platform/algorithm/*.
-  - **Shadow Ban Detection** (server/shadowban-detector.ts): Detects reach anomalies and shadow bans across platforms. Runs every 12 hours via cron. Tables: reach_anomalies. Routes: /api/platform/shadowban/*.
-  - **Multi-Language Empire** (server/localization-engine.ts): Localizes content for multiple languages with cultural adaptations. Tables: localization_jobs. Routes: /api/content/localization/*.
-  - **Tax Intelligence** (server/business-intel-engine.ts): AI estimates quarterly taxes, tracks deductions. Tables: tax_estimates. Routes: /api/money/tax/*.
-  - **Team Scaling Advisor** (server/business-intel-engine.ts): AI analyzes workload and recommends hiring. Tables: hiring_recommendations. Routes: /api/business/team/*.
+### Frontend
+-   **Technology**: React + Vite
+-   **UI/UX**: Tailwind CSS, shadcn/ui, lucide-react for iconography. Dark theme with a purple accent. Consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, floating AI chat with message persistence, command palette (Ctrl+K), keyboard shortcuts help (?), rich empty states with contextual tips.
+-   **State Management**: TanStack Query, ThemeProvider and AdvancedModeProvider context providers with localStorage persistence.
+-   **Routing**: wouter
+-   **Internationalization**: react-i18next with 12 languages and RTL support.
+-   **PWA Support**: Full Progressive Web App capabilities including offline storage (IndexedDB), offline mutation queuing, service worker caching, and connection monitoring.
+-   **Performance**: Lazy-loading with IntersectionObserver, session expiry detection, code splitting using `React.lazy` and `Suspense`.
+-   **Error Handling**: QueryErrorReset component, SectionErrorBoundary, global error toasts.
+
+### Backend
+-   **Technology**: Express.js
+-   **ORM**: Drizzle ORM
+-   **Database**: PostgreSQL
+-   **Server Architecture**: Routes split into domain modules (ai, admin, content, stream, money, settings, platform, automation, events, helpers).
+-   **Security**: Helmet security headers, response compression, request body size limits, request IDs, structured logging, request timeouts, rate limiting, subscription tier enforcement, async error handling, global 401 handler, smart query caching, Hack-Proof Security System with adaptive defense rules and AI learning.
+-   **AI Integration**: OpenAI (gpt-5-mini) via Replit AI Integrations. AI rate limiting based on subscription tier.
+-   **Core Engines**:
+    -   **Dual Pipeline System**: Live Stream Pipeline (65 steps) and VOD Pipeline (56 steps) across 9 phases (INTAKE, INTELLIGENCE, CONTENT OPS, SEO & GROWTH, DISTRIBUTION, AUDIENCE, COMMUNITY, PRODUCTION, SECURITY). Includes live discovery steps and retention steps. VOD pipelines auto-spawn after live content publication with human-realistic delays.
+    -   **Automation Engine**: 6 autonomous systems (Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store) for background processing.
+    -   **Autopilot Engine**: 5 hands-off automation systems: Auto-Clip & Post, Smart Schedule, AI Comment Responder, Discord Announcements, Content Recycler.
+    -   **Human Behavior Engine**: Simulates realistic posting patterns with per-platform peak hours, gaussian timing, waking-hours-only scheduling, weekend multipliers, daily post budgets, and micro-delays.
+    -   **Content Variation Engine**: Generates unique content per platform using 15 content angles, platform-specific voice profiles, banned AI-phrase filtering, and uniqueness scoring.
+    -   **Creator Intelligence System**: Style Scanner, Creator Memory, Humanization Layer, and Learning Engine for personalized AI outputs.
+    -   **Ultimate Engine**: A suite of 17 advanced AI-powered features including Self-Healing Pipelines, Dynamic Routing, A/B Testing Engine, Predictive Analytics, Creator DNA, Audience Mind Mapping, Stream Copilot, Audience Migration, Collaboration Network, Revenue Maximizer, Content Compounding, Smart Merch, Algorithm Decoder, Shadow Ban Detection, Multi-Language Empire, Tax Intelligence, and Team Scaling Advisor.
+    -   **Idea-to-Empire Builder**: AI-driven tool for new creators to build a complete content strategy from a single idea.
+    -   **Auto Revenue Sync Engine**: Pulls revenue data from connected platforms every 6 hours.
+    -   **Platform Sync Engine**: Real-time push of updated video metadata to platforms like YouTube.
+    -   **Customer Database Engine**: Tracks detailed user profiles including engagement scores, churn risk, and lifetime revenue.
+
+### Authentication & Authorization
+-   **Authentication**: Replit Auth (OIDC-based).
+-   **OAuth**: Universal OAuth framework for 23 platforms with generic routes and automatic token refresh.
+-   **Login Groups**: Platforms sharing login providers are grouped for simplified onboarding.
+-   **Subscription & Access System**: Multi-tier subscription model with role-based access and admin capabilities.
 
 ## External Dependencies
-- **Replit Auth**: For user authentication.
-- **OpenAI API**: For all AI-driven functionalities.
-- **react-i18next / i18next**: For internationalization.
-- **PostgreSQL (Neon-backed)**: The primary database.
-- **YouTube Data API v3**: For OAuth2 connection and YouTube integration.
-- **Stripe**: For payment processing and subscription management.
-- **node-cron**: For background task scheduling.
+-   **Replit Auth**: User authentication.
+-   **OpenAI API**: All AI-driven functionalities.
+-   **react-i18next / i18next**: Internationalization.
+-   **PostgreSQL (Neon-backed)**: Primary database.
+-   **YouTube Data API v3**: YouTube integration and OAuth2.
+-   **Stripe**: Payment processing and subscription management.
+-   **node-cron**: Background task scheduling.

@@ -10,6 +10,7 @@ import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { seedStripeProducts } from "./stripe-seed";
 import { pool } from "./db";
+import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -133,6 +134,28 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
+
+initSecurityEngine().catch(err => console.error("[SecurityEngine] Init failed:", err));
+
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const ua = req.headers["user-agent"] || "unknown";
+  const threat = evaluateThreat(ip, req.path, req.body, req.headers);
+  if (threat.blocked) {
+    trackSecurityEvent({
+      userId: (req as any).user?.claims?.sub,
+      eventType: "blocked_request",
+      severity: threat.severity,
+      ipAddress: ip,
+      userAgent: ua,
+      endpoint: req.path,
+      details: { reason: threat.reason },
+    });
+    res.status(403).json({ error: "access_denied", message: "Request blocked by security system." });
+    return;
+  }
+  next();
+});
 
 const API_TIMEOUT_MS = 30_000;
 const AI_TIMEOUT_MS = 60_000;

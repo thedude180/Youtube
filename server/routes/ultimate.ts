@@ -22,6 +22,10 @@ import { scanForAnomalies, getAnomalies, generateRecoveryPlan, checkShadowBanSta
 import { createLocalizationJob, processLocalizationJob, getLocalizationJobs, batchLocalize } from "../localization-engine";
 import { generateTaxEstimate, getTaxEstimates, analyzeTeamNeeds, getHiringRecommendations, generateHiringRoadmap } from "../business-intel-engine";
 
+import { buildEmpireFromIdea, generateContentIdeasFromEmpire, getEmpireBlueprint, expandEmpirePillar, generateLaunchSequence } from "../idea-empire-engine";
+import { getSecurityDashboard, learnFromAttack, getBlockedIPs, getSecurityRules, getSecurityStats } from "../security-engine";
+import { createOrUpdateCustomerProfile, getCustomerProfile, getAllCustomers, updateCustomerActivity, recordTierChange, getCustomerStats, enrichCustomerProfile, searchCustomers, exportCustomerData, getCustomerTimeline } from "../customer-database-engine";
+
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated || !req.isAuthenticated()) {
     res.sendStatus(401);
@@ -534,8 +538,165 @@ export function registerUltimateRoutes(app: Express) {
         taxIntelligence: true,
         teamScalingAdvisor: true,
       },
-      engines: 16,
-      totalRoutes: 42,
+      engines: 19,
+      totalRoutes: 65,
+      ideaToEmpire: true,
+      hackProofSecurity: true,
+      customerDatabase: true,
     });
+  }));
+
+
+  app.post("/api/empire/build", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { idea } = req.body;
+    if (!idea || typeof idea !== "string" || idea.trim().length < 3) {
+      return res.status(400).json({ error: "Please provide a content idea (at least 3 characters)" });
+    }
+    const blueprint = await buildEmpireFromIdea(userId, idea.trim());
+    res.json(blueprint);
+  }));
+
+  app.get("/api/empire/blueprint", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const blueprint = await getEmpireBlueprint(userId);
+    res.json(blueprint || { message: "No empire blueprint yet. Submit your idea to /api/empire/build" });
+  }));
+
+  app.post("/api/empire/content-ideas", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { count } = req.body;
+    const ideas = await generateContentIdeasFromEmpire(userId, count || 10);
+    res.json(ideas);
+  }));
+
+  app.post("/api/empire/expand-pillar", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { pillarIndex } = req.body;
+    const expanded = await expandEmpirePillar(userId, pillarIndex ?? 0);
+    res.json(expanded);
+  }));
+
+  app.post("/api/empire/launch-sequence", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const sequence = await generateLaunchSequence(userId);
+    res.json(sequence);
+  }));
+
+
+  app.get("/api/security/dashboard", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const dashboard = await getSecurityDashboard();
+    res.json(dashboard);
+  }));
+
+  app.get("/api/security/rules", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const rules = await getSecurityRules();
+    res.json(rules);
+  }));
+
+  app.get("/api/security/blocked-ips", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const ips = await getBlockedIPs();
+    res.json(ips);
+  }));
+
+  app.post("/api/security/learn/:id", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const eventId = parseInt(req.params.id);
+    const result = await learnFromAttack(eventId);
+    res.json(result);
+  }));
+
+  app.get("/api/security/stats", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const stats = await getSecurityStats(userId);
+    res.json(stats);
+  }));
+
+
+  app.post("/api/customers/profile", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const profile = await createOrUpdateCustomerProfile(userId, req.body);
+    res.json(profile);
+  }));
+
+  app.get("/api/customers/profile", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const profile = await getCustomerProfile(userId);
+    res.json(profile || { message: "No customer profile yet" });
+  }));
+
+  app.get("/api/customers", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { tier, sortBy, limit, offset } = req.query;
+    const result = await getAllCustomers({
+      tier: tier as string,
+      sortBy: sortBy as string,
+      limit: limit ? parseInt(limit as string) : undefined,
+      offset: offset ? parseInt(offset as string) : undefined,
+    });
+    res.json(result);
+  }));
+
+  app.get("/api/customers/stats", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const stats = await getCustomerStats();
+    res.json(stats);
+  }));
+
+  app.post("/api/customers/:id/enrich", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const targetUserId = req.params.id;
+    const enriched = await enrichCustomerProfile(targetUserId);
+    res.json(enriched);
+  }));
+
+  app.get("/api/customers/search", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { q } = req.query;
+    const results = await searchCustomers((q as string) || "");
+    res.json(results);
+  }));
+
+  app.get("/api/customers/export", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const data = await exportCustomerData();
+    res.json(data);
+  }));
+
+  app.get("/api/customers/:id/timeline", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const targetUserId = req.params.id;
+    const timeline = await getCustomerTimeline(targetUserId);
+    res.json(timeline);
+  }));
+
+  app.post("/api/customers/:id/tier-change", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const targetUserId = req.params.id;
+    const { newTier, reason } = req.body;
+    await recordTierChange(targetUserId, newTier, reason);
+    res.json({ success: true });
   }));
 }
