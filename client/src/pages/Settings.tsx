@@ -4834,10 +4834,31 @@ export default function Settings() {
   usePageTitle("Settings");
   const params = useParams<{ tab?: string }>();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
   const isAdmin = profile?.role === "admin";
   const tabs = baseTabs.filter((t) => !t.adminOnly || isAdmin);
   const activeTab: TabKey = VALID_TABS.includes(params.tab as TabKey) ? (params.tab as TabKey) : "general";
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("status") === "success") {
+      fetch("/api/stripe/verify-session", { method: "POST", credentials: "include" })
+        .then(r => r.json())
+        .then(data => {
+          if (data.synced) {
+            toast({ title: "Subscription activated!", description: `You're now on the ${data.tier.charAt(0).toUpperCase() + data.tier.slice(1)} plan. All features are now unlocked.` });
+            queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            fetch("/api/user/init-systems", { method: "POST", credentials: "include" }).catch(() => {});
+          } else {
+            toast({ title: "Subscription confirmed", description: `You're on the ${data.tier.charAt(0).toUpperCase() + data.tier.slice(1)} plan.` });
+          }
+        })
+        .catch(() => {});
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [toast]);
 
   const handleTabClick = (tab: TabKey) => {
     if (tab === "general") {

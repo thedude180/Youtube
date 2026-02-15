@@ -43,9 +43,45 @@ export function registerAdminRoutes(app: Express) {
       if (parsed.notifyPhone !== undefined) updateData.notifyPhone = parsed.notifyPhone;
       if (parsed.autopilotActive !== undefined) updateData.autopilotActive = parsed.autopilotActive;
       const user = await storage.updateUserProfile(userId, updateData);
+
+      if (parsed.onboardingCompleted) {
+        try {
+          const { initializePostOnboarding } = await import("../services/post-login-init");
+          initializePostOnboarding(userId, parsed.contentNiche).catch((err) =>
+            console.error("[Profile] Post-onboarding init error:", err)
+          );
+        } catch (err) {
+          console.error("[Profile] Post-onboarding init import error:", err);
+        }
+      }
+
+      if (parsed.autopilotActive !== undefined) {
+        try {
+          const { initializeUserSystems } = await import("../services/post-login-init");
+          initializeUserSystems(userId).catch((err) =>
+            console.error("[Profile] System init error:", err)
+          );
+        } catch (err) {
+          console.error("[Profile] System init import error:", err);
+        }
+      }
+
       res.json(user);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/user/init-systems", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { initializeUserSystems } = await import("../services/post-login-init");
+      const result = await initializeUserSystems(userId);
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      console.error("[InitSystems] Error:", err);
       res.status(500).json({ error: err.message });
     }
   });

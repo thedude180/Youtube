@@ -54,6 +54,62 @@ export function registerMoneyRoutes(app: Express) {
     }
   });
 
+  app.post("/api/stripe/verify-session", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const stripe = await getUncachableStripeClient();
+      const user = await storage.getUser(userId);
+
+      if (!user?.stripeCustomerId) {
+        return res.json({ tier: user?.tier || "free", synced: false, reason: "no_customer" });
+      }
+
+      const subscriptions = await stripe.subscriptions.list({
+        customer: user.stripeCustomerId,
+        limit: 5,
+        expand: ["data.items.data.price.product"],
+      });
+
+      const validStatuses = ["active", "trialing", "past_due"];
+      const activeSub = subscriptions.data.find(s => validStatuses.includes(s.status));
+      if (!activeSub) {
+        return res.json({ tier: user?.tier || "free", synced: false, reason: "no_active_subscription" });
+      }
+
+      let detectedTier: string | null = null;
+      for (const item of activeSub.items.data) {
+        const product = typeof item.price?.product === "object" ? item.price.product as any : null;
+        if (product?.metadata?.tier) {
+          detectedTier = product.metadata.tier;
+          break;
+        }
+      }
+
+      if (detectedTier && detectedTier !== user.tier) {
+        const role = detectedTier === "free" ? "user" : "premium";
+        await storage.updateUserRole(userId, role, detectedTier);
+        await storage.updateUserStripeInfo(userId, {
+          stripeSubscriptionId: activeSub.id,
+          tier: detectedTier,
+        });
+        console.log(`[VerifySession] User ${userId} tier synced: ${user.tier} -> ${detectedTier}`);
+
+        try {
+          const { initializeUserSystems } = await import("../services/post-login-init");
+          initializeUserSystems(userId).catch(() => {});
+        } catch {}
+
+        return res.json({ tier: detectedTier, synced: true, previousTier: user.tier });
+      }
+
+      res.json({ tier: user.tier || "free", synced: false, reason: "already_synced" });
+    } catch (err: any) {
+      console.error("[VerifySession] Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/stripe/customer-portal", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

@@ -125,16 +125,10 @@ export async function setupAuth(app: Express) {
         const userId = user?.claims?.sub;
         if (userId) {
           try {
-            const { refreshAllUserChannelStats } = await import("../../youtube");
-            await refreshAllUserChannelStats(userId);
+            const { initializeUserSystems } = await import("../../services/post-login-init");
+            await initializeUserSystems(userId);
           } catch (e) {
-            console.error("[ReplitAuth] Channel stats refresh on login failed:", e);
-          }
-          try {
-            const { startBacklogOnLogin } = await import("../../backlog-manager");
-            await startBacklogOnLogin(userId);
-          } catch (e) {
-            console.error("[ReplitAuth] Backlog start on login failed:", e);
+            console.error("[ReplitAuth] Post-login init failed:", e);
           }
         }
         res.redirect("/");

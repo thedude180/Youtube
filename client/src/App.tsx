@@ -472,7 +472,7 @@ function AppContent() {
 
   useEffect(() => {
     if (isAuthenticated && user && needsOnboarding === false) {
-      fetch("/api/backlog/start", { method: "POST", credentials: "include" }).catch(() => {});
+      fetch("/api/user/init-systems", { method: "POST", credentials: "include" }).catch(() => {});
     }
   }, [isAuthenticated, user, needsOnboarding]);
 
