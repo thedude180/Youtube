@@ -165,7 +165,7 @@ export async function analyzeTeamNeeds(userId: string) {
 Creator Data:
 - Total Revenue: $${totalRevenue.toFixed(2)}
 - Revenue Sources: ${revenue.length} records
-- Platforms Active: ${[...new Set(revenue.map((r) => r.platform))].join(", ") || "multiple"}
+- Platforms Active: ${Array.from(new Set(revenue.map((r) => r.platform))).join(", ") || "multiple"}
 
 Analyze workload indicators and recommend roles to hire. Consider:
 1. Video editing capacity

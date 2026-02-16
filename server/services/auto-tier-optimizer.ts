@@ -56,7 +56,7 @@ export async function analyzeAndRecommendTier(userId: string): Promise<TierRecom
     };
   }
 
-  const currentTier = user.subscriptionTier || "free";
+  const currentTier = user.tier || "free";
   const userChannels = await storage.getChannelsByUser(userId);
   const connectedPlatforms = new Set(userChannels.map(c => c.platform)).size;
   const userVideos = await storage.getVideosByUser(userId);
@@ -104,7 +104,7 @@ export async function analyzeAndRecommendTier(userId: string): Promise<TierRecom
     autoApplied = true;
   }
 
-  if (currentTier === "free" && user.onboardingCompleted && !user.subscriptionTier) {
+  if (currentTier === "free" && user.onboardingCompleted && !user.tier) {
     autoApplied = true;
     reason = "Free tier auto-assigned. AI will recommend upgrades as your channel grows.";
   }

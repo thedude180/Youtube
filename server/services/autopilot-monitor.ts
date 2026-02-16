@@ -70,14 +70,13 @@ const systemChecks: SystemCheck[] = [
           .where(and(
             eq(streamPipelines.userId, userId),
             eq(streamPipelines.status, "processing"),
-            lt(streamPipelines.updatedAt, stalledThreshold)
+            lt(streamPipelines.createdAt, stalledThreshold)
           )).limit(10);
 
         if (stalledStreamPipelines.length > 0) {
           for (const pipeline of stalledStreamPipelines) {
             await db.update(streamPipelines).set({
               status: "pending",
-              updatedAt: new Date(),
             }).where(eq(streamPipelines.id, pipeline.id));
             restarted++;
           }
@@ -134,7 +133,7 @@ const systemChecks: SystemCheck[] = [
           ch.accessToken && ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < expiringThreshold
         );
 
-        const failedPlatforms = [...new Set(stillExpiring.map(ch => ch.platform))];
+        const failedPlatforms = Array.from(new Set(stillExpiring.map(ch => ch.platform)));
 
         if (failedPlatforms.length > 0) {
           try {

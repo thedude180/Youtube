@@ -584,7 +584,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.get("/api/stream-pipeline/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [pipeline] = await db.select().from(streamPipelines)
       .where(and(eq(streamPipelines.id, id), eq(streamPipelines.userId, userId)));
     if (!pipeline) return res.status(404).json({ error: "Pipeline not found" });
@@ -596,7 +596,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.post("/api/stream-pipeline/:id/run", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { step } = req.body;
 
     const [pipeline] = await db.select().from(streamPipelines)
@@ -649,7 +649,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.post("/api/stream-pipeline/:id/run-all", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     const [pipeline] = await db.select().from(streamPipelines)
       .where(and(eq(streamPipelines.id, id), eq(streamPipelines.userId, userId)));
@@ -673,7 +673,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.patch("/api/stream-pipeline/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { status } = req.body;
 
     const [pipeline] = await db.select().from(streamPipelines)
@@ -735,7 +735,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.get("/api/vod-cuts/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [cut] = await db.select().from(vodCuts)
       .where(and(eq(vodCuts.id, id), eq(vodCuts.userId, userId)));
     if (!cut) return res.status(404).json({ error: "VOD cut not found" });
@@ -745,7 +745,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.patch("/api/vod-cuts/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { title, startTimestamp, endTimestamp, platform } = req.body;
 
     const [existing] = await db.select().from(vodCuts)
@@ -768,7 +768,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.patch("/api/vod-cuts/:id/status", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { status } = req.body;
 
     if (!status || !["pending", "approved", "published", "rejected"].includes(status)) {
@@ -789,7 +789,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.post("/api/vod-cuts/:id/performance", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { views, likes, comments, watchTime, avgPercentWatched, ctr, retentionDropoffs } = req.body;
 
     const [existing] = await db.select().from(vodCuts)
@@ -835,7 +835,7 @@ export function registerDualPipelineRoutes(app: Express) {
             } else {
               results.push(resultEntry);
             }
-            const completedLengths = [...new Set(results.map((r: any) => r.length))];
+            const completedLengths = Array.from(new Set(results.map((r: any) => r.length)));
             await db.update(lengthExperiments)
               .set({ results, completedLengths })
               .where(eq(lengthExperiments.id, experimentIdNum));
@@ -930,7 +930,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.get("/api/length-experiments/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [experiment] = await db.select().from(lengthExperiments)
       .where(and(eq(lengthExperiments.id, id), eq(lengthExperiments.userId, userId)));
     if (!experiment) return res.status(404).json({ error: "Experiment not found" });
@@ -947,7 +947,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.post("/api/length-experiments/:id/record", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { length, vodCutId, views, avgPercentWatched, engagement } = req.body;
 
     const [experiment] = await db.select().from(lengthExperiments)
@@ -958,7 +958,7 @@ export function registerDualPipelineRoutes(app: Express) {
     const score = (views || 0) * 0.4 + (avgPercentWatched || 0) * 0.3 + (engagement || 0) * 0.3;
     results.push({ length, vodCutId: vodCutId || 0, views: views || 0, avgPercentWatched: avgPercentWatched || 0, engagement: engagement || 0, score });
 
-    const completedLengths = [...new Set(results.map((r: any) => r.length))];
+    const completedLengths = Array.from(new Set(results.map((r: any) => r.length)));
 
     const [updated] = await db.update(lengthExperiments)
       .set({ results, completedLengths })
@@ -971,7 +971,7 @@ export function registerDualPipelineRoutes(app: Express) {
   app.post("/api/length-experiments/:id/analyze", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     const [experiment] = await db.select().from(lengthExperiments)
       .where(and(eq(lengthExperiments.id, id), eq(lengthExperiments.userId, userId)));
@@ -1108,7 +1108,7 @@ Return JSON: {
   app.get("/api/length-preferences/:category", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const category = req.params.category;
+    const category = String(req.params.category);
     const [pref] = await db.select().from(audienceLengthPreferences)
       .where(and(
         eq(audienceLengthPreferences.userId, userId),

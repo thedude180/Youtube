@@ -402,7 +402,7 @@ export async function initAutomationEngine() {
         const count = await autoScheduleOptimizedContent(userId);
         if (count > 0) {
           console.log(`[AutomationEngine] Auto-scheduled ${count} post(s) with human-like timing for ${userId}`);
-          sendSSEEvent(userId, { type: "schedule_updated", data: { scheduled: count } });
+          sendSSEEvent(userId, "schedule_updated", { scheduled: count });
         }
       }
     } catch (err) {
@@ -578,7 +578,7 @@ export async function initAutomationEngine() {
     try {
       const { scanForTrends } = await import("./trend-predictor");
       const allUsers = await db.select().from(channels);
-      const userIds = [...new Set(allUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds.slice(0, 10)) {
         await scanForTrends(userId!);
       }
@@ -592,7 +592,7 @@ export async function initAutomationEngine() {
     try {
       const { scanForCompoundingOpportunities } = await import("./compounding-engine");
       const allUsers = await db.select().from(channels);
-      const userIds = [...new Set(allUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds.slice(0, 10)) {
         await scanForCompoundingOpportunities(userId!);
       }
@@ -606,7 +606,7 @@ export async function initAutomationEngine() {
     try {
       const { scanForAnomalies } = await import("./shadowban-detector");
       const allUsers = await db.select().from(channels);
-      const userIds = [...new Set(allUsers.map(c => c.userId).filter(Boolean))];
+      const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds.slice(0, 10)) {
         for (const platform of ["youtube", "twitch", "kick"]) {
           await scanForAnomalies(userId!, platform);

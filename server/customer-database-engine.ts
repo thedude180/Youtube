@@ -352,7 +352,7 @@ export async function enrichCustomerProfile(userId: string) {
 
     const userChannels = await db.select({ id: channels.id, platform: channels.platform }).from(channels).where(eq(channels.userId, userId));
     const channelIds = userChannels.map((c) => c.id);
-    const platformsConnected = [...new Set(userChannels.map((c) => c.platform))];
+    const platformsConnected = Array.from(new Set(userChannels.map((c) => c.platform)));
 
     let totalContentCreated = 0;
     if (channelIds.length > 0) {

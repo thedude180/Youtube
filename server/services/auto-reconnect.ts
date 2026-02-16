@@ -104,7 +104,7 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
           userPlatforms.set(ch.userId, platforms);
         }
 
-        for (const [userId, platforms] of userPlatforms) {
+        for (const [userId, platforms] of Array.from(userPlatforms.entries())) {
           for (const platform of platforms) {
             const sent = await sendReconnectEmail(userId, platform);
             if (sent) emailsSent++;
