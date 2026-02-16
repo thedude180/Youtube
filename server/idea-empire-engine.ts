@@ -513,7 +513,7 @@ Respond with JSON:
   "videoIdeas": [
     {
       "title": "Specific, SEO-optimized, click-worthy title",
-      "description": "Full YouTube-style description (100+ words) with timestamps, links placeholder, and SEO keywords naturally included",
+      "description": "Full YouTube-style description (100+ words) with actual chapter timestamps (e.g., 0:00 Intro, 1:30 Topic Name), cross-platform links, and SEO keywords naturally included. Write real chapter names - never use placeholders",
       "tags": ["15 SEO-optimized tags ordered by relevance"],
       "seoStrategy": {
         "primaryKeyword": "Main keyword to rank for",
@@ -1216,7 +1216,7 @@ Create a comprehensive video production package. Respond with JSON:
   },
   "seoPackage": {
     "finalTitle": "SEO-optimized title under 60 chars",
-    "description": "Full YouTube description with timestamps, links, keywords (500+ words)",
+    "description": "Full YouTube description with actual chapter timestamps based on the script sections (e.g., 0:00 Introduction, 1:30 Section Name, etc.), cross-platform links, and SEO keywords naturally included (500+ words). Write out the real chapter names and times - never use placeholders like [Add timestamps here] or [Chapters]",
     "tags": ["20 SEO-optimized tags"],
     "hashtags": ["5 hashtags for shorts/social"],
     "category": "YouTube category",
