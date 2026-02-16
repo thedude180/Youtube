@@ -224,7 +224,7 @@ app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
     return res.status(429).json({ error: "rate_limited", message: "Too many requests. Please slow down." });
   }
 
-  analyzeRequestPattern(ip, req.path, req.method).catch(() => {});
+  try { analyzeRequestPattern(ip, req.path, req.method); } catch {}
 
   next();
 });
