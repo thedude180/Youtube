@@ -43,8 +43,8 @@ interface UploadEntry {
   platform: string;
   contentType: string;
   status: string;
-  source: "schedule" | "video" | "autopilot" | "pipeline";
-  raw?: any;
+  canDelete?: boolean;
+  rawId?: number;
 }
 
 function CalendarTab() {
@@ -57,114 +57,33 @@ function CalendarTab() {
   const [formPlatform, setFormPlatform] = useState("youtube");
   const [detailDate, setDetailDate] = useState<Date | null>(null);
 
-  const { data: scheduleItemsData, isLoading: schedLoading, error: schedError } =
-    useQuery<any[]>({ queryKey: ["/api/schedule"] });
-
-  const { data: videosList, isLoading: vidsLoading, error: vidsError } =
-    useQuery<any[]>({ queryKey: ["/api/videos"] });
-
-  const { data: autopilotFeed, isLoading: apLoading } =
-    useQuery<any[]>({ queryKey: ["/api/autopilot/calendar-feed"] });
-
-  const { data: pipelineFeed, isLoading: pipLoading } =
-    useQuery<any[]>({ queryKey: ["/api/pipelines/calendar-feed"] });
-
-  const isLoading = schedLoading || vidsLoading || apLoading || pipLoading;
+  const { data: calendarData, isLoading, error: calendarError } =
+    useQuery<any[]>({ queryKey: ["/api/calendar/uploads"] });
 
   const uploads = useMemo<UploadEntry[]>(() => {
-    const entries: UploadEntry[] = [];
-    const seen = new Set<string>();
-
-    if (videosList) {
-      for (const vid of videosList) {
-        const d = vid.scheduledTime
-          ? new Date(vid.scheduledTime)
-          : vid.publishedAt
-            ? new Date(vid.publishedAt)
-            : null;
-        if (!d) continue;
-        const key = `vid-${vid.id}`;
-        seen.add(key);
-        entries.push({
-          id: key,
-          title: vid.title,
-          date: d,
-          time: format(d, "h:mm a"),
-          platform: vid.platform || "youtube",
-          contentType: vid.type || "video",
-          status: vid.status === "published" || vid.status === "public" ? "uploaded" : "scheduled",
-          source: "video",
-          raw: vid,
-        });
-      }
-    }
-
-    if (pipelineFeed) {
-      for (const item of pipelineFeed) {
-        if (!item.date) continue;
+    if (!calendarData) return [];
+    return calendarData
+      .filter((item: any) => item.date)
+      .map((item: any) => {
         const d = new Date(item.date);
-        if (isNaN(d.getTime())) continue;
-        const vidKey = item.videoId ? `vid-${item.videoId}` : null;
-        if (vidKey && seen.has(vidKey)) continue;
-        entries.push({
+        if (isNaN(d.getTime())) return null;
+        return {
           id: item.id,
           title: item.title,
           date: d,
           time: format(d, "h:mm a"),
           platform: item.platform || "youtube",
           contentType: item.contentType || "video",
-          status: item.status === "completed" ? "uploaded" : "scheduled",
-          source: "pipeline",
-        });
-      }
-    }
-
-    if (scheduleItemsData) {
-      for (const item of scheduleItemsData) {
-        if (!item.scheduledAt) continue;
-        const d = new Date(item.scheduledAt);
-        entries.push({
-          id: `s-${item.id}`,
-          title: item.title,
-          date: d,
-          time: format(d, "h:mm a"),
-          platform: item.platform || "youtube",
-          contentType: item.type || "video",
-          status: item.status === "completed" ? "uploaded" : "scheduled",
-          source: "schedule",
-          raw: item,
-        });
-      }
-    }
-
-    if (autopilotFeed) {
-      for (const item of autopilotFeed) {
-        if (!item.date) continue;
-        const d = new Date(item.date);
-        if (isNaN(d.getTime())) continue;
-        entries.push({
-          id: item.id,
-          title: item.title,
-          date: d,
-          time: format(d, "h:mm a"),
-          platform: item.platform || "youtube",
-          contentType: item.contentType || "video",
-          status: item.status === "completed" ? "uploaded" : "scheduled",
-          source: "autopilot",
-        });
-      }
-    }
-
-    return entries.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [scheduleItemsData, videosList, autopilotFeed, pipelineFeed]);
+          status: item.status || "scheduled",
+          canDelete: item.canDelete || false,
+          rawId: item.rawId,
+        } as UploadEntry;
+      })
+      .filter(Boolean) as UploadEntry[];
+  }, [calendarData]);
 
   const getEntriesForDate = (date: Date) =>
     uploads.filter((e) => isSameDay(e.date, date));
-
-  const getEntriesForMonth = (month: number, year: number) =>
-    uploads.filter(
-      (e) => e.date.getMonth() === month && e.date.getFullYear() === year,
-    );
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -172,7 +91,7 @@ function CalendarTab() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/uploads"] });
       setDialogOpen(false);
       toast({ title: "Scheduled" });
     },
@@ -183,7 +102,7 @@ function CalendarTab() {
       await apiRequest("DELETE", `/api/schedule/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/uploads"] });
       toast({ title: "Removed" });
     },
   });
@@ -248,21 +167,12 @@ function CalendarTab() {
     );
   }
 
-  if (schedError)
+  if (calendarError)
     return (
       <QueryErrorReset
-        error={schedError}
-        queryKey={["/api/schedule"]}
-        label="Failed to load schedule"
-      />
-    );
-
-  if (vidsError)
-    return (
-      <QueryErrorReset
-        error={vidsError}
-        queryKey={["/api/videos"]}
-        label="Failed to load videos"
+        error={calendarError}
+        queryKey={["/api/calendar/uploads"]}
+        label="Failed to load upload schedule"
       />
     );
 
@@ -691,7 +601,7 @@ function UploadRow({
           </div>
         </div>
       </div>
-      {entry.source === "schedule" && entry.raw && (
+      {entry.canDelete && entry.rawId && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
@@ -712,7 +622,7 @@ function UploadRow({
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => onDelete(entry.raw.id)}
+                onClick={() => onDelete(entry.rawId!)}
                 className="bg-destructive text-destructive-foreground"
                 data-testid={`button-confirm-delete-${entry.id}`}
               >

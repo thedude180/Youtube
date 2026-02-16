@@ -1,8 +1,12 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, gte, lte, isNotNull } from "drizzle-orm";
 import { api } from "@shared/routes";
-import { contentPipeline, contentIdeas } from "@shared/schema";
+import {
+  contentPipeline, contentIdeas, videos, scheduleItems,
+  autopilotQueue, communityPosts, uploadQueue, streams,
+  reengagementCampaigns, streamPipelines,
+} from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
 import { requireAuth, getUserId, requireTier } from "./helpers";
@@ -999,5 +1003,196 @@ export function registerContentRoutes(app: Express) {
       const rec = await storage.getLocalizationRecommendations(userId);
       res.json(rec || { recommendedLanguages: [], trafficData: {}, source: "none" });
     } catch (e: any) { console.error("Localization recommendations error:", e); res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/calendar/uploads", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const entries: any[] = [];
+      const seenVideoIds = new Set<number>();
+
+      const [
+        userVideos,
+        schedItems,
+        vodRows,
+        livePipes,
+        autopilotItems,
+        communityItems,
+        uploadItems,
+        streamItems,
+        campaigns,
+      ] = await Promise.all([
+        db.select().from(videos)
+          .where(eq(videos.userId, userId))
+          .orderBy(desc(videos.createdAt))
+          .limit(500),
+        db.select().from(scheduleItems)
+          .where(eq(scheduleItems.userId, userId))
+          .orderBy(desc(scheduleItems.scheduledAt))
+          .limit(500),
+        db.select({
+          pipeline: contentPipeline,
+          videoScheduledTime: videos.scheduledTime,
+          videoPublishedAt: videos.publishedAt,
+        }).from(contentPipeline)
+          .leftJoin(videos, eq(contentPipeline.videoId, videos.id))
+          .where(eq(contentPipeline.userId, userId))
+          .orderBy(desc(contentPipeline.createdAt))
+          .limit(500),
+        db.select().from(streamPipelines)
+          .where(eq(streamPipelines.userId, userId))
+          .orderBy(desc(streamPipelines.createdAt))
+          .limit(500),
+        db.select().from(autopilotQueue)
+          .where(eq(autopilotQueue.userId, userId))
+          .orderBy(desc(autopilotQueue.scheduledAt))
+          .limit(500),
+        db.select().from(communityPosts)
+          .where(and(eq(communityPosts.userId, userId), isNotNull(communityPosts.scheduledAt)))
+          .orderBy(desc(communityPosts.scheduledAt))
+          .limit(500),
+        db.select().from(uploadQueue)
+          .where(eq(uploadQueue.userId, userId))
+          .orderBy(desc(uploadQueue.scheduledAt))
+          .limit(500),
+        db.select().from(streams)
+          .where(eq(streams.userId, userId))
+          .orderBy(desc(streams.createdAt))
+          .limit(200),
+        db.select().from(reengagementCampaigns)
+          .where(and(eq(reengagementCampaigns.userId, userId), isNotNull(reengagementCampaigns.scheduledAt)))
+          .orderBy(desc(reengagementCampaigns.scheduledAt))
+          .limit(200),
+      ]);
+
+      for (const vid of userVideos) {
+        const date = vid.scheduledTime || vid.publishedAt;
+        if (!date) continue;
+        seenVideoIds.add(vid.id);
+        entries.push({
+          id: `vid-${vid.id}`,
+          title: vid.title,
+          date,
+          platform: vid.platform || "youtube",
+          contentType: vid.type || "video",
+          status: (vid.status === "published" || vid.status === "public") ? "uploaded" : "scheduled",
+        });
+      }
+
+      for (const item of schedItems) {
+        if (!item.scheduledAt) continue;
+        if (item.videoId && seenVideoIds.has(item.videoId)) continue;
+        entries.push({
+          id: `sched-${item.id}`,
+          title: item.title,
+          date: item.scheduledAt,
+          platform: item.platform || "youtube",
+          contentType: item.type || "video",
+          status: item.status === "completed" ? "uploaded" : "scheduled",
+          canDelete: true,
+          rawId: item.id,
+        });
+      }
+
+      for (const row of vodRows) {
+        const p = row.pipeline;
+        const date = row.videoScheduledTime || row.videoPublishedAt || p.completedAt;
+        if (!date) continue;
+        if (p.videoId && seenVideoIds.has(p.videoId)) continue;
+        entries.push({
+          id: `vod-${p.id}`,
+          title: p.videoTitle,
+          date,
+          platform: "youtube",
+          contentType: "video",
+          status: p.status === "completed" ? "uploaded" : "scheduled",
+        });
+      }
+
+      for (const p of livePipes) {
+        const date = p.scheduledStartAt || p.startedAt;
+        if (!date) continue;
+        entries.push({
+          id: `live-${p.id}`,
+          title: p.sourceTitle,
+          date,
+          platform: "youtube",
+          contentType: p.pipelineType === "live" ? "stream" : "video",
+          status: p.status === "completed" ? "uploaded" : "scheduled",
+        });
+      }
+
+      for (const item of autopilotItems) {
+        const date = item.scheduledAt;
+        if (!date) continue;
+        entries.push({
+          id: `ap-${item.id}`,
+          title: item.caption || item.content?.slice(0, 60) || "Autopilot Post",
+          date,
+          platform: item.targetPlatform || "youtube",
+          contentType: item.type || "post",
+          status: item.status === "published" ? "uploaded" : "scheduled",
+        });
+      }
+
+      for (const post of communityItems) {
+        if (!post.scheduledAt) continue;
+        entries.push({
+          id: `cp-${post.id}`,
+          title: post.content?.slice(0, 60) || "Community Post",
+          date: post.scheduledAt,
+          platform: post.platform || "youtube",
+          contentType: "post",
+          status: post.status === "published" ? "uploaded" : "scheduled",
+        });
+      }
+
+      for (const uq of uploadItems) {
+        const date = uq.scheduledAt;
+        if (!date) continue;
+        if (uq.videoId && seenVideoIds.has(uq.videoId)) continue;
+        entries.push({
+          id: `uq-${uq.id}`,
+          title: uq.metadata?.title || "Queued Upload",
+          date,
+          platform: uq.platform || "youtube",
+          contentType: "video",
+          status: uq.status === "uploaded" ? "uploaded" : "scheduled",
+        });
+      }
+
+      for (const s of streamItems) {
+        const date = s.startedAt || s.createdAt;
+        if (!date) continue;
+        if (s.status === "planned" && !s.startedAt) continue;
+        entries.push({
+          id: `stream-${s.id}`,
+          title: s.title,
+          date,
+          platform: (s.platforms as string[])?.[0] || "youtube",
+          contentType: "stream",
+          status: s.status === "ended" || s.status === "completed" ? "uploaded" : "scheduled",
+        });
+      }
+
+      for (const c of campaigns) {
+        if (!c.scheduledAt) continue;
+        entries.push({
+          id: `camp-${c.id}`,
+          title: `Re-engagement: ${c.segment}`,
+          date: c.scheduledAt,
+          platform: c.platform || "youtube",
+          contentType: "campaign",
+          status: c.status === "executed" ? "uploaded" : "scheduled",
+        });
+      }
+
+      entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      res.json(entries);
+    } catch (err: any) {
+      console.error("[Calendar Uploads] Error:", err);
+      res.status(500).json({ error: "Failed to load upload calendar" });
+    }
   });
 }
