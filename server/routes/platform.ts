@@ -6,6 +6,8 @@ import { linkedChannels, streamDestinations, subscriptions } from "@shared/schem
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
 import { requireAuth, getUserId } from "./helpers";
+import { trackQuotaUsage, getQuotaStatus } from "../services/youtube-quota-tracker";
+import { smartPushOrQueue, getBacklogStats, processBacklog, retryFailedItems, addToBacklog } from "../services/youtube-push-backlog";
 import {
   startShortsPipeline, getShortsPipelineStatus, pauseShortsPipeline,
   resumeShortsPipeline, extractClipsFromVideo, generateClipHook,
@@ -160,6 +162,7 @@ export async function registerPlatformRoutes(app: Express) {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const info = await fetchYouTubeChannelInfo(Number(req.params.channelId));
+      trackQuotaUsage(userId, "read", 2);
       res.json(info);
     } catch (error: any) {
       handleYouTubeError(res, error);
@@ -173,6 +176,8 @@ export async function registerPlatformRoutes(app: Express) {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const videos = await fetchYouTubeVideos(Number(req.params.channelId), Number(req.query.maxResults) || 200);
+      const videoCount = Math.max(1, Math.ceil(videos.length / 50));
+      trackQuotaUsage(userId, "read", videoCount + 1);
       res.json(videos);
     } catch (error: any) {
       handleYouTubeError(res, error);
@@ -186,6 +191,8 @@ export async function registerPlatformRoutes(app: Express) {
       const channel = await storage.getChannel(Number(req.params.channelId));
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const result = await syncYouTubeVideosToLibrary(Number(req.params.channelId), userId);
+      const syncReadOps = Math.max(1, Math.ceil(result.synced.length / 50)) + 1;
+      trackQuotaUsage(userId, "read", syncReadOps);
       res.json({ synced: result.synced.length, newVideos: result.newVideos.length, videos: result.synced });
     } catch (error: any) {
       handleYouTubeError(res, error);
@@ -203,6 +210,7 @@ export async function registerPlatformRoutes(app: Express) {
         req.params.videoId,
         req.body
       );
+      trackQuotaUsage(userId, "write");
       res.json(result);
     } catch (error: any) {
       handleYouTubeError(res, error);
@@ -226,17 +234,76 @@ export async function registerPlatformRoutes(app: Express) {
       if (video.description) updates.description = video.description;
       if (video.metadata?.tags) updates.tags = video.metadata.tags;
 
-      const result = await updateYouTubeVideo(video.channelId, video.metadata.youtubeId, updates);
+      const result = await smartPushOrQueue({
+        userId,
+        videoId: video.id,
+        channelId: video.channelId,
+        youtubeVideoId: video.metadata.youtubeId,
+        updates,
+        priority: 3,
+      });
+
       await storage.createAuditLog({
-        action: "youtube_push",
+        action: result.pushed ? "youtube_push" : "youtube_push_queued",
         target: video.title,
-        riskLevel: "medium",
-        details: { videoId: video.id, youtubeId: video.metadata.youtubeId, updates },
+        riskLevel: "low",
+        details: { videoId: video.id, youtubeId: video.metadata.youtubeId, updates, ...result },
         userId,
       });
-      res.json(result);
+
+      res.json({
+        ...result,
+        message: result.pushed
+          ? "Optimization pushed to YouTube successfully"
+          : "Optimization queued — will auto-push when YouTube quota resets",
+      });
     } catch (error: any) {
       handleYouTubeError(res, error);
+    }
+  });
+
+  app.get("/api/youtube/quota", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const quota = await getQuotaStatus(userId);
+      const backlog = await getBacklogStats(userId);
+      res.json({ quota, backlog });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/youtube/backlog", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const stats = await getBacklogStats(userId);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/youtube/backlog/process", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await processBacklog();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/youtube/backlog/retry", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const retried = await retryFailedItems(userId);
+      res.json({ retried, message: `${retried} failed items re-queued for retry` });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

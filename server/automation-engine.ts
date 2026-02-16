@@ -618,6 +618,18 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("*/15 * * * *", async () => {
+    try {
+      const { processBacklog } = await import("./services/youtube-push-backlog");
+      const result = await processBacklog();
+      if (result.processed > 0 || result.failed > 0) {
+        console.log(`[PushBacklog] Processed ${result.processed}, failed ${result.failed}, remaining ${result.remaining}`);
+      }
+    } catch (err) {
+      console.error("[PushBacklog] Backlog processing error:", err);
+    }
+  });
+
   console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine)");
 }
 

@@ -231,6 +231,28 @@ async function processBacklogAsync(
         console.error(`[BacklogEngine] Push scheduler queue failed:`, syncErr.message);
       }
 
+      if (video.metadata?.youtubeId && video.channelId) {
+        try {
+          const { addToBacklog } = await import("./services/youtube-push-backlog");
+          const pushUpdates: any = {};
+          if (videoUpdate.title) pushUpdates.title = videoUpdate.title;
+          if (videoUpdate.description) pushUpdates.description = videoUpdate.description;
+          if (newMetadata.tags?.length) pushUpdates.tags = newMetadata.tags;
+          if (Object.keys(pushUpdates).length > 0) {
+            await addToBacklog({
+              userId,
+              videoId: video.id,
+              channelId: video.channelId,
+              youtubeVideoId: video.metadata.youtubeId,
+              updates: pushUpdates,
+              priority: 5,
+            });
+          }
+        } catch (backlogErr: any) {
+          console.error(`[BacklogEngine] YouTube push backlog queue failed:`, backlogErr.message);
+        }
+      }
+
       await storage.createAgentActivity({
         userId,
         agentId: "seo_director",

@@ -3681,3 +3681,48 @@ export const fairUseReviews = pgTable("fair_use_reviews", {
 ]);
 
 export type FairUseReview = typeof fairUseReviews.$inferSelect;
+
+export const youtubeQuotaUsage = pgTable("youtube_quota_usage", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: text("date").notNull(),
+  unitsUsed: integer("units_used").notNull().default(0),
+  readOps: integer("read_ops").notNull().default(0),
+  writeOps: integer("write_ops").notNull().default(0),
+  searchOps: integer("search_ops").notNull().default(0),
+  uploadOps: integer("upload_ops").notNull().default(0),
+  quotaLimit: integer("quota_limit").notNull().default(10000),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
+}, (table) => [
+  index("yt_quota_user_date_idx").on(table.userId, table.date),
+]);
+
+export type YouTubeQuotaUsage = typeof youtubeQuotaUsage.$inferSelect;
+
+export const youtubePushBacklog = pgTable("youtube_push_backlog", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").notNull(),
+  channelId: integer("channel_id").notNull(),
+  youtubeVideoId: text("youtube_video_id").notNull(),
+  updateType: text("update_type").notNull().default("metadata"),
+  pendingUpdates: jsonb("pending_updates").$type<{
+    title?: string;
+    description?: string;
+    tags?: string[];
+    categoryId?: string;
+    thumbnailUrl?: string;
+  }>().notNull(),
+  status: text("status").notNull().default("queued"),
+  priority: integer("priority").notNull().default(5),
+  estimatedQuotaCost: integer("estimated_quota_cost").notNull().default(50),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  lastError: text("last_error"),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("yt_backlog_user_status_idx").on(table.userId, table.status),
+  index("yt_backlog_priority_idx").on(table.priority, table.createdAt),
+]);
