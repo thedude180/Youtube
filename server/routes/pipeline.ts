@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { contentPipeline, streamPipelines, videos, PIPELINE_STEPS } from "@shared/schema";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, sql } from "drizzle-orm";
 import { getUserId } from "./helpers";
 import { storage } from "../storage";
 
@@ -450,8 +450,13 @@ export function registerPipelineRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const [vodPipelines, livePipelines] = await Promise.all([
-        db.select().from(contentPipeline)
+      const [vodRows, livePipelines] = await Promise.all([
+        db.select({
+          pipeline: contentPipeline,
+          videoScheduledTime: videos.scheduledTime,
+          videoPublishedAt: videos.publishedAt,
+        }).from(contentPipeline)
+          .leftJoin(videos, eq(contentPipeline.videoId, videos.id))
           .where(eq(contentPipeline.userId, userId))
           .orderBy(desc(contentPipeline.createdAt))
           .limit(500),
@@ -463,8 +468,9 @@ export function registerPipelineRoutes(app: Express) {
 
       const calendarItems: any[] = [];
 
-      for (const p of vodPipelines) {
-        const date = p.completedAt || p.startedAt || p.createdAt || new Date();
+      for (const row of vodRows) {
+        const p = row.pipeline;
+        const date = row.videoScheduledTime || row.videoPublishedAt || p.createdAt || new Date();
         calendarItems.push({
           id: `vod-${p.id}`,
           title: p.videoTitle,
