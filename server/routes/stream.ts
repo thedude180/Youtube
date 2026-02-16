@@ -62,6 +62,10 @@ export function registerStreamRoutes(app: Express) {
   app.put(api.streamDestinations.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const existing = await storage.getStreamDestination(Number(req.params.id));
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ message: "Destination not found" });
+    }
     const schema = z.object({
       platform: z.string().min(1).optional(),
       label: z.string().min(1).optional(),
@@ -80,6 +84,10 @@ export function registerStreamRoutes(app: Express) {
   app.delete(api.streamDestinations.delete.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const existing = await storage.getStreamDestination(Number(req.params.id));
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ message: "Destination not found" });
+    }
     await storage.deleteStreamDestination(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -95,7 +103,7 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
-    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
     res.json(stream);
   });
 
@@ -136,6 +144,10 @@ export function registerStreamRoutes(app: Express) {
   app.put(api.streams.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const existing = await storage.getStream(Number(req.params.id));
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ message: "Stream not found" });
+    }
     const schema = z.object({
       title: z.string().min(1).optional(),
       description: z.string().optional(),
@@ -156,7 +168,7 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
-    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
 
     try {
       const seoData = await generateStreamSeo({
@@ -185,7 +197,7 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
-    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
     if (stream.status !== 'planned') {
       return res.status(400).json({ message: `Cannot go live from '${stream.status}' status. Stream must be in 'planned' state.` });
     }
@@ -352,7 +364,7 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
-    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
     if (stream.status !== 'live') {
       return res.status(400).json({ message: `Cannot end stream from '${stream.status}' status. Stream must be 'live'.` });
     }
@@ -535,7 +547,7 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const stream = await storage.getStream(Number(req.params.id));
-    if (!stream) return res.status(404).json({ message: "Stream not found" });
+    if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
 
     try {
       const duration = stream.startedAt && stream.endedAt

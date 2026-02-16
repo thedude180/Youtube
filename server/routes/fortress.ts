@@ -1,4 +1,5 @@
 import { Express, Request, Response } from "express";
+import { z } from "zod";
 import { asyncHandler, requireAuth, requireAdmin, getUserTier } from "./helpers";
 
 import {
@@ -125,11 +126,17 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/fortress/threat-patterns", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const { name, type, signature, severity } = req.body;
-    if (!name || !type || !signature || !severity) {
-      return res.status(400).json({ error: "name, type, signature, and severity are required" });
+    const schema = z.object({
+      name: z.string().min(1).max(200),
+      type: z.enum(["sql_injection", "xss", "brute_force", "path_traversal", "bot", "credential_stuffing", "rate_abuse", "custom"]),
+      signature: z.string().min(1).max(500),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const result = await registerThreatPattern(name, type, signature, severity);
+    const result = await registerThreatPattern(parsed.data.name, parsed.data.type, parsed.data.signature, parsed.data.severity);
     res.json(result);
   }));
 
@@ -399,18 +406,20 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/billing/promo/validate", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ error: "code is required" });
-    const result = await validatePromoCode(code);
+    const schema = z.object({ code: z.string().min(1).max(50).regex(/^[A-Z0-9_-]+$/i, "Invalid promo code format") });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid promo code", details: parsed.error.flatten() });
+    const result = await validatePromoCode(parsed.data.code);
     res.json(result);
   }));
 
   app.post("/api/billing/promo/apply", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ error: "code is required" });
-    const result = await applyPromoCode(userId, code);
+    const schema = z.object({ code: z.string().min(1).max(50).regex(/^[A-Z0-9_-]+$/i, "Invalid promo code format") });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid promo code", details: parsed.error.flatten() });
+    const result = await applyPromoCode(userId, parsed.data.code);
     res.json(result);
   }));
 
@@ -478,7 +487,8 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/flags/:key", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [flag] = await db.select().from(featureFlags).where(eq(featureFlags.key, req.params.key)).limit(1);
+    const flagKey = String(req.params.key);
+    const [flag] = await db.select().from(featureFlags).where(eq(featureFlags.flagKey, flagKey)).limit(1);
     if (!flag) return res.status(404).json({ error: "Flag not found" });
     res.json(flag);
   }));
@@ -486,11 +496,17 @@ export function registerFortressRoutes(app: Express) {
   app.put("/api/flags/:key", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const { enabled, rolloutPercentage } = req.body;
+    const flagKey = String(req.params.key);
+    const schema = z.object({
+      enabled: z.boolean().optional(),
+      rolloutPercentage: z.number().min(0).max(100).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const updateData: Record<string, any> = { updatedAt: new Date() };
-    if (typeof enabled === "boolean") updateData.enabled = enabled;
-    if (typeof rolloutPercentage === "number") updateData.rolloutPercentage = rolloutPercentage;
-    const [updated] = await db.update(featureFlags).set(updateData).where(eq(featureFlags.key, req.params.key)).returning();
+    if (typeof parsed.data.enabled === "boolean") updateData.enabled = parsed.data.enabled;
+    if (typeof parsed.data.rolloutPercentage === "number") updateData.rolloutPercentage = parsed.data.rolloutPercentage;
+    const [updated] = await db.update(featureFlags).set(updateData).where(eq(featureFlags.flagKey, flagKey)).returning();
     if (!updated) return res.status(404).json({ error: "Flag not found" });
     res.json(updated);
   }));

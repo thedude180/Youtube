@@ -47,6 +47,11 @@ const USER_TABLES = [
   "learning_insights", "creator_memory",
 ];
 
+const ALLOWED_RETENTION_TABLES = new Set([
+  "security_events", "login_attempts", "ai_usage_logs", "audit_logs",
+  "notifications", "dead_letter_queue", "security_alerts",
+]);
+
 const RETENTION_DEFAULTS = [
   { tableName: "security_events", retentionDays: 90 },
   { tableName: "login_attempts", retentionDays: 180 },
@@ -382,6 +387,10 @@ export async function runDataRetention(): Promise<{ policiesProcessed: number; t
     const policies = await db.select().from(dataRetentionPolicies).where(eq(dataRetentionPolicies.enabled, true));
     for (const policy of policies) {
       try {
+        if (!ALLOWED_RETENTION_TABLES.has(policy.tableName)) {
+          console.warn(`[Security Fortress] Skipping unauthorized table "${policy.tableName}" in retention policy`);
+          continue;
+        }
         const cutoff = new Date(Date.now() - policy.retentionDays * 86400000);
         const result = await db.execute(sql`DELETE FROM ${sql.identifier(policy.tableName)} WHERE created_at < ${cutoff}`);
         const purged = Number(result.rowCount) || 0;
