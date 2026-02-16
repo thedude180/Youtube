@@ -99,7 +99,7 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
       { role: "user", content: prompt },
     ],
     response_format: { type: "json_object" },
-    max_tokens: 1000,
+    max_completion_tokens: 1000,
   });
 
   const content = response.choices[0]?.message?.content;

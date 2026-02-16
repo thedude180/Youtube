@@ -312,7 +312,7 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
         { role: "user", content: prompt },
       ],
       temperature: 0.92,
-      max_tokens: 400,
+      max_completion_tokens: 400,
     });
     return response.choices[0]?.message?.content?.trim() || "";
   } catch (err) {

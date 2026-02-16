@@ -193,7 +193,7 @@ CRITICAL RULES:
         { role: "user", content: prompt },
       ],
       temperature: 0.92,
-      max_tokens: 100,
+      max_completion_tokens: 100,
     });
 
     let reply = response.choices[0]?.message?.content || "";

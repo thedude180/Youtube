@@ -343,7 +343,7 @@ Return JSON with these exact fields:
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-        max_tokens: 500,
+        max_completion_tokens: 500,
       });
 
       const raw = completion.choices[0]?.message?.content || "{}";
