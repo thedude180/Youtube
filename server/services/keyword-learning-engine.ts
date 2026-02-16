@@ -204,19 +204,19 @@ export async function getKeywordContext(userId: string): Promise<string> {
   const topKeywords = await getTopKeywordsForUser(userId, 15);
   if (topKeywords.length === 0) return "";
 
-  const rising = topKeywords.filter(k => k.trend === "rising").map(k => k.keyword);
-  const proven = topKeywords.filter(k => k.score >= 70).map(k => k.keyword);
-  const all = topKeywords.map(k => k.keyword);
+  const byCategory: Record<string, string[]> = {};
+  for (const kw of topKeywords) {
+    const cat = kw.category || "general";
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(kw.keyword);
+  }
 
-  let context = `\n\nPROVEN KEYWORDS FROM CHANNEL ANALYTICS (use these - they drive real traffic):`;
-  if (proven.length > 0) {
-    context += `\n- High-performers (MUST include at least 2-3 of these in tags/title/description): ${proven.join(", ")}`;
+  let context = `\n\nCHANNEL KEYWORD BANK (proven to drive traffic on this channel):`;
+  context += `\nIMPORTANT: Only use keywords that are genuinely relevant to this specific video's topic. Do NOT force unrelated keywords just because they performed well on other videos. Irrelevant keywords hurt watch time and CTR.`;
+  for (const [cat, keywords] of Object.entries(byCategory)) {
+    context += `\n- ${cat}: ${keywords.join(", ")}`;
   }
-  if (rising.length > 0) {
-    context += `\n- Rising keywords (growing in performance, include when relevant): ${rising.join(", ")}`;
-  }
-  context += `\n- Full proven keyword bank: ${all.join(", ")}`;
-  context += `\n- Naturally weave these into titles, descriptions, and tags. Don't force them where they don't fit.`;
+  context += `\n- Pick ONLY keywords from this bank that naturally relate to the video subject. Skip any that don't fit — relevance beats volume every time.`;
 
   return context;
 }

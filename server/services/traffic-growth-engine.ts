@@ -55,7 +55,7 @@ export async function generateTrafficStrategies(userId: string) {
   }));
 
   const channelInfo = userChannels[0] ? {
-    name: userChannels[0].name,
+    name: userChannels[0].channelName,
     subscribers: userChannels[0].subscriberCount || 0,
     totalViews: userChannels[0].viewCount || 0,
     videoCount: userChannels[0].videoCount || 0,
@@ -180,7 +180,6 @@ Respond with JSON:
         metadata: {
           platform: strategy.platform || "youtube",
           keywords: strategy.keywords || [],
-          complianceNote: strategy.complianceNote,
         },
         lastRunAt: new Date(),
       }).where(eq(trafficStrategies.id, existing[0].id));
@@ -190,7 +189,7 @@ Respond with JSON:
         strategyType: strategy.type || "seo-optimization",
         title: strategy.title,
         description: strategy.description,
-        status: "active",
+        status: "active" as const,
         priority: strategy.priority || 5,
         results: {
           estimatedImpact: strategy.estimatedImpact,
@@ -202,7 +201,6 @@ Respond with JSON:
         metadata: {
           platform: strategy.platform || "youtube",
           keywords: strategy.keywords || [],
-          complianceNote: strategy.complianceNote,
         },
         lastRunAt: new Date(),
       });
@@ -238,43 +236,76 @@ export async function autoApplyKeywordsToNewVideo(
     return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] };
   }
 
-  const provenKeywords = topKeywords.map(k => k.keyword);
+  const provenKeywords = topKeywords.map(k => ({
+    keyword: k.keyword,
+    score: k.score,
+    category: k.category || "general",
+  }));
 
-  const alreadyUsed = provenKeywords.filter(kw =>
-    currentTags.some(t => t.toLowerCase().includes(kw.toLowerCase())) ||
-    videoTitle.toLowerCase().includes(kw.toLowerCase()) ||
-    currentDescription.toLowerCase().includes(kw.toLowerCase())
-  );
+  const relevancePrompt = `You are a YouTube SEO expert. A new video is being created. Your job is to determine which proven keywords from the creator's keyword bank are RELEVANT to this specific video's topic.
 
-  const toAdd = provenKeywords.filter(kw =>
-    !alreadyUsed.includes(kw) &&
-    (videoTitle.toLowerCase().includes(kw.split(" ")[0]?.toLowerCase() || "") ||
-     currentDescription.toLowerCase().includes(kw.split(" ")[0]?.toLowerCase() || "") ||
-     topKeywords.find(tk => tk.keyword === kw)!.score >= 70)
-  ).slice(0, 8);
+VIDEO BEING CREATED:
+Title: "${videoTitle}"
+Description: "${currentDescription.slice(0, 500)}"
+Current Tags: ${currentTags.join(", ")}
 
-  const optimizedTags = [...currentTags];
-  for (const kw of toAdd) {
-    if (!optimizedTags.some(t => t.toLowerCase() === kw.toLowerCase())) {
-      optimizedTags.push(kw);
+KEYWORD BANK (proven to drive traffic on this channel):
+${provenKeywords.map(k => `- "${k.keyword}" (score: ${k.score}, category: ${k.category})`).join("\n")}
+
+Rules:
+- ONLY select keywords that are genuinely related to this video's subject matter
+- A gaming keyword should NOT be added to a cooking video, even if it scores 100
+- Broad channel-identity keywords (like the creator's name or channel brand) are always relevant
+- Topic-specific keywords are only relevant if the video covers that topic
+- When in doubt, leave it out — irrelevant keywords hurt CTR and watch time
+
+Respond with JSON:
+{
+  "relevantKeywords": ["keyword1", "keyword2"],
+  "reason": "brief explanation of why these fit this video"
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-5-mini",
+      messages: [{ role: "user", content: relevancePrompt }],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 500,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] };
     }
+
+    const result = JSON.parse(content);
+    const relevant: string[] = result.relevantKeywords || [];
+
+    if (relevant.length === 0) {
+      console.log(`[KeywordEngine] No relevant keywords found for video: "${videoTitle}"`);
+      return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] };
+    }
+
+    const optimizedTags = [...currentTags];
+    const applied: string[] = [];
+    for (const kw of relevant) {
+      if (!optimizedTags.some(t => t.toLowerCase() === kw.toLowerCase())) {
+        optimizedTags.push(kw);
+        applied.push(kw);
+      }
+    }
+
+    console.log(`[KeywordEngine] Applied ${applied.length} relevant keywords to "${videoTitle}": ${applied.join(", ")}`);
+
+    return {
+      optimizedTags: optimizedTags.slice(0, 30),
+      optimizedDescription: currentDescription,
+      keywordsApplied: applied,
+    };
+  } catch (err: any) {
+    console.error(`[KeywordEngine] Relevance check failed:`, err.message);
+    return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] };
   }
-
-  let optimizedDescription = currentDescription;
-  const highScoreKeywords = topKeywords.filter(k => k.score >= 75).map(k => k.keyword);
-  const missingFromDesc = highScoreKeywords.filter(kw =>
-    !currentDescription.toLowerCase().includes(kw.toLowerCase())
-  ).slice(0, 3);
-
-  if (missingFromDesc.length > 0 && !optimizedDescription.includes("---")) {
-    optimizedDescription += `\n\n${missingFromDesc.join(" | ")}`;
-  }
-
-  return {
-    optimizedTags: optimizedTags.slice(0, 30),
-    optimizedDescription,
-    keywordsApplied: [...alreadyUsed, ...toAdd],
-  };
 }
 
 export async function runTrafficGrowthCycle() {
