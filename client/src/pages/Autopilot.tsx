@@ -80,8 +80,11 @@ interface QueueItem {
 
 interface CommentItem {
   id: number;
+  videoId: number | null;
   platform: string;
   videoTitle: string | null;
+  videoPlatform: string | null;
+  videoMetadata: { youtubeId?: string; [key: string]: any } | null;
   originalComment: string;
   originalAuthor: string;
   aiResponse: string;
@@ -89,6 +92,16 @@ interface CommentItem {
   sentiment: string;
   priority: string;
   createdAt: string;
+}
+
+function getVideoUrl(comment: CommentItem): string | null {
+  const p = comment.videoPlatform || comment.platform || "youtube";
+  const ytId = comment.videoMetadata?.youtubeId;
+  if (p === "youtube" && ytId) return `https://www.youtube.com/watch?v=${ytId}`;
+  if (p === "twitch" && ytId) return `https://www.twitch.tv/videos/${ytId}`;
+  if (p === "kick" && ytId) return `https://kick.com/video/${ytId}`;
+  if (p === "tiktok" && ytId) return `https://www.tiktok.com/@/video/${ytId}`;
+  return null;
 }
 
 const FEATURES = [
@@ -719,11 +732,25 @@ export default function Autopilot() {
                     <div className="bg-muted/50 rounded-md p-3">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <p className="text-xs font-medium text-muted-foreground">{comment.originalAuthor}</p>
-                        {comment.videoTitle && (
-                          <span className="text-[10px] text-muted-foreground truncate max-w-[200px]" data-testid={`text-comment-video-${comment.id}`}>
-                            on "{comment.videoTitle}"
-                          </span>
-                        )}
+                        {comment.videoTitle && (() => {
+                          const url = getVideoUrl(comment);
+                          return url ? (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-primary hover:underline truncate max-w-[200px] inline-flex items-center gap-0.5"
+                              data-testid={`link-comment-video-${comment.id}`}
+                            >
+                              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                              {comment.videoTitle}
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground truncate max-w-[200px]" data-testid={`text-comment-video-${comment.id}`}>
+                              on "{comment.videoTitle}"
+                            </span>
+                          );
+                        })()}
                       </div>
                       <p className="text-sm">{comment.originalComment}</p>
                     </div>

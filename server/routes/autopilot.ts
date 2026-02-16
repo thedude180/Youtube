@@ -89,6 +89,8 @@ export function registerAutopilotRoutes(app: Express) {
         metadata: commentResponses.metadata,
         createdAt: commentResponses.createdAt,
         videoTitle: videos.title,
+        videoPlatform: videos.platform,
+        videoMetadata: videos.metadata,
       }).from(commentResponses)
         .leftJoin(videos, eq(commentResponses.videoId, videos.id))
         .where(eq(commentResponses.userId, userId))
