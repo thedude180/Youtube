@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Calendar as CalendarIcon,
   ChevronLeft, ChevronRight, Video, Radio, FileText,
-  Eye, Rocket, Bot,
+  Eye, Rocket, Bot, Workflow, Zap,
 } from "lucide-react";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
@@ -40,11 +40,15 @@ interface CalendarEntry {
   id: number | string;
   title: string;
   date: Date;
-  type: "schedule" | "video" | "autopilot";
+  type: "schedule" | "video" | "autopilot" | "pipeline";
+  pipelineType?: "vod" | "live" | "replay";
   platform?: string;
   contentType?: string;
   status?: string;
   time?: string;
+  completedSteps?: number;
+  totalSteps?: number;
+  currentStep?: string;
   raw?: any;
 }
 
@@ -73,7 +77,10 @@ function CalendarTab() {
   const { data: autopilotFeed, isLoading: apLoading } =
     useQuery<any[]>({ queryKey: ["/api/autopilot/calendar-feed"] });
 
-  const isLoading = schedLoading || vidsLoading || apLoading;
+  const { data: pipelineFeed, isLoading: pipLoading } =
+    useQuery<any[]>({ queryKey: ["/api/pipelines/calendar-feed"] });
+
+  const isLoading = schedLoading || vidsLoading || apLoading || pipLoading;
 
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
@@ -94,12 +101,13 @@ function CalendarTab() {
     }
     if (videosList) {
       for (const vid of videosList) {
-        if (vid.status === "published" || vid.status === "public") continue;
-        const d = vid.scheduledTime
-          ? new Date(vid.scheduledTime)
-          : vid.createdAt
-          ? new Date(vid.createdAt)
-          : new Date();
+        const d = vid.publishedAt
+          ? new Date(vid.publishedAt)
+          : vid.scheduledTime
+            ? new Date(vid.scheduledTime)
+            : vid.createdAt
+              ? new Date(vid.createdAt)
+              : new Date();
         entries.push({
           id: `v-${vid.id}`,
           title: vid.title,
@@ -129,8 +137,28 @@ function CalendarTab() {
         });
       }
     }
+    if (pipelineFeed) {
+      for (const item of pipelineFeed) {
+        const d = item.date ? new Date(item.date) : new Date();
+        entries.push({
+          id: item.id,
+          title: item.title,
+          date: d,
+          type: "pipeline",
+          pipelineType: item.pipelineType,
+          platform: item.platform || "youtube",
+          contentType: item.contentType,
+          status: item.status,
+          currentStep: item.currentStep,
+          completedSteps: item.completedSteps,
+          totalSteps: item.totalSteps,
+          time: format(d, "h:mm a"),
+          raw: item,
+        });
+      }
+    }
     return entries.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [scheduleItemsData, videosList, autopilotFeed]);
+  }, [scheduleItemsData, videosList, autopilotFeed, pipelineFeed]);
 
   const getEntriesForDate = (date: Date) =>
     calendarEntries.filter((e) => isSameDay(e.date, date));
@@ -545,6 +573,12 @@ function EntryBadge({ entry }: { entry: CalendarEntry }) {
 }
 
 function EntryIcon({ entry }: { entry: CalendarEntry }) {
+  if (entry.type === "pipeline") {
+    if (entry.pipelineType === "live") {
+      return <Zap className="w-3 h-3 shrink-0 text-green-400" />;
+    }
+    return <Workflow className="w-3 h-3 shrink-0 text-cyan-400" />;
+  }
   if (entry.type === "autopilot") {
     return <Rocket className="w-3 h-3 shrink-0 text-purple-400" />;
   }
@@ -668,6 +702,30 @@ function EntryRow({
                 Autopilot
               </Badge>
             )}
+            {entry.type === "pipeline" && (
+              <Badge
+                variant="secondary"
+                className={`text-xs no-default-hover-elevate no-default-active-elevate ${
+                  entry.pipelineType === "live"
+                    ? "bg-green-500/10 text-green-400"
+                    : entry.pipelineType === "replay"
+                      ? "bg-orange-500/10 text-orange-400"
+                      : "bg-cyan-500/10 text-cyan-400"
+                }`}
+              >
+                {entry.pipelineType === "live" ? (
+                  <Zap className="w-3 h-3 mr-1" />
+                ) : (
+                  <Workflow className="w-3 h-3 mr-1" />
+                )}
+                {entry.pipelineType === "live" ? "Live Pipeline" : entry.pipelineType === "replay" ? "Replay Pipeline" : "VOD Pipeline"}
+              </Badge>
+            )}
+            {entry.type === "pipeline" && entry.completedSteps != null && entry.totalSteps && (
+              <span className="text-xs text-muted-foreground">
+                {entry.completedSteps}/{entry.totalSteps} steps
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -761,9 +819,15 @@ function WeekView({
                 <div
                   key={entry.id}
                   className={`text-xs p-1 rounded truncate flex items-center gap-1 ${
-                    entry.type === "video"
-                      ? "bg-red-500/10 text-red-300"
-                      : "bg-blue-500/10 text-blue-300"
+                    entry.type === "pipeline" && entry.pipelineType === "live"
+                      ? "bg-green-500/10 text-green-300"
+                      : entry.type === "pipeline"
+                        ? "bg-cyan-500/10 text-cyan-300"
+                        : entry.type === "video"
+                          ? "bg-red-500/10 text-red-300"
+                          : entry.type === "autopilot"
+                            ? "bg-purple-500/10 text-purple-300"
+                            : "bg-blue-500/10 text-blue-300"
                   }`}
                   data-testid={`week-entry-${entry.id}`}
                 >
@@ -858,9 +922,15 @@ function MonthView({
                   <div
                     key={entry.id}
                     className={`text-[10px] leading-tight px-1 py-0.5 rounded truncate ${
-                      entry.type === "video"
-                        ? "bg-red-500/10 text-red-300"
-                        : "bg-blue-500/10 text-blue-300"
+                      entry.type === "pipeline" && entry.pipelineType === "live"
+                        ? "bg-green-500/10 text-green-300"
+                        : entry.type === "pipeline"
+                          ? "bg-cyan-500/10 text-cyan-300"
+                          : entry.type === "video"
+                            ? "bg-red-500/10 text-red-300"
+                            : entry.type === "autopilot"
+                              ? "bg-purple-500/10 text-purple-300"
+                              : "bg-blue-500/10 text-blue-300"
                     }`}
                   >
                     {entry.title}
@@ -903,6 +973,9 @@ function YearView({
         const schedCount = monthEntries.filter(
           (e) => e.type === "schedule",
         ).length;
+        const pipelineCount = monthEntries.filter(
+          (e) => e.type === "pipeline",
+        ).length;
         const isCurrentMonth =
           today.getMonth() === month && today.getFullYear() === year;
 
@@ -944,7 +1017,13 @@ function YearView({
                     {schedCount}
                   </span>
                 )}
-                {videoCount === 0 && schedCount === 0 && (
+                {pipelineCount > 0 && (
+                  <span className="text-xs flex items-center gap-1 text-cyan-400">
+                    <Workflow className="w-3 h-3" />
+                    {pipelineCount}
+                  </span>
+                )}
+                {videoCount === 0 && schedCount === 0 && pipelineCount === 0 && (
                   <span className="text-xs text-muted-foreground">
                     No content
                   </span>
