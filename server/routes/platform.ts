@@ -141,6 +141,18 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  function isYouTubeQuotaError(error: any): boolean {
+    return error?.code === "QUOTA_EXCEEDED" || error?.code === 403 ||
+      (typeof error?.message === "string" && error.message.includes("quota"));
+  }
+
+  function handleYouTubeError(res: any, error: any) {
+    if (isYouTubeQuotaError(error)) {
+      return res.status(429).json({ error: "YouTube API quota exceeded. Your channel is still connected — sync will resume automatically when quota resets (usually within 24 hours).", code: "QUOTA_EXCEEDED" });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+
   app.get("/api/youtube/channel/:channelId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -150,7 +162,7 @@ export async function registerPlatformRoutes(app: Express) {
       const info = await fetchYouTubeChannelInfo(Number(req.params.channelId));
       res.json(info);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      handleYouTubeError(res, error);
     }
   });
 
@@ -163,7 +175,7 @@ export async function registerPlatformRoutes(app: Express) {
       const videos = await fetchYouTubeVideos(Number(req.params.channelId), Number(req.query.maxResults) || 200);
       res.json(videos);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      handleYouTubeError(res, error);
     }
   });
 
@@ -176,7 +188,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await syncYouTubeVideosToLibrary(Number(req.params.channelId), userId);
       res.json({ synced: result.synced.length, newVideos: result.newVideos.length, videos: result.synced });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      handleYouTubeError(res, error);
     }
   });
 
@@ -193,7 +205,7 @@ export async function registerPlatformRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      handleYouTubeError(res, error);
     }
   });
 
@@ -224,7 +236,7 @@ export async function registerPlatformRoutes(app: Express) {
       });
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      handleYouTubeError(res, error);
     }
   });
 

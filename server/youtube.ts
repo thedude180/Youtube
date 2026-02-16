@@ -279,40 +279,67 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
-  const channelInfo = await fetchYouTubeChannelInfo(channelId);
+  let channelInfo;
+  try {
+    channelInfo = await fetchYouTubeChannelInfo(channelId);
+  } catch (err: any) {
+    if (err.code === 403 || err.message?.includes("quota")) {
+      const quotaErr = new Error("YouTube API quota exceeded. Your videos are safe — sync will resume automatically when quota resets (usually within 24 hours).");
+      (quotaErr as any).code = "QUOTA_EXCEEDED";
+      throw quotaErr;
+    }
+    throw err;
+  }
   if (!channelInfo.uploadsPlaylistId) return [];
 
   const allVideoIds: string[] = [];
   let pageToken: string | undefined;
   const perPage = Math.min(maxResults, 50);
 
-  do {
-    const playlistResponse = await youtube.playlistItems.list({
-      part: ["contentDetails"],
-      playlistId: channelInfo.uploadsPlaylistId,
-      maxResults: perPage,
-      pageToken,
-    });
+  try {
+    do {
+      const playlistResponse = await youtube.playlistItems.list({
+        part: ["contentDetails"],
+        playlistId: channelInfo.uploadsPlaylistId,
+        maxResults: perPage,
+        pageToken,
+      });
 
-    const ids = playlistResponse.data.items
-      ?.map(item => item.contentDetails?.videoId)
-      .filter(Boolean) as string[];
-    if (ids?.length) allVideoIds.push(...ids);
+      const ids = playlistResponse.data.items
+        ?.map(item => item.contentDetails?.videoId)
+        .filter(Boolean) as string[];
+      if (ids?.length) allVideoIds.push(...ids);
 
-    pageToken = playlistResponse.data.nextPageToken || undefined;
-  } while (pageToken && allVideoIds.length < maxResults);
+      pageToken = playlistResponse.data.nextPageToken || undefined;
+    } while (pageToken && allVideoIds.length < maxResults);
+  } catch (err: any) {
+    if (err.code === 403 || err.message?.includes("quota")) {
+      const quotaErr = new Error("YouTube API quota exceeded. Your videos are safe — sync will resume automatically when quota resets (usually within 24 hours).");
+      (quotaErr as any).code = "QUOTA_EXCEEDED";
+      throw quotaErr;
+    }
+    throw err;
+  }
 
   if (!allVideoIds.length) return [];
 
   const allVideos: any[] = [];
   for (let i = 0; i < allVideoIds.length; i += 50) {
     const batch = allVideoIds.slice(i, i + 50);
-    const videosResponse = await youtube.videos.list({
-      part: ["snippet", "statistics", "contentDetails", "status"],
-      id: batch,
-    });
-    if (videosResponse.data.items) {
-      allVideos.push(...videosResponse.data.items);
+    try {
+      const videosResponse = await youtube.videos.list({
+        part: ["snippet", "statistics", "contentDetails", "status"],
+        id: batch,
+      });
+      if (videosResponse.data.items) {
+        allVideos.push(...videosResponse.data.items);
+      }
+    } catch (err: any) {
+      if (err.code === 403 || err.message?.includes("quota")) {
+        console.warn(`[YouTube] Quota hit during video details fetch (got ${allVideos.length} so far)`);
+        break;
+      }
+      throw err;
     }
   }
 

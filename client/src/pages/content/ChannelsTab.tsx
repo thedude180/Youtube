@@ -74,7 +74,13 @@ function ChannelActions({ channels }: { channels: Channel[] }) {
       toast({ title: "Synced", description: `${data.synced} videos synced` });
     },
     onError: (error: any) => {
-      toast({ title: "Sync failed", description: error.message, variant: "destructive" });
+      const msg = error.message || "";
+      const isQuota = msg.includes("quota") || msg.includes("429");
+      if (isQuota) {
+        toast({ title: "YouTube quota reached", description: "Your channel is still connected. Sync will resume automatically when quota resets (usually within 24 hours)." });
+      } else {
+        toast({ title: "Sync failed", description: msg, variant: "destructive" });
+      }
     },
   });
   const deleteMutation = useMutation({

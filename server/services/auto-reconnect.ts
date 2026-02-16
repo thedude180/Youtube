@@ -22,7 +22,12 @@ export async function sendReconnectEmail(userId: string, platform: string): Prom
       return false;
     }
 
-    const reconnectUrl = `/settings?reconnect=${platform}`;
+    const domain = process.env.REPLIT_DEPLOYMENT
+      ? "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app")
+      : process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : "https://creatoros.replit.app";
+    const reconnectUrl = `${domain}/settings?reconnect=${platform}`;
     const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
 
     const html = `
