@@ -50,6 +50,9 @@ async function pushAndUpdateLocal(
   updatedFields: string[],
   source: string
 ): Promise<PlatformSyncResult> {
+  const beforeVideo = await storage.getVideo(videoDbId);
+  const beforeMeta = (beforeVideo?.metadata as any) || {};
+
   if (updates.title) {
     updates.title = removeBannedPhrases(updates.title);
   }
@@ -66,12 +69,63 @@ async function pushAndUpdateLocal(
   if (updates.title) localUpdate.title = updates.title;
   if (updates.description) localUpdate.description = updates.description;
   if (updates.tags?.length) {
-    const video = await storage.getVideo(videoDbId);
-    const existingMeta = (video?.metadata as any) || {};
+    const existingMeta = (beforeVideo?.metadata as any) || {};
     localUpdate.metadata = { ...existingMeta, tags: updates.tags };
   }
   if (Object.keys(localUpdate).length > 0) {
     await storage.updateVideo(videoDbId, localUpdate);
+  }
+
+  const studioUrl = `https://studio.youtube.com/video/${youtubeId}/edit`;
+  try {
+    const historyEntries = [];
+    if (updates.title) {
+      historyEntries.push({
+        userId,
+        videoId: videoDbId,
+        youtubeVideoId: youtubeId,
+        videoTitle,
+        field: "title",
+        oldValue: beforeVideo?.title || null,
+        newValue: updates.title,
+        source,
+        status: "pushed",
+        youtubeStudioUrl: studioUrl,
+      });
+    }
+    if (updates.description) {
+      historyEntries.push({
+        userId,
+        videoId: videoDbId,
+        youtubeVideoId: youtubeId,
+        videoTitle,
+        field: "description",
+        oldValue: beforeVideo?.description || null,
+        newValue: updates.description,
+        source,
+        status: "pushed",
+        youtubeStudioUrl: studioUrl,
+      });
+    }
+    if (updates.tags?.length) {
+      historyEntries.push({
+        userId,
+        videoId: videoDbId,
+        youtubeVideoId: youtubeId,
+        videoTitle,
+        field: "tags",
+        oldValue: beforeMeta.tags ? JSON.stringify(beforeMeta.tags) : null,
+        newValue: JSON.stringify(updates.tags),
+        source,
+        status: "pushed",
+        youtubeStudioUrl: studioUrl,
+      });
+    }
+    for (const entry of historyEntries) {
+      await storage.createVideoUpdateHistory(entry);
+    }
+  } catch (histErr) {
+    console.error(`[PlatformSync] Failed to record update history:`, histErr);
   }
 
   console.log(`[PlatformSync] ${source}: pushed ${updatedFields.join(", ")} to YouTube for "${videoTitle}" (${youtubeId})`);

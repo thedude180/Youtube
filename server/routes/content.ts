@@ -346,6 +346,18 @@ export function registerContentRoutes(app: Express) {
     }
   });
 
+  app.get("/api/videos/update-history", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const youtubeVideoId = req.query.youtubeVideoId as string | undefined;
+      const history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/videos/processing", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

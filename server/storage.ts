@@ -60,9 +60,10 @@ import {
   type WebhookEvent, type InsertWebhookEvent,
   localizationRecommendations,
   type LocalizationRecommendation, type InsertLocalizationRecommendation,
-  apiKeys, contentPredictions,
+  apiKeys, contentPredictions, videoUpdateHistory,
   type ApiKey, type InsertApiKey,
   type ContentPrediction, type InsertContentPrediction,
+  type VideoUpdateHistory, type InsertVideoUpdateHistory,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -91,6 +92,8 @@ export interface IStorage {
   getAuditLogs(): Promise<AuditLog[]>;
   getAuditLogsByUser(userId: string, action?: string): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getVideoUpdateHistory(userId: string, youtubeVideoId?: string): Promise<VideoUpdateHistory[]>;
+  createVideoUpdateHistory(entry: InsertVideoUpdateHistory): Promise<VideoUpdateHistory>;
 
   getContentInsights(channelId?: number): Promise<ContentInsight[]>;
   createContentInsight(insight: InsertContentInsight): Promise<ContentInsight>;
@@ -432,6 +435,22 @@ export class DatabaseStorage implements IStorage {
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
     const [newLog] = await db.insert(auditLogs).values(log).returning();
     return newLog;
+  }
+
+  async getVideoUpdateHistory(userId: string, youtubeVideoId?: string): Promise<VideoUpdateHistory[]> {
+    const conditions = [eq(videoUpdateHistory.userId, userId)];
+    if (youtubeVideoId) {
+      conditions.push(eq(videoUpdateHistory.youtubeVideoId, youtubeVideoId));
+    }
+    return await db.select().from(videoUpdateHistory)
+      .where(and(...conditions))
+      .orderBy(desc(videoUpdateHistory.createdAt))
+      .limit(500);
+  }
+
+  async createVideoUpdateHistory(entry: InsertVideoUpdateHistory): Promise<VideoUpdateHistory> {
+    const [record] = await db.insert(videoUpdateHistory).values(entry).returning();
+    return record;
   }
 
   async getContentInsights(channelId?: number): Promise<ContentInsight[]> {

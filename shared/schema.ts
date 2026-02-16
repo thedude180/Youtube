@@ -3726,3 +3726,25 @@ export const youtubePushBacklog = pgTable("youtube_push_backlog", {
   index("yt_backlog_user_status_idx").on(table.userId, table.status),
   index("yt_backlog_priority_idx").on(table.priority, table.createdAt),
 ]);
+
+export const videoUpdateHistory = pgTable("video_update_history", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id"),
+  youtubeVideoId: text("youtube_video_id").notNull(),
+  videoTitle: text("video_title").notNull(),
+  field: text("field").notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  source: text("source").notNull().default("system"),
+  status: text("status").notNull().default("pushed"),
+  youtubeStudioUrl: text("youtube_studio_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("vid_update_hist_user_idx").on(table.userId, table.createdAt),
+  index("vid_update_hist_yt_idx").on(table.youtubeVideoId),
+]);
+
+export const insertVideoUpdateHistorySchema = createInsertSchema(videoUpdateHistory).omit({ id: true, createdAt: true });
+export type VideoUpdateHistory = typeof videoUpdateHistory.$inferSelect;
+export type InsertVideoUpdateHistory = z.infer<typeof insertVideoUpdateHistorySchema>;

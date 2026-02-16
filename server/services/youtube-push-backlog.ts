@@ -66,12 +66,46 @@ export async function smartPushOrQueue(params: {
 
   if (canPush) {
     try {
+      const beforeVideo = await storage.getVideo(params.videoId);
+      const beforeMeta = (beforeVideo?.metadata as any) || {};
+
       const { updateYouTubeVideo } = await import("../youtube");
       await updateYouTubeVideo(params.channelId, params.youtubeVideoId, params.updates);
       await trackQuotaUsage(params.userId, "write");
 
       if (params.updates.title) {
         await storage.updateVideo(params.videoId, { title: params.updates.title });
+      }
+
+      const studioUrl = `https://studio.youtube.com/video/${params.youtubeVideoId}/edit`;
+      try {
+        if (params.updates.title) {
+          await storage.createVideoUpdateHistory({
+            userId: params.userId, videoId: params.videoId, youtubeVideoId: params.youtubeVideoId,
+            videoTitle: beforeVideo?.title || params.updates.title || "Unknown",
+            field: "title", oldValue: beforeVideo?.title || null, newValue: params.updates.title,
+            source: "direct_push", status: "pushed", youtubeStudioUrl: studioUrl,
+          });
+        }
+        if (params.updates.description) {
+          await storage.createVideoUpdateHistory({
+            userId: params.userId, videoId: params.videoId, youtubeVideoId: params.youtubeVideoId,
+            videoTitle: beforeVideo?.title || "Unknown",
+            field: "description", oldValue: beforeVideo?.description || null, newValue: params.updates.description,
+            source: "direct_push", status: "pushed", youtubeStudioUrl: studioUrl,
+          });
+        }
+        if (params.updates.tags?.length) {
+          await storage.createVideoUpdateHistory({
+            userId: params.userId, videoId: params.videoId, youtubeVideoId: params.youtubeVideoId,
+            videoTitle: beforeVideo?.title || "Unknown",
+            field: "tags", oldValue: beforeMeta.tags ? JSON.stringify(beforeMeta.tags) : null,
+            newValue: JSON.stringify(params.updates.tags),
+            source: "direct_push", status: "pushed", youtubeStudioUrl: studioUrl,
+          });
+        }
+      } catch (histErr) {
+        console.error(`[PushBacklog] Failed to record update history:`, histErr);
       }
 
       console.log(`[PushBacklog] Direct push succeeded for ${params.youtubeVideoId}`);
@@ -144,6 +178,9 @@ export async function processBacklog(): Promise<{
           .set({ status: "processing", updatedAt: new Date() })
           .where(eq(youtubePushBacklog.id, item.id));
 
+        const beforeVideo = await storage.getVideo(item.videoId);
+        const beforeMeta = (beforeVideo?.metadata as any) || {};
+
         const { updateYouTubeVideo } = await import("../youtube");
         const updates = item.pendingUpdates as any;
         await updateYouTubeVideo(item.channelId, item.youtubeVideoId, updates);
@@ -156,6 +193,37 @@ export async function processBacklog(): Promise<{
         await db.update(youtubePushBacklog)
           .set({ status: "completed", processedAt: new Date(), updatedAt: new Date() })
           .where(eq(youtubePushBacklog.id, item.id));
+
+        const studioUrl = `https://studio.youtube.com/video/${item.youtubeVideoId}/edit`;
+        try {
+          if (updates.title) {
+            await storage.createVideoUpdateHistory({
+              userId, videoId: item.videoId, youtubeVideoId: item.youtubeVideoId,
+              videoTitle: beforeVideo?.title || updates.title || "Unknown",
+              field: "title", oldValue: beforeVideo?.title || null, newValue: updates.title,
+              source: "backlog_processing", status: "pushed", youtubeStudioUrl: studioUrl,
+            });
+          }
+          if (updates.description) {
+            await storage.createVideoUpdateHistory({
+              userId, videoId: item.videoId, youtubeVideoId: item.youtubeVideoId,
+              videoTitle: beforeVideo?.title || "Unknown",
+              field: "description", oldValue: beforeVideo?.description || null, newValue: updates.description,
+              source: "backlog_processing", status: "pushed", youtubeStudioUrl: studioUrl,
+            });
+          }
+          if (updates.tags?.length) {
+            await storage.createVideoUpdateHistory({
+              userId, videoId: item.videoId, youtubeVideoId: item.youtubeVideoId,
+              videoTitle: beforeVideo?.title || "Unknown",
+              field: "tags", oldValue: beforeMeta.tags ? JSON.stringify(beforeMeta.tags) : null,
+              newValue: JSON.stringify(updates.tags),
+              source: "backlog_processing", status: "pushed", youtubeStudioUrl: studioUrl,
+            });
+          }
+        } catch (histErr) {
+          console.error(`[PushBacklog] Failed to record update history:`, histErr);
+        }
 
         processed++;
         quotaUsed += item.estimatedQuotaCost;
