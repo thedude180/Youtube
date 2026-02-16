@@ -6,6 +6,15 @@ import { eq } from "drizzle-orm";
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
+export function parseNumericId(raw: string, res: Response, label = "ID"): number | null {
+  const id = Number(raw);
+  if (isNaN(id) || !Number.isFinite(id)) {
+    res.status(400).json({ error: `Invalid ${label}` });
+    return null;
+  }
+  return id;
+}
+
 export function asyncHandler(fn: AsyncHandler) {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);

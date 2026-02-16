@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { ADMIN_EMAIL } from "@shared/schema";
 import { storage } from "../storage";
-import { requireAuth, requireAdmin, getUserId } from "./helpers";
+import { requireAuth, requireAdmin, getUserId, parseNumericId } from "./helpers";
 
 export function registerAdminRoutes(app: Express) {
   app.get("/api/user/profile", async (req, res) => {
@@ -126,8 +126,10 @@ export function registerAdminRoutes(app: Express) {
   app.delete("/api/admin/access-codes/:id", async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
-      const revoked = await storage.revokeAccessCode(Number(req.params.id));
+      const revoked = await storage.revokeAccessCode(id);
       res.json(revoked);
     } catch (e: any) {
       res.status(500).json({ error: e.message });

@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { linkedChannels, streamDestinations, subscriptions } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
-import { requireAuth, getUserId } from "./helpers";
+import { requireAuth, getUserId, parseNumericId } from "./helpers";
 import { trackQuotaUsage, getQuotaStatus } from "../services/youtube-quota-tracker";
 import { smartPushOrQueue, getBacklogStats, processBacklog, retryFailedItems, addToBacklog } from "../services/youtube-push-backlog";
 import {
@@ -92,8 +92,10 @@ export async function registerPlatformRoutes(app: Express) {
   app.put(api.community.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     const { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement } = req.body || {};
-    const post = await storage.updateCommunityPost(Number(req.params.id), { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement });
+    const post = await storage.updateCommunityPost(id, { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement });
     res.json(post);
   });
 
@@ -158,10 +160,12 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/youtube/channel/:channelId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const channelId = parseNumericId(req.params.channelId as string, res, "channel ID");
+    if (channelId === null) return;
     try {
-      const channel = await storage.getChannel(Number(req.params.channelId));
+      const channel = await storage.getChannel(channelId);
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
-      const info = await fetchYouTubeChannelInfo(Number(req.params.channelId));
+      const info = await fetchYouTubeChannelInfo(channelId);
       trackQuotaUsage(userId, "read", 2);
       res.json(info);
     } catch (error: any) {
@@ -172,10 +176,12 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/youtube/videos/:channelId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const channelId = parseNumericId(req.params.channelId as string, res, "channel ID");
+    if (channelId === null) return;
     try {
-      const channel = await storage.getChannel(Number(req.params.channelId));
+      const channel = await storage.getChannel(channelId);
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
-      const videos = await fetchYouTubeVideos(Number(req.params.channelId), Number(req.query.maxResults) || 200);
+      const videos = await fetchYouTubeVideos(channelId, Number(req.query.maxResults) || 200);
       const videoCount = Math.max(1, Math.ceil(videos.length / 50));
       trackQuotaUsage(userId, "read", videoCount + 1);
       res.json(videos);
@@ -187,10 +193,12 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/youtube/sync/:channelId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const channelId = parseNumericId(req.params.channelId as string, res, "channel ID");
+    if (channelId === null) return;
     try {
-      const channel = await storage.getChannel(Number(req.params.channelId));
+      const channel = await storage.getChannel(channelId);
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
-      const result = await syncYouTubeVideosToLibrary(Number(req.params.channelId), userId);
+      const result = await syncYouTubeVideosToLibrary(channelId, userId);
       const syncReadOps = Math.max(1, Math.ceil(result.synced.length / 50)) + 1;
       trackQuotaUsage(userId, "read", syncReadOps);
       res.json({ synced: result.synced.length, newVideos: result.newVideos.length, videos: result.synced });
@@ -202,11 +210,13 @@ export async function registerPlatformRoutes(app: Express) {
   app.put("/api/youtube/video/:channelId/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const channelId = parseNumericId(req.params.channelId as string, res, "channel ID");
+    if (channelId === null) return;
     try {
-      const channel = await storage.getChannel(Number(req.params.channelId));
+      const channel = await storage.getChannel(channelId);
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
       const result = await updateYouTubeVideo(
-        Number(req.params.channelId),
+        channelId,
         req.params.videoId,
         req.body
       );
@@ -220,9 +230,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/youtube/push-optimization/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const vId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (vId === null) return;
     try {
-      const vId = Number(req.params.videoId);
-      if (isNaN(vId)) return res.status(400).json({ error: "Invalid video ID" });
       const video = await storage.getVideo(vId);
       if (!video) return res.status(404).json({ error: "Video not found" });
       if (!video.channelId) return res.status(400).json({ error: "Video has no channel" });
@@ -336,9 +346,11 @@ export async function registerPlatformRoutes(app: Express) {
   app.put("/api/subscriptions/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(subscriptions).where(and(eq(subscriptions.id, Number(req.params.id)), eq(subscriptions.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(subscriptions).where(and(eq(subscriptions.id, id), eq(subscriptions.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const sub = await storage.updateSubscription(Number(req.params.id), req.body);
+    const sub = await storage.updateSubscription(id, req.body);
     res.json(sub);
   });
 
@@ -401,7 +413,7 @@ export async function registerPlatformRoutes(app: Express) {
       let stealthStatus = null;
       try {
         stealthStatus = await getGuardrailStatus(userId);
-      } catch {}
+      } catch (e: any) { console.error("[Platform] Stealth status error:", e?.message); }
 
       if (!res.headersSent) {
         res.json({
@@ -492,8 +504,10 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/shorts/extract/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
     try {
-      const result = await extractClipsFromVideo(userId, Number(req.params.videoId));
+      const result = await extractClipsFromVideo(userId, videoId);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -504,8 +518,10 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/shorts/hook/:clipId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const clipId = parseNumericId(req.params.clipId as string, res, "clip ID");
+    if (clipId === null) return;
     try {
-      const result = await generateClipHook(userId, Number(req.params.clipId));
+      const result = await generateClipHook(userId, clipId);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -516,8 +532,10 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/shorts/virality/:clipId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const clipId = parseNumericId(req.params.clipId as string, res, "clip ID");
+    if (clipId === null) return;
     try {
-      const result = await predictClipVirality(userId, Number(req.params.clipId));
+      const result = await predictClipVirality(userId, clipId);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -552,8 +570,10 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/shorts/track-performance/:clipId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const clipId = parseNumericId(req.params.clipId as string, res, "clip ID");
+    if (clipId === null) return;
     try {
-      const result = await trackClipPerformance(userId, Number(req.params.clipId), req.body);
+      const result = await trackClipPerformance(userId, clipId, req.body);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -578,14 +598,18 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/optimization/metadata/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await runMetadataOptimizer(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await runMetadataOptimizer(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
   app.post("/api/optimization/ab-test/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await runAbTestEngine(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await runAbTestEngine(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -606,7 +630,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/optimization/viral-score/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await predictViralScore(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await predictViralScore(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -620,7 +646,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/optimization/sentiment/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await analyzeSentiment(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await analyzeSentiment(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -634,7 +662,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/optimization/lifecycle/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await manageContentLifecycle(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await manageContentLifecycle(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -669,7 +699,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/optimization/ctr/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await optimizeCtr(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await optimizeCtr(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -704,7 +736,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/optimization/full-pass/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await runFullOptimizationPass(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await runFullOptimizationPass(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -732,21 +766,27 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/youtube-manager/playlist/:playlistId/add", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await addToPlaylist(Number(req.params.playlistId), req.body.videoId, req.body.position); res.json(result); }
+    const playlistId = parseNumericId(req.params.playlistId as string, res, "playlist ID");
+    if (playlistId === null) return;
+    try { const result = await addToPlaylist(playlistId, req.body.videoId, req.body.position); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
   app.get("/api/youtube-manager/playlist/:playlistId/seo", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await getPlaylistSeoScore(Number(req.params.playlistId)); res.json(result); }
+    const playlistId = parseNumericId(req.params.playlistId as string, res, "playlist ID");
+    if (playlistId === null) return;
+    try { const result = await getPlaylistSeoScore(playlistId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
   app.post("/api/youtube-manager/pinned-comment/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await generatePinnedComment(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await generatePinnedComment(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -760,7 +800,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/youtube-manager/multi-language/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await generateMultiLanguageMetadata(userId, Number(req.params.videoId), req.body.languages); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await generateMultiLanguageMetadata(userId, videoId, req.body.languages); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -802,7 +844,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/repurpose/b-roll/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await suggestBRoll(userId, Number(req.params.videoId)); res.json(result); }
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    try { const result = await suggestBRoll(userId, videoId); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: error.message }); }
   });
 
@@ -1199,9 +1243,11 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       const [result] = await db.update(linkedChannels)
         .set(req.body)
-        .where(and(eq(linkedChannels.id, Number(req.params.id)), eq(linkedChannels.userId, userId)))
+        .where(and(eq(linkedChannels.id, id), eq(linkedChannels.userId, userId)))
         .returning();
       res.json(result);
     } catch (error: any) {
@@ -1242,8 +1288,10 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       await db.delete(linkedChannels)
-        .where(and(eq(linkedChannels.id, Number(req.params.id)), eq(linkedChannels.userId, userId)));
+        .where(and(eq(linkedChannels.id, id), eq(linkedChannels.userId, userId)));
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error:", error);

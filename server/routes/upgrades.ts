@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc } from "drizzle-orm";
-import { requireAuth, getUserId, asyncHandler } from "./helpers";
+import { requireAuth, getUserId, asyncHandler, parseNumericId } from "./helpers";
 import {
   contentIdeas, auditLogs, videos, channels, notifications,
   scheduleItems, communityPosts,
@@ -862,8 +862,10 @@ export function registerUpgradeRoutes(app: Express) {
   app.patch("/api/production/kanban/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
-      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
       const updates: any = {};
       if (req.body.title) updates.title = req.body.title;
@@ -872,7 +874,7 @@ export function registerUpgradeRoutes(app: Express) {
       if (req.body.priority !== undefined) updates.priority = req.body.priority;
       if (req.body.difficulty) updates.difficulty = req.body.difficulty;
       if (req.body.metadata) updates.metadata = req.body.metadata;
-      const item = await storage.updateContentIdea(Number(req.params.id), updates);
+      const item = await storage.updateContentIdea(id, updates);
       res.json(item);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Kanban update failed" });
@@ -882,10 +884,12 @@ export function registerUpgradeRoutes(app: Express) {
   app.delete("/api/production/kanban/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
-      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
-      await storage.deleteContentIdea(Number(req.params.id));
+      await storage.deleteContentIdea(id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Kanban delete failed" });
@@ -895,11 +899,13 @@ export function registerUpgradeRoutes(app: Express) {
   app.patch("/api/production/kanban/:id/stage", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
-      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
       const { stage } = req.body;
-      const item = await storage.updateContentIdea(Number(req.params.id), { status: stage });
+      const item = await storage.updateContentIdea(id, { status: stage });
       await storage.createAuditLog({
         userId,
         action: "kanban_stage_moved",
@@ -949,13 +955,15 @@ export function registerUpgradeRoutes(app: Express) {
   app.patch("/api/production/upload-queue/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
       const updates: any = {};
       if (req.body.title) updates.title = req.body.title;
       if (req.body.status) updates.status = req.body.status;
       if (req.body.scheduledAt) updates.scheduledAt = new Date(req.body.scheduledAt);
       if (req.body.metadata) updates.metadata = req.body.metadata;
-      const item = await storage.updateScheduleItem(Number(req.params.id), updates);
+      const item = await storage.updateScheduleItem(id, updates);
       res.json(item);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Upload queue update failed" });
@@ -966,7 +974,9 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const feedback = await storage.getUserFeedback(userId, "editing_note", Number(req.params.videoId));
+      const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+      if (videoId === null) return;
+      const feedback = await storage.getUserFeedback(userId, "editing_note", videoId);
       res.json(feedback);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Editing notes fetch failed" });
@@ -995,9 +1005,11 @@ export function registerUpgradeRoutes(app: Express) {
   app.patch("/api/production/editing-notes/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
       const { note, priority, title, content } = req.body || {};
-      res.json({ id: Number(req.params.id), note, priority, title, content, updatedAt: new Date().toISOString() });
+      res.json({ id, note, priority, title, content, updatedAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Editing note update failed" });
     }
@@ -1006,8 +1018,10 @@ export function registerUpgradeRoutes(app: Express) {
   app.delete("/api/production/editing-notes/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
-      res.json({ success: true, id: Number(req.params.id) });
+      res.json({ success: true, id });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Editing note delete failed" });
     }
@@ -1071,9 +1085,11 @@ export function registerUpgradeRoutes(app: Express) {
   app.patch("/api/community/giveaways/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
       const { title, description, prize, endDate, platforms, rules, status } = req.body || {};
-      res.json({ id: Number(req.params.id), title, description, prize, endDate, platforms, rules, status, updatedAt: new Date().toISOString() });
+      res.json({ id, title, description, prize, endDate, platforms, rules, status, updatedAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Giveaway update failed" });
     }
@@ -1082,6 +1098,8 @@ export function registerUpgradeRoutes(app: Express) {
   app.post("/api/community/giveaways/:id/draw", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
       const rng = seedRandom(userId + "draw" + req.params.id + Date.now());
       const winner = `User_${seededInt(rng, 1000, 99999)}`;
@@ -1092,7 +1110,7 @@ export function registerUpgradeRoutes(app: Express) {
         details: { winner },
         riskLevel: "low",
       });
-      res.json({ winner, giveawayId: Number(req.params.id), drawnAt: new Date().toISOString() });
+      res.json({ winner, giveawayId: id, drawnAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Winner draw failed" });
     }
@@ -1143,9 +1161,11 @@ export function registerUpgradeRoutes(app: Express) {
   app.patch("/api/community/polls/:id/vote", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
       const { optionIndex } = req.body;
-      res.json({ success: true, pollId: Number(req.params.id), votedOption: optionIndex, votedAt: new Date().toISOString() });
+      res.json({ success: true, pollId: id, votedOption: optionIndex, votedAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Vote failed" });
     }
@@ -1197,9 +1217,11 @@ export function registerUpgradeRoutes(app: Express) {
   app.patch("/api/community/challenges/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
       const { title, description, type, goal, duration, reward, status } = req.body || {};
-      res.json({ id: Number(req.params.id), title, description, type, goal, duration, reward, status, updatedAt: new Date().toISOString() });
+      res.json({ id, title, description, type, goal, duration, reward, status, updatedAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Challenge update failed" });
     }
@@ -1425,6 +1447,8 @@ export function registerUpgradeRoutes(app: Express) {
   app.post("/api/stream-upgrades/highlights/:id/clip", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
       const { startTime, endTime, title } = req.body;
       await storage.createAuditLog({
@@ -1436,7 +1460,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.json({
         clipId: Date.now(),
-        highlightId: Number(req.params.id),
+        highlightId: id,
         title: title || "New Clip",
         startTime, endTime,
         status: "processing",

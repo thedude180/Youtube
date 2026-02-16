@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { contentPipeline, streamPipelines, videos, PIPELINE_STEPS } from "@shared/schema";
 import { eq, and, desc, or, sql } from "drizzle-orm";
-import { getUserId } from "./helpers";
+import { getUserId, parseNumericId } from "./helpers";
 import { storage } from "../storage";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -139,7 +139,7 @@ export async function executePipelineInBackground(id: number, videoTitle: string
               result.posts[i].safetyGrade = guardrailed.safetyGrade;
             }
           }
-        } catch {}
+        } catch (e: any) { console.error(`[Pipeline] Guardrail error for step ${step}:`, e?.message); }
       }
 
       currentResults[step] = result;
@@ -322,7 +322,8 @@ export function registerPipelineRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       const [pipeline] = await db.select().from(contentPipeline)
         .where(and(eq(contentPipeline.id, id), eq(contentPipeline.userId, userId)));
 
@@ -352,7 +353,8 @@ export function registerPipelineRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       const { step } = req.body;
       if (!step || !STEP_IDS.includes(step)) return res.status(400).json({ error: "Invalid step" });
 
@@ -396,7 +398,8 @@ export function registerPipelineRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       await db.delete(contentPipeline)
         .where(and(eq(contentPipeline.id, id), eq(contentPipeline.userId, userId)));
       res.json({ success: true });
@@ -409,7 +412,8 @@ export function registerPipelineRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       const [pipeline] = await db.select().from(contentPipeline)
         .where(and(eq(contentPipeline.id, id), eq(contentPipeline.userId, userId)));
       if (!pipeline) return res.status(404).json({ error: "Pipeline not found" });

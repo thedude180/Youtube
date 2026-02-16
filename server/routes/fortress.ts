@@ -1,6 +1,6 @@
 import { Express, Request, Response } from "express";
 import { z } from "zod";
-import { asyncHandler, requireAuth, requireAdmin, getUserTier } from "./helpers";
+import { asyncHandler, requireAuth, requireAdmin, getUserTier, parseNumericId } from "./helpers";
 
 import {
   recordLoginAttempt, checkAccountLock, lockAccount, unlockAccount,
@@ -102,7 +102,9 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/fortress/alerts/:id/acknowledge", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const success = await acknowledgeAlert(parseInt(req.params.id), userId);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const success = await acknowledgeAlert(id, userId);
     res.json({ success });
   }));
 
@@ -259,14 +261,18 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/automation-ops/dlq/:id/retry", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const result = await retryDeadLetterItem(parseInt(req.params.id));
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const result = await retryDeadLetterItem(id);
     res.json(result);
   }));
 
   app.post("/api/automation-ops/dlq/:id/resolve", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    await resolveDeadLetterItem(parseInt(req.params.id));
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    await resolveDeadLetterItem(id);
     res.json({ success: true, message: "Item resolved" });
   }));
 

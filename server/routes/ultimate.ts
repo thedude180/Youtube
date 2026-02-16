@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { getUserId, requireTier, EMPIRE_TIER_GATES } from "./helpers";
+import { getUserId, requireTier, EMPIRE_TIER_GATES, parseNumericId } from "./helpers";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
 import { experiments, predictiveTrends, migrationCampaigns, collabCandidates, compoundingJobs, merchIdeas, localizationJobs, liveCopilotSuggestions } from "@shared/schema";
@@ -39,7 +39,7 @@ function requireAuth(req: Request, res: Response): string | null {
   return getUserId(req);
 }
 
-function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
+function asyncHandler(fn: (req: Request, res: Response) => Promise<any>) {
   return (req: Request, res: Response) => {
     fn(req, res).catch((err: any) => {
       console.error(`Ultimate route error [${req.method} ${req.path}]:`, err?.message || err);
@@ -118,9 +118,10 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/experiments/:id/metrics", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const experimentId = parseInt(req.params.id);
+    const experimentId = parseNumericId(req.params.id as string, res, "experiment ID");
+    if (experimentId === null) return;
     const [experiment] = await db.select().from(experiments).where(and(eq(experiments.id, experimentId), eq(experiments.userId, userId))).limit(1);
-    if (!experiment) return res.status(404).json({ error: "Not found" });
+    if (!experiment) { res.status(404).json({ error: "Not found" }); return; }
     const { variantId, metrics } = req.body;
     await recordVariantMetrics(experimentId, variantId, metrics);
     res.json({ success: true });
@@ -129,9 +130,10 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/experiments/:id/evaluate", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const experimentId = parseInt(req.params.id);
+    const experimentId = parseNumericId(req.params.id as string, res, "experiment ID");
+    if (experimentId === null) return;
     const [experiment] = await db.select().from(experiments).where(and(eq(experiments.id, experimentId), eq(experiments.userId, userId))).limit(1);
-    if (!experiment) return res.status(404).json({ error: "Not found" });
+    if (!experiment) { res.status(404).json({ error: "Not found" }); return; }
     const result = await evaluateExperiment(experimentId);
     res.json(result);
   }));
@@ -155,9 +157,10 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/intelligence/trends/:id/action", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const trendId = parseInt(req.params.id);
+    const trendId = parseNumericId(req.params.id as string, res, "trend ID");
+    if (trendId === null) return;
     const [trend] = await db.select().from(predictiveTrends).where(and(eq(predictiveTrends.id, trendId), eq(predictiveTrends.userId, userId))).limit(1);
-    if (!trend) return res.status(404).json({ error: "Not found" });
+    if (!trend) { res.status(404).json({ error: "Not found" }); return; }
     await markTrendActioned(trendId);
     res.json({ success: true });
   }));
@@ -165,9 +168,10 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/intelligence/trends/:id/content", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const trendId = parseInt(req.params.id);
+    const trendId = parseNumericId(req.params.id as string, res, "trend ID");
+    if (trendId === null) return;
     const [trend] = await db.select().from(predictiveTrends).where(and(eq(predictiveTrends.id, trendId), eq(predictiveTrends.userId, userId))).limit(1);
-    if (!trend) return res.status(404).json({ error: "Not found" });
+    if (!trend) { res.status(404).json({ error: "Not found" }); return; }
     const content = await generateTrendContent(userId, trendId);
     res.json(content);
   }));
@@ -240,16 +244,22 @@ export function registerUltimateRoutes(app: Express) {
   app.get("/api/stream/copilot/history", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const streamId = req.query.streamId ? parseInt(req.query.streamId as string) : undefined;
+    let streamId: number | undefined;
+    if (req.query.streamId) {
+      const parsed = parseNumericId(req.query.streamId as string, res, "streamId");
+      if (parsed === null) return;
+      streamId = parsed;
+    }
     const history = await getSuggestionHistory(userId, streamId);
     res.json(history);
   }));
 
   app.post("/api/stream/copilot/:id/used", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const suggestionId = parseInt(req.params.id);
+    const suggestionId = parseNumericId(req.params.id as string, res, "suggestion ID");
+    if (suggestionId === null) return;
     const [suggestion] = await db.select().from(liveCopilotSuggestions).where(and(eq(liveCopilotSuggestions.id, suggestionId), eq(liveCopilotSuggestions.userId, userId))).limit(1);
-    if (!suggestion) return res.status(404).json({ error: "Not found" });
+    if (!suggestion) { res.status(404).json({ error: "Not found" }); return; }
     const { impactScore } = req.body;
     await markSuggestionUsed(suggestionId, impactScore);
     res.json({ success: true });
@@ -280,9 +290,10 @@ export function registerUltimateRoutes(app: Express) {
 
   app.post("/api/growth/migration/:id/metrics", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const campaignId = parseInt(req.params.id);
+    const campaignId = parseNumericId(req.params.id as string, res, "campaign ID");
+    if (campaignId === null) return;
     const [campaign] = await db.select().from(migrationCampaigns).where(and(eq(migrationCampaigns.id, campaignId), eq(migrationCampaigns.userId, userId))).limit(1);
-    if (!campaign) return res.status(404).json({ error: "Not found" });
+    if (!campaign) { res.status(404).json({ error: "Not found" }); return; }
     const { migratedCount, conversionRate } = req.body;
     await updateCampaignMetrics(campaignId, migratedCount, conversionRate);
     res.json({ success: true });
@@ -291,9 +302,10 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/growth/migration/:id/content", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const campaignId = parseInt(req.params.id);
+    const campaignId = parseNumericId(req.params.id as string, res, "campaign ID");
+    if (campaignId === null) return;
     const [campaign] = await db.select().from(migrationCampaigns).where(and(eq(migrationCampaigns.id, campaignId), eq(migrationCampaigns.userId, userId))).limit(1);
-    if (!campaign) return res.status(404).json({ error: "Not found" });
+    if (!campaign) { res.status(404).json({ error: "Not found" }); return; }
     const content = await generateCrossPromotionContent(userId, campaignId);
     res.json(content);
   }));
@@ -315,18 +327,20 @@ export function registerUltimateRoutes(app: Express) {
 
   app.post("/api/growth/collabs/:id/outreach", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const candidateId = parseInt(req.params.id);
+    const candidateId = parseNumericId(req.params.id as string, res, "candidate ID");
+    if (candidateId === null) return;
     const [candidate] = await db.select().from(collabCandidates).where(and(eq(collabCandidates.id, candidateId), eq(collabCandidates.userId, userId))).limit(1);
-    if (!candidate) return res.status(404).json({ error: "Not found" });
+    if (!candidate) { res.status(404).json({ error: "Not found" }); return; }
     const draft = await generateOutreachDraft(candidateId);
     res.json(draft);
   }));
 
   app.post("/api/growth/collabs/:id/status", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const candidateId = parseInt(req.params.id);
+    const candidateId = parseNumericId(req.params.id as string, res, "candidate ID");
+    if (candidateId === null) return;
     const [candidate] = await db.select().from(collabCandidates).where(and(eq(collabCandidates.id, candidateId), eq(collabCandidates.userId, userId))).limit(1);
-    if (!candidate) return res.status(404).json({ error: "Not found" });
+    if (!candidate) { res.status(404).json({ error: "Not found" }); return; }
     const { status, responseReceived } = req.body;
     await updateOutreachStatus(candidateId, status, responseReceived);
     res.json({ success: true });
@@ -335,9 +349,10 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/growth/collabs/:id/formats", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const candidateId = parseInt(req.params.id);
+    const candidateId = parseNumericId(req.params.id as string, res, "candidate ID");
+    if (candidateId === null) return;
     const [candidate] = await db.select().from(collabCandidates).where(and(eq(collabCandidates.id, candidateId), eq(collabCandidates.userId, userId))).limit(1);
-    if (!candidate) return res.status(404).json({ error: "Not found" });
+    if (!candidate) { res.status(404).json({ error: "Not found" }); return; }
     const formats = await suggestCollabFormats(userId, candidateId);
     res.json(formats);
   }));
@@ -388,18 +403,20 @@ export function registerUltimateRoutes(app: Express) {
 
   app.post("/api/content/compounding/:id/execute", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const jobId = parseInt(req.params.id);
+    const jobId = parseNumericId(req.params.id as string, res, "job ID");
+    if (jobId === null) return;
     const [job] = await db.select().from(compoundingJobs).where(and(eq(compoundingJobs.id, jobId), eq(compoundingJobs.userId, userId))).limit(1);
-    if (!job) return res.status(404).json({ error: "Not found" });
+    if (!job) { res.status(404).json({ error: "Not found" }); return; }
     const result = await executeCompoundingJob(jobId);
     res.json(result);
   }));
 
   app.post("/api/content/compounding/:id/impact", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const jobId = parseInt(req.params.id);
+    const jobId = parseNumericId(req.params.id as string, res, "job ID");
+    if (jobId === null) return;
     const [job] = await db.select().from(compoundingJobs).where(and(eq(compoundingJobs.id, jobId), eq(compoundingJobs.userId, userId))).limit(1);
-    if (!job) return res.status(404).json({ error: "Not found" });
+    if (!job) { res.status(404).json({ error: "Not found" }); return; }
     const impact = await measureCompoundingImpact(jobId);
     res.json(impact);
   }));
@@ -420,18 +437,20 @@ export function registerUltimateRoutes(app: Express) {
 
   app.post("/api/money/merch/:id/design-brief", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const ideaId = parseInt(req.params.id);
+    const ideaId = parseNumericId(req.params.id as string, res, "merch idea ID");
+    if (ideaId === null) return;
     const [idea] = await db.select().from(merchIdeas).where(and(eq(merchIdeas.id, ideaId), eq(merchIdeas.userId, userId))).limit(1);
-    if (!idea) return res.status(404).json({ error: "Not found" });
+    if (!idea) { res.status(404).json({ error: "Not found" }); return; }
     const brief = await generateDesignBrief(ideaId);
     res.json(brief);
   }));
 
   app.post("/api/money/merch/:id/demand", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const ideaId = parseInt(req.params.id);
+    const ideaId = parseNumericId(req.params.id as string, res, "merch idea ID");
+    if (ideaId === null) return;
     const [idea] = await db.select().from(merchIdeas).where(and(eq(merchIdeas.id, ideaId), eq(merchIdeas.userId, userId))).limit(1);
-    if (!idea) return res.status(404).json({ error: "Not found" });
+    if (!idea) { res.status(404).json({ error: "Not found" }); return; }
     const demand = await estimateDemand(ideaId);
     res.json(demand);
   }));
@@ -453,7 +472,8 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/platform/algorithm/:id/adapt", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const signalId = parseInt(req.params.id);
+    const signalId = parseNumericId(req.params.id as string, res, "signal ID");
+    if (signalId === null) return;
     const strategy = await generateAdaptationStrategy(signalId);
     res.json(strategy);
   }));
@@ -461,7 +481,8 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/platform/algorithm/:id/auto-adapt", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const signalId = parseInt(req.params.id);
+    const signalId = parseNumericId(req.params.id as string, res, "signal ID");
+    if (signalId === null) return;
     const result = await autoAdaptPipeline(userId, signalId);
     res.json(result);
   }));
@@ -484,7 +505,8 @@ export function registerUltimateRoutes(app: Express) {
 
   app.post("/api/platform/shadowban/:id/recovery", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const anomalyId = parseInt(req.params.id);
+    const anomalyId = parseNumericId(req.params.id as string, res, "anomaly ID");
+    if (anomalyId === null) return;
     const plan = await generateRecoveryPlan(anomalyId);
     res.json(plan);
   }));
@@ -507,9 +529,10 @@ export function registerUltimateRoutes(app: Express) {
 
   app.post("/api/content/localization/:id/process", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res); if (!userId) return;
-    const jobId = parseInt(req.params.id);
+    const jobId = parseNumericId(req.params.id as string, res, "localization job ID");
+    if (jobId === null) return;
     const [locJob] = await db.select().from(localizationJobs).where(and(eq(localizationJobs.id, jobId), eq(localizationJobs.userId, userId))).limit(1);
-    if (!locJob) return res.status(404).json({ error: "Not found" });
+    if (!locJob) { res.status(404).json({ error: "Not found" }); return; }
     const result = await processLocalizationJob(jobId);
     res.json(result);
   }));
@@ -541,7 +564,12 @@ export function registerUltimateRoutes(app: Express) {
   app.get("/api/money/tax/estimates", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    let year: number | undefined;
+    if (req.query.year) {
+      const parsed = parseNumericId(req.query.year as string, res, "year");
+      if (parsed === null) return;
+      year = parsed;
+    }
     const estimates = await getTaxEstimates(userId, year);
     res.json(estimates);
   }));
@@ -709,7 +737,7 @@ export function registerUltimateRoutes(app: Express) {
     const gate = EMPIRE_TIER_GATES["empire-video-detail"];
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
-    const video = await getVideoCreation(userId, req.params.videoKey);
+    const video = await getVideoCreation(userId, req.params.videoKey as string);
     if (!video) {
       res.status(404).json({ error: "Video creation not found" });
       return;
@@ -772,7 +800,8 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/security/learn/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const eventId = parseInt(req.params.id);
+    const eventId = parseNumericId(req.params.id as string, res, "event ID");
+    if (eventId === null) return;
     const result = await learnFromAttack(eventId);
     res.json(result);
   }));
@@ -822,7 +851,7 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/customers/:id/enrich", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const targetUserId = req.params.id;
+    const targetUserId = req.params.id as string;
     const enriched = await enrichCustomerProfile(targetUserId);
     res.json(enriched);
   }));
@@ -845,7 +874,7 @@ export function registerUltimateRoutes(app: Express) {
   app.get("/api/customers/:id/timeline", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const targetUserId = req.params.id;
+    const targetUserId = req.params.id as string;
     const timeline = await getCustomerTimeline(targetUserId);
     res.json(timeline);
   }));
@@ -853,7 +882,7 @@ export function registerUltimateRoutes(app: Express) {
   app.post("/api/customers/:id/tier-change", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const targetUserId = req.params.id;
+    const targetUserId = req.params.id as string;
     const { newTier, reason } = req.body;
     await recordTierChange(targetUserId, newTier, reason);
     res.json({ success: true });
@@ -909,7 +938,7 @@ export function registerUltimateRoutes(app: Express) {
   }));
 
   app.get("/api/empire/launch/:buildToken", asyncHandler(async (req, res) => {
-    const { buildToken } = req.params;
+    const buildToken = req.params.buildToken as string;
     if (!buildToken || buildToken.length < 10) {
       res.status(400).json({ error: "Invalid build token" });
       return;

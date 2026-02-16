@@ -12,7 +12,7 @@ import {
   processCrossPromotion,
 } from "../autopilot-engine";
 import { getStealthReport } from "../content-variation-engine";
-import { getUserId, requireTier } from "./helpers";
+import { getUserId, requireTier, parseNumericId } from "./helpers";
 import { storage } from "../storage";
 import {
   getAudienceDrivenTime,
@@ -88,7 +88,8 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "AI Comment Responder");
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       const [updated] = await db.update(commentResponses)
         .set({ status: "approved", publishedAt: new Date() })
         .where(and(eq(commentResponses.id, id), eq(commentResponses.userId, userId)))
@@ -103,7 +104,8 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "AI Comment Responder");
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       const [updated] = await db.update(commentResponses)
         .set({ status: "rejected" })
         .where(and(eq(commentResponses.id, id), eq(commentResponses.userId, userId)))
@@ -181,7 +183,8 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       await db.delete(autopilotQueue)
         .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)));
       res.json({ success: true });
@@ -217,7 +220,8 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const id = parseInt(req.params.id);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
       const [updated] = await db.update(autopilotQueue)
         .set({ status: "published", publishedAt: new Date() })
         .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)))

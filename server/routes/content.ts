@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
-import { requireAuth, getUserId, requireTier } from "./helpers";
+import { requireAuth, getUserId, requireTier, parseNumericId } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
   generateVideoMetadata,
@@ -103,12 +103,14 @@ export function registerContentRoutes(app: Express) {
   app.put(api.channels.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     try {
-      const existing = await storage.getChannel(Number(req.params.id));
+      const existing = await storage.getChannel(id);
       if (!existing || existing.userId !== userId) return res.status(404).json({ error: "Not found" });
       const channelUpdateSchema = z.object({}).passthrough();
       const parsed = channelUpdateSchema.parse(req.body);
-      const channel = await storage.updateChannel(Number(req.params.id), parsed);
+      const channel = await storage.updateChannel(id, parsed);
       await storage.createAuditLog({
         userId,
         action: "channel_updated",
@@ -126,9 +128,11 @@ export function registerContentRoutes(app: Express) {
   app.delete("/api/channels/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const channel = await storage.getChannel(Number(req.params.id));
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const channel = await storage.getChannel(id);
     if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
-    await storage.deleteChannel(Number(req.params.id));
+    await storage.deleteChannel(id);
     await storage.createAuditLog({
       userId,
       action: "channel_deleted",
@@ -172,8 +176,8 @@ export function registerContentRoutes(app: Express) {
   app.get(api.videos.get.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const videoId = Number(req.params.id);
-    if (isNaN(videoId)) return res.status(400).json({ message: "Invalid video ID" });
+    const videoId = parseNumericId(req.params.id as string, res, "video ID");
+    if (videoId === null) return;
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
     if (video.channelId) {
@@ -186,8 +190,8 @@ export function registerContentRoutes(app: Express) {
   app.put(api.videos.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const vidId = Number(req.params.id);
-    if (isNaN(vidId)) return res.status(400).json({ message: "Invalid video ID" });
+    const vidId = parseNumericId(req.params.id as string, res, "video ID");
+    if (vidId === null) return;
     const schema = z.object({
       title: z.string().min(1).optional(),
       description: z.string().optional(),
@@ -227,8 +231,8 @@ export function registerContentRoutes(app: Express) {
   app.delete(api.videos.delete.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const delId = Number(req.params.id);
-    if (isNaN(delId)) return res.status(400).json({ message: "Invalid video ID" });
+    const delId = parseNumericId(req.params.id as string, res, "video ID");
+    if (delId === null) return;
     const video = await storage.getVideo(delId);
     if (!video) return res.status(404).json({ message: "Video not found" });
     if (video.channelId) {
@@ -249,7 +253,8 @@ export function registerContentRoutes(app: Express) {
   app.post(api.videos.generateMetadata.path, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Metadata Generation");
     if (!userId) return;
-    const videoId = Number(req.params.id);
+    const videoId = parseNumericId(req.params.id as string, res);
+    if (videoId === null) return;
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
 
@@ -588,6 +593,8 @@ export function registerContentRoutes(app: Express) {
   app.put(api.strategies.updateStatus.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
     const schema = z.object({
       status: z.string().min(1),
     });
@@ -595,7 +602,7 @@ export function registerContentRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const strategy = await storage.updateGrowthStrategy(Number(req.params.id), { status: parsed.data.status });
+    const strategy = await storage.updateGrowthStrategy(id, { status: parsed.data.status });
     res.json(strategy);
   });
 
@@ -947,25 +954,31 @@ export function registerContentRoutes(app: Express) {
   app.put("/api/content-ideas/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const idea = await storage.updateContentIdea(Number(req.params.id), req.body);
+    const idea = await storage.updateContentIdea(id, req.body);
     res.json(idea);
   });
 
   app.delete("/api/content-ideas/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteContentIdea(Number(req.params.id));
+    await storage.deleteContentIdea(id);
     res.sendStatus(204);
   });
 
   app.get("/api/video-versions/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const versions = await storage.getVideoVersions(Number(req.params.videoId));
+    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    if (videoId === null) return;
+    const versions = await storage.getVideoVersions(videoId);
     res.json(versions);
   });
 

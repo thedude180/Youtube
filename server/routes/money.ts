@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { sql, eq, and } from "drizzle-orm";
 import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals } from "@shared/schema";
-import { requireAuth, getUserId, requireTier } from "./helpers";
+import { requireAuth, getUserId, requireTier, parseNumericId } from "./helpers";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
 import {
@@ -98,8 +98,8 @@ export function registerMoneyRoutes(app: Express) {
 
         try {
           const { initializeUserSystems } = await import("../services/post-login-init");
-          initializeUserSystems(userId).catch(() => {});
-        } catch {}
+          initializeUserSystems(userId).catch((e: any) => console.error("[VerifySession] Post-login init error:", e?.message));
+        } catch (e: any) { console.error("[VerifySession] Post-login import error:", e?.message); }
 
         return res.json({ tier: detectedTier, synced: true, previousTier: user.tier });
       }
@@ -329,18 +329,22 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/expenses/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, Number(req.params.id)), eq(expenseRecords.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, id), eq(expenseRecords.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const record = await storage.updateExpenseRecord(Number(req.params.id), req.body);
+    const record = await storage.updateExpenseRecord(id, req.body);
     res.json(record);
   });
 
   app.delete("/api/expenses/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, Number(req.params.id)), eq(expenseRecords.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, id), eq(expenseRecords.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteExpenseRecord(Number(req.params.id));
+    await storage.deleteExpenseRecord(id);
     res.sendStatus(204);
   });
 
@@ -435,18 +439,22 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/ventures/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, Number(req.params.id)), eq(businessVentures.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, id), eq(businessVentures.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const venture = await storage.updateBusinessVenture(Number(req.params.id), req.body);
+    const venture = await storage.updateBusinessVenture(id, req.body);
     res.json(venture);
   });
 
   app.delete("/api/ventures/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, Number(req.params.id)), eq(businessVentures.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, id), eq(businessVentures.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteBusinessVenture(Number(req.params.id));
+    await storage.deleteBusinessVenture(id);
     res.sendStatus(204);
   });
 
@@ -481,18 +489,22 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/goals/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, Number(req.params.id)), eq(businessGoals.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, id), eq(businessGoals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const goal = await storage.updateBusinessGoal(Number(req.params.id), req.body);
+    const goal = await storage.updateBusinessGoal(id, req.body);
     res.json(goal);
   });
 
   app.delete("/api/goals/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, Number(req.params.id)), eq(businessGoals.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, id), eq(businessGoals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteBusinessGoal(Number(req.params.id));
+    await storage.deleteBusinessGoal(id);
     res.sendStatus(204);
   });
 
@@ -526,9 +538,11 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/tax-estimates/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(taxEstimates).where(and(eq(taxEstimates.id, Number(req.params.id)), eq(taxEstimates.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(taxEstimates).where(and(eq(taxEstimates.id, id), eq(taxEstimates.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const estimate = await storage.updateTaxEstimate(Number(req.params.id), req.body);
+    const estimate = await storage.updateTaxEstimate(id, req.body);
     res.json(estimate);
   });
 
@@ -568,9 +582,11 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/sponsorship-deals/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, Number(req.params.id)), eq(sponsorshipDeals.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const deal = await storage.updateSponsorshipDeal(Number(req.params.id), req.body);
+    const deal = await storage.updateSponsorshipDeal(id, req.body);
     res.json(deal);
   });
 
@@ -578,7 +594,9 @@ export function registerMoneyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await suggestAdBreaks(userId, Number(req.params.videoId));
+      const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+      if (videoId === null) return;
+      const result = await suggestAdBreaks(userId, videoId);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -674,7 +692,9 @@ export function registerMoneyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await generateInvoice(userId, Number(req.params.dealId));
+      const dealId = parseNumericId(req.params.dealId as string, res, "deal ID");
+      if (dealId === null) return;
+      const result = await generateInvoice(userId, dealId);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -698,7 +718,9 @@ export function registerMoneyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await analyzeDeal(userId, Number(req.params.dealId));
+      const dealId = parseNumericId(req.params.dealId as string, res, "deal ID");
+      if (dealId === null) return;
+      const result = await analyzeDeal(userId, dealId);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);

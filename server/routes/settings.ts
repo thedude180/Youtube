@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
 import { brandAssets, competitorTracks, knowledgeMilestones } from "@shared/schema";
-import { requireAuth, getUserId, requireTier, EMPIRE_TIER_GATES } from "./helpers";
+import { requireAuth, getUserId, requireTier, EMPIRE_TIER_GATES, parseNumericId } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
   runStyleScan,
@@ -39,7 +39,9 @@ export function registerSettingsRoutes(app: Express) {
   app.post("/api/notifications/:id/read", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    await storage.markRead(Number(req.params.id));
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    await storage.markRead(id);
     res.json({ success: true });
   });
 
@@ -54,9 +56,11 @@ export function registerSettingsRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "Style Scanner");
     if (!userId) return;
     try {
-      const channel = await storage.getChannel(Number(req.params.channelId));
+      const channelId = parseNumericId(req.params.channelId as string, res, "channel ID");
+      if (channelId === null) return;
+      const channel = await storage.getChannel(channelId);
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
-      const profile = await runStyleScan(userId, Number(req.params.channelId));
+      const profile = await runStyleScan(userId, channelId);
       await storage.createAuditLog({
         userId,
         action: "style_scan_completed",
@@ -125,18 +129,22 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/brand-assets/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, Number(req.params.id)), eq(brandAssets.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, id), eq(brandAssets.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const asset = await storage.updateBrandAsset(Number(req.params.id), req.body);
+    const asset = await storage.updateBrandAsset(id, req.body);
     res.json(asset);
   });
 
   app.delete("/api/brand-assets/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, Number(req.params.id)), eq(brandAssets.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, id), eq(brandAssets.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteBrandAsset(Number(req.params.id));
+    await storage.deleteBrandAsset(id);
     res.sendStatus(204);
   });
 
@@ -168,18 +176,22 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/competitors/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, Number(req.params.id)), eq(competitorTracks.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, id), eq(competitorTracks.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const competitor = await storage.updateCompetitorTrack(Number(req.params.id), req.body);
+    const competitor = await storage.updateCompetitorTrack(id, req.body);
     res.json(competitor);
   });
 
   app.delete("/api/competitors/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, Number(req.params.id)), eq(competitorTracks.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, id), eq(competitorTracks.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteCompetitorTrack(Number(req.params.id));
+    await storage.deleteCompetitorTrack(id);
     res.sendStatus(204);
   });
 
@@ -211,9 +223,11 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/knowledge/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [existing] = await db.select().from(knowledgeMilestones).where(and(eq(knowledgeMilestones.id, Number(req.params.id)), eq(knowledgeMilestones.userId, userId))).limit(1);
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(knowledgeMilestones).where(and(eq(knowledgeMilestones.id, id), eq(knowledgeMilestones.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const milestone = await storage.updateKnowledgeMilestone(Number(req.params.id), req.body);
+    const milestone = await storage.updateKnowledgeMilestone(id, req.body);
     res.json(milestone);
   });
 
@@ -385,7 +399,9 @@ export function registerSettingsRoutes(app: Express) {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
     try {
-      const updated = await updateProgramMetrics(userId, Number(req.params.id), parsed.data.metrics);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
+      const updated = await updateProgramMetrics(userId, id, parsed.data.metrics);
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {
@@ -401,7 +417,9 @@ export function registerSettingsRoutes(app: Express) {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
     try {
-      const updated = await toggleAutoApply(userId, Number(req.params.id), parsed.data.enabled);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
+      const updated = await toggleAutoApply(userId, id, parsed.data.enabled);
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {
@@ -419,7 +437,9 @@ export function registerSettingsRoutes(app: Express) {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid status" });
     try {
-      const updated = await updateApplicationStatus(userId, Number(req.params.id), parsed.data.status);
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
+      const updated = await updateApplicationStatus(userId, id, parsed.data.status);
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {
@@ -433,7 +453,9 @@ export function registerSettingsRoutes(app: Express) {
     if (!userId) return;
     try {
       const programs = await getUserGrowthPrograms(userId);
-      const program = programs.find(p => p.id === Number(req.params.id));
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
+      const program = programs.find(p => p.id === id);
       if (!program) return res.status(404).json({ message: "Program not found" });
 
       const guide = await generateApplicationGuide(program.platform, program.programName, program.applicationUrl || "");
@@ -471,7 +493,9 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const updated = await activateMonetization(userId, Number(req.params.id));
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
+      const updated = await activateMonetization(userId, id);
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {

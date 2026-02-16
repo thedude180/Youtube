@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { requireAuth, getUserId } from "./helpers";
+import { requireAuth, getUserId, parseNumericId } from "./helpers";
 import {
   generateStreamSeo,
   postStreamOptimize,
@@ -62,7 +62,9 @@ export function registerStreamRoutes(app: Express) {
   app.put(api.streamDestinations.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const existing = await storage.getStreamDestination(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const existing = await storage.getStreamDestination(id);
     if (!existing || existing.userId !== userId) {
       return res.status(404).json({ message: "Destination not found" });
     }
@@ -77,18 +79,20 @@ export function registerStreamRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const dest = await storage.updateStreamDestination(Number(req.params.id), parsed.data);
+    const dest = await storage.updateStreamDestination(id, parsed.data);
     res.json(dest);
   });
 
   app.delete(api.streamDestinations.delete.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const existing = await storage.getStreamDestination(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const existing = await storage.getStreamDestination(id);
     if (!existing || existing.userId !== userId) {
       return res.status(404).json({ message: "Destination not found" });
     }
-    await storage.deleteStreamDestination(Number(req.params.id));
+    await storage.deleteStreamDestination(id);
     res.sendStatus(204);
   });
 
@@ -102,7 +106,9 @@ export function registerStreamRoutes(app: Express) {
   app.get(api.streams.get.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const stream = await storage.getStream(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
     res.json(stream);
   });
@@ -144,7 +150,9 @@ export function registerStreamRoutes(app: Express) {
   app.put(api.streams.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const existing = await storage.getStream(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const existing = await storage.getStream(id);
     if (!existing || existing.userId !== userId) {
       return res.status(404).json({ message: "Stream not found" });
     }
@@ -160,14 +168,16 @@ export function registerStreamRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const stream = await storage.updateStream(Number(req.params.id), parsed.data);
+    const stream = await storage.updateStream(id, parsed.data);
     res.json(stream);
   });
 
   app.post(api.streams.optimizeSeo.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const stream = await storage.getStream(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
 
     try {
@@ -196,7 +206,9 @@ export function registerStreamRoutes(app: Express) {
   app.post(api.streams.goLive.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const stream = await storage.getStream(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
     if (stream.status !== 'planned') {
       return res.status(400).json({ message: `Cannot go live from '${stream.status}' status. Stream must be in 'planned' state.` });
@@ -363,7 +375,9 @@ export function registerStreamRoutes(app: Express) {
   app.post(api.streams.endStream.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const stream = await storage.getStream(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
     if (stream.status !== 'live') {
       return res.status(400).json({ message: `Cannot end stream from '${stream.status}' status. Stream must be 'live'.` });
@@ -522,7 +536,8 @@ export function registerStreamRoutes(app: Express) {
   app.get(api.streams.automationStatus.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const streamId = Number(req.params.id);
+    const streamId = parseNumericId(req.params.id, res);
+    if (streamId === null) return;
     const allJobs = await storage.getJobs();
     const streamJobs = allJobs.filter(j =>
       (j.type === 'stream_automation' || j.type === 'post_stream_automation') &&
@@ -546,7 +561,9 @@ export function registerStreamRoutes(app: Express) {
   app.post(api.streams.postStreamProcess.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const stream = await storage.getStream(Number(req.params.id));
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
 
     try {
@@ -590,7 +607,9 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const status = await getMultiStreamStatus(userId, Number(req.params.id));
+      const id = parseNumericId(req.params.id, res);
+      if (id === null) return;
+      const status = await getMultiStreamStatus(userId, id);
       res.json(status);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -602,7 +621,9 @@ export function registerStreamRoutes(app: Express) {
     if (!userId) return;
     try {
       const limit = Number(req.query.limit) || 100;
-      const messages = await getLiveChatFeed(Number(req.params.id), limit);
+      const id = parseNumericId(req.params.id, res);
+      if (id === null) return;
+      const messages = await getLiveChatFeed(id, limit);
       res.json(messages);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -613,7 +634,9 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const stats = await getLiveChatStats(Number(req.params.id));
+      const id = parseNumericId(req.params.id, res);
+      if (id === null) return;
+      const stats = await getLiveChatStats(id);
       res.json(stats);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -634,9 +657,11 @@ export function registerStreamRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     try {
+      const id = parseNumericId(req.params.id, res);
+      if (id === null) return;
       const result = await processLiveChatMessage(
         userId,
-        Number(req.params.id),
+        id,
         parsed.data.platform,
         parsed.data.author,
         parsed.data.message,
