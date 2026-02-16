@@ -80,6 +80,7 @@ interface QueueItem {
 
 interface CommentItem {
   id: number;
+  platform: string;
   originalComment: string;
   originalAuthor: string;
   aiResponse: string;
@@ -697,6 +698,7 @@ export default function Autopilot() {
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusIcon status={comment.status} />
+                    <PlatformBadge platform={comment.platform || "youtube"} />
                     <Badge variant={comment.status === "pending" ? "default" : "secondary"}>
                       {comment.status}
                     </Badge>
