@@ -978,7 +978,7 @@ export function registerUpgradeRoutes(app: Express) {
         targetId: videoId || null,
         rating: priority || 3,
         comment: note || "",
-        metadata: { timestamp, priority },
+        metadata: { aiFunction: String(timestamp || ""), previousValue: String(priority || ""), newValue: note || "" },
       });
       res.status(201).json(entry);
     } catch (error: any) {
@@ -990,8 +990,8 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(userId + "note" + req.params.id);
-      res.json({ id: Number(req.params.id), ...req.body, updatedAt: new Date().toISOString() });
+      const { note, priority, title, content } = req.body || {};
+      res.json({ id: Number(req.params.id), note, priority, title, content, updatedAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Editing note update failed" });
     }
@@ -1066,7 +1066,8 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      res.json({ id: Number(req.params.id), ...req.body, updatedAt: new Date().toISOString() });
+      const { title, description, prize, endDate, platforms, rules, status } = req.body || {};
+      res.json({ id: Number(req.params.id), title, description, prize, endDate, platforms, rules, status, updatedAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Giveaway update failed" });
     }
@@ -1191,7 +1192,8 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      res.json({ id: Number(req.params.id), ...req.body, updatedAt: new Date().toISOString() });
+      const { title, description, type, goal, duration, reward, status } = req.body || {};
+      res.json({ id: Number(req.params.id), title, description, type, goal, duration, reward, status, updatedAt: new Date().toISOString() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Challenge update failed" });
     }

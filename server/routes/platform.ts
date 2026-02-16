@@ -90,7 +90,8 @@ export async function registerPlatformRoutes(app: Express) {
   app.put(api.community.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const post = await storage.updateCommunityPost(Number(req.params.id), req.body);
+    const { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement } = req.body || {};
+    const post = await storage.updateCommunityPost(Number(req.params.id), { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement });
     res.json(post);
   });
 

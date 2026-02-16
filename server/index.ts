@@ -97,33 +97,60 @@ app.post(
 
 app.use(compression());
 
+const isProduction = !!process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
+
 app.use(helmet({
   contentSecurityPolicy: {
-    reportOnly: true,
+    reportOnly: false,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com", "https://apis.google.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", ...(isProduction ? [] : ["'unsafe-eval'"]), "https://accounts.google.com", "https://apis.google.com", "https://js.stripe.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com", "wss:", "ws:"],
+      connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com", "https://api.stripe.com", "wss:", "ws:"],
       frameSrc: ["'self'", "https://accounts.google.com", "https://js.stripe.com", "https://checkout.stripe.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
-      formAction: ["'self'"],
+      formAction: ["'self'", "https://accounts.google.com"],
+      upgradeInsecureRequests: isProduction ? [] : null,
     },
   },
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "same-origin" },
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  noSniff: true,
+  xssFilter: true,
+  dnsPrefetchControl: { allow: false },
+  frameguard: { action: "deny" },
+  permittedCrossDomainPolicies: { permittedPolicies: "none" },
   permissionsPolicy: {
     features: {
       camera: ["'none'"],
       microphone: ["'self'"],
       geolocation: ["'none'"],
       payment: ["'self'"],
+      accelerometer: ["'none'"],
+      gyroscope: ["'none'"],
+      magnetometer: ["'none'"],
+      usb: ["'none'"],
     },
   },
 } as any));
+
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.removeHeader("X-Powered-By");
+  next();
+});
 
 app.use(
   express.json({
@@ -139,8 +166,54 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 initSecurityEngine().catch(err => console.error("[SecurityEngine] Init failed:", err));
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (req.query) {
+    for (const key of Object.keys(req.query)) {
+      if (Array.isArray(req.query[key])) {
+        (req.query as any)[key] = (req.query[key] as string[])[0];
+      }
+    }
+  }
+  next();
+});
+
+const globalRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const GLOBAL_RATE_LIMIT = 300;
+const GLOBAL_RATE_WINDOW = 60_000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of Array.from(globalRateLimitMap)) {
+    if (now - entry.windowStart > GLOBAL_RATE_WINDOW) globalRateLimitMap.delete(key);
+  }
+}, 30_000);
+
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (req.path === "/health" || req.path === "/stripe/webhook") return next();
+  const ip = req.ip || req.socket.remoteAddress || "anon";
+  const now = Date.now();
+  let entry = globalRateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > GLOBAL_RATE_WINDOW) {
+    entry = { count: 0, windowStart: now };
+    globalRateLimitMap.set(ip, entry);
+  }
+  entry.count++;
+  res.setHeader("X-RateLimit-Limit", String(GLOBAL_RATE_LIMIT));
+  res.setHeader("X-RateLimit-Remaining", String(Math.max(0, GLOBAL_RATE_LIMIT - entry.count)));
+  if (entry.count > GLOBAL_RATE_LIMIT) {
+    res.setHeader("Retry-After", String(Math.ceil((entry.windowStart + GLOBAL_RATE_WINDOW - now) / 1000)));
+    return res.status(429).json({ error: "rate_limited", message: "Too many requests. Please slow down." });
+  }
+  next();
+});
+
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   const ip = req.ip || req.socket.remoteAddress || "unknown";
   const ua = req.headers["user-agent"] || "unknown";
+
+  if (!ua || ua === "unknown" || ua.length < 5) {
+    return res.status(403).json({ error: "access_denied", message: "Request blocked." });
+  }
+
   const threat = evaluateThreat(ip, req.path, req.body, req.headers);
   if (threat.blocked) {
     trackSecurityEvent({

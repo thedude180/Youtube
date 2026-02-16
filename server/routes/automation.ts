@@ -135,7 +135,8 @@ export async function registerAutomationRoutes(app: Express) {
   app.put(api.automation.updateRule.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const rule = await storage.updateAutomationRule(Number(req.params.id), req.body);
+    const { name, agentId, trigger, enabled, actions } = req.body || {};
+    const rule = await storage.updateAutomationRule(Number(req.params.id), { name, agentId, trigger, enabled, actions });
     res.json(rule);
   });
 
@@ -188,7 +189,8 @@ export async function registerAutomationRoutes(app: Express) {
   app.put(api.schedule.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const item = await storage.updateScheduleItem(Number(req.params.id), req.body);
+    const { title, scheduledAt, platform, type, status, metadata } = req.body || {};
+    const item = await storage.updateScheduleItem(Number(req.params.id), { title, scheduledAt, platform, type, status, metadata });
     res.json(item);
   });
 
@@ -438,7 +440,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const rule = await storage.updateAutomationRule(parseInt(req.params.id), req.body);
+      const { name, agentId, trigger, enabled, actions } = req.body || {};
+      const rule = await storage.updateAutomationRule(parseInt(req.params.id), { name, agentId, trigger, enabled, actions });
       res.json(rule);
     } catch (err) { res.status(500).json({ error: "Failed to update rule" }); }
   });

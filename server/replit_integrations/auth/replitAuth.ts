@@ -39,7 +39,9 @@ export function getSession() {
       secure: isProduction,
       sameSite: "lax",
       maxAge: sessionTtl,
+      path: "/",
     },
+    name: "sid",
   });
 }
 

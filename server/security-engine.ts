@@ -84,12 +84,12 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 function cleanupMaps() {
   const now = Date.now();
-  for (const [ip, data] of ipFailureMap) {
+  for (const [ip, data] of Array.from(ipFailureMap)) {
     if (now - data.firstAttempt > BRUTE_FORCE_WINDOW_MS) {
       ipFailureMap.delete(ip);
     }
   }
-  for (const [ip, data] of ipRequestMap) {
+  for (const [ip, data] of Array.from(ipRequestMap)) {
     if (now - data.windowStart > RATE_ABUSE_WINDOW_MS) {
       ipRequestMap.delete(ip);
     }
