@@ -19,7 +19,7 @@ import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/s
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import {
-  Search, PlayCircle, Video, Radio, Calendar, Plus, Trash2,
+  Search, PlayCircle, Video, Radio, Calendar, Plus, Trash2, Scissors,
   RefreshCw, Loader2, CheckCircle2, Circle, ExternalLink, Sparkles,
   FileText, BarChart3, Hash, Share2, CalendarDays, Image, ListOrdered, ChevronDown, ChevronUp,
   Globe, Languages, Captions, Megaphone, Mic, Eye, Users, MapPin, MessageSquare, Clock, FlaskConical, ShieldCheck, Briefcase,
@@ -44,7 +44,7 @@ import {
 
 type AIResponse = any;
 
-type ContentTab = "library" | "updated" | "channels" | "calendar" | "localization" | "ai-tools" | "seo";
+type ContentTab = "library" | "updated" | "channels" | "clips" | "calendar" | "localization" | "ai-tools" | "seo";
 
 const TYPE_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   vod: "default", short: "secondary",
@@ -57,12 +57,13 @@ const CalendarTab = lazy(() => import("./content/CalendarTab"));
 const LocalizationTab = lazy(() => import("./content/LocalizationTab"));
 const AIToolsTab = lazy(() => import("./content/AIToolsTab"));
 const SEOTab = lazy(() => import("./content/SEOTab"));
+const ClipsTab = lazy(() => import("./content/ClipsTab"));
 
 export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "localization", "ai-tools", "seo"];
+  const validTabs: ContentTab[] = ["library", "updated", "channels", "clips", "calendar", "localization", "ai-tools", "seo"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useState<ContentTab>(initialTab);
   const { isAdvanced } = useAdvancedMode();
@@ -85,6 +86,9 @@ export default function Content() {
           </TabsTrigger>
           <TabsTrigger value="channels" data-testid="tab-channels">
             <Radio className="h-3.5 w-3.5 mr-1.5" />{t("content.channels")}
+          </TabsTrigger>
+          <TabsTrigger value="clips" data-testid="tab-clips">
+            <Scissors className="h-3.5 w-3.5 mr-1.5" />Clips
           </TabsTrigger>
           <TabsTrigger value="calendar" data-testid="tab-calendar">
             <Calendar className="h-3.5 w-3.5 mr-1.5" />{t("content.calendar")}
@@ -131,6 +135,13 @@ export default function Content() {
           <UpgradeTabGate requiredTier="starter" featureName="AI Content Tools" description="Supercharge your content with AI-powered scripts, thumbnails, keyword research, and more.">
             <Suspense fallback={<Skeleton className="h-64 w-full" />}>
               <AIToolsTab />
+            </Suspense>
+          </UpgradeTabGate>
+        </TabsContent>
+        <TabsContent value="clips" className="mt-2">
+          <UpgradeTabGate requiredTier="pro" featureName="Clip Editor" description="AI extracts the most viral moments from your videos and streams, then auto-schedules them across all platforms with human-realistic timing.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <ClipsTab />
             </Suspense>
           </UpgradeTabGate>
         </TabsContent>
