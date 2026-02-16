@@ -265,7 +265,10 @@ setInterval(() => {
 }, 60_000);
 
 app.get("/api/security/csrf-token", (req: Request, res: Response) => {
-  const sessionId = (req as any).sessionID || req.ip || "anon";
+  const sessionId = (req as any).sessionID;
+  if (!sessionId) {
+    return res.json({ csrfToken: null });
+  }
   const token = crypto.randomBytes(32).toString("hex");
   csrfTokens.set(sessionId, { token, expires: Date.now() + 3600_000 });
   res.json({ csrfToken: token });
@@ -273,17 +276,28 @@ app.get("/api/security/csrf-token", (req: Request, res: Response) => {
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
-  if (req.path === "/stripe/webhook" || req.path === "/health" || req.path.startsWith("/auth/") || req.path === "/empire/launch") return next();
+  const exempt = ["/stripe/webhook", "/health", "/empire/launch"];
+  if (exempt.some(p => req.path === p) || req.path.startsWith("/auth/") || req.path.startsWith("/oauth/")) return next();
+  if (req.headers.authorization?.startsWith("Bearer crtr_")) return next();
 
   const csrfHeader = req.headers["x-csrf-token"] as string;
-  if (!csrfHeader) return next();
+  const isAuthenticated = !!(req as any).user || !!(req as any).session?.passport?.user || (typeof (req as any).isAuthenticated === "function" && (req as any).isAuthenticated());
+  if (!csrfHeader) {
+    if (isAuthenticated) {
+      return res.status(403).json({ error: "csrf_missing", message: "Security token required. Please refresh and try again." });
+    }
+    return next();
+  }
 
-  const sessionId = (req as any).sessionID || req.ip || "anon";
+  const sessionId = (req as any).sessionID;
+  if (!sessionId) {
+    return res.status(403).json({ error: "csrf_invalid", message: "Invalid or expired security token. Please refresh and try again." });
+  }
   const stored = csrfTokens.get(sessionId);
   if (stored && stored.token === csrfHeader && Date.now() < stored.expires) {
     return next();
   }
-  next();
+  return res.status(403).json({ error: "csrf_invalid", message: "Invalid or expired security token. Please refresh and try again." });
 });
 
 app.use("/api", async (req: Request, res: Response, next: NextFunction) => {

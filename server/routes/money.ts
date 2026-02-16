@@ -51,7 +51,7 @@ export function registerMoneyRoutes(app: Express) {
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
       console.error("Stripe checkout error:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -107,7 +107,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json({ tier: user.tier || "free", synced: false, reason: "already_synced" });
     } catch (err: any) {
       console.error("[VerifySession] Error:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -126,7 +126,7 @@ export function registerMoneyRoutes(app: Express) {
       });
       res.json({ url: session.url });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -167,7 +167,7 @@ export function registerMoneyRoutes(app: Express) {
       if (e.message?.includes("does not exist")) {
         res.json([]);
       } else {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ error: "An internal error occurred. Please try again." });
       }
     }
   });
@@ -229,7 +229,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json({ url: session.url, sessionId: session.id });
     } catch (error: any) {
       console.error("Create payment link error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -246,7 +246,7 @@ export function registerMoneyRoutes(app: Express) {
         return res.json([]);
       }
       console.error("Fetch payments error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -259,7 +259,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(balance);
     } catch (error: any) {
       console.error("Balance error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -383,7 +383,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json({ imported: imported.length, records: imported });
     } catch (error: any) {
       console.error("CSV import error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -394,7 +394,7 @@ export function registerMoneyRoutes(app: Express) {
       const result = await generateTaxStrategy(req.body, userId);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Tax analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -405,7 +405,7 @@ export function registerMoneyRoutes(app: Express) {
       const result = await generateExpenseAnalysis(req.body, userId);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Expense analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -576,7 +576,7 @@ export function registerMoneyRoutes(app: Express) {
       const deal = await storage.createSponsorshipDeal({ ...parsed.data, userId } as any);
       res.status(201).json(deal);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -601,7 +601,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -613,7 +613,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -625,7 +625,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -637,7 +637,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -649,7 +649,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -661,7 +661,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -673,7 +673,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -685,7 +685,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -699,7 +699,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -711,7 +711,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -725,7 +725,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -737,7 +737,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Revenue sync error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -749,7 +749,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       console.error("Platform revenue sync error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -773,7 +773,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json({ lastSync: lastSync?.syncedAt?.toISOString() || null, platformStatuses, recentLogs: logs.slice(0, 10) });
     } catch (error: any) {
       console.error("Sync status error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -815,7 +815,7 @@ export function registerMoneyRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("Revenue breakdown error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -1063,7 +1063,7 @@ export function registerMoneyRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("Revenue opportunities error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 }

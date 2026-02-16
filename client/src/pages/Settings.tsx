@@ -472,14 +472,14 @@ export default function Settings() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("status") === "success") {
-      fetch("/api/stripe/verify-session", { method: "POST", credentials: "include" })
+      apiRequest("POST", "/api/stripe/verify-session")
         .then(r => r.json())
         .then(data => {
           if (data.synced) {
             toast({ title: "Subscription activated!", description: `You're now on the ${data.tier.charAt(0).toUpperCase() + data.tier.slice(1)} plan. All features are now unlocked.` });
             queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-            fetch("/api/user/init-systems", { method: "POST", credentials: "include" }).catch(() => {});
+            apiRequest("POST", "/api/user/init-systems").catch(() => {});
           } else {
             toast({ title: "Subscription confirmed", description: `You're on the ${data.tier.charAt(0).toUpperCase() + data.tier.slice(1)} plan.` });
           }

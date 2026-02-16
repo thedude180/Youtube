@@ -99,7 +99,7 @@ export async function registerAutomationRoutes(app: Express) {
       res.json({ success: true, activity });
     } catch (error: any) {
       console.error(`Agent ${agentId} error:`, error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -359,7 +359,7 @@ export async function registerAutomationRoutes(app: Express) {
       if (!existing) return res.status(404).json({ error: "Not found" });
       const result = await runChainManually(id);
       res.json(result);
-    } catch (err: any) { res.status(500).json({ error: err.message || "Failed to run chain" }); }
+    } catch (err: any) { console.error(`[AutomationChain] Run error for chain ${id}:`, err); res.status(500).json({ error: "An internal error occurred. Please try again." }); }
   });
 
   app.patch("/api/automation/chains/:id", async (req: any, res) => {

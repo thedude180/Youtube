@@ -17,7 +17,7 @@ export function registerAdminRoutes(app: Express) {
       }
       res.json(user || { id: userId, role: "user", tier: "free" });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -70,7 +70,7 @@ export function registerAdminRoutes(app: Express) {
       res.json(user);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -83,7 +83,7 @@ export function registerAdminRoutes(app: Express) {
       res.json({ success: true, ...result });
     } catch (err: any) {
       console.error("[InitSystems] Error:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -94,7 +94,7 @@ export function registerAdminRoutes(app: Express) {
       const codes = await storage.getAccessCodes();
       res.json(codes);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -119,7 +119,7 @@ export function registerAdminRoutes(app: Express) {
       res.status(201).json(created);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -132,7 +132,7 @@ export function registerAdminRoutes(app: Express) {
       const revoked = await storage.revokeAccessCode(id);
       res.json(revoked);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -148,7 +148,7 @@ export function registerAdminRoutes(app: Express) {
       res.json({ success: true, tier: user?.tier, role: user?.role });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -159,7 +159,7 @@ export function registerAdminRoutes(app: Express) {
       const allUsers = await storage.getAllUsers();
       res.json(allUsers);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -173,7 +173,7 @@ export function registerAdminRoutes(app: Express) {
       res.json(updated);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 

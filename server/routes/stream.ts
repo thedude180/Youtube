@@ -199,7 +199,7 @@ export function registerStreamRoutes(app: Express) {
       res.json({ success: true, seoData });
     } catch (error: any) {
       console.error("Stream SEO error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -368,7 +368,7 @@ export function registerStreamRoutes(app: Express) {
       res.json({ success: true, stream: updatedStream, automationJobId: job.id });
     } catch (error: any) {
       console.error("Go live error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -529,7 +529,7 @@ export function registerStreamRoutes(app: Express) {
       res.json({ success: true, stream: updatedStream, postProcessJobId: job.id });
     } catch (error: any) {
       console.error("End stream error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -599,7 +599,7 @@ export function registerStreamRoutes(app: Express) {
       res.json({ success: true, result });
     } catch (error: any) {
       console.error("Post-stream processing error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -612,7 +612,7 @@ export function registerStreamRoutes(app: Express) {
       const status = await getMultiStreamStatus(userId, id);
       res.json(status);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -626,7 +626,7 @@ export function registerStreamRoutes(app: Express) {
       const messages = await getLiveChatFeed(id, limit);
       res.json(messages);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -639,7 +639,7 @@ export function registerStreamRoutes(app: Express) {
       const stats = await getLiveChatStats(id);
       res.json(stats);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -670,7 +670,7 @@ export function registerStreamRoutes(app: Express) {
       res.json({ stored: true, aiResponse: result });
     } catch (error: any) {
       console.error("Live chat error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -696,7 +696,7 @@ export function registerStreamRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("[YouTube] Live status error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -723,7 +723,7 @@ export function registerStreamRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("[YouTube] Detect live error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 }

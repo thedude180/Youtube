@@ -292,7 +292,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ success: true, suggestions });
     } catch (error: any) {
       console.error("AI metadata generation error:", error);
-      res.status(500).json({ success: false, message: error.message || "AI generation failed" });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -347,7 +347,7 @@ export function registerContentRoutes(app: Express) {
       const syncLogs = await storage.getAuditLogsByUser(userId, "platform_sync_push");
       res.json(syncLogs);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -359,7 +359,7 @@ export function registerContentRoutes(app: Express) {
       const history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
       res.json(history);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -375,7 +375,7 @@ export function registerContentRoutes(app: Express) {
         .orderBy(desc(contentPipeline.createdAt));
       res.json(pipelines);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -439,7 +439,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ success: true, insights: result.insights, weeklyReport: result.weeklyReport });
     } catch (error: any) {
       console.error("Insights generation error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -515,7 +515,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ success: true, checks: result.checks, overallScore: result.overallScore || 100, summary: result.summary });
     } catch (error: any) {
       console.error("Compliance check error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -589,7 +589,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ success: true, strategies: result.strategies });
     } catch (error: any) {
       console.error("Strategy generation error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -642,7 +642,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ answer });
     } catch (error: any) {
       console.error("Advisor error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -731,7 +731,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ success: true, jobId: job.id });
     } catch (error: any) {
       console.error("Backlog optimization error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -787,7 +787,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ success: true, ...result });
     } catch (error: any) {
       console.error("Auto backlog start error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -798,7 +798,7 @@ export function registerContentRoutes(app: Express) {
       const status = await getBacklogStatus(userId);
       res.json(status);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -847,7 +847,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, ...result });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -858,7 +858,7 @@ export function registerContentRoutes(app: Express) {
       const scheduled = await autoScheduleOptimizedContent(userId);
       res.json({ success: true, scheduled });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -931,7 +931,7 @@ export function registerContentRoutes(app: Express) {
       res.json({ success: true, thumbnail: { ...thumbnail, aiData: thumbnailData } });
     } catch (error: any) {
       console.error("Thumbnail generation error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -950,7 +950,7 @@ export function registerContentRoutes(app: Express) {
       const idea = await storage.createContentIdea({ ...req.body, userId });
       res.status(201).json(idea);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -1001,7 +1001,7 @@ export function registerContentRoutes(app: Express) {
       const clip = await storage.createContentClip({ ...req.body, userId });
       res.status(201).json(clip);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -1019,7 +1019,7 @@ export function registerContentRoutes(app: Express) {
       const lead = await storage.createCollaborationLead({ ...req.body, userId });
       res.status(201).json(lead);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 
@@ -1037,7 +1037,7 @@ export function registerContentRoutes(app: Express) {
     try {
       const rec = await storage.getLocalizationRecommendations(userId);
       res.json(rec || { recommendedLanguages: [], trafficData: {}, source: "none" });
-    } catch (e: any) { console.error("Localization recommendations error:", e); res.status(500).json({ message: e.message }); }
+    } catch (e: any) { console.error("Localization recommendations error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/calendar/uploads", async (req, res) => {

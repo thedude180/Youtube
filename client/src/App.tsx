@@ -468,7 +468,7 @@ function AppContent() {
 
   useEffect(() => {
     if (isAuthenticated && user && needsOnboarding === false) {
-      fetch("/api/user/init-systems", { method: "POST", credentials: "include" }).catch(() => {});
+      apiRequest("POST", "/api/user/init-systems").catch(() => {});
     }
   }, [isAuthenticated, user, needsOnboarding]);
 

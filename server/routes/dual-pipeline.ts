@@ -639,10 +639,11 @@ export function registerDualPipelineRoutes(app: Express) {
 
       res.json({ message: `Step "${targetStep}" completed`, step: targetStep, result });
     } catch (err: any) {
+      console.error(`[DualPipeline] Step "${targetStep}" failed for pipeline ${id}:`, err);
       await db.update(streamPipelines)
         .set({ status: "error", errorMessage: `Step "${targetStep}" failed: ${err.message}` })
         .where(eq(streamPipelines.id, id));
-      res.status(500).json({ error: `Step failed: ${err.message}` });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 

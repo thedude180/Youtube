@@ -1,6 +1,20 @@
 import { QueryClient, QueryFunction, MutationCache, QueryCache } from "@tanstack/react-query";
 import { offlineStore } from './offline-store';
 
+let csrfToken: string | null = null;
+let csrfFetchPromise: Promise<string | null> | null = null;
+
+async function getCsrfToken(): Promise<string | null> {
+  if (csrfToken) return csrfToken;
+  if (csrfFetchPromise) return csrfFetchPromise;
+  csrfFetchPromise = fetch("/api/security/csrf-token", { credentials: "include" })
+    .then(r => r.json())
+    .then(d => { csrfToken = d.csrfToken; return csrfToken; })
+    .catch(() => null)
+    .finally(() => { csrfFetchPromise = null; });
+  return csrfFetchPromise;
+}
+
 let sessionExpiredHandled = false;
 
 function handleSessionExpired() {
@@ -32,13 +46,32 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   try {
+    const headers: Record<string, string> = {};
+    if (data) headers["Content-Type"] = "application/json";
+    if (method !== "GET" && method !== "HEAD") {
+      const token = await getCsrfToken();
+      if (token) headers["X-CSRF-Token"] = token;
+    }
     const res = await fetch(url, {
       method,
-      headers: data ? { "Content-Type": "application/json" } : {},
+      headers,
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include",
     });
 
+    if (res.status === 403) {
+      const body = await res.clone().text();
+      if (body.includes("csrf_invalid")) {
+        csrfToken = null;
+        const newToken = await getCsrfToken();
+        if (newToken) {
+          headers["X-CSRF-Token"] = newToken;
+          const retry = await fetch(url, { method, headers, body: data ? JSON.stringify(data) : undefined, credentials: "include" });
+          await throwIfResNotOk(retry);
+          return retry;
+        }
+      }
+    }
     await throwIfResNotOk(res);
     return res;
   } catch (err) {

@@ -44,7 +44,8 @@ export function registerFeedbackRoutes(app: Express) {
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      res.status(500).json({ error: err.message });
+      console.error("[Feedback] Submit error:", err);
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -61,7 +62,8 @@ export function registerFeedbackRoutes(app: Express) {
 
       res.json(submissions);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error("[Feedback] List error:", err);
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -73,7 +75,8 @@ export function registerFeedbackRoutes(app: Express) {
       const stats = await getFeedbackStats();
       res.json(stats);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error("[Feedback] Stats error:", err);
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 }

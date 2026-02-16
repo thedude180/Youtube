@@ -66,7 +66,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Thumbnail A/B test failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -81,7 +81,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Title optimization failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -96,7 +96,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Description optimization failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -111,7 +111,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Hook generation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -126,7 +126,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Trend detection failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -142,7 +142,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Content DNA analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -157,7 +157,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Psychographics analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -172,7 +172,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Competitor analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -187,7 +187,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Upload time optimization failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -202,7 +202,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Hashtag strategy failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -217,7 +217,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Viral prediction failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -232,7 +232,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Retention analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -247,7 +247,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Community post generation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -263,7 +263,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Playlist optimization failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -278,7 +278,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Collab pitch writing failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -298,7 +298,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Content audit failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -313,7 +313,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Niche analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -328,7 +328,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Caption generation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -343,7 +343,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "End screen optimization failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -358,7 +358,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Shorts strategy failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -386,7 +386,7 @@ export function registerUpgradeRoutes(app: Express) {
       const peakDay = seededPick(rng, days);
       res.json({ heatmapData, peakTime: { day: peakDay, hour: peakHour }, totalDataPoints: 168 });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Heatmap generation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -411,7 +411,7 @@ export function registerUpgradeRoutes(app: Express) {
         growthTrend: seededPick(rng, ["accelerating", "stable", "decelerating"]),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Milestone tracking failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -437,7 +437,7 @@ export function registerUpgradeRoutes(app: Express) {
         recommendations: ["Improve thumbnails to boost impression-to-view rate", "Add more CTAs to increase subscriber conversion", "Create membership perks to grow superfan base"],
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Funnel analytics failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -476,7 +476,7 @@ export function registerUpgradeRoutes(app: Express) {
         ],
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Demographics fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -505,7 +505,7 @@ export function registerUpgradeRoutes(app: Express) {
         recommendations: ["Cross-promote TikTok content on YouTube Shorts", "Use Instagram Stories to drive Twitch viewership"],
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Overlap analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -530,7 +530,7 @@ export function registerUpgradeRoutes(app: Express) {
         benchmarkComparison: { yourAvg: seededFloat(rng, 35, 65), nicheAvg: seededFloat(rng, 30, 55) },
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Retention analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -551,7 +551,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json({ topFans: fans, totalSuperfans: seededInt(rng, 50, 2000), superfanGrowthRate: seededFloat(rng, 2, 15) });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Top fans fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -577,7 +577,7 @@ export function registerUpgradeRoutes(app: Express) {
         accelerators: ["Increase upload frequency", "Collaborate with similar channels", "Optimize SEO across all videos"],
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Growth forecast failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -602,7 +602,7 @@ export function registerUpgradeRoutes(app: Express) {
         })),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Churn risk analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -622,7 +622,7 @@ export function registerUpgradeRoutes(app: Express) {
         totalAudience: seededInt(rng, 20000, 300000),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Segment analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -647,7 +647,7 @@ export function registerUpgradeRoutes(app: Express) {
         })),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Sentiment analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -675,7 +675,7 @@ export function registerUpgradeRoutes(app: Express) {
         })),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Engagement score failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -699,7 +699,7 @@ export function registerUpgradeRoutes(app: Express) {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Watch patterns failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -731,7 +731,7 @@ export function registerUpgradeRoutes(app: Express) {
         internationalPercentage: seededFloat(rng, 20, 55),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Geo distribution failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -757,7 +757,7 @@ export function registerUpgradeRoutes(app: Express) {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Device breakdown failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -786,7 +786,7 @@ export function registerUpgradeRoutes(app: Express) {
         thumbnailPreference: seededPick(rng, ["Face close-up", "Action shot", "Text-heavy", "Minimal"]),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Content preferences failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -811,7 +811,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.json({ success: true, message: `Milestone celebration triggered for ${milestone}` });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Milestone celebration failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -834,7 +834,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json({ stages: kanban, totalItems: ideas.length });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Kanban fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -854,7 +854,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.status(201).json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Kanban create failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -876,7 +876,7 @@ export function registerUpgradeRoutes(app: Express) {
       const item = await storage.updateContentIdea(id, updates);
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Kanban update failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -891,7 +891,7 @@ export function registerUpgradeRoutes(app: Express) {
       await storage.deleteContentIdea(id);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Kanban delete failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -914,7 +914,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Stage move failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -926,7 +926,7 @@ export function registerUpgradeRoutes(app: Express) {
       const queue = items.filter(i => i.type === "upload" && i.status !== "completed");
       res.json(queue);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Upload queue fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -947,7 +947,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.status(201).json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Upload queue add failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -965,7 +965,7 @@ export function registerUpgradeRoutes(app: Express) {
       const item = await storage.updateScheduleItem(id, updates);
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Upload queue update failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -978,7 +978,7 @@ export function registerUpgradeRoutes(app: Express) {
       const feedback = await storage.getUserFeedback(userId, "editing_note", videoId);
       res.json(feedback);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Editing notes fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -997,7 +997,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.status(201).json(entry);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Editing note create failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1010,7 +1010,7 @@ export function registerUpgradeRoutes(app: Express) {
       const { note, priority, title, content } = req.body || {};
       res.json({ id, note, priority, title, content, updatedAt: new Date().toISOString() });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Editing note update failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1022,7 +1022,7 @@ export function registerUpgradeRoutes(app: Express) {
     try {
       res.json({ success: true, id });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Editing note delete failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1048,7 +1048,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json(giveaways);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Giveaways fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1077,7 +1077,7 @@ export function registerUpgradeRoutes(app: Express) {
         rules: rules || [],
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Giveaway creation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1090,7 +1090,7 @@ export function registerUpgradeRoutes(app: Express) {
       const { title, description, prize, endDate, platforms, rules, status } = req.body || {};
       res.json({ id, title, description, prize, endDate, platforms, rules, status, updatedAt: new Date().toISOString() });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Giveaway update failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1111,7 +1111,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.json({ winner, giveawayId: id, drawnAt: new Date().toISOString() });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Winner draw failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1134,7 +1134,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json(polls);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Polls fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1153,7 +1153,7 @@ export function registerUpgradeRoutes(app: Express) {
         endsAt: new Date(Date.now() + (duration || 24) * 3600000).toISOString(),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Poll creation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1166,7 +1166,7 @@ export function registerUpgradeRoutes(app: Express) {
       const { optionIndex } = req.body;
       res.json({ success: true, pollId: id, votedOption: optionIndex, votedAt: new Date().toISOString() });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Vote failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1188,7 +1188,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json(challenges);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Challenges fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1209,7 +1209,7 @@ export function registerUpgradeRoutes(app: Express) {
         reward: reward || "Badge",
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Challenge creation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1222,7 +1222,7 @@ export function registerUpgradeRoutes(app: Express) {
       const { title, description, type, goal, duration, reward, status } = req.body || {};
       res.json({ id, title, description, type, goal, duration, reward, status, updatedAt: new Date().toISOString() });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Challenge update failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1241,7 +1241,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json({ leaderboard, totalMembers: seededInt(rng, 100, 10000), totalPointsAwarded: seededInt(rng, 50000, 500000) });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Loyalty leaderboard failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1259,7 +1259,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.json({ success: true, username, pointsAwarded: points || 100, reason: reason || "manual award" });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Points award failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1270,7 +1270,7 @@ export function registerUpgradeRoutes(app: Express) {
       const logs = await storage.getAuditLogsByUser(userId, "moderation_action");
       res.json(logs.length > 0 ? logs : []);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Moderation log fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1288,7 +1288,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.status(201).json(log);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Moderation log failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1308,7 +1308,7 @@ export function registerUpgradeRoutes(app: Express) {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Feedback fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1333,7 +1333,7 @@ export function registerUpgradeRoutes(app: Express) {
       const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b.seoScore, 0) / scores.length) : 0;
       res.json({ scores, averageScore: avgScore, totalVideos: scores.length });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "SEO scores fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1348,7 +1348,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "SEO analysis failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1369,7 +1369,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json({ rankings, trackedKeywords: rankings.length, avgPosition: Math.round(rankings.reduce((a, b) => a + b.position, 0) / rankings.length) });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Rankings fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1394,7 +1394,7 @@ export function registerUpgradeRoutes(app: Express) {
         tracking: true,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Keyword tracking failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1415,7 +1415,7 @@ export function registerUpgradeRoutes(app: Express) {
         estimatedOverallImpact: "+12% organic growth",
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Opportunities fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1439,7 +1439,7 @@ export function registerUpgradeRoutes(app: Express) {
       }));
       res.json({ highlights, totalDetected: highlights.length });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Highlights fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1466,7 +1466,7 @@ export function registerUpgradeRoutes(app: Express) {
         createdAt: new Date().toISOString(),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Clip creation failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1492,7 +1492,7 @@ export function registerUpgradeRoutes(app: Express) {
         engagementRate: seededFloat(rng, 10, 45),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Chat sentiment failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1510,7 +1510,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.json({ success: true, config, savedAt: new Date().toISOString() });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Overlay save failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1530,7 +1530,7 @@ export function registerUpgradeRoutes(app: Express) {
         colors: { primary: "#6366f1", secondary: "#22d3ee", accent: "#f43f5e" },
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Overlay config fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1545,7 +1545,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Raid plan failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1557,7 +1557,7 @@ export function registerUpgradeRoutes(app: Express) {
       const streamSchedule = items.filter(i => i.type === "stream");
       res.json(streamSchedule);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Stream schedule fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1577,7 +1577,7 @@ export function registerUpgradeRoutes(app: Express) {
       });
       res.status(201).json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Stream schedule save failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1597,7 +1597,7 @@ export function registerUpgradeRoutes(app: Express) {
       );
       res.json(securityLogs.length > 0 ? securityLogs : logs.slice(0, 50));
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Audit log fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1628,7 +1628,7 @@ export function registerUpgradeRoutes(app: Express) {
         totalSessions: 2,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Sessions fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1651,7 +1651,7 @@ export function registerUpgradeRoutes(app: Express) {
         backupCodes: action === "enable" ? Array.from({ length: 8 }, () => Math.random().toString(36).slice(2, 10).toUpperCase()) : undefined,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "2FA configuration failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1669,7 +1669,7 @@ export function registerUpgradeRoutes(app: Express) {
         unreadCount: seededInt(rng, 0, 3),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Security alerts fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1698,7 +1698,7 @@ export function registerUpgradeRoutes(app: Express) {
         status: "ready",
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Data export failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1729,7 +1729,7 @@ export function registerUpgradeRoutes(app: Express) {
         estimatedCompletion: new Date(Date.now() + 300000).toISOString(),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Content backup failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1757,7 +1757,7 @@ export function registerUpgradeRoutes(app: Express) {
         });
       }
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Preferences fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1779,7 +1779,7 @@ export function registerUpgradeRoutes(app: Express) {
       }
       res.json({ success: true, preferences: prefs });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Preferences save failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 
@@ -1802,7 +1802,7 @@ export function registerUpgradeRoutes(app: Express) {
         customizable: true,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Shortcuts fetch failed" });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
 }

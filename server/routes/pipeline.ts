@@ -345,7 +345,7 @@ export function registerPipelineRoutes(app: Express) {
       res.json({ message: "Pipeline started", status: "processing" });
     } catch (err: any) {
       console.error("[Pipeline] Run error:", err);
-      res.status(500).json({ error: "Pipeline execution failed", details: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -390,7 +390,7 @@ export function registerPipelineRoutes(app: Express) {
       res.json(updated);
     } catch (err: any) {
       console.error("[Pipeline] Step error:", err);
-      res.status(500).json({ error: "Step execution failed", details: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -432,7 +432,7 @@ export function registerPipelineRoutes(app: Express) {
       res.json(result);
     } catch (err: any) {
       console.error("[Pipeline] Backlog refresh error:", err);
-      res.status(500).json({ error: "Failed to start backlog refresh", details: err.message });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
