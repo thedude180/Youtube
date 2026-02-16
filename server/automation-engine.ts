@@ -630,7 +630,31 @@ export async function initAutomationEngine() {
     }
   });
 
-  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine)");
+  cron.schedule("0 */8 * * *", async () => {
+    try {
+      const { runKeywordLearningCycle } = await import("./services/keyword-learning-engine");
+      const count = await runKeywordLearningCycle();
+      if (count > 0) {
+        console.log(`[KeywordEngine] Learning cycle complete — analyzed ${count} users`);
+      }
+    } catch (err) {
+      console.error("[KeywordEngine] Learning cycle error:", err);
+    }
+  });
+
+  cron.schedule("0 */12 * * *", async () => {
+    try {
+      const { runTrafficGrowthCycle } = await import("./services/traffic-growth-engine");
+      const count = await runTrafficGrowthCycle();
+      if (count > 0) {
+        console.log(`[TrafficEngine] Growth cycle complete — ${count} users`);
+      }
+    } catch (err) {
+      console.error("[TrafficEngine] Growth cycle error:", err);
+    }
+  });
+
+  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Keyword Learning + Traffic Growth)");
 }
 
 async function processAllCronJobs() {

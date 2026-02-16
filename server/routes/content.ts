@@ -1,11 +1,12 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, and, desc, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, desc, inArray, isNotNull, gte } from "drizzle-orm";
 import { api } from "@shared/routes";
 import {
   contentPipeline, contentIdeas, videos, scheduleItems,
   autopilotQueue, communityPosts, uploadQueue, streams,
   reengagementCampaigns, streamPipelines, channels,
+  keywordInsights, trafficStrategies,
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -1233,6 +1234,60 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       console.error("[Calendar Uploads] Error:", err);
       res.status(500).json({ error: "Failed to load upload calendar" });
+    }
+  });
+
+  app.get("/api/keywords/insights", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const keywords = await db.select().from(keywordInsights)
+        .where(eq(keywordInsights.userId, userId))
+        .orderBy(desc(keywordInsights.score))
+        .limit(50);
+      res.json(keywords);
+    } catch (err: any) {
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.post("/api/keywords/analyze", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { analyzeChannelKeywords } = await import("../services/keyword-learning-engine");
+      const result = await analyzeChannelKeywords(userId);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Keywords] Analyze error:", err);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.get("/api/traffic/strategies", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const strategies = await db.select().from(trafficStrategies)
+        .where(eq(trafficStrategies.userId, userId))
+        .orderBy(desc(trafficStrategies.priority))
+        .limit(30);
+      res.json(strategies);
+    } catch (err: any) {
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.post("/api/traffic/generate", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { generateTrafficStrategies } = await import("../services/traffic-growth-engine");
+      const result = await generateTrafficStrategies(userId);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Traffic] Generate error:", err);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
 }

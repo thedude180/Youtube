@@ -114,6 +114,14 @@ export async function generateVideoMetadata(video: {
   const gamingSection = buildGamingPromptSection(gamingCtx);
   const creatorContext = await getCreatorContext(userId);
 
+  let learnedKeywordCtx = "";
+  if (userId) {
+    try {
+      const { getKeywordContext } = await import("./services/keyword-learning-engine");
+      learnedKeywordCtx = await getKeywordContext(userId);
+    } catch { /* keyword engine not available */ }
+  }
+
   const prompt = `You are a ${platformName} SEO expert and content strategist. Analyze this video and provide optimization suggestions.
 
 Video Title: "${video.title}"
@@ -123,7 +131,7 @@ Current Description: "${video.description || 'None provided'}"
 Current Tags: ${video.metadata?.tags?.join(', ') || 'None'}
 ${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
 ${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
-${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
+${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}
 
 Provide your response as JSON with exactly these fields:
 {

@@ -14,6 +14,8 @@ import {
   getCommentResponseDelay,
 } from "./human-behavior-engine";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
+import { getKeywordContext } from "./services/keyword-learning-engine";
+import { autoApplyKeywordsToNewVideo } from "./services/traffic-growth-engine";
 import {
   getCreatorVideosCreated,
   getCreatorMaturityPrompt,
@@ -1073,6 +1075,11 @@ Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "
     youtubeLearnContext = await getYouTubeLearningContext(userId);
   } catch { /* no research yet */ }
 
+  let learnedKeywordContext = "";
+  try {
+    learnedKeywordContext = await getKeywordContext(userId);
+  } catch { /* no keyword data yet */ }
+
   sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: `Writing video script (Creator Skill: ${skillInfo.label}, Video #${videosCreated + 1})...` });
 
   const humanBehaviorContext = generateHumanWritingContext(contentIdea.platform || "YouTube", contentIdea.format || "long-form");
@@ -1084,6 +1091,7 @@ IMPORTANT: Everything you write will be checked by AI detection software. If ANY
 ${creatorMaturityContext}
 
 ${youtubeLearnContext ? `\nYOUTUBE INTELLIGENCE (use to inform quality at the creator's current skill level):\n${youtubeLearnContext}` : ""}
+${learnedKeywordContext}
 
 CRITICAL SKILL-BASED QUALITY RULE:
 The creator's skill level is ${skillInfo.level}/100 (${skillInfo.label}). Quality multiplier: ${skillInfo.qualityMultiplier}.
@@ -1370,8 +1378,17 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
 
   let videoRecord: any = null;
   if (ytChannel) {
-    const seoDesc = videoPackage.seoPackage?.description || videoPackage.videoScript?.sections?.[0]?.script?.slice(0, 500) || contentIdea.description || "";
-    const seoTags = videoPackage.seoPackage?.tags || [];
+    let seoDesc = videoPackage.seoPackage?.description || videoPackage.videoScript?.sections?.[0]?.script?.slice(0, 500) || contentIdea.description || "";
+    let seoTags = videoPackage.seoPackage?.tags || [];
+
+    try {
+      const kwResult = await autoApplyKeywordsToNewVideo(userId, finalTitle, seoTags, seoDesc);
+      seoTags = kwResult.optimizedTags;
+      seoDesc = kwResult.optimizedDescription;
+      if (kwResult.keywordsApplied.length > 0) {
+        console.log(`[Empire] Auto-applied ${kwResult.keywordsApplied.length} proven keywords to "${finalTitle}"`);
+      }
+    } catch { /* keyword optimization is optional */ }
 
     videoRecord = await storage.createVideo({
       channelId: ytChannel.id,

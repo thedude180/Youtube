@@ -3748,3 +3748,68 @@ export const videoUpdateHistory = pgTable("video_update_history", {
 export const insertVideoUpdateHistorySchema = createInsertSchema(videoUpdateHistory).omit({ id: true, createdAt: true });
 export type VideoUpdateHistory = typeof videoUpdateHistory.$inferSelect;
 export type InsertVideoUpdateHistory = z.infer<typeof insertVideoUpdateHistorySchema>;
+
+export const keywordInsights = pgTable("keyword_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  keyword: text("keyword").notNull(),
+  source: text("source").notNull().default("youtube"),
+  score: real("score").notNull().default(0),
+  totalViews: integer("total_views").default(0),
+  totalVideos: integer("total_videos").default(0),
+  avgCtr: real("avg_ctr"),
+  avgWatchTime: real("avg_watch_time"),
+  trend: text("trend").default("stable"),
+  category: text("category").default("general"),
+  metadata: jsonb("metadata").$type<{
+    topVideoIds?: number[];
+    searchVolume?: string;
+    competition?: string;
+    lastPerformanceCheck?: string;
+    relatedKeywords?: string[];
+    platforms?: string[];
+  }>(),
+  lastAnalyzedAt: timestamp("last_analyzed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("keyword_insights_user_idx").on(table.userId),
+  index("keyword_insights_score_idx").on(table.userId, table.score),
+]);
+
+export const insertKeywordInsightSchema = createInsertSchema(keywordInsights).omit({ id: true, createdAt: true, lastAnalyzedAt: true });
+export type KeywordInsight = typeof keywordInsights.$inferSelect;
+export type InsertKeywordInsight = z.infer<typeof insertKeywordInsightSchema>;
+
+export const trafficStrategies = pgTable("traffic_strategies", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  strategyType: text("strategy_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("active"),
+  priority: integer("priority").default(5),
+  results: jsonb("results").$type<{
+    estimatedImpact?: string;
+    actualImpact?: string;
+    viewsGained?: number;
+    subscribersGained?: number;
+    implementedAt?: string;
+    nextActionAt?: string;
+    actions?: { action: string; status: string; result?: string }[];
+  }>(),
+  metadata: jsonb("metadata").$type<{
+    platform?: string;
+    targetAudience?: string;
+    contentType?: string;
+    keywords?: string[];
+    collaborators?: string[];
+  }>(),
+  lastRunAt: timestamp("last_run_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("traffic_strategies_user_idx").on(table.userId),
+]);
+
+export const insertTrafficStrategySchema = createInsertSchema(trafficStrategies).omit({ id: true, createdAt: true });
+export type TrafficStrategy = typeof trafficStrategies.$inferSelect;
+export type InsertTrafficStrategy = z.infer<typeof insertTrafficStrategySchema>;
