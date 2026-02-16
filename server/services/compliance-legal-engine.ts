@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { complianceChecks, copyrightClaims, licensingAudits, disclosureRequirements, fairUseReviews, videos, channels, users } from "@shared/schema";
-import { eq, and, desc, gte, sql, count, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, sql, count, isNull, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 
 const SCAN_INTERVAL_MS = 12 * 60 * 60 * 1000;
@@ -211,7 +211,7 @@ export async function monitorCopyrightClaims(userId: string): Promise<void> {
 
     const channelIds = userChannels.map(c => c.id);
     const userVideos = await db.select().from(videos)
-      .where(sql`${videos.channelId} = ANY(${channelIds})`)
+      .where(inArray(videos.channelId, channelIds))
       .orderBy(desc(videos.createdAt))
       .limit(100);
 
@@ -257,7 +257,7 @@ export async function auditLicensing(userId: string): Promise<void> {
 
     const channelIds = userChannels.map(c => c.id);
     const userVideos = await db.select().from(videos)
-      .where(sql`${videos.channelId} = ANY(${channelIds})`)
+      .where(inArray(videos.channelId, channelIds))
       .orderBy(desc(videos.createdAt))
       .limit(100);
 
@@ -377,7 +377,7 @@ export async function checkDisclosureRequirements(userId: string): Promise<void>
 
     const channelIds = userChannels.map(c => c.id);
     const userVideos = await db.select().from(videos)
-      .where(sql`${videos.channelId} = ANY(${channelIds})`)
+      .where(inArray(videos.channelId, channelIds))
       .orderBy(desc(videos.createdAt))
       .limit(100);
 
@@ -443,7 +443,7 @@ export async function analyzeFairUse(userId: string): Promise<void> {
 
     const channelIds = userChannels.map(c => c.id);
     const userVideos = await db.select().from(videos)
-      .where(sql`${videos.channelId} = ANY(${channelIds})`)
+      .where(inArray(videos.channelId, channelIds))
       .orderBy(desc(videos.createdAt))
       .limit(100);
 

@@ -81,7 +81,7 @@ const NICHE_BENCHMARKS: Record<string, {
   },
 };
 
-async function aggregateUnifiedMetrics(userId: string): Promise<void> {
+export async function aggregateUnifiedMetrics(userId: string): Promise<void> {
   try {
     const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
     if (userChannels.length === 0) return;
@@ -327,7 +327,7 @@ async function trackCompetitors(userId: string): Promise<void> {
   }
 }
 
-async function computeAlgorithmHealth(userId: string): Promise<void> {
+export async function computeAlgorithmHealth(userId: string): Promise<void> {
   try {
     const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
     if (userChannels.length === 0) return;
@@ -436,7 +436,7 @@ async function computeAlgorithmHealth(userId: string): Promise<void> {
   }
 }
 
-async function generatePerformanceBenchmarks(userId: string): Promise<void> {
+export async function generatePerformanceBenchmarks(userId: string): Promise<void> {
   try {
     const user = await storage.getUser(userId);
     const niche = (user?.contentNiche || "entertainment").toLowerCase();

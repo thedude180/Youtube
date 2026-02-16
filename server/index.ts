@@ -414,7 +414,13 @@ app.use((req: any, res, next) => {
 
       startSentinel();
 
-      log("Fortress systems initialized: DLQ processor, digest processor, data retention, AI Security Sentinel");
+      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine());
+      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine());
+      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine());
+      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine());
+      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine());
+
+      log("All 10 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot");
     },
   );
 

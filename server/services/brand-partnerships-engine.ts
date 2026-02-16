@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { sponsorshipScores, mediaKits, brandDeals, collabMatches, brandSafetyChecks, videos, channels, users, audienceSegments } from "@shared/schema";
-import { eq, and, desc, gte, ne, sql, count, avg } from "drizzle-orm";
+import { eq, and, desc, gte, ne, sql, count, avg, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 
 const SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -64,7 +64,7 @@ export async function computeSponsorshipReadiness(userId: string): Promise<{ sco
     const channelIds = userChannels.map(c => c.id);
     const recentVideos = await db.select().from(videos)
       .where(and(
-        sql`${videos.channelId} = ANY(${channelIds})`,
+        inArray(videos.channelId, channelIds),
         gte(videos.createdAt, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000))
       ))
       .orderBy(desc(videos.createdAt));
@@ -211,7 +211,7 @@ export async function generateMediaKit(userId: string): Promise<Record<string, a
     const channelIds = userChannels.map(c => c.id);
     const recentVideos = channelIds.length > 0
       ? await db.select().from(videos)
-          .where(sql`${videos.channelId} = ANY(${channelIds})`)
+          .where(inArray(videos.channelId, channelIds))
           .orderBy(desc(videos.createdAt))
           .limit(50)
       : [];
@@ -434,7 +434,7 @@ export async function runBrandSafetyCheck(userId: string): Promise<{ status: str
     const channelIds = userChannels.map(c => c.id);
     const recentVideos = await db.select().from(videos)
       .where(and(
-        sql`${videos.channelId} = ANY(${channelIds})`,
+        inArray(videos.channelId, channelIds),
         gte(videos.createdAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
       ))
       .orderBy(desc(videos.createdAt))
