@@ -90,32 +90,32 @@ function Router() {
       <Route path="/business/ventures">{() => <Redirect to="/money/ventures" />}</Route>
       <Route path="/business/goals">{() => <Redirect to="/money/goals" />}</Route>
       <Route path="/business/sponsors">{() => <Redirect to="/money/sponsors" />}</Route>
-      <Route path="/business/brand">{() => <Redirect to="/settings/brand" />}</Route>
-      <Route path="/business/collabs">{() => <Redirect to="/settings/collabs" />}</Route>
-      <Route path="/business/competitors">{() => <Redirect to="/settings/competitors" />}</Route>
-      <Route path="/business/legal">{() => <Redirect to="/settings/legal" />}</Route>
-      <Route path="/business/learning">{() => <Redirect to="/settings/learning" />}</Route>
+      <Route path="/business/brand">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/business/collabs">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/business/competitors">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/business/legal">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/business/learning">{() => <Redirect to="/settings" />}</Route>
       <Route path="/videos">{() => <Redirect to="/content" />}</Route>
       <Route path="/videos/:id">{() => <Redirect to="/content" />}</Route>
       <Route path="/channels">{() => <Redirect to="/content/channels" />}</Route>
       <Route path="/team">{() => <Redirect to="/" />}</Route>
       <Route path="/advisor">{() => <Redirect to="/" />}</Route>
-      <Route path="/schedule">{() => <Redirect to="/content/calendar" />}</Route>
+      <Route path="/schedule">{() => <Redirect to="/content" />}</Route>
       <Route path="/monetization">{() => <Redirect to="/money" />}</Route>
       <Route path="/expenses">{() => <Redirect to="/money" />}</Route>
       <Route path="/tax">{() => <Redirect to="/money" />}</Route>
       <Route path="/ventures">{() => <Redirect to="/money/ventures" />}</Route>
       <Route path="/goals">{() => <Redirect to="/money/goals" />}</Route>
       <Route path="/sponsorships">{() => <Redirect to="/money/sponsors" />}</Route>
-      <Route path="/brand-kit">{() => <Redirect to="/settings/brand" />}</Route>
-      <Route path="/collaborations">{() => <Redirect to="/settings/collabs" />}</Route>
-      <Route path="/competitors">{() => <Redirect to="/settings/competitors" />}</Route>
-      <Route path="/formation">{() => <Redirect to="/settings/legal" />}</Route>
-      <Route path="/protections">{() => <Redirect to="/settings/legal" />}</Route>
+      <Route path="/brand-kit">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/collaborations">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/competitors">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/formation">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/protections">{() => <Redirect to="/settings" />}</Route>
       <Route path="/wellness">{() => <Redirect to="/settings" />}</Route>
-      <Route path="/knowledge">{() => <Redirect to="/settings/learning" />}</Route>
-      <Route path="/growth">{() => <Redirect to="/settings/brand" />}</Route>
-      <Route path="/legal">{() => <Redirect to="/settings/legal" />}</Route>
+      <Route path="/knowledge">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/growth">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/legal">{() => <Redirect to="/settings" />}</Route>
       <Route path="/you">{() => <Redirect to="/settings" />}</Route>
       <Route component={NotFound} />
     </Switch>
@@ -270,17 +270,12 @@ const ROUTE_LABELS: Record<string, string> = {
   "/": "Home",
   "/content": "Content",
   "/content/channels": "Channels",
-  "/content/calendar": "Calendar",
-  "/content/localization": "Localization",
+  "/content/updated": "Updated",
   "/stream": "Go Live",
   "/money": "Money",
   "/settings": "Settings",
-  "/settings/brand": "Brand",
-  "/settings/collabs": "Collaborations",
-  "/settings/competitors": "Competitors",
-  "/settings/legal": "Legal",
-  "/settings/learning": "Learning",
-  "/settings/automation": "Automation",
+  "/settings/security": "Security",
+  "/settings/subscription": "Subscription",
   "/community": "Community",
   "/notifications": "Notifications",
   "/pricing": "Pricing",

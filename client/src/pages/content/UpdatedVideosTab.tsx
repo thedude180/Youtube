@@ -4,7 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { QueryErrorReset } from "@/components/QueryErrorReset";
 import {
   ExternalLink, CheckCircle2, FileText, Hash, Type,
   Loader2, Video, Eye, ChevronDown, ChevronUp, ArrowRight,
@@ -39,16 +38,6 @@ interface PipelineEntry {
   createdAt: string;
 }
 
-interface VideoEntry {
-  id: number;
-  title: string;
-  type: string;
-  status: string;
-  thumbnailUrl: string | null;
-  metadata: any;
-  createdAt: Date | string | null;
-}
-
 const FIELD_ICONS: Record<string, typeof Type> = {
   title: Type,
   description: FileText,
@@ -61,15 +50,6 @@ const FIELD_LABELS: Record<string, string> = {
   description: "Description",
   tags: "Tags",
   thumbnail: "Thumbnail",
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  direct_push: "Direct Push",
-  backlog_processing: "Backlog Queue",
-  pipeline_step_title: "Pipeline (Title)",
-  pipeline_step_description: "Pipeline (Description)",
-  pipeline_step_tags: "Pipeline (Tags)",
-  system: "System",
 };
 
 const STEP_LABELS: Record<string, string> = {
@@ -103,8 +83,6 @@ function FieldDiff({ field, oldValue, newValue }: { field: string; oldValue: str
   const displayOld = isTagField ? formatTags(oldValue) : (oldValue || "(empty)");
   const displayNew = isTagField ? formatTags(newValue) : (newValue || "(empty)");
 
-  const isSame = displayOld === displayNew;
-
   if (field === "description") {
     return (
       <div className="space-y-2">
@@ -129,7 +107,7 @@ function FieldDiff({ field, oldValue, newValue }: { field: string; oldValue: str
       <div className="rounded-md border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 flex-1 min-w-0">
         <p className="text-xs text-muted-foreground break-words">{truncateText(displayOld, 200)}</p>
       </div>
-      {!isSame && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1.5" />}
+      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1.5" />
       <div className="rounded-md border border-green-500/20 bg-green-500/5 px-2.5 py-1.5 flex-1 min-w-0">
         <p className="text-xs text-muted-foreground break-words">{truncateText(displayNew, 200)}</p>
       </div>
@@ -143,14 +121,7 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
   const studioUrl = entries[0]?.youtubeStudioUrl;
   const latestDate = entries[0]?.createdAt;
 
-  const fieldGroups = new Map<string, UpdateHistoryEntry[]>();
-  for (const entry of entries) {
-    const existing = fieldGroups.get(entry.field) || [];
-    existing.push(entry);
-    fieldGroups.set(entry.field, existing);
-  }
-
-  const uniqueFields = Array.from(fieldGroups.keys());
+  const uniqueFields = [...new Set(entries.map(e => e.field))];
   const totalChanges = entries.length;
 
   return (
@@ -220,9 +191,6 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
                   <div className="flex items-center gap-2 flex-wrap">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs font-medium">{FIELD_LABELS[entry.field] || entry.field}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {SOURCE_LABELS[entry.source] || entry.source}
-                    </Badge>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {entry.createdAt && format(new Date(entry.createdAt), "MMM d, h:mm a")}
@@ -235,33 +203,6 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
                 </div>
               );
             })}
-
-            <div className="flex items-center gap-2 pt-1 flex-wrap">
-              <a
-                href={`https://www.youtube.com/watch?v=${youtubeVideoId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid={`link-watch-${youtubeVideoId}`}
-              >
-                <Button variant="ghost" size="sm">
-                  <Eye className="h-3.5 w-3.5 mr-1.5" />
-                  Watch on YouTube
-                </Button>
-              </a>
-              {studioUrl && (
-                <a
-                  href={studioUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-testid={`link-studio-verify-${youtubeVideoId}`}
-                >
-                  <Button variant="ghost" size="sm">
-                    <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                    Verify in Studio
-                  </Button>
-                </a>
-              )}
-            </div>
           </div>
         )}
       </CardContent>
@@ -270,31 +211,25 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
 }
 
 function UpdatedVideosTab() {
-  const { data: updateHistory, isLoading: historyLoading, error: historyError } = useQuery<UpdateHistoryEntry[]>({
+  const { data: updateHistory, isLoading: historyLoading } = useQuery<UpdateHistoryEntry[]>({
     queryKey: ["/api/videos/update-history"],
+    retry: 1,
   });
 
-  const { data: processing, isLoading: procLoading, error: procError } = useQuery<PipelineEntry[]>({
+  const { data: processing, isLoading: procLoading } = useQuery<PipelineEntry[]>({
     queryKey: ["/api/videos/processing"],
     refetchInterval: 10000,
+    retry: 1,
   });
 
-  const { data: allVideos, isLoading: videosLoading, error: videosError } = useVideos();
-
-  const isLoading = historyLoading || procLoading || videosLoading;
-  const error = historyError || procError || videosError;
-
-  if (error) {
-    return <QueryErrorReset error={error} queryKey={["/api/videos/update-history"]} />;
-  }
+  const isLoading = historyLoading && procLoading;
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        {[1, 2, 3].map((i) => (
+        {[1, 2].map((i) => (
           <div key={i} className="space-y-2">
             <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
         ))}
@@ -306,9 +241,7 @@ function UpdatedVideosTab() {
   if (updateHistory) {
     for (const entry of updateHistory) {
       const key = entry.youtubeVideoId;
-      if (!grouped.has(key)) {
-        grouped.set(key, []);
-      }
+      if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(entry);
     }
   }
@@ -322,49 +255,15 @@ function UpdatedVideosTab() {
 
   const processingEntries = (processing || []).filter(p => p.status === "queued" || p.status === "processing");
 
-  const publicVideos = (allVideos || []).filter((v: VideoEntry) =>
-    v.status === "published" || v.status === "public"
-  );
-
   return (
-    <div className="space-y-8">
-      <section data-testid="section-update-history">
-        <div className="flex items-center gap-2 mb-3">
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-          <h3 className="font-semibold text-sm">Update History</h3>
-          <Badge variant="secondary" className="text-xs">{updatedVideos.length} video{updatedVideos.length !== 1 ? "s" : ""}</Badge>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">
-          Click any video to see exactly what changed. Use the "YouTube Studio" link to verify each update.
-        </p>
-        {updatedVideos.length === 0 ? (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">No video updates yet. When CreatorOS optimizes your videos, you'll see a detailed before/after changelog here so you can verify every change in YouTube Studio.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {updatedVideos.map(([youtubeVideoId, entries]) => (
-              <VideoUpdateCard key={youtubeVideoId} youtubeVideoId={youtubeVideoId} entries={entries} />
-            ))}
+    <div className="space-y-6">
+      {processingEntries.length > 0 && (
+        <section data-testid="section-processing-videos">
+          <div className="flex items-center gap-2 mb-3">
+            <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />
+            <h3 className="font-semibold text-sm">Being Worked On</h3>
+            <Badge variant="secondary" className="text-xs">{processingEntries.length}</Badge>
           </div>
-        )}
-      </section>
-
-      <section data-testid="section-processing-videos">
-        <div className="flex items-center gap-2 mb-3">
-          <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />
-          <h3 className="font-semibold text-sm">Being Worked On</h3>
-          <Badge variant="secondary" className="text-xs">{processingEntries.length}</Badge>
-        </div>
-        {processingEntries.length === 0 ? (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">No videos are currently being optimized. The system automatically processes new and unoptimized videos.</p>
-            </CardContent>
-          </Card>
-        ) : (
           <div className="space-y-2">
             {processingEntries.map((entry) => (
               <Card key={entry.id} data-testid={`card-processing-video-${entry.id}`}>
@@ -396,59 +295,26 @@ function UpdatedVideosTab() {
               </Card>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section data-testid="section-public-videos">
+      <section data-testid="section-update-history">
         <div className="flex items-center gap-2 mb-3">
-          <Eye className="h-4 w-4 text-blue-500" />
-          <h3 className="font-semibold text-sm">Public on YouTube</h3>
-          <Badge variant="secondary" className="text-xs">{publicVideos.length}</Badge>
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
+          <h3 className="font-semibold text-sm">Update History</h3>
+          <Badge variant="secondary" className="text-xs">{updatedVideos.length} video{updatedVideos.length !== 1 ? "s" : ""}</Badge>
         </div>
-        {publicVideos.length === 0 ? (
+        {updatedVideos.length === 0 ? (
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">No public videos found. Connect your YouTube channel and sync your videos to see them here.</p>
+              <p className="text-sm text-muted-foreground">No video updates yet. When CreatorOS optimizes your videos, you'll see a before/after changelog here.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-2">
-            {publicVideos.map((video: VideoEntry) => {
-              const youtubeId = video.metadata?.youtubeId;
-              return (
-                <Card key={video.id} data-testid={`card-public-video-${video.id}`}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Video className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate" data-testid={`text-public-title-${video.id}`}>
-                            {video.title}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <Badge variant="outline" className="text-xs">
-                              {video.type === "short" ? "Short" : "VOD"}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                      {youtubeId && (
-                        <a
-                          href={`https://www.youtube.com/watch?v=${youtubeId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          data-testid={`link-public-youtube-${video.id}`}
-                        >
-                          <Button variant="ghost" size="icon">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Button>
-                        </a>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {updatedVideos.map(([youtubeVideoId, entries]) => (
+              <VideoUpdateCard key={youtubeVideoId} youtubeVideoId={youtubeVideoId} entries={entries} />
+            ))}
           </div>
         )}
       </section>

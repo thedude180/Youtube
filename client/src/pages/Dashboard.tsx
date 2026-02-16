@@ -5,60 +5,27 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useLazyVisible } from "@/hooks/use-lazy-visible";
-import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import {
   Film,
-  ArrowRight,
   DollarSign,
   Bot,
-  CheckCircle2,
   Zap,
   Briefcase,
-  Heart,
   Shield,
-  TrendingUp,
-  Sparkles,
-  Activity,
-  Scissors,
-  BarChart3,
-  Lightbulb,
-  Trophy,
-  Star,
-  Rocket,
-  Flame,
-  Crown,
-  Newspaper,
-  MessageSquare,
-  Globe,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import DashboardSkeleton from "./dashboard/DashboardSkeleton";
 import MetricsGrid from "./dashboard/MetricsGrid";
 import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
 
-const LazyAdvancedMetrics = lazy(() => import("./dashboard/AdvancedMetrics"));
-const LazyAIInsightsSection = lazy(() => import("./dashboard/AIInsightsSection"));
-const LazyAIToolSuites = lazy(() => import("./dashboard/AIToolSuites"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
-const LazyDailyBriefing = lazy(() => import("./dashboard/DailyBriefingSection"));
-const LazyAudienceStealth = lazy(() => import("./dashboard/AudienceStealthSection"));
-const LazyAudienceGrowth = lazy(() => import("./dashboard/AudienceGrowthSection"));
-const LazyCrossPlatformAnalytics = lazy(() => import("./dashboard/CrossPlatformAnalytics"));
-const LazyBackgroundJobs = lazy(() => import("./dashboard/BackgroundJobsDashboard"));
-const LazyHealthMonitor = lazy(() => import("./dashboard/HealthMonitor"));
-const LazyContentPredictions = lazy(() => import("./dashboard/ContentPredictions"));
 
 type AIResponse = any;
 
@@ -79,49 +46,22 @@ interface AgentActivity {
   createdAt: string;
 }
 
-interface DashboardChannel {
-  id: number;
-  channelName: string;
-  platform: string;
-  subscriberCount?: number;
-  videoCount?: number;
-}
-
-interface AIResult {
-  recommendations?: string[];
-  tips?: string[];
-  results?: string[];
-  actions?: string[];
-  insights?: string[];
-  items?: string[];
-  [key: string]: unknown;
-}
-
 const healthAreas = [
   { key: "content", label: "Content", icon: Film, link: "/content" },
   { key: "revenue", label: "Revenue", icon: DollarSign, link: "/money" },
-  { key: "brand", label: "Brand", icon: Briefcase, link: "/settings/brand" },
-  { key: "legal", label: "Legal", icon: Shield, link: "/settings/legal" },
+  { key: "brand", label: "Brand", icon: Briefcase, link: "/settings" },
+  { key: "legal", label: "Legal", icon: Shield, link: "/settings" },
 ];
 
 export default function Dashboard() {
   usePageTitle("Dashboard", "Your AI-powered creator command center. Track content, revenue, growth, and automation across all connected platforms.");
   useSSE();
-  const { toast } = useToast();
   const { user } = useAuth();
-  const { isAdvanced: advancedMode } = useAdvancedMode();
-  const [belowFoldRef, belowFoldVisible] = useLazyVisible("400px");
+  const [belowFoldRef] = useLazyVisible("400px");
   const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
   const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'] });
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'] });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
-  const { data: channels } = useQuery<DashboardChannel[]>({ queryKey: ['/api/channels'] });
-  const { data: goals } = useQuery<any[]>({ queryKey: ['/api/goals'], enabled: belowFoldVisible });
-  const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'], enabled: belowFoldVisible });
-  const { data: briefing } = useQuery<AIResult>({ queryKey: ['/api/learning/briefing'], enabled: belowFoldVisible });
-  const { data: optHealth } = useQuery<AIResult>({ queryKey: ['/api/optimization/health-score'], enabled: belowFoldVisible });
-  const { data: shortsStatus } = useQuery<AIResult>({ queryKey: ['/api/shorts/status'], enabled: belowFoldVisible });
-  const { data: trendingTopics } = useQuery<any[]>({ queryKey: ['/api/optimization/trending-topics'], enabled: belowFoldVisible });
 
   const [aiActions, setAiActions] = useState<AIResponse>(null);
   const [aiActionsLoading, setAiActionsLoading] = useState(false);
@@ -176,8 +116,6 @@ export default function Dashboard() {
     [notifications]
   );
 
-  const platformCount = useMemo(() => channels?.length || 0, [channels]);
-
   const recentActivities = useMemo(() =>
     (agentActivities || []).slice(0, 5),
     [agentActivities]
@@ -225,15 +163,6 @@ export default function Dashboard() {
     if (status === "warning") return "bg-amber-400";
     return "bg-red-400";
   };
-
-  const activeGoals = useMemo(() =>
-    goals?.filter((g: any) => g.status === "active") || [],
-    [goals]
-  );
-  const activeVentures = useMemo(() =>
-    ventures?.filter((v: any) => v.status === "active") || [],
-    [ventures]
-  );
 
   if (statsLoading) return <DashboardSkeleton />;
 
@@ -319,10 +248,6 @@ export default function Dashboard() {
 
       <MetricsGrid metrics={metrics} />
 
-      <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-        <LazyAudienceStealth />
-      </Suspense>
-
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
 
       <AIActionCenter aiActions={aiActions} aiActionsLoading={aiActionsLoading} />
@@ -336,65 +261,6 @@ export default function Dashboard() {
       </Suspense>
 
       <div ref={belowFoldRef} />
-
-      <CollapsibleToolbox title="Audience & Growth" toolCount={6}>
-        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-          <LazyAudienceGrowth />
-        </Suspense>
-      </CollapsibleToolbox>
-
-      <CollapsibleToolbox title="AI Insights & Briefing" toolCount={3}>
-        <div className="space-y-4">
-          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-            <LazyAIInsightsSection />
-          </Suspense>
-          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-            <LazyDailyBriefing briefing={briefing} />
-          </Suspense>
-        </div>
-      </CollapsibleToolbox>
-
-      <CollapsibleToolbox title="Advanced Metrics" toolCount={6}>
-        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-          <LazyAdvancedMetrics
-            advancedMode={advancedMode}
-            optHealth={optHealth}
-            shortsStatus={shortsStatus}
-            trendingTopics={trendingTopics}
-            activeGoals={activeGoals}
-            activeVentures={activeVentures}
-          />
-        </Suspense>
-      </CollapsibleToolbox>
-
-      <CollapsibleToolbox title="Content Predictions" toolCount={1}>
-        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-          <LazyContentPredictions />
-        </Suspense>
-      </CollapsibleToolbox>
-
-      <CollapsibleToolbox title="Cross-Platform Analytics" toolCount={6}>
-        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-          <LazyCrossPlatformAnalytics />
-        </Suspense>
-      </CollapsibleToolbox>
-
-      <CollapsibleToolbox title="System Health" toolCount={2}>
-        <div className="space-y-4">
-          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-            <LazyHealthMonitor />
-          </Suspense>
-          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-            <LazyBackgroundJobs />
-          </Suspense>
-        </div>
-      </CollapsibleToolbox>
-
-      <CollapsibleToolbox title="AI Tool Suites" toolCount={200}>
-        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-          <LazyAIToolSuites />
-        </Suspense>
-      </CollapsibleToolbox>
     </div>
   );
 }
