@@ -18,6 +18,7 @@ import { registerUpgradeRoutes } from "./routes/upgrades";
 import { registerUltimateRoutes } from "./routes/ultimate";
 import { registerFeedbackRoutes } from "./routes/feedback";
 import { registerSecurityDashboardRoutes } from "./routes/security-dashboard";
+import { registerFortressRoutes } from "./routes/fortress";
 import { getUserId } from "./routes/helpers";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -165,6 +166,7 @@ export async function registerRoutes(
   registerUltimateRoutes(app);
   registerFeedbackRoutes(app);
   registerSecurityDashboardRoutes(app);
+  registerFortressRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

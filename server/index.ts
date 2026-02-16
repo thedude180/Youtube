@@ -13,6 +13,9 @@ import { pool } from "./db";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 import { startAutopilotMonitor } from "./services/autopilot-monitor";
 import { storage } from "./storage";
+import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
+import { processDeadLetterQueue } from "./services/automation-hardening";
+import { processAllDigests } from "./services/notification-system";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -188,9 +191,22 @@ setInterval(() => {
   }
 }, 30_000);
 
-app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
   if (req.path === "/health" || req.path === "/stripe/webhook") return next();
   const ip = req.ip || req.socket.remoteAddress || "anon";
+
+  try {
+    const lockStatus = await checkAccountLock(ip);
+    if (lockStatus.locked) {
+      return res.status(423).json({
+        error: "account_locked",
+        message: "Your access is temporarily restricted due to suspicious activity.",
+        lockedUntil: lockStatus.lockedUntil?.toISOString(),
+      });
+    }
+  } catch {}
+
+  const adaptiveLimit = await getAdaptiveRateLimit(ip);
   const now = Date.now();
   let entry = globalRateLimitMap.get(ip);
   if (!entry || now - entry.windowStart > GLOBAL_RATE_WINDOW) {
@@ -198,12 +214,18 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
     globalRateLimitMap.set(ip, entry);
   }
   entry.count++;
-  res.setHeader("X-RateLimit-Limit", String(GLOBAL_RATE_LIMIT));
-  res.setHeader("X-RateLimit-Remaining", String(Math.max(0, GLOBAL_RATE_LIMIT - entry.count)));
-  if (entry.count > GLOBAL_RATE_LIMIT) {
+
+  const effectiveLimit = Math.min(GLOBAL_RATE_LIMIT, adaptiveLimit.limit);
+  res.setHeader("X-RateLimit-Limit", String(effectiveLimit));
+  res.setHeader("X-RateLimit-Remaining", String(Math.max(0, effectiveLimit - entry.count)));
+  if (entry.count > effectiveLimit) {
+    updateIpReputation(ip, "rate_limited").catch(() => {});
     res.setHeader("Retry-After", String(Math.ceil((entry.windowStart + GLOBAL_RATE_WINDOW - now) / 1000)));
     return res.status(429).json({ error: "rate_limited", message: "Too many requests. Please slow down." });
   }
+
+  analyzeRequestPattern(ip, req.path, req.method).catch(() => {});
+
   next();
 });
 
@@ -378,6 +400,18 @@ app.use((req: any, res, next) => {
     () => {
       log(`serving on port ${port}`);
       startAutopilotMonitor();
+
+      seedRetentionPolicies().catch(err => console.error("[DataRetention] Seed failed:", err));
+
+      setInterval(() => {
+        processDeadLetterQueue().catch(err => console.error("[DLQ] Process failed:", err));
+      }, 5 * 60 * 1000);
+
+      setInterval(() => {
+        processAllDigests().catch(err => console.error("[Digest] Process failed:", err));
+      }, 60 * 60 * 1000);
+
+      log("Fortress systems initialized: DLQ processor, digest processor, data retention");
     },
   );
 
