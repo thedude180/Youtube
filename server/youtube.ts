@@ -572,6 +572,48 @@ export async function checkYouTubeLiveBroadcasts(channelId: number) {
   }
 }
 
+export async function fetchYouTubeComments(channelId: number, youtubeVideoId: string, maxResults = 20) {
+  const { oauth2Client } = await getAuthenticatedClient(channelId);
+  const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+
+  const response = await youtube.commentThreads.list({
+    part: ["snippet"],
+    videoId: youtubeVideoId,
+    maxResults,
+    order: "time",
+    textFormat: "plainText",
+  });
+
+  const threads = response.data.items || [];
+  return threads.map(thread => {
+    const snippet = thread.snippet?.topLevelComment?.snippet;
+    return {
+      commentId: thread.snippet?.topLevelComment?.id || "",
+      author: snippet?.authorDisplayName || "Unknown",
+      text: snippet?.textDisplay || "",
+      likeCount: snippet?.likeCount || 0,
+      publishedAt: snippet?.publishedAt || "",
+    };
+  }).filter(c => c.text.length > 0);
+}
+
+export async function replyToYouTubeComment(channelId: number, commentId: string, replyText: string) {
+  const { oauth2Client } = await getAuthenticatedClient(channelId);
+  const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+
+  const response = await youtube.comments.insert({
+    part: ["snippet"],
+    requestBody: {
+      snippet: {
+        parentId: commentId,
+        textOriginal: replyText,
+      },
+    },
+  });
+
+  return response.data;
+}
+
 function parseDuration(iso: string): number {
   const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return 0;

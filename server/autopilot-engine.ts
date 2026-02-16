@@ -348,36 +348,59 @@ export async function processCommentResponses(userId: string) {
     return;
   }
 
-  const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+  const userChannels = await db.select().from(channels)
+    .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
   if (userChannels.length === 0) return;
 
+  const connectedChannel = userChannels.find(c => c.accessToken);
+  if (!connectedChannel) {
+    console.log(`[Autopilot] No connected YouTube channel for ${userId}, skipping comments`);
+    return;
+  }
+
   const userVideos = await db.select().from(videos)
-    .where(eq(videos.platform, "youtube"))
+    .where(and(eq(videos.platform, "youtube"), eq(videos.channelId, connectedChannel.id)))
     .orderBy(desc(videos.createdAt))
     .limit(10);
 
   if (userVideos.length === 0) return;
 
   const creatorTone = await getCreatorTone(userId);
+  const approvalMode = (config?.settings as any)?.commentApprovalMode || "auto";
+  let totalProcessed = 0;
 
-  const sampleComments = [
-    { author: "GameFan42", comment: "This was amazing! How do you get so good?", videoTitle: userVideos[0]?.title || "Recent Video" },
-    { author: "NewViewer", comment: "First time watching, love your style!", videoTitle: userVideos[0]?.title || "Recent Video" },
-    { author: "ProGamer", comment: "What settings do you use?", videoTitle: userVideos[0]?.title || "Recent Video" },
-  ];
+  const { fetchYouTubeComments } = await import("./youtube");
 
-  for (const sample of sampleComments) {
-    const existingResponse = await db.select().from(commentResponses)
-      .where(and(
-        eq(commentResponses.userId, userId),
-        eq(commentResponses.originalAuthor, sample.author),
-        eq(commentResponses.originalComment, sample.comment),
-      ))
-      .limit(1);
+  for (const video of userVideos) {
+    const ytId = (video.metadata as any)?.youtubeId;
+    if (!ytId) continue;
 
-    if (existingResponse.length > 0) continue;
+    let realComments: { commentId: string; author: string; text: string; likeCount: number; publishedAt: string }[];
+    try {
+      realComments = await fetchYouTubeComments(connectedChannel.id, ytId, 20);
+    } catch (err: any) {
+      if (err.code === 403 || err.message?.includes("quota")) {
+        console.log(`[Autopilot] YouTube quota hit fetching comments for video ${ytId}`);
+        break;
+      }
+      console.log(`[Autopilot] Failed to fetch comments for video ${ytId}: ${err.message}`);
+      continue;
+    }
 
-    const systemMsg = `You ARE this creator responding to a comment on your own video. First person. Your voice.
+    if (realComments.length === 0) continue;
+
+    for (const comment of realComments) {
+      if (!comment.commentId || !comment.text) continue;
+
+      const existing = await db.select({ id: commentResponses.id }).from(commentResponses)
+        .where(
+          sql`${commentResponses.userId} = ${userId} AND ${commentResponses.metadata}->>'commentId' = ${comment.commentId}`
+        )
+        .limit(1);
+
+      if (existing.length > 0) continue;
+
+      const systemMsg = `You ARE this creator responding to a comment on your own video. First person. Your voice.
 ${creatorTone}
 
 CRITICAL RULES:
@@ -391,45 +414,51 @@ CRITICAL RULES:
 - NEVER sound corporate, formal, or like a brand account
 - Vary response length and style from reply to reply`;
 
-    const prompt = `Comment on your video "${sample.videoTitle}" by ${sample.author}: "${sample.comment}"
+      const prompt = `Comment on your video "${video.title}" by ${comment.author}: "${comment.text}"
 
 Write a quick reply as yourself. Output ONLY the reply text.`;
 
-    const response = await generateWithAI(prompt, systemMsg);
-    if (!response) continue;
+      const response = await generateWithAI(prompt, systemMsg);
+      if (!response) continue;
 
-    let processedResponse = response.replace(/^["']|["']$/g, "").trim();
+      let processedResponse = response.replace(/^["']|["']$/g, "").trim();
 
-    if (Math.random() < 0.15) {
-      const shortcuts: Record<string, string> = { "you": "u", "your": "ur", "to be honest": "tbh", "right now": "rn" };
-      for (const [full, short] of Object.entries(shortcuts)) {
-        if (processedResponse.toLowerCase().includes(full) && Math.random() < 0.3) {
-          processedResponse = processedResponse.replace(new RegExp(full, "i"), short);
-          break;
+      if (Math.random() < 0.15) {
+        const shortcuts: Record<string, string> = { "you": "u", "your": "ur", "to be honest": "tbh", "right now": "rn" };
+        for (const [full, short] of Object.entries(shortcuts)) {
+          if (processedResponse.toLowerCase().includes(full) && Math.random() < 0.3) {
+            processedResponse = processedResponse.replace(new RegExp(full, "i"), short);
+            break;
+          }
         }
       }
+
+      await db.insert(commentResponses).values({
+        userId,
+        videoId: video.id,
+        platform: "youtube",
+        originalComment: comment.text,
+        originalAuthor: comment.author,
+        aiResponse: processedResponse,
+        status: approvalMode === "auto" ? "approved" : "pending",
+        sentiment: detectSentiment(comment.text),
+        priority: comment.text.includes("?") ? "high" : "normal",
+        metadata: {
+          commentId: comment.commentId,
+          likeCount: comment.likeCount,
+          isQuestion: comment.text.includes("?"),
+          tone: "friendly",
+        },
+      } as any);
+
+      totalProcessed++;
+      if (totalProcessed >= 15) break;
     }
 
-    const approvalMode = (config?.settings as any)?.commentApprovalMode || "auto";
-
-    await db.insert(commentResponses).values({
-      userId,
-      videoId: userVideos[0]?.id,
-      platform: "youtube",
-      originalComment: sample.comment,
-      originalAuthor: sample.author,
-      aiResponse: processedResponse,
-      status: approvalMode === "auto" ? "approved" : "pending",
-      sentiment: detectSentiment(sample.comment),
-      priority: sample.comment.includes("?") ? "high" : "normal",
-      metadata: {
-        isQuestion: sample.comment.includes("?"),
-        tone: "friendly",
-        responseDelay: getCommentResponseDelay(),
-        typingDelay: simulateTypingDelay(processedResponse.length),
-      },
-    } as any);
+    if (totalProcessed >= 15) break;
   }
+
+  console.log(`[Autopilot] Processed ${totalProcessed} real YouTube comments for ${userId}`);
 }
 
 export async function processContentRecycling(userId: string) {
