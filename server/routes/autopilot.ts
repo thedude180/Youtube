@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { autopilotQueue, commentResponses, autopilotConfig, channels, videos, scheduleItems } from "@shared/schema";
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
 import {
   getAutopilotStats,
   getAutopilotActivity,
@@ -362,18 +362,33 @@ export function registerAutopilotRoutes(app: Express) {
           ));
       }
 
-      const userVideos = await db
-        .select()
-        .from(videos)
-        .where(eq(videos.platform, "youtube"))
-        .orderBy(desc(videos.createdAt))
-        .limit(5);
+      const userChannels = await db.select({ id: channels.id }).from(channels).where(eq(channels.userId, userId));
+      const channelIds = userChannels.map(c => c.id);
+      const userVideos = channelIds.length > 0
+        ? await db.select().from(videos)
+            .where(and(eq(videos.platform, "youtube"), sql`${videos.channelId} = ANY(${channelIds})`))
+            .orderBy(desc(videos.createdAt))
+            .limit(5)
+        : [];
 
       const platforms = ["youtube", "tiktok", "x", "discord", "twitch", "kick"];
       const contentTypes = ["auto-clip", "content-recycle", "cross-promo"];
       let seeded = 0;
       const now = new Date();
 
+      const platformTimes = await Promise.all(
+        platforms.map(async (platform) => {
+          try {
+            const t = await getAudienceDrivenTime({ platform, userId, contentType: "new-video", urgency: "low" });
+            return { platform, hour: t.getHours(), minute: t.getMinutes() };
+          } catch {
+            return { platform, hour: 12 + Math.floor(Math.random() * 6), minute: Math.floor(Math.random() * 60) };
+          }
+        })
+      );
+      const timeMap = Object.fromEntries(platformTimes.map(t => [t.platform, t]));
+
+      const batchValues: any[] = [];
       for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
         for (const platform of platforms) {
           const postsPerDay = platform === "x" ? 2 : 1;
@@ -384,18 +399,10 @@ export function registerAutopilotRoutes(app: Express) {
               ? userVideos[seeded % userVideos.length]
               : null;
 
-            const scheduledAt = await getAudienceDrivenTime({
-              platform,
-              userId,
-              contentType: "new-video",
-              urgency: "low",
-            });
-
-            const targetDate = new Date(now);
-            targetDate.setDate(targetDate.getDate() + dayOffset);
-            scheduledAt.setFullYear(targetDate.getFullYear());
-            scheduledAt.setMonth(targetDate.getMonth());
-            scheduledAt.setDate(targetDate.getDate());
+            const t = timeMap[platform];
+            const scheduledAt = new Date(now);
+            scheduledAt.setDate(scheduledAt.getDate() + dayOffset);
+            scheduledAt.setHours(t.hour + postIdx, t.minute, 0, 0);
 
             const microDelay = addHumanMicroDelay();
             let finalSchedule = new Date(scheduledAt.getTime() + microDelay);
@@ -411,7 +418,7 @@ export function registerAutopilotRoutes(app: Express) {
             const titleBase = video?.title || `Scheduled ${platform} post`;
             const content = `${contentType === "auto-clip" ? "New content" : contentType === "content-recycle" ? "Throwback" : "Cross-platform"}: ${titleBase}`;
 
-            await db.insert(autopilotQueue).values({
+            batchValues.push({
               userId,
               sourceVideoId: video?.id || null,
               type: contentType,
@@ -426,10 +433,16 @@ export function registerAutopilotRoutes(app: Express) {
                 aiModel: "seeded",
                 humanScore: 0.95,
               },
-            } as any);
+            });
 
             seeded++;
           }
+        }
+      }
+
+      if (batchValues.length > 0) {
+        for (let i = 0; i < batchValues.length; i += 50) {
+          await db.insert(autopilotQueue).values(batchValues.slice(i, i + 50) as any);
         }
       }
 
@@ -454,15 +467,17 @@ export function registerAutopilotRoutes(app: Express) {
         }
       }
 
-      res.json({
-        success: true,
-        message: `Autopilot activated! ${seeded} posts scheduled across 6 platforms over the next 14 days.`,
-        seeded,
-        startDate: now.toISOString(),
-      });
+      if (!res.headersSent) {
+        res.json({
+          success: true,
+          message: `Autopilot activated! ${seeded} posts scheduled across 6 platforms over the next 14 days.`,
+          seeded,
+          startDate: now.toISOString(),
+        });
+      }
     } catch (err) {
       console.error("[Autopilot] Activation error:", err);
-      res.status(500).json({ error: "Failed to activate autopilot" });
+      if (!res.headersSent) res.status(500).json({ error: "Failed to activate autopilot" });
     }
   });
 }

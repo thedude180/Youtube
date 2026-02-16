@@ -172,7 +172,9 @@ export function registerContentRoutes(app: Express) {
   app.get(api.videos.get.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const video = await storage.getVideo(Number(req.params.id));
+    const videoId = Number(req.params.id);
+    if (isNaN(videoId)) return res.status(400).json({ message: "Invalid video ID" });
+    const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
     if (video.channelId) {
       const channel = await storage.getChannel(video.channelId);
@@ -184,6 +186,8 @@ export function registerContentRoutes(app: Express) {
   app.put(api.videos.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const vidId = Number(req.params.id);
+    if (isNaN(vidId)) return res.status(400).json({ message: "Invalid video ID" });
     const schema = z.object({
       title: z.string().min(1).optional(),
       description: z.string().optional(),
@@ -199,13 +203,13 @@ export function registerContentRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     try {
-      const existingVideo = await storage.getVideo(Number(req.params.id));
+      const existingVideo = await storage.getVideo(vidId);
       if (!existingVideo) return res.status(404).json({ message: "Video not found" });
       if (existingVideo.channelId) {
         const channel = await storage.getChannel(existingVideo.channelId);
         if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
       }
-      const video = await storage.updateVideo(Number(req.params.id), parsed.data as any);
+      const video = await storage.updateVideo(vidId, parsed.data as any);
       await storage.createAuditLog({
         userId,
         action: "video_updated",
@@ -223,13 +227,15 @@ export function registerContentRoutes(app: Express) {
   app.delete(api.videos.delete.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const video = await storage.getVideo(Number(req.params.id));
+    const delId = Number(req.params.id);
+    if (isNaN(delId)) return res.status(400).json({ message: "Invalid video ID" });
+    const video = await storage.getVideo(delId);
     if (!video) return res.status(404).json({ message: "Video not found" });
     if (video.channelId) {
       const channel = await storage.getChannel(video.channelId);
       if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
     }
-    await storage.deleteVideo(Number(req.params.id));
+    await storage.deleteVideo(delId);
     await storage.createAuditLog({
       userId,
       action: "video_deleted",

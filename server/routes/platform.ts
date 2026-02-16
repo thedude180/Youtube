@@ -221,7 +221,9 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const video = await storage.getVideo(Number(req.params.videoId));
+      const vId = Number(req.params.videoId);
+      if (isNaN(vId)) return res.status(400).json({ error: "Invalid video ID" });
+      const video = await storage.getVideo(vId);
       if (!video) return res.status(404).json({ error: "Video not found" });
       if (!video.channelId) return res.status(400).json({ error: "Video has no channel" });
       if (!video.metadata?.youtubeId) return res.status(400).json({ error: "Video has no YouTube ID" });
@@ -364,9 +366,16 @@ export async function registerPlatformRoutes(app: Express) {
       const audienceData: Record<string, any> = {};
       let hasAnyData = false;
 
-      for (const platform of platforms) {
-        try {
+      const results = await Promise.allSettled(
+        platforms.map(async (platform) => {
           const result = await getOptimalPostingTimes(userId, platform);
+          return { platform, result };
+        })
+      );
+
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          const { platform, result } = r.value;
           audienceData[platform] = {
             source: result.source,
             topSlots: (result.slots || []).slice(0, 5).map((s: any) => ({
@@ -379,8 +388,12 @@ export async function registerPlatformRoutes(app: Express) {
             peakDay: result.slots?.[0]?.dayOfWeek ?? null,
           };
           if (result.source === "data") hasAnyData = true;
-        } catch {
-          audienceData[platform] = { source: "none", topSlots: [], peakHour: null, peakDay: null };
+        }
+      }
+
+      for (const p of platforms) {
+        if (!audienceData[p]) {
+          audienceData[p] = { source: "none", topSlots: [], peakHour: null, peakDay: null };
         }
       }
 
@@ -390,15 +403,19 @@ export async function registerPlatformRoutes(app: Express) {
         stealthStatus = await getGuardrailStatus(userId);
       } catch {}
 
-      res.json({
-        hasAudienceData: hasAnyData,
-        platforms: audienceData,
-        stealthStatus,
-        dataSource: hasAnyData ? "real-viewer-data" : "optimized-defaults",
-      });
+      if (!res.headersSent) {
+        res.json({
+          hasAudienceData: hasAnyData,
+          platforms: audienceData,
+          stealthStatus,
+          dataSource: hasAnyData ? "real-viewer-data" : "optimized-defaults",
+        });
+      }
     } catch (error: any) {
       console.error("Audience analytics error:", error);
-      res.status(500).json({ message: error.message });
+      if (!res.headersSent) {
+        res.status(500).json({ message: error.message });
+      }
     }
   });
 

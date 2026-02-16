@@ -1224,10 +1224,10 @@ export function registerAiRoutes(app: Express) {
         activeGoals: goals.filter((g: any) => g.status === "active").length,
         activeVentures: ventures.filter((v: any) => v.status === "active").length,
       }, userId);
-      res.json(result);
+      if (!res.headersSent) res.json(result);
     } catch (error: any) {
       console.error("AI dashboard actions error:", error);
-      res.status(500).json({ message: error.message });
+      if (!res.headersSent) res.status(500).json({ message: error.message });
     }
   });
 
