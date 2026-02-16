@@ -1455,6 +1455,16 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
     }
   }
 
+  if (videoRecord) {
+    try {
+      const { processNewVideoUpload } = await import("./autopilot-engine");
+      await processNewVideoUpload(userId, videoRecord.id);
+      console.log(`[Empire] Triggered autopilot distribution for empire-generated video ${videoRecord.id}`);
+    } catch (err: any) {
+      console.error(`[Empire] Autopilot distribution trigger failed:`, err.message);
+    }
+  }
+
   const distributionPlatforms = Object.keys(distributionSchedule);
   sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "completed", message: `VOD pipeline #${pipeline.id} spawned for "${finalTitle}" with human-realistic scheduling across ${distributionPlatforms.length + 1} platforms!` });
 

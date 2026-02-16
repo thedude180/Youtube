@@ -363,6 +363,18 @@ async function executeStreamPipelineInBackground(
           stepResults: currentResults,
         })
         .where(eq(streamPipelines.id, pipelineId));
+
+      if (userId) {
+        try {
+          const { storage } = await import("../storage");
+          await storage.createNotification({
+            userId,
+            type: "system",
+            title: `Pipeline error: "${sourceTitle}"`,
+            message: `Step "${step}" failed during processing. The self-healing system will attempt to recover automatically. Error: ${stepErr.message?.slice(0, 200)}`,
+          });
+        } catch {}
+      }
       return;
     }
   }
@@ -390,6 +402,47 @@ async function executeStreamPipelineInBackground(
       }
     } catch (vodSpawnErr: any) {
       console.error(`[DualPipeline] Failed to spawn VOD pipeline after live ${pipelineId}:`, vodSpawnErr.message);
+    }
+  }
+
+  if (pipelineType === "vod" && userId) {
+    try {
+      const videoDbId = currentResults?._videoDbId;
+      if (videoDbId) {
+        const { processNewVideoUpload } = await import("../autopilot-engine");
+        await processNewVideoUpload(userId, videoDbId);
+        console.log(`[DualPipeline] Triggered autopilot distribution for video ${videoDbId} after VOD pipeline ${pipelineId} completed`);
+      } else {
+        const cleanTitle = sourceTitle.replace(/^\[VOD\]\s*/i, "").trim();
+        const videoMatch = await db.select().from(videos)
+          .where(and(
+            sql`(${videos.title} = ${cleanTitle} OR ${videos.title} = ${sourceTitle})`,
+            sql`${videos.metadata} IS NOT NULL`,
+          ))
+          .orderBy(desc(videos.createdAt))
+          .limit(1);
+        if (videoMatch.length > 0) {
+          const { processNewVideoUpload } = await import("../autopilot-engine");
+          await processNewVideoUpload(userId, videoMatch[0].id);
+          console.log(`[DualPipeline] Triggered autopilot distribution for matched video ${videoMatch[0].id} after VOD pipeline ${pipelineId}`);
+        } else {
+          console.log(`[DualPipeline] No video record found for pipeline ${pipelineId} ("${cleanTitle}") — autopilot distribution skipped`);
+        }
+      }
+    } catch (autopilotErr: any) {
+      console.error(`[DualPipeline] Autopilot trigger failed for pipeline ${pipelineId}:`, autopilotErr.message);
+    }
+
+    try {
+      const { storage } = await import("../storage");
+      await storage.createNotification({
+        userId,
+        type: "autopilot",
+        title: `Pipeline completed: "${sourceTitle}"`,
+        message: `Your content pipeline for "${sourceTitle}" has finished processing all ${stepIds.length} steps and autopilot distribution has been triggered.`,
+      });
+    } catch (notifErr: any) {
+      console.error(`[DualPipeline] Notification failed for pipeline ${pipelineId}:`, notifErr.message);
     }
   }
 }

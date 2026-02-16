@@ -19,6 +19,22 @@ import {
   checkContentSafety,
   getStealthReport,
 } from "./content-variation-engine";
+import { getKeywordContext } from "./services/keyword-learning-engine";
+import { trafficStrategies } from "@shared/schema";
+
+async function getTrafficStrategyContext(userId: string): Promise<string> {
+  try {
+    const activeStrategies = await db.select().from(trafficStrategies)
+      .where(and(eq(trafficStrategies.userId, userId), eq(trafficStrategies.status, "active")))
+      .orderBy(desc(trafficStrategies.priority))
+      .limit(3);
+    if (activeStrategies.length === 0) return "";
+    const lines = activeStrategies.map(s => `- ${s.strategyType}: ${s.title}${s.description ? ` (${s.description.slice(0, 100)})` : ""}`);
+    return `CURRENT TRAFFIC GROWTH FOCUS (align content with these strategies when naturally relevant):\n${lines.join("\n")}\nOnly reference these themes if they fit the content naturally — never force them.`;
+  } catch {
+    return "";
+  }
+}
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -109,6 +125,11 @@ async function generateFullThrottleDistribution(
     return shouldPostToday(p);
   });
 
+  const [kwContext, tsContext] = await Promise.all([
+    getKeywordContext(userId).catch(() => ""),
+    getTrafficStrategyContext(userId),
+  ]);
+
   const scheduleType = contentType === "cross-promo" ? "engagement" : contentType === "go-live" ? "new-video" : contentType === "post-stream" ? "new-video" : contentType;
   const schedule = await getAudienceDrivenStaggeredSchedule(activePlatforms, scheduleType, userId);
 
@@ -139,6 +160,8 @@ async function generateFullThrottleDistribution(
       contentType,
       creatorTone,
       userId,
+      keywordContext: kwContext,
+      trafficStrategyContext: tsContext,
     });
 
     if (!result.content) continue;
@@ -155,6 +178,8 @@ async function generateFullThrottleDistribution(
         contentType,
         creatorTone,
         userId,
+        keywordContext: kwContext,
+        trafficStrategyContext: tsContext,
       });
 
       if (!retry.content) continue;

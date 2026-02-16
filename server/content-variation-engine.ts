@@ -18,6 +18,8 @@ interface VariationOptions {
   creatorTone: string;
   userId: string;
   existingPosts?: string[];
+  keywordContext?: string;
+  trafficStrategyContext?: string;
 }
 
 const CREATOR_WEBSITE = "https://etgaming247.com";
@@ -177,7 +179,7 @@ export async function generateUniqueContent(options: VariationOptions): Promise<
   stealthScore: number;
   fingerprint: string;
 }> {
-  const { videoTitle, videoDescription, videoType, platform, contentType, creatorTone, userId } = options;
+  const { videoTitle, videoDescription, videoType, platform, contentType, creatorTone, userId, keywordContext, trafficStrategyContext } = options;
 
   const recentPosts = await getRecentPostsForPlatform(userId, platform, 20);
   const recentTexts = recentPosts.map(p => p.content);
@@ -213,7 +215,7 @@ CRITICAL ANTI-DETECTION RULES:
 - Sound like you just typed this in 10 seconds without thinking too hard
 - NEVER use any of these phrases: ${BANNED_AI_PHRASES.slice(0, 10).join(", ")}
 
-${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO NOT repeat similar wording or structure):\n${recentTexts.slice(0, 5).map((t, i) => `${i + 1}. "${t}"`).join("\n")}` : ""}`;
+${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO NOT repeat similar wording or structure):\n${recentTexts.slice(0, 5).map((t, i) => `${i + 1}. "${t}"`).join("\n")}` : ""}${keywordContext ? `\n\n${keywordContext}` : ""}${trafficStrategyContext ? `\n\n${trafficStrategyContext}` : ""}`;
 
   const prompt = buildPromptForType(contentType, videoTitle, videoDescription, videoType, platform, angle);
 

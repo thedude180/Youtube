@@ -86,7 +86,19 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
       return result;
     }
 
-    console.log(`[Notifications] Email suppressed (non-exception): "${payload.title}" for ${payload.userId}`);
+    if ((user as any).notifyEmail !== false && (user as any).email) {
+      try {
+        const sent = await sendEmailNotification((user as any).email, payload.title, payload.message, payload.severity);
+        result.email = sent;
+        if (sent) {
+          console.log(`[Notifications] Email sent: "${payload.title}" -> ${(user as any).email}`);
+        }
+      } catch (emailErr) {
+        console.error(`[Notifications] Email send failed for ${payload.userId}:`, emailErr);
+      }
+    } else {
+      console.log(`[Notifications] Email not enabled or no email for user ${payload.userId}`);
+    }
   } catch (err) {
     console.error("[Notifications] Notify error:", err);
   }
