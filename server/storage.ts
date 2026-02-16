@@ -60,6 +60,9 @@ import {
   type WebhookEvent, type InsertWebhookEvent,
   localizationRecommendations,
   type LocalizationRecommendation, type InsertLocalizationRecommendation,
+  apiKeys, contentPredictions,
+  type ApiKey, type InsertApiKey,
+  type ContentPrediction, type InsertContentPrediction,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -292,6 +295,15 @@ export interface IStorage {
   createAccessCode(c: InsertAccessCode): Promise<AccessCode>;
   redeemAccessCode(code: string, userId: string): Promise<AccessCode | undefined>;
   revokeAccessCode(id: number): Promise<AccessCode>;
+
+  getApiKeysByUser(userId: string): Promise<ApiKey[]>;
+  getApiKeyByHash(hashedKey: string): Promise<ApiKey | undefined>;
+  createApiKey(key: InsertApiKey): Promise<ApiKey>;
+  revokeApiKey(id: number, userId: string): Promise<ApiKey>;
+  touchApiKeyUsage(id: number): Promise<void>;
+
+  getContentPredictions(userId: string): Promise<ContentPrediction[]>;
+  createContentPrediction(prediction: InsertContentPrediction): Promise<ContentPrediction>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1373,6 +1385,50 @@ export class DatabaseStorage implements IStorage {
       .where(eq(accessCodes.id, id))
       .returning();
     return updated;
+  }
+
+  async getApiKeysByUser(userId: string): Promise<ApiKey[]> {
+    return await db.select().from(apiKeys)
+      .where(and(eq(apiKeys.userId, userId), eq(apiKeys.revoked, false)))
+      .orderBy(desc(apiKeys.createdAt));
+  }
+
+  async getApiKeyByHash(hashedKey: string): Promise<ApiKey | undefined> {
+    const [key] = await db.select().from(apiKeys)
+      .where(and(eq(apiKeys.hashedKey, hashedKey), eq(apiKeys.revoked, false)))
+      .limit(1);
+    return key;
+  }
+
+  async createApiKey(key: InsertApiKey): Promise<ApiKey> {
+    const [created] = await db.insert(apiKeys).values(key).returning();
+    return created;
+  }
+
+  async revokeApiKey(id: number, userId: string): Promise<ApiKey> {
+    const [updated] = await db.update(apiKeys)
+      .set({ revoked: true })
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async touchApiKeyUsage(id: number): Promise<void> {
+    await db.update(apiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(apiKeys.id, id));
+  }
+
+  async getContentPredictions(userId: string): Promise<ContentPrediction[]> {
+    return await db.select().from(contentPredictions)
+      .where(eq(contentPredictions.userId, userId))
+      .orderBy(desc(contentPredictions.createdAt))
+      .limit(20);
+  }
+
+  async createContentPrediction(prediction: InsertContentPrediction): Promise<ContentPrediction> {
+    const [created] = await db.insert(contentPredictions).values(prediction).returning();
+    return created;
   }
 }
 

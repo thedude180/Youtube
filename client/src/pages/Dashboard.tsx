@@ -59,6 +59,10 @@ const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSecti
 const LazyDailyBriefing = lazy(() => import("./dashboard/DailyBriefingSection"));
 const LazyAudienceStealth = lazy(() => import("./dashboard/AudienceStealthSection"));
 const LazyAudienceGrowth = lazy(() => import("./dashboard/AudienceGrowthSection"));
+const LazyCrossPlatformAnalytics = lazy(() => import("./dashboard/CrossPlatformAnalytics"));
+const LazyBackgroundJobs = lazy(() => import("./dashboard/BackgroundJobsDashboard"));
+const LazyHealthMonitor = lazy(() => import("./dashboard/HealthMonitor"));
+const LazyContentPredictions = lazy(() => import("./dashboard/ContentPredictions"));
 
 type AIResponse = any;
 
@@ -365,6 +369,29 @@ export default function Dashboard() {
             activeVentures={activeVentures}
           />
         </Suspense>
+      </CollapsibleToolbox>
+
+      <CollapsibleToolbox title="Content Predictions" toolCount={1}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <LazyContentPredictions />
+        </Suspense>
+      </CollapsibleToolbox>
+
+      <CollapsibleToolbox title="Cross-Platform Analytics" toolCount={6}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <LazyCrossPlatformAnalytics />
+        </Suspense>
+      </CollapsibleToolbox>
+
+      <CollapsibleToolbox title="System Health" toolCount={2}>
+        <div className="space-y-4">
+          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+            <LazyHealthMonitor />
+          </Suspense>
+          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+            <LazyBackgroundJobs />
+          </Suspense>
+        </div>
       </CollapsibleToolbox>
 
       <CollapsibleToolbox title="AI Tool Suites" toolCount={200}>

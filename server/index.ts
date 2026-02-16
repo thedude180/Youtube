@@ -12,6 +12,7 @@ import { seedStripeProducts } from "./stripe-seed";
 import { pool } from "./db";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 import { startAutopilotMonitor } from "./services/autopilot-monitor";
+import { storage } from "./storage";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -227,6 +228,59 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
     });
     res.status(403).json({ error: "access_denied", message: "Request blocked by security system." });
     return;
+  }
+  next();
+});
+
+const csrfTokens = new Map<string, { token: string; expires: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of Array.from(csrfTokens)) {
+    if (now > entry.expires) csrfTokens.delete(key);
+  }
+}, 60_000);
+
+app.get("/api/security/csrf-token", (req: Request, res: Response) => {
+  const sessionId = (req as any).sessionID || req.ip || "anon";
+  const token = crypto.randomBytes(32).toString("hex");
+  csrfTokens.set(sessionId, { token, expires: Date.now() + 3600_000 });
+  res.json({ csrfToken: token });
+});
+
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+  if (req.path === "/stripe/webhook" || req.path === "/health" || req.path.startsWith("/auth/") || req.path === "/empire/launch") return next();
+
+  const csrfHeader = req.headers["x-csrf-token"] as string;
+  if (!csrfHeader) return next();
+
+  const sessionId = (req as any).sessionID || req.ip || "anon";
+  const stored = csrfTokens.get(sessionId);
+  if (stored && stored.token === csrfHeader && Date.now() < stored.expires) {
+    return next();
+  }
+  next();
+});
+
+app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer crtr_")) return next();
+
+  const rawKey = authHeader.slice(7);
+  const hashedKey = crypto.createHash("sha256").update(rawKey).digest("hex");
+
+  try {
+    const apiKey = await storage.getApiKeyByHash(hashedKey);
+    if (!apiKey) {
+      return res.status(401).json({ error: "invalid_api_key", message: "Invalid or revoked API key." });
+    }
+
+    (req as any).user = { claims: { sub: apiKey.userId } };
+    (req as any).isAuthenticated = () => true;
+    storage.touchApiKeyUsage(apiKey.id).catch(() => {});
+  } catch {
+    return res.status(401).json({ error: "auth_error", message: "Authentication failed." });
   }
   next();
 });

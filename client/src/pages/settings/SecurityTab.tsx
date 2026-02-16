@@ -6,12 +6,323 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import {
   Shield, Monitor, Smartphone, MapPin, Clock, AlertTriangle,
   Download, HardDrive, LogOut, ShieldCheck, ShieldAlert,
-  CheckCircle2, XCircle, Info,
+  CheckCircle2, XCircle, Info, Key, Copy, Trash2,
+  Activity, Ban, Zap, Lock, Eye,
 } from "lucide-react";
+
+function SecurityOverviewSection() {
+  const { data: dashboard, isLoading } = useQuery<any>({ queryKey: ["/api/security/dashboard"] });
+
+  if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-security-overview" />;
+  if (!dashboard) return null;
+
+  const stats = dashboard.stats;
+  const metrics = [
+    { label: "Events (24h)", value: stats?.last24h?.totalEvents || 0, icon: Activity },
+    { label: "Blocked (24h)", value: stats?.last24h?.blockedAttacks || 0, icon: Ban },
+    { label: "Events (7d)", value: stats?.last7d?.totalEvents || 0, icon: Shield },
+    { label: "Blocked (7d)", value: stats?.last7d?.blockedAttacks || 0, icon: ShieldAlert },
+    { label: "Active Rules", value: dashboard.activeRules || 0, icon: Lock },
+    { label: "Blocked IPs", value: dashboard.blockedIPs?.length || 0, icon: Ban },
+  ];
+
+  return (
+    <Card data-testid="card-security-overview">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-3">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <Shield className="h-3.5 w-3.5 text-primary" />
+          Security Dashboard
+        </CardTitle>
+        <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate" data-testid="badge-security-status">
+          Fort Knox Active
+        </Badge>
+      </CardHeader>
+      <CardContent className="p-2 pt-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {metrics.map((m) => (
+            <div key={m.label} className="p-2 rounded bg-secondary/30 text-center" data-testid={`metric-${m.label.replace(/\s+/g, "-").toLowerCase()}`}>
+              <m.icon className="w-3.5 h-3.5 text-muted-foreground mx-auto mb-1" />
+              <p className="text-lg font-bold">{m.value}</p>
+              <p className="text-xs text-muted-foreground">{m.label}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BlockedIPsSection() {
+  const { data: ips, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/blocked-ips"] });
+
+  if (isLoading) return <Skeleton className="h-20" data-testid="skeleton-blocked-ips" />;
+
+  return (
+    <Card data-testid="card-blocked-ips">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-3">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <Ban className="h-3.5 w-3.5 text-red-400" />
+          Blocked IPs
+        </CardTitle>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-blocked-count">{ips?.length || 0} blocked</Badge>
+      </CardHeader>
+      <CardContent className="p-2 pt-0">
+        {!ips || ips.length === 0 ? (
+          <div className="flex flex-col items-center py-4">
+            <CheckCircle2 className="w-6 h-6 text-emerald-500/20 mb-1" />
+            <p className="text-xs text-muted-foreground" data-testid="text-no-blocked">No blocked IPs</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {ips.map((ip: any, i: number) => (
+              <div key={i} className="flex items-center justify-between gap-2 p-2 rounded bg-red-500/5" data-testid={`row-blocked-ip-${i}`}>
+                <div className="flex items-center gap-2">
+                  <Ban className="w-3 h-3 text-red-400" />
+                  <span className="text-xs font-mono" data-testid={`text-ip-${i}`}>{ip.ip || "unknown"}</span>
+                </div>
+                <Badge variant="secondary" className="text-xs bg-red-500/10 text-red-400 no-default-hover-elevate" data-testid={`badge-ip-events-${i}`}>
+                  {ip.eventCount} events
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SecurityEventsSection() {
+  const { data: events, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/events"] });
+
+  if (isLoading) return <Skeleton className="h-32" data-testid="skeleton-events" />;
+
+  const severityColor = (s: string) => {
+    switch (s) {
+      case "critical": return "bg-red-500/10 text-red-400";
+      case "warning": return "bg-amber-500/10 text-amber-400";
+      case "high": return "bg-orange-500/10 text-orange-400";
+      default: return "bg-blue-500/10 text-blue-400";
+    }
+  };
+
+  return (
+    <Card data-testid="card-security-events">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-3">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <Eye className="h-3.5 w-3.5 text-primary" />
+          Recent Security Events
+        </CardTitle>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-events-count">{events?.length || 0} events</Badge>
+      </CardHeader>
+      <CardContent className="p-2 pt-0">
+        {!events || events.length === 0 ? (
+          <div className="flex flex-col items-center py-4">
+            <CheckCircle2 className="w-6 h-6 text-emerald-500/20 mb-1" />
+            <p className="text-xs text-muted-foreground" data-testid="text-no-events">No recent events</p>
+          </div>
+        ) : (
+          <div className="space-y-1 max-h-60 overflow-y-auto">
+            {events.slice(0, 20).map((evt: any, i: number) => (
+              <div key={evt.id || i} className="flex items-center justify-between gap-2 p-2 rounded bg-secondary/30" data-testid={`row-event-${i}`}>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {evt.blocked ? <Ban className="w-3 h-3 text-red-400 shrink-0" /> : <Activity className="w-3 h-3 text-muted-foreground shrink-0" />}
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate" data-testid={`text-event-type-${i}`}>{evt.eventType}</p>
+                    <p className="text-xs text-muted-foreground truncate">{evt.endpoint || ""} {evt.ipAddress ? `- ${evt.ipAddress}` : ""}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Badge variant="secondary" className={`text-xs no-default-hover-elevate ${severityColor(evt.severity)}`} data-testid={`badge-event-severity-${i}`}>
+                    {evt.severity}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {evt.createdAt ? new Date(evt.createdAt).toLocaleTimeString() : ""}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CircuitBreakersSection() {
+  const { data: breakers, isLoading } = useQuery<any>({ queryKey: ["/api/security/circuit-breakers"] });
+
+  if (isLoading) return <Skeleton className="h-24" data-testid="skeleton-breakers" />;
+  if (!breakers) return null;
+
+  const breakerList = Object.values(breakers) as any[];
+
+  const statusColor = (state: string) => {
+    switch (state) {
+      case "closed": return "bg-emerald-500/10 text-emerald-400";
+      case "half-open": return "bg-amber-500/10 text-amber-400";
+      case "open": return "bg-red-500/10 text-red-400";
+      default: return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const statusLabel = (state: string) => {
+    switch (state) {
+      case "closed": return "Healthy";
+      case "half-open": return "Degraded";
+      case "open": return "Down";
+      default: return state;
+    }
+  };
+
+  return (
+    <Card data-testid="card-circuit-breakers">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-3">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <Zap className="h-3.5 w-3.5 text-primary" />
+          External Service Status
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-2 pt-0">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          {breakerList.map((b: any) => (
+            <div key={b.name} className="p-2 rounded bg-secondary/30 text-center" data-testid={`breaker-${b.name.replace(/\s+/g, "-").toLowerCase()}`}>
+              <Badge variant="secondary" className={`text-xs no-default-hover-elevate mb-1 ${statusColor(b.state)}`}>
+                {statusLabel(b.state)}
+              </Badge>
+              <p className="text-xs text-muted-foreground truncate">{b.name}</p>
+              <p className="text-xs text-muted-foreground/60">{b.totalRequests || 0} req</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ApiKeysSection() {
+  const { toast } = useToast();
+  const [newKeyName, setNewKeyName] = useState("");
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const { data: keys, isLoading } = useQuery<any[]>({ queryKey: ["/api/keys"] });
+
+  const createMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("POST", "/api/keys", { name });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/keys"] });
+      setRevealedKey(data.key);
+      setNewKeyName("");
+      toast({ title: "API key created — copy it now, it won't be shown again" });
+    },
+    onError: (e: any) => toast({ title: "Failed to create key", description: e.message, variant: "destructive" }),
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/keys/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/keys"] });
+      toast({ title: "API key revoked" });
+    },
+    onError: (e: any) => toast({ title: "Failed to revoke key", description: e.message, variant: "destructive" }),
+  });
+
+  const copyKey = () => {
+    if (revealedKey) {
+      navigator.clipboard.writeText(revealedKey);
+      toast({ title: "Key copied to clipboard" });
+    }
+  };
+
+  if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-api-keys" />;
+
+  return (
+    <Card data-testid="card-api-keys">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-3">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <Key className="h-3.5 w-3.5 text-primary" />
+          API Keys
+        </CardTitle>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-key-count">{keys?.length || 0} / 5</Badge>
+      </CardHeader>
+      <CardContent className="p-2 pt-0 space-y-2">
+        {revealedKey && (
+          <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/20">
+            <p className="text-xs font-medium text-emerald-400 mb-1">New API Key (save now)</p>
+            <div className="flex items-center gap-1.5">
+              <code className="text-xs font-mono bg-secondary/50 p-1.5 rounded flex-1 break-all" data-testid="text-new-key">{revealedKey}</code>
+              <Button size="icon" variant="ghost" onClick={copyKey} data-testid="button-copy-key">
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5">
+          <Input
+            placeholder="Key name (e.g. My Integration)"
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            className="text-xs"
+            data-testid="input-key-name"
+          />
+          <Button
+            size="sm"
+            onClick={() => createMutation.mutate(newKeyName)}
+            disabled={!newKeyName.trim() || createMutation.isPending || (keys?.length || 0) >= 5}
+            data-testid="button-create-key"
+          >
+            <Key className="w-3 h-3 mr-1" />
+            Create
+          </Button>
+        </div>
+
+        {keys && keys.length > 0 && (
+          <div className="space-y-1">
+            {keys.map((k: any) => (
+              <div key={k.id} className="flex items-center justify-between gap-2 p-2 rounded bg-secondary/30" data-testid={`row-api-key-${k.id}`}>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium truncate" data-testid={`text-key-name-${k.id}`}>{k.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{k.prefix}</p>
+                  {k.lastUsedAt && (
+                    <p className="text-xs text-muted-foreground/60">Last used: {new Date(k.lastUsedAt).toLocaleDateString()}</p>
+                  )}
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => revokeMutation.mutate(k.id)}
+                  disabled={revokeMutation.isPending}
+                  data-testid={`button-revoke-key-${k.id}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(!keys || keys.length === 0) && !revealedKey && (
+          <div className="flex flex-col items-center py-3">
+            <Key className="w-6 h-6 text-muted-foreground/20 mb-1" />
+            <p className="text-xs text-muted-foreground" data-testid="text-no-keys">No API keys created</p>
+            <p className="text-xs text-muted-foreground/60">Create keys for programmatic access</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function AuditLogSection() {
   const { data: logs, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/audit-log"] });
@@ -374,10 +685,17 @@ function DataActionsSection() {
 }
 
 export default function SecurityTab() {
+  const { isAdvanced } = useAdvancedMode();
+
   return (
     <div className="space-y-3" data-testid="security-tab">
+      <SecurityOverviewSection />
+      <CircuitBreakersSection />
+      <ApiKeysSection />
       <TwoFactorSection />
       <ActiveSessionsSection />
+      {isAdvanced && <BlockedIPsSection />}
+      {isAdvanced && <SecurityEventsSection />}
       <SecurityAlertsSection />
       <AuditLogSection />
       <DataActionsSection />

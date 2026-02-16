@@ -33,7 +33,8 @@ CreatorOS is built as a full-stack application with an Express.js backend and a 
 -   **ORM**: Drizzle ORM
 -   **Database**: PostgreSQL
 -   **Server Architecture**: Routes split into domain modules (ai, admin, content, stream, money, settings, platform, automation, events, helpers).
--   **Security**: Helmet security headers, response compression, request body size limits, request IDs, structured logging, request timeouts, rate limiting, subscription tier enforcement, async error handling, global 401 handler, smart query caching, Hack-Proof Security System with adaptive defense rules and AI learning.
+-   **Security**: Helmet security headers (CSP enforced, HSTS preload, X-Frame-Options DENY, X-Content-Type-Options nosniff), response compression, request body size limits (2MB JSON, 1MB URL-encoded), request IDs, structured logging, request timeouts (30s API, 60s AI), global IP rate limiting (300 req/min), per-route AI rate limiting (tier-based daily limits), CSRF token protection (double-submit pattern), API key authentication system (Bearer crtr_* tokens), parameter pollution protection, User-Agent validation, subscription tier enforcement, async error handling, global 401 handler, smart query caching, Hack-Proof Security System with adaptive defense rules and AI learning, webhook signature verification (HMAC for YouTube/Twitch/Kick/Discord), circuit breaker pattern for all external APIs.
+-   **Security Dashboard**: Real-time security monitoring at Settings > Security showing threat stats, blocked IPs, security events, circuit breaker status, API key management, and defense rule overview. Admin-only deep analytics.
 -   **AI Integration**: OpenAI (gpt-5-mini) via Replit AI Integrations. AI rate limiting based on subscription tier.
 -   **Core Engines**:
     -   **Dual Pipeline System**: Live Stream Pipeline (65 steps) and VOD Pipeline (56 steps) across 9 phases (INTAKE, INTELLIGENCE, CONTENT OPS, SEO & GROWTH, DISTRIBUTION, AUDIENCE, COMMUNITY, PRODUCTION, SECURITY). Includes live discovery steps and retention steps. VOD pipelines auto-spawn after live content publication with human-realistic delays.
@@ -51,6 +52,12 @@ CreatorOS is built as a full-stack application with an Express.js backend and a 
     -   **Auto Revenue Sync Engine**: Pulls revenue data from connected platforms every 6 hours.
     -   **Platform Sync Engine**: Real-time push of updated video metadata to platforms like YouTube.
     -   **Customer Database Engine**: Tracks detailed user profiles including engagement scores, churn risk, and lifetime revenue.
+    -   **Circuit Breaker System**: `server/services/circuit-breaker.ts` — Wraps all external API calls (YouTube, Twitch, Kick, TikTok, Discord, Stripe, OpenAI, Gmail) with automatic failure detection and recovery. Trips to OPEN after 3-5 failures, auto-recovers via half-open probing after 30-60s cooldown.
+    -   **Webhook Signature Verification**: `server/services/webhook-verify.ts` — HMAC-based cryptographic verification for inbound webhooks from YouTube (X-Hub-Signature), Twitch (Twitch-Eventsub-Message-Signature), Kick, and Discord. Uses timing-safe comparison to prevent timing attacks.
+    -   **Content Performance Predictor**: AI-powered prediction engine at POST /api/ai/predict-performance. Estimates views, likes, comments, engagement rate with confidence scores and actionable suggestions (strengths, weaknesses, improvements).
+    -   **Cross-Platform Analytics**: GET /api/analytics/cross-platform — Unified dashboard aggregating videos, streams, views, and revenue across all 6 platforms.
+    -   **Background Job Dashboard**: GET /api/health/jobs — Real-time visibility into cron jobs, AI chains, automation rules, and scheduled items.
+    -   **Health Monitor**: GET /api/health/engines — Status of all 9 engines plus external service circuit breaker states with green/yellow/red indicators.
 
 ### Authentication & Authorization
 -   **Authentication**: Replit Auth (OIDC-based).

@@ -3103,3 +3103,42 @@ export const feedbackSubmissions = pgTable("feedback_submissions", {
 export const insertFeedbackSchema = createInsertSchema(feedbackSubmissions).omit({ id: true, createdAt: true, resolvedAt: true, adminNotified: true });
 export type FeedbackSubmission = typeof feedbackSubmissions.$inferSelect;
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+
+export const apiKeys = pgTable("api_keys", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  prefix: text("prefix").notNull(),
+  hashedKey: text("hashed_key").notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+  revoked: boolean("revoked").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("api_keys_user_idx").on(table.userId),
+  hashIdx: index("api_keys_hash_idx").on(table.hashedKey),
+}));
+
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({ id: true, createdAt: true, lastUsedAt: true, revoked: true });
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+
+export const contentPredictions = pgTable("content_predictions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: integer("content_id"),
+  title: text("title").notNull(),
+  platform: text("platform").notNull().default("youtube"),
+  predictedViews: integer("predicted_views"),
+  predictedLikes: integer("predicted_likes"),
+  predictedComments: integer("predicted_comments"),
+  engagementRate: real("engagement_rate"),
+  confidence: real("confidence").default(0.7),
+  factors: jsonb("factors").$type<{ strengths: string[]; weaknesses: string[]; suggestions: string[] }>().default({ strengths: [], weaknesses: [], suggestions: [] }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("content_predictions_user_idx").on(table.userId),
+}));
+
+export const insertContentPredictionSchema = createInsertSchema(contentPredictions).omit({ id: true, createdAt: true });
+export type ContentPrediction = typeof contentPredictions.$inferSelect;
+export type InsertContentPrediction = z.infer<typeof insertContentPredictionSchema>;
