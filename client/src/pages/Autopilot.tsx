@@ -45,6 +45,7 @@ import {
 import { SiDiscord } from "react-icons/si";
 
 const PipelineTab = lazy(() => import("@/pages/autopilot/PipelineTab"));
+import PipelineCommandCenter from "@/components/PipelineCommandCenter";
 
 interface StealthData {
   overallScore: number;
@@ -500,6 +501,8 @@ export default function Autopilot() {
           </Card>
         );
       })()}
+
+      <PipelineCommandCenter />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap">

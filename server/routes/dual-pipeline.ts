@@ -1209,4 +1209,107 @@ Return JSON: {
 
     res.json({ message: `Learned from ${completedExperiments.length} experiments`, updated, categories: Object.keys(categoryData) });
   }));
+
+  app.get("/api/pipelines/command-center", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const activePipelines = await db.select().from(streamPipelines)
+      .where(and(
+        eq(streamPipelines.userId, userId),
+        sql`${streamPipelines.status} IN ('processing', 'queued', 'waiting')`
+      ))
+      .orderBy(desc(streamPipelines.createdAt))
+      .limit(20);
+
+    const recentCompleted = await db.select().from(streamPipelines)
+      .where(and(
+        eq(streamPipelines.userId, userId),
+        eq(streamPipelines.status, "completed"),
+      ))
+      .orderBy(desc(streamPipelines.completedAt))
+      .limit(5);
+
+    const recentErrors = await db.select().from(streamPipelines)
+      .where(and(
+        eq(streamPipelines.userId, userId),
+        eq(streamPipelines.status, "error"),
+      ))
+      .orderBy(desc(streamPipelines.createdAt))
+      .limit(3);
+
+    const totals = await db.select({
+      total: sql<number>`count(*)::int`,
+      completed: sql<number>`count(*) filter (where status = 'completed')::int`,
+      processing: sql<number>`count(*) filter (where status = 'processing')::int`,
+      queued: sql<number>`count(*) filter (where status IN ('queued', 'waiting'))::int`,
+      errored: sql<number>`count(*) filter (where status = 'error')::int`,
+      liveCount: sql<number>`count(*) filter (where pipeline_type = 'live')::int`,
+      vodCount: sql<number>`count(*) filter (where pipeline_type = 'vod')::int`,
+    }).from(streamPipelines)
+      .where(eq(streamPipelines.userId, userId));
+
+    const enriched = activePipelines.map(p => {
+      const steps = getStepDefinitions(p.pipelineType);
+      const completedSteps = p.completedSteps || [];
+      const totalSteps = steps.length;
+      const completedCount = completedSteps.length;
+      const progress = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+      const currentStepDef = steps.find((s: any) => s.id === p.currentStep);
+      const currentPhaseDef = currentStepDef
+        ? { id: (currentStepDef as any).phase, label: (currentStepDef as any).phase?.replace(/_/g, " ").toUpperCase() }
+        : null;
+      const nextPendingStep = steps.find((s: any) => !completedSteps.includes((s as any).id));
+
+      return {
+        id: p.id,
+        sourceTitle: p.sourceTitle,
+        pipelineType: p.pipelineType,
+        status: p.status,
+        currentStep: p.currentStep,
+        currentStepLabel: currentStepDef ? (currentStepDef as any).label : p.currentStep,
+        currentStepDescription: currentStepDef ? (currentStepDef as any).description : "",
+        currentPhase: currentPhaseDef,
+        nextStep: nextPendingStep ? { id: (nextPendingStep as any).id, label: (nextPendingStep as any).label } : null,
+        completedCount,
+        totalSteps,
+        progress,
+        mode: p.mode,
+        errorMessage: p.errorMessage,
+        startedAt: p.startedAt,
+        createdAt: p.createdAt,
+        scheduledStartAt: p.scheduledStartAt,
+        humanDelayMinutes: p.humanDelayMinutes,
+      };
+    });
+
+    const recentCompletedEnriched = recentCompleted.map(p => {
+      const steps = getStepDefinitions(p.pipelineType);
+      return {
+        id: p.id,
+        sourceTitle: p.sourceTitle,
+        pipelineType: p.pipelineType,
+        completedCount: (p.completedSteps || []).length,
+        totalSteps: steps.length,
+        completedAt: p.completedAt,
+        mode: p.mode,
+      };
+    });
+
+    const recentErrorsEnriched = recentErrors.map(p => ({
+      id: p.id,
+      sourceTitle: p.sourceTitle,
+      pipelineType: p.pipelineType,
+      errorMessage: p.errorMessage,
+      currentStep: p.currentStep,
+      createdAt: p.createdAt,
+    }));
+
+    res.json({
+      active: enriched,
+      recentCompleted: recentCompletedEnriched,
+      recentErrors: recentErrorsEnriched,
+      totals: totals[0] || { total: 0, completed: 0, processing: 0, queued: 0, errored: 0, liveCount: 0, vodCount: 0 },
+    });
+  }));
 }
