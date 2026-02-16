@@ -3360,3 +3360,324 @@ export const securityScans = pgTable("security_scans", {
 ])
 
 export type SecurityScan = typeof securityScans.$inferSelect;
+
+// === PILLAR 6: COMMUNITY & AUDIENCE ENGINE ===
+// audienceSegments table already defined above (line ~734)
+
+export const churnRiskScores = pgTable("churn_risk_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  segment: text("segment").notNull(),
+  score: real("score").notNull().default(0),
+  signals: jsonb("signals").$type<Record<string, any>>().default({}),
+  lastComputedAt: timestamp("last_computed_at").defaultNow(),
+}, (table) => [
+  index("churn_risk_user_idx").on(table.userId),
+]);
+
+export type ChurnRiskScore = typeof churnRiskScores.$inferSelect;
+
+export const reengagementCampaigns = pgTable("reengagement_campaigns", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  segment: text("segment").notNull(),
+  status: text("status").notNull().default("draft"),
+  content: jsonb("content").$type<Record<string, any>>().default({}),
+  scheduledAt: timestamp("scheduled_at"),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("reengagement_user_idx").on(table.userId),
+]);
+
+export type ReengagementCampaign = typeof reengagementCampaigns.$inferSelect;
+
+export const fanMilestones = pgTable("fan_milestones", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  milestoneType: text("milestone_type").notNull(),
+  threshold: integer("threshold").notNull(),
+  achievedAt: timestamp("achieved_at").defaultNow(),
+  notified: boolean("notified").default(false),
+}, (table) => [
+  index("fan_milestones_user_idx").on(table.userId),
+]);
+
+export type FanMilestone = typeof fanMilestones.$inferSelect;
+
+export const communityActions = pgTable("community_actions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  actionType: text("action_type").notNull(),
+  payload: jsonb("payload").$type<Record<string, any>>().default({}),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("community_actions_user_idx").on(table.userId),
+]);
+
+export type CommunityAction = typeof communityActions.$inferSelect;
+
+// === PILLAR 7: CREATOR EDUCATION & SKILL GROWTH ===
+export const learningPaths = pgTable("learning_paths", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  currentLevel: integer("current_level").notNull().default(1),
+  targetLevel: integer("target_level").notNull().default(100),
+  roadmap: jsonb("roadmap").$type<Array<{ step: number; title: string; description: string; completed: boolean }>>().default([]),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
+}, (table) => [
+  index("learning_paths_user_idx").on(table.userId),
+]);
+
+export type LearningPath = typeof learningPaths.$inferSelect;
+
+export const coachingTips = pgTable("coaching_tips", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tipType: text("tip_type").notNull(),
+  content: text("content").notNull(),
+  sourceMetrics: jsonb("source_metrics").$type<Record<string, any>>().default({}),
+  dismissed: boolean("dismissed").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("coaching_tips_user_idx").on(table.userId),
+]);
+
+export type CoachingTip = typeof coachingTips.$inferSelect;
+
+export const creatorInsights = pgTable("creator_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  insightType: text("insight_type").notNull(),
+  content: text("content").notNull(),
+  comparedTo: jsonb("compared_to").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("creator_insights_user_idx").on(table.userId),
+]);
+
+export type CreatorInsight = typeof creatorInsights.$inferSelect;
+
+export const skillMilestones = pgTable("skill_milestones", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  milestone: text("milestone").notNull(),
+  category: text("category").notNull().default("general"),
+  achievedAt: timestamp("achieved_at").defaultNow(),
+  notified: boolean("notified").default(false),
+}, (table) => [
+  index("skill_milestones_user_idx").on(table.userId),
+]);
+
+export type SkillMilestone = typeof skillMilestones.$inferSelect;
+
+// === PILLAR 8: BRAND & PARTNERSHIPS ===
+export const sponsorshipScores = pgTable("sponsorship_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  score: real("score").notNull().default(0),
+  signals: jsonb("signals").$type<Record<string, any>>().default({}),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("sponsorship_scores_user_idx").on(table.userId),
+]);
+
+export type SponsorshipScore = typeof sponsorshipScores.$inferSelect;
+
+export const mediaKits = pgTable("media_kits", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  version: integer("version").notNull().default(1),
+  content: jsonb("content").$type<Record<string, any>>().default({}),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (table) => [
+  index("media_kits_user_idx").on(table.userId),
+]);
+
+export type MediaKit = typeof mediaKits.$inferSelect;
+
+export const brandDeals = pgTable("brand_deals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  brandName: text("brand_name").notNull(),
+  status: text("status").notNull().default("prospect"),
+  terms: jsonb("terms").$type<Record<string, any>>().default({}),
+  value: real("value"),
+  lastTouchedAt: timestamp("last_touched_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("brand_deals_user_idx").on(table.userId),
+]);
+
+export type BrandDeal = typeof brandDeals.$inferSelect;
+
+export const collabMatches = pgTable("collab_matches", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  matchUserId: text("match_user_id").notNull(),
+  score: real("score").notNull().default(0),
+  rationale: jsonb("rationale").$type<Record<string, any>>().default({}),
+  status: text("status").notNull().default("suggested"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("collab_matches_user_idx").on(table.userId),
+]);
+
+export type CollabMatch = typeof collabMatches.$inferSelect;
+
+export const brandSafetyChecks = pgTable("brand_safety_checks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  status: text("status").notNull().default("clean"),
+  issues: jsonb("issues").$type<Array<{ type: string; severity: string; description: string }>>().default([]),
+  scannedAt: timestamp("scanned_at").defaultNow(),
+}, (table) => [
+  index("brand_safety_user_idx").on(table.userId),
+]);
+
+export type BrandSafetyCheck = typeof brandSafetyChecks.$inferSelect;
+
+// === PILLAR 9: ANALYTICS & INTELLIGENCE ===
+export const unifiedMetrics = pgTable("unified_metrics", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  metricKey: text("metric_key").notNull(),
+  value: real("value").notNull().default(0),
+  windowStart: timestamp("window_start"),
+  windowEnd: timestamp("window_end"),
+}, (table) => [
+  index("unified_metrics_user_idx").on(table.userId),
+  index("unified_metrics_key_idx").on(table.userId, table.metricKey),
+]);
+
+export type UnifiedMetric = typeof unifiedMetrics.$inferSelect;
+
+export const trendForecasts = pgTable("trend_forecasts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  topic: text("topic").notNull(),
+  forecast: jsonb("forecast").$type<Record<string, any>>().default({}),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (table) => [
+  index("trend_forecasts_user_idx").on(table.userId),
+]);
+
+export type TrendForecast = typeof trendForecasts.$inferSelect;
+
+export const competitorSnapshots = pgTable("competitor_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  competitorHandle: text("competitor_handle").notNull(),
+  platform: text("platform").notNull(),
+  metrics: jsonb("metrics").$type<Record<string, any>>().default({}),
+  scannedAt: timestamp("scanned_at").defaultNow(),
+}, (table) => [
+  index("competitor_snapshots_user_idx").on(table.userId),
+]);
+
+export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;
+
+export const algorithmHealth = pgTable("algorithm_health", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  score: real("score").notNull().default(100),
+  signals: jsonb("signals").$type<Record<string, any>>().default({}),
+  scannedAt: timestamp("scanned_at").defaultNow(),
+}, (table) => [
+  index("algorithm_health_user_idx").on(table.userId),
+]);
+
+export type AlgorithmHealthRecord = typeof algorithmHealth.$inferSelect;
+
+export const performanceBenchmarks = pgTable("performance_benchmarks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  metricKey: text("metric_key").notNull(),
+  value: real("value").notNull().default(0),
+  percentile: real("percentile").notNull().default(50),
+  cohort: jsonb("cohort").$type<Record<string, any>>().default({}),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (table) => [
+  index("benchmarks_user_idx").on(table.userId),
+]);
+
+export type PerformanceBenchmark = typeof performanceBenchmarks.$inferSelect;
+
+// === PILLAR 10: COMPLIANCE & LEGAL SHIELD ===
+export const complianceChecks = pgTable("compliance_checks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  checkType: text("check_type").notNull(),
+  status: text("status").notNull().default("passed"),
+  findings: jsonb("findings").$type<Array<{ issue: string; severity: string; recommendation: string }>>().default([]),
+  checkedAt: timestamp("checked_at").defaultNow(),
+}, (table) => [
+  index("compliance_checks_user_idx").on(table.userId),
+]);
+
+export type ComplianceCheck = typeof complianceChecks.$inferSelect;
+
+export const copyrightClaims = pgTable("copyright_claims", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id"),
+  status: text("status").notNull().default("detected"),
+  details: jsonb("details").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+}, (table) => [
+  index("copyright_claims_user_idx").on(table.userId),
+]);
+
+export type CopyrightClaim = typeof copyrightClaims.$inferSelect;
+
+export const licensingAudits = pgTable("licensing_audits", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  assetType: text("asset_type").notNull(),
+  assetName: text("asset_name").notNull(),
+  status: text("status").notNull().default("compliant"),
+  evidence: jsonb("evidence").$type<Record<string, any>>().default({}),
+  checkedAt: timestamp("checked_at").defaultNow(),
+}, (table) => [
+  index("licensing_audits_user_idx").on(table.userId),
+]);
+
+export type LicensingAudit = typeof licensingAudits.$inferSelect;
+
+export const disclosureRequirements = pgTable("disclosure_requirements", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: integer("content_id"),
+  required: boolean("required").default(false),
+  disclosureType: text("disclosure_type"),
+  guidance: jsonb("guidance").$type<Record<string, any>>().default({}),
+  checkedAt: timestamp("checked_at").defaultNow(),
+}, (table) => [
+  index("disclosure_req_user_idx").on(table.userId),
+]);
+
+export type DisclosureRequirement = typeof disclosureRequirements.$inferSelect;
+
+export const fairUseReviews = pgTable("fair_use_reviews", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: integer("content_id"),
+  score: real("score").notNull().default(100),
+  rationale: jsonb("rationale").$type<Record<string, any>>().default({}),
+  reviewedAt: timestamp("reviewed_at").defaultNow(),
+}, (table) => [
+  index("fair_use_reviews_user_idx").on(table.userId),
+]);
+
+export type FairUseReview = typeof fairUseReviews.$inferSelect;
