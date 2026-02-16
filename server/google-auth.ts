@@ -187,6 +187,22 @@ async function autoConnectYouTubeFromGoogle(
   accessToken: string,
   refreshToken: string
 ) {
+  const existingChannels = await storage.getChannelsByUser(userId);
+  const existingYt = existingChannels.find((c) => c.platform === "youtube");
+
+  if (existingYt) {
+    const tokenUpdate: any = {
+      accessToken,
+      tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+      lastSyncAt: new Date(),
+    };
+    if (refreshToken) {
+      tokenUpdate.refreshToken = refreshToken;
+    }
+    await storage.updateChannel(existingYt.id, tokenUpdate);
+    console.log(`[GoogleAuth] YouTube tokens refreshed for user ${userId}`);
+  }
+
   try {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
@@ -206,11 +222,8 @@ async function autoConnectYouTubeFromGoogle(
     const ytChannel = channelResponse.data.items?.[0];
     if (!ytChannel) {
       console.log(`User ${userId} has no YouTube channel - new creator flow`);
-      return { hasChannel: false };
+      return { hasChannel: !existingYt ? false : true };
     }
-
-    const existingChannels = await storage.getChannelsByUser(userId);
-    const existingYt = existingChannels.find((c) => c.platform === "youtube");
 
     const channelData = {
       userId,
@@ -265,7 +278,7 @@ async function autoConnectYouTubeFromGoogle(
     }
 
     console.log(
-      `Auto-connected YouTube for user ${userId}: ${ytChannel.snippet?.title}`
+      `[GoogleAuth] Auto-connected YouTube for user ${userId}: ${ytChannel.snippet?.title}`
     );
     return {
       hasChannel: true,
@@ -279,10 +292,10 @@ async function autoConnectYouTubeFromGoogle(
     };
   } catch (error: any) {
     if (error.code === 403 || error.message?.includes("quotaExceeded")) {
-      console.warn("YouTube API quota exceeded during auto-connect");
+      console.warn("[GoogleAuth] YouTube API quota exceeded — tokens already saved");
     } else {
-      console.error("Auto YouTube connect error:", error.message);
+      console.error("[GoogleAuth] Auto YouTube connect error:", error.message);
     }
-    return { hasChannel: false, error: error.message };
+    return { hasChannel: !!existingYt, error: error.message };
   }
 }
