@@ -141,9 +141,42 @@ async function processWaitingVodPipelines() {
   }
 }
 
+async function processQueuedPipelines() {
+  const queued = await db.select().from(streamPipelines)
+    .where(and(
+      eq(streamPipelines.status, "queued"),
+      eq(streamPipelines.autoProcess, true),
+    ))
+    .orderBy(streamPipelines.createdAt)
+    .limit(5);
+
+  for (const pipeline of queued) {
+    const currentResults = (pipeline.stepResults as Record<string, any>) || {};
+    const completedSteps = [...(pipeline.completedSteps || [])];
+
+    console.log(`[DualPipeline] Auto-starting queued pipeline ${pipeline.id}: "${pipeline.sourceTitle}"`);
+    await db.update(streamPipelines)
+      .set({ status: "processing", startedAt: pipeline.startedAt || new Date(), errorMessage: null })
+      .where(eq(streamPipelines.id, pipeline.id));
+
+    executeStreamPipelineInBackground(
+      pipeline.id, pipeline.sourceTitle, pipeline.pipelineType,
+      currentResults, completedSteps,
+      pipeline.sourceDuration, pipeline.userId
+    ).catch(err => console.error(`[DualPipeline] Auto-start failed for pipeline ${pipeline.id}:`, err));
+  }
+
+  if (queued.length > 0) {
+    console.log(`[DualPipeline] Auto-started ${queued.length} queued pipeline(s)`);
+  }
+}
+
 setInterval(() => {
   processWaitingVodPipelines().catch(err =>
     console.error("[DualPipeline] VOD waiting check error:", err)
+  );
+  processQueuedPipelines().catch(err =>
+    console.error("[DualPipeline] Queued pipeline check error:", err)
   );
 }, 60000);
 
@@ -577,6 +610,13 @@ export function registerDualPipelineRoutes(app: Express) {
       mode: mode || type,
       autoProcess: autoProcess !== false,
     }).returning();
+
+    if (pipeline.autoProcess !== false) {
+      executeStreamPipelineInBackground(
+        pipeline.id, pipeline.sourceTitle, pipeline.pipelineType,
+        {}, [], pipeline.sourceDuration, userId
+      ).catch(err => console.error(`[DualPipeline] Auto-run failed for pipeline ${pipeline.id}:`, err));
+    }
 
     res.json(pipeline);
   }));
