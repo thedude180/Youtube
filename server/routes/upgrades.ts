@@ -2,8 +2,8 @@ import type { Express } from "express";
 import OpenAI from "openai";
 import { db } from "../db";
 import { storage } from "../storage";
-import { eq, and, desc } from "drizzle-orm";
-import { requireAuth, getUserId, asyncHandler, parseNumericId } from "./helpers";
+import { eq, and } from "drizzle-orm";
+import { requireAuth, asyncHandler, parseNumericId } from "./helpers";
 import {
   contentIdeas, auditLogs, videos, channels, notifications,
   scheduleItems, communityPosts,

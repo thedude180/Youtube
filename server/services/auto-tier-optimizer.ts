@@ -1,8 +1,6 @@
 import { storage } from "../storage";
 import { db } from "../db";
 import { users } from "@shared/models/auth";
-import { channels } from "@shared/schema";
-import { eq } from "drizzle-orm";
 import { notifyUser } from "./notifications";
 
 interface TierRecommendation {

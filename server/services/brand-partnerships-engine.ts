@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { sponsorshipScores, mediaKits, brandDeals, collabMatches, brandSafetyChecks, videos, channels, users, audienceSegments } from "@shared/schema";
-import { eq, and, desc, gte, ne, sql, count, avg, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 
 const SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;

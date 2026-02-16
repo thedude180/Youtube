@@ -1,12 +1,10 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useDashboardStats } from "@/hooks/use-dashboard";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
-import { Link } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useLazyVisible } from "@/hooks/use-lazy-visible";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
@@ -38,9 +36,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PlatformBadge } from "@/components/PlatformIcon";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";

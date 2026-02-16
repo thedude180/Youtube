@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { eq, and, desc, sql, lte, isNotNull } from "drizzle-orm";
-import { requireAuth, getUserId, asyncHandler } from "./helpers";
+import { requireAuth, asyncHandler } from "./helpers";
 import {
   streamPipelines, vodCuts, lengthExperiments, audienceLengthPreferences,
   LIVE_PIPELINE_STEPS, VOD_PIPELINE_STEPS, LENGTH_CATEGORIES,

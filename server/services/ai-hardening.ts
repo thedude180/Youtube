@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { aiUsageLogs } from "@shared/schema";
-import { eq, desc, sql, and, gte, count, sum } from "drizzle-orm";
+import { eq, sql, and, gte, count } from "drizzle-orm";
 import crypto from "crypto";
 import { getBreaker } from "./circuit-breaker";
 

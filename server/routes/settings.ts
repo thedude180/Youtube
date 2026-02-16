@@ -4,8 +4,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
 import { brandAssets, competitorTracks, knowledgeMilestones } from "@shared/schema";
-import { requireAuth, getUserId, requireTier, EMPIRE_TIER_GATES, parseNumericId } from "./helpers";
-import { sendSSEEvent } from "./events";
+import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId } from "./helpers";
 import {
   runStyleScan,
   recordFeedback,

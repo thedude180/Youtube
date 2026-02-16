@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { contentPipeline, streamPipelines, videos, PIPELINE_STEPS } from "@shared/schema";
-import { eq, and, desc, or, sql } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 import { getUserId, parseNumericId } from "./helpers";
 import { storage } from "../storage";
 

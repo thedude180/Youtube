@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { users } from "@shared/models/auth";
-import { channels, streamPipelines, contentPipeline } from "@shared/schema";
-import { eq, and, lt, gte, sql } from "drizzle-orm";
+import { streamPipelines, contentPipeline } from "@shared/schema";
+import { eq, and, lt, gte } from "drizzle-orm";
 import { storage } from "../storage";
 import { notifyUser, type NotificationSeverity } from "./notifications";
 

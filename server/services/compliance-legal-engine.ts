@@ -1,7 +1,6 @@
 import { db } from "../db";
 import { complianceChecks, copyrightClaims, licensingAudits, disclosureRequirements, fairUseReviews, videos, channels, users } from "@shared/schema";
-import { eq, and, desc, gte, sql, count, isNull, inArray } from "drizzle-orm";
-import { storage } from "../storage";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 const SCAN_INTERVAL_MS = 12 * 60 * 60 * 1000;
 let engineRunning = false;

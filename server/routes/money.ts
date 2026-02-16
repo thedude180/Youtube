@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { sql, eq, and } from "drizzle-orm";
 import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals } from "@shared/schema";
-import { requireAuth, getUserId, requireTier, parseNumericId } from "./helpers";
+import { requireAuth, requireTier, parseNumericId } from "./helpers";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
 import {

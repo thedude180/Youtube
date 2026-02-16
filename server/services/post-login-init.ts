@@ -1,5 +1,4 @@
 import { storage } from "../storage";
-import { db } from "../db";
 import { channels, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 

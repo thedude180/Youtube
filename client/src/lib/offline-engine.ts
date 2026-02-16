@@ -1,4 +1,4 @@
-import { offlineStore, type QueuedAction } from './offline-store';
+import { offlineStore } from './offline-store';
 
 type ConnectionStatus = 'online' | 'offline' | 'unstable';
 type StatusListener = (status: ConnectionStatus) => void;

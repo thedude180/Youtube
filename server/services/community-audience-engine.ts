@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { audienceSegments, churnRiskScores, reengagementCampaigns, fanMilestones, communityActions, videos, channels, users } from "@shared/schema";
-import { eq, and, desc, gte, sql, count } from "drizzle-orm";
+import { audienceSegments, churnRiskScores, reengagementCampaigns, fanMilestones, communityActions, channels, users } from "@shared/schema";
+import { eq, and, desc, gte } from "drizzle-orm";
 import { storage } from "../storage";
 
 const SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000;

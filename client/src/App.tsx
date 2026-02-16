@@ -1,8 +1,8 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { Component, lazy, Suspense, useEffect, useRef, useState, useCallback } from "react";
+import { Component, lazy, Suspense, useEffect, useState, useCallback } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { queryClient, apiRequest } from "./lib/queryClient";
-import { QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";

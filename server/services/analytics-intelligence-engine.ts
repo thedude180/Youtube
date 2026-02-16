@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { unifiedMetrics, trendForecasts, competitorSnapshots, algorithmHealth, performanceBenchmarks, videos, channels, users } from "@shared/schema";
-import { eq, and, desc, gte, sql, count, avg, sum } from "drizzle-orm";
+import { eq, and, desc, sql, sum } from "drizzle-orm";
 import { storage } from "../storage";
 
 const SCAN_INTERVAL_MS = 8 * 60 * 60 * 1000;

@@ -1,7 +1,6 @@
 import { db } from "../db";
 import { learningPaths, coachingTips, creatorInsights, skillMilestones, videos, channels, users } from "@shared/schema";
-import { eq, and, desc, gte, sql, count, avg } from "drizzle-orm";
-import { storage } from "../storage";
+import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 
 const SCAN_INTERVAL_MS = 12 * 60 * 60 * 1000;
 let engineRunning = false;

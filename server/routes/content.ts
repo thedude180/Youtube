@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, and, desc, inArray, gte, lte, isNotNull } from "drizzle-orm";
+import { eq, and, desc, inArray, isNotNull } from "drizzle-orm";
 import { api } from "@shared/routes";
 import {
   contentPipeline, contentIdeas, videos, scheduleItems,
@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
-import { requireAuth, getUserId, requireTier, parseNumericId } from "./helpers";
+import { requireAuth, requireTier, parseNumericId } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
   generateVideoMetadata,

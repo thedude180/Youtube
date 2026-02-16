@@ -7,7 +7,7 @@ import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
 import { requireAuth, getUserId, parseNumericId } from "./helpers";
 import { trackQuotaUsage, getQuotaStatus } from "../services/youtube-quota-tracker";
-import { smartPushOrQueue, getBacklogStats, processBacklog, retryFailedItems, addToBacklog } from "../services/youtube-push-backlog";
+import { smartPushOrQueue, getBacklogStats, processBacklog, retryFailedItems } from "../services/youtube-push-backlog";
 import {
   startShortsPipeline, getShortsPipelineStatus, pauseShortsPipeline,
   resumeShortsPipeline, extractClipsFromVideo, generateClipHook,

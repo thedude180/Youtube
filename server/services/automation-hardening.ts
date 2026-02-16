@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { deadLetterQueue } from "@shared/schema";
-import { eq, desc, sql, and, gte, lt, lte, count, asc } from "drizzle-orm";
+import { eq, desc, and, lte, count, asc } from "drizzle-orm";
 
 const PRIORITY_LEVELS = {
   CRITICAL: 1,

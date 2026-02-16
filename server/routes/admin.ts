@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { ADMIN_EMAIL } from "@shared/schema";
 import { storage } from "../storage";
-import { requireAuth, requireAdmin, getUserId, parseNumericId } from "./helpers";
+import { requireAuth, requireAdmin, parseNumericId } from "./helpers";
 
 export function registerAdminRoutes(app: Express) {
   app.get("/api/user/profile", async (req, res) => {

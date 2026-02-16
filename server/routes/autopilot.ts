@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { autopilotQueue, commentResponses, autopilotConfig, channels, videos, scheduleItems } from "@shared/schema";
-import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
+import { autopilotQueue, commentResponses, autopilotConfig, channels, videos } from "@shared/schema";
+import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 import {
   getAutopilotStats,
   getAutopilotActivity,

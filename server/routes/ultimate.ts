@@ -5,12 +5,12 @@ import { db } from "../db";
 import { eq, and } from "drizzle-orm";
 import { experiments, predictiveTrends, migrationCampaigns, collabCandidates, compoundingJobs, merchIdeas, localizationJobs, liveCopilotSuggestions } from "@shared/schema";
 
-import { detectAndHealFailure, getFailureHistory, getHealingStats } from "../pipeline-healing-engine";
+import { getFailureHistory, getHealingStats } from "../pipeline-healing-engine";
 import { getOptimizedRoute, updateRoutingRule, getRoutingRules, analyzeRoutePerformance } from "../pipeline-router";
 import { createExperiment, recordVariantMetrics, evaluateExperiment, getActiveExperiments, getExperimentResults } from "../ab-testing-engine";
 
 import { scanForTrends, getPredictedTrends, markTrendActioned, generateTrendContent } from "../trend-predictor";
-import { buildDnaProfile, getDnaProfile, updateDnaFromContent, generateInCreatorVoice } from "../creator-dna-engine";
+import { buildDnaProfile, getDnaProfile, generateInCreatorVoice } from "../creator-dna-engine";
 import { analyzeAudience, getAudienceSegments, predictSegmentEngagement, getChurnRisks } from "../audience-mindmap-engine";
 
 import { generateLiveSuggestion, getSuggestionHistory, markSuggestionUsed, generateStreamRecap } from "../copilot-engine";
@@ -29,7 +29,7 @@ import { generateTaxEstimate, getTaxEstimates, analyzeTeamNeeds, getHiringRecomm
 import { buildEmpireFromIdea, generateContentIdeasFromEmpire, getEmpireBlueprint, expandEmpirePillar, generateLaunchSequence, createVideoFromIdea, createVideoAndSpawnPipeline, autoLaunchEmpireContent, getVideoCreations, getVideoCreation } from "../idea-empire-engine";
 import { launchEmpire, getEmpireBuildStatus } from "../empire-launcher";
 import { getSecurityDashboard, learnFromAttack, getBlockedIPs, getSecurityRules, getSecurityStats } from "../security-engine";
-import { createOrUpdateCustomerProfile, getCustomerProfile, getAllCustomers, updateCustomerActivity, recordTierChange, getCustomerStats, enrichCustomerProfile, searchCustomers, exportCustomerData, getCustomerTimeline } from "../customer-database-engine";
+import { createOrUpdateCustomerProfile, getCustomerProfile, getAllCustomers, recordTierChange, getCustomerStats, enrichCustomerProfile, searchCustomers, exportCustomerData, getCustomerTimeline } from "../customer-database-engine";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated || !req.isAuthenticated()) {

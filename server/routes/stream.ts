@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { requireAuth, getUserId, parseNumericId } from "./helpers";
+import { requireAuth, parseNumericId } from "./helpers";
 import {
   generateStreamSeo,
   postStreamOptimize,

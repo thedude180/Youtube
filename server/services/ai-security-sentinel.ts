@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { securityScans, securityEvents, securityAlerts, ipReputations, loginAttempts, threatPatterns, accountLockouts } from "@shared/schema";
-import { eq, desc, sql, and, gte, lt, count, lte } from "drizzle-orm";
+import { securityScans, securityEvents, securityAlerts, loginAttempts, threatPatterns, accountLockouts } from "@shared/schema";
+import { eq, desc, and, gte, count, lte } from "drizzle-orm";
 import {
   getTopSuspiciousIps,
   matchThreatPatterns,

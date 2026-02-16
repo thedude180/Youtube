@@ -1,7 +1,4 @@
 import { storage } from "../storage";
-import { db } from "../db";
-import { users } from "@shared/models/auth";
-import { eq } from "drizzle-orm";
 
 interface OptimizationResult {
   optimized: boolean;

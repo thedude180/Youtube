@@ -1,11 +1,8 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { useParams } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useVideos } from "@/hooks/use-videos";
-import { useChannels, useCreateChannel } from "@/hooks/use-channels";
-import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,8 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
-import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
-import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import {
@@ -25,17 +20,14 @@ import {
   Globe, Languages, Captions, Megaphone, Mic, Eye, Users, MapPin, MessageSquare, Clock, FlaskConical, ShieldCheck, Briefcase,
   TrendingUp, Zap, LogIn,
 } from "lucide-react";
-import { SiYoutube } from "react-icons/si";
-import { Link } from "wouter";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { EmptyState } from "@/components/EmptyState";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
-import { format, startOfWeek, addDays, isToday, isSameDay } from "date-fns";
+import { format } from "date-fns";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { requireAuth, requireTier, parseNumericId } from "./helpers";
 import { storage } from "../storage";
 import { db } from "../db";
-import { contentClips, autopilotQueue, videos, channels } from "@shared/schema";
+import { contentClips, autopilotQueue, videos } from "@shared/schema";
 import { eq, and, desc, gte, sql, inArray } from "drizzle-orm";
 import {
   startShortsPipeline,

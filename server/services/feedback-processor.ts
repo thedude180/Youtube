@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { db } from "../db";
 import { feedbackSubmissions } from "@shared/schema";
-import { ADMIN_EMAIL, SUBSCRIPTION_TIERS } from "@shared/models/auth";
+import { SUBSCRIPTION_TIERS } from "@shared/models/auth";
 import { eq, and, sql, desc, gte } from "drizzle-orm";
 import { notifyAdmin } from "./notifications";
 
