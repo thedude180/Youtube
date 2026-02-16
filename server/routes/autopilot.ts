@@ -74,11 +74,27 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "AI Comment Responder");
     if (!userId) return;
     try {
-      const comments = await db.select().from(commentResponses)
+      const results = await db.select({
+        id: commentResponses.id,
+        userId: commentResponses.userId,
+        videoId: commentResponses.videoId,
+        platform: commentResponses.platform,
+        originalComment: commentResponses.originalComment,
+        originalAuthor: commentResponses.originalAuthor,
+        aiResponse: commentResponses.aiResponse,
+        status: commentResponses.status,
+        sentiment: commentResponses.sentiment,
+        priority: commentResponses.priority,
+        publishedAt: commentResponses.publishedAt,
+        metadata: commentResponses.metadata,
+        createdAt: commentResponses.createdAt,
+        videoTitle: videos.title,
+      }).from(commentResponses)
+        .leftJoin(videos, eq(commentResponses.videoId, videos.id))
         .where(eq(commentResponses.userId, userId))
         .orderBy(desc(commentResponses.createdAt))
         .limit(100);
-      res.json(comments);
+      res.json(results);
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch comments" });
     }

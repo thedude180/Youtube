@@ -81,6 +81,7 @@ interface QueueItem {
 interface CommentItem {
   id: number;
   platform: string;
+  videoTitle: string | null;
   originalComment: string;
   originalAuthor: string;
   aiResponse: string;
@@ -716,7 +717,14 @@ export default function Autopilot() {
                   </div>
                   <div className="space-y-2">
                     <div className="bg-muted/50 rounded-md p-3">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">{comment.originalAuthor}:</p>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <p className="text-xs font-medium text-muted-foreground">{comment.originalAuthor}</p>
+                        {comment.videoTitle && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[200px]" data-testid={`text-comment-video-${comment.id}`}>
+                            on "{comment.videoTitle}"
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm">{comment.originalComment}</p>
                     </div>
                     <div className="pl-4 border-l-2 border-primary/30">
