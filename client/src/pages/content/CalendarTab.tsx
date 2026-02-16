@@ -9,17 +9,16 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Calendar as CalendarIcon,
-  ChevronLeft, ChevronRight, Video, Radio, FileText,
-  Eye, Rocket, Bot, Workflow, Zap,
+  ChevronLeft, ChevronRight, Video, Radio, Upload, Clock,
 } from "lucide-react";
-import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
+import { PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import {
   format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks,
   addMonths, subMonths, addYears, subYears,
-  startOfMonth, endOfMonth, startOfYear, endOfYear,
-  isToday, isSameDay, isSameMonth, isSameYear,
-  eachDayOfInterval, getDay, getWeek,
+  startOfMonth, endOfMonth,
+  isToday, isSameDay, isSameMonth,
+  eachDayOfInterval,
 } from "date-fns";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -36,27 +35,17 @@ import {
 
 type ViewMode = "day" | "week" | "month" | "year";
 
-interface CalendarEntry {
-  id: number | string;
+interface UploadEntry {
+  id: string;
   title: string;
   date: Date;
-  type: "schedule" | "video" | "autopilot" | "pipeline";
-  pipelineType?: "vod" | "live" | "replay";
-  platform?: string;
-  contentType?: string;
-  status?: string;
-  time?: string;
-  completedSteps?: number;
-  totalSteps?: number;
-  currentStep?: string;
+  time: string;
+  platform: string;
+  contentType: string;
+  status: string;
+  source: "schedule" | "video" | "autopilot" | "pipeline";
   raw?: any;
 }
-
-const TYPE_ICONS: Record<string, any> = {
-  video: Video,
-  stream: Radio,
-  post: FileText,
-};
 
 function CalendarTab() {
   const { toast } = useToast();
@@ -82,89 +71,98 @@ function CalendarTab() {
 
   const isLoading = schedLoading || vidsLoading || apLoading || pipLoading;
 
-  const calendarEntries = useMemo<CalendarEntry[]>(() => {
-    const entries: CalendarEntry[] = [];
-    if (scheduleItemsData) {
-      for (const item of scheduleItemsData) {
-        entries.push({
-          id: `s-${item.id}`,
-          title: item.title,
-          date: new Date(item.scheduledAt),
-          type: "schedule",
-          platform: item.platform,
-          contentType: item.type,
-          status: item.status,
-          time: format(new Date(item.scheduledAt), "h:mm a"),
-          raw: item,
-        });
-      }
-    }
+  const uploads = useMemo<UploadEntry[]>(() => {
+    const entries: UploadEntry[] = [];
+    const seen = new Set<string>();
+
     if (videosList) {
       for (const vid of videosList) {
-        const d = vid.publishedAt
-          ? new Date(vid.publishedAt)
-          : vid.scheduledTime
-            ? new Date(vid.scheduledTime)
-            : vid.createdAt
-              ? new Date(vid.createdAt)
-              : new Date();
+        const d = vid.scheduledTime
+          ? new Date(vid.scheduledTime)
+          : vid.publishedAt
+            ? new Date(vid.publishedAt)
+            : null;
+        if (!d) continue;
+        const key = `vid-${vid.id}`;
+        seen.add(key);
         entries.push({
-          id: `v-${vid.id}`,
+          id: key,
           title: vid.title,
           date: d,
-          type: "video",
-          platform: vid.platform || "youtube",
-          contentType: vid.type,
-          status: vid.status,
           time: format(d, "h:mm a"),
+          platform: vid.platform || "youtube",
+          contentType: vid.type || "video",
+          status: vid.status === "published" || vid.status === "public" ? "uploaded" : "scheduled",
+          source: "video",
           raw: vid,
         });
       }
     }
-    if (autopilotFeed) {
-      for (const item of autopilotFeed) {
-        const d = item.date ? new Date(item.date) : new Date();
-        entries.push({
-          id: item.id,
-          title: item.title,
-          date: d,
-          type: "autopilot",
-          platform: item.platform,
-          contentType: item.contentType,
-          status: item.status,
-          time: format(d, "h:mm a"),
-          raw: item,
-        });
-      }
-    }
+
     if (pipelineFeed) {
       for (const item of pipelineFeed) {
-        const d = item.date ? new Date(item.date) : new Date();
+        if (!item.date) continue;
+        const d = new Date(item.date);
+        if (isNaN(d.getTime())) continue;
+        const vidKey = item.videoId ? `vid-${item.videoId}` : null;
+        if (vidKey && seen.has(vidKey)) continue;
         entries.push({
           id: item.id,
           title: item.title,
           date: d,
-          type: "pipeline",
-          pipelineType: item.pipelineType,
-          platform: item.platform || "youtube",
-          contentType: item.contentType,
-          status: item.status,
-          currentStep: item.currentStep,
-          completedSteps: item.completedSteps,
-          totalSteps: item.totalSteps,
           time: format(d, "h:mm a"),
+          platform: item.platform || "youtube",
+          contentType: item.contentType || "video",
+          status: item.status === "completed" ? "uploaded" : "scheduled",
+          source: "pipeline",
+        });
+      }
+    }
+
+    if (scheduleItemsData) {
+      for (const item of scheduleItemsData) {
+        if (!item.scheduledAt) continue;
+        const d = new Date(item.scheduledAt);
+        entries.push({
+          id: `s-${item.id}`,
+          title: item.title,
+          date: d,
+          time: format(d, "h:mm a"),
+          platform: item.platform || "youtube",
+          contentType: item.type || "video",
+          status: item.status === "completed" ? "uploaded" : "scheduled",
+          source: "schedule",
           raw: item,
         });
       }
     }
+
+    if (autopilotFeed) {
+      for (const item of autopilotFeed) {
+        if (!item.date) continue;
+        const d = new Date(item.date);
+        if (isNaN(d.getTime())) continue;
+        entries.push({
+          id: item.id,
+          title: item.title,
+          date: d,
+          time: format(d, "h:mm a"),
+          platform: item.platform || "youtube",
+          contentType: item.contentType || "video",
+          status: item.status === "completed" ? "uploaded" : "scheduled",
+          source: "autopilot",
+        });
+      }
+    }
+
     return entries.sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [scheduleItemsData, videosList, autopilotFeed, pipelineFeed]);
 
   const getEntriesForDate = (date: Date) =>
-    calendarEntries.filter((e) => isSameDay(e.date, date));
+    uploads.filter((e) => isSameDay(e.date, date));
 
   const getEntriesForMonth = (month: number, year: number) =>
-    calendarEntries.filter(
+    uploads.filter(
       (e) => e.date.getMonth() === month && e.date.getFullYear() === year,
     );
 
@@ -268,21 +266,36 @@ function CalendarTab() {
       />
     );
 
+  const scheduledCount = uploads.filter((e) => e.status === "scheduled").length;
+  const uploadedCount = uploads.filter((e) => e.status === "uploaded").length;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
-            <Button
-              key={mode}
-              variant={viewMode === mode ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode(mode)}
-              data-testid={`button-view-${mode}`}
-            >
-              {mode.charAt(0).toUpperCase() + mode.slice(1)}
-            </Button>
-          ))}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
+              <Button
+                key={mode}
+                variant={viewMode === mode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode(mode)}
+                data-testid={`button-view-${mode}`}
+              >
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3 text-blue-400" />
+              {scheduledCount} scheduled
+            </span>
+            <span className="flex items-center gap-1">
+              <Upload className="w-3 h-3 text-emerald-400" />
+              {uploadedCount} uploaded
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -404,12 +417,12 @@ function CalendarTab() {
             <DialogTrigger asChild>
               <Button size="sm" data-testid="button-add-schedule">
                 <Plus className="w-4 h-4 mr-1" />
-                Schedule
+                Schedule Upload
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Schedule Content</DialogTitle>
+                <DialogTitle>Schedule Upload</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div>
@@ -418,7 +431,7 @@ function CalendarTab() {
                     name="title"
                     required
                     data-testid="input-schedule-title"
-                    placeholder="Content title"
+                    placeholder="Video title"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -457,7 +470,7 @@ function CalendarTab() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Date</Label>
+                    <Label>Upload Date</Label>
                     <Input
                       name="date"
                       type="date"
@@ -467,7 +480,7 @@ function CalendarTab() {
                     />
                   </div>
                   <div>
-                    <Label>Time</Label>
+                    <Label>Upload Time</Label>
                     <Input
                       name="time"
                       type="time"
@@ -483,7 +496,7 @@ function CalendarTab() {
                   disabled={createMutation.isPending}
                   data-testid="button-submit-schedule"
                 >
-                  {createMutation.isPending ? "Saving..." : "Schedule"}
+                  {createMutation.isPending ? "Saving..." : "Schedule Upload"}
                 </Button>
               </form>
             </DialogContent>
@@ -501,7 +514,7 @@ function CalendarTab() {
       {viewMode === "week" && (
         <WeekView
           date={currentDate}
-          entries={calendarEntries}
+          entries={uploads}
           selectedDate={selectedDate}
           onSelectDate={(d) => {
             setSelectedDate(d);
@@ -513,7 +526,7 @@ function CalendarTab() {
       {viewMode === "month" && (
         <MonthView
           date={currentDate}
-          entries={calendarEntries}
+          entries={uploads}
           selectedDate={selectedDate}
           onSelectDate={(d) => {
             setSelectedDate(d);
@@ -528,7 +541,7 @@ function CalendarTab() {
       {viewMode === "year" && (
         <YearView
           date={currentDate}
-          entries={calendarEntries}
+          entries={uploads}
           onMonthClick={(m) => {
             const d = new Date(currentDate);
             d.setMonth(m);
@@ -550,43 +563,32 @@ function CalendarTab() {
   );
 }
 
-function EntryBadge({ entry }: { entry: CalendarEntry }) {
-  const statusColor =
-    entry.status === "scheduled"
-      ? "bg-blue-500/15 text-blue-400"
-      : entry.status === "draft" || entry.status === "ingested"
-        ? "bg-amber-500/15 text-amber-400"
-        : entry.status === "processing"
-          ? "bg-purple-500/15 text-purple-400"
-          : entry.status === "ready" || entry.status === "completed"
-            ? "bg-emerald-500/15 text-emerald-400"
-            : "bg-muted text-muted-foreground";
-
+function UploadStatusBadge({ status }: { status: string }) {
+  const isUploaded = status === "uploaded";
   return (
     <Badge
       variant="secondary"
-      className={`text-xs no-default-hover-elevate no-default-active-elevate ${statusColor}`}
+      className={`text-xs no-default-hover-elevate no-default-active-elevate ${
+        isUploaded
+          ? "bg-emerald-500/15 text-emerald-400"
+          : "bg-blue-500/15 text-blue-400"
+      }`}
     >
-      {entry.status || "pending"}
+      {isUploaded ? (
+        <Upload className="w-3 h-3 mr-1" />
+      ) : (
+        <Clock className="w-3 h-3 mr-1" />
+      )}
+      {isUploaded ? "Uploaded" : "Scheduled"}
     </Badge>
   );
 }
 
-function EntryIcon({ entry }: { entry: CalendarEntry }) {
-  if (entry.type === "pipeline") {
-    if (entry.pipelineType === "live") {
-      return <Zap className="w-3 h-3 shrink-0 text-green-400" />;
-    }
-    return <Workflow className="w-3 h-3 shrink-0 text-cyan-400" />;
+function ContentIcon({ contentType }: { contentType: string }) {
+  if (contentType === "stream") {
+    return <Radio className="w-3.5 h-3.5 shrink-0 text-red-400" />;
   }
-  if (entry.type === "autopilot") {
-    return <Rocket className="w-3 h-3 shrink-0 text-purple-400" />;
-  }
-  if (entry.type === "video") {
-    return <Video className="w-3 h-3 shrink-0 text-red-400" />;
-  }
-  const Icon = TYPE_ICONS[entry.contentType || "video"] || FileText;
-  return <Icon className="w-3 h-3 shrink-0 text-blue-400" />;
+  return <Video className="w-3.5 h-3.5 shrink-0 text-red-400" />;
 }
 
 function DayView({
@@ -595,7 +597,7 @@ function DayView({
   onDelete,
 }: {
   date: Date;
-  entries: CalendarEntry[];
+  entries: UploadEntry[];
   onDelete: (id: number) => void;
 }) {
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -612,7 +614,7 @@ function DayView({
         {entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <CalendarIcon className="w-10 h-10 text-muted-foreground/20 mb-3" />
-            <p className="text-sm text-muted-foreground">Nothing scheduled</p>
+            <p className="text-sm text-muted-foreground">No uploads scheduled</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -645,7 +647,7 @@ function DayView({
                   </span>
                   <div className="flex-1 border-t border-border/50 pt-1">
                     {hourEntries.map((entry) => (
-                      <EntryRow
+                      <UploadRow
                         key={entry.id}
                         entry={entry}
                         onDelete={onDelete}
@@ -662,11 +664,11 @@ function DayView({
   );
 }
 
-function EntryRow({
+function UploadRow({
   entry,
   onDelete,
 }: {
-  entry: CalendarEntry;
+  entry: UploadEntry;
   onDelete: (id: number) => void;
 }) {
   return (
@@ -675,61 +677,21 @@ function EntryRow({
       data-testid={`entry-${entry.id}`}
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <EntryIcon entry={entry} />
+        <ContentIcon contentType={entry.contentType} />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium truncate">{entry.title}</p>
+          <p className="text-sm font-medium truncate" data-testid={`text-title-${entry.id}`}>
+            {entry.title}
+          </p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-muted-foreground">{entry.time}</span>
-            {entry.platform && (
-              <PlatformBadge platform={entry.platform} className="text-xs" />
-            )}
-            <EntryBadge entry={entry} />
-            {entry.type === "video" && (
-              <Badge
-                variant="secondary"
-                className="text-xs no-default-hover-elevate no-default-active-elevate bg-red-500/10 text-red-400"
-              >
-                <Video className="w-3 h-3 mr-1" />
-                Upload
-              </Badge>
-            )}
-            {entry.type === "autopilot" && (
-              <Badge
-                variant="secondary"
-                className="text-xs no-default-hover-elevate no-default-active-elevate bg-purple-500/10 text-purple-400"
-              >
-                <Bot className="w-3 h-3 mr-1" />
-                Autopilot
-              </Badge>
-            )}
-            {entry.type === "pipeline" && (
-              <Badge
-                variant="secondary"
-                className={`text-xs no-default-hover-elevate no-default-active-elevate ${
-                  entry.pipelineType === "live"
-                    ? "bg-green-500/10 text-green-400"
-                    : entry.pipelineType === "replay"
-                      ? "bg-orange-500/10 text-orange-400"
-                      : "bg-cyan-500/10 text-cyan-400"
-                }`}
-              >
-                {entry.pipelineType === "live" ? (
-                  <Zap className="w-3 h-3 mr-1" />
-                ) : (
-                  <Workflow className="w-3 h-3 mr-1" />
-                )}
-                {entry.pipelineType === "live" ? "Live Pipeline" : entry.pipelineType === "replay" ? "Replay Pipeline" : "VOD Pipeline"}
-              </Badge>
-            )}
-            {entry.type === "pipeline" && entry.completedSteps != null && entry.totalSteps && (
-              <span className="text-xs text-muted-foreground">
-                {entry.completedSteps}/{entry.totalSteps} steps
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground" data-testid={`text-time-${entry.id}`}>
+              {entry.time}
+            </span>
+            <PlatformBadge platform={entry.platform} className="text-xs" />
+            <UploadStatusBadge status={entry.status} />
           </div>
         </div>
       </div>
-      {entry.type === "schedule" && entry.raw && (
+      {entry.source === "schedule" && entry.raw && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
@@ -742,10 +704,9 @@ function EntryRow({
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Remove Scheduled Item</AlertDialogTitle>
+              <AlertDialogTitle>Remove Scheduled Upload</AlertDialogTitle>
               <AlertDialogDescription>
-                This will remove &quot;{entry.title}&quot; from the schedule.
-                This cannot be undone.
+                This will remove &quot;{entry.title}&quot; from the upload schedule.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -773,7 +734,7 @@ function WeekView({
   onDelete,
 }: {
   date: Date;
-  entries: CalendarEntry[];
+  entries: UploadEntry[];
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
   onDelete: (id: number) => void;
@@ -819,19 +780,13 @@ function WeekView({
                 <div
                   key={entry.id}
                   className={`text-xs p-1 rounded truncate flex items-center gap-1 ${
-                    entry.type === "pipeline" && entry.pipelineType === "live"
-                      ? "bg-green-500/10 text-green-300"
-                      : entry.type === "pipeline"
-                        ? "bg-cyan-500/10 text-cyan-300"
-                        : entry.type === "video"
-                          ? "bg-red-500/10 text-red-300"
-                          : entry.type === "autopilot"
-                            ? "bg-purple-500/10 text-purple-300"
-                            : "bg-blue-500/10 text-blue-300"
+                    entry.status === "uploaded"
+                      ? "bg-emerald-500/10 text-emerald-300"
+                      : "bg-blue-500/10 text-blue-300"
                   }`}
                   data-testid={`week-entry-${entry.id}`}
                 >
-                  <EntryIcon entry={entry} />
+                  <ContentIcon contentType={entry.contentType} />
                   <span className="truncate">{entry.title}</span>
                 </div>
               ))}
@@ -856,7 +811,7 @@ function MonthView({
   onDayClick,
 }: {
   date: Date;
-  entries: CalendarEntry[];
+  entries: UploadEntry[];
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
   onDayClick: (d: Date) => void;
@@ -922,15 +877,9 @@ function MonthView({
                   <div
                     key={entry.id}
                     className={`text-[10px] leading-tight px-1 py-0.5 rounded truncate ${
-                      entry.type === "pipeline" && entry.pipelineType === "live"
-                        ? "bg-green-500/10 text-green-300"
-                        : entry.type === "pipeline"
-                          ? "bg-cyan-500/10 text-cyan-300"
-                          : entry.type === "video"
-                            ? "bg-red-500/10 text-red-300"
-                            : entry.type === "autopilot"
-                              ? "bg-purple-500/10 text-purple-300"
-                              : "bg-blue-500/10 text-blue-300"
+                      entry.status === "uploaded"
+                        ? "bg-emerald-500/10 text-emerald-300"
+                        : "bg-blue-500/10 text-blue-300"
                     }`}
                   >
                     {entry.title}
@@ -956,7 +905,7 @@ function YearView({
   onMonthClick,
 }: {
   date: Date;
-  entries: CalendarEntry[];
+  entries: UploadEntry[];
   onMonthClick: (month: number) => void;
 }) {
   const year = date.getFullYear();
@@ -966,16 +915,11 @@ function YearView({
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
       {months.map((month) => {
-        const monthEntries = getMonthEntries(entries, month, year);
-        const videoCount = monthEntries.filter(
-          (e) => e.type === "video",
-        ).length;
-        const schedCount = monthEntries.filter(
-          (e) => e.type === "schedule",
-        ).length;
-        const pipelineCount = monthEntries.filter(
-          (e) => e.type === "pipeline",
-        ).length;
+        const monthEntries = entries.filter(
+          (e) => e.date.getMonth() === month && e.date.getFullYear() === year,
+        );
+        const scheduledCount = monthEntries.filter((e) => e.status === "scheduled").length;
+        const uploadedCount = monthEntries.filter((e) => e.status === "uploaded").length;
         const isCurrentMonth =
           today.getMonth() === month && today.getFullYear() === year;
 
@@ -1005,27 +949,21 @@ function YearView({
               />
 
               <div className="flex items-center gap-3 mt-3">
-                {videoCount > 0 && (
-                  <span className="text-xs flex items-center gap-1 text-red-400">
-                    <Video className="w-3 h-3" />
-                    {videoCount}
-                  </span>
-                )}
-                {schedCount > 0 && (
+                {scheduledCount > 0 && (
                   <span className="text-xs flex items-center gap-1 text-blue-400">
-                    <CalendarIcon className="w-3 h-3" />
-                    {schedCount}
+                    <Clock className="w-3 h-3" />
+                    {scheduledCount}
                   </span>
                 )}
-                {pipelineCount > 0 && (
-                  <span className="text-xs flex items-center gap-1 text-cyan-400">
-                    <Workflow className="w-3 h-3" />
-                    {pipelineCount}
+                {uploadedCount > 0 && (
+                  <span className="text-xs flex items-center gap-1 text-emerald-400">
+                    <Upload className="w-3 h-3" />
+                    {uploadedCount}
                   </span>
                 )}
-                {videoCount === 0 && schedCount === 0 && pipelineCount === 0 && (
+                {scheduledCount === 0 && uploadedCount === 0 && (
                   <span className="text-xs text-muted-foreground">
-                    No content
+                    No uploads
                   </span>
                 )}
               </div>
@@ -1044,7 +982,7 @@ function MiniMonthGrid({
 }: {
   month: number;
   year: number;
-  entries: CalendarEntry[];
+  entries: UploadEntry[];
 }) {
   const monthStart = startOfMonth(new Date(year, month, 1));
   const monthEnd = endOfMonth(monthStart);
@@ -1079,16 +1017,6 @@ function MiniMonthGrid({
   );
 }
 
-function getMonthEntries(
-  entries: CalendarEntry[],
-  month: number,
-  year: number,
-) {
-  return entries.filter(
-    (e) => e.date.getMonth() === month && e.date.getFullYear() === year,
-  );
-}
-
 function DetailPanel({
   date,
   entries,
@@ -1096,7 +1024,7 @@ function DetailPanel({
   onClose,
 }: {
   date: Date;
-  entries: CalendarEntry[];
+  entries: UploadEntry[];
   onDelete: (id: number) => void;
   onClose: () => void;
 }) {
@@ -1119,12 +1047,12 @@ function DetailPanel({
         {entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6">
             <CalendarIcon className="w-8 h-8 text-muted-foreground/20 mb-2" />
-            <p className="text-sm text-muted-foreground">Nothing scheduled</p>
+            <p className="text-sm text-muted-foreground">No uploads scheduled</p>
           </div>
         ) : (
           <div className="space-y-2">
             {entries.map((entry) => (
-              <EntryRow key={entry.id} entry={entry} onDelete={onDelete} />
+              <UploadRow key={entry.id} entry={entry} onDelete={onDelete} />
             ))}
           </div>
         )}

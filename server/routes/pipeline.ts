@@ -470,40 +470,29 @@ export function registerPipelineRoutes(app: Express) {
 
       for (const row of vodRows) {
         const p = row.pipeline;
-        const date = row.videoScheduledTime || row.videoPublishedAt || p.createdAt || new Date();
+        const date = row.videoScheduledTime || row.videoPublishedAt;
+        if (!date) continue;
         calendarItems.push({
           id: `vod-${p.id}`,
           title: p.videoTitle,
           date,
-          type: "pipeline",
-          pipelineType: "vod",
-          mode: p.mode || "vod",
           platform: "youtube",
           contentType: "video",
-          status: p.status,
-          currentStep: p.currentStep,
-          completedSteps: p.completedSteps?.length || 0,
-          totalSteps: 56,
+          status: p.status === "completed" ? "uploaded" : "scheduled",
           videoId: p.videoId,
         });
       }
 
       for (const p of livePipelines) {
-        const date = p.scheduledStartAt || p.startedAt || p.createdAt || new Date();
+        const date = p.scheduledStartAt;
+        if (!date) continue;
         calendarItems.push({
           id: `live-${p.id}`,
           title: p.sourceTitle,
           date,
-          type: "pipeline",
-          pipelineType: p.pipelineType || "live",
-          mode: p.mode || "live",
           platform: "youtube",
           contentType: p.pipelineType === "live" ? "stream" : "video",
-          status: p.status,
-          currentStep: p.currentStep,
-          completedSteps: p.completedSteps?.length || 0,
-          totalSteps: p.pipelineType === "live" ? 65 : 56,
-          streamId: p.streamId,
+          status: p.status === "completed" ? "uploaded" : "scheduled",
           videoId: p.videoId,
         });
       }
