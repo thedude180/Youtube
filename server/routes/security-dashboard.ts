@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import crypto from "crypto";
-import { requireAuth, requireAdmin } from "./helpers";
+import { requireAuth, requireAdmin, parseNumericId } from "./helpers";
 import { storage } from "../storage";
 import { getSecurityStats, getBlockedIPs, getSecurityRules } from "../security-engine";
 import { getAllBreakerStats, getAllBreakerStatuses } from "../services/circuit-breaker";
@@ -166,8 +166,8 @@ export function registerSecurityDashboardRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const keyId = parseInt(req.params.id);
-      if (isNaN(keyId)) return res.status(400).json({ error: "Invalid key ID" });
+      const keyId = parseNumericId(req.params.id as string, res, "key ID");
+      if (keyId === null) return;
       await storage.revokeApiKey(keyId, userId);
       res.json({ success: true });
     } catch (err) {

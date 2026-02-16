@@ -1,5 +1,5 @@
 import { Express, Request, Response } from "express";
-import { asyncHandler, requireAuth, requireAdmin, requireTier } from "./helpers";
+import { asyncHandler, requireAuth, requireAdmin, requireTier, parseNumericId } from "./helpers";
 
 import {
   startCommunityAudienceEngine, runCommunityAudienceScan, getCommunityEngineStatus,
@@ -171,8 +171,8 @@ export function registerPillarRoutes(app: Express): void {
   app.post("/api/education/dismiss-tip/:id", asyncHandler(async (req: Request, res: Response) => {
     const userId = await requireTier(req, res, "starter", "AI Coaching Tips");
     if (!userId) return;
-    const tipId = parseInt(req.params.id);
-    if (isNaN(tipId)) return res.status(400).json({ error: "Invalid tip ID" });
+    const tipId = parseNumericId(req.params.id as string, res, "tip ID");
+    if (tipId === null) return;
     const [tip] = await db.select().from(coachingTips).where(and(eq(coachingTips.id, tipId), eq(coachingTips.userId, userId)));
     if (!tip) return res.status(404).json({ error: "Tip not found" });
     await db.update(coachingTips).set({ dismissed: true }).where(eq(coachingTips.id, tipId));

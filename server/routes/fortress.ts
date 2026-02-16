@@ -66,14 +66,14 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/fortress/ip-reputation/:ip", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const reputation = await getIpReputation(req.params.ip);
+    const reputation = await getIpReputation(req.params.ip as string);
     res.json(reputation);
   }));
 
   app.get("/api/fortress/behavior/:ip", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const score = getBehaviorScore(req.params.ip);
+    const score = getBehaviorScore(req.params.ip as string);
     res.json({ ip: req.params.ip, score });
   }));
 
@@ -118,7 +118,7 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/fortress/lockouts/unlock/:identifier", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    await unlockAccount(req.params.identifier);
+    await unlockAccount(req.params.identifier as string);
     res.json({ success: true, message: `Account ${req.params.identifier} unlocked` });
   }));
 
@@ -202,7 +202,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/ai-ops/costs", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const days = parseInt(req.query.days as string) || 30;
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
     const costs = await getUserAiCosts(userId, days);
     res.json(costs);
   }));
@@ -210,7 +210,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/ai-ops/costs/system", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const days = parseInt(req.query.days as string) || 30;
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
     const costs = await getSystemAiCosts(days);
     res.json(costs);
   }));
@@ -234,7 +234,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/ai-ops/quality", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const days = parseInt(req.query.days as string) || 7;
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 7));
     const quality = await getAverageQuality(userId, days);
     res.json(quality);
   }));
@@ -242,7 +242,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/ai-ops/batch/:id", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const status = getBatchStatus(req.params.id);
+    const status = getBatchStatus(req.params.id as string);
     if (!status) return res.status(404).json({ error: "Batch not found" });
     res.json(status);
   }));
@@ -253,7 +253,7 @@ export function registerFortressRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const status = req.query.status as string | undefined;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 50));
     const items = await getDeadLetterItems(status, limit);
     res.json(items);
   }));
@@ -307,15 +307,15 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/automation-ops/rate-limits/:platform", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const status = getRateLimitStatus(req.params.platform);
-    const canCall = canMakeApiCall(req.params.platform);
+    const status = getRateLimitStatus(req.params.platform as string);
+    const canCall = canMakeApiCall(req.params.platform as string);
     res.json({ ...status, canMakeCall: canCall });
   }));
 
   app.get("/api/automation-ops/pipeline-analytics", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const days = parseInt(req.query.days as string) || 7;
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 7));
     const analytics = getPipelineAnalytics(days);
     res.json(analytics);
   }));
@@ -323,7 +323,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/automation-ops/bottlenecks", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const limit = parseInt(req.query.limit as string) || 5;
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 5));
     const bottlenecks = getBottlenecks(limit);
     res.json(bottlenecks);
   }));
@@ -370,7 +370,7 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/notification-ops/cleanup", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const days = parseInt(req.body.days) || 30;
+    const days = Math.min(365, Math.max(1, parseInt(req.body.days) || 30));
     const deleted = await deleteOldNotifications(userId, days);
     res.json({ deleted, olderThanDays: days });
   }));
@@ -444,7 +444,7 @@ export function registerFortressRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const tier = req.body.tier || "starter";
-    const days = parseInt(req.body.days) || 14;
+    const days = Math.min(365, Math.max(1, parseInt(req.body.days) || 14));
     const result = await startFreeTrial(userId, tier, days);
     res.json(result);
   }));
@@ -542,7 +542,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/fortress/sentinel/history", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 50));
     const history = await getScanHistory(Math.min(limit, 100));
     res.json(history);
   }));

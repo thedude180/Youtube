@@ -620,7 +620,7 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const limit = Number(req.query.limit) || 100;
+      const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
       const id = parseNumericId(req.params.id, res);
       if (id === null) return;
       const messages = await getLiveChatFeed(id, limit);

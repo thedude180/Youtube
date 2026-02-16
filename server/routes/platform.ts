@@ -358,6 +358,7 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const videoId = req.query.videoId ? Number(req.query.videoId) : undefined;
+    if (videoId !== undefined && isNaN(videoId)) return res.status(400).json({ error: "Invalid videoId" });
     const tests = await storage.getAbTests(userId, videoId);
     res.json(tests);
   });
@@ -435,6 +436,7 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
+    if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
     const analytics = await storage.getAnalyticsSnapshots(userId);
     res.json(analytics);
   });

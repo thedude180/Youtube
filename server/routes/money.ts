@@ -512,6 +512,7 @@ export function registerMoneyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const year = req.query.year ? Number(req.query.year) : undefined;
+    if (year !== undefined && (isNaN(year) || year < 2020 || year > 2100)) return res.status(400).json({ error: "Invalid year" });
     const estimates = await storage.getTaxEstimates(userId, year);
     res.json(estimates);
   });

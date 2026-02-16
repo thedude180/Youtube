@@ -181,30 +181,31 @@ function AdvancedToggle() {
 function GlobalErrorToast() {
   const { toast } = useToast();
   useEffect(() => {
-    const showError = (err: Error) => {
+    const extractMessage = (err: Error): string => {
+      const raw = err?.message || "Something went wrong";
+      const stripped = raw.replace(/^\d+:\s*/, "");
+      try { return JSON.parse(stripped)?.error || stripped; } catch { return stripped; }
+    };
+    const showQueryError = (err: Error) => {
+      if (err?.message?.startsWith("401:") || err?.message?.startsWith("403:")) return;
+      toast({ title: "Request failed", description: extractMessage(err), variant: "destructive" });
+    };
+    const showMutationError = (err: Error) => {
       if (err?.message?.startsWith("401:")) return;
-      toast({
-        title: "Something went wrong",
-        description: "A request failed. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Action failed", description: extractMessage(err), variant: "destructive" });
     };
     const unsubQuery = queryClient.getQueryCache().subscribe((event) => {
       if (event.type === "updated" && event.query.state.status === "error") {
-        showError(event.query.state.error as Error);
+        showQueryError(event.query.state.error as Error);
       }
     });
     const unsubMutation = queryClient.getMutationCache().subscribe((event) => {
       if (event.type === "updated" && event.mutation.state.status === "error") {
-        showError(event.mutation.state.error as Error);
+        showMutationError(event.mutation.state.error as Error);
       }
     });
     const handleSessionExpired = () => {
-      toast({
-        title: "Session expired",
-        description: "You've been signed out. Redirecting to sign in...",
-        variant: "destructive",
-      });
+      toast({ title: "Session expired", description: "You've been signed out. Redirecting to sign in...", variant: "destructive" });
     };
     window.addEventListener('session-expired', handleSessionExpired);
     return () => { unsubQuery(); unsubMutation(); window.removeEventListener('session-expired', handleSessionExpired); };

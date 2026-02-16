@@ -383,6 +383,7 @@ export function registerContentRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
+    if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
     const insights = await storage.getContentInsights(channelId);
     res.json(insights);
   });
@@ -446,6 +447,7 @@ export function registerContentRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
+    if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
     const records = await storage.getComplianceRecords(channelId);
     res.json(records);
   });
@@ -521,6 +523,7 @@ export function registerContentRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
+    if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
     const strategies = await storage.getGrowthStrategies(channelId);
     res.json(strategies);
   });
@@ -986,6 +989,7 @@ export function registerContentRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const sourceVideoId = req.query.sourceVideoId ? Number(req.query.sourceVideoId) : undefined;
+    if (sourceVideoId !== undefined && isNaN(sourceVideoId)) return res.status(400).json({ error: "Invalid sourceVideoId" });
     const clips = await storage.getContentClips(userId, sourceVideoId);
     res.json(clips);
   });
