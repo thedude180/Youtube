@@ -48,6 +48,10 @@ import { db } from "../db";
 import { featureFlags } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+import {
+  runFullSecurityScan, getLatestScanResult, getScanHistory, getSentinelStatus
+} from "../services/ai-security-sentinel";
+
 export function registerFortressRoutes(app: Express) {
 
   // ==================== SECURITY FORTRESS ROUTES ====================
@@ -509,5 +513,38 @@ export function registerFortressRoutes(app: Express) {
     const [updated] = await db.update(featureFlags).set(updateData).where(eq(featureFlags.flagKey, flagKey)).returning();
     if (!updated) return res.status(404).json({ error: "Flag not found" });
     res.json(updated);
+  }));
+
+  // ==================== AI SECURITY SENTINEL ROUTES ====================
+
+  app.get("/api/fortress/sentinel/status", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const status = getSentinelStatus();
+    const latest = await getLatestScanResult();
+    res.json({ ...status, latestScan: latest });
+  }));
+
+  app.get("/api/fortress/sentinel/latest", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const result = await getLatestScanResult();
+    if (!result) return res.json({ message: "No scans completed yet" });
+    res.json(result);
+  }));
+
+  app.get("/api/fortress/sentinel/history", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const history = await getScanHistory(Math.min(limit, 100));
+    res.json(history);
+  }));
+
+  app.post("/api/fortress/sentinel/scan", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const result = await runFullSecurityScan("manual");
+    res.json(result);
   }));
 }

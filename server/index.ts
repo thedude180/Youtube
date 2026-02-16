@@ -16,6 +16,7 @@ import { storage } from "./storage";
 import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
 import { processDeadLetterQueue } from "./services/automation-hardening";
 import { processAllDigests } from "./services/notification-system";
+import { startSentinel } from "./services/ai-security-sentinel";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -411,7 +412,9 @@ app.use((req: any, res, next) => {
         processAllDigests().catch(err => console.error("[Digest] Process failed:", err));
       }, 60 * 60 * 1000);
 
-      log("Fortress systems initialized: DLQ processor, digest processor, data retention");
+      startSentinel();
+
+      log("Fortress systems initialized: DLQ processor, digest processor, data retention, AI Security Sentinel");
     },
   );
 

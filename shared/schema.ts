@@ -3330,3 +3330,33 @@ export const dataRetentionPolicies = pgTable("data_retention_policies", {
 });
 
 export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;
+
+// === AI SECURITY SCANS ===
+export const securityScans = pgTable("security_scans", {
+  id: serial("id").primaryKey(),
+  scanType: text("scan_type").notNull(),
+  status: text("status").notNull().default("running"),
+  findings: jsonb("findings").$type<Array<{
+    category: string;
+    severity: "critical" | "high" | "medium" | "low" | "info";
+    title: string;
+    description: string;
+    autoFixed: boolean;
+    fixDescription?: string;
+  }>>().default([]),
+  summary: jsonb("summary").$type<{
+    totalChecks: number;
+    passed: number;
+    failed: number;
+    autoFixed: number;
+    score: number;
+  }>(),
+  triggeredBy: text("triggered_by").notNull().default("automated"),
+  duration: integer("duration"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("security_scans_type_idx").on(table.scanType),
+  index("security_scans_created_idx").on(table.createdAt),
+])
+
+export type SecurityScan = typeof securityScans.$inferSelect;
