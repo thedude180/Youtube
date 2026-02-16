@@ -2,10 +2,12 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { requireAuth } from "./helpers";
 import { sendSSEEvent } from "./events";
-import { AI_AGENTS } from "@shared/schema";
+import { AI_AGENTS, automationRules, scheduleItems, cronJobs, aiChains, notifications } from "@shared/schema";
 import { z } from "zod";
 import { api } from "@shared/routes";
 import { runAgentTask } from "../ai-engine";
+import { db } from "../db";
+import { eq, and } from "drizzle-orm";
 
 export async function registerAutomationRoutes(app: Express) {
   const { initAutomationEngine, processWebhookEvent, runChainManually, evaluateRules,
@@ -135,6 +137,8 @@ export async function registerAutomationRoutes(app: Express) {
   app.put(api.automation.updateRule.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, Number(req.params.id)), eq(automationRules.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const { name, agentId, trigger, enabled, actions } = req.body || {};
     const rule = await storage.updateAutomationRule(Number(req.params.id), { name, agentId, trigger, enabled, actions });
     res.json(rule);
@@ -143,6 +147,8 @@ export async function registerAutomationRoutes(app: Express) {
   app.delete(api.automation.deleteRule.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, Number(req.params.id)), eq(automationRules.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteAutomationRule(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -189,6 +195,8 @@ export async function registerAutomationRoutes(app: Express) {
   app.put(api.schedule.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, Number(req.params.id)), eq(scheduleItems.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const { title, scheduledAt, platform, type, status, metadata } = req.body || {};
     const item = await storage.updateScheduleItem(Number(req.params.id), { title, scheduledAt, platform, type, status, metadata });
     res.json(item);
@@ -197,6 +205,8 @@ export async function registerAutomationRoutes(app: Express) {
   app.delete(api.schedule.delete.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, Number(req.params.id)), eq(scheduleItems.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteScheduleItem(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -275,6 +285,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(cronJobs).where(and(eq(cronJobs.id, parseInt(req.params.id)), eq(cronJobs.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       const job = await storage.updateCronJob(parseInt(req.params.id), req.body);
       res.json(job);
     } catch (err) { res.status(500).json({ error: "Failed to update cron job" }); }
@@ -284,6 +296,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(cronJobs).where(and(eq(cronJobs.id, parseInt(req.params.id)), eq(cronJobs.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       await storage.deleteCronJob(parseInt(req.params.id));
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to delete cron job" }); }
@@ -327,6 +341,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(aiChains).where(and(eq(aiChains.id, parseInt(req.params.id)), eq(aiChains.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       const result = await runChainManually(parseInt(req.params.id));
       res.json(result);
     } catch (err: any) { res.status(500).json({ error: err.message || "Failed to run chain" }); }
@@ -336,6 +352,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(aiChains).where(and(eq(aiChains.id, parseInt(req.params.id)), eq(aiChains.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       const chain = await storage.updateAiChain(parseInt(req.params.id), req.body);
       res.json(chain);
     } catch (err) { res.status(500).json({ error: "Failed to update chain" }); }
@@ -345,6 +363,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(aiChains).where(and(eq(aiChains.id, parseInt(req.params.id)), eq(aiChains.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       await storage.deleteAiChain(parseInt(req.params.id));
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to delete chain" }); }
@@ -364,6 +384,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(notifications).where(and(eq(notifications.id, parseInt(req.params.id)), eq(notifications.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       const notif = await storage.markRead(parseInt(req.params.id));
       res.json(notif);
     } catch (err) { res.status(500).json({ error: "Failed to mark read" }); }
@@ -440,6 +462,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, parseInt(req.params.id)), eq(automationRules.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       const { name, agentId, trigger, enabled, actions } = req.body || {};
       const rule = await storage.updateAutomationRule(parseInt(req.params.id), { name, agentId, trigger, enabled, actions });
       res.json(rule);
@@ -450,6 +474,8 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
+      const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, parseInt(req.params.id)), eq(automationRules.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       await storage.deleteAutomationRule(parseInt(req.params.id));
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to delete rule" }); }

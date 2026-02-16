@@ -214,8 +214,8 @@ export function registerSecurityDashboardRoutes(app: Express) {
       const { cronJobs, aiChains, automationRules, scheduleItems } = await import("@shared/schema");
 
       const [crons, chains, rules, scheduled] = await Promise.all([
-        db.select().from(cronJobs).where(eq(cronJobs.userId, userId)).orderBy(desc(cronJobs.createdAt)).limit(20),
-        db.select().from(aiChains).where(eq(aiChains.userId, userId)).orderBy(desc(aiChains.createdAt)).limit(20),
+        db.select().from(cronJobs).where(eq(cronJobs.userId, userId)).orderBy(desc(cronJobs.lastRun)).limit(20),
+        db.select().from(aiChains).where(eq(aiChains.userId, userId)).orderBy(desc(aiChains.lastRun)).limit(20),
         db.select().from(automationRules).where(eq(automationRules.userId, userId)).orderBy(desc(automationRules.createdAt)).limit(20),
         db.select().from(scheduleItems).where(eq(scheduleItems.userId, userId)).orderBy(desc(scheduleItems.createdAt)).limit(20),
       ]);
@@ -244,12 +244,17 @@ export function registerSecurityDashboardRoutes(app: Express) {
 
       const { channels, videos, streams, revenueRecords } = await import("@shared/schema");
 
-      const [userChannels, userVideos, userStreams, revenue] = await Promise.all([
+      const [userChannels, userStreams, revenue] = await Promise.all([
         db.select().from(channels).where(eq(channels.userId, userId)),
-        db.select().from(videos).where(eq(videos.userId, userId)),
         db.select().from(streams).where(eq(streams.userId, userId)),
         db.select().from(revenueRecords).where(eq(revenueRecords.userId, userId)).orderBy(desc(revenueRecords.createdAt)).limit(100),
       ]);
+
+      const channelIds = userChannels.map(c => c.id).filter(Boolean) as number[];
+      let userVideos: any[] = [];
+      if (channelIds.length > 0) {
+        userVideos = await db.select().from(videos).where(sql`${videos.channelId} = ANY(${channelIds})`).limit(1000);
+      }
 
       const platformStats: Record<string, { videos: number; streams: number; totalViews: number; totalRevenue: number }> = {};
       const platforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
@@ -262,15 +267,17 @@ export function registerSecurityDashboardRoutes(app: Express) {
         const p = (v.platform || "youtube").toLowerCase();
         if (platformStats[p]) {
           platformStats[p].videos++;
-          platformStats[p].totalViews += v.views || 0;
+          const viewCount = (v.metadata as any)?.stats?.views || 0;
+          platformStats[p].totalViews += viewCount;
         }
       }
 
       for (const s of userStreams) {
-        const p = (s.platform || "youtube").toLowerCase();
+        const p = (s.platforms?.[0] || "youtube").toLowerCase();
         if (platformStats[p]) {
           platformStats[p].streams++;
-          platformStats[p].totalViews += s.peakViewers || 0;
+          const peakViewers = (s.streamStats as any)?.peakViewers || 0;
+          platformStats[p].totalViews += peakViewers;
         }
       }
 

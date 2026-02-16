@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
+import { db } from "../db";
+import { eq, and } from "drizzle-orm";
+import { brandAssets, competitorTracks, knowledgeMilestones } from "@shared/schema";
 import { requireAuth, getUserId, requireTier, EMPIRE_TIER_GATES } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
@@ -122,6 +125,8 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/brand-assets/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, Number(req.params.id)), eq(brandAssets.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const asset = await storage.updateBrandAsset(Number(req.params.id), req.body);
     res.json(asset);
   });
@@ -129,6 +134,8 @@ export function registerSettingsRoutes(app: Express) {
   app.delete("/api/brand-assets/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, Number(req.params.id)), eq(brandAssets.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteBrandAsset(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -161,6 +168,8 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/competitors/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, Number(req.params.id)), eq(competitorTracks.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const competitor = await storage.updateCompetitorTrack(Number(req.params.id), req.body);
     res.json(competitor);
   });
@@ -168,6 +177,8 @@ export function registerSettingsRoutes(app: Express) {
   app.delete("/api/competitors/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, Number(req.params.id)), eq(competitorTracks.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteCompetitorTrack(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -200,6 +211,8 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/knowledge/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(knowledgeMilestones).where(and(eq(knowledgeMilestones.id, Number(req.params.id)), eq(knowledgeMilestones.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const milestone = await storage.updateKnowledgeMilestone(Number(req.params.id), req.body);
     res.json(milestone);
   });

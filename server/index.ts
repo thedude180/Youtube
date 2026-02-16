@@ -215,7 +215,7 @@ app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
   }
   entry.count++;
 
-  const effectiveLimit = Math.min(GLOBAL_RATE_LIMIT, adaptiveLimit.limit);
+  const effectiveLimit = Math.min(GLOBAL_RATE_LIMIT, adaptiveLimit.maxRequestsPerMinute);
   res.setHeader("X-RateLimit-Limit", String(effectiveLimit));
   res.setHeader("X-RateLimit-Remaining", String(Math.max(0, effectiveLimit - entry.count)));
   if (entry.count > effectiveLimit) {

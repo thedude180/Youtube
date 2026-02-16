@@ -3,7 +3,8 @@ import { z } from "zod";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { db } from "../db";
-import { sql } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
+import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals } from "@shared/schema";
 import { requireAuth, getUserId, requireTier } from "./helpers";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
@@ -249,7 +250,9 @@ export function registerMoneyRoutes(app: Express) {
     }
   });
 
-  app.get("/api/stripe/balance", async (_req, res) => {
+  app.get("/api/stripe/balance", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const stripe = await getUncachableStripeClient();
       const balance = await stripe.balance.retrieve();
@@ -326,6 +329,8 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/expenses/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, Number(req.params.id)), eq(expenseRecords.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const record = await storage.updateExpenseRecord(Number(req.params.id), req.body);
     res.json(record);
   });
@@ -333,6 +338,8 @@ export function registerMoneyRoutes(app: Express) {
   app.delete("/api/expenses/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, Number(req.params.id)), eq(expenseRecords.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteExpenseRecord(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -428,6 +435,8 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/ventures/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, Number(req.params.id)), eq(businessVentures.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const venture = await storage.updateBusinessVenture(Number(req.params.id), req.body);
     res.json(venture);
   });
@@ -435,6 +444,8 @@ export function registerMoneyRoutes(app: Express) {
   app.delete("/api/ventures/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, Number(req.params.id)), eq(businessVentures.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteBusinessVenture(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -470,6 +481,8 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/goals/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, Number(req.params.id)), eq(businessGoals.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const goal = await storage.updateBusinessGoal(Number(req.params.id), req.body);
     res.json(goal);
   });
@@ -477,6 +490,8 @@ export function registerMoneyRoutes(app: Express) {
   app.delete("/api/goals/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, Number(req.params.id)), eq(businessGoals.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteBusinessGoal(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -511,6 +526,8 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/tax-estimates/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(taxEstimates).where(and(eq(taxEstimates.id, Number(req.params.id)), eq(taxEstimates.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const estimate = await storage.updateTaxEstimate(Number(req.params.id), req.body);
     res.json(estimate);
   });
@@ -551,6 +568,8 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/sponsorship-deals/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, Number(req.params.id)), eq(sponsorshipDeals.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const deal = await storage.updateSponsorshipDeal(Number(req.params.id), req.body);
     res.json(deal);
   });
@@ -960,7 +979,7 @@ export function registerMoneyRoutes(app: Express) {
       }
 
       if (totalRevenue > 0 && records.length > 5) {
-        const topSource = [...platformSources.entries()].sort((a, b) => b[1] - a[1])[0];
+        const topSource = Array.from(platformSources.entries()).sort((a, b) => b[1] - a[1])[0];
         if (topSource) {
           const [key, amount] = topSource;
           const [platform, source] = key.split(":");
@@ -984,8 +1003,8 @@ export function registerMoneyRoutes(app: Express) {
         for (const r of records) {
           platformRevenues.set(r.platform || "unknown", (platformRevenues.get(r.platform || "unknown") || 0) + (r.amount || 0));
         }
-        const topPlatform = [...platformRevenues.entries()].sort((a, b) => b[1] - a[1])[0];
-        const bottomPlatforms = [...platformRevenues.entries()].filter(([p]) => p !== topPlatform?.[0]).sort((a, b) => a[1] - b[1]);
+        const topPlatform = Array.from(platformRevenues.entries()).sort((a, b) => b[1] - a[1])[0];
+        const bottomPlatforms = Array.from(platformRevenues.entries()).filter(([p]) => p !== topPlatform?.[0]).sort((a, b) => a[1] - b[1]);
         if (bottomPlatforms.length > 0 && topPlatform) {
           const weakest = bottomPlatforms[0];
           if (topPlatform[1] > weakest[1] * 3) {

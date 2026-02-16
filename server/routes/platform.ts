@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
-import { linkedChannels, streamDestinations } from "@shared/schema";
+import { linkedChannels, streamDestinations, subscriptions } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
 import { requireAuth, getUserId } from "./helpers";
@@ -263,6 +263,8 @@ export async function registerPlatformRoutes(app: Express) {
   app.put("/api/subscriptions/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(subscriptions).where(and(eq(subscriptions.id, Number(req.params.id)), eq(subscriptions.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const sub = await storage.updateSubscription(Number(req.params.id), req.body);
     res.json(sub);
   });

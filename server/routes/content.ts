@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
-import { contentPipeline } from "@shared/schema";
+import { contentPipeline, contentIdeas } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
 import { requireAuth, getUserId, requireTier } from "./helpers";
@@ -100,6 +100,8 @@ export function registerContentRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const existing = await storage.getChannel(Number(req.params.id));
+      if (!existing || existing.userId !== userId) return res.status(404).json({ error: "Not found" });
       const channelUpdateSchema = z.object({}).passthrough();
       const parsed = channelUpdateSchema.parse(req.body);
       const channel = await storage.updateChannel(Number(req.params.id), parsed);
@@ -168,6 +170,10 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const video = await storage.getVideo(Number(req.params.id));
     if (!video) return res.status(404).json({ message: "Video not found" });
+    if (video.channelId) {
+      const channel = await storage.getChannel(video.channelId);
+      if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
+    }
     res.json(video);
   });
 
@@ -189,6 +195,12 @@ export function registerContentRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     try {
+      const existingVideo = await storage.getVideo(Number(req.params.id));
+      if (!existingVideo) return res.status(404).json({ message: "Video not found" });
+      if (existingVideo.channelId) {
+        const channel = await storage.getChannel(existingVideo.channelId);
+        if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
+      }
       const video = await storage.updateVideo(Number(req.params.id), parsed.data as any);
       await storage.createAuditLog({
         userId,
@@ -209,6 +221,10 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const video = await storage.getVideo(Number(req.params.id));
     if (!video) return res.status(404).json({ message: "Video not found" });
+    if (video.channelId) {
+      const channel = await storage.getChannel(video.channelId);
+      if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
+    }
     await storage.deleteVideo(Number(req.params.id));
     await storage.createAuditLog({
       userId,
@@ -909,6 +925,8 @@ export function registerContentRoutes(app: Express) {
   app.put("/api/content-ideas/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     const idea = await storage.updateContentIdea(Number(req.params.id), req.body);
     res.json(idea);
   });
@@ -916,6 +934,8 @@ export function registerContentRoutes(app: Express) {
   app.delete("/api/content-ideas/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteContentIdea(Number(req.params.id));
     res.sendStatus(204);
   });

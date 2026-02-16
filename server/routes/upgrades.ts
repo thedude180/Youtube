@@ -863,6 +863,8 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       const updates: any = {};
       if (req.body.title) updates.title = req.body.title;
       if (req.body.concept) updates.concept = req.body.concept;
@@ -881,6 +883,8 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       await storage.deleteContentIdea(Number(req.params.id));
       res.json({ success: true });
     } catch (error: any) {
@@ -892,6 +896,8 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, Number(req.params.id)), eq(contentIdeas.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
       const { stage } = req.body;
       const item = await storage.updateContentIdea(Number(req.params.id), { status: stage });
       await storage.createAuditLog({
