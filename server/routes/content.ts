@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import {
   contentPipeline, contentIdeas, videos, scheduleItems,
   autopilotQueue, communityPosts, uploadQueue, streams,
-  reengagementCampaigns, streamPipelines,
+  reengagementCampaigns, streamPipelines, channels,
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -1012,6 +1012,9 @@ export function registerContentRoutes(app: Express) {
       const entries: any[] = [];
       const seenVideoIds = new Set<number>();
 
+      const userChannels = await db.select({ id: channels.id }).from(channels).where(eq(channels.userId, userId));
+      const channelIds = userChannels.map(c => c.id);
+
       const [
         userVideos,
         schedItems,
@@ -1023,10 +1026,12 @@ export function registerContentRoutes(app: Express) {
         streamItems,
         campaigns,
       ] = await Promise.all([
-        db.select().from(videos)
-          .where(eq(videos.userId, userId))
-          .orderBy(desc(videos.createdAt))
-          .limit(500),
+        channelIds.length > 0
+          ? db.select().from(videos)
+              .where(inArray(videos.channelId, channelIds))
+              .orderBy(desc(videos.createdAt))
+              .limit(500)
+          : Promise.resolve([]),
         db.select().from(scheduleItems)
           .where(eq(scheduleItems.userId, userId))
           .orderBy(desc(scheduleItems.scheduledAt))
