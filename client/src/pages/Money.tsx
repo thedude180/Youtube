@@ -88,8 +88,6 @@ const IRS_CATEGORIES = [
   { value: "other", label: "Other" },
 ];
 
-
-
 /* GoalsTab extracted to ./money/GoalsTab.tsx */
 /* SponsorsTab extracted to ./money/SponsorsTab.tsx */
 
