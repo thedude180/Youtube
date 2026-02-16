@@ -99,20 +99,12 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      (req.session as any).youtubeOAuthUserId = userId;
-      req.session.save((err) => {
-        if (err) {
-          console.error("Failed to save session before YouTube OAuth:", err);
-          return res.status(500).json({ error: "Failed to prepare authentication" });
-        }
-        const authUrl = getAuthUrl(userId);
-        const acceptHeader = req.headers.accept || "";
-        if (acceptHeader.includes("application/json")) {
-          res.json({ url: authUrl });
-        } else {
-          res.redirect(authUrl);
-        }
-      });
+      const acceptHeader = req.headers.accept || "";
+      if (acceptHeader.includes("application/json")) {
+        res.json({ url: "/api/auth/google" });
+      } else {
+        res.redirect("/api/auth/google");
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
