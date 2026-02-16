@@ -6,7 +6,7 @@ import { getSecurityStats, getBlockedIPs, getSecurityRules } from "../security-e
 import { getAllBreakerStats, getAllBreakerStatuses } from "../services/circuit-breaker";
 import { db } from "../db";
 import { securityEvents } from "@shared/schema";
-import { desc, eq, gte, and, count, sql } from "drizzle-orm";
+import { desc, eq, gte, and, count, sql, inArray } from "drizzle-orm";
 
 export function registerSecurityDashboardRoutes(app: Express) {
   app.get("/api/security/dashboard", async (req: any, res) => {
@@ -253,7 +253,7 @@ export function registerSecurityDashboardRoutes(app: Express) {
       const channelIds = userChannels.map(c => c.id).filter(Boolean) as number[];
       let userVideos: any[] = [];
       if (channelIds.length > 0) {
-        userVideos = await db.select().from(videos).where(sql`${videos.channelId} = ANY(${channelIds})`).limit(1000);
+        userVideos = await db.select().from(videos).where(inArray(videos.channelId, channelIds)).limit(1000);
       }
 
       const platformStats: Record<string, { videos: number; streams: number; totalViews: number; totalRevenue: number }> = {};

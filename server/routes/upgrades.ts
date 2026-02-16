@@ -22,7 +22,6 @@ async function callAI(systemPrompt: string, userPrompt: string): Promise<any> {
       { role: "user", content: userPrompt },
     ],
     response_format: { type: "json_object" },
-    temperature: 0.7,
   });
   return JSON.parse(response.choices[0].message.content || "{}");
 }

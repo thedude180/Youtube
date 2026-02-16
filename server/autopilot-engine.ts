@@ -68,7 +68,6 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
         { role: "system", content: systemMsg },
         { role: "user", content: prompt },
       ],
-      temperature: 0.9,
       max_completion_tokens: 500,
     });
     return response.choices[0]?.message?.content || "";

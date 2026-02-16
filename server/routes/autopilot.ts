@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { autopilotQueue, commentResponses, autopilotConfig, channels, videos } from "@shared/schema";
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
 import {
   getAutopilotStats,
   getAutopilotActivity,
@@ -370,7 +370,7 @@ export function registerAutopilotRoutes(app: Express) {
       const channelIds = userChannels.map(c => c.id);
       const userVideos = channelIds.length > 0
         ? await db.select().from(videos)
-            .where(and(eq(videos.platform, "youtube"), sql`${videos.channelId} = ANY(${channelIds})`))
+            .where(and(eq(videos.platform, "youtube"), inArray(videos.channelId, channelIds)))
             .orderBy(desc(videos.createdAt))
             .limit(5)
         : [];
