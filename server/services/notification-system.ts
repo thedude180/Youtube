@@ -371,7 +371,8 @@ export async function routeNotification(
     return result;
   }
 
-  if (isCritical || (prefs.emailEnabled && categoryEnabled)) {
+  const isConnectionSevered = notification.category === "connection_severed" || notification.category === "platform_disconnected";
+  if (isConnectionSevered && (isCritical || (prefs.emailEnabled && categoryEnabled))) {
     result.channels.push("email");
   }
 

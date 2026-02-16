@@ -80,11 +80,15 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
       return result;
     }
 
-    if (user.notifyEmail && user.email) {
+    const isConnectionSevered = payload.category === "connection_severed" || payload.category === "platform_disconnected";
+
+    if (isConnectionSevered && user.notifyEmail && user.email) {
       result.email = await sendEmailNotification(user.email, payload.title, payload.message, payload.severity);
+    } else if (!isConnectionSevered) {
+      console.log(`[Notifications] Email suppressed (not connection-severed): "${payload.title}" for ${payload.userId}`);
     }
 
-    if (user.notifyPhone && user.phone && payload.severity === "critical") {
+    if (isConnectionSevered && user.notifyPhone && user.phone && payload.severity === "critical") {
       result.sms = await sendSmsNotification(user.phone, payload.title, payload.message);
     }
   } catch (err) {
