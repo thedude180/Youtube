@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { authStorage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
 import { createOrUpdateCustomerProfile, updateCustomerActivity } from "../../customer-database-engine";
+import { ADMIN_EMAIL } from "@shared/models/auth";
 
 export function registerAuthRoutes(app: Express): void {
   app.get("/api/auth/debug-session", (req: any, res) => {
@@ -41,6 +42,17 @@ export function registerAuthRoutes(app: Express): void {
 
       if (!user) {
         return res.status(404).json({ message: "User not found" });
+      }
+
+      const userEmail = user.email || req.user.claims?.email;
+      if (userEmail && userEmail.toLowerCase() === ADMIN_EMAIL && (user.role !== "admin" || user.tier !== "ultimate")) {
+        user = await authStorage.upsertUser({
+          id: userId,
+          email: ADMIN_EMAIL,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          profileImageUrl: user.profileImageUrl,
+        });
       }
 
       try {

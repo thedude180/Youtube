@@ -9,9 +9,10 @@ export function registerAdminRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const email = (req.user as any)?.claims?.email;
+      const claimsEmail = (req.user as any)?.claims?.email;
       let user = await storage.getUser(userId);
-      if (user && email && email.toLowerCase() === ADMIN_EMAIL && user.role !== "admin") {
+      const userEmail = user?.email || claimsEmail;
+      if (user && userEmail && userEmail.toLowerCase() === ADMIN_EMAIL && (user.role !== "admin" || user.tier !== "ultimate")) {
         user = await storage.updateUserRole(userId, "admin", "ultimate");
       }
       res.json(user || { id: userId, role: "user", tier: "free" });
