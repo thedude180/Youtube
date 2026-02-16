@@ -424,7 +424,7 @@ export function registerContentRoutes(app: Express) {
   });
 
   app.post(api.compliance.run.path, async (req, res) => {
-    const userId = await requireTier(req, res, "pro", "Compliance Checks");
+    const userId = await requireTier(req, res, "free", "Compliance Checks");
     if (!userId) return;
     const schema = z.object({
       channelId: z.number().optional(),
