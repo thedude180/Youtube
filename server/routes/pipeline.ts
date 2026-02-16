@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { contentPipeline, PIPELINE_STEPS } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { contentPipeline, streamPipelines, videos, PIPELINE_STEPS } from "@shared/schema";
+import { eq, and, desc, or } from "drizzle-orm";
 import { getUserId } from "./helpers";
 import { storage } from "../storage";
 
@@ -443,6 +443,69 @@ export function registerPipelineRoutes(app: Express) {
     } catch (err: any) {
       console.error("[Backlog] Start error:", err);
       res.status(500).json({ error: "Failed to start backlog" });
+    }
+  });
+
+  app.get("/api/pipelines/calendar-feed", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const [vodPipelines, livePipelines] = await Promise.all([
+        db.select().from(contentPipeline)
+          .where(eq(contentPipeline.userId, userId))
+          .orderBy(desc(contentPipeline.createdAt))
+          .limit(500),
+        db.select().from(streamPipelines)
+          .where(eq(streamPipelines.userId, userId))
+          .orderBy(desc(streamPipelines.createdAt))
+          .limit(500),
+      ]);
+
+      const calendarItems: any[] = [];
+
+      for (const p of vodPipelines) {
+        const date = p.completedAt || p.startedAt || p.createdAt || new Date();
+        calendarItems.push({
+          id: `vod-${p.id}`,
+          title: p.videoTitle,
+          date,
+          type: "pipeline",
+          pipelineType: "vod",
+          mode: p.mode || "vod",
+          platform: "youtube",
+          contentType: "video",
+          status: p.status,
+          currentStep: p.currentStep,
+          completedSteps: p.completedSteps?.length || 0,
+          totalSteps: 56,
+          videoId: p.videoId,
+        });
+      }
+
+      for (const p of livePipelines) {
+        const date = p.scheduledStartAt || p.startedAt || p.createdAt || new Date();
+        calendarItems.push({
+          id: `live-${p.id}`,
+          title: p.sourceTitle,
+          date,
+          type: "pipeline",
+          pipelineType: p.pipelineType || "live",
+          mode: p.mode || "live",
+          platform: "youtube",
+          contentType: p.pipelineType === "live" ? "stream" : "video",
+          status: p.status,
+          currentStep: p.currentStep,
+          completedSteps: p.completedSteps?.length || 0,
+          totalSteps: p.pipelineType === "live" ? 65 : 56,
+          streamId: p.streamId,
+          videoId: p.videoId,
+        });
+      }
+
+      res.json(calendarItems);
+    } catch (err: any) {
+      console.error("[Pipeline Calendar Feed] Error:", err);
+      res.status(500).json({ error: "Failed to load pipeline calendar feed" });
     }
   });
 
