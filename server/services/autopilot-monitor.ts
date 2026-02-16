@@ -136,16 +136,9 @@ const systemChecks: SystemCheck[] = [
         const failedPlatforms = Array.from(new Set(stillExpiring.map(ch => ch.platform)));
 
         if (failedPlatforms.length > 0) {
-          try {
-            const { sendReconnectEmail } = await import("./auto-reconnect");
-            for (const platform of failedPlatforms) {
-              await sendReconnectEmail(userId, platform);
-            }
-          } catch (e) {}
-
           return {
             ok: false,
-            message: `Connection to ${failedPlatforms.join(", ")} needs re-authorization. A reconnect link has been sent to your email.`,
+            message: `Connection to ${failedPlatforms.join(", ")} needs re-authorization. The system will keep trying to auto-reconnect.`,
             severity: "warning",
           };
         }

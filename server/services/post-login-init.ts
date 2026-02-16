@@ -53,13 +53,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
               results.tokenRefresh = `${refreshResult.refreshed} refreshed, ${refreshResult.failed} failed`;
 
               if (refreshResult.failed > 0) {
-                try {
-                  const { sendReconnectEmail } = await import("./auto-reconnect");
-                  await sendReconnectEmail(userId, channel.platform);
-                  results.reconnectEmail = "sent";
-                } catch (e) {
-                  results.reconnectEmail = "error";
-                }
+                results.reconnectEmail = "deferred to health check";
               }
             } catch (e) {
               results.tokenRefresh = "error";
