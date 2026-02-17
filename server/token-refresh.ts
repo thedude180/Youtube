@@ -12,7 +12,55 @@ interface RefreshResult {
   error?: string;
 }
 
+const GOOGLE_PLATFORMS = new Set<string>(["youtube", "youtubeshorts"]);
+
+async function refreshGoogleToken(currentRefreshToken: string): Promise<RefreshResult> {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return { success: false, error: "Missing Google OAuth credentials (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET)" };
+  }
+
+  try {
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: currentRefreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }).toString(),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[TokenRefresh:google] Failed:`, errText);
+
+      if (errText.includes("invalid_grant") || errText.includes("Token has been expired or revoked")) {
+        return { success: false, error: "Google token expired - user needs to re-authorize YouTube" };
+      }
+      return { success: false, error: `Google token refresh failed: ${res.status}` };
+    }
+
+    const data = await res.json() as any;
+    return {
+      success: true,
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token || currentRefreshToken,
+      expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : undefined,
+    };
+  } catch (e) {
+    console.error("[TokenRefresh:google] Error:", e);
+    return { success: false, error: String(e) };
+  }
+}
+
 async function refreshToken(platform: Platform, currentRefreshToken: string): Promise<RefreshResult> {
+  if (GOOGLE_PLATFORMS.has(platform)) {
+    return refreshGoogleToken(currentRefreshToken);
+  }
+
   const config = OAUTH_CONFIGS[platform];
   if (!config) return { success: false, error: `No OAuth config for ${platform}` };
 

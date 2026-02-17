@@ -12,6 +12,8 @@ export interface PublishResult {
   error?: string;
 }
 
+const GOOGLE_PLATFORMS = new Set(["youtube", "youtubeshorts"]);
+
 async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
   if (!channel.accessToken) return null;
 
@@ -24,23 +26,36 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
     return channel.accessToken;
   }
 
-  const config = OAUTH_CONFIGS[channel.platform as keyof typeof OAUTH_CONFIGS];
-  if (!config) return channel.accessToken;
+  let tokenUrl: string;
+  let body: Record<string, string>;
+  let headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
 
-  const clientId = process.env[config.clientIdEnv];
-  const clientSecret = process.env[config.clientSecretEnv];
-  if (!clientId || !clientSecret) return channel.accessToken;
+  if (GOOGLE_PLATFORMS.has(channel.platform)) {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return channel.accessToken;
 
-  try {
-    const body: Record<string, string> = {
+    tokenUrl = "https://oauth2.googleapis.com/token";
+    body = {
       grant_type: "refresh_token",
       refresh_token: channel.refreshToken,
       client_id: clientId,
       client_secret: clientSecret,
     };
+  } else {
+    const config = OAUTH_CONFIGS[channel.platform as keyof typeof OAUTH_CONFIGS];
+    if (!config) return channel.accessToken;
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/x-www-form-urlencoded",
+    const clientId = process.env[config.clientIdEnv];
+    const clientSecret = process.env[config.clientSecretEnv];
+    if (!clientId || !clientSecret) return channel.accessToken;
+
+    tokenUrl = config.tokenUrl;
+    body = {
+      grant_type: "refresh_token",
+      refresh_token: channel.refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
     };
 
     if (config.tokenAuthMethod === "header") {
@@ -48,8 +63,10 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
       delete body.client_id;
       delete body.client_secret;
     }
+  }
 
-    const res = await fetch(config.tokenUrl, {
+  try {
+    const res = await fetch(tokenUrl, {
       method: "POST",
       headers,
       body: new URLSearchParams(body).toString(),
