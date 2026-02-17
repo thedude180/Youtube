@@ -198,6 +198,11 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
                     {entry.status === "pushed" && (
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
                     )}
+                    {entry.status === "optimized" && (
+                      <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/30">
+                        AI Optimized
+                      </Badge>
+                    )}
                   </div>
                   <FieldDiff field={entry.field} oldValue={entry.oldValue} newValue={entry.newValue} />
                 </div>

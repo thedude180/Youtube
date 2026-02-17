@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { contentPipeline, streamPipelines, videos, PIPELINE_STEPS } from "@shared/schema";
+import { contentPipeline, streamPipelines, videos, videoUpdateHistory, PIPELINE_STEPS } from "@shared/schema";
 import { eq, and, desc, or } from "drizzle-orm";
 import { getUserId, parseNumericId } from "./helpers";
 import { storage } from "../storage";
@@ -107,6 +107,74 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
   return JSON.parse(content);
 }
 
+async function recordOptimizationHistory(
+  userId: string,
+  videoId: number | null,
+  pipelineId: number,
+  videoTitle: string,
+  step: string,
+  result: any,
+  existingVideo: { title: string | null; description: string | null; metadata: any } | null
+) {
+  try {
+    const ytId = existingVideo?.metadata?.youtubeVideoId || (videoId ? `local-${videoId}` : `pipeline-${pipelineId}`);
+    const studioUrl = existingVideo?.metadata?.youtubeVideoId
+      ? `https://studio.youtube.com/video/${existingVideo.metadata.youtubeVideoId}/edit`
+      : null;
+
+    if (step === "title" && result?.titles) {
+      const bestTitle = Array.isArray(result.titles) ? (result.titles[0]?.title || result.titles[0]) : null;
+      if (bestTitle) {
+        await db.insert(videoUpdateHistory).values({
+          userId,
+          videoId,
+          youtubeVideoId: ytId,
+          videoTitle,
+          field: "title",
+          oldValue: existingVideo?.title || videoTitle,
+          newValue: bestTitle,
+          source: "ai-pipeline",
+          status: "optimized",
+          youtubeStudioUrl: studioUrl,
+        });
+      }
+    }
+
+    if (step === "description" && result?.description) {
+      await db.insert(videoUpdateHistory).values({
+        userId,
+        videoId,
+        youtubeVideoId: ytId,
+        videoTitle,
+        field: "description",
+        oldValue: existingVideo?.description || "(no description)",
+        newValue: typeof result.description === "string" ? result.description : JSON.stringify(result.description),
+        source: "ai-pipeline",
+        status: "optimized",
+        youtubeStudioUrl: studioUrl,
+      });
+    }
+
+    if (step === "tags" && result?.tags) {
+      const oldTags = existingVideo?.metadata?.tags;
+      await db.insert(videoUpdateHistory).values({
+        userId,
+        videoId,
+        youtubeVideoId: ytId,
+        videoTitle,
+        field: "tags",
+        oldValue: oldTags ? JSON.stringify(oldTags) : "(no tags)",
+        newValue: JSON.stringify(result.tags),
+        source: "ai-pipeline",
+        status: "optimized",
+        youtubeStudioUrl: studioUrl,
+      });
+    }
+  } catch (err: any) {
+    console.error(`[Pipeline] Failed to record update history for step "${step}":`, err.message);
+  }
+}
+
 export async function executePipelineInBackground(id: number, videoTitle: string, mode: string, existingResults: Record<string, any>, existingCompleted: string[]) {
   const currentResults = { ...existingResults };
   const completedSteps = [...existingCompleted];
@@ -116,6 +184,14 @@ export async function executePipelineInBackground(id: number, videoTitle: string
   const [pipelineRow] = await db.select().from(contentPipeline).where(eq(contentPipeline.id, id));
   const pipelineVideoId = pipelineRow?.videoId || null;
   const pipelineUserId = pipelineRow?.userId || null;
+
+  let existingVideoSnapshot: { title: string | null; description: string | null; metadata: any } | null = null;
+  if (pipelineVideoId) {
+    const [vid] = await db.select().from(videos).where(eq(videos.id, pipelineVideoId));
+    if (vid) {
+      existingVideoSnapshot = { title: vid.title, description: vid.description, metadata: vid.metadata || {} };
+    }
+  }
 
   for (const step of STEP_IDS) {
     if (completedSteps.includes(step)) continue;
@@ -156,6 +232,13 @@ export async function executePipelineInBackground(id: number, videoTitle: string
         } catch (syncErr: any) {
           console.error(`[Pipeline] Push scheduler queue failed:`, syncErr.message);
         }
+      }
+
+      if (["title", "description", "tags"].includes(step) && pipelineUserId) {
+        recordOptimizationHistory(
+          pipelineUserId, pipelineVideoId, id, videoTitle,
+          step, result, existingVideoSnapshot
+        ).catch(err => console.error(`[Pipeline] History record error:`, err.message));
       }
     } catch (stepErr: any) {
       console.error(`[Pipeline] Step "${step}" failed for pipeline ${id}:`, stepErr.message);
