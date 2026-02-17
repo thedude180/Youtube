@@ -14,7 +14,6 @@ import {
   Crown,
   Rocket,
   KeyRound,
-  GitBranch,
   Users,
   Lock,
   ArrowRight,
@@ -39,7 +38,6 @@ import { Badge } from "@/components/ui/badge";
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free" },
   { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free" },
-  { href: "/pipeline", labelKey: "Pipeline", icon: GitBranch, minTier: "starter" },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube" },
   { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro" },
   { href: "/community", labelKey: "Community", icon: Users, minTier: "starter" },

@@ -32,7 +32,6 @@ const Landing = lazy(() => import("@/pages/Landing"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
 const Autopilot = lazy(() => import("@/pages/Autopilot"));
-const PipelinePage = lazy(() => import("@/pages/Pipeline"));
 const AccessCodes = lazy(() => import("@/pages/AccessCodes"));
 const Community = lazy(() => import("@/pages/Community"));
 const EmpireLauncher = lazy(() => import("@/pages/EmpireLauncher"));
@@ -76,7 +75,7 @@ function Router() {
       <Route path="/money" component={Money} />
       <Route path="/money/:tab" component={Money} />
       <Route path="/autopilot" component={Autopilot} />
-      <Route path="/pipeline" component={PipelinePage} />
+      <Route path="/pipeline">{() => <Redirect to="/autopilot" />}</Route>
       <Route path="/access-codes" component={AccessCodes} />
       <Route path="/community" component={Community} />
       <Route path="/notifications" component={Notifications} />
