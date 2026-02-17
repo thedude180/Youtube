@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Shield, AlertTriangle, LogOut, Link2, Bell,
-  Trash2,
+  Trash2, Zap,
   Globe, CheckCircle,
   TrendingUp, Download, Loader2, Settings2, Crown, KeyRound, UsersRound,
 } from "lucide-react";

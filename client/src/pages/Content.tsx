@@ -18,16 +18,17 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-type ContentTab = "library" | "updated" | "channels";
+type ContentTab = "library" | "updated" | "channels" | "calendar";
 
 const UpdatedVideosTab = lazy(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazy(() => import("./content/ChannelsTab"));
+const CalendarTab = lazy(() => import("./content/CalendarTab"));
 
 export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "updated", "channels"];
+  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useState<ContentTab>(initialTab);
   const { t } = useTranslation();
@@ -50,6 +51,9 @@ export default function Content() {
           <TabsTrigger value="channels" data-testid="tab-channels">
             <Radio className="h-3.5 w-3.5 mr-1.5" />{t("content.channels")}
           </TabsTrigger>
+          <TabsTrigger value="calendar" data-testid="tab-calendar">
+            <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />Calendar
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="library" className="mt-2">
@@ -63,6 +67,11 @@ export default function Content() {
         <TabsContent value="channels" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <ChannelsTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="calendar" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <CalendarTab />
           </Suspense>
         </TabsContent>
       </Tabs>
