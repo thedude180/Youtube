@@ -9,6 +9,13 @@ interface OptimizationResult {
 const lastOptimized: Map<string, number> = new Map();
 const OPTIMIZE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
+setInterval(() => {
+  const cutoff = Date.now() - OPTIMIZE_COOLDOWN_MS;
+  for (const [key, ts] of Array.from(lastOptimized)) {
+    if (ts < cutoff) lastOptimized.delete(key);
+  }
+}, 60 * 60 * 1000);
+
 const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
   gaming: {
     preferredUploadTime: "14:00-18:00",

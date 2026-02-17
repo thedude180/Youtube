@@ -43,6 +43,13 @@ const TIER_LIMITS: Record<string, { platforms: number; price: number; features: 
 const lastRecommended: Map<string, { tier: string; timestamp: number }> = new Map();
 const RECOMMENDATION_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
+setInterval(() => {
+  const cutoff = Date.now() - RECOMMENDATION_COOLDOWN_MS;
+  for (const [key, entry] of Array.from(lastRecommended)) {
+    if (entry.timestamp < cutoff) lastRecommended.delete(key);
+  }
+}, 60 * 60 * 1000);
+
 export async function analyzeAndRecommendTier(userId: string): Promise<TierRecommendation> {
   const user = await storage.getUser(userId);
   if (!user) {

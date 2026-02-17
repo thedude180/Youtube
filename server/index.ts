@@ -428,11 +428,11 @@ app.use((req: any, res, next) => {
 
       startSentinel();
 
-      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine());
-      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine());
-      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine());
-      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine());
-      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine());
+      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => console.error("[Community Engine] Init failed:", err));
+      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => console.error("[Education Engine] Init failed:", err));
+      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => console.error("[Brand Engine] Init failed:", err));
+      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => console.error("[Analytics Engine] Init failed:", err));
+      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => console.error("[Compliance Engine] Init failed:", err));
 
       log("All 10 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot");
     },
@@ -450,4 +450,11 @@ app.use((req: any, res, next) => {
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
+
+  process.on("unhandledRejection", (reason) => {
+    console.error("[Process] Unhandled promise rejection:", reason);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error("[Process] Uncaught exception:", err);
+  });
 })();

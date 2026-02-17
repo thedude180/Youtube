@@ -67,8 +67,16 @@ async function sendSmsNotification(phone: string, title: string, message: string
 }
 
 const recentNotifications = new Map<string, number>();
+const NOTIFICATION_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
-function isRateLimited(userId: string, category: string, cooldownMs: number = 6 * 60 * 60 * 1000): boolean {
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, ts] of Array.from(recentNotifications)) {
+    if (now - ts > NOTIFICATION_COOLDOWN_MS) recentNotifications.delete(key);
+  }
+}, 60 * 60 * 1000);
+
+function isRateLimited(userId: string, category: string, cooldownMs: number = NOTIFICATION_COOLDOWN_MS): boolean {
   const key = `${userId}:${category}`;
   const lastSent = recentNotifications.get(key);
   if (lastSent && Date.now() - lastSent < cooldownMs) {

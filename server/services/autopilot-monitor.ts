@@ -20,6 +20,13 @@ interface SystemCheck {
 
 const autoFixLog: Map<string, { count: number; lastFixed: Date }> = new Map();
 
+setInterval(() => {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const [key, entry] of Array.from(autoFixLog)) {
+    if (entry.lastFixed.getTime() < cutoff) autoFixLog.delete(key);
+  }
+}, 60 * 60 * 1000);
+
 function logAutoFix(userId: string, system: string, action: string): void {
   const key = `${userId}:${system}`;
   const entry = autoFixLog.get(key);
