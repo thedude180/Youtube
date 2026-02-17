@@ -6,8 +6,8 @@ import { sendSSEEvent } from "./routes/events";
 import {
   generateHumanScheduledTime,
   addHumanMicroDelay,
+  getAudienceDrivenTime,
 } from "./human-behavior-engine";
-import { getAudienceDrivenTime } from "./human-behavior-engine";
 import crypto from "crypto";
 
 function generateBuildToken(): string {
