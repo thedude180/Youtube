@@ -103,13 +103,15 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const url = getAuthUrl(userId);
       const acceptHeader = req.headers.accept || "";
       if (acceptHeader.includes("application/json")) {
-        res.json({ url: "/api/auth/google" });
+        res.json({ url });
       } else {
-        res.redirect("/api/auth/google");
+        res.redirect(url);
       }
     } catch (error: any) {
+      console.error("[YouTube Auth] Error generating auth URL:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
