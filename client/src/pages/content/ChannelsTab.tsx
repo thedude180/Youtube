@@ -155,9 +155,20 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
   const isOAuthConfigured = platformOAuth?.configured || false;
   const isYouTube = platform === "youtube" || (platform as string) === "youtubeshorts";
 
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
   const handleOAuthLogin = async () => {
     setOauthLoading(true);
     try {
+      if (isMobile) {
+        if (isYouTube) {
+          window.location.href = "/api/youtube/auth";
+        } else {
+          window.location.href = `/api/oauth/${platform}/auth`;
+        }
+        return;
+      }
+
       if (isYouTube) {
         const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
         if (!res.ok) throw new Error((await res.json()).error || "Failed");
