@@ -155,9 +155,50 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
   const isOAuthConfigured = platformOAuth?.configured || false;
   const isYouTube = platform === "youtube" || (platform as string) === "youtubeshorts";
 
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  const MOBILE_APP_DEEP_LINKS: Record<string, string> = {
+    twitch: "twitch://open",
+    discord: "discord://",
+    tiktok: "snssdk1233://",
+    kick: "kick://",
+  };
+
   const handleOAuthLogin = async () => {
     setOauthLoading(true);
     try {
+      if (isMobile && MOBILE_APP_DEEP_LINKS[platform]) {
+        const deepLink = MOBILE_APP_DEEP_LINKS[platform];
+        const start = Date.now();
+
+        const hiddenLink = document.createElement("a");
+        hiddenLink.href = deepLink;
+        hiddenLink.style.display = "none";
+        document.body.appendChild(hiddenLink);
+        hiddenLink.click();
+        document.body.removeChild(hiddenLink);
+
+        await new Promise<void>((resolve) => {
+          const checkVisibility = () => {
+            if (document.hidden) {
+              resolve();
+              return;
+            }
+            if (Date.now() - start > 1500) {
+              resolve();
+              return;
+            }
+            requestAnimationFrame(checkVisibility);
+          };
+          requestAnimationFrame(checkVisibility);
+        });
+
+        if (document.hidden) {
+          setOauthLoading(false);
+          return;
+        }
+      }
+
       if (isYouTube) {
         const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
         if (!res.ok) throw new Error((await res.json()).error || "Failed");
