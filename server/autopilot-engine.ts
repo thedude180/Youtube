@@ -53,8 +53,8 @@ const AUTOPILOT_FEATURES = [
 
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
-const ALL_DISTRIBUTION_PLATFORMS = ["tiktok", "x", "discord", "twitch", "kick"];
-const ALL_ANNOUNCE_PLATFORMS = ["youtube", "tiktok", "x", "discord", "twitch", "kick"];
+const ALL_DISTRIBUTION_PLATFORMS = ["x", "discord", "twitch"];
+const ALL_ANNOUNCE_PLATFORMS = ["youtube", "x", "discord", "twitch"];
 
 async function getAutopilotConfig(userId: string, feature: AutopilotFeature) {
   const [config] = await db
@@ -564,13 +564,50 @@ export async function processScheduledPosts() {
     ))
     .limit(isActive ? 10 : 3);
 
+  const { publishToplatform } = await import("./platform-publisher");
+
   for (const post of duePosts) {
     try {
       await db.update(autopilotQueue)
-        .set({ status: "published", publishedAt: new Date() })
+        .set({ status: "publishing" as any })
         .where(eq(autopilotQueue.id, post.id));
 
-      sendSSEEvent(post.userId, "autopilot", { type: "post_published", postId: post.id, platform: post.targetPlatform });
+      const result = await publishToplatform(
+        post.userId,
+        post.targetPlatform,
+        post.content || "",
+      );
+
+      if (result.success) {
+        await db.update(autopilotQueue)
+          .set({
+            status: "published",
+            publishedAt: new Date(),
+            metadata: {
+              ...((post.metadata as any) || {}),
+              publishResult: {
+                postId: result.postId,
+                postUrl: result.postUrl,
+                publishedAt: new Date().toISOString(),
+              },
+            },
+          })
+          .where(eq(autopilotQueue.id, post.id));
+
+        console.log(`[Autopilot] Published post ${post.id} to ${post.targetPlatform}: ${result.postUrl || result.postId}`);
+        sendSSEEvent(post.userId, "autopilot", { type: "post_published", postId: post.id, platform: post.targetPlatform, url: result.postUrl });
+
+        await createNotification(post.userId, "autopilot", `Posted to ${post.targetPlatform}`,
+          `Content published${result.postUrl ? `: ${result.postUrl}` : ""}`, "info");
+      } else {
+        console.error(`[Autopilot] Publish failed for post ${post.id} on ${post.targetPlatform}: ${result.error}`);
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: result.error || "Unknown publish error" })
+          .where(eq(autopilotQueue.id, post.id));
+
+        await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`,
+          result.error || "Publishing failed", "warning");
+      }
     } catch (err) {
       console.error(`[Autopilot] Failed to publish post ${post.id}:`, err);
       await db.update(autopilotQueue)
