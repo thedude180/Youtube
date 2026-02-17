@@ -54,7 +54,7 @@ const AUTOPILOT_FEATURES = [
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
 const ALL_DISTRIBUTION_PLATFORMS = ["x", "discord", "twitch"];
-const ALL_ANNOUNCE_PLATFORMS = ["youtube", "x", "discord", "twitch"];
+const ALL_ANNOUNCE_PLATFORMS = ["x", "discord", "twitch"];
 
 async function getAutopilotConfig(userId: string, feature: AutopilotFeature) {
   const [config] = await db
@@ -120,7 +120,8 @@ async function generateFullThrottleDistribution(
   platforms: string[],
   contentType: "new-video" | "recycle" | "cross-promo" | "go-live" | "post-stream",
 ) {
-  const activePlatforms = platforms.filter(p => {
+  const supportedPlatforms = platforms.filter(p => ALL_DISTRIBUTION_PLATFORMS.includes(p));
+  const activePlatforms = supportedPlatforms.filter(p => {
     if (contentType === "new-video" || contentType === "go-live" || contentType === "post-stream") return true;
     return shouldPostToday(p);
   });
@@ -504,7 +505,10 @@ export async function processContentRecycling(userId: string) {
   if (oldVideos.length === 0) return;
 
   const creatorTone = await getCreatorTone(userId);
-  const platforms = (config?.settings as any)?.platforms || ["x", "tiktok", "discord"];
+  const configPlatforms = (config?.settings as any)?.platforms;
+  const platforms = configPlatforms
+    ? configPlatforms.filter((p: string) => ALL_DISTRIBUTION_PLATFORMS.includes(p))
+    : ALL_DISTRIBUTION_PLATFORMS;
 
   const video = oldVideos[Math.floor(Math.random() * oldVideos.length)];
 
@@ -563,6 +567,10 @@ export async function processScheduledPosts() {
       lte(autopilotQueue.scheduledAt, now),
     ))
     .limit(isActive ? 10 : 3);
+
+  if (duePosts.length > 0) {
+    console.log(`[Autopilot] Processing ${duePosts.length} due posts (active=${isActive})`);
+  }
 
   const { publishToplatform } = await import("./platform-publisher");
 

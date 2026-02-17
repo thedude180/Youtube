@@ -240,12 +240,45 @@ export function registerAutopilotRoutes(app: Express) {
     try {
       const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
-      const [updated] = await db.update(autopilotQueue)
-        .set({ status: "published", publishedAt: new Date() })
-        .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)))
-        .returning();
-      res.json(updated);
-    } catch (err) {
+
+      const [post] = await db.select().from(autopilotQueue)
+        .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)));
+      if (!post) return res.status(404).json({ error: "Post not found" });
+
+      await db.update(autopilotQueue)
+        .set({ status: "publishing" as any })
+        .where(eq(autopilotQueue.id, id));
+
+      const { publishToplatform } = await import("../platform-publisher");
+      const result = await publishToplatform(userId, post.targetPlatform, post.content || "");
+
+      if (result.success) {
+        const [updated] = await db.update(autopilotQueue)
+          .set({
+            status: "published",
+            publishedAt: new Date(),
+            metadata: {
+              ...((post.metadata as any) || {}),
+              publishResult: { postId: result.postId, postUrl: result.postUrl, publishedAt: new Date().toISOString() },
+            },
+          })
+          .where(eq(autopilotQueue.id, id))
+          .returning();
+        res.json(updated);
+      } else {
+        const [updated] = await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: result.error || "Publishing failed" })
+          .where(eq(autopilotQueue.id, id))
+          .returning();
+        res.status(400).json({ error: result.error, post: updated });
+      }
+    } catch (err: any) {
+      const id = parseNumericId(req.params.id as string, res);
+      if (id !== null) {
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: err?.message || "Publishing exception" })
+          .where(eq(autopilotQueue.id, id)).catch(() => {});
+      }
       res.status(500).json({ error: "Failed to publish" });
     }
   });
@@ -393,7 +426,7 @@ export function registerAutopilotRoutes(app: Express) {
             .limit(5)
         : [];
 
-      const platforms = ["youtube", "tiktok", "x", "discord", "twitch", "kick"];
+      const platforms = ["x", "discord", "twitch"];
       const contentTypes = ["auto-clip", "content-recycle", "cross-promo"];
       let seeded = 0;
       const now = new Date();
