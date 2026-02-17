@@ -119,7 +119,7 @@ const systemChecks: SystemCheck[] = [
         const userChannels = await storage.getChannelsByUser(userId);
         if (userChannels.length === 0) return { ok: true };
 
-        const expiringThreshold = new Date(Date.now() + 60 * 60 * 1000);
+        const expiringThreshold = new Date(Date.now() + 15 * 60 * 1000);
         const expiringChannels = userChannels.filter(ch =>
           ch.accessToken && ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < expiringThreshold
         );
@@ -129,23 +129,13 @@ const systemChecks: SystemCheck[] = [
         const { refreshExpiringTokens } = await import("../token-refresh");
         const result = await refreshExpiringTokens();
 
-        const stillExpiring = (await storage.getChannelsByUser(userId)).filter(ch =>
-          ch.accessToken && ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < expiringThreshold
-        );
-
-        const failedPlatforms = Array.from(new Set(stillExpiring.map(ch => ch.platform)));
-
-        if (failedPlatforms.length > 0) {
-          return {
-            ok: false,
-            message: `Connection to ${failedPlatforms.join(", ")} needs re-authorization. The system will keep trying to auto-reconnect.`,
-            severity: "warning",
-          };
-        }
-
         if (result.refreshed > 0) {
           logAutoFix(userId, "platform_connections", `Auto-refreshed ${result.refreshed} expiring tokens`);
           return { ok: true, autoFixed: true, fixAction: `Auto-refreshed ${result.refreshed} tokens` };
+        }
+
+        if (result.failed > 0) {
+          console.log(`[Autopilot] ${result.failed} token(s) failed refresh for ${userId} — auto-reconnect system will handle email notifications`);
         }
 
         return { ok: true };

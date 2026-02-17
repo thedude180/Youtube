@@ -66,6 +66,18 @@ async function sendSmsNotification(phone: string, title: string, message: string
   }
 }
 
+const recentNotifications = new Map<string, number>();
+
+function isRateLimited(userId: string, category: string, cooldownMs: number = 6 * 60 * 60 * 1000): boolean {
+  const key = `${userId}:${category}`;
+  const lastSent = recentNotifications.get(key);
+  if (lastSent && Date.now() - lastSent < cooldownMs) {
+    return true;
+  }
+  recentNotifications.set(key, Date.now());
+  return false;
+}
+
 export async function notifyUser(payload: NotificationPayload): Promise<{ email: boolean; sms: boolean }> {
   const result = { email: false, sms: false };
 
@@ -80,9 +92,14 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
       return result;
     }
 
-    const isConnectionLoss = payload.category === "connection_severed" || payload.category === "platform_disconnected";
+    const isConnectionLoss = payload.category === "connection_severed" || payload.category === "platform_disconnected" || payload.category === "platform_connections";
     if (isConnectionLoss) {
       console.log(`[Notifications] Connection-loss email deferred to auto-reconnect system: "${payload.title}" for ${payload.userId}`);
+      return result;
+    }
+
+    if (payload.category && isRateLimited(payload.userId, payload.category)) {
+      console.log(`[Notifications] Rate-limited: "${payload.title}" for ${payload.userId} (same alert sent within 6 hours)`);
       return result;
     }
 

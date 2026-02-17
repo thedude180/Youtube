@@ -371,9 +371,10 @@ export async function routeNotification(
     return result;
   }
 
-  const isConnectionLoss = notification.category === "connection_severed" || notification.category === "platform_disconnected";
+  const isConnectionLoss = notification.category === "connection_severed" || notification.category === "platform_disconnected" || notification.category === "platform_connections";
   if (isConnectionLoss) {
     console.log(`[NotificationSystem] Connection-loss email deferred to auto-reconnect system: "${notification.title}" for ${userId}`);
+    return result;
   }
 
   if (isCritical || (prefs.pushEnabled && categoryEnabled)) {
