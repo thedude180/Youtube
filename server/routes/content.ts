@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, and, desc, inArray, isNotNull, gte } from "drizzle-orm";
+import { eq, and, desc, inArray, isNotNull, gte, sql, lt } from "drizzle-orm";
 import { api } from "@shared/routes";
 import {
   contentPipeline, contentIdeas, videos, scheduleItems,
@@ -1288,6 +1288,135 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       console.error("[Traffic] Generate error:", err);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.post("/api/calendar/schedule-pipelines", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { startDate } = req.body;
+      const scheduleStart = startDate ? new Date(startDate) : new Date();
+      scheduleStart.setHours(0, 0, 0, 0);
+
+      const pipelines = await db.select().from(streamPipelines)
+        .where(and(
+          eq(streamPipelines.userId, userId),
+          eq(streamPipelines.pipelineType, "vod"),
+        ))
+        .orderBy(streamPipelines.id);
+
+      if (pipelines.length === 0) {
+        return res.json({ success: true, message: "No pipelines found to schedule", scheduled: 0 });
+      }
+
+      const existingVideos = await db.select({ id: videos.id, title: videos.title })
+        .from(videos)
+        .where(sql`${videos.title} IN (${sql.join(pipelines.map(p => sql`${p.sourceTitle}`), sql`, `)})`);
+      const existingTitles = new Set(existingVideos.map(v => v.title));
+
+      const platforms = ["youtube", "twitch", "tiktok", "x", "kick", "discord"];
+      const peakHours = [9, 11, 13, 15, 17, 19];
+      const created: any[] = [];
+      let slotIndex = 0;
+
+      for (const pipeline of pipelines) {
+        if (existingTitles.has(pipeline.sourceTitle)) continue;
+
+        const stepResults = pipeline.stepResults as any || {};
+        const descData = stepResults.description || {};
+        const tagsData = stepResults.tags || {};
+
+        const videoDescription = typeof descData === 'string' ? descData :
+          descData.description || pipeline.sourceTitle;
+        const videoTags = Array.isArray(tagsData) ? tagsData :
+          (tagsData.tags || tagsData.hashtags || []);
+
+        const dayOffset = Math.floor(slotIndex / 3);
+        const hourSlot = peakHours[slotIndex % peakHours.length];
+        const videoSchedDate = new Date(scheduleStart);
+        videoSchedDate.setDate(videoSchedDate.getDate() + dayOffset);
+        videoSchedDate.setHours(hourSlot, Math.floor(Math.random() * 30), 0, 0);
+
+        const cleanTags = Array.isArray(videoTags) ? videoTags.slice(0, 15).map(String) : [];
+        const [videoRecord] = await db.insert(videos).values({
+          title: pipeline.sourceTitle,
+          description: typeof videoDescription === 'string' ? videoDescription.substring(0, 5000) : pipeline.sourceTitle,
+          type: "vod",
+          status: "scheduled",
+          platform: "youtube",
+          metadata: {
+            tags: cleanTags,
+            seoScore: descData.seoScore || 85,
+            aiOptimized: true,
+            aiOptimizedAt: new Date().toISOString(),
+          } as any,
+          scheduledTime: videoSchedDate,
+        }).returning();
+
+        await db.insert(scheduleItems).values({
+          userId,
+          title: pipeline.sourceTitle,
+          type: "vod",
+          platform: "youtube",
+          scheduledAt: videoSchedDate,
+          status: "scheduled",
+          videoId: videoRecord.id,
+          metadata: {
+            description: typeof videoDescription === 'string' ? videoDescription.substring(0, 2000) : undefined,
+            tags: cleanTags,
+            autoPublish: true,
+            aiOptimized: true,
+          },
+        });
+
+        const crossPlatform = platforms.filter(p => p !== "youtube").slice(0, 3);
+        for (let cpIdx = 0; cpIdx < crossPlatform.length; cpIdx++) {
+          const cpDate = new Date(videoSchedDate);
+          cpDate.setMinutes(cpDate.getMinutes() + (cpIdx + 1) * 45);
+          await db.insert(scheduleItems).values({
+            userId,
+            title: `${pipeline.sourceTitle} — ${crossPlatform[cpIdx]} clip`,
+            type: "clip",
+            platform: crossPlatform[cpIdx],
+            scheduledAt: cpDate,
+            status: "scheduled",
+            videoId: videoRecord.id,
+            metadata: {
+              autoPublish: true,
+              aiOptimized: true,
+              crossPost: [crossPlatform[cpIdx]],
+            },
+          });
+        }
+
+        created.push({
+          pipelineId: pipeline.id,
+          videoId: videoRecord.id,
+          title: pipeline.sourceTitle,
+          scheduledAt: videoSchedDate.toISOString(),
+          crossPosts: crossPlatform.length,
+        });
+
+        slotIndex++;
+      }
+
+      await storage.createNotification({
+        userId,
+        type: "info",
+        title: "Content Scheduled",
+        message: `${created.length} videos scheduled starting ${scheduleStart.toLocaleDateString()}. ${created.reduce((sum, c) => sum + c.crossPosts, 0)} cross-platform posts queued.`,
+      });
+
+      res.json({
+        success: true,
+        scheduled: created.length,
+        items: created,
+        startDate: scheduleStart.toISOString(),
+      });
+    } catch (err: any) {
+      console.error("[Calendar] Schedule pipelines error:", err);
+      res.status(500).json({ success: false, message: "Failed to schedule pipeline content." });
     }
   });
 }
