@@ -159,9 +159,6 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
 
   const MOBILE_APP_DEEP_LINKS: Record<string, string> = {
     twitch: "twitch://open",
-    discord: "discord://",
-    tiktok: "snssdk1233://",
-    kick: "kick://",
   };
 
   const handleOAuthLogin = async () => {
