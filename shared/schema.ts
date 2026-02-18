@@ -572,6 +572,36 @@ export const channelGrowthTracking = pgTable("channel_growth_tracking", {
   userDateIdx: index("channel_growth_user_date_idx").on(table.userId, table.snapshotDate),
 }));
 
+export const channelBaselineSnapshots = pgTable("channel_baseline_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").notNull(),
+  platform: text("platform").notNull(),
+  channelName: text("channel_name").notNull(),
+  snapshotType: text("snapshot_type").notNull().default("periodic"),
+  snapshotDate: timestamp("snapshot_date").notNull().defaultNow(),
+  views: integer("views").default(0),
+  subscribers: integer("subscribers").default(0),
+  videoCount: integer("video_count").default(0),
+  revenue: real("revenue").default(0),
+  engagement: real("engagement").default(0),
+  avgViewsPerVideo: real("avg_views_per_video").default(0),
+  aiOptimizationsAtSnapshot: integer("ai_optimizations_at_snapshot").default(0),
+  metadata: jsonb("metadata").$type<{
+    milestones?: string[];
+    topContent?: string[];
+    growthRate?: number;
+  }>(),
+}, (table) => ({
+  channelIdx: index("cbs_channel_idx").on(table.channelId),
+  userDateIdx: index("cbs_user_date_idx").on(table.userId, table.snapshotDate),
+  typeIdx: index("cbs_type_idx").on(table.snapshotType),
+}));
+
+export const insertChannelBaselineSnapshotSchema = createInsertSchema(channelBaselineSnapshots).omit({ id: true });
+export type InsertChannelBaselineSnapshot = z.infer<typeof insertChannelBaselineSnapshotSchema>;
+export type ChannelBaselineSnapshot = typeof channelBaselineSnapshots.$inferSelect;
+
 export const learningInsights = pgTable("learning_insights", {
   id: serial("id").primaryKey(),
   userId: text("user_id"),
