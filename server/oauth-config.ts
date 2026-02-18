@@ -87,6 +87,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     requiresPKCE: true,
     pkceChallengeMethod: "S256",
     tokenAuthMethod: "body",
+    additionalAuthParams: { prompt: "consent" },
     userInfoUrl: "https://api.kick.com/public/v1/users",
     userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
     parseUserId: (data) => ({

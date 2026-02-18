@@ -229,15 +229,17 @@ function PlatformCard({
   const handleOAuthLogin = async () => {
     setOauthLoading(true);
     try {
-      if (isYouTube) {
-        const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
-        if (!res.ok) throw new Error((await res.json()).error || "Failed");
-        const { url } = await res.json();
-        window.location.href = url;
+      const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
+      const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
+      const { url } = await res.json();
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        const w = window.open(url, "_blank", "noopener,noreferrer");
+        if (!w) {
+          window.location.href = url;
+        }
       } else {
-        const res = await fetch(`/api/oauth/${platform}/auth`, { credentials: "include", headers: { "Accept": "application/json" } });
-        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
-        const { url } = await res.json();
         window.location.href = url;
       }
     } catch (error: any) {
@@ -419,7 +421,13 @@ function GroupedPlatformCard({
         const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
         if (!res.ok) throw new Error((await res.json()).error || "Failed");
         const { url } = await res.json();
-        window.location.href = url;
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+          const w = window.open(url, "_blank", "noopener,noreferrer");
+          if (!w) window.location.href = url;
+        } else {
+          window.location.href = url;
+        }
       } else {
         const unconnected = group.platforms.filter(p => !connectedPlatforms.has(p));
         for (const platform of unconnected) {

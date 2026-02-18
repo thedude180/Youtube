@@ -274,7 +274,15 @@ function GeneralTab() {
                 const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
                 if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
                 const { url } = await res.json();
-                window.location.href = url;
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile) {
+                  const w = window.open(url, "_blank", "noopener,noreferrer");
+                  if (!w) {
+                    window.location.href = url;
+                  }
+                } else {
+                  window.location.href = url;
+                }
               } catch (error: any) {
                 toast({ title: "Error", description: error.message, variant: "destructive" });
                 setOauthLoading(null);
