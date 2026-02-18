@@ -373,7 +373,7 @@ export function registerContentRoutes(app: Express) {
             const backfillEntries: any[] = [];
             for (const vid of optimizedVideos) {
               const meta = vid.metadata as any;
-              const ytId = meta?.youtubeVideoId || `local-${vid.id}`;
+              const ytId = meta?.youtubeVideoId || `pending-${vid.id}`;
               const studioUrl = meta?.youtubeVideoId
                 ? `https://studio.youtube.com/video/${meta.youtubeVideoId}/edit`
                 : null;

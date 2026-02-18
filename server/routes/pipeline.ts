@@ -117,7 +117,7 @@ async function recordOptimizationHistory(
   existingVideo: { title: string | null; description: string | null; metadata: any } | null
 ) {
   try {
-    const ytId = existingVideo?.metadata?.youtubeVideoId || (videoId ? `local-${videoId}` : `pipeline-${pipelineId}`);
+    const ytId = existingVideo?.metadata?.youtubeVideoId || (videoId ? `pending-${videoId}` : `pipeline-${pipelineId}`);
     const studioUrl = existingVideo?.metadata?.youtubeVideoId
       ? `https://studio.youtube.com/video/${existingVideo.metadata.youtubeVideoId}/edit`
       : null;

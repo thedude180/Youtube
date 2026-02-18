@@ -120,6 +120,7 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
   const videoTitle = entries[0]?.videoTitle || "Untitled";
   const studioUrl = entries[0]?.youtubeStudioUrl;
   const latestDate = entries[0]?.createdAt;
+  const isPending = youtubeVideoId.startsWith("pending-") || youtubeVideoId.startsWith("local-");
 
   const uniqueFields = [...new Set(entries.map(e => e.field))];
   const totalChanges = entries.length;
@@ -133,7 +134,11 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
           data-testid={`button-expand-${youtubeVideoId}`}
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <SiYoutube className="h-4 w-4 text-red-500 shrink-0" />
+            {isPending ? (
+              <Video className="h-4 w-4 text-purple-400 shrink-0" />
+            ) : (
+              <SiYoutube className="h-4 w-4 text-red-500 shrink-0" />
+            )}
             <div className="min-w-0 flex-1">
               <p className="font-medium text-sm truncate" data-testid={`text-video-title-${youtubeVideoId}`}>
                 {videoTitle}
@@ -151,6 +156,11 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
                 <Badge variant="outline" className="text-xs">
                   {totalChanges} change{totalChanges !== 1 ? "s" : ""}
                 </Badge>
+                {isPending && (
+                  <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/30">
+                    Scheduled
+                  </Badge>
+                )}
                 {latestDate && (
                   <span className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
@@ -160,7 +170,7 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {studioUrl && (
+            {studioUrl && !isPending && (
               <a
                 href={studioUrl}
                 target="_blank"
