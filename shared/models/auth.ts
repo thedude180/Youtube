@@ -36,6 +36,7 @@ export const TIER_LABELS: Record<SubscriptionTier, string> = {
 };
 
 export const ADMIN_EMAIL = "thedude180@gmail.com";
+export const SUPPORT_EMAIL = "support@etgaming247.com";
 
 // User storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.

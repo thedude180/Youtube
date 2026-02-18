@@ -69,7 +69,7 @@ export function PrivacyPolicy() {
           <p>We may update this Privacy Policy from time to time. We will notify you of any significant changes through the app or via email.</p>
 
           <h2 className="text-lg font-semibold mt-6 mb-2">10. Contact Us</h2>
-          <p>If you have questions about this Privacy Policy, please contact us through the app's support features.</p>
+          <p>If you have questions about this Privacy Policy, please contact us at <a href="mailto:support@etgaming247.com" className="text-primary hover:underline" data-testid="link-privacy-contact">support@etgaming247.com</a>.</p>
         </CardContent>
       </Card>
     </div>
@@ -147,7 +147,7 @@ export function TermsOfService() {
           <p>We may modify these terms at any time. Continued use of the platform after changes constitutes acceptance of the updated terms.</p>
 
           <h2 className="text-lg font-semibold mt-6 mb-2">12. Contact</h2>
-          <p>For questions about these Terms of Service, please contact us through the app's support features.</p>
+          <p>For questions about these Terms of Service, please contact us at <a href="mailto:support@etgaming247.com" className="text-primary hover:underline" data-testid="link-tos-contact">support@etgaming247.com</a>.</p>
         </CardContent>
       </Card>
     </div>

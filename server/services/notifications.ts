@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, ADMIN_EMAIL } from "@shared/models/auth";
+import { users, ADMIN_EMAIL, SUPPORT_EMAIL } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 import { sendGmail } from "./gmail-client";
 
@@ -23,6 +23,7 @@ function buildEmailHtml(title: string, message: string, severity: NotificationSe
       <div style="background: #1a1a2e; color: #e0e0e0; padding: 24px; border-radius: 0 0 8px 8px;">
         <p style="margin: 0 0 16px; line-height: 1.6;">${message}</p>
         <p style="margin: 0; font-size: 12px; color: #888;">This is an automated alert from CreatorOS. Your system is running on autopilot — we only contact you when something needs attention.</p>
+        <p style="margin: 8px 0 0; font-size: 12px; color: #666;">Contact us: <a href="mailto:${SUPPORT_EMAIL}" style="color: #6366f1;">${SUPPORT_EMAIL}</a></p>
       </div>
     </div>
   `;

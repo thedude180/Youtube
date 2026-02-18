@@ -1,5 +1,6 @@
 // Gmail integration via Replit Connectors
 import { google } from 'googleapis';
+import { SUPPORT_EMAIL } from "@shared/models/auth";
 
 let connectionSettings: any;
 
@@ -47,6 +48,8 @@ async function getUncachableGmailClient() {
 function createRawEmail(to: string, subject: string, htmlBody: string): string {
   const boundary = "boundary_" + Date.now();
   const lines = [
+    `From: CreatorOS <${SUPPORT_EMAIL}>`,
+    `Reply-To: ${SUPPORT_EMAIL}`,
     `To: ${to}`,
     `Subject: ${subject}`,
     `MIME-Version: 1.0`,
