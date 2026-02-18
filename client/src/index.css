@@ -236,6 +236,14 @@
   min-width: 44px;
 }
 
+/* Native app: hide bottom nav when keyboard is open */
+body.keyboard-open [data-testid="nav-mobile-bottom"] {
+  display: none;
+}
+body.keyboard-open .safe-area-bottom {
+  padding-bottom: 0;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
