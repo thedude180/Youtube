@@ -544,6 +544,34 @@ export const analyticsSnapshots = pgTable("analytics_snapshots", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const channelGrowthTracking = pgTable("channel_growth_tracking", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  snapshotDate: timestamp("snapshot_date").notNull(),
+  period: text("period").notNull().default("daily"),
+  baselineViews: integer("baseline_views").default(0),
+  baselineSubscribers: integer("baseline_subscribers").default(0),
+  baselineRevenue: real("baseline_revenue").default(0),
+  baselineEngagement: real("baseline_engagement").default(0),
+  actualViews: integer("actual_views").default(0),
+  actualSubscribers: integer("actual_subscribers").default(0),
+  actualRevenue: real("actual_revenue").default(0),
+  actualEngagement: real("actual_engagement").default(0),
+  aiOptimizationsApplied: integer("ai_optimizations_applied").default(0),
+  projectedViews: integer("projected_views").default(0),
+  projectedSubscribers: integer("projected_subscribers").default(0),
+  projectedRevenue: real("projected_revenue").default(0),
+  metadata: jsonb("metadata").$type<{
+    topOptimizations?: string[];
+    growthRate?: number;
+    baselineGrowthRate?: number;
+    platformBreakdown?: Record<string, { baseline: number; actual: number }>;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userDateIdx: index("channel_growth_user_date_idx").on(table.userId, table.snapshotDate),
+}));
+
 export const learningInsights = pgTable("learning_insights", {
   id: serial("id").primaryKey(),
   userId: text("user_id"),
