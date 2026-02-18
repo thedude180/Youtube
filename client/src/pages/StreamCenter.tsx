@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { apiRequest } from "@/lib/queryClient";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
@@ -617,9 +618,10 @@ export default function StreamCenter() {
   const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
   const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
   const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"] });
+  const ytLivePoll = useAdaptiveInterval(30000);
   const { data: ytLiveStatus } = useQuery<any>({
     queryKey: ["/api/youtube/live-status"],
-    refetchInterval: 30000,
+    refetchInterval: ytLivePoll,
   });
 
   const detectLive = useMutation({
@@ -2429,11 +2431,12 @@ function MultiPlatformStatus({ channels, destinations }: { channels: Channel[]; 
 
 function LiveBanner({ stream, onEnd, isEnding }: { stream: Stream; onEnd: () => void; isEnding: boolean }) {
   const [elapsed, setElapsed] = useState("");
+  const automationPoll = useAdaptiveInterval(5000);
 
   const { data: automationData } = useQuery<{ jobs: any[]; tasks: any[] }>({
     queryKey: ["/api/streams", stream.id, "automation"],
     queryFn: async () => { const res = await fetch(`/api/streams/${stream.id}/automation`, { credentials: 'include' }); return res.json(); },
-    refetchInterval: 3000,
+    refetchInterval: automationPoll,
   });
 
   useEffect(() => {

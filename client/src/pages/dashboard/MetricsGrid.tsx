@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { LucideIcon } from "lucide-react";
 
@@ -11,7 +12,7 @@ interface MetricsGridProps {
   metrics: MetricItem[];
 }
 
-export default function MetricsGrid({ metrics }: MetricsGridProps) {
+export default memo(function MetricsGrid({ metrics }: MetricsGridProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {metrics.map((m) => {
@@ -32,4 +33,4 @@ export default function MetricsGrid({ metrics }: MetricsGridProps) {
       })}
     </div>
   );
-}
+});

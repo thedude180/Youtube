@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, useMemo, useCallback } from "react";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { safeArray } from "@/lib/safe-data";
@@ -357,9 +357,20 @@ export default function Autopilot() {
   });
 
   const stats = statsQuery.data;
-  const queue = queueQuery.data || [];
-  const comments = commentsQuery.data || [];
+  const queue = useMemo(() => queueQuery.data || [], [queueQuery.data]);
+  const comments = useMemo(() => commentsQuery.data || [], [commentsQuery.data]);
   const stealth = stats?.stealth;
+
+  const stealthIssues = useMemo(() => safeArray(stealth?.recentIssues), [stealth?.recentIssues]);
+  const stealthRecommendations = useMemo(() => safeArray(stealth?.recommendations), [stealth?.recommendations]);
+  const platformGradeEntries = useMemo(
+    () => stealth?.platformGrades ? Object.entries(stealth.platformGrades) : [],
+    [stealth?.platformGrades]
+  );
+  const activeFeatureCount = useMemo(
+    () => Object.values(stats?.featureStatuses || {}).filter(Boolean).length,
+    [stats?.featureStatuses]
+  );
 
   if (statsQuery.isLoading) {
     return (
@@ -372,8 +383,6 @@ export default function Autopilot() {
       </div>
     );
   }
-
-  const activeFeatureCount = Object.values(stats?.featureStatuses || {}).filter(Boolean).length;
 
   return (
     <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto overflow-y-auto h-full">
@@ -790,7 +799,7 @@ export default function Autopilot() {
                 </div>
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium">Platform Grades</h4>
-                  {stealth?.platformGrades && Object.entries(stealth.platformGrades).map(([platform, data]) => (
+                  {platformGradeEntries.map(([platform, data]) => (
                     <div key={platform} className="flex items-center justify-between gap-2" data-testid={`stealth-grade-${platform}`}>
                       <div className="flex items-center gap-2">
                         <PlatformBadge platform={platform} />
@@ -801,7 +810,7 @@ export default function Autopilot() {
                       </div>
                     </div>
                   ))}
-                  {(!stealth?.platformGrades || Object.keys(stealth.platformGrades).length === 0) && (
+                  {platformGradeEntries.length === 0 && (
                     <p className="text-sm text-muted-foreground">No posts analyzed yet</p>
                   )}
                 </div>
@@ -809,7 +818,7 @@ export default function Autopilot() {
             </CardContent>
           </Card>
 
-          {stealth?.recentIssues && stealth.recentIssues.length > 0 && (
+          {stealthIssues.length > 0 && (
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -817,7 +826,7 @@ export default function Autopilot() {
                   <h4 className="text-sm font-medium">Issues Detected</h4>
                 </div>
                 <div className="space-y-2">
-                  {safeArray(stealth?.recentIssues).map((issue, i) => (
+                  {stealthIssues.map((issue, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <AlertCircle className="h-3 w-3 text-yellow-500 mt-1 shrink-0" />
                       <p className="text-xs text-muted-foreground">{issue}</p>
@@ -828,7 +837,7 @@ export default function Autopilot() {
             </Card>
           )}
 
-          {stealth?.recommendations && stealth.recommendations.length > 0 && (
+          {stealthRecommendations.length > 0 && (
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -836,7 +845,7 @@ export default function Autopilot() {
                   <h4 className="text-sm font-medium">Recommendations</h4>
                 </div>
                 <div className="space-y-2">
-                  {safeArray(stealth?.recommendations).map((rec, i) => (
+                  {stealthRecommendations.map((rec, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <CheckCircle2 className="h-3 w-3 text-blue-500 mt-1 shrink-0" />
                       <p className="text-xs text-muted-foreground">{rec}</p>

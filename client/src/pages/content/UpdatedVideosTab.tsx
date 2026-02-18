@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -257,6 +258,7 @@ function ChangeRow({ icon: Icon, label, oldValue, newValue, field }: {
 }
 
 function UpdatedVideosTab() {
+  const pollInterval = useAdaptiveInterval(10000);
   const { data: updateHistory, isLoading: historyLoading } = useQuery<UpdateHistoryEntry[]>({
     queryKey: ["/api/videos/update-history"],
     retry: 1,
@@ -264,7 +266,7 @@ function UpdatedVideosTab() {
 
   const { data: processing, isLoading: procLoading } = useQuery<PipelineEntry[]>({
     queryKey: ["/api/videos/processing"],
-    refetchInterval: 10000,
+    refetchInterval: pollInterval,
     retry: 1,
   });
 

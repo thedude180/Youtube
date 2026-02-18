@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { useDashboardStats } from "@/hooks/use-dashboard";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
@@ -132,7 +132,7 @@ export default function Dashboard() {
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") || "Creator"
     : "Creator";
 
-  const getHealthStatus = (area: string): { status: "good" | "warning" | "action"; label: string } => {
+  const getHealthStatus = useCallback((area: string): { status: "good" | "warning" | "action"; label: string } => {
     switch (area) {
       case "content":
         return (stats?.totalVideos || 0) > 0
@@ -156,13 +156,13 @@ export default function Dashboard() {
       default:
         return { status: "good", label: "OK" };
     }
-  };
+  }, [stats?.totalVideos, stats?.totalRevenue]);
 
-  const statusDot = (status: string) => {
+  const statusDot = useCallback((status: string) => {
     if (status === "good") return "bg-emerald-400";
     if (status === "warning") return "bg-amber-400";
     return "bg-red-400";
-  };
+  }, []);
 
   if (statsLoading) return <DashboardSkeleton />;
 
@@ -174,21 +174,21 @@ export default function Dashboard() {
     );
   }
 
-  const metrics = [
+  const metrics = useMemo(() => [
     { label: "Videos", value: stats?.totalVideos || 0, icon: Film },
     { label: "Revenue", value: `$${(stats?.totalRevenue || 0).toLocaleString()}`, icon: DollarSign },
     { label: "AI Agents", value: `${activeAgents}/11`, icon: Bot },
     { label: "AI Tasks Today", value: tasksToday, icon: Zap },
-  ];
+  ], [stats?.totalVideos, stats?.totalRevenue, activeAgents, tasksToday]);
 
-  const severityColor = (severity: string) => {
+  const severityColor = useCallback((severity: string) => {
     switch (severity) {
       case "critical": return "bg-red-400";
       case "warning": return "bg-amber-400";
       case "success": return "bg-emerald-400";
       default: return "bg-blue-400";
     }
-  };
+  }, []);
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-5xl mx-auto fade-in">

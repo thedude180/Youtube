@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { Bell, CheckCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -34,10 +35,11 @@ const priorityDotColor: Record<string, string> = {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
+  const pollInterval = useAdaptiveInterval(30000);
 
   const { data: unreadData } = useQuery<UnreadCount>({
     queryKey: ["/api/notifications/unread-count"],
-    refetchInterval: 30000,
+    refetchInterval: pollInterval,
   });
 
   const { data: notifications, isLoading } = useQuery<Notification[]>({

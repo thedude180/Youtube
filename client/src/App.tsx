@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
+import { prefetchForRoute } from "@/lib/prefetch";
 
 function lazyRetry<T extends { default: any }>(factory: () => Promise<T>): ReturnType<typeof lazy> {
   return lazy(() =>

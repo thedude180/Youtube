@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useTranslation } from "react-i18next";
+import { prefetchForRoute } from "@/lib/prefetch";
 import {
   LayoutDashboard,
   Video,
@@ -109,7 +110,7 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={link.href}>
                     <SidebarMenuButton asChild isActive={active} data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}>
-                      <Link href={locked ? "/pricing" : link.href}>
+                      <Link href={locked ? "/pricing" : link.href} onMouseEnter={() => !locked && prefetchForRoute(link.href)}>
                         <Icon className={`h-4 w-4 ${locked ? "opacity-30" : ""}`} />
                         <span className={locked ? "opacity-30" : ""}>{label}</span>
                         {locked && (

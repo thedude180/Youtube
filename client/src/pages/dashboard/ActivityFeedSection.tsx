@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -12,7 +13,7 @@ interface ActivityFeedProps {
   severityColor: (severity: string) => string;
 }
 
-export default function ActivityFeedSection({ recentNotifications, recentActivities, severityColor }: ActivityFeedProps) {
+export default memo(function ActivityFeedSection({ recentNotifications, recentActivities, severityColor }: ActivityFeedProps) {
   return (
       <Card data-testid="card-activity-feed">
         <CardHeader className="pb-2">
@@ -69,4 +70,4 @@ export default function ActivityFeedSection({ recentNotifications, recentActivit
         </CardContent>
       </Card>
   );
-}
+});

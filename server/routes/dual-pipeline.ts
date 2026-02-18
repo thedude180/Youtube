@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { eq, and, desc, sql, lte, isNotNull } from "drizzle-orm";
 import { requireAuth, asyncHandler } from "./helpers";
+import { cached } from "../lib/cache";
 import {
   streamPipelines, vodCuts, lengthExperiments, audienceLengthPreferences,
   LIVE_PIPELINE_STEPS, VOD_PIPELINE_STEPS, LENGTH_CATEGORIES,
@@ -1308,6 +1309,8 @@ Return JSON: {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
+    const result = await cached(`cmd-center:${userId}`, 3, async () => {
+
     const activePipelines = await db.select().from(streamPipelines)
       .where(and(
         eq(streamPipelines.userId, userId),
@@ -1399,11 +1402,14 @@ Return JSON: {
       createdAt: p.createdAt,
     }));
 
-    res.json({
+    return {
       active: enriched,
       recentCompleted: recentCompletedEnriched,
       recentErrors: recentErrorsEnriched,
       totals: totals[0] || { total: 0, completed: 0, processing: 0, queued: 0, errored: 0, liveCount: 0, vodCount: 0 },
+    };
     });
+
+    res.json(result);
   }));
 }

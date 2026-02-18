@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -224,9 +225,10 @@ function ActivePipelineCard({ pipeline }: { pipeline: ActivePipeline }) {
 }
 
 export default function PipelineCommandCenter() {
+  const pollInterval = useAdaptiveInterval(5000);
   const { data, isLoading } = useQuery<CommandCenterData>({
     queryKey: ["/api/pipelines/command-center"],
-    refetchInterval: 3000,
+    refetchInterval: pollInterval,
   });
 
   if (isLoading) {

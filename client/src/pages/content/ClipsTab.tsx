@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { safeArray } from "@/lib/safe-data";
@@ -75,19 +76,22 @@ export default function ClipsTab() {
   const { toast } = useToast();
   const [expandedVideo, setExpandedVideo] = useState<number | null>(null);
 
+  const medPoll = useAdaptiveInterval(5000);
+  const slowPoll = useAdaptiveInterval(10000);
+
   const statsQuery = useQuery<ClipStats>({
     queryKey: ["/api/clips/stats"],
-    refetchInterval: 10000,
+    refetchInterval: slowPoll,
   });
 
   const pipelineQuery = useQuery<PipelineStatus>({
     queryKey: ["/api/clips/pipeline-status"],
-    refetchInterval: 3000,
+    refetchInterval: medPoll,
   });
 
   const backlogQuery = useQuery<ClipItem[]>({
     queryKey: ["/api/clips/backlog"],
-    refetchInterval: 5000,
+    refetchInterval: medPoll,
   });
 
   const runPipelineMutation = useMutation({

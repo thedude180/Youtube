@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent } from "@/components/ui/card";
@@ -505,9 +506,11 @@ interface BacklogStatus {
 export default function PipelineTab() {
   const { toast } = useToast();
   const [newTitle, setNewTitle] = useState("");
+  const medPoll = useAdaptiveInterval(5000);
+  const fastPoll = useAdaptiveInterval(5000);
   const backlogStatusQuery = useQuery<BacklogStatus>({
     queryKey: ["/api/backlog/status"],
-    refetchInterval: 5000,
+    refetchInterval: medPoll,
   });
 
   const pipelinesQuery = useQuery<ContentPipeline[]>({
@@ -516,7 +519,7 @@ export default function PipelineTab() {
       const data = query.state.data;
       if (!data) return false;
       const hasProcessing = data.some(p => p.status === "processing");
-      return hasProcessing ? 3000 : false;
+      return hasProcessing ? fastPoll : false;
     },
   });
 

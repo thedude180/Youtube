@@ -33,7 +33,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
-import { useState, useMemo, useEffect, lazy, Suspense } from "react";
+import { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 
@@ -116,7 +116,7 @@ export default function Money() {
     },
   });
 
-  const handleCreatePayment = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreatePayment = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const dollars = parseFloat(formData.get("amount") as string);
@@ -125,20 +125,22 @@ export default function Money() {
       description: formData.get("description") || "Payment",
       customerEmail: formData.get("customerEmail") || undefined,
     });
-  };
+  }, [createPaymentMutation]);
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
-  };
+  }, [toast]);
 
 
-  const isLoading = (activeTab === "payments" && paymentsLoading);
+  const isLoading = activeTab === "payments" && paymentsLoading;
 
   const activeError = (activeTab === "payments" && paymentsError) || null;
 
-  const activeErrorQueryKey = activeTab === "payments" ? ["/api/stripe/payments"]
-    : ["/api/revenue"];
+  const activeErrorQueryKey = useMemo(
+    () => activeTab === "payments" ? ["/api/stripe/payments"] : ["/api/revenue"],
+    [activeTab]
+  );
 
   if (isLoading) {
     return (

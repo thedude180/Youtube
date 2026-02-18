@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -99,9 +99,9 @@ function GeneralTab() {
     localStorage.setItem("notificationPrefs", JSON.stringify(notificationPrefs));
   }, [notificationPrefs]);
 
-  const updateNotificationPref = (key: keyof NotificationPrefs, value: boolean) => {
+  const updateNotificationPref = useCallback((key: keyof NotificationPrefs, value: boolean) => {
     setNotificationPrefs((prev) => ({ ...prev, [key]: value }));
-  };
+  }, []);
 
   const presets = [
     { type: "safe" as const, icon: Shield, title: "Safe", desc: "Conservative. Minimal changes." },
@@ -112,7 +112,7 @@ function GeneralTab() {
   const connectedCount = channels?.length ?? 0;
   const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
 
-  const handleExportData = async () => {
+  const handleExportData = useCallback(async () => {
     setIsExporting(true);
     try {
       const res = await fetch("/api/user/export", { credentials: "include" });
@@ -133,7 +133,7 @@ function GeneralTab() {
     } finally {
       setIsExporting(false);
     }
-  };
+  }, [toast]);
 
   return (
     <div className="space-y-6">
@@ -474,7 +474,7 @@ export default function Settings() {
   const { toast } = useToast();
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
   const isAdmin = profile?.role === "admin";
-  const tabs = baseTabs.filter((t) => !t.adminOnly || isAdmin);
+  const tabs = useMemo(() => baseTabs.filter((t) => !t.adminOnly || isAdmin), [isAdmin]);
   const activeTab: TabKey = VALID_TABS.includes(params.tab as TabKey) ? (params.tab as TabKey) : "general";
 
   useEffect(() => {
@@ -497,13 +497,13 @@ export default function Settings() {
     }
   }, [toast]);
 
-  const handleTabClick = (tab: TabKey) => {
+  const handleTabClick = useCallback((tab: TabKey) => {
     if (tab === "general") {
       setLocation("/settings");
     } else {
       setLocation(`/settings/${tab}`);
     }
-  };
+  }, [setLocation]);
 
   const tabIcons: Record<TabKey, any> = {
     general: Settings2,
@@ -568,10 +568,13 @@ function LanguageTrafficSuggestions() {
     : [];
   const hasRecs = recLangs.length > 0 && recommendations?.source !== "none";
 
-  const suggestedUiLangs = recLangs
-    .filter((code: string) => supportedLanguages.some((l) => l.code === code))
-    .filter((code: string) => code !== i18n.language)
-    .slice(0, 3);
+  const suggestedUiLangs = useMemo(
+    () => recLangs
+      .filter((code: string) => supportedLanguages.some((l) => l.code === code))
+      .filter((code: string) => code !== i18n.language)
+      .slice(0, 3),
+    [recLangs, i18n.language]
+  );
 
   if (!hasRecs || suggestedUiLangs.length === 0) return null;
 

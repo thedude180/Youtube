@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { safeArray } from "@/lib/safe-data";
@@ -704,14 +704,14 @@ function ModerationTab() {
     onError: () => toast({ title: "Failed to add action", variant: "destructive" }),
   });
 
-  const filtered = data?.filter((a) => {
+  const filtered = useMemo(() => data?.filter((a) => {
     if (filterPlatform !== "all" && a.platform !== filterPlatform) return false;
     if (filterType !== "all" && a.type !== filterType) return false;
     return true;
-  });
+  }) ?? [], [data, filterPlatform, filterType]);
 
-  const platforms = [...new Set(data?.map((a) => a.platform) || [])];
-  const types = [...new Set(data?.map((a) => a.type) || [])];
+  const platforms = useMemo(() => [...new Set(data?.map((a) => a.platform) || [])], [data]);
+  const types = useMemo(() => [...new Set(data?.map((a) => a.type) || [])], [data]);
 
   return (
     <div className="space-y-2" data-testid="tab-content-moderation">

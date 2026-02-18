@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +63,10 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
   const [simulateMessage, setSimulateMessage] = useState("");
   const [simulatePlatform, setSimulatePlatform] = useState("youtube");
 
+  const fastPoll = useAdaptiveInterval(3000);
+  const medPoll = useAdaptiveInterval(5000);
+  const slowPoll = useAdaptiveInterval(10000);
+
   const chatQuery = useQuery<ChatMessage[]>({
     queryKey: ["/api/streams", streamId, "chat"],
     queryFn: async () => {
@@ -69,7 +74,7 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
       if (!res.ok) throw new Error("Failed to load chat");
       return res.json();
     },
-    refetchInterval: 3000,
+    refetchInterval: fastPoll,
   });
 
   const statsQuery = useQuery<ChatStats>({
@@ -79,7 +84,7 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
       if (!res.ok) throw new Error("Failed to load stats");
       return res.json();
     },
-    refetchInterval: 5000,
+    refetchInterval: medPoll,
   });
 
   const multiStatusQuery = useQuery<MultiStreamStatus>({
@@ -89,7 +94,7 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
       if (!res.ok) throw new Error("Failed to load status");
       return res.json();
     },
-    refetchInterval: 10000,
+    refetchInterval: slowPoll,
   });
 
   const sendChatMutation = useMutation({

@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { autopilotQueue, commentResponses, autopilotConfig, channels, videos } from "@shared/schema";
 import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
+import { cached } from "../lib/cache";
 import {
   getAutopilotStats,
   getAutopilotActivity,
@@ -32,7 +33,7 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
     try {
-      const stats = await getAutopilotStats(userId);
+      const stats = await cached(`autopilot-stats:${userId}`, 10, () => getAutopilotStats(userId));
       res.json(stats);
     } catch (err) {
       console.error("[Autopilot] Stats error:", err);
