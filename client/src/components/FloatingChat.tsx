@@ -76,7 +76,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50">
         <Button
           data-testid="button-floating-chat"
           aria-label="Open AI chat"
@@ -90,15 +90,14 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className="fixed inset-0 md:inset-auto md:bottom-6 md:right-6 z-50 flex flex-col md:items-end md:gap-3">
       <Card
         data-testid="panel-chat"
         role="complementary"
         aria-label="AI Chat"
-        className="flex flex-col overflow-hidden"
-        style={{ width: 400, height: 500 }}
+        className="flex flex-col overflow-hidden w-full h-full md:w-[400px] md:h-[500px] rounded-none md:rounded-md"
       >
-        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 safe-area-top shrink-0">
           <div className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold">AI Strategist</span>
@@ -198,7 +197,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
 
       <Button
         data-testid="button-floating-chat"
-        className="h-12 w-12 rounded-full shadow-lg"
+        className="h-12 w-12 rounded-full shadow-lg hidden md:flex"
         onClick={handleClose}
       >
         <X className="h-5 w-5" />

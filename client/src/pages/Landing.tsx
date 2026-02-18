@@ -178,7 +178,7 @@ export default function Landing() {
               </div>
             </div>
 
-            <div className="mt-20 grid grid-cols-4 gap-4 max-w-lg slide-up">
+            <div className="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-lg slide-up">
               {TRUST_NUMBERS.map((stat, i) => (
                 <div key={stat.label} className={`text-center stagger-${i + 1}`} data-testid={`stat-hero-${stat.label.toLowerCase().replace(/\s+/g, "-")}`}>
                   <p className="text-3xl sm:text-4xl font-extrabold font-display text-primary">{stat.value}</p>
@@ -307,7 +307,7 @@ export default function Landing() {
               Start free. Upgrade when you need more platforms and automation.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
             {TIERS.map((tier) => (
               <Card
                 key={tier.name}

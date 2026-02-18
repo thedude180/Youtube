@@ -139,7 +139,7 @@ function GeneralTab() {
     <div className="space-y-6">
       <div>
         <h2 className="text-sm font-medium text-muted-foreground mb-3">Risk Profile</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {presets.map(({ type, icon: Icon, title, desc }) => (
             <Card
               key={type}
@@ -521,17 +521,19 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => handleTabClick(v as TabKey)}>
-        <TabsList data-testid="tab-bar" className="flex-wrap h-auto gap-1">
-          {tabs.map((t) => {
-            const Icon = tabIcons[t.key];
-            return (
-              <TabsTrigger key={t.key} value={t.key} data-testid={`tab-${t.key}`}>
-                {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
-                {t.label}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+        <div className="scrollable-tabs">
+          <TabsList data-testid="tab-bar" className="w-auto inline-flex gap-1">
+            {tabs.map((t) => {
+              const Icon = tabIcons[t.key];
+              return (
+                <TabsTrigger key={t.key} value={t.key} data-testid={`tab-${t.key}`}>
+                  {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
+                  {t.label}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
 
         <TabsContent value="general" className="mt-4">
           <GeneralTab />

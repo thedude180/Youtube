@@ -41,20 +41,22 @@ export default function Content() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContentTab)}>
-        <TabsList data-testid="tabs-content">
-          <TabsTrigger value="library" data-testid="tab-library">
-            <Video className="h-3.5 w-3.5 mr-1.5" />{t("content.library")}
-          </TabsTrigger>
-          <TabsTrigger value="updated" data-testid="tab-updated">
-            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Updated
-          </TabsTrigger>
-          <TabsTrigger value="channels" data-testid="tab-channels">
-            <Radio className="h-3.5 w-3.5 mr-1.5" />{t("content.channels")}
-          </TabsTrigger>
-          <TabsTrigger value="calendar" data-testid="tab-calendar">
-            <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />Calendar
-          </TabsTrigger>
-        </TabsList>
+        <div className="scrollable-tabs">
+          <TabsList data-testid="tabs-content" className="w-auto inline-flex">
+            <TabsTrigger value="library" data-testid="tab-library">
+              <Video className="h-3.5 w-3.5 mr-1.5" />{t("content.library")}
+            </TabsTrigger>
+            <TabsTrigger value="updated" data-testid="tab-updated">
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Updated
+            </TabsTrigger>
+            <TabsTrigger value="channels" data-testid="tab-channels">
+              <Radio className="h-3.5 w-3.5 mr-1.5" />{t("content.channels")}
+            </TabsTrigger>
+            <TabsTrigger value="calendar" data-testid="tab-calendar">
+              <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />Calendar
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="library" className="mt-2">
           <LibraryTab />

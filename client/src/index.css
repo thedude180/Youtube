@@ -205,6 +205,37 @@
   50% { box-shadow: 0 0 30px -4px hsl(var(--primary) / 0.5); }
 }
 
+/* Mobile safe areas */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Scrollable tabs on mobile */
+.scrollable-tabs {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scrollable-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent iOS zoom on input focus */
+@media (pointer: coarse) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+/* Touch-friendly tap targets - opt-in */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

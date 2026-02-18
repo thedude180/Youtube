@@ -14,7 +14,7 @@ import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight } from "lucide-react";
+import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
@@ -310,6 +310,58 @@ function RouteBreadcrumb() {
   );
 }
 
+const MOBILE_NAV_ITEMS = [
+  { href: "/", icon: LayoutDashboard, label: "Home" },
+  { href: "/content", icon: Video, label: "Content" },
+  { href: "/stream", icon: Radio, label: "Live" },
+  { href: "/money", icon: DollarSign, label: "Money" },
+  { href: "/settings", icon: SettingsIcon, label: "Settings" },
+];
+
+function MobileBottomNav() {
+  const [location, setLocation] = useLocation();
+  const isActive = (href: string) =>
+    href === "/" ? location === "/" : location.startsWith(href);
+
+  return (
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/50 bg-background/95 backdrop-blur-xl safe-area-bottom"
+      data-testid="nav-mobile-bottom"
+    >
+      <div className="flex items-center justify-around h-14">
+        {MOBILE_NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.href);
+          return (
+            <button
+              key={item.href}
+              onClick={() => setLocation(item.href)}
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
+                active ? "text-primary" : "text-muted-foreground"
+              }`}
+              data-testid={`button-mobile-nav-${item.label.toLowerCase()}`}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function MobilePageTitle() {
+  const [location] = useLocation();
+  const label = ROUTE_LABELS[location] || ROUTE_LABELS[location.split("/").slice(0, 2).join("/")] || "";
+  if (!label || location === "/") return null;
+  return (
+    <span className="md:hidden text-sm font-semibold truncate" data-testid="text-mobile-page-title">
+      {label}
+    </span>
+  );
+}
+
 function AuthenticatedApp() {
   const [, setLocation] = useLocation();
   const { toggleTheme } = useTheme();
@@ -360,9 +412,9 @@ function AuthenticatedApp() {
         </a>
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-4 border-b border-border/50 bg-background/80 backdrop-blur-xl shrink-0">
-            <div className="flex items-center gap-3">
-              <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden" />
+          <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-3 sm:px-4 border-b border-border/50 bg-background/80 backdrop-blur-xl shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden shrink-0" />
               <div className="hidden md:flex items-center gap-2.5">
                 <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
                   <Zap className="h-3 w-3 text-primary-foreground" />
@@ -371,9 +423,10 @@ function AuthenticatedApp() {
                   Creator<span className="text-primary">OS</span>
                 </span>
               </div>
+              <MobilePageTitle />
               <RouteBreadcrumb />
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 shrink-0">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button size="icon" variant="ghost" onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))} data-testid="button-search">
@@ -383,17 +436,18 @@ function AuthenticatedApp() {
                 <TooltipContent>Search (Ctrl+K)</TooltipContent>
               </Tooltip>
               <OfflineStatusBadge />
-              <AdvancedToggle />
-              <ThemeToggle />
+              <span className="hidden sm:inline-flex"><AdvancedToggle /></span>
+              <span className="hidden sm:inline-flex"><ThemeToggle /></span>
               <NotificationBell />
             </div>
           </header>
-          <main id="main-content" className="flex-1 overflow-auto">
+          <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
             <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
               <Router />
             </Suspense>
             <AppFooter />
           </main>
+          <MobileBottomNav />
         </div>
       </div>
       <Suspense fallback={null}>
