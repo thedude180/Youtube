@@ -56,6 +56,13 @@ type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 const ALL_DISTRIBUTION_PLATFORMS = ["x", "discord", "twitch"];
 const ALL_ANNOUNCE_PLATFORMS = ["x", "discord", "twitch"];
 
+async function getUserConnectedPlatforms(userId: string): Promise<Set<string>> {
+  const userChannels = await db.select({ platform: channels.platform, accessToken: channels.accessToken })
+    .from(channels)
+    .where(eq(channels.userId, userId));
+  return new Set(userChannels.filter(c => c.accessToken).map(c => c.platform));
+}
+
 async function getAutopilotConfig(userId: string, feature: AutopilotFeature) {
   const [config] = await db
     .select()
@@ -120,7 +127,14 @@ async function generateFullThrottleDistribution(
   platforms: string[],
   contentType: "new-video" | "recycle" | "cross-promo" | "go-live" | "post-stream",
 ) {
-  const supportedPlatforms = platforms.filter(p => ALL_DISTRIBUTION_PLATFORMS.includes(p));
+  const connectedPlatforms = await getUserConnectedPlatforms(userId);
+  const supportedPlatforms = platforms.filter(p => ALL_DISTRIBUTION_PLATFORMS.includes(p) && connectedPlatforms.has(p));
+
+  if (supportedPlatforms.length === 0) {
+    console.log(`[Autopilot] No connected platforms for ${userId}, skipping ${contentType} distribution`);
+    return;
+  }
+
   const activePlatforms = supportedPlatforms.filter(p => {
     if (contentType === "new-video" || contentType === "go-live" || contentType === "post-stream") return true;
     return shouldPostToday(p);
@@ -234,6 +248,12 @@ async function generateFullThrottleDistribution(
 }
 
 async function generateDiscordAnnouncement(userId: string, video: any, creatorTone: string) {
+  const connectedPlatforms = await getUserConnectedPlatforms(userId);
+  if (!connectedPlatforms.has("discord")) {
+    console.log(`[Autopilot] Discord not connected for ${userId}, skipping announcement`);
+    return;
+  }
+
   const result = await generateUniqueContent({
     videoTitle: video.title,
     videoDescription: video.description || "",
@@ -290,10 +310,15 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
 
   const announcePlatforms = ALL_ANNOUNCE_PLATFORMS;
 
-  await generateFullThrottleDistribution(userId, streamAsVideo, creatorTone, announcePlatforms, "go-live");
+  const goLiveConnected = await getUserConnectedPlatforms(userId);
+  const connectedAnnouncePlatforms = announcePlatforms.filter(p => goLiveConnected.has(p));
+
+  if (connectedAnnouncePlatforms.length > 0) {
+    await generateFullThrottleDistribution(userId, streamAsVideo, creatorTone, connectedAnnouncePlatforms, "go-live");
+  }
 
   const discordConfig = await getAutopilotConfig(userId, "discord-announce");
-  if (!discordConfig || discordConfig.enabled !== false) {
+  if (goLiveConnected.has("discord") && (!discordConfig || discordConfig.enabled !== false)) {
     const result = await generateUniqueContent({
       videoTitle: streamTitle,
       videoDescription: streamDescription || "",
@@ -335,9 +360,12 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
     }
   }
 
-  await createNotification(userId, "autopilot", "Live announcements sent",
-    `Going live across ${announcePlatforms.length + 1} platforms for "${streamTitle}"`,
-    "info");
+  const totalLivePlatforms = connectedAnnouncePlatforms.length + (goLiveConnected.has("discord") ? 1 : 0);
+  if (totalLivePlatforms > 0) {
+    await createNotification(userId, "autopilot", "Live announcements sent",
+      `Going live across ${totalLivePlatforms} connected platform${totalLivePlatforms !== 1 ? "s" : ""} for "${streamTitle}"`,
+      "info");
+  }
 }
 
 export async function processPostStreamHighlights(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
@@ -355,12 +383,18 @@ export async function processPostStreamHighlights(userId: string, streamId: numb
     type: "stream-vod",
   };
 
-  const highlightPlatforms = ALL_ANNOUNCE_PLATFORMS;
+  const postStreamConnected = await getUserConnectedPlatforms(userId);
+  const highlightPlatforms = ALL_ANNOUNCE_PLATFORMS.filter(p => postStreamConnected.has(p));
+
+  if (highlightPlatforms.length === 0) {
+    console.log(`[Autopilot] No connected platforms for ${userId}, skipping post-stream highlights`);
+    return;
+  }
 
   await generateFullThrottleDistribution(userId, streamAsVideo, creatorTone, highlightPlatforms, "post-stream");
 
   await createNotification(userId, "autopilot", "Stream highlights queued",
-    `Post-stream clips queued across ${highlightPlatforms.length} platforms for "${streamTitle}"`,
+    `Post-stream clips queued across ${highlightPlatforms.length} connected platform${highlightPlatforms.length !== 1 ? "s" : ""} for "${streamTitle}"`,
     "info");
 }
 
@@ -530,6 +564,12 @@ export async function processCrossPromotion(userId: string) {
   const config = await getAutopilotConfig(userId, "cross-promo");
   if (config && config.enabled === false) return;
 
+  const connectedPlatforms = await getUserConnectedPlatforms(userId);
+  if (connectedPlatforms.size === 0) {
+    console.log(`[Autopilot] No connected platforms for ${userId}, skipping cross-promo`);
+    return;
+  }
+
   const recentPublished = await db.select().from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
@@ -547,7 +587,7 @@ export async function processCrossPromotion(userId: string) {
   const [video] = await db.select().from(videos).where(eq(videos.id, bestPost.sourceVideoId));
   if (!video) return;
 
-  const otherPlatforms = ALL_DISTRIBUTION_PLATFORMS.filter(p => p !== bestPost.targetPlatform);
+  const otherPlatforms = ALL_DISTRIBUTION_PLATFORMS.filter(p => p !== bestPost.targetPlatform && connectedPlatforms.has(p));
   const crossPlatform = otherPlatforms[Math.floor(Math.random() * otherPlatforms.length)];
 
   if (!crossPlatform || !shouldPostToday(crossPlatform)) return;
@@ -568,14 +608,28 @@ export async function processScheduledPosts() {
     ))
     .limit(isActive ? 10 : 3);
 
-  if (duePosts.length > 0) {
-    console.log(`[Autopilot] Processing ${duePosts.length} due posts (active=${isActive})`);
-  }
+  if (duePosts.length === 0) return;
 
+  console.log(`[Autopilot] Processing ${duePosts.length} due posts (active=${isActive})`);
+
+  const connectedByUser = new Map<string, Set<string>>();
   const { publishToplatform } = await import("./platform-publisher");
 
   for (const post of duePosts) {
     try {
+      if (!connectedByUser.has(post.userId)) {
+        connectedByUser.set(post.userId, await getUserConnectedPlatforms(post.userId));
+      }
+      const connected = connectedByUser.get(post.userId)!;
+
+      if (!connected.has(post.targetPlatform)) {
+        console.log(`[Autopilot] ${post.targetPlatform} not connected for ${post.userId}, cancelling post ${post.id}`);
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: `${post.targetPlatform} is not connected. Connect your account to enable posting.` })
+          .where(eq(autopilotQueue.id, post.id));
+        continue;
+      }
+
       await db.update(autopilotQueue)
         .set({ status: "publishing" as any })
         .where(eq(autopilotQueue.id, post.id));

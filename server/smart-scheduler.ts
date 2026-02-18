@@ -190,9 +190,20 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
     const video = await storage.getVideo(videoId);
     if (!video) return { scheduled: [], error: "Video not found" };
 
+    const userChannels = await db.select({ platform: channels.platform, accessToken: channels.accessToken })
+      .from(channels)
+      .where(eq(channels.userId, userId));
+    const connectedSet = new Set(userChannels.filter(c => c.accessToken).map(c => c.platform));
+    const connectedPlatforms = platforms.filter(p => connectedSet.has(p));
+
+    if (connectedPlatforms.length === 0) {
+      console.log(`[SmartScheduler] No connected platforms for ${userId}, skipping auto-schedule`);
+      return { scheduled: [], total: 0, error: "No connected platforms. Connect your accounts in Content > Channels." };
+    }
+
     const scheduled: Array<{ platform: string; scheduledAt: Date; id: number; source: string }> = [];
 
-    for (const platform of platforms) {
+    for (const platform of connectedPlatforms) {
       const scheduledAt = await getAudienceDrivenTime({
         platform,
         userId,
