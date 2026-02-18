@@ -370,6 +370,15 @@ export function registerContentRoutes(app: Express) {
           });
 
           if (optimizedVideos.length > 0) {
+            const pipelines = await db.select().from(contentPipeline)
+              .where(inArray(contentPipeline.videoId, optimizedVideos.map(v => v.id)));
+            const pipelineByVideoId = new Map<number, any>();
+            for (const p of pipelines) {
+              if (p.videoId && (!pipelineByVideoId.has(p.videoId) || p.id > pipelineByVideoId.get(p.videoId).id)) {
+                pipelineByVideoId.set(p.videoId, p);
+              }
+            }
+
             const backfillEntries: any[] = [];
             for (const vid of optimizedVideos) {
               const meta = vid.metadata as any;
@@ -378,43 +387,51 @@ export function registerContentRoutes(app: Express) {
                 ? `https://studio.youtube.com/video/${meta.youtubeVideoId}/edit`
                 : null;
 
+              const pipeline = pipelineByVideoId.get(vid.id);
+              const stepResults = pipeline?.stepResults as any || {};
+
+              const originalTitle = meta?.originalTitle || pipeline?.videoTitle || vid.title;
+              const aiTitle = stepResults?.title?.titles?.[0]?.title || stepResults?.title?.titles?.[0] || vid.title;
+
               backfillEntries.push({
                 userId,
                 videoId: vid.id,
                 youtubeVideoId: ytId,
                 videoTitle: vid.title,
                 field: "title",
-                oldValue: vid.title?.toLowerCase() || "(original title)",
-                newValue: vid.title,
+                oldValue: originalTitle,
+                newValue: aiTitle,
                 source: "ai-pipeline",
                 status: "optimized",
                 youtubeStudioUrl: studioUrl,
               });
 
-              if (vid.description) {
+              const aiDesc = stepResults?.description?.description || vid.description;
+              if (aiDesc) {
                 backfillEntries.push({
                   userId,
                   videoId: vid.id,
                   youtubeVideoId: ytId,
                   videoTitle: vid.title,
                   field: "description",
-                  oldValue: "(no description)",
-                  newValue: vid.description,
+                  oldValue: "(no description before optimization)",
+                  newValue: aiDesc,
                   source: "ai-pipeline",
                   status: "optimized",
                   youtubeStudioUrl: studioUrl,
                 });
               }
 
-              if (meta?.tags && Array.isArray(meta.tags)) {
+              const aiTags = stepResults?.tags?.tags || meta?.tags;
+              if (aiTags && Array.isArray(aiTags)) {
                 backfillEntries.push({
                   userId,
                   videoId: vid.id,
                   youtubeVideoId: ytId,
                   videoTitle: vid.title,
                   field: "tags",
-                  oldValue: "(no tags)",
-                  newValue: JSON.stringify(meta.tags),
+                  oldValue: "(no tags before optimization)",
+                  newValue: JSON.stringify(aiTags),
                   source: "ai-pipeline",
                   status: "optimized",
                   youtubeStudioUrl: studioUrl,

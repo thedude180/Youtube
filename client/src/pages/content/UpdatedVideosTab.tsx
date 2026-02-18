@@ -1,17 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { useVideos } from "@/hooks/use-videos";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ExternalLink, CheckCircle2, FileText, Hash, Type,
-  Loader2, Video, Eye, ChevronDown, ChevronUp, ArrowRight,
-  Clock, Pencil,
+  Loader2, ArrowRight, Clock, Copy, Search,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { formatDistanceToNow, format } from "date-fns";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface UpdateHistoryEntry {
   id: number;
@@ -42,14 +41,12 @@ const FIELD_ICONS: Record<string, typeof Type> = {
   title: Type,
   description: FileText,
   tags: Hash,
-  thumbnail: Video,
 };
 
 const FIELD_LABELS: Record<string, string> = {
   title: "Title",
   description: "Description",
   tags: "Tags",
-  thumbnail: "Thumbnail",
 };
 
 const STEP_LABELS: Record<string, string> = {
@@ -62,13 +59,8 @@ const STEP_LABELS: Record<string, string> = {
   review: "Final Review",
 };
 
-function truncateText(text: string, maxLen: number): string {
-  if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen) + "...";
-}
-
 function formatTags(value: string | null): string {
-  if (!value) return "(none)";
+  if (!value || value === "(no tags)") return "None";
   try {
     const tags = JSON.parse(value);
     if (Array.isArray(tags)) return tags.join(", ");
@@ -78,89 +70,68 @@ function formatTags(value: string | null): string {
   }
 }
 
-function FieldDiff({ field, oldValue, newValue }: { field: string; oldValue: string | null; newValue: string | null }) {
-  const isTagField = field === "tags";
-  const displayOld = isTagField ? formatTags(oldValue) : (oldValue || "(empty)");
-  const displayNew = isTagField ? formatTags(newValue) : (newValue || "(empty)");
-
-  if (field === "description") {
-    return (
-      <div className="space-y-2">
-        <div className="rounded-md border border-red-500/20 bg-red-500/5 p-2.5">
-          <p className="text-xs font-medium text-red-400 mb-1">Before</p>
-          <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
-            {truncateText(displayOld, 500)}
-          </p>
-        </div>
-        <div className="rounded-md border border-green-500/20 bg-green-500/5 p-2.5">
-          <p className="text-xs font-medium text-green-400 mb-1">After</p>
-          <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
-            {truncateText(displayNew, 500)}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const { toast } = useToast();
   return (
-    <div className="flex items-start gap-2 flex-wrap">
-      <div className="rounded-md border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground break-words">{truncateText(displayOld, 200)}</p>
-      </div>
-      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1.5" />
-      <div className="rounded-md border border-green-500/20 bg-green-500/5 px-2.5 py-1.5 flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground break-words">{truncateText(displayNew, 200)}</p>
-      </div>
-    </div>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-6 w-6"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        toast({ title: "Copied", description: `${label} copied to clipboard` });
+      }}
+      data-testid={`button-copy-${label.toLowerCase()}`}
+    >
+      <Copy className="h-3 w-3" />
+    </Button>
   );
 }
 
-function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; entries: UpdateHistoryEntry[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const videoTitle = entries[0]?.videoTitle || "Untitled";
-  const studioUrl = entries[0]?.youtubeStudioUrl;
+function VideoUpdateCard({ videoId, entries }: { videoId: string; entries: UpdateHistoryEntry[] }) {
+  const [expanded, setExpanded] = useState(true);
   const latestDate = entries[0]?.createdAt;
-  const isPending = youtubeVideoId.startsWith("pending-") || youtubeVideoId.startsWith("local-");
+  const studioUrl = entries[0]?.youtubeStudioUrl;
+  const isPending = videoId.startsWith("pending-") || videoId.startsWith("local-") || videoId.startsWith("pipeline-");
 
-  const uniqueFields = [...new Set(entries.map(e => e.field))];
-  const totalChanges = entries.length;
+  const titleEntry = entries.find(e => e.field === "title");
+  const descEntry = entries.find(e => e.field === "description");
+  const tagsEntry = entries.find(e => e.field === "tags");
+
+  const currentTitle = titleEntry?.newValue || entries[0]?.videoTitle || "Untitled";
 
   return (
-    <Card data-testid={`card-update-history-${youtubeVideoId}`}>
-      <CardContent className="p-3">
+    <Card data-testid={`card-update-history-${videoId}`}>
+      <CardContent className="p-4">
         <div
           className="flex items-center justify-between gap-3 flex-wrap cursor-pointer"
           onClick={() => setExpanded(!expanded)}
-          data-testid={`button-expand-${youtubeVideoId}`}
+          data-testid={`button-expand-${videoId}`}
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <SiYoutube className="h-4 w-4 text-red-500 shrink-0" />
+            <SiYoutube className="h-5 w-5 text-red-500 shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="font-medium text-sm truncate" data-testid={`text-video-title-${youtubeVideoId}`}>
-                {videoTitle}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-sm" data-testid={`text-video-title-${videoId}`}>
+                  {currentTitle}
+                </p>
+                <CopyButton text={currentTitle} label="Title" />
+              </div>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                {uniqueFields.map((field) => {
-                  const Icon = FIELD_ICONS[field] || Pencil;
-                  return (
-                    <Badge key={field} variant="secondary" className="text-xs">
-                      <Icon className="h-3 w-3 mr-1" />
-                      {FIELD_LABELS[field] || field}
-                    </Badge>
-                  );
-                })}
-                <Badge variant="outline" className="text-xs">
-                  {totalChanges} change{totalChanges !== 1 ? "s" : ""}
-                </Badge>
-                {isPending && (
-                  <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/30">
-                    Scheduled
-                  </Badge>
-                )}
                 {latestDate && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
                     {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
                   </span>
+                )}
+                <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/30">
+                  AI Optimized
+                </Badge>
+                {isPending && (
+                  <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/30">
+                    Not on YouTube yet
+                  </Badge>
                 )}
               </div>
             </div>
@@ -172,7 +143,7 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                data-testid={`link-studio-${youtubeVideoId}`}
+                data-testid={`link-studio-${videoId}`}
               >
                 <Button variant="outline" size="sm">
                   <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
@@ -180,49 +151,108 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
                 </Button>
               </a>
             )}
-            {isPending && !studioUrl && (
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                Not uploaded yet
-              </Badge>
-            )}
-            {expanded ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            {!studioUrl && !isPending && (
+              <a
+                href={`https://studio.youtube.com/channel/videos`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                data-testid={`link-studio-search-${videoId}`}
+              >
+                <Button variant="outline" size="sm">
+                  <Search className="h-3.5 w-3.5 mr-1.5" />
+                  Find in Studio
+                </Button>
+              </a>
             )}
           </div>
         </div>
 
         {expanded && (
-          <div className="mt-4 space-y-4 border-t pt-3" data-testid={`section-changes-${youtubeVideoId}`}>
-            {entries.map((entry) => {
-              const Icon = FIELD_ICONS[entry.field] || Pencil;
-              return (
-                <div key={entry.id} className="space-y-2" data-testid={`change-entry-${entry.id}`}>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs font-medium">{FIELD_LABELS[entry.field] || entry.field}</span>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {entry.createdAt && format(new Date(entry.createdAt), "MMM d, h:mm a")}
-                    </div>
-                    {entry.status === "pushed" && (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                    )}
-                    {entry.status === "optimized" && (
-                      <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/30">
-                        AI Optimized
-                      </Badge>
-                    )}
-                  </div>
-                  <FieldDiff field={entry.field} oldValue={entry.oldValue} newValue={entry.newValue} />
-                </div>
-              );
-            })}
+          <div className="mt-4 space-y-3 border-t pt-3" data-testid={`section-changes-${videoId}`}>
+            {titleEntry && (
+              <ChangeRow
+                icon={Type}
+                label="Title"
+                oldValue={titleEntry.oldValue}
+                newValue={titleEntry.newValue}
+                field="title"
+              />
+            )}
+
+            {descEntry && (
+              <ChangeRow
+                icon={FileText}
+                label="Description"
+                oldValue={descEntry.oldValue}
+                newValue={descEntry.newValue}
+                field="description"
+              />
+            )}
+
+            {tagsEntry && (
+              <ChangeRow
+                icon={Hash}
+                label="Tags"
+                oldValue={tagsEntry.oldValue}
+                newValue={tagsEntry.newValue}
+                field="tags"
+              />
+            )}
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ChangeRow({ icon: Icon, label, oldValue, newValue, field }: {
+  icon: typeof Type;
+  label: string;
+  oldValue: string | null;
+  newValue: string | null;
+  field: string;
+}) {
+  const isTag = field === "tags";
+  const displayOld = isTag ? formatTags(oldValue) : (oldValue || "(empty)");
+  const displayNew = isTag ? formatTags(newValue) : (newValue || "(empty)");
+
+  return (
+    <div className="space-y-1.5" data-testid={`change-row-${field}`}>
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+      </div>
+
+      {field === "description" ? (
+        <div className="space-y-2">
+          <div className="rounded-md border border-red-500/20 bg-red-500/5 p-2.5">
+            <p className="text-[10px] font-medium text-red-400 mb-1 uppercase tracking-wide">Original</p>
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
+              {displayOld.length > 400 ? displayOld.slice(0, 400) + "..." : displayOld}
+            </p>
+          </div>
+          <div className="rounded-md border border-green-500/20 bg-green-500/5 p-2.5">
+            <p className="text-[10px] font-medium text-green-400 mb-1 uppercase tracking-wide">AI Version</p>
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
+              {displayNew.length > 400 ? displayNew.slice(0, 400) + "..." : displayNew}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 flex-wrap">
+          <div className="rounded-md border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 flex-1 min-w-0">
+            <p className="text-[10px] font-medium text-red-400 mb-0.5 uppercase tracking-wide">Original</p>
+            <p className="text-xs text-muted-foreground break-words">{displayOld}</p>
+          </div>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-4" />
+          <div className="rounded-md border border-green-500/20 bg-green-500/5 px-2.5 py-1.5 flex-1 min-w-0">
+            <p className="text-[10px] font-medium text-green-400 mb-0.5 uppercase tracking-wide">AI Version</p>
+            <p className="text-xs text-muted-foreground break-words">{displayNew}</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -242,12 +272,9 @@ function UpdatedVideosTab() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {[1, 2].map((i) => (
-          <div key={i} className="space-y-2">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-16 w-full" />
-          </div>
+          <Skeleton key={i} className="h-40 w-full" />
         ))}
       </div>
     );
@@ -317,19 +344,19 @@ function UpdatedVideosTab() {
       <section data-testid="section-update-history">
         <div className="flex items-center gap-2 mb-3">
           <CheckCircle2 className="h-4 w-4 text-green-500" />
-          <h3 className="font-semibold text-sm">Update History</h3>
+          <h3 className="font-semibold text-sm">What Changed</h3>
           <Badge variant="secondary" className="text-xs">{updatedVideos.length} video{updatedVideos.length !== 1 ? "s" : ""}</Badge>
         </div>
         {updatedVideos.length === 0 ? (
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">No video updates yet. When CreatorOS optimizes your videos, you'll see a before/after changelog here.</p>
+              <p className="text-sm text-muted-foreground">No video updates yet. When CreatorOS optimizes your videos, you'll see the original vs. AI-changed title, description, and tags here.</p>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-2">
-            {updatedVideos.map(([youtubeVideoId, entries]) => (
-              <VideoUpdateCard key={youtubeVideoId} youtubeVideoId={youtubeVideoId} entries={entries} />
+          <div className="space-y-3">
+            {updatedVideos.map(([videoId, entries]) => (
+              <VideoUpdateCard key={videoId} videoId={videoId} entries={entries} />
             ))}
           </div>
         )}
