@@ -22,7 +22,8 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 -   **Technology**: React + Vite with Tailwind CSS, shadcn/ui, and lucide-react.
 -   **UI/UX**: Dark theme with purple accent, consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, floating AI chat, command palette (Ctrl+K), keyboard shortcuts, rich empty states with contextual tips.
 -   **State Management**: TanStack Query, ThemeProvider, AdvancedModeProvider with localStorage persistence.
--   **Performance**: PWA support with offline capabilities, lazy-loading, code splitting, session expiry detection.
+-   **Performance**: PWA support with offline capabilities, lazy-loading, code splitting, session expiry detection. Adaptive performance engine detects device capabilities and adjusts rendering (backdrop blur, animations, effects) per performance tier (low/mid/high).
+-   **Adaptive System**: `AdaptiveProvider` + `useDeviceCapabilities` hook detects screen class (mobile/tablet/desktop/ultrawide), performance tier, connection speed, input mode, OS preferences (reduced motion, high contrast, color scheme). CSS classes applied to body element for tier-based optimizations.
 -   **Native App**: Capacitor integration for iOS/Android app store distribution. Native helper (`client/src/lib/native-app.ts`) handles status bar, keyboard, haptics, deep links, and share. See `NATIVE_APP_GUIDE.md` for build/submit instructions.
 -   **Mobile**: Bottom nav bar, scrollable tabs, safe-area padding, keyboard-aware layout, full-screen floating chat.
 -   **Internationalization**: `react-i18next` with 12 languages and RTL support.

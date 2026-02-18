@@ -12,6 +12,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { AdaptiveProvider } from "@/hooks/use-adaptive";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
 import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon } from "lucide-react";
@@ -362,6 +363,30 @@ function MobilePageTitle() {
   );
 }
 
+function RouteAnnouncer() {
+  const [location] = useLocation();
+  const [announcement, setAnnouncement] = useState("");
+
+  useEffect(() => {
+    const label = ROUTE_LABELS[location] || ROUTE_LABELS[location.split("/").slice(0, 2).join("/")] || "";
+    if (label) {
+      setAnnouncement(`Navigated to ${label}`);
+    }
+  }, [location]);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="sr-only"
+      data-testid="route-announcer"
+    >
+      {announcement}
+    </div>
+  );
+}
+
 function AuthenticatedApp() {
   const [, setLocation] = useLocation();
   const { toggleTheme } = useTheme();
@@ -410,6 +435,7 @@ function AuthenticatedApp() {
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-3 focus:bg-primary focus:text-primary-foreground" data-testid="link-skip-to-content">
           Skip to main content
         </a>
+        <RouteAnnouncer />
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-3 sm:px-4 border-b border-border/50 bg-background/80 backdrop-blur-xl shrink-0">
@@ -645,9 +671,11 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <ThemeProvider>
-            <AdvancedModeProvider>
-              <AppContent />
-            </AdvancedModeProvider>
+            <AdaptiveProvider>
+              <AdvancedModeProvider>
+                <AppContent />
+              </AdvancedModeProvider>
+            </AdaptiveProvider>
           </ThemeProvider>
           <Toaster />
         </TooltipProvider>

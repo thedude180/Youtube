@@ -244,6 +244,95 @@ body.keyboard-open .safe-area-bottom {
   padding-bottom: 0;
 }
 
+/* Reduced motion: respect OS preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .fade-in, .slide-up, .float, .pulse-glow, .shine::after {
+    animation: none !important;
+  }
+}
+
+/* Performance tier: disable heavy effects on low-end devices */
+body.perf-low .glass-panel,
+body.perf-low .glass-panel-light {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.perf-low .glow,
+body.perf-low .glow-sm {
+  box-shadow: none !important;
+}
+body.perf-low .shine::after {
+  display: none;
+}
+body.perf-low header {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Mid tier: reduce backdrop blur intensity */
+body.perf-mid .glass-panel,
+body.perf-mid .glass-panel-light {
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* High contrast mode */
+@media (prefers-contrast: more) {
+  :root, .light {
+    --border: 240 10% 70%;
+    --muted-foreground: 220 9% 30%;
+  }
+  .dark {
+    --border: 230 18% 30%;
+    --muted-foreground: 220 12% 70%;
+  }
+}
+
+/* Save data mode: disable non-essential images and backgrounds */
+body.save-data .shine::after,
+body.save-data .gradient-border::before {
+  display: none;
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  header, nav, [data-testid="nav-mobile-bottom"],
+  [data-testid="button-floating-chat"],
+  .sidebar, footer, .glass-panel::before {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  a { text-decoration: underline; }
+  a::after { content: " (" attr(href) ")"; font-size: 0.8em; }
+}
+
+/* Ultrawide: constrain content width */
+body.screen-ultrawide main > * {
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Standalone (installed PWA / native): remove browser-specific UI hints */
+@media (display-mode: standalone) {
+  .pwa-hide-in-standalone {
+    display: none !important;
+  }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
