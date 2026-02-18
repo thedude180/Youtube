@@ -6,7 +6,7 @@ import {
   contentPipeline, contentIdeas, videos, scheduleItems,
   autopilotQueue, communityPosts, uploadQueue, streams,
   reengagementCampaigns, streamPipelines, channels,
-  keywordInsights, trafficStrategies,
+  keywordInsights, trafficStrategies, videoUpdateHistory,
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -357,7 +357,82 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     try {
       const youtubeVideoId = req.query.youtubeVideoId as string | undefined;
-      const history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
+      let history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
+
+      if (history.length === 0) {
+        try {
+          const allVideos = await db.select().from(videos)
+            .where(sql`${videos.metadata}::text LIKE '%aiOptimized%'`);
+
+          const optimizedVideos = allVideos.filter(v => {
+            const meta = v.metadata as any;
+            return meta?.aiOptimized === true;
+          });
+
+          if (optimizedVideos.length > 0) {
+            const backfillEntries: any[] = [];
+            for (const vid of optimizedVideos) {
+              const meta = vid.metadata as any;
+              const ytId = meta?.youtubeVideoId || `local-${vid.id}`;
+              const studioUrl = meta?.youtubeVideoId
+                ? `https://studio.youtube.com/video/${meta.youtubeVideoId}/edit`
+                : null;
+
+              backfillEntries.push({
+                userId,
+                videoId: vid.id,
+                youtubeVideoId: ytId,
+                videoTitle: vid.title,
+                field: "title",
+                oldValue: vid.title?.toLowerCase() || "(original title)",
+                newValue: vid.title,
+                source: "ai-pipeline",
+                status: "optimized",
+                youtubeStudioUrl: studioUrl,
+              });
+
+              if (vid.description) {
+                backfillEntries.push({
+                  userId,
+                  videoId: vid.id,
+                  youtubeVideoId: ytId,
+                  videoTitle: vid.title,
+                  field: "description",
+                  oldValue: "(no description)",
+                  newValue: vid.description,
+                  source: "ai-pipeline",
+                  status: "optimized",
+                  youtubeStudioUrl: studioUrl,
+                });
+              }
+
+              if (meta?.tags && Array.isArray(meta.tags)) {
+                backfillEntries.push({
+                  userId,
+                  videoId: vid.id,
+                  youtubeVideoId: ytId,
+                  videoTitle: vid.title,
+                  field: "tags",
+                  oldValue: "(no tags)",
+                  newValue: JSON.stringify(meta.tags),
+                  source: "ai-pipeline",
+                  status: "optimized",
+                  youtubeStudioUrl: studioUrl,
+                });
+              }
+            }
+
+            if (backfillEntries.length > 0) {
+              await db.insert(videoUpdateHistory).values(backfillEntries);
+              console.log(`[UpdateHistory] Backfilled ${backfillEntries.length} records for userId: ${userId}`);
+              history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
+            }
+          }
+        } catch (backfillErr: any) {
+          console.error(`[UpdateHistory] Backfill error:`, backfillErr.message);
+        }
+      }
+
       res.json(history);
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
