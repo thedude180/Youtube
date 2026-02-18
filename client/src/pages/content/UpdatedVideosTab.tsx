@@ -8,7 +8,7 @@ import {
   Loader2, ArrowRight, Clock, Copy, Search,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -76,7 +76,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     <Button
       variant="ghost"
       size="icon"
-      className="h-6 w-6"
       onClick={(e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(text);

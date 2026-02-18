@@ -123,13 +123,16 @@ async function recordOptimizationHistory(
       : null;
 
     if (step === "title" && result?.titles) {
-      const bestTitle = Array.isArray(result.titles) ? (result.titles[0]?.title || result.titles[0]) : null;
-      if (bestTitle) {
+      const titlesArr = Array.isArray(result.titles) ? result.titles : [];
+      const bestTitle = titlesArr.length > 0
+        ? (typeof titlesArr[0] === "string" ? titlesArr[0] : titlesArr[0]?.title)
+        : null;
+      if (bestTitle && bestTitle !== (existingVideo?.title || videoTitle)) {
         await db.insert(videoUpdateHistory).values({
           userId,
           videoId,
           youtubeVideoId: ytId,
-          videoTitle,
+          videoTitle: existingVideo?.title || videoTitle,
           field: "title",
           oldValue: existingVideo?.title || videoTitle,
           newValue: bestTitle,
@@ -141,34 +144,41 @@ async function recordOptimizationHistory(
     }
 
     if (step === "description" && result?.description) {
-      await db.insert(videoUpdateHistory).values({
-        userId,
-        videoId,
-        youtubeVideoId: ytId,
-        videoTitle,
-        field: "description",
-        oldValue: existingVideo?.description || "(no description)",
-        newValue: typeof result.description === "string" ? result.description : JSON.stringify(result.description),
-        source: "ai-pipeline",
-        status: "optimized",
-        youtubeStudioUrl: studioUrl,
-      });
+      const newDesc = typeof result.description === "string" ? result.description : JSON.stringify(result.description);
+      if (newDesc !== existingVideo?.description) {
+        await db.insert(videoUpdateHistory).values({
+          userId,
+          videoId,
+          youtubeVideoId: ytId,
+          videoTitle: existingVideo?.title || videoTitle,
+          field: "description",
+          oldValue: existingVideo?.description || "(no description)",
+          newValue: newDesc,
+          source: "ai-pipeline",
+          status: "optimized",
+          youtubeStudioUrl: studioUrl,
+        });
+      }
     }
 
     if (step === "tags" && result?.tags) {
       const oldTags = existingVideo?.metadata?.tags;
-      await db.insert(videoUpdateHistory).values({
-        userId,
-        videoId,
-        youtubeVideoId: ytId,
-        videoTitle,
-        field: "tags",
-        oldValue: oldTags ? JSON.stringify(oldTags) : "(no tags)",
-        newValue: JSON.stringify(result.tags),
-        source: "ai-pipeline",
-        status: "optimized",
-        youtubeStudioUrl: studioUrl,
-      });
+      const newTagsStr = JSON.stringify(result.tags);
+      const oldTagsStr = oldTags ? JSON.stringify(oldTags) : null;
+      if (newTagsStr !== oldTagsStr) {
+        await db.insert(videoUpdateHistory).values({
+          userId,
+          videoId,
+          youtubeVideoId: ytId,
+          videoTitle: existingVideo?.title || videoTitle,
+          field: "tags",
+          oldValue: oldTagsStr || "(no tags)",
+          newValue: newTagsStr,
+          source: "ai-pipeline",
+          status: "optimized",
+          youtubeStudioUrl: studioUrl,
+        });
+      }
     }
   } catch (err: any) {
     console.error(`[Pipeline] Failed to record update history for step "${step}":`, err.message);

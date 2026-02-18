@@ -361,27 +361,40 @@ export function registerContentRoutes(app: Express) {
 
       if (history.length === 0) {
         try {
-          const allVideos = await db.select().from(videos)
-            .where(sql`${videos.metadata}::text LIKE '%aiOptimized%'`);
+          const allUserPipelines = await db.select().from(contentPipeline)
+            .where(eq(contentPipeline.userId, userId));
 
-          const optimizedVideos = allVideos.filter(v => {
-            const meta = v.metadata as any;
-            return meta?.aiOptimized === true;
-          });
+          const videoIds = allUserPipelines
+            .map(p => p.videoId)
+            .filter((id): id is number => id !== null);
 
-          if (optimizedVideos.length > 0) {
-            const pipelines = await db.select().from(contentPipeline)
-              .where(inArray(contentPipeline.videoId, optimizedVideos.map(v => v.id)));
+          let candidateVideos: typeof videos.$inferSelect[] = [];
+          if (videoIds.length > 0) {
+            candidateVideos = await db.select().from(videos)
+              .where(and(
+                inArray(videos.id, videoIds),
+                sql`${videos.metadata}::text LIKE '%aiOptimized%'`,
+              ));
+          }
+
+          if (candidateVideos.length > 0) {
+            const existing = await db.select({ videoId: videoUpdateHistory.videoId })
+              .from(videoUpdateHistory).where(eq(videoUpdateHistory.userId, userId));
+            const alreadyBackfilled = new Set(existing.map(e => e.videoId));
+
             const pipelineByVideoId = new Map<number, any>();
-            for (const p of pipelines) {
+            for (const p of allUserPipelines) {
               if (p.videoId && (!pipelineByVideoId.has(p.videoId) || p.id > pipelineByVideoId.get(p.videoId).id)) {
                 pipelineByVideoId.set(p.videoId, p);
               }
             }
 
             const backfillEntries: any[] = [];
-            for (const vid of optimizedVideos) {
+            for (const vid of candidateVideos) {
+              if (alreadyBackfilled.has(vid.id)) continue;
               const meta = vid.metadata as any;
+              if (!meta?.aiOptimized) continue;
+
               const ytId = meta?.youtubeVideoId || `pending-${vid.id}`;
               const studioUrl = meta?.youtubeVideoId
                 ? `https://studio.youtube.com/video/${meta.youtubeVideoId}/edit`
@@ -393,48 +406,29 @@ export function registerContentRoutes(app: Express) {
               const originalTitle = meta?.originalTitle || pipeline?.videoTitle || vid.title;
               const aiTitle = stepResults?.title?.titles?.[0]?.title || stepResults?.title?.titles?.[0] || vid.title;
 
-              backfillEntries.push({
-                userId,
-                videoId: vid.id,
-                youtubeVideoId: ytId,
-                videoTitle: vid.title,
-                field: "title",
-                oldValue: originalTitle,
-                newValue: aiTitle,
-                source: "ai-pipeline",
-                status: "optimized",
-                youtubeStudioUrl: studioUrl,
-              });
+              if (originalTitle !== aiTitle) {
+                backfillEntries.push({
+                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
+                  field: "title", oldValue: originalTitle, newValue: aiTitle,
+                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
+                });
+              }
 
               const aiDesc = stepResults?.description?.description || vid.description;
               if (aiDesc) {
                 backfillEntries.push({
-                  userId,
-                  videoId: vid.id,
-                  youtubeVideoId: ytId,
-                  videoTitle: vid.title,
-                  field: "description",
-                  oldValue: "(no description before optimization)",
-                  newValue: aiDesc,
-                  source: "ai-pipeline",
-                  status: "optimized",
-                  youtubeStudioUrl: studioUrl,
+                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
+                  field: "description", oldValue: "(no description before optimization)", newValue: aiDesc,
+                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
                 });
               }
 
               const aiTags = stepResults?.tags?.tags || meta?.tags;
               if (aiTags && Array.isArray(aiTags)) {
                 backfillEntries.push({
-                  userId,
-                  videoId: vid.id,
-                  youtubeVideoId: ytId,
-                  videoTitle: vid.title,
-                  field: "tags",
-                  oldValue: "(no tags before optimization)",
-                  newValue: JSON.stringify(aiTags),
-                  source: "ai-pipeline",
-                  status: "optimized",
-                  youtubeStudioUrl: studioUrl,
+                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
+                  field: "tags", oldValue: "(no tags before optimization)", newValue: JSON.stringify(aiTags),
+                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
                 });
               }
             }
