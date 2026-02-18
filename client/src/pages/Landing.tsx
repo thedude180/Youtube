@@ -421,6 +421,9 @@ export default function Landing() {
             <a href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-terms">
               Terms
             </a>
+            <a href="/data-disclosure" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-data">
+              Data Disclosure
+            </a>
             <p className="text-xs text-muted-foreground">
               &copy; {new Date().getFullYear()} CreatorOS
             </p>

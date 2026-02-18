@@ -39,6 +39,7 @@ const EmpireLauncher = lazy(() => import("@/pages/EmpireLauncher"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazy(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazy(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
+const DataDisclosure = lazy(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
 const FloatingChat = lazy(() => import("@/components/FloatingChat"));
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 
@@ -83,6 +84,7 @@ function Router() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/terms" component={TermsOfService} />
+      <Route path="/data-disclosure" component={DataDisclosure} />
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>
@@ -133,6 +135,9 @@ function AppFooter() {
           </a>
           <a href="/terms" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors" data-testid="link-footer-terms">
             Terms
+          </a>
+          <a href="/data-disclosure" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors" data-testid="link-footer-data">
+            Data Disclosure
           </a>
         </div>
       </div>
@@ -279,6 +284,9 @@ const ROUTE_LABELS: Record<string, string> = {
   "/community": "Community",
   "/notifications": "Notifications",
   "/pricing": "Pricing",
+  "/privacy": "Privacy Policy",
+  "/terms": "Terms of Service",
+  "/data-disclosure": "Data Disclosure",
 };
 
 function RouteBreadcrumb() {
@@ -583,6 +591,9 @@ function AppContent() {
     }
     if (location === "/terms") {
       return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><TermsOfService /></Suspense>;
+    }
+    if (location === "/data-disclosure") {
+      return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><DataDisclosure /></Suspense>;
     }
     if (location === "/launch") {
       return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><EmpireLauncher /></Suspense>;
