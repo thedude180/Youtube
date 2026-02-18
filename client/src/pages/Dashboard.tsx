@@ -25,6 +25,7 @@ import MetricsGrid from "./dashboard/MetricsGrid";
 import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
 
+const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
 
 type AIResponse = any;
@@ -247,6 +248,10 @@ export default function Dashboard() {
       </Card>
 
       <MetricsGrid metrics={metrics} />
+
+      <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-lg" />}>
+        <LazyGrowthImpactChart />
+      </Suspense>
 
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
 
