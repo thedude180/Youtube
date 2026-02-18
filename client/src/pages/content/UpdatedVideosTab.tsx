@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -354,7 +355,7 @@ function UpdatedVideosTab() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {updatedVideos.map(([videoId, entries]) => (
+            {safeArray(updatedVideos).map(([videoId, entries]) => (
               <VideoUpdateCard key={videoId} videoId={videoId} entries={entries} />
             ))}
           </div>

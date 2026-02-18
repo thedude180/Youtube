@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Activity, Bot, CheckCircle2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { safeArray } from "@/lib/safe-data";
 import type { Notification } from "@shared/schema";
 
 interface ActivityFeedProps {
@@ -26,14 +27,14 @@ export default function ActivityFeedSection({ recentNotifications, recentActivit
           </div>
         </CardHeader>
         <CardContent>
-          {recentNotifications.length === 0 && recentActivities.length === 0 ? (
+          {safeArray(recentNotifications).length === 0 && safeArray(recentActivities).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
               <CheckCircle2 className="h-8 w-8 text-muted-foreground/30" />
               <p data-testid="text-all-caught-up" className="text-sm text-muted-foreground">All caught up - AI is handling everything</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {recentActivities.map((activity: any) => (
+              {safeArray(recentActivities).map((activity: any) => (
                 <div key={`ai-${activity.id}`} data-testid={`row-activity-${activity.id}`} className="flex items-start gap-3">
                   <div className="h-6 w-6 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
                     <Bot className="h-3 w-3 text-purple-400" />
@@ -49,7 +50,7 @@ export default function ActivityFeedSection({ recentNotifications, recentActivit
                   </span>
                 </div>
               ))}
-              {recentNotifications.map((n) => (
+              {safeArray(recentNotifications).map((n: any) => (
                 <div key={`notif-${n.id}`} data-testid={`row-notification-${n.id}`} className="flex items-start gap-3">
                   <div className={`h-2 w-2 rounded-full mt-2 shrink-0 ${severityColor(n.severity)}`} />
                   <div className="min-w-0 flex-1">

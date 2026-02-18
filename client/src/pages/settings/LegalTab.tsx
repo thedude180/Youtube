@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -271,7 +272,7 @@ function BusinessStructureSection() {
   };
 
   const handleVisitStep = (stepId: string, url: string) => {
-    const updatedSteps = registrationSteps.map((s: any) =>
+    const updatedSteps = safeArray(registrationSteps).map((s: any) =>
       s.stepId === stepId ? { ...s, visitedAt: s.visitedAt || new Date().toISOString() } : s
     );
     stepsMutation.mutate(updatedSteps);
@@ -279,12 +280,12 @@ function BusinessStructureSection() {
   };
 
   const handleMarkComplete = (stepId: string) => {
-    const step = registrationSteps.find((s: any) => s.stepId === stepId);
+    const step = safeArray(registrationSteps).find((s: any) => s.stepId === stepId);
     if (!step?.visitedAt) {
       toast({ title: "Visit the link first", description: "You need to open and go through the registration link before marking it complete.", variant: "destructive" });
       return;
     }
-    const updatedSteps = registrationSteps.map((s: any) =>
+    const updatedSteps = safeArray(registrationSteps).map((s: any) =>
       s.stepId === stepId ? { ...s, completed: true, completedAt: new Date().toISOString() } : s
     );
     stepsMutation.mutate(updatedSteps);
@@ -508,7 +509,7 @@ function BusinessStructureSection() {
               </div>
 
               <div className="space-y-2">
-                {registrationSteps.map((step: any, idx: number) => (
+                {safeArray(registrationSteps).map((step: any, idx: number) => (
                   <Card
                     key={step.stepId}
                     className={step.completed ? "border-emerald-500/20" : ""}
@@ -1026,7 +1027,7 @@ function LegalTab() {
                   <div className="p-3 rounded-md bg-background/50">
                     <p className="font-medium text-foreground text-sm mb-1">Steps to Get Started</p>
                     <ol className="list-decimal list-inside space-y-1">
-                      {((aiStructure.steps || aiStructure.formationSteps) as any[]).map((s: any, i: number) => (
+                      {safeArray(aiStructure?.steps || aiStructure?.formationSteps).map((s: any, i: number) => (
                         <li key={i}>{typeof s === "string" ? s : s.title || s.step || s.description || s.name || JSON.stringify(s)}</li>
                       ))}
                     </ol>
@@ -1036,7 +1037,7 @@ function LegalTab() {
                   <div className="p-3 rounded-md bg-background/50">
                     <p className="font-medium text-foreground text-sm mb-1">Key Recommendations</p>
                     <ul className="list-disc list-inside space-y-1">
-                      {((aiStructure.recommendations || aiStructure.tips || aiStructure.entities || aiStructure.results) as any[]).slice(0, 8).map((item: any, i: number) => (
+                      {safeArray(aiStructure?.recommendations || aiStructure?.tips || aiStructure?.entities || aiStructure?.results).slice(0, 8).map((item: any, i: number) => (
                         <li key={i}>{typeof item === "string" ? item : item.title || item.name || item.description || item.text || JSON.stringify(item)}</li>
                       ))}
                     </ul>

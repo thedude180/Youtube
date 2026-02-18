@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -435,7 +436,7 @@ function WellnessTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-2">Recommendations</p>
                 <div className="space-y-2">
-                  {aiWellness.recommendations.map((rec: any, i: number) => (
+                  {safeArray(aiWellness?.recommendations).map((rec: any, i: number) => (
                     <div key={i} className="flex items-start justify-between gap-2 flex-wrap" data-testid={`wellness-rec-${i}`}>
                       <p className="text-sm">{rec.action}</p>
                       <div className="flex items-center gap-1.5 flex-wrap shrink-0">
@@ -471,7 +472,7 @@ function WellnessTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Creative Block Exercises</p>
                 <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
-                  {aiWellness.creativeBlockExercises.map((ex: string, i: number) => <li key={i} data-testid={`creative-exercise-${i}`}>{typeof ex === "string" ? ex : (ex as any).name || JSON.stringify(ex)}</li>)}
+                  {safeArray(aiWellness?.creativeBlockExercises).map((ex: string, i: number) => <li key={i} data-testid={`creative-exercise-${i}`}>{typeof ex === "string" ? ex : (ex as any).name || JSON.stringify(ex)}</li>)}
                 </ul>
               </div>
             )}

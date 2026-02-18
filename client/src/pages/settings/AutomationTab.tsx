@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeArray } from '@/lib/safe-data';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -178,7 +179,7 @@ function AutomationTab() {
             {cronJobs.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold">Active Cron Jobs</h4>
-                {cronJobs.map((job: any) => (
+                {safeArray(cronJobs).map((job: any) => (
                   <Card key={job.id} data-testid={`card-cron-job-${job.id}`}>
                     <CardContent className="p-3 flex items-center gap-2 flex-wrap">
                       <Badge variant={job.enabled ? "default" : "secondary"} className="text-[10px]">{job.enabled ? "Active" : "Paused"}</Badge>
@@ -206,21 +207,21 @@ function AutomationTab() {
             <p className="text-xs text-muted-foreground">Chain AI agents together so one agent's output feeds the next. Create automated pipelines that run end-to-end.</p>
             <div className="space-y-2">
               <h4 className="text-xs font-semibold">Pipeline Templates</h4>
-              {chainTemplates.map((tpl: any, i: number) => (
+              {safeArray(chainTemplates).map((tpl: any, i: number) => (
                 <Card key={i} data-testid={`card-chain-template-${i}`}>
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <h4 className="text-xs font-semibold">{tpl.name}</h4>
-                      <Badge variant="outline" className="text-[10px]">{tpl.steps.length} steps</Badge>
+                      <Badge variant="outline" className="text-[10px]">{safeArray(tpl?.steps).length} steps</Badge>
                       <Button size="sm" variant="ghost" className="text-xs ml-auto" onClick={() => createChainMutation.mutate({ name: tpl.name, steps: tpl.steps })} data-testid={`button-create-chain-${i}`}>
                         <Plus className="h-3 w-3 mr-1" />Activate
                       </Button>
                     </div>
                     <div className="flex items-center gap-1 flex-wrap">
-                      {tpl.steps.map((s: any, j: number) => (
+                      {safeArray(tpl?.steps).map((s: any, j: number) => (
                         <span key={j}>
                           <Badge variant="secondary" className="text-[9px]">{s.label}</Badge>
-                          {j < tpl.steps.length - 1 && <span className="text-muted-foreground text-[10px] mx-0.5">&rarr;</span>}
+                          {j < safeArray(tpl?.steps).length - 1 && <span className="text-muted-foreground text-[10px] mx-0.5">&rarr;</span>}
                         </span>
                       ))}
                     </div>
@@ -231,7 +232,7 @@ function AutomationTab() {
             {chains.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold">Active Chains</h4>
-                {chains.map((chain: any) => (
+                {safeArray(chains).map((chain: any) => (
                   <Card key={chain.id} data-testid={`card-chain-${chain.id}`}>
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -288,7 +289,7 @@ function AutomationTab() {
             {rules.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold">Active Rules</h4>
-                {rules.map((rule: any) => (
+                {safeArray(rules).map((rule: any) => (
                   <Card key={rule.id} data-testid={`card-rule-${rule.id}`}>
                     <CardContent className="p-3 flex items-center gap-2 flex-wrap">
                       <Badge variant="default" className="text-[10px]">Active</Badge>
@@ -329,7 +330,7 @@ function AutomationTab() {
             {webhookEvents.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold">Recent Events</h4>
-                {webhookEvents.slice(0, 10).map((evt: any) => (
+                {safeArray(webhookEvents).slice(0, 10).map((evt: any) => (
                   <Card key={evt.id} data-testid={`card-webhook-event-${evt.id}`}>
                     <CardContent className="p-3 flex items-center gap-2 flex-wrap">
                       <Badge variant="secondary" className="text-[10px] capitalize">{evt.source}</Badge>
@@ -365,7 +366,7 @@ function AutomationTab() {
               <Card><CardContent className="p-4 text-center text-xs text-muted-foreground">No notifications yet. Automation events will appear here.</CardContent></Card>
             ) : (
               <div className="space-y-2">
-                {notifs.slice(0, 20).map((n: any) => (
+                {safeArray(notifs).slice(0, 20).map((n: any) => (
                   <Card key={n.id} data-testid={`card-notification-${n.id}`} className={n.read ? "opacity-60" : ""}>
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2 flex-wrap">

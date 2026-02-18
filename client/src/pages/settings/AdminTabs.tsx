@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeArray } from '@/lib/safe-data';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -175,7 +176,7 @@ function AdminCodesTab() {
             <p className="text-sm text-muted-foreground">No access codes created yet</p>
           ) : (
             <div className="space-y-2">
-              {codes.map((c: any) => (
+              {safeArray(codes).map((c: any) => (
                 <div key={c.id} className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/50 flex-wrap" data-testid={`code-row-${c.id}`}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <code className="font-mono text-sm font-bold" data-testid={`text-code-${c.id}`}>{c.code}</code>
@@ -236,7 +237,7 @@ function AdminUsersTab() {
             <p className="text-sm text-muted-foreground">No users found</p>
           ) : (
             <div className="space-y-2">
-              {allUsers.map((u: any) => (
+              {safeArray(allUsers).map((u: any) => (
                 <div key={u.id} className="flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50 flex-wrap" data-testid={`user-row-${u.id}`}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm" data-testid={`text-user-name-${u.id}`}>{u.firstName} {u.lastName}</span>

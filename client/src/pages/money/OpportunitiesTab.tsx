@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { safeArray } from "@/lib/safe-data";
 import {
   Sparkles, TrendingUp, Users, ChevronDown, ChevronUp,
   CheckCircle2, DollarSign, Lightbulb, BarChart3,
@@ -104,14 +105,14 @@ function OpportunityCard({ opp, index }: { opp: any; index: number }) {
               </p>
             </div>
 
-            {opp.steps && opp.steps.length > 0 && (
+            {safeArray(opp?.steps).length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                   <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">How to Start</span>
                 </div>
                 <div className="space-y-1.5">
-                  {opp.steps.map((step: string, stepIdx: number) => (
+                  {safeArray(opp?.steps).map((step: string, stepIdx: number) => (
                     <div key={stepIdx} className="flex items-start gap-2" data-testid={`step-${index}-${stepIdx}`}>
                       <span className="text-xs text-muted-foreground font-medium mt-0.5 shrink-0 w-5 text-right">
                         {stepIdx + 1}.
@@ -237,7 +238,7 @@ export default function OpportunitiesTab() {
       )}
 
       <div className="space-y-3">
-        {opportunities.map((opp: any, idx: number) => (
+        {safeArray(opportunities).map((opp: any, idx: number) => (
           <OpportunityCard key={idx} opp={opp} index={idx} />
         ))}
       </div>

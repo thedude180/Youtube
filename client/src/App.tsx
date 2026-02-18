@@ -68,23 +68,23 @@ function Router() {
   useRouteMetaSync();
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/content" component={Content} />
-      <Route path="/content/:tab" component={Content} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/settings/:tab" component={Settings} />
-      <Route path="/stream" component={StreamCenter} />
-      <Route path="/money" component={Money} />
-      <Route path="/money/:tab" component={Money} />
-      <Route path="/autopilot" component={Autopilot} />
+      <Route path="/">{() => <PageErrorBoundary><Dashboard /></PageErrorBoundary>}</Route>
+      <Route path="/content">{() => <PageErrorBoundary><Content /></PageErrorBoundary>}</Route>
+      <Route path="/content/:tab">{() => <PageErrorBoundary><Content /></PageErrorBoundary>}</Route>
+      <Route path="/settings">{() => <PageErrorBoundary><Settings /></PageErrorBoundary>}</Route>
+      <Route path="/settings/:tab">{() => <PageErrorBoundary><Settings /></PageErrorBoundary>}</Route>
+      <Route path="/stream">{() => <PageErrorBoundary><StreamCenter /></PageErrorBoundary>}</Route>
+      <Route path="/money">{() => <PageErrorBoundary><Money /></PageErrorBoundary>}</Route>
+      <Route path="/money/:tab">{() => <PageErrorBoundary><Money /></PageErrorBoundary>}</Route>
+      <Route path="/autopilot">{() => <PageErrorBoundary><Autopilot /></PageErrorBoundary>}</Route>
       <Route path="/pipeline">{() => <Redirect to="/autopilot" />}</Route>
-      <Route path="/access-codes" component={AccessCodes} />
-      <Route path="/community" component={Community} />
-      <Route path="/notifications" component={Notifications} />
-      <Route path="/pricing" component={Pricing} />
-      <Route path="/privacy" component={PrivacyPolicy} />
-      <Route path="/terms" component={TermsOfService} />
-      <Route path="/data-disclosure" component={DataDisclosure} />
+      <Route path="/access-codes">{() => <PageErrorBoundary><AccessCodes /></PageErrorBoundary>}</Route>
+      <Route path="/community">{() => <PageErrorBoundary><Community /></PageErrorBoundary>}</Route>
+      <Route path="/notifications">{() => <PageErrorBoundary><Notifications /></PageErrorBoundary>}</Route>
+      <Route path="/pricing">{() => <PageErrorBoundary><Pricing /></PageErrorBoundary>}</Route>
+      <Route path="/privacy">{() => <PageErrorBoundary><PrivacyPolicy /></PageErrorBoundary>}</Route>
+      <Route path="/terms">{() => <PageErrorBoundary><TermsOfService /></PageErrorBoundary>}</Route>
+      <Route path="/data-disclosure">{() => <PageErrorBoundary><DataDisclosure /></PageErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>
@@ -664,6 +664,65 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
                 onClick={() => window.location.reload()}
               >
                 Reload Page
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+class PageErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("PageErrorBoundary caught:", error, info);
+  }
+
+  handleRecover = () => {
+    queryClient.invalidateQueries();
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center p-8" data-testid="page-error-boundary">
+          <div className="max-w-sm w-full space-y-4 text-center">
+            <div className="h-10 w-10 rounded-md bg-destructive/10 flex items-center justify-center mx-auto">
+              <Zap className="h-5 w-5 text-destructive" />
+            </div>
+            <h2 className="text-lg font-bold">This page hit an error</h2>
+            <p className="text-sm text-muted-foreground">
+              Something went wrong loading this page. Try recovering or navigate to another page.
+            </p>
+            {this.state.error && (
+              <p className="text-xs text-muted-foreground/60 font-mono break-all max-h-12 overflow-hidden">
+                {this.state.error.message}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <Button
+                data-testid="button-page-recover"
+                variant="outline"
+                onClick={this.handleRecover}
+              >
+                Try Again
+              </Button>
+              <Button
+                data-testid="button-page-home"
+                onClick={() => { this.handleRecover(); window.location.href = "/"; }}
+              >
+                Go Home
               </Button>
             </div>
           </div>

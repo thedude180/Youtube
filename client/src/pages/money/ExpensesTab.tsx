@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { safeArray } from "@/lib/safe-data";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -387,7 +388,7 @@ export default function ExpensesTab() {
         ) : (
           <CardContent className="p-0">
             <div className="divide-y divide-border/50">
-              {filteredExpenses.map((expense: any) => (
+              {safeArray(filteredExpenses).map((expense: any) => (
                 <div key={expense.id} data-testid={`row-expense-${expense.id}`} className="px-3 py-2 flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">

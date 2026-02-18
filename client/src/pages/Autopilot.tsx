@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense } from "react";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { safeArray } from "@/lib/safe-data";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent } from "@/components/ui/card";
@@ -816,7 +817,7 @@ export default function Autopilot() {
                   <h4 className="text-sm font-medium">Issues Detected</h4>
                 </div>
                 <div className="space-y-2">
-                  {stealth.recentIssues.map((issue, i) => (
+                  {safeArray(stealth?.recentIssues).map((issue, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <AlertCircle className="h-3 w-3 text-yellow-500 mt-1 shrink-0" />
                       <p className="text-xs text-muted-foreground">{issue}</p>
@@ -835,7 +836,7 @@ export default function Autopilot() {
                   <h4 className="text-sm font-medium">Recommendations</h4>
                 </div>
                 <div className="space-y-2">
-                  {stealth.recommendations.map((rec, i) => (
+                  {safeArray(stealth?.recommendations).map((rec, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <CheckCircle2 className="h-3 w-3 text-blue-500 mt-1 shrink-0" />
                       <p className="text-xs text-muted-foreground">{rec}</p>

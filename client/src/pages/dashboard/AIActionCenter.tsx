@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, CheckCircle2, TrendingUp } from "lucide-react";
+import { safeArray } from "@/lib/safe-data";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
 type AIResponse = any;
@@ -38,10 +39,10 @@ export default function AIActionCenter({ aiActions, aiActionsLoading }: AIAction
               {(aiActions as any)?.todaySummary && (
                 <p data-testid="text-ai-today-summary" className="text-sm text-muted-foreground">{(aiActions as any).todaySummary}</p>
               )}
-              {(aiActions as any)?.actionItems?.length > 0 && (
+              {safeArray((aiActions as any)?.actionItems).length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-medium">What AI is handling</p>
-                  {(aiActions as any).actionItems.slice(0, 4).map((item: any, i: number) => (
+                  {safeArray((aiActions as any)?.actionItems).slice(0, 4).map((item: any, i: number) => (
                     <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-muted/30" data-testid={`ai-action-${i}`}>
                       <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${
                         item.priority === "high" ? "bg-red-400" : item.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"
@@ -62,10 +63,10 @@ export default function AIActionCenter({ aiActions, aiActionsLoading }: AIAction
                   ))}
                 </div>
               )}
-              {(aiActions as any)?.opportunities?.length > 0 && (
+              {safeArray((aiActions as any)?.opportunities).length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-medium">Opportunities detected</p>
-                  {(aiActions as any).opportunities.slice(0, 3).map((opp: any, i: number) => (
+                  {safeArray((aiActions as any)?.opportunities).slice(0, 3).map((opp: any, i: number) => (
                     <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-purple-500/5" data-testid={`ai-opportunity-${i}`}>
                       <TrendingUp className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">

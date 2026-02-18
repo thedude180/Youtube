@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { safeArray } from "@/lib/safe-data";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +141,7 @@ export default function AIInsightsSection() {
                 {aiMilestones?.recentMilestones?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Recent Milestones</p>
-                    {aiMilestones.recentMilestones.slice(0, 3).map((m: any, i: number) => {
+                    {safeArray(aiMilestones?.recentMilestones).slice(0, 3).map((m: any, i: number) => {
                       const MIcon = milestoneIconMap[m.icon?.toLowerCase()] || Trophy;
                       return (
                         <div key={i} className="flex items-start gap-3 p-2 rounded-md bg-muted/30" data-testid={`milestone-recent-${i}`}>
@@ -159,7 +160,7 @@ export default function AIInsightsSection() {
                 {aiMilestones?.upcomingMilestones?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Upcoming</p>
-                    {aiMilestones.upcomingMilestones.slice(0, 3).map((m: any, i: number) => {
+                    {safeArray(aiMilestones?.upcomingMilestones).slice(0, 3).map((m: any, i: number) => {
                       const pct = Math.min(Math.round((m.progress || 0)), 100);
                       return (
                         <div key={i} className="space-y-1 p-2 rounded-md bg-muted/30" data-testid={`milestone-upcoming-${i}`}>
@@ -184,7 +185,7 @@ export default function AIInsightsSection() {
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Streaks</p>
                     <div className="flex flex-wrap gap-3">
-                      {aiMilestones.streaks.slice(0, 4).map((s: any, i: number) => (
+                      {safeArray(aiMilestones?.streaks).slice(0, 4).map((s: any, i: number) => (
                         <div key={i} className="flex items-center gap-2 p-2 rounded-md bg-muted/30" data-testid={`milestone-streak-${i}`}>
                           <Flame className="h-3 w-3 text-orange-400 shrink-0" />
                           <div>
@@ -230,7 +231,7 @@ export default function AIInsightsSection() {
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Platform Scores</p>
                     <div className="grid grid-cols-2 gap-3">
-                      {aiCrossplatform.platformScores.slice(0, 4).map((p: any, i: number) => (
+                      {safeArray(aiCrossplatform?.platformScores).slice(0, 4).map((p: any, i: number) => (
                         <div key={i} className="p-3 rounded-md bg-muted/30 space-y-1" data-testid={`crossplatform-score-${i}`}>
                           <div className="flex items-center justify-between gap-1 flex-wrap">
                             <p className="text-sm font-medium">{p.platform}</p>
@@ -262,7 +263,7 @@ export default function AIInsightsSection() {
                 {aiCrossplatform?.synergies?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Cross-Promotion Synergies</p>
-                    {aiCrossplatform.synergies.slice(0, 3).map((s: any, i: number) => (
+                    {safeArray(aiCrossplatform?.synergies).slice(0, 3).map((s: any, i: number) => (
                       <div key={i} className="flex items-start gap-2 text-sm" data-testid={`crossplatform-synergy-${i}`}>
                         <Globe className="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
                         <span className="text-xs text-muted-foreground">{typeof s === "string" ? s : s.description || s.title}</span>
@@ -308,7 +309,7 @@ export default function AIInsightsSection() {
                 {aiNewsFeed?.headlines?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Headlines</p>
-                    {aiNewsFeed.headlines.slice(0, 4).map((h: any, i: number) => (
+                    {safeArray(aiNewsFeed?.headlines).slice(0, 4).map((h: any, i: number) => (
                       <div key={i} className="flex items-start gap-3 p-2 rounded-md bg-muted/30" data-testid={`news-headline-${i}`}>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -328,7 +329,7 @@ export default function AIInsightsSection() {
                 {aiNewsFeed?.algorithmUpdates?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Algorithm Updates</p>
-                    {aiNewsFeed.algorithmUpdates.slice(0, 3).map((u: any, i: number) => (
+                    {safeArray(aiNewsFeed?.algorithmUpdates).slice(0, 3).map((u: any, i: number) => (
                       <div key={i} className="flex items-start gap-3 p-2 rounded-md bg-blue-500/5" data-testid={`news-algorithm-${i}`}>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -344,7 +345,7 @@ export default function AIInsightsSection() {
                 {aiNewsFeed?.opportunities?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Opportunities</p>
-                    {aiNewsFeed.opportunities.slice(0, 3).map((o: any, i: number) => (
+                    {safeArray(aiNewsFeed?.opportunities).slice(0, 3).map((o: any, i: number) => (
                       <div key={i} className="flex items-start gap-3 p-2 rounded-md bg-purple-500/5" data-testid={`news-opportunity-${i}`}>
                         <TrendingUp className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
@@ -432,7 +433,7 @@ export default function AIInsightsSection() {
                 {aiCommentManager?.contentIdeas?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Content Ideas from Comments</p>
-                    {aiCommentManager.contentIdeas.slice(0, 3).map((idea: any, i: number) => (
+                    {safeArray(aiCommentManager?.contentIdeas).slice(0, 3).map((idea: any, i: number) => (
                       <div key={i} className="flex items-start gap-2 text-sm" data-testid={`comment-idea-${i}`}>
                         <Lightbulb className="h-3 w-3 text-amber-400 shrink-0 mt-1" />
                         <span className="text-xs text-muted-foreground">{typeof idea === "string" ? idea : idea.title || idea.description}</span>
@@ -443,7 +444,7 @@ export default function AIInsightsSection() {
                 {aiCommentManager?.commonQuestions?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium">Common Questions</p>
-                    {aiCommentManager.commonQuestions.slice(0, 3).map((q: any, i: number) => (
+                    {safeArray(aiCommentManager?.commonQuestions).slice(0, 3).map((q: any, i: number) => (
                       <div key={i} className="flex items-start gap-2 text-sm" data-testid={`comment-question-${i}`}>
                         <MessageSquare className="h-3 w-3 text-blue-400 shrink-0 mt-1" />
                         <span className="text-xs text-muted-foreground">{typeof q === "string" ? q : q.question || q.title}</span>

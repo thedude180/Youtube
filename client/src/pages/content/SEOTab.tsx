@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -320,7 +321,7 @@ function SEOAuditSection() {
             )}
             {auditResult.recommendations && Array.isArray(auditResult.recommendations) && (
               <div className="space-y-0.5">
-                {auditResult.recommendations.map((rec: any, i: number) => (
+                {safeArray(auditResult?.recommendations).map((rec: any, i: number) => (
                   <p key={i} className="text-xs text-muted-foreground" data-testid={`text-audit-rec-${i}`}>
                     {typeof rec === "string" ? rec : rec.text || rec.title || rec.description || JSON.stringify(rec)}
                   </p>

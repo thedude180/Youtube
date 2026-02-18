@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -327,7 +328,7 @@ function LearningTab() {
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">Evidence</p>
                     <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
-                      {insight.data.evidence.map((ev: string, i: number) => <li key={i}>{ev}</li>)}
+                      {safeArray(insight?.data?.evidence).map((ev: string, i: number) => <li key={i}>{ev}</li>)}
                     </ul>
                   </div>
                 )}

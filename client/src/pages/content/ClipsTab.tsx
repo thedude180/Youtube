@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -299,7 +300,7 @@ export default function ClipsTab() {
           <h3 className="text-sm font-semibold">Clip Backlog ({clips.length})</h3>
           {stats?.platformBreakdown && Object.keys(stats.platformBreakdown).length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">
-              {Object.entries(stats.platformBreakdown).map(([platform, count]) => (
+              {Object.entries(stats.platformBreakdown || {}).map(([platform, count]) => (
                 <Badge key={platform} variant="secondary" className="text-xs">
                   {platform}: {count}
                 </Badge>
@@ -324,7 +325,7 @@ export default function ClipsTab() {
             </CardContent>
           </Card>
         ) : (
-          Object.entries(grouped).map(([videoId, videoClips]) => {
+          Object.entries(grouped).map(([videoId, videoClips]: [string, ClipItem[]]) => {
             const firstClip = videoClips[0];
             const isExpanded = expandedVideo === Number(videoId);
             const sourceTitle = firstClip?.metadata?.sourceTitle || `Video #${videoId}`;

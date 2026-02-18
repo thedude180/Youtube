@@ -23,6 +23,7 @@ import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { LiveChatPanel } from "@/components/LiveChatPanel";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
+import { safeArray } from '@/lib/safe-data';
 
 type AIResponse = any;
 
@@ -784,7 +785,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-best-times-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Best Times to Stream</h3>
                   <div className="space-y-1.5">
-                    {aiStreamRecs.optimalTimes.map((t: any, i: number) => (
+                    {safeArray(aiStreamRecs?.optimalTimes).map((t: any, i: number) => (
                       <div key={i} data-testid={`text-optimal-time-${i}`} className="flex items-start gap-2 text-sm">
                         <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                         <span><span className="font-medium">{t.day}</span> at <span className="font-medium">{t.time}</span> — <span className="text-muted-foreground">{t.reason}</span></span>
@@ -798,7 +799,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-trending-topics-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trending Topics</h3>
                   <div className="flex flex-wrap gap-1.5">
-                    {aiStreamRecs.trendingTopics.map((topic: any, i: number) => (
+                    {safeArray(aiStreamRecs?.trendingTopics).map((topic: any, i: number) => (
                       <div key={i} data-testid={`text-trending-topic-${i}`}>
                         <Badge variant="outline">{typeof topic === 'string' ? topic : topic.topic || topic.title}</Badge>
                         {topic.suggestedTitle && (
@@ -820,7 +821,7 @@ export default function StreamCenter() {
                     {aiStreamRecs.schedule.bestDays?.length > 0 && (
                       <div data-testid="text-best-days" className="flex items-center gap-1.5 flex-wrap">
                         <span>Best days:</span>
-                        {aiStreamRecs.schedule.bestDays.map((day: string, i: number) => (
+                        {safeArray(aiStreamRecs?.schedule?.bestDays).map((day: string, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs">{day}</Badge>
                         ))}
                       </div>
@@ -833,7 +834,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-stream-ideas-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stream Ideas</h3>
                   <div className="space-y-2">
-                    {aiStreamRecs.streamIdeas.map((idea: any, i: number) => (
+                    {safeArray(aiStreamRecs?.streamIdeas).map((idea: any, i: number) => (
                       <div key={i} data-testid={`card-stream-idea-${i}`} className="flex items-center justify-between gap-3 rounded-md border p-3">
                         <div className="min-w-0">
                           <p data-testid={`text-idea-title-${i}`} className="text-sm font-medium">{idea.title}</p>
@@ -882,7 +883,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-chatbot-commands-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Commands</h3>
                   <div className="space-y-1.5">
-                    {aiChatBot.commands.map((cmd: any, i: number) => (
+                    {safeArray(aiChatBot?.commands).map((cmd: any, i: number) => (
                       <div key={i} data-testid={`text-chatbot-command-${i}`} className="rounded-md border p-2 text-sm space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="outline" className="text-xs font-mono">{cmd.trigger}</Badge>
@@ -899,7 +900,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-chatbot-auto-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Auto Messages</h3>
                   <div className="space-y-1.5">
-                    {aiChatBot.autoMessages.map((msg: any, i: number) => (
+                    {safeArray(aiChatBot?.autoMessages).map((msg: any, i: number) => (
                       <div key={i} data-testid={`text-chatbot-auto-${i}`} className="flex items-start gap-2 text-sm">
                         <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                         <span>{msg.message} <span className="text-xs text-muted-foreground">({msg.interval})</span></span>
@@ -912,7 +913,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-chatbot-moderation-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Moderation Rules</h3>
                   <div className="space-y-1">
-                    {aiChatBot.moderationRules.map((rule: any, i: number) => (
+                    {safeArray(aiChatBot?.moderationRules).map((rule: any, i: number) => (
                       <p key={i} data-testid={`text-chatbot-rule-${i}`} className="text-sm text-muted-foreground">{typeof rule === 'string' ? rule : rule.rule || rule.description || JSON.stringify(rule)}</p>
                     ))}
                   </div>
@@ -926,7 +927,7 @@ export default function StreamCenter() {
                     {aiChatBot.loyaltySystem.earnRate && <p data-testid="text-loyalty-earn-rate">Earn rate: <span className="font-medium">{aiChatBot.loyaltySystem.earnRate}</span></p>}
                     {aiChatBot.loyaltySystem.rewards?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1">
-                        {aiChatBot.loyaltySystem.rewards.map((r: any, i: number) => (
+                        {safeArray(aiChatBot?.loyaltySystem?.rewards).map((r: any, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs">{typeof r === 'string' ? r : r.name || r.reward || JSON.stringify(r)}</Badge>
                         ))}
                       </div>
@@ -972,7 +973,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-checklist-pre-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pre-Stream</h3>
                   <div className="space-y-1.5">
-                    {aiChecklist.preStream.map((item: any, i: number) => {
+                    {safeArray(aiChecklist?.preStream).map((item: any, i: number) => {
                       const key = `pre-${i}`;
                       const label = typeof item === 'string' ? item : item.task || item.item || item.label || JSON.stringify(item);
                       return (
@@ -989,7 +990,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-checklist-during-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">During Stream</h3>
                   <div className="space-y-1">
-                    {aiChecklist.duringStream.map((item: any, i: number) => (
+                    {safeArray(aiChecklist?.duringStream).map((item: any, i: number) => (
                       <div key={i} data-testid={`text-during-${i}`} className="flex items-start gap-2 text-sm">
                         <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                         <span className="text-muted-foreground">{typeof item === 'string' ? item : item.reminder || item.task || item.item || JSON.stringify(item)}</span>
@@ -1002,7 +1003,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-checklist-post-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Post-Stream</h3>
                   <div className="space-y-1.5">
-                    {aiChecklist.postStream.map((item: any, i: number) => {
+                    {safeArray(aiChecklist?.postStream).map((item: any, i: number) => {
                       const key = `post-${i}`;
                       const label = typeof item === 'string' ? item : item.task || item.item || item.label || JSON.stringify(item);
                       return (
@@ -1022,7 +1023,7 @@ export default function StreamCenter() {
                     {typeof aiChecklist.emergencyPlan === 'string' ? (
                       <p data-testid="text-emergency-plan">{aiChecklist.emergencyPlan}</p>
                     ) : Array.isArray(aiChecklist.emergencyPlan) ? (
-                      aiChecklist.emergencyPlan.map((item: any, i: number) => (
+                      safeArray(aiChecklist?.emergencyPlan).map((item: any, i: number) => (
                         <p key={i} data-testid={`text-emergency-${i}`}>{typeof item === 'string' ? item : item.step || item.action || JSON.stringify(item)}</p>
                       ))
                     ) : (
@@ -1060,7 +1061,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-raid-targets-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Raid Targets</h3>
                   <div className="space-y-1.5">
-                    {aiRaid.raidTargets.map((target: any, i: number) => (
+                    {safeArray(aiRaid?.raidTargets).map((target: any, i: number) => (
                       <div key={i} data-testid={`card-raid-target-${i}`} className="rounded-md border p-2 text-sm space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{target.channel || target.name}</span>
@@ -1077,7 +1078,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-raid-etiquette-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Raid Etiquette</h3>
                   <div className="space-y-1">
-                    {aiRaid.etiquetteTips.map((tip: any, i: number) => (
+                    {safeArray(aiRaid?.etiquetteTips).map((tip: any, i: number) => (
                       <p key={i} data-testid={`text-etiquette-${i}`} className="text-sm text-muted-foreground">{typeof tip === 'string' ? tip : tip.tip || JSON.stringify(tip)}</p>
                     ))}
                   </div>
@@ -1090,7 +1091,7 @@ export default function StreamCenter() {
                     {typeof aiRaid.networkingStrategy === 'string' ? (
                       <p data-testid="text-networking-strategy">{aiRaid.networkingStrategy}</p>
                     ) : Array.isArray(aiRaid.networkingStrategy) ? (
-                      aiRaid.networkingStrategy.map((s: any, i: number) => (
+                      safeArray(aiRaid?.networkingStrategy).map((s: any, i: number) => (
                         <p key={i} data-testid={`text-networking-${i}`}>{typeof s === 'string' ? s : s.strategy || JSON.stringify(s)}</p>
                       ))
                     ) : (
@@ -1106,7 +1107,7 @@ export default function StreamCenter() {
                     {typeof aiRaid.incomingRaidPlan === 'string' ? (
                       <p data-testid="text-incoming-raid">{aiRaid.incomingRaidPlan}</p>
                     ) : Array.isArray(aiRaid.incomingRaidPlan) ? (
-                      aiRaid.incomingRaidPlan.map((item: any, i: number) => (
+                      safeArray(aiRaid?.incomingRaidPlan).map((item: any, i: number) => (
                         <p key={i} data-testid={`text-incoming-raid-${i}`}>{typeof item === 'string' ? item : item.step || item.action || JSON.stringify(item)}</p>
                       ))
                     ) : (
@@ -1164,7 +1165,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-report-highlights-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Highlights</h3>
                   <div className="space-y-1">
-                    {aiPostReport.highlights.map((h: any, i: number) => (
+                    {safeArray(aiPostReport?.highlights).map((h: any, i: number) => (
                       <div key={i} data-testid={`text-highlight-${i}`} className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
                         <span>{typeof h === 'string' ? h : h.highlight || h.description || JSON.stringify(h)}</span>
@@ -1177,7 +1178,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-report-improvements-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Improvements</h3>
                   <div className="space-y-1">
-                    {aiPostReport.improvements.map((imp: any, i: number) => (
+                    {safeArray(aiPostReport?.improvements).map((imp: any, i: number) => (
                       <div key={i} data-testid={`text-improvement-${i}`} className="flex items-start gap-2 text-sm">
                         <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                         <span>{typeof imp === 'string' ? imp : imp.improvement || imp.description || JSON.stringify(imp)}</span>
@@ -1190,7 +1191,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-report-recs-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recommendations</h3>
                   <div className="space-y-1.5">
-                    {aiPostReport.recommendations.map((rec: any, i: number) => (
+                    {safeArray(aiPostReport?.recommendations).map((rec: any, i: number) => (
                       <div key={i} data-testid={`text-recommendation-${i}`} className="flex items-start gap-2 text-sm">
                         <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
                         <div>
@@ -1206,7 +1207,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-report-clips-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Clip Suggestions</h3>
                   <div className="space-y-1.5">
-                    {aiPostReport.clipSuggestions.map((clip: any, i: number) => (
+                    {safeArray(aiPostReport?.clipSuggestions).map((clip: any, i: number) => (
                       <div key={i} data-testid={`text-clip-${i}`} className="rounded-md border p-2 text-sm">
                         <p className="font-medium">{typeof clip === 'string' ? clip : clip.title || clip.description || JSON.stringify(clip)}</p>
                         {clip.timestamp && <p className="text-xs text-muted-foreground mt-0.5">{clip.timestamp}</p>}
@@ -1220,7 +1221,7 @@ export default function StreamCenter() {
                 <div className="space-y-2">
                   <h3 data-testid="text-report-social-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Social Recaps</h3>
                   <div className="space-y-1.5">
-                    {aiPostReport.socialRecaps.map((recap: any, i: number) => (
+                    {safeArray(aiPostReport?.socialRecaps).map((recap: any, i: number) => (
                       <div key={i} data-testid={`text-social-recap-${i}`} className="rounded-md border p-2 text-sm">
                         {recap.platform && <PlatformBadge platform={recap.platform} variant="outline" className="text-[10px] mb-1" />}
                         <p className="text-muted-foreground">{typeof recap === 'string' ? recap : recap.text || recap.content || recap.message || JSON.stringify(recap)}</p>

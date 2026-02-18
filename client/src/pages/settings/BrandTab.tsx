@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeArray } from '@/lib/safe-data';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -232,7 +233,7 @@ function BrandTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Content Pillars</p>
                 <div className="flex gap-2 flex-wrap">
-                  {aiBrand.contentPillars.map((pillar: string, i: number) => (
+                  {safeArray(aiBrand?.contentPillars).map((pillar: string, i: number) => (
                     <Badge key={i} variant="secondary" data-testid={`badge-pillar-${i}`}>{pillar}</Badge>
                   ))}
                 </div>
@@ -254,7 +255,7 @@ function BrandTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Colors</p>
                 <div className="flex gap-2 flex-wrap">
-                  {aiBrand.suggestedColors.map((color: string, i: number) => (
+                  {safeArray(aiBrand?.suggestedColors).map((color: string, i: number) => (
                     <div
                       key={i}
                       className="w-6 h-6 rounded-full border"
@@ -270,7 +271,7 @@ function BrandTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Competitor Analysis</p>
                 <div className="space-y-2">
-                  {aiBrand.competitorAnalysis.map((comp: any, i: number) => (
+                  {safeArray(aiBrand?.competitorAnalysis).map((comp: any, i: number) => (
                     <div key={i} className="flex items-center justify-between gap-4 flex-wrap text-sm" data-testid={`competitor-${i}`}>
                       <span className="font-medium">{comp.name}</span>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -373,7 +374,7 @@ function BrandTab() {
             <div>
               <p className="text-sm font-medium mb-3">Color Palette</p>
               <div className="flex gap-3 flex-wrap">
-                {colorAssets.map((asset: any) => (
+                {safeArray(colorAssets).map((asset: any) => (
                   <div key={asset.id} data-testid={`card-brand-asset-${asset.id}`} className="group relative">
                     <div className="w-20 h-20 rounded-md border" style={{ backgroundColor: asset.value }} />
                     <p className="text-xs font-medium mt-1 text-center truncate w-20">{asset.name}</p>
@@ -388,7 +389,7 @@ function BrandTab() {
           )}
           {otherAssets.length > 0 && (
             <div className="grid gap-3">
-              {otherAssets.map((asset: any) => (
+              {safeArray(otherAssets).map((asset: any) => (
                 <Card key={asset.id} data-testid={`card-brand-asset-${asset.id}`}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-4 flex-wrap">

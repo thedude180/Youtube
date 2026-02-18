@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -401,7 +402,7 @@ export default function GrowthProgramsTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Quick Wins</p>
                 <div className="space-y-1">
-                  {aiRecsMutation.data.quickWins.map((win: string, i: number) => (
+                  {safeArray(aiRecsMutation.data?.quickWins).map((win: string, i: number) => (
                     <div key={i} className="flex items-start gap-2 text-sm" data-testid={`text-quick-win-${i}`}>
                       <Zap className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
                       <span>{win}</span>
@@ -415,7 +416,7 @@ export default function GrowthProgramsTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Prioritized Programs</p>
                 <div className="space-y-2">
-                  {aiRecsMutation.data.prioritizedPrograms.map((rec: any, i: number) => (
+                  {safeArray(aiRecsMutation.data?.prioritizedPrograms).map((rec: any, i: number) => (
                     <div key={i} className="rounded-md border p-3 space-y-1" data-testid={`card-ai-program-${i}`}>
                       <div className="flex items-center gap-2 flex-wrap">
                         <PlatformBadge platform={rec.platform} />
@@ -436,7 +437,7 @@ export default function GrowthProgramsTab() {
                       </div>
                       {rec.actionItems?.length > 0 && (
                         <div className="space-y-0.5 mt-1">
-                          {rec.actionItems.map((item: string, j: number) => (
+                          {safeArray(rec?.actionItems).map((item: string, j: number) => (
                             <div key={j} className="flex items-start gap-1.5 text-xs">
                               <ArrowRight className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
                               <span>{item}</span>
@@ -454,7 +455,7 @@ export default function GrowthProgramsTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Long-Term Goals</p>
                 <div className="space-y-1">
-                  {aiRecsMutation.data.longTermGoals.map((goal: string, i: number) => (
+                  {safeArray(aiRecsMutation.data?.longTermGoals).map((goal: string, i: number) => (
                     <div key={i} className="flex items-start gap-2 text-sm" data-testid={`text-long-goal-${i}`}>
                       <Target className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                       <span>{goal}</span>
@@ -593,7 +594,7 @@ export default function GrowthProgramsTab() {
                         <div>
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Benefits</p>
                           <div className="flex flex-wrap gap-1">
-                            {program.benefits.map((benefit, i) => (
+                            {safeArray(program?.benefits).map((benefit, i) => (
                               <Badge key={i} variant="outline" className="text-[10px]">
                                 <DollarSign className="h-2.5 w-2.5 mr-0.5" />{benefit}
                               </Badge>
@@ -671,7 +672,7 @@ export default function GrowthProgramsTab() {
                             <div>
                               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Step-by-Step Guide</p>
                               <div className="space-y-1.5">
-                                {program.applicationGuide.steps.map((step, i) => (
+                                {safeArray(program?.applicationGuide?.steps).map((step, i) => (
                                   <div key={i} className="flex items-start gap-2 text-xs">
                                     <span className="font-medium text-primary min-w-[1.5rem] shrink-0">{i + 1}.</span>
                                     <span>{step}</span>
@@ -684,7 +685,7 @@ export default function GrowthProgramsTab() {
                               <div>
                                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Tips for Approval</p>
                                 <div className="space-y-1">
-                                  {program.applicationGuide.tips.map((tip, i) => (
+                                  {safeArray(program?.applicationGuide?.tips).map((tip, i) => (
                                     <div key={i} className="flex items-start gap-1.5 text-xs">
                                       <Sparkles className="h-3 w-3 mt-0.5 shrink-0 text-amber-500" />
                                       <span>{tip}</span>
@@ -751,7 +752,7 @@ export default function GrowthProgramsTab() {
 
                           {program.complianceRisks && program.complianceRisks.length > 0 ? (
                             <div className="space-y-2">
-                              {program.complianceRisks.map((risk, i) => (
+                              {safeArray(program?.complianceRisks).map((risk, i) => (
                                 <div key={i} className="space-y-0.5">
                                   <div className="flex items-start gap-1.5 text-xs">
                                     <AlertCircle className={`h-3 w-3 mt-0.5 shrink-0 ${
@@ -806,7 +807,7 @@ export default function GrowthProgramsTab() {
                           </div>
                           {program.aiRecommendations.actionItems?.length > 0 && (
                             <div className="space-y-0.5 mt-2">
-                              {program.aiRecommendations.actionItems.map((item, j) => (
+                              {safeArray(program?.aiRecommendations?.actionItems).map((item, j) => (
                                 <div key={j} className="flex items-start gap-1.5 text-xs">
                                   <ArrowRight className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
                                   <span>{item}</span>

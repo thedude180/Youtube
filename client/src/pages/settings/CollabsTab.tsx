@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -214,7 +215,7 @@ function CollabsTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Networking Tips</p>
                 <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
-                  {aiCollab.networkingTips.map((tip: string, i: number) => <li key={i} data-testid={`networking-tip-${i}`}>{tip}</li>)}
+                  {safeArray(aiCollab?.networkingTips).map((tip: string, i: number) => <li key={i} data-testid={`networking-tip-${i}`}>{tip}</li>)}
                 </ul>
               </div>
             )}

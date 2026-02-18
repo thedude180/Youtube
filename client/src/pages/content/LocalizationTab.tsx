@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { safeArray } from "@/lib/safe-data";
 import {
   Globe, Languages, Captions, BarChart3, Mic, Users, Image, Hash,
   CheckCircle2, Eye, MapPin, MessageSquare, Clock, FlaskConical,
@@ -82,7 +83,7 @@ function LocalizationTab() {
             <div className="space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">{t("localization.priorityLanguages")}:</span>
-                {recLangs.map((lang: string, i: number) => (
+                {safeArray<string>(recLangs).map((lang: string, i: number) => (
                   <Badge key={lang} variant={i === 0 ? "default" : "secondary"} className="text-[10px]" data-testid={`badge-priority-lang-${lang}`}>
                     {LANG_NAMES[lang] || lang.toUpperCase()}
                     {i === 0 && <TrendingUp className="h-3 w-3 ml-1" />}

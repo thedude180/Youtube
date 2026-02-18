@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
+import { safeArray } from "@/lib/safe-data";
 import { Lightbulb } from "lucide-react";
 
 interface DailyBriefingSectionProps {
@@ -25,10 +26,10 @@ export default function DailyBriefingSection({ briefing }: DailyBriefingSectionP
         </CardHeader>
         <CardContent className="space-y-3">
           {briefing.summary && <p data-testid="text-briefing-summary" className="text-sm text-muted-foreground">{briefing.summary}</p>}
-          {briefing.actionItems && briefing.actionItems.length > 0 && (
+          {safeArray(briefing?.actionItems).length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium">Action Items</p>
-              {briefing.actionItems.slice(0, 4).map((item: any, i: number) => (
+              {safeArray(briefing?.actionItems).slice(0, 4).map((item: any, i: number) => (
                 <div key={i} className="flex items-start gap-2 text-sm" data-testid={`briefing-action-${i}`}>
                   <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${item.priority === "high" ? "bg-red-400" : item.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"}`} />
                   <span className="text-muted-foreground">{item.title || item.description || item}</span>

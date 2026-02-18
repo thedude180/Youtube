@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { Link } from "wouter";
+import { safeArray } from "@/lib/safe-data";
 import { BarChart3, Scissors, TrendingUp, ArrowRight, Briefcase } from "lucide-react";
 
 interface AdvancedMetricsProps {
@@ -71,9 +72,9 @@ export default function AdvancedMetrics({
         </div>
       </SectionErrorBoundary>
 
-      {(activeGoals.length > 0 || activeVentures.length > 0) && (
+      {(safeArray(activeGoals).length > 0 || safeArray(activeVentures).length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {activeGoals.length > 0 && (
+          {safeArray(activeGoals).length > 0 && (
             <Card data-testid="card-active-goals">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -84,7 +85,7 @@ export default function AdvancedMetrics({
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {activeGoals.slice(0, 3).map((goal: any) => {
+                {safeArray(activeGoals).slice(0, 3).map((goal: any) => {
                   const pct = Math.min(Math.round(((goal.currentValue || 0) / (goal.targetValue || 1)) * 100), 100);
                   return (
                     <div key={goal.id} className="space-y-1" data-testid={`dashboard-goal-${goal.id}`}>
@@ -102,7 +103,7 @@ export default function AdvancedMetrics({
             </Card>
           )}
 
-          {activeVentures.length > 0 && (
+          {safeArray(activeVentures).length > 0 && (
             <Card data-testid="card-active-ventures">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -113,7 +114,7 @@ export default function AdvancedMetrics({
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {activeVentures.slice(0, 3).map((v: any) => {
+                {safeArray(activeVentures).slice(0, 3).map((v: any) => {
                   const pnl = (v.revenue || 0) - (v.expenses || 0);
                   return (
                     <div key={v.id} className="flex items-center justify-between gap-2 flex-wrap" data-testid={`dashboard-venture-${v.id}`}>

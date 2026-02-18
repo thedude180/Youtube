@@ -4,6 +4,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useChannels, useCreateChannel } from "@/hooks/use-channels";
 import { useAuth } from "@/hooks/use-auth";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +95,7 @@ function ChannelActions({ channels }: { channels: Channel[] }) {
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {channels.map((ch) => (
+      {safeArray<Channel>(channels).map((ch) => (
         <div key={ch.id} className="flex items-center gap-1">
           {!!ch.accessToken && (
             <Button variant="outline" size="sm" onClick={() => syncMutation.mutate(ch.id)} disabled={syncMutation.isPending} data-testid={`button-sync-${ch.id}`}>

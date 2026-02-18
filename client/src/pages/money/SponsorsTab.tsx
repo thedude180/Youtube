@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { safeArray } from "@/lib/safe-data";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -243,11 +244,11 @@ export default function SponsorsTab() {
               </div>
             )}
 
-            {aiSponsorship.prospectBrands && aiSponsorship.prospectBrands.length > 0 && (
+            {safeArray(aiSponsorship?.prospectBrands).length > 0 && (
               <div data-testid="section-prospect-brands">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Prospect Brands</p>
                 <div className="space-y-2">
-                  {aiSponsorship.prospectBrands.map((brand: any, idx: number) => (
+                  {safeArray(aiSponsorship?.prospectBrands).map((brand: any, idx: number) => (
                     <div key={idx} className="flex items-start justify-between gap-2" data-testid={`prospect-brand-${idx}`}>
                       <div className="min-w-0">
                         <p className="text-sm font-medium" data-testid={`text-brand-name-${idx}`}>{brand.brand || brand.name}</p>
@@ -302,11 +303,11 @@ export default function SponsorsTab() {
               </div>
             )}
 
-            {aiSponsorship.redFlags && aiSponsorship.redFlags.length > 0 && (
+            {safeArray(aiSponsorship?.redFlags).length > 0 && (
               <div data-testid="section-red-flags">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Red Flags to Avoid</p>
                 <div className="space-y-1">
-                  {aiSponsorship.redFlags.map((flag: string, idx: number) => (
+                  {safeArray(aiSponsorship?.redFlags).map((flag: string, idx: number) => (
                     <div key={idx} className="flex items-start gap-2" data-testid={`red-flag-${idx}`}>
                       <AlertTriangle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-sm text-muted-foreground">{flag}</p>
@@ -359,11 +360,11 @@ export default function SponsorsTab() {
               </div>
             )}
 
-            {aiMediaKit.keyMetrics && aiMediaKit.keyMetrics.length > 0 && (
+            {safeArray(aiMediaKit?.keyMetrics).length > 0 && (
               <div data-testid="section-key-metrics">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Key Metrics</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {aiMediaKit.keyMetrics.map((metric: any, idx: number) => (
+                  {safeArray(aiMediaKit?.keyMetrics).map((metric: any, idx: number) => (
                     <div key={idx} className="space-y-0.5" data-testid={`metric-${idx}`}>
                       <p className="text-xs text-muted-foreground">{metric.label}</p>
                       <p className="text-sm font-medium">{metric.value}</p>
@@ -413,11 +414,11 @@ export default function SponsorsTab() {
               </div>
             )}
 
-            {aiMediaKit.sponsorshipPackages && aiMediaKit.sponsorshipPackages.length > 0 && (
+            {safeArray(aiMediaKit?.sponsorshipPackages).length > 0 && (
               <div data-testid="section-sponsorship-packages">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Sponsorship Packages</p>
                 <div className="space-y-2">
-                  {aiMediaKit.sponsorshipPackages.map((pkg: any, idx: number) => (
+                  {safeArray(aiMediaKit?.sponsorshipPackages).map((pkg: any, idx: number) => (
                     <div key={idx} className="flex items-center justify-between gap-2" data-testid={`package-${idx}`}>
                       <div className="min-w-0">
                         <p className="text-sm font-medium" data-testid={`text-package-name-${idx}`}>{pkg.name}</p>

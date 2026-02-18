@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,7 +130,7 @@ function StepResultPreview({ step, data }: { step: string; data: any }) {
           {data.summary && <p className="text-sm">{data.summary}</p>}
           {data.keyMoments?.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {data.keyMoments.slice(0, 5).map((m: string, i: number) => (
+              {safeArray(data?.keyMoments).slice(0, 5).map((m: string, i: number) => (
                 <Badge key={i} variant="secondary">{m}</Badge>
               ))}
             </div>

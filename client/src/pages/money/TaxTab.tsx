@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { safeArray } from "@/lib/safe-data";
 import {
   Calculator, FileText, AlertTriangle, CheckCircle2, Building2, TrendingUp,
 } from "lucide-react";
@@ -152,7 +153,7 @@ export default function TaxTab() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {taxEstimates.map((est: any, idx: number) => (
+            {safeArray(taxEstimates).map((est: any, idx: number) => (
               <Card key={est.id || idx} data-testid={`card-quarter-${idx}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">

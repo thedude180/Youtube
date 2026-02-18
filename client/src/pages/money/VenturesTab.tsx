@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { safeArray } from "@/lib/safe-data";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -173,7 +174,7 @@ export default function VenturesTab() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {filtered.map((venture: any) => {
+          {safeArray(filtered).map((venture: any) => {
             const revenue = venture.revenue || 0;
             const expenses = venture.expenses || 0;
             const pnl = revenue - expenses;

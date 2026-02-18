@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlatformBadge } from "@/components/PlatformIcon";
+import { safeArray } from "@/lib/safe-data";
 import { Shield, Users, Clock, Eye } from "lucide-react";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -30,7 +31,7 @@ export default function AudienceStealthSection() {
 
   const platforms = data.platforms || {};
   const stealthReport = data.stealthStatus?.stealthReport;
-  const activePlatforms = Object.entries(platforms).filter(([_, v]: any) =>
+  const activePlatforms = safeArray(Object.entries(platforms)).filter(([_, v]: any) =>
     v?.topSlots?.length > 0
   );
 
@@ -110,7 +111,7 @@ export default function AudienceStealthSection() {
 
           {stealthReport ? (
             <div className="space-y-2">
-              {Object.entries(stealthReport.platformGrades || {}).slice(0, 4).map(([platform, grade]: any) => (
+              {safeArray(Object.entries(stealthReport?.platformGrades || {})).slice(0, 4).map(([platform, grade]: any) => (
                 <div
                   key={platform}
                   className="flex items-center justify-between gap-2"

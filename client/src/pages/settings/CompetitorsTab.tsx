@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeArray } from '@/lib/safe-data';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -303,7 +304,7 @@ function CompetitorsTab() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {competitors.map((comp: any) => (
+          {safeArray(competitors).map((comp: any) => (
             <Card key={comp.id} data-testid={`card-competitor-${comp.id}`}>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -345,7 +346,7 @@ function CompetitorsTab() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Strengths</p>
                     <div className="flex gap-1.5 flex-wrap">
-                      {comp.strengths.map((s: string, i: number) => (
+                      {safeArray(comp?.strengths).map((s: string, i: number) => (
                         <Badge key={i} variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate no-default-active-elevate">{s}</Badge>
                       ))}
                     </div>
@@ -355,7 +356,7 @@ function CompetitorsTab() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Your Opportunities</p>
                     <div className="flex gap-1.5 flex-wrap">
-                      {comp.opportunities.map((o: string, i: number) => (
+                      {safeArray(comp?.opportunities).map((o: string, i: number) => (
                         <Badge key={i} variant="secondary" className="text-xs bg-amber-500/10 text-amber-500 no-default-hover-elevate no-default-active-elevate">{o}</Badge>
                       ))}
                     </div>

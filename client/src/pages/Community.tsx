@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { Card, CardContent } from "@/components/ui/card";
@@ -220,7 +221,7 @@ function GiveawaysTab() {
         </Card>
       ) : (
         <div className="space-y-1">
-          {data.map((g) => (
+          {safeArray(data).map((g) => (
             <Card key={g.id} data-testid={`card-giveaway-${g.id}`}>
               <CardContent className="p-2">
                 <div className="flex items-center justify-between gap-1 flex-wrap">
@@ -375,8 +376,8 @@ function PollsTab() {
         </Card>
       ) : (
         <div className="space-y-1">
-          {data.map((poll) => {
-            const maxVotes = Math.max(...poll.options.map((o) => o.votes), 1);
+          {safeArray(data).map((poll) => {
+            const maxVotes = Math.max(...safeArray(poll?.options).map((o) => o.votes), 1);
             return (
               <Card key={poll.id} data-testid={`card-poll-${poll.id}`}>
                 <CardContent className="p-2 space-y-1">
@@ -394,7 +395,7 @@ function PollsTab() {
                     </div>
                   </div>
                   <div className="space-y-0.5">
-                    {poll.options.map((opt, i) => (
+                    {safeArray(poll?.options).map((opt, i) => (
                       <div key={i} className="space-y-0.5" data-testid={`poll-option-${poll.id}-${i}`}>
                         <div className="flex items-center justify-between text-[10px]">
                           <span>{opt.label}</span>
@@ -533,7 +534,7 @@ function ChallengesTab() {
         </Card>
       ) : (
         <div className="space-y-1">
-          {data.map((c) => (
+          {safeArray(data).map((c) => (
             <Card key={c.id} data-testid={`card-challenge-${c.id}`}>
               <CardContent className="p-2">
                 <div className="flex items-center justify-between gap-1 flex-wrap">
@@ -645,7 +646,7 @@ function LoyaltyTab() {
         </Card>
       ) : (
         <div className="space-y-0.5">
-          {data.map((m) => {
+          {safeArray(data).map((m) => {
             const LevelIcon = LEVEL_ICONS[m.level] || Medal;
             return (
               <div
@@ -811,7 +812,7 @@ function ModerationTab() {
         </Card>
       ) : (
         <div className="space-y-0.5">
-          {filtered.map((a) => (
+          {safeArray(filtered).map((a) => (
             <div
               key={a.id}
               className="flex items-center justify-between gap-1 p-1.5 rounded-md border border-border"
