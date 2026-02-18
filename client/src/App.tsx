@@ -21,26 +21,41 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
 
-const CommandPalette = lazy(() => import("@/components/CommandPalette"));
+function lazyRetry<T extends { default: any }>(factory: () => Promise<T>): ReturnType<typeof lazy> {
+  return lazy(() =>
+    factory().catch((err: any) => {
+      const hasReloaded = sessionStorage.getItem("chunk_reload");
+      if (!hasReloaded) {
+        sessionStorage.setItem("chunk_reload", "1");
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      sessionStorage.removeItem("chunk_reload");
+      throw err;
+    })
+  );
+}
 
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Content = lazy(() => import("@/pages/Content"));
-const Settings = lazy(() => import("@/pages/Settings"));
-const StreamCenter = lazy(() => import("@/pages/StreamCenter"));
-const Money = lazy(() => import("@/pages/Money"));
-const Notifications = lazy(() => import("@/pages/Notifications"));
-const Landing = lazy(() => import("@/pages/Landing"));
-const Onboarding = lazy(() => import("@/pages/Onboarding"));
-const Pricing = lazy(() => import("@/pages/Pricing"));
-const Autopilot = lazy(() => import("@/pages/Autopilot"));
-const AccessCodes = lazy(() => import("@/pages/AccessCodes"));
-const Community = lazy(() => import("@/pages/Community"));
-const EmpireLauncher = lazy(() => import("@/pages/EmpireLauncher"));
-const NotFound = lazy(() => import("@/pages/not-found"));
-const PrivacyPolicy = lazy(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
-const TermsOfService = lazy(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
-const DataDisclosure = lazy(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
-const FloatingChat = lazy(() => import("@/components/FloatingChat"));
+const CommandPalette = lazyRetry(() => import("@/components/CommandPalette"));
+
+const Dashboard = lazyRetry(() => import("@/pages/Dashboard"));
+const Content = lazyRetry(() => import("@/pages/Content"));
+const Settings = lazyRetry(() => import("@/pages/Settings"));
+const StreamCenter = lazyRetry(() => import("@/pages/StreamCenter"));
+const Money = lazyRetry(() => import("@/pages/Money"));
+const Notifications = lazyRetry(() => import("@/pages/Notifications"));
+const Landing = lazyRetry(() => import("@/pages/Landing"));
+const Onboarding = lazyRetry(() => import("@/pages/Onboarding"));
+const Pricing = lazyRetry(() => import("@/pages/Pricing"));
+const Autopilot = lazyRetry(() => import("@/pages/Autopilot"));
+const AccessCodes = lazyRetry(() => import("@/pages/AccessCodes"));
+const Community = lazyRetry(() => import("@/pages/Community"));
+const EmpireLauncher = lazyRetry(() => import("@/pages/EmpireLauncher"));
+const NotFound = lazyRetry(() => import("@/pages/not-found"));
+const PrivacyPolicy = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
+const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
+const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
+const FloatingChat = lazyRetry(() => import("@/components/FloatingChat"));
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 
 const sidebarStyle = {
