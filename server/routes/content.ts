@@ -174,6 +174,131 @@ export function registerContentRoutes(app: Express) {
     }
   });
 
+  app.get("/api/videos/updated", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const syncLogs = await storage.getAuditLogsByUser(userId, "platform_sync_push");
+      res.json(syncLogs);
+    } catch (error: any) {
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.get("/api/videos/update-history", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const youtubeVideoId = req.query.youtubeVideoId as string | undefined;
+      let history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
+
+      if (history.length === 0) {
+        try {
+          const allUserPipelines = await db.select().from(contentPipeline)
+            .where(eq(contentPipeline.userId, userId));
+
+          const videoIds = allUserPipelines
+            .map(p => p.videoId)
+            .filter((id): id is number => id !== null);
+
+          let candidateVideos: typeof videos.$inferSelect[] = [];
+          if (videoIds.length > 0) {
+            candidateVideos = await db.select().from(videos)
+              .where(and(
+                inArray(videos.id, videoIds),
+                sql`${videos.metadata}::text LIKE '%aiOptimized%'`,
+              ));
+          }
+
+          if (candidateVideos.length > 0) {
+            const existing = await db.select({ videoId: videoUpdateHistory.videoId })
+              .from(videoUpdateHistory).where(eq(videoUpdateHistory.userId, userId));
+            const alreadyBackfilled = new Set(existing.map(e => e.videoId));
+
+            const pipelineByVideoId = new Map<number, any>();
+            for (const p of allUserPipelines) {
+              if (p.videoId && (!pipelineByVideoId.has(p.videoId) || p.id > pipelineByVideoId.get(p.videoId).id)) {
+                pipelineByVideoId.set(p.videoId, p);
+              }
+            }
+
+            const backfillEntries: any[] = [];
+            for (const vid of candidateVideos) {
+              if (alreadyBackfilled.has(vid.id)) continue;
+              const meta = vid.metadata as any;
+              if (!meta?.aiOptimized) continue;
+
+              const ytId = meta?.youtubeVideoId || `pending-${vid.id}`;
+              const studioUrl = meta?.youtubeVideoId
+                ? `https://studio.youtube.com/video/${meta.youtubeVideoId}/edit`
+                : null;
+
+              const pipeline = pipelineByVideoId.get(vid.id);
+              const stepResults = pipeline?.stepResults as any || {};
+
+              const originalTitle = meta?.originalTitle || pipeline?.videoTitle || vid.title;
+              const aiTitle = stepResults?.title?.titles?.[0]?.title || stepResults?.title?.titles?.[0] || vid.title;
+
+              if (originalTitle !== aiTitle) {
+                backfillEntries.push({
+                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
+                  field: "title", oldValue: originalTitle, newValue: aiTitle,
+                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
+                });
+              }
+
+              const aiDesc = stepResults?.description?.description || vid.description;
+              if (aiDesc) {
+                backfillEntries.push({
+                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
+                  field: "description", oldValue: "(no description before optimization)", newValue: aiDesc,
+                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
+                });
+              }
+
+              const aiTags = stepResults?.tags?.tags || meta?.tags;
+              if (aiTags && Array.isArray(aiTags)) {
+                backfillEntries.push({
+                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
+                  field: "tags", oldValue: "(no tags before optimization)", newValue: JSON.stringify(aiTags),
+                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
+                });
+              }
+            }
+
+            if (backfillEntries.length > 0) {
+              await db.insert(videoUpdateHistory).values(backfillEntries);
+              console.log(`[UpdateHistory] Backfilled ${backfillEntries.length} records for userId: ${userId}`);
+              history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
+            }
+          }
+        } catch (backfillErr: any) {
+          console.error(`[UpdateHistory] Backfill error:`, backfillErr.message);
+        }
+      }
+
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.get("/api/videos/processing", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const pipelines = await db.select().from(contentPipeline)
+        .where(and(
+          eq(contentPipeline.userId, userId),
+          inArray(contentPipeline.status, ["queued", "processing"]),
+        ))
+        .orderBy(desc(contentPipeline.createdAt));
+      res.json(pipelines);
+    } catch (error: any) {
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
   app.get(api.videos.get.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -339,131 +464,6 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const logs = await storage.getAuditLogs();
     res.json(logs);
-  });
-
-  app.get("/api/videos/updated", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const syncLogs = await storage.getAuditLogsByUser(userId, "platform_sync_push");
-      res.json(syncLogs);
-    } catch (error: any) {
-      res.status(500).json({ error: "An internal error occurred. Please try again." });
-    }
-  });
-
-  app.get("/api/videos/update-history", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const youtubeVideoId = req.query.youtubeVideoId as string | undefined;
-      let history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
-
-      if (history.length === 0) {
-        try {
-          const allUserPipelines = await db.select().from(contentPipeline)
-            .where(eq(contentPipeline.userId, userId));
-
-          const videoIds = allUserPipelines
-            .map(p => p.videoId)
-            .filter((id): id is number => id !== null);
-
-          let candidateVideos: typeof videos.$inferSelect[] = [];
-          if (videoIds.length > 0) {
-            candidateVideos = await db.select().from(videos)
-              .where(and(
-                inArray(videos.id, videoIds),
-                sql`${videos.metadata}::text LIKE '%aiOptimized%'`,
-              ));
-          }
-
-          if (candidateVideos.length > 0) {
-            const existing = await db.select({ videoId: videoUpdateHistory.videoId })
-              .from(videoUpdateHistory).where(eq(videoUpdateHistory.userId, userId));
-            const alreadyBackfilled = new Set(existing.map(e => e.videoId));
-
-            const pipelineByVideoId = new Map<number, any>();
-            for (const p of allUserPipelines) {
-              if (p.videoId && (!pipelineByVideoId.has(p.videoId) || p.id > pipelineByVideoId.get(p.videoId).id)) {
-                pipelineByVideoId.set(p.videoId, p);
-              }
-            }
-
-            const backfillEntries: any[] = [];
-            for (const vid of candidateVideos) {
-              if (alreadyBackfilled.has(vid.id)) continue;
-              const meta = vid.metadata as any;
-              if (!meta?.aiOptimized) continue;
-
-              const ytId = meta?.youtubeVideoId || `pending-${vid.id}`;
-              const studioUrl = meta?.youtubeVideoId
-                ? `https://studio.youtube.com/video/${meta.youtubeVideoId}/edit`
-                : null;
-
-              const pipeline = pipelineByVideoId.get(vid.id);
-              const stepResults = pipeline?.stepResults as any || {};
-
-              const originalTitle = meta?.originalTitle || pipeline?.videoTitle || vid.title;
-              const aiTitle = stepResults?.title?.titles?.[0]?.title || stepResults?.title?.titles?.[0] || vid.title;
-
-              if (originalTitle !== aiTitle) {
-                backfillEntries.push({
-                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
-                  field: "title", oldValue: originalTitle, newValue: aiTitle,
-                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
-                });
-              }
-
-              const aiDesc = stepResults?.description?.description || vid.description;
-              if (aiDesc) {
-                backfillEntries.push({
-                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
-                  field: "description", oldValue: "(no description before optimization)", newValue: aiDesc,
-                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
-                });
-              }
-
-              const aiTags = stepResults?.tags?.tags || meta?.tags;
-              if (aiTags && Array.isArray(aiTags)) {
-                backfillEntries.push({
-                  userId, videoId: vid.id, youtubeVideoId: ytId, videoTitle: vid.title,
-                  field: "tags", oldValue: "(no tags before optimization)", newValue: JSON.stringify(aiTags),
-                  source: "ai-pipeline", status: "optimized", youtubeStudioUrl: studioUrl,
-                });
-              }
-            }
-
-            if (backfillEntries.length > 0) {
-              await db.insert(videoUpdateHistory).values(backfillEntries);
-              console.log(`[UpdateHistory] Backfilled ${backfillEntries.length} records for userId: ${userId}`);
-              history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
-            }
-          }
-        } catch (backfillErr: any) {
-          console.error(`[UpdateHistory] Backfill error:`, backfillErr.message);
-        }
-      }
-
-      res.json(history);
-    } catch (error: any) {
-      res.status(500).json({ error: "An internal error occurred. Please try again." });
-    }
-  });
-
-  app.get("/api/videos/processing", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const pipelines = await db.select().from(contentPipeline)
-        .where(and(
-          eq(contentPipeline.userId, userId),
-          inArray(contentPipeline.status, ["queued", "processing"]),
-        ))
-        .orderBy(desc(contentPipeline.createdAt));
-      res.json(pipelines);
-    } catch (error: any) {
-      res.status(500).json({ error: "An internal error occurred. Please try again." });
-    }
   });
 
   app.get(api.insights.list.path, async (req, res) => {
