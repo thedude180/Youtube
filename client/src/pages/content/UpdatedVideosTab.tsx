@@ -134,11 +134,7 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
           data-testid={`button-expand-${youtubeVideoId}`}
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {isPending ? (
-              <Video className="h-4 w-4 text-purple-400 shrink-0" />
-            ) : (
-              <SiYoutube className="h-4 w-4 text-red-500 shrink-0" />
-            )}
+            <SiYoutube className="h-4 w-4 text-red-500 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="font-medium text-sm truncate" data-testid={`text-video-title-${youtubeVideoId}`}>
                 {videoTitle}
@@ -170,7 +166,7 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {studioUrl && !isPending && (
+            {studioUrl && (
               <a
                 href={studioUrl}
                 target="_blank"
@@ -183,6 +179,11 @@ function VideoUpdateCard({ youtubeVideoId, entries }: { youtubeVideoId: string; 
                   YouTube Studio
                 </Button>
               </a>
+            )}
+            {isPending && !studioUrl && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                Not uploaded yet
+              </Badge>
             )}
             {expanded ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
