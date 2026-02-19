@@ -5,10 +5,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { SiGoogle } from "react-icons/si";
+import { SiGoogle, SiDiscord, SiTwitch, SiTiktok, SiX, SiKick } from "react-icons/si";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 
 type AuthMode = "login" | "register";
+
+const OAUTH_PROVIDERS = [
+  { id: "google", label: "Google", icon: SiGoogle, path: "/api/auth/google" },
+  { id: "discord", label: "Discord", icon: SiDiscord, path: "/api/auth/discord" },
+  { id: "twitch", label: "Twitch", icon: SiTwitch, path: "/api/auth/twitch" },
+  { id: "x", label: "X", icon: SiX, path: "/api/auth/x" },
+  { id: "tiktok", label: "TikTok", icon: SiTiktok, path: "/api/auth/tiktok" },
+  { id: "kick", label: "Kick", icon: SiKick, path: "/api/auth/kick" },
+];
 
 async function authRequest(mode: AuthMode, data: Record<string, string>) {
   const res = await fetch(`/api/auth/${mode === "register" ? "register" : "login"}`, {
@@ -177,16 +186,20 @@ export function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            data-testid="button-auth-google"
-            onClick={() => { window.location.href = "/api/auth/google"; }}
-          >
-            <SiGoogle className="h-3.5 w-3.5 mr-2" />
-            Google
-          </Button>
+        <div className="grid grid-cols-3 gap-2">
+          {OAUTH_PROVIDERS.map((provider) => (
+            <Button
+              key={provider.id}
+              type="button"
+              variant="outline"
+              data-testid={`button-auth-${provider.id}`}
+              onClick={() => { window.location.href = provider.path; }}
+              title={`Sign in with ${provider.label}`}
+            >
+              <provider.icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+              <span className="text-xs truncate">{provider.label}</span>
+            </Button>
+          ))}
         </div>
 
         <div className="text-center">

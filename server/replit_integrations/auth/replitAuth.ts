@@ -74,6 +74,9 @@ export async function setupAuth(app: Express) {
   const { setupGoogleAuth } = await import("../../google-auth");
   setupGoogleAuth(app);
 
+  const { setupPlatformAuth } = await import("../../platform-auth");
+  setupPlatformAuth(app);
+
   const config = await getOidcConfig();
 
   const verify: VerifyFunction = async (
@@ -141,7 +144,8 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/logout", (req, res) => {
     const user = req.user as any;
-    const isLocalAuth = user?.auth_provider === "google" || user?.auth_provider === "email";
+    const localProviders = ["google", "email", "discord", "twitch", "x", "tiktok", "kick"];
+    const isLocalAuth = localProviders.includes(user?.auth_provider);
     
     req.logout(() => {
       if (isLocalAuth) {
@@ -165,7 +169,8 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (user.auth_provider === "google" || user.auth_provider === "email") {
+  const localProviders = ["google", "email", "discord", "twitch", "x", "tiktok", "kick"];
+  if (localProviders.includes(user.auth_provider)) {
     if (user.claims?.sub) {
       return next();
     }
