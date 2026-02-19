@@ -13,13 +13,18 @@ import {
   Zap,
   Briefcase,
   Shield,
+  TrendingUp,
+  Activity,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { PulseOrb } from "@/components/PulseOrb";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 import DashboardSkeleton from "./dashboard/DashboardSkeleton";
 import MetricsGrid from "./dashboard/MetricsGrid";
 import BusinessHealthSection from "./dashboard/BusinessHealthSection";
@@ -206,7 +211,7 @@ export default function Dashboard() {
 
       <Card
         data-testid="card-autonomy-banner"
-        className={`shine ${humanReviewMode
+        className={`shine gradient-border ${humanReviewMode
           ? "border-amber-500/20"
           : "border-emerald-500/20"
         }`}
@@ -214,23 +219,23 @@ export default function Dashboard() {
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span
+              <PulseOrb
+                status={humanReviewMode ? "warning" : "active"}
+                size="md"
                 data-testid="status-ai-pulse"
-                className="relative flex h-3 w-3 shrink-0"
-              >
-                {!humanReviewMode && activeAgents > 0 && (
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                )}
-                <span className={`relative inline-flex h-3 w-3 rounded-full ${
-                  humanReviewMode ? "bg-amber-400" : "bg-emerald-400"
-                }`} />
-              </span>
+              />
               <div aria-live="polite">
-                <p data-testid="text-ai-status" className="text-sm font-medium">
-                  {humanReviewMode ? "Human review required before publishing" : "AI is running everything"}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p data-testid="text-ai-status" className="text-sm font-medium">
+                    {humanReviewMode ? "Human review required" : "AI is running everything"}
+                  </p>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate">
+                    <Activity className="h-2.5 w-2.5 mr-0.5" />
+                    <AnimatedCounter value={activeAgents} className="font-mono" />/11 active
+                  </Badge>
+                </div>
                 <p className="text-xs text-muted-foreground" data-testid="text-tasks-today">
-                  {tasksToday} task{tasksToday !== 1 ? "s" : ""} completed today
+                  <AnimatedCounter value={tasksToday} className="font-medium" /> task{tasksToday !== 1 ? "s" : ""} completed today
                 </p>
               </div>
             </div>

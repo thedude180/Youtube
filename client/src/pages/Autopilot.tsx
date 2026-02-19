@@ -15,6 +15,10 @@ import { PlatformBadge } from "@/components/PlatformIcon";
 import { formatDistanceToNow } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
 import { LiveTimestamp } from "@/components/LiveTimestamp";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { StealthRing } from "@/components/StealthRing";
+import { CountdownTimer } from "@/components/CountdownTimer";
+import { PulseOrb } from "@/components/PulseOrb";
 import {
   Rocket,
   Zap,
@@ -487,33 +491,48 @@ export default function Autopilot() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4" aria-live="polite">
-        <Card>
+        <Card className="gradient-border">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold" data-testid="text-scheduled-posts">{stats?.scheduledPosts || 0}</div>
-            <p className="text-sm text-muted-foreground">Scheduled</p>
+            <div className="flex items-center justify-between mb-1">
+              <CalendarClock className="h-4 w-4 text-blue-500" />
+              <PulseOrb status={stats?.scheduledPosts ? "active" : "idle"} size="sm" />
+            </div>
+            <AnimatedCounter value={stats?.scheduledPosts || 0} className="text-2xl font-bold" data-testid="text-scheduled-posts" />
+            <p className="text-xs text-muted-foreground mt-0.5">Scheduled</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="gradient-border">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold" data-testid="text-published-posts">{stats?.publishedPosts || 0}</div>
-            <p className="text-sm text-muted-foreground">Published</p>
+            <div className="flex items-center justify-between mb-1">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <PulseOrb status="active" size="sm" />
+            </div>
+            <AnimatedCounter value={stats?.publishedPosts || 0} className="text-2xl font-bold" data-testid="text-published-posts" />
+            <p className="text-xs text-muted-foreground mt-0.5">Published</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="gradient-border">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold" data-testid="text-total-comments">{stats?.totalCommentResponses || 0}</div>
-            <p className="text-sm text-muted-foreground">Replies</p>
+            <div className="flex items-center justify-between mb-1">
+              <MessageSquare className="h-4 w-4 text-emerald-500" />
+            </div>
+            <AnimatedCounter value={stats?.totalCommentResponses || 0} className="text-2xl font-bold" data-testid="text-total-comments" />
+            <p className="text-xs text-muted-foreground mt-0.5">AI Replies</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="gradient-border">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold" data-testid="text-pending-approvals">{stats?.pendingCommentApprovals || 0}</div>
-            <p className="text-sm text-muted-foreground">Pending</p>
+            <div className="flex items-center justify-between mb-1">
+              <Clock className="h-4 w-4 text-yellow-500" />
+              {(stats?.pendingCommentApprovals || 0) > 0 && <PulseOrb status="warning" size="sm" />}
+            </div>
+            <AnimatedCounter value={stats?.pendingCommentApprovals || 0} className="text-2xl font-bold" data-testid="text-pending-approvals" />
+            <p className="text-xs text-muted-foreground mt-0.5">Pending Review</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <StealthScoreRing score={stealth?.overallScore || 1.0} />
+        <Card className="gradient-border">
+          <CardContent className="p-4 flex items-center justify-center">
+            <StealthRing score={stealth?.overallScore || 1.0} size={90} strokeWidth={5} data-testid="text-stealth-score" />
           </CardContent>
         </Card>
       </div>
@@ -761,12 +780,18 @@ export default function Autopilot() {
                           <StatusIcon status={item.status} />
                           <Badge variant="outline">{typeLabel(item.type)}</Badge>
                           <PlatformBadge platform={item.targetPlatform} />
-                          {item.scheduledAt && (
+                          {item.scheduledAt && item.status === "scheduled" && new Date(item.scheduledAt) > new Date() ? (
+                            <CountdownTimer
+                              targetDate={item.scheduledAt}
+                              compact
+                              data-testid={`countdown-queue-${item.id}`}
+                            />
+                          ) : item.scheduledAt ? (
                             <LiveTimestamp
                               date={item.scheduledAt}
                               data-testid={`timestamp-queue-${item.id}`}
                             />
-                          )}
+                          ) : null}
                         </div>
                         <div className="flex items-start gap-1 group">
                           <p className="text-sm break-words flex-1">{item.content}</p>

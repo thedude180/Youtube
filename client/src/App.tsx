@@ -25,6 +25,8 @@ import { offlineEngine } from "@/lib/offline-engine";
 import { prefetchForRoute } from "@/lib/prefetch";
 import { BackToTop } from "@/components/BackToTop";
 import { GlobalProgress } from "@/components/GlobalProgress";
+import { ScrollProgress } from "@/components/ScrollProgress";
+import { SessionTracker } from "@/components/SessionTracker";
 
 function lazyRetry<T extends { default: any }>(factory: () => Promise<T>): ReturnType<typeof lazy> {
   return lazy(() =>
@@ -485,6 +487,7 @@ function AuthenticatedApp() {
               )}
               {!isFocusMode && <MobilePageTitle />}
               {!isFocusMode && <RouteBreadcrumb />}
+              {!isFocusMode && <SessionTracker />}
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
               <Tooltip>
@@ -529,6 +532,7 @@ function AuthenticatedApp() {
       <PWAInstallPrompt />
       <GlobalErrorToast />
       <BackToTop />
+      <ScrollProgress />
     </SidebarProvider>
   );
 }
