@@ -601,6 +601,8 @@ export async function processScheduledPosts() {
   const now = new Date();
   const { isActive } = getActivityWindow();
 
+  await retryFailedPosts();
+
   const duePosts = await db.select().from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.status, "scheduled"),
@@ -665,6 +667,11 @@ export async function processScheduledPosts() {
 
         await createNotification(post.userId, "autopilot", `Posted to ${post.targetPlatform}`,
           `Content published${result.postUrl ? `: ${result.postUrl}` : ""}`, "info");
+      } else if (result.skipped) {
+        logger.info("Post skipped (platform not applicable)", { postId: post.id, platform: post.targetPlatform, reason: result.error });
+        await db.update(autopilotQueue)
+          .set({ status: "cancelled" as any, errorMessage: result.error || "Skipped" })
+          .where(eq(autopilotQueue.id, post.id));
       } else {
         logger.error("Publish failed", { postId: post.id, platform: post.targetPlatform, error: result.error });
         await db.update(autopilotQueue)
@@ -679,6 +686,53 @@ export async function processScheduledPosts() {
       await db.update(autopilotQueue)
         .set({ status: "failed", errorMessage: String(err) })
         .where(eq(autopilotQueue.id, post.id));
+    }
+  }
+
+  await retryFailedPosts();
+}
+
+async function retryFailedPosts() {
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+  const failedPosts = await db.select().from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.status, "failed"),
+      gte(autopilotQueue.createdAt, twoHoursAgo),
+      lte(autopilotQueue.scheduledAt, fifteenMinutesAgo),
+    ))
+    .limit(3);
+
+  const retryable = failedPosts.filter(p => {
+    const err = p.errorMessage || "";
+    if (err.includes("reconnect") || err.includes("revoked") || err.includes("expired")) return false;
+    if (err.includes("webhook URL") || err.includes("not supported") || err.includes("Data API pipeline")) return false;
+    const retryCount = ((p.metadata as any)?.retryCount) || 0;
+    return retryCount < 2;
+  });
+
+  if (retryable.length === 0) return;
+
+  logger.info("Retrying failed posts", { count: retryable.length });
+  const { publishToplatform } = await import("./platform-publisher");
+
+  for (const post of retryable) {
+    try {
+      const retryCount = ((post.metadata as any)?.retryCount || 0) + 1;
+
+      await db.update(autopilotQueue)
+        .set({
+          status: "scheduled" as any,
+          scheduledAt: new Date(),
+          errorMessage: null,
+          metadata: { ...((post.metadata as any) || {}), retryCount },
+        })
+        .where(eq(autopilotQueue.id, post.id));
+
+      logger.info("Queued failed post for retry", { postId: post.id, platform: post.targetPlatform, attempt: retryCount });
+    } catch (err) {
+      logger.error("Failed to queue retry", { postId: post.id, error: String(err) });
     }
   }
 }

@@ -10,6 +10,7 @@ export interface PublishResult {
   postId?: string;
   postUrl?: string;
   error?: string;
+  skipped?: boolean;
 }
 
 const GOOGLE_PLATFORMS = new Set(["youtube", "youtubeshorts"]);
@@ -54,14 +55,14 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
     body = {
       grant_type: "refresh_token",
       refresh_token: channel.refreshToken,
-      client_id: clientId,
-      client_secret: clientSecret,
     };
 
     if (config.tokenAuthMethod === "header") {
       headers["Authorization"] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
-      delete body.client_id;
-      delete body.client_secret;
+      body.client_id = clientId;
+    } else {
+      body.client_id = clientId;
+      body.client_secret = clientSecret;
     }
   }
 
@@ -73,7 +74,16 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
     });
 
     if (!res.ok) {
-      console.error(`[Publisher] Token refresh failed for ${channel.platform}:`, await res.text());
+      const errText = await res.text();
+      console.error(`[Publisher] Token refresh failed for ${channel.platform} (${res.status}):`, errText);
+
+      if (res.status === 400 || res.status === 401) {
+        console.error(`[Publisher] Token for ${channel.platform} channel ${channel.id} is invalid/revoked. User needs to reconnect.`);
+        await storage.updateChannel(channel.id, {
+          tokenExpiresAt: new Date(0),
+        });
+        return null;
+      }
       return channel.accessToken;
     }
 
@@ -113,6 +123,23 @@ async function postToX(accessToken: string, content: string): Promise<PublishRes
     if (!res.ok) {
       const errData = await res.text();
       console.error(`[Publisher:X] Post failed (${res.status}):`, errData);
+
+      if (res.status === 401 || res.status === 403) {
+        return {
+          success: false,
+          platform: "x",
+          error: `X authentication expired. Please reconnect your X account in Settings > Channels to restore posting.`,
+        };
+      }
+
+      if (res.status === 429) {
+        return {
+          success: false,
+          platform: "x",
+          error: `X rate limit reached. Post will be retried automatically in 15 minutes.`,
+        };
+      }
+
       return { success: false, platform: "x", error: `X API error ${res.status}: ${errData.substring(0, 200)}` };
     }
 
@@ -137,70 +164,44 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
     const discordWebhookUrl = (channelData?.platformData as any)?.webhookUrl
       || (channelData?.settings as any)?.webhookUrl;
 
-    if (discordWebhookUrl) {
-      const res = await fetch(discordWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: content.substring(0, 2000) }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        return { success: false, platform: "discord", error: `Discord webhook failed (${res.status}): ${errText.substring(0, 200)}` };
-      }
-
-      return { success: true, platform: "discord", postId: `webhook_${Date.now()}` };
+    if (!discordWebhookUrl) {
+      return {
+        success: false,
+        platform: "discord",
+        skipped: true,
+        error: "Discord requires a webhook URL for posting. Go to Settings > Channels > Discord and add a webhook URL from your Discord server (Server Settings > Integrations > Webhooks).",
+      };
     }
 
-    const guilds = (channelData?.platformData as any)?.guilds;
-    if (!guilds || guilds.length === 0) {
-      return { success: false, platform: "discord", error: "No Discord servers accessible. Please set up a webhook URL in your Discord channel settings, or reconnect your Discord account." };
-    }
-
-    const targetGuild = guilds.find((g: any) => g.owner) || guilds[0];
-    const guildId = targetGuild.id;
-
-    const channelsRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
-      headers: { "Authorization": `Bearer ${accessToken}` },
-    });
-
-    if (!channelsRes.ok) {
-      return { success: false, platform: "discord", error: `Cannot access Discord server channels (${channelsRes.status}). User OAuth tokens have limited permissions. Set up a Discord webhook URL in your channel settings for reliable posting.` };
-    }
-
-    const allChannels = await channelsRes.json() as any[];
-    const textChannel = allChannels.find((ch: any) =>
-      ch.type === 0 && (ch.name?.includes("general") || ch.name?.includes("announce") || ch.name?.includes("content") || ch.name?.includes("updates"))
-    ) || allChannels.find((ch: any) => ch.type === 0);
-
-    if (!textChannel) {
-      return { success: false, platform: "discord", error: "No text channel found in Discord server" };
-    }
-
-    const msgRes = await fetch(`https://discord.com/api/v10/channels/${textChannel.id}/messages`, {
+    const res = await fetch(discordWebhookUrl, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: content.substring(0, 2000) }),
     });
 
-    if (!msgRes.ok) {
-      const errText = await msgRes.text();
-      return { success: false, platform: "discord", error: `Discord message post failed (${msgRes.status}): ${errText.substring(0, 200)}. Consider setting up a webhook URL for more reliable posting.` };
+    if (!res.ok) {
+      const errText = await res.text();
+
+      if (res.status === 404) {
+        return {
+          success: false,
+          platform: "discord",
+          error: "Discord webhook not found. The webhook may have been deleted. Please create a new webhook in your Discord server and update it in Settings > Channels > Discord.",
+        };
+      }
+
+      if (res.status === 429) {
+        return {
+          success: false,
+          platform: "discord",
+          error: "Discord rate limit reached. Post will be retried automatically.",
+        };
+      }
+
+      return { success: false, platform: "discord", error: `Discord webhook failed (${res.status}): ${errText.substring(0, 200)}` };
     }
 
-    const msg = await msgRes.json() as any;
-    if (!msg.id) {
-      return { success: false, platform: "discord", error: "Discord API returned no message ID" };
-    }
-    return {
-      success: true,
-      platform: "discord",
-      postId: msg.id,
-      postUrl: `https://discord.com/channels/${guildId}/${textChannel.id}/${msg.id}`,
-    };
+    return { success: true, platform: "discord", postId: `webhook_${Date.now()}` };
   } catch (err: any) {
     return { success: false, platform: "discord", error: err.message };
   }
@@ -268,6 +269,7 @@ async function postToKick(accessToken: string, content: string, channelData: any
   return {
     success: false,
     platform: "kick",
+    skipped: true,
     error: "Kick does not currently offer a public content posting API. Your Kick account is connected for stream key access and live detection. Content announcements can be cross-posted via Discord or X instead.",
   };
 }
@@ -278,6 +280,15 @@ export async function publishToplatform(
   content: string,
   metadata?: any,
 ): Promise<PublishResult> {
+  if (platform === "youtube" || platform === "youtubeshorts") {
+    return {
+      success: false,
+      platform,
+      skipped: true,
+      error: "YouTube publishing uses the dedicated YouTube Data API pipeline. Content is pushed via SEO optimization and metadata updates automatically.",
+    };
+  }
+
   if (platform === "tiktok") {
     const { publishVideoToTikTok } = await import("./tiktok-publisher");
     const result = await publishVideoToTikTok(userId, content, metadata);
@@ -301,7 +312,7 @@ export async function publishToplatform(
     return {
       success: false,
       platform,
-      error: `No connected ${platform} account with valid credentials. Connect your account in Content > Channels.`,
+      error: `No connected ${platform} account with valid credentials. Connect your account in Settings > Channels.`,
     };
   }
 
@@ -310,7 +321,7 @@ export async function publishToplatform(
     return {
       success: false,
       platform,
-      error: `Failed to get valid access token for ${platform}. Please reconnect your account.`,
+      error: `${platform} authentication has expired or been revoked. Please reconnect your ${platform} account in Settings > Channels.`,
     };
   }
 
@@ -321,8 +332,6 @@ export async function publishToplatform(
       return postToDiscord(accessToken, content, channel);
     case "twitch":
       return postToTwitch(accessToken, content, channel);
-    case "youtube":
-      return { success: false, platform: "youtube", error: "YouTube publishing is handled separately through the YouTube Data API pipeline." };
     default:
       return { success: false, platform, error: `Publishing not yet supported for ${platform}` };
   }
