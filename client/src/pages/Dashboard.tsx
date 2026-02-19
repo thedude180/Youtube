@@ -26,6 +26,7 @@ import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
 
 const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"));
+const LazyChannelGrowthTimeline = lazy(() => import("@/components/ChannelGrowthTimeline"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
 
 type AIResponse = any;
@@ -251,6 +252,10 @@ export default function Dashboard() {
 
       <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-lg" />}>
         <LazyGrowthImpactChart />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
+        <LazyChannelGrowthTimeline />
       </Suspense>
 
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />

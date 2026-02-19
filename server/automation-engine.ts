@@ -249,7 +249,7 @@ export async function initAutomationEngine() {
     }
   });
 
-  cron.schedule("*/10 * * * *", async () => {
+  cron.schedule("*/5 * * * *", async () => {
     try {
       const { refreshExpiringTokens } = await import("./token-refresh");
       await refreshExpiringTokens();

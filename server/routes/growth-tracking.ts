@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, asc } from "drizzle-orm";
 import { requireAuth, asyncHandler } from "./helpers";
 import { cached } from "../lib/cache";
 import {
   channelGrowthTracking, analyticsSnapshots, channels, videos,
-  autopilotQueue, streamPipelines
+  autopilotQueue, streamPipelines, channelBaselineSnapshots
 } from "@shared/schema";
 
 export function registerGrowthTrackingRoutes(app: Express) {
@@ -175,6 +175,96 @@ export function registerGrowthTrackingRoutes(app: Express) {
     }).returning();
 
     res.json(snapshot);
+  }));
+
+  app.get("/api/growth/channels", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const result = await cached(`growth-channels:${userId}`, 60, async () => {
+      const userChannels = await db.select().from(channels)
+        .where(eq(channels.userId, userId));
+
+      if (userChannels.length === 0) {
+        return { channels: [] };
+      }
+
+      const channelTimelines = [];
+
+      for (const ch of userChannels) {
+        const snapshots = await db.select().from(channelBaselineSnapshots)
+          .where(eq(channelBaselineSnapshots.channelId, ch.id))
+          .orderBy(asc(channelBaselineSnapshots.snapshotDate));
+
+        const baseline = snapshots.find(s => s.snapshotType === "baseline");
+        const periodic = snapshots.filter(s => s.snapshotType === "periodic");
+        const latest = periodic.length > 0 ? periodic[periodic.length - 1] : baseline;
+
+        const connectedDate = ch.createdAt || baseline?.snapshotDate || new Date();
+
+        const viewsDelta = baseline && latest
+          ? (latest.views || 0) - (baseline.views || 0)
+          : 0;
+        const subsDelta = baseline && latest
+          ? (latest.subscribers || 0) - (baseline.subscribers || 0)
+          : 0;
+        const viewsPct = baseline && (baseline.views || 0) > 0
+          ? Math.round((viewsDelta / (baseline.views || 1)) * 100)
+          : 0;
+        const subsPct = baseline && (baseline.subscribers || 0) > 0
+          ? Math.round((subsDelta / (baseline.subscribers || 1)) * 100)
+          : 0;
+
+        const milestones: string[] = [];
+        for (const s of periodic) {
+          if (s.metadata && (s.metadata as any).milestones) {
+            milestones.push(...(s.metadata as any).milestones);
+          }
+        }
+
+        const timeline = snapshots.map(s => ({
+          date: new Date(s.snapshotDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          rawDate: s.snapshotDate,
+          type: s.snapshotType,
+          views: s.views || 0,
+          subscribers: s.subscribers || 0,
+          videoCount: s.videoCount || 0,
+          avgViewsPerVideo: s.avgViewsPerVideo || 0,
+          optimizations: s.aiOptimizationsAtSnapshot || 0,
+        }));
+
+        channelTimelines.push({
+          channelId: ch.id,
+          channelName: ch.channelName,
+          platform: ch.platform,
+          connectedDate: new Date(connectedDate).toISOString(),
+          current: {
+            views: ch.viewCount || 0,
+            subscribers: ch.subscriberCount || 0,
+            videoCount: ch.videoCount || 0,
+          },
+          baseline: baseline ? {
+            views: baseline.views || 0,
+            subscribers: baseline.subscribers || 0,
+            videoCount: baseline.videoCount || 0,
+          } : null,
+          delta: {
+            views: viewsDelta,
+            subscribers: subsDelta,
+            viewsPct,
+            subsPct,
+          },
+          milestones: Array.from(new Set(milestones)),
+          timeline,
+          totalSnapshots: snapshots.length,
+          lastOptimizations: latest?.aiOptimizationsAtSnapshot || 0,
+        });
+      }
+
+      return { channels: channelTimelines };
+    });
+
+    res.json(result);
   }));
 }
 

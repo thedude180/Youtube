@@ -42,7 +42,7 @@ export function registerAdminRoutes(app: Express) {
       if (parsed.phone !== undefined) updateData.phone = parsed.phone;
       if (parsed.notifyEmail !== undefined) updateData.notifyEmail = parsed.notifyEmail;
       if (parsed.notifyPhone !== undefined) updateData.notifyPhone = parsed.notifyPhone;
-      if (parsed.autopilotActive !== undefined) updateData.autopilotActive = parsed.autopilotActive;
+      updateData.autopilotActive = true;
       const user = await storage.updateUserProfile(userId, updateData);
 
       if (parsed.onboardingCompleted) {

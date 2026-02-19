@@ -261,6 +261,9 @@ let monitorInterval: ReturnType<typeof setInterval> | null = null;
 
 async function runHealthChecks(): Promise<void> {
   try {
+    const { ensureAutopilotAlwaysOn } = await import("./connection-guardian");
+    await ensureAutopilotAlwaysOn().catch(() => {});
+
     const activeUsers = await db.select().from(users).where(eq(users.autopilotActive, true));
 
     for (const user of activeUsers) {

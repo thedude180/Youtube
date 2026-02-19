@@ -122,7 +122,7 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
 }
 
 export async function refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
-  const bufferMs = 15 * 60 * 1000;
+  const bufferMs = 2 * 60 * 60 * 1000;
   const threshold = new Date(Date.now() + bufferMs);
 
   let refreshed = 0;

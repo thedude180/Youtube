@@ -12,6 +12,7 @@ import { seedStripeProducts } from "./stripe-seed";
 import { pool } from "./db";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 import { startAutopilotMonitor } from "./services/autopilot-monitor";
+import { startConnectionGuardian } from "./services/connection-guardian";
 import { storage } from "./storage";
 import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
 import { processDeadLetterQueue } from "./services/automation-hardening";
@@ -415,6 +416,7 @@ app.use((req: any, res, next) => {
     () => {
       log(`serving on port ${port}`);
       startAutopilotMonitor();
+      startConnectionGuardian();
 
       seedRetentionPolicies().catch(err => console.error("[DataRetention] Seed failed:", err));
 
