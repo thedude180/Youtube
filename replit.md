@@ -61,6 +61,22 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 -   **Notification Engine**: Sends email (Gmail) and optional SMS alerts for warnings/critical issues.
 -   **AI Feedback Processor**: Analyzes user feedback, auto-categorizes, and resolves config-type issues.
 
+### Infrastructure & Hardening (Feb 2026)
+-   **Centralized OpenAI**: Single shared client via `server/lib/openai.ts` (40+ files consolidated).
+-   **Retry Wrapper**: `server/lib/retry.ts` with exponential backoff for 29+ external API calls.
+-   **LRU Cache**: `server/lib/lru-cache.ts` replaces unbounded Maps for AI response caching.
+-   **Structured Logger**: `server/lib/logger.ts` with JSON output and configurable log levels.
+-   **Memory Leak Prevention**: Cleanup intervals on 5 in-memory Maps with graceful shutdown.
+-   **Database Indexes**: 66 userId indexes + 6 composite indexes for query optimization.
+-   **Database Transactions**: Atomic multi-step writes on platform connect/disconnect and pipeline operations.
+-   **Input Validation**: Zod schemas on all POST/PUT bodies, URL param sanitization.
+-   **Rate Limiting**: Per-endpoint rate limiting on AI (5/min) and content generation (10/min) routes.
+-   **Request Tracking**: X-Request-ID header on all responses, health check with DB connectivity.
+-   **Webhook Security**: HMAC-SHA256 signature verification on webhook endpoints.
+-   **Error Handling**: asyncHandler wrapping on 122+ route handlers, ErrorBoundary on all pages.
+-   **Frontend**: Lazy loading, data-testid attributes, ARIA accessibility labels.
+-   **Pagination**: List endpoints support `page` and `limit` query params.
+
 ## External Dependencies
 -   **Replit Auth**: User authentication.
 -   **OpenAI API**: AI-driven functionalities.
