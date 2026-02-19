@@ -141,10 +141,10 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/logout", (req, res) => {
     const user = req.user as any;
-    const isGoogleAuth = user?.auth_provider === "google";
+    const isLocalAuth = user?.auth_provider === "google" || user?.auth_provider === "email";
     
     req.logout(() => {
-      if (isGoogleAuth) {
+      if (isLocalAuth) {
         res.redirect("/");
       } else {
         res.redirect(
@@ -165,7 +165,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (user.auth_provider === "google") {
+  if (user.auth_provider === "google" || user.auth_provider === "email") {
     if (user.claims?.sub) {
       return next();
     }

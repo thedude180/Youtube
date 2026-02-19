@@ -1,13 +1,14 @@
+import { useState } from "react";
 import {
   Zap, ArrowRight, Bot, DollarSign, BarChart3,
   Monitor, CheckCircle2, Link2, Cpu, TrendingUp,
   Brain, Calendar, Shield, Sparkles, Play,
 } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { AuthForm } from "@/components/AuthForm";
 
 const FEATURES = [
   {
@@ -86,6 +87,7 @@ const TRUST_NUMBERS = [
 ];
 
 export default function Landing() {
+  const [showAuthForm, setShowAuthForm] = useState(false);
   usePageTitle("AI-Powered Creator Management Platform", "CreatorOS replaces your entire creator team with 832 AI features. Manage content, streaming, revenue, and growth across 25 platforms on full autopilot. Start free today.");
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -108,14 +110,33 @@ export default function Landing() {
             <Button
               data-testid="button-sign-in-nav"
               size="sm"
-              onClick={() => { window.location.href = "/api/auth/google"; }}
+              onClick={() => setShowAuthForm(true)}
             >
-              <SiGoogle className="h-3.5 w-3.5 mr-1.5" />
               Sign In
             </Button>
           </div>
         </div>
       </nav>
+
+      {showAuthForm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          data-testid="modal-auth"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowAuthForm(false); }}
+        >
+          <div className="relative">
+            <button
+              data-testid="button-close-auth"
+              onClick={() => setShowAuthForm(false)}
+              className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            <AuthForm />
+          </div>
+        </div>
+      )}
 
       <section className="relative overflow-hidden" data-testid="section-hero">
         <div className="absolute inset-0" aria-hidden="true">
@@ -149,9 +170,8 @@ export default function Landing() {
                   data-testid="button-hero-get-started"
                   size="lg"
                   className="text-base glow"
-                  onClick={() => { window.location.href = "/api/auth/google"; }}
+                  onClick={() => setShowAuthForm(true)}
                 >
-                  <SiGoogle className="h-4 w-4 mr-2" />
                   Get Started Free
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
@@ -374,21 +394,22 @@ export default function Landing() {
               data-testid="button-cta-get-started"
               size="lg"
               className="text-base glow"
-              onClick={() => { window.location.href = "/api/auth/google"; }}
+              onClick={() => setShowAuthForm(true)}
             >
-              <SiGoogle className="h-4 w-4 mr-2" />
               Get Started Free
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
-            <Button
-              data-testid="button-cta-sign-in-replit"
-              variant="outline"
-              size="lg"
-              className="text-base"
-              onClick={() => { window.location.href = "/api/login"; }}
-            >
-              Sign in with Replit
-            </Button>
+            <a href="/pricing">
+              <Button
+                data-testid="button-cta-view-pricing"
+                variant="outline"
+                size="lg"
+                className="text-base"
+              >
+                <Play className="h-3.5 w-3.5 mr-2" />
+                View Plans
+              </Button>
+            </a>
           </div>
           <div className="flex items-center justify-center gap-8 mt-8 flex-wrap">
             {TRUST_NUMBERS.map((stat) => (
