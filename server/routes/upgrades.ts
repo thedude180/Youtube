@@ -23,7 +23,12 @@ async function callAI(systemPrompt: string, userPrompt: string): Promise<any> {
     ],
     response_format: { type: "json_object" },
   });
-  return JSON.parse(response.choices[0].message.content || "{}");
+  try {
+    return JSON.parse(response.choices[0].message.content || "{}");
+  } catch {
+    console.error("[Upgrades] Failed to parse AI response");
+    return {};
+  }
 }
 
 function seedRandom(str: string): () => number {
@@ -1743,7 +1748,7 @@ export function registerUpgradeRoutes(app: Express) {
     try {
       const memory = await storage.getCreatorMemoryByKey(userId, "accessibility_prefs");
       if (memory) {
-        res.json(JSON.parse(memory.value));
+        try { res.json(JSON.parse(memory.value)); } catch { res.json({}); }
       } else {
         res.json({
           highContrast: false,

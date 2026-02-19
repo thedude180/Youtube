@@ -50,7 +50,21 @@ Provide your analysis as JSON with exactly these fields:
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI for style scan");
-  const profile: StyleProfile = JSON.parse(content);
+  let profile: StyleProfile;
+  try {
+    profile = JSON.parse(content);
+  } catch {
+    console.error("[CreatorIntelligence] Failed to parse style profile");
+    profile = {
+      tone: "",
+      commonPhrases: [],
+      sentenceStructure: "",
+      vocabularyLevel: "",
+      emojiUsage: "",
+      capitalizationStyle: "",
+      hookPatterns: [],
+    };
+  }
 
   const entries: Array<{ key: string; value: string }> = [
     { key: "tone", value: profile.tone },
@@ -228,7 +242,13 @@ Provide your response as JSON with exactly this field:
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI for humanization");
-  const result = JSON.parse(content);
+  let result;
+  try {
+    result = JSON.parse(content);
+  } catch {
+    console.error("[CreatorIntelligence] Failed to parse humanization result");
+    result = {};
+  }
   return result.humanized || text;
 }
 

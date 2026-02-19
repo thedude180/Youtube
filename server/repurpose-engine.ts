@@ -78,7 +78,13 @@ Requirements:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    const parsed = JSON.parse(content);
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      console.error("[RepurposeEngine] Failed to parse repurpose video response");
+      parsed = {};
+    }
 
     const saved: Array<{ format: string; id: number }> = [];
     for (const format of validFormats) {
@@ -191,7 +197,12 @@ Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and 
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    return JSON.parse(content);
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.error("[RepurposeEngine] Failed to parse B-roll suggestions response");
+      return {};
+    }
   } catch (error) {
     console.error("Failed to suggest B-roll:", error);
     return { suggestions: [], overallStyle: "", transitionTips: "" };

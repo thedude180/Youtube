@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { channels } from "@shared/schema";
 import { users } from "@shared/models/auth";
-import { eq, and, isNotNull, lt, isNull } from "drizzle-orm";
+import { eq, and, isNotNull, lt, isNull, desc } from "drizzle-orm";
 import { storage } from "../storage";
 
 let guardianInterval: ReturnType<typeof setInterval> | null = null;
@@ -16,27 +16,28 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
   try {
     const threshold = new Date(Date.now() + TOKEN_PREEMPTIVE_BUFFER_MS);
 
-    const expiringChannels = await db.select().from(channels)
-      .where(and(
-        isNotNull(channels.refreshToken),
-        isNotNull(channels.tokenExpiresAt),
-        lt(channels.tokenExpiresAt, threshold),
-      )).limit(200);
-
-    if (expiringChannels.length > 0) {
-      const { refreshExpiringTokens } = await import("../token-refresh");
-      const result = await refreshExpiringTokens();
-      refreshed = result.refreshed;
-      failed = result.failed;
-    }
+    const { refreshExpiringTokens } = await import("../token-refresh");
+    const result = await refreshExpiringTokens();
+    refreshed = result.refreshed;
+    failed = result.failed;
 
     const allConnected = await db.select().from(channels)
-      .where(isNotNull(channels.accessToken))
-      .limit(200);
+      .where(isNotNull(channels.accessToken));
+
+    const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
     for (const ch of allConnected) {
       if (!ch.tokenExpiresAt) {
-        verified++;
+        const channelAge = ch.createdAt ? Date.now() - new Date(ch.createdAt).getTime() : Infinity;
+        if (channelAge > TOKEN_MAX_AGE_MS && ch.refreshToken) {
+          try {
+            const singleResult = await refreshExpiringTokens();
+            if (singleResult.refreshed > 0) refreshed++;
+            else failed++;
+          } catch { failed++; }
+        } else {
+          verified++;
+        }
         continue;
       }
 
@@ -144,7 +145,7 @@ async function capturePeriodicSnapshots(): Promise<number> {
           eq(channelBaselineSnapshots.channelId, ch.id),
           eq(channelBaselineSnapshots.snapshotType, "periodic"),
         ))
-        .orderBy(channelBaselineSnapshots.snapshotDate)
+        .orderBy(desc(channelBaselineSnapshots.snapshotDate))
         .limit(1);
 
       const lastSnapshot = recentSnapshot[0];

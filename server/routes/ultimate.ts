@@ -892,6 +892,16 @@ export function registerUltimateRoutes(app: Express) {
   const empireLaunchRateLimitEmail = new Map<string, number>();
   const empireLaunchRateLimitIP = new Map<string, number>();
 
+  setInterval(() => {
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    for (const [key, ts] of Array.from(empireLaunchRateLimitEmail)) {
+      if (ts < cutoff) empireLaunchRateLimitEmail.delete(key);
+    }
+    for (const [key, ts] of Array.from(empireLaunchRateLimitIP)) {
+      if (ts < cutoff) empireLaunchRateLimitIP.delete(key);
+    }
+  }, 60_000);
+
   const empireLaunchSchema = z.object({
     email: z.string().email("Please provide a valid email address").max(320),
     idea: z.string().min(3, "Please provide your content idea (at least 3 characters)").max(1000, "Idea must be under 1000 characters"),

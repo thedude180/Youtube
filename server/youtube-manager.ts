@@ -94,7 +94,12 @@ Focus on:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    return JSON.parse(content);
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.error("[YoutubeManager] Failed to parse playlist organization response");
+      return {};
+    }
   } catch (error) {
     console.error("Failed to auto-organize playlists:", error);
     return { suggestions: [], message: "Unable to analyze videos at this time" };
@@ -176,7 +181,13 @@ Score and analyze as JSON:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    const result = JSON.parse(content);
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      console.error("[YoutubeManager] Failed to parse SEO score response");
+      result = {};
+    }
 
     await db.update(managedPlaylists)
       .set({ seoScore: result.score })
@@ -231,7 +242,12 @@ Best practices:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    return JSON.parse(content);
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.error("[YoutubeManager] Failed to parse pinned comment response");
+      return {};
+    }
   } catch (error) {
     console.error("Failed to generate pinned comment:", error);
     return { comment: "", strategy: "", expectedImpact: "", error: "Unable to generate comment" };
@@ -274,7 +290,13 @@ Generate as JSON:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    const result = JSON.parse(content);
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      console.error("[YoutubeManager] Failed to parse description links response");
+      result = {};
+    }
 
     await db.insert(descriptionTemplates).values({
       userId,
@@ -333,7 +355,12 @@ Important:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    return JSON.parse(content);
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.error("[YoutubeManager] Failed to parse multi-language metadata response");
+      return {};
+    }
   } catch (error) {
     console.error("Failed to generate multi-language metadata:", error);
     return { translations: {} };

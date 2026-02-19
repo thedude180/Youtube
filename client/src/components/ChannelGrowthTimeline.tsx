@@ -17,7 +17,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   youtube: "#FF0000",
   twitch: "#9146FF",
   kick: "#53FC18",
-  tiktok: "#010101",
+  tiktok: "#EE1D52",
   x: "#1DA1F2",
   discord: "#5865F2",
 };

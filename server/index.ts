@@ -11,8 +11,8 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { seedStripeProducts } from "./stripe-seed";
 import { pool } from "./db";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
-import { startAutopilotMonitor } from "./services/autopilot-monitor";
-import { startConnectionGuardian } from "./services/connection-guardian";
+import { startAutopilotMonitor, stopAutopilotMonitor } from "./services/autopilot-monitor";
+import { startConnectionGuardian, stopConnectionGuardian } from "./services/connection-guardian";
 import { storage } from "./storage";
 import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
 import { processDeadLetterQueue } from "./services/automation-hardening";
@@ -265,10 +265,17 @@ setInterval(() => {
   }
 }, 60_000);
 
+const CSRF_MAX_SIZE = 10000;
+
 app.get("/api/security/csrf-token", (req: Request, res: Response) => {
   const sessionId = (req as any).sessionID;
   if (!sessionId) {
     return res.json({ csrfToken: null });
+  }
+  if (csrfTokens.size >= CSRF_MAX_SIZE) {
+    const entries = Array.from(csrfTokens.entries()).sort((a, b) => a[1].expires - b[1].expires);
+    const toRemove = entries.slice(0, Math.floor(CSRF_MAX_SIZE * 0.2));
+    for (const [key] of toRemove) csrfTokens.delete(key);
   }
   const token = crypto.randomBytes(32).toString("hex");
   csrfTokens.set(sessionId, { token, expires: Date.now() + 3600_000 });
@@ -377,6 +384,15 @@ app.use((req: any, res, next) => {
   next();
 });
 
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setTimeout(120_000, () => {
+    if (!res.headersSent) {
+      res.status(408).json({ error: "request_timeout", message: "Request timed out. Please try again." });
+    }
+  });
+  next();
+});
+
 (async () => {
   await registerRoutes(httpServer, app);
 
@@ -406,6 +422,8 @@ app.use((req: any, res, next) => {
     await setupVite(httpServer, app);
   }
 
+  const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
+
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {
@@ -420,15 +438,17 @@ app.use((req: any, res, next) => {
 
       seedRetentionPolicies().catch(err => console.error("[DataRetention] Seed failed:", err));
 
-      setInterval(() => {
+      const dlqInterval = setInterval(() => {
         processDeadLetterQueue().catch(err => console.error("[DLQ] Process failed:", err));
       }, 5 * 60 * 1000);
 
-      setInterval(() => {
+      const digestInterval = setInterval(() => {
         processAllDigests().catch(err => console.error("[Digest] Process failed:", err));
       }, 60 * 60 * 1000);
 
-      startSentinel();
+      backgroundIntervals.push(dlqInterval, digestInterval);
+
+      try { startSentinel(); } catch (err) { console.error("[AI Sentinel] Init failed:", err); }
 
       import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => console.error("[Community Engine] Init failed:", err));
       import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => console.error("[Education Engine] Init failed:", err));
@@ -442,6 +462,11 @@ app.use((req: any, res, next) => {
 
   const shutdown = (signal: string) => {
     log(`${signal} received, shutting down gracefully...`);
+
+    for (const interval of backgroundIntervals) clearInterval(interval);
+    stopAutopilotMonitor();
+    stopConnectionGuardian();
+
     httpServer.close(() => {
       pool.end().then(() => {
         log("Database pool closed");

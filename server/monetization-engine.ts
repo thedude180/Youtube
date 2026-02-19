@@ -63,7 +63,12 @@ Best practices:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    return JSON.parse(content);
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.error("[MonetizationEngine] Failed to parse ad breaks response");
+      return {};
+    }
   } catch (error) {
     console.error("Failed to suggest ad breaks:", error);
     return { adBreaks: [], tips: [] };
@@ -136,7 +141,13 @@ Generate forecast as JSON:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    const forecast = JSON.parse(content);
+    let forecast;
+    try {
+      forecast = JSON.parse(content);
+    } catch {
+      console.error("[MonetizationEngine] Failed to parse revenue forecast response");
+      forecast = {};
+    }
 
     await db.insert(revenueForecasts).values({
       userId,
@@ -354,7 +365,13 @@ Split the deal value across the deliverables proportionally. Include any applica
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    const invoiceData = JSON.parse(content);
+    let invoiceData;
+    try {
+      invoiceData = JSON.parse(content);
+    } catch {
+      console.error("[MonetizationEngine] Failed to parse invoice generation response");
+      invoiceData = {};
+    }
 
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
@@ -442,7 +459,12 @@ Analyze this deal as JSON:
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    return JSON.parse(content);
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.error("[MonetizationEngine] Failed to parse deal analysis response");
+      return {};
+    }
   } catch (error) {
     console.error("Failed to analyze deal:", error);
     return { fairnessScore: 50, verdict: "unknown", analysis: "Unable to analyze deal", negotiationTips: [], redFlags: [] };

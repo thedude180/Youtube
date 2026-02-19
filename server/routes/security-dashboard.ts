@@ -347,7 +347,8 @@ Return JSON with these exact fields:
       });
 
       const raw = completion.choices[0]?.message?.content || "{}";
-      const prediction = JSON.parse(raw);
+      let prediction: any;
+      try { prediction = JSON.parse(raw); } catch { prediction = {}; }
 
       const saved = await storage.createContentPrediction({
         userId,

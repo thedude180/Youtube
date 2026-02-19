@@ -257,8 +257,8 @@ function GeneralTab() {
               { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true },
               { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false },
               { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false },
-              { key: "tiktok", label: "TikTok", color: "#000000", Icon: SiTiktok, isYouTube: false },
-              { key: "x", label: "X", color: "#000000", Icon: SiX, isYouTube: false },
+              { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false },
+              { key: "x", label: "X", color: "#1DA1F2", Icon: SiX, isYouTube: false },
               { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false },
             ];
             const connectedSet = new Set((channels || []).map((c: any) => c.platform));

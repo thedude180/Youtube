@@ -104,7 +104,12 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No AI response");
-  return JSON.parse(content);
+  try {
+    return JSON.parse(content);
+  } catch {
+    console.error("[Pipeline] Failed to parse AI response:", content?.slice(0, 200));
+    return {};
+  }
 }
 
 async function recordOptimizationHistory(

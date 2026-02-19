@@ -307,7 +307,12 @@ async function runStreamPipelineStep(
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No AI response");
-  return JSON.parse(content);
+  try {
+    return JSON.parse(content);
+  } catch {
+    console.error("[DualPipeline] Failed to parse AI response:", content?.slice(0, 200));
+    return {};
+  }
 }
 
 async function executeStreamPipelineInBackground(
@@ -536,7 +541,13 @@ Return JSON: {
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No AI response for VOD cuts");
-  const aiResult = JSON.parse(content);
+  let aiResult: any;
+  try {
+    aiResult = JSON.parse(content);
+  } catch {
+    console.error("[DualPipeline] Failed to parse VOD cuts response:", content?.slice(0, 200));
+    aiResult = { cuts: [] };
+  }
 
   const createdCuts: any[] = [];
   const vodCutIdsList: number[] = [];
@@ -1116,7 +1127,13 @@ Return JSON: {
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
-    const analysis = JSON.parse(content);
+    let analysis: any;
+    try {
+      analysis = JSON.parse(content);
+    } catch {
+      console.error("[DualPipeline] Failed to parse length analysis:", content?.slice(0, 200));
+      analysis = { winningLength: null, confidence: 0 };
+    }
 
     const [updated] = await db.update(lengthExperiments)
       .set({

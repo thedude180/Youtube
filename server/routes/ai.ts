@@ -1173,8 +1173,12 @@ export function registerAiRoutes(app: Express) {
         });
       }
 
-      const plan = JSON.parse(content);
-      res.json(plan);
+      let plan: any;
+      try { plan = JSON.parse(content); } catch { plan = null; }
+      if (plan) {
+        res.json(plan);
+        return;
+      }
     } catch (error: any) {
       console.error("AI new creator plan error:", error);
       const niche = req.body.niche || "Content";

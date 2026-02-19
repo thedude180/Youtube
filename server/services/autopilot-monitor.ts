@@ -126,7 +126,7 @@ const systemChecks: SystemCheck[] = [
         const userChannels = await storage.getChannelsByUser(userId);
         if (userChannels.length === 0) return { ok: true };
 
-        const expiringThreshold = new Date(Date.now() + 15 * 60 * 1000);
+        const expiringThreshold = new Date(Date.now() + 2 * 60 * 60 * 1000);
         const expiringChannels = userChannels.filter(ch =>
           ch.accessToken && ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < expiringThreshold
         );
