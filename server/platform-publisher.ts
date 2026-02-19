@@ -264,17 +264,6 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
   }
 }
 
-const VIDEO_ONLY_PLATFORMS = new Set(["tiktok", "kick"]);
-
-async function postToTikTok(accessToken: string, content: string): Promise<PublishResult> {
-  return {
-    success: true,
-    platform: "tiktok",
-    postId: `tiktok_skipped_${Date.now()}`,
-    postUrl: undefined,
-  };
-}
-
 async function postToKick(accessToken: string, content: string, channelData: any): Promise<PublishResult> {
   return {
     success: false,
@@ -287,7 +276,23 @@ export async function publishToplatform(
   userId: string,
   platform: string,
   content: string,
+  metadata?: any,
 ): Promise<PublishResult> {
+  if (platform === "tiktok") {
+    const { publishVideoToTikTok } = await import("./tiktok-publisher");
+    const result = await publishVideoToTikTok(userId, content, metadata);
+    return {
+      success: result.success,
+      platform: "tiktok",
+      postId: result.publishId,
+      error: result.error,
+    };
+  }
+
+  if (platform === "kick") {
+    return postToKick("", content, null);
+  }
+
   const userChannels = await db.select().from(channels)
     .where(and(eq(channels.userId, userId), eq(channels.platform, platform)));
 
@@ -307,11 +312,6 @@ export async function publishToplatform(
       platform,
       error: `Failed to get valid access token for ${platform}. Please reconnect your account.`,
     };
-  }
-
-  if (VIDEO_ONLY_PLATFORMS.has(platform)) {
-    console.log(`[Publisher] Skipping ${platform} — requires video upload (text-only not supported)`);
-    return { success: true, platform, postId: `${platform}_skipped_${Date.now()}` };
   }
 
   switch (platform) {

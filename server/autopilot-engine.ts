@@ -53,7 +53,7 @@ const AUTOPILOT_FEATURES = [
 
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
-const ALL_DISTRIBUTION_PLATFORMS = ["x", "discord", "twitch"];
+const ALL_DISTRIBUTION_PLATFORMS = ["x", "discord", "twitch", "tiktok"];
 const ALL_ANNOUNCE_PLATFORMS = ["x", "discord", "twitch"];
 
 async function getUserConnectedPlatforms(userId: string): Promise<Set<string>> {
@@ -638,6 +638,10 @@ export async function processScheduledPosts() {
         post.userId,
         post.targetPlatform,
         post.content || "",
+        {
+          ...(post.metadata as any || {}),
+          sourceVideoId: post.sourceVideoId,
+        },
       );
 
       if (result.success) {

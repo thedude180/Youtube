@@ -109,7 +109,7 @@ export function registerClipRoutes(app: Express) {
       const video = await storage.getVideo(videoId);
       if (!video) return res.status(404).json({ error: "Video not found" });
       if (video.channelId) {
-        const userChannels = await storage.getChannels(userId);
+        const userChannels = await storage.getChannelsByUser(userId);
         const ownsVideo = userChannels.some((ch) => ch.id === video.channelId);
         if (!ownsVideo) return res.status(403).json({ error: "Not your video" });
       }
@@ -168,8 +168,7 @@ export function registerClipRoutes(app: Express) {
         (a, b) => (b.optimizationScore || 0) - (a.optimizationScore || 0),
       );
 
-      const VIDEO_ONLY_PLATFORMS = ["tiktok", "kick"];
-      const platforms = ["youtube", "x", "discord", "twitch"];
+      const platforms = ["youtube", "x", "discord", "twitch", "tiktok"];
       const platformBudgets: Record<string, number> = {};
       for (const p of platforms) {
         platformBudgets[p] = calculateDailyPostBudget(p) * 14;
@@ -185,7 +184,7 @@ export function registerClipRoutes(app: Express) {
 
       for (const clip of sorted) {
         let platform = clip.targetPlatform || "youtube";
-        if (VIDEO_ONLY_PLATFORMS.includes(platform)) platform = "youtube";
+        if (platform === "kick") platform = "tiktok";
         const mappedPlatform = platforms.includes(platform) ? platform : "youtube";
 
         const budget = platformBudgets[mappedPlatform] || 14;
@@ -413,6 +412,35 @@ export function registerClipRoutes(app: Express) {
     } catch (err) {
       console.error("[Clips] Stats error:", err);
       res.status(500).json({ error: "Failed to fetch clip stats" });
+    }
+  }));
+
+  app.post("/api/clips/:clipId/publish-tiktok", asyncHandler(async (req: any, res) => {
+    const userId = await requireTier(req, res, "pro", "TikTok Publishing");
+    if (!userId) return;
+    const clipId = parseNumericId(req.params.clipId as string, res, "clip ID");
+    if (clipId === null) return;
+
+    try {
+      const clips = await storage.getContentClips(userId);
+      const clip = clips.find(c => c.id === clipId);
+      if (!clip) return res.status(404).json({ error: "Clip not found" });
+
+      const { publishClipToTikTok } = await import("../tiktok-publisher");
+
+      const caption = clip.description || clip.title;
+      const result = await publishClipToTikTok(clipId, userId, caption);
+
+      if (result.success) {
+        await db.update(contentClips)
+          .set({ status: "published", publishedAt: new Date() })
+          .where(and(eq(contentClips.id, clipId), eq(contentClips.userId, userId)));
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Clips] TikTok publish error:", err);
+      res.status(500).json({ error: err.message || "Failed to publish clip to TikTok" });
     }
   }));
 }

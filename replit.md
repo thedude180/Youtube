@@ -77,6 +77,12 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 -   **Frontend**: Lazy loading, data-testid attributes, ARIA accessibility labels.
 -   **Pagination**: List endpoints support `page` and `limit` query params.
 
+### TikTok Video Publishing Pipeline
+-   **Clip Video Processor** (`server/clip-video-processor.ts`): Downloads YouTube source videos via yt-dlp, cuts clip segments with ffmpeg into 9:16 vertical format for TikTok. Includes file caching (24h), concurrent download deduplication, and automatic temp file cleanup.
+-   **TikTok Publisher** (`server/tiktok-publisher.ts`): Uploads clips to TikTok via Content Posting API using FILE_UPLOAD method with chunked transfer. Handles token refresh, creator info query, privacy level detection, and publish status polling.
+-   **Integration**: Platform publisher routes TikTok posts through video publisher. Autopilot passes clip metadata (clipId, sourceVideoId) to enable video lookup. Manual publish endpoint at `POST /api/clips/:clipId/publish-tiktok`.
+-   **TikTok Optimization**: Shorts pipeline generates TikTok-optimized clips (21-34s sweet spot, trending hooks, hashtag strategy). Content variation engine has TikTok-specific voice profile.
+
 ## External Dependencies
 -   **Replit Auth**: User authentication.
 -   **OpenAI API**: AI-driven functionalities.
