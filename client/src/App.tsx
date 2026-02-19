@@ -13,16 +13,18 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
+import { FocusModeProvider, useFocusMode } from "@/hooks/use-focus-mode";
 import { AdaptiveProvider } from "@/hooks/use-adaptive";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon, Maximize, Minimize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
 import { prefetchForRoute } from "@/lib/prefetch";
 import { BackToTop } from "@/components/BackToTop";
+import { GlobalProgress } from "@/components/GlobalProgress";
 
 function lazyRetry<T extends { default: any }>(factory: () => Promise<T>): ReturnType<typeof lazy> {
   return lazy(() =>
@@ -417,6 +419,7 @@ function AuthenticatedApp() {
   const [, setLocation] = useLocation();
   const { toggleTheme } = useTheme();
   const { toggleAdvanced } = useAdvancedMode();
+  const { isFocusMode, toggleFocusMode } = useFocusMode();
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
 
@@ -462,21 +465,26 @@ function AuthenticatedApp() {
           Skip to main content
         </a>
         <RouteAnnouncer />
-        <AppSidebar />
+        {!isFocusMode && <AppSidebar />}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="sticky top-0 z-40 flex items-center justify-between gap-2 h-12 px-3 sm:px-4 border-b border-border/50 bg-background/80 backdrop-blur-xl shrink-0">
+          <header className={`sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 border-b border-border/50 bg-background/80 backdrop-blur-xl shrink-0 transition-all duration-200 ${isFocusMode ? "h-10" : "h-12"}`}>
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden shrink-0" />
-              <div className="hidden md:flex items-center gap-2.5">
-                <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
-                  <Zap className="h-3 w-3 text-primary-foreground" />
+              {!isFocusMode && <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden shrink-0" />}
+              {!isFocusMode && (
+                <div className="hidden md:flex items-center gap-2.5">
+                  <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
+                    <Zap className="h-3 w-3 text-primary-foreground" />
+                  </div>
+                  <span data-testid="text-header-app-name" className="font-display font-bold text-sm tracking-tight">
+                    Creator<span className="text-primary">OS</span>
+                  </span>
                 </div>
-                <span data-testid="text-header-app-name" className="font-display font-bold text-sm tracking-tight">
-                  Creator<span className="text-primary">OS</span>
-                </span>
-              </div>
-              <MobilePageTitle />
-              <RouteBreadcrumb />
+              )}
+              {isFocusMode && (
+                <span className="text-xs text-muted-foreground">Focus Mode</span>
+              )}
+              {!isFocusMode && <MobilePageTitle />}
+              {!isFocusMode && <RouteBreadcrumb />}
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
               <Tooltip>
@@ -487,10 +495,18 @@ function AuthenticatedApp() {
                 </TooltipTrigger>
                 <TooltipContent>Search (Ctrl+K)</TooltipContent>
               </Tooltip>
-              <OfflineStatusBadge />
-              <span className="hidden sm:inline-flex"><AdvancedToggle /></span>
-              <span className="hidden sm:inline-flex"><ThemeToggle /></span>
-              <NotificationBell />
+              {!isFocusMode && <OfflineStatusBadge />}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="ghost" onClick={toggleFocusMode} data-testid="button-focus-mode" className="hidden sm:inline-flex">
+                    {isFocusMode ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isFocusMode ? "Exit Focus Mode (Ctrl+Shift+F)" : "Focus Mode (Ctrl+Shift+F)"}</TooltipContent>
+              </Tooltip>
+              {!isFocusMode && <span className="hidden sm:inline-flex"><AdvancedToggle /></span>}
+              {!isFocusMode && <span className="hidden sm:inline-flex"><ThemeToggle /></span>}
+              {!isFocusMode && <NotificationBell />}
             </div>
           </header>
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
@@ -507,7 +523,7 @@ function AuthenticatedApp() {
       </Suspense>
       <FeedbackWidget />
       <Suspense fallback={null}>
-        <CommandPalette onNavigate={handlePaletteNavigate} onToggleTheme={toggleTheme} onToggleAdvanced={toggleAdvanced} onOpenChat={handleOpenChat} />
+        <CommandPalette onNavigate={handlePaletteNavigate} onToggleTheme={toggleTheme} onToggleAdvanced={toggleAdvanced} onOpenChat={handleOpenChat} onFocusMode={toggleFocusMode} onShowShortcuts={() => setShowShortcuts(true)} />
       </Suspense>
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       <PWAInstallPrompt />
@@ -705,10 +721,13 @@ function App() {
           <ThemeProvider>
             <AdaptiveProvider>
               <AdvancedModeProvider>
-                <AppContent />
+                <FocusModeProvider>
+                  <AppContent />
+                </FocusModeProvider>
               </AdvancedModeProvider>
             </AdaptiveProvider>
           </ThemeProvider>
+          <GlobalProgress />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

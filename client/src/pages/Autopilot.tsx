@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { formatDistanceToNow } from "date-fns";
+import { CopyButton } from "@/components/CopyButton";
+import { LiveTimestamp } from "@/components/LiveTimestamp";
 import {
   Rocket,
   Zap,
@@ -760,12 +762,20 @@ export default function Autopilot() {
                           <Badge variant="outline">{typeLabel(item.type)}</Badge>
                           <PlatformBadge platform={item.targetPlatform} />
                           {item.scheduledAt && (
-                            <span className="text-xs text-muted-foreground">
-                              {item.status === "scheduled" ? "Posts" : "Posted"} {formatDistanceToNow(new Date(item.scheduledAt), { addSuffix: true })}
-                            </span>
+                            <LiveTimestamp
+                              date={item.scheduledAt}
+                              data-testid={`timestamp-queue-${item.id}`}
+                            />
                           )}
                         </div>
-                        <p className="text-sm break-words">{item.content}</p>
+                        <div className="flex items-start gap-1 group">
+                          <p className="text-sm break-words flex-1">{item.content}</p>
+                          <CopyButton
+                            value={item.content || item.caption}
+                            className="invisible group-hover:visible shrink-0"
+                            data-testid={`button-copy-queue-${item.id}`}
+                          />
+                        </div>
                         <div className="flex items-center gap-2 flex-wrap">
                           {item.metadata?.humanScore != null && (
                             <Badge variant="secondary" className="text-xs">

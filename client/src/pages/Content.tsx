@@ -1,5 +1,6 @@
 import { useState, useMemo, lazy, Suspense } from "react";
 import { useParams } from "wouter";
+import { useTabMemory } from "@/hooks/use-tab-memory";
 import { useVideos } from "@/hooks/use-videos";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +18,8 @@ import {
   Calendar as CalendarIcon, Eye, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { CopyButton } from "@/components/CopyButton";
+import { LiveTimestamp } from "@/components/LiveTimestamp";
 
 type ContentTab = "library" | "updated" | "channels" | "calendar";
 
@@ -30,7 +33,7 @@ export default function Content() {
   const tabParam = params?.tab;
   const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
-  const [activeTab, setActiveTab] = useState<ContentTab>(initialTab);
+  const [activeTab, setActiveTab] = useTabMemory("content", initialTab, validTabs);
   const { t } = useTranslation();
 
   return (
@@ -165,10 +168,17 @@ function LibraryTab() {
                           <Video className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate" data-testid={`text-video-title-${video.id}`}>
-                          {video.title || "Untitled"}
-                        </p>
+                      <div className="min-w-0 flex-1 group">
+                        <div className="flex items-center gap-1">
+                          <p className="font-medium text-sm truncate flex-1" data-testid={`text-video-title-${video.id}`}>
+                            {video.title || "Untitled"}
+                          </p>
+                          <CopyButton
+                            value={video.title || ""}
+                            className="invisible group-hover:visible shrink-0"
+                            data-testid={`button-copy-title-${video.id}`}
+                          />
+                        </div>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <Badge variant="secondary" className="text-xs">
                             {TYPE_LABEL[video.type] || video.type}
@@ -180,10 +190,7 @@ function LibraryTab() {
                             </span>
                           )}
                           {publishedAt && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                              <CalendarIcon className="h-3 w-3" />
-                              {format(new Date(publishedAt), "MMM d, yyyy")}
-                            </span>
+                            <LiveTimestamp date={publishedAt} data-testid={`timestamp-video-${video.id}`} />
                           )}
                         </div>
                       </div>

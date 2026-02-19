@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 import type { LucideIcon } from "lucide-react";
 
 interface MetricItem {
@@ -17,6 +18,9 @@ export default memo(function MetricsGrid({ metrics }: MetricsGridProps) {
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {metrics.map((m) => {
         const Icon = m.icon;
+        const numericValue = typeof m.value === "number" ? m.value : parseFloat(String(m.value).replace(/[^0-9.]/g, ""));
+        const isNumeric = !isNaN(numericValue) && typeof m.value === "number";
+        const prefix = typeof m.value === "string" && m.value.startsWith("$") ? "$" : "";
         return (
           <Card key={m.label} className="shine" data-testid={`metric-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>
             <CardContent className="p-4">
@@ -26,7 +30,16 @@ export default memo(function MetricsGrid({ metrics }: MetricsGridProps) {
                   <Icon className="h-4 w-4 text-primary" />
                 </div>
               </div>
-              <p className="text-2xl font-extrabold font-display" data-testid={`text-metric-value-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>{m.value}</p>
+              {isNumeric ? (
+                <AnimatedCounter
+                  value={numericValue}
+                  prefix={prefix}
+                  className="text-2xl font-extrabold font-display"
+                  data-testid={`text-metric-value-${m.label.toLowerCase().replace(/\s+/g, '-')}`}
+                />
+              ) : (
+                <p className="text-2xl font-extrabold font-display" data-testid={`text-metric-value-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>{m.value}</p>
+              )}
             </CardContent>
           </Card>
         );

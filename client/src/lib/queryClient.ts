@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction, MutationCache, QueryCache } from "@tanstack/react-query";
 import { offlineStore } from './offline-store';
+import { startProgress, stopProgress } from "@/components/GlobalProgress";
 
 let csrfToken: string | null = null;
 let csrfFetchPromise: Promise<string | null> | null = null;
@@ -125,7 +126,10 @@ export const queryClient = new QueryClient({
     },
   }),
   mutationCache: new MutationCache({
+    onMutate: () => { startProgress(); },
+    onSuccess: () => { stopProgress(); },
     onError: (error) => {
+      stopProgress();
       if (error.message?.startsWith("401:")) {
         handleSessionExpired();
       }
