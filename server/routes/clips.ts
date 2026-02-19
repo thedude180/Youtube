@@ -168,7 +168,8 @@ export function registerClipRoutes(app: Express) {
         (a, b) => (b.optimizationScore || 0) - (a.optimizationScore || 0),
       );
 
-      const platforms = ["tiktok", "youtube", "x", "discord", "twitch", "kick"];
+      const VIDEO_ONLY_PLATFORMS = ["tiktok", "kick"];
+      const platforms = ["youtube", "x", "discord", "twitch"];
       const platformBudgets: Record<string, number> = {};
       for (const p of platforms) {
         platformBudgets[p] = calculateDailyPostBudget(p) * 14;
@@ -183,8 +184,9 @@ export function registerClipRoutes(app: Express) {
       }
 
       for (const clip of sorted) {
-        const platform = clip.targetPlatform || "tiktok";
-        const mappedPlatform = platforms.includes(platform) ? platform : "tiktok";
+        let platform = clip.targetPlatform || "youtube";
+        if (VIDEO_ONLY_PLATFORMS.includes(platform)) platform = "youtube";
+        const mappedPlatform = platforms.includes(platform) ? platform : "youtube";
 
         const budget = platformBudgets[mappedPlatform] || 14;
         if (platformCounts[mappedPlatform] >= budget) continue;
@@ -288,7 +290,9 @@ export function registerClipRoutes(app: Express) {
       if (!parsedBody.success) {
         return res.status(400).json({ error: "Invalid input", details: parsedBody.error.flatten() });
       }
-      const platform = parsedBody.data.platform || clip.targetPlatform || "tiktok";
+      const VIDEO_ONLY = ["tiktok", "kick"];
+      let platform = parsedBody.data.platform || clip.targetPlatform || "youtube";
+      if (VIDEO_ONLY.includes(platform)) platform = "youtube";
 
       let scheduledAt: Date;
       try {

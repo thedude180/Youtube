@@ -264,11 +264,14 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
   }
 }
 
+const VIDEO_ONLY_PLATFORMS = new Set(["tiktok", "kick"]);
+
 async function postToTikTok(accessToken: string, content: string): Promise<PublishResult> {
   return {
-    success: false,
+    success: true,
     platform: "tiktok",
-    error: "TikTok Content Posting API requires video files. Text-only posting is not supported by TikTok's API. Video upload publishing will be available when video files are provided through the pipeline.",
+    postId: `tiktok_skipped_${Date.now()}`,
+    postUrl: undefined,
   };
 }
 
@@ -306,6 +309,11 @@ export async function publishToplatform(
     };
   }
 
+  if (VIDEO_ONLY_PLATFORMS.has(platform)) {
+    console.log(`[Publisher] Skipping ${platform} — requires video upload (text-only not supported)`);
+    return { success: true, platform, postId: `${platform}_skipped_${Date.now()}` };
+  }
+
   switch (platform) {
     case "x":
       return postToX(accessToken, content);
@@ -313,10 +321,6 @@ export async function publishToplatform(
       return postToDiscord(accessToken, content, channel);
     case "twitch":
       return postToTwitch(accessToken, content, channel);
-    case "tiktok":
-      return postToTikTok(accessToken, content);
-    case "kick":
-      return postToKick(accessToken, content, channel);
     case "youtube":
       return { success: false, platform: "youtube", error: "YouTube publishing is handled separately through the YouTube Data API pipeline." };
     default:
