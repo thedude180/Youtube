@@ -1525,4 +1525,34 @@ export function registerContentRoutes(app: Express) {
       res.status(500).json({ success: false, message: "Failed to schedule pipeline content." });
     }
   }));
+
+  app.get("/api/content/export/videos", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const allVideos = await storage.getVideosByUser(userId);
+    const csvHeader = "id,title,platform,channelId,type,status,createdAt\n";
+    const csvRows = allVideos.map(v =>
+      `${v.id},"${(v.title || "").replace(/"/g, '""')}","${v.platform || ""}","${v.channelId || ""}","${v.type || ""}","${v.status || ""}","${v.createdAt || ""}"`
+    ).join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=content-videos.csv");
+    res.send(csvHeader + csvRows);
+  }));
+
+  app.get("/api/content/export/analytics", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const allVideos = await storage.getVideosByUser(userId);
+    const platformBreakdown: Record<string, { count: number }> = {};
+    allVideos.forEach(v => {
+      const p = v.platform || "unknown";
+      if (!platformBreakdown[p]) platformBreakdown[p] = { count: 0 };
+      platformBreakdown[p].count++;
+    });
+    res.json({
+      totalVideos: allVideos.length,
+      platformBreakdown,
+      exportedAt: new Date().toISOString(),
+    });
+  }));
 }

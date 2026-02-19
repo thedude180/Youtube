@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Filter } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,14 +27,25 @@ interface UnreadCount {
   count: number;
 }
 
+type PriorityFilter = "all" | "high" | "medium" | "low";
+
 const priorityDotColor: Record<string, string> = {
   high: "bg-red-500",
   medium: "bg-amber-500",
   low: "bg-emerald-500",
 };
 
+const FILTER_OPTIONS: { key: PriorityFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "high", label: "Urgent" },
+  { key: "medium", label: "Important" },
+  { key: "low", label: "Info" },
+];
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<PriorityFilter>("all");
+  const [showFilters, setShowFilters] = useState(false);
   const [, setLocation] = useLocation();
   const pollInterval = useAdaptiveInterval(30000);
 
@@ -64,6 +76,12 @@ export function NotificationBell() {
   });
 
   const unreadCount = unreadData?.count ?? 0;
+
+  const filtered = useMemo(() => {
+    if (!notifications) return [];
+    if (filter === "all") return notifications;
+    return notifications.filter(n => n.priority === filter);
+  }, [notifications, filter]);
 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
@@ -100,20 +118,48 @@ export function NotificationBell() {
           <h3 className="text-sm font-semibold" data-testid="text-notifications-title">
             Notifications
           </h3>
-          {unreadCount > 0 && (
+          <div className="flex items-center gap-1">
             <Button
-              size="sm"
-              variant="ghost"
-              className="text-xs text-muted-foreground"
-              onClick={() => markAllReadMutation.mutate()}
-              disabled={markAllReadMutation.isPending}
-              data-testid="button-mark-all-read"
+              size="icon"
+              variant={showFilters ? "default" : "ghost"}
+              className="h-7 w-7"
+              onClick={() => setShowFilters(v => !v)}
+              data-testid="button-toggle-filters"
             >
-              <CheckCheck className="mr-1 h-3 w-3" />
-              Mark all read
+              <Filter className="h-3 w-3" />
             </Button>
-          )}
+            {unreadCount > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-muted-foreground h-7"
+                onClick={() => markAllReadMutation.mutate()}
+                disabled={markAllReadMutation.isPending}
+                data-testid="button-mark-all-read"
+              >
+                <CheckCheck className="mr-1 h-3 w-3" />
+                Read all
+              </Button>
+            )}
+          </div>
         </div>
+
+        {showFilters && (
+          <div className="flex gap-1.5 p-2 border-b border-border" data-testid="container-bell-filters">
+            {FILTER_OPTIONS.map(f => (
+              <Badge
+                key={f.key}
+                variant={filter === f.key ? "default" : "outline"}
+                className="cursor-pointer text-[10px] toggle-elevate"
+                onClick={() => setFilter(f.key)}
+                data-testid={`filter-bell-${f.key}`}
+              >
+                {f.label}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         <ScrollArea className="h-[400px]">
           {isLoading ? (
             <div className="space-y-3 p-3">
@@ -128,9 +174,9 @@ export function NotificationBell() {
                 </div>
               ))}
             </div>
-          ) : notifications && notifications.length > 0 ? (
+          ) : filtered.length > 0 ? (
             <div>
-              {notifications.map((notification) => (
+              {filtered.map((notification) => (
                 <button
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
@@ -174,10 +220,21 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="p-6 text-center text-sm text-muted-foreground" data-testid="text-no-notifications">
-              No notifications yet
+              {filter === "all" ? "No notifications yet" : `No ${FILTER_OPTIONS.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
             </div>
           )}
         </ScrollArea>
+        <div className="border-t border-border p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-muted-foreground"
+            onClick={() => { setOpen(false); setLocation("/notifications"); }}
+            data-testid="button-view-all-notifications"
+          >
+            View all notifications
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

@@ -212,6 +212,92 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  app.post("/api/autopilot/queue/bulk-delete", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids array required" });
+      const numericIds = ids.map(Number).filter(n => !isNaN(n));
+      if (numericIds.length === 0) return res.status(400).json({ error: "No valid ids" });
+      await db.delete(autopilotQueue)
+        .where(and(inArray(autopilotQueue.id, numericIds), eq(autopilotQueue.userId, userId)));
+      res.json({ success: true, deleted: numericIds.length });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to bulk delete" });
+    }
+  });
+
+  app.post("/api/autopilot/queue/bulk-reschedule", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { ids, scheduledAt } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids array required" });
+      if (!scheduledAt) return res.status(400).json({ error: "scheduledAt required" });
+      const numericIds = ids.map(Number).filter(n => !isNaN(n));
+      await db.update(autopilotQueue)
+        .set({ scheduledAt: new Date(scheduledAt), status: "scheduled" })
+        .where(and(inArray(autopilotQueue.id, numericIds), eq(autopilotQueue.userId, userId)));
+      res.json({ success: true, rescheduled: numericIds.length });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to bulk reschedule" });
+    }
+  });
+
+  app.post("/api/autopilot/pause-all", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const configs = await db.select().from(autopilotConfig)
+        .where(eq(autopilotConfig.userId, userId));
+      for (const config of configs) {
+        await db.update(autopilotConfig)
+          .set({ enabled: false, updatedAt: new Date() })
+          .where(eq(autopilotConfig.id, config.id));
+      }
+      res.json({ success: true, paused: configs.length });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to pause all" });
+    }
+  });
+
+  app.post("/api/autopilot/resume-all", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const configs = await db.select().from(autopilotConfig)
+        .where(eq(autopilotConfig.userId, userId));
+      for (const config of configs) {
+        await db.update(autopilotConfig)
+          .set({ enabled: true, updatedAt: new Date() })
+          .where(eq(autopilotConfig.id, config.id));
+      }
+      res.json({ success: true, resumed: configs.length });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to resume all" });
+    }
+  });
+
+  app.get("/api/autopilot/queue/export", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const items = await db.select().from(autopilotQueue)
+        .where(eq(autopilotQueue.userId, userId))
+        .orderBy(desc(autopilotQueue.createdAt));
+      const csvHeader = "id,type,platform,content,status,scheduledAt,publishedAt,createdAt\n";
+      const csvRows = items.map(item =>
+        `${item.id},"${(item.type || "").replace(/"/g, '""')}","${item.targetPlatform || ""}","${(item.content || "").replace(/"/g, '""').replace(/\n/g, " ")}","${item.status}","${item.scheduledAt || ""}","${item.publishedAt || ""}","${item.createdAt}"`
+      ).join("\n");
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=autopilot-queue.csv");
+      res.send(csvHeader + csvRows);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to export" });
+    }
+  });
+
   app.get("/api/autopilot/stealth", async (req, res) => {
     const userId = await requireTier(req, res, "ultimate", "Stealth Mode Scoring");
     if (!userId) return;

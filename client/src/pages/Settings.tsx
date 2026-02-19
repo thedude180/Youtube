@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Shield, AlertTriangle, LogOut, Link2, Bell,
-  Trash2, Zap,
+  Trash2, Zap, Sun, Moon, Clock,
   Globe, CheckCircle,
   TrendingUp, Download, Loader2, Settings2, Crown, KeyRound, UsersRound,
 } from "lucide-react";
@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useChannels } from "@/hooks/use-channels";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/hooks/use-theme";
 import { useParams, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -240,6 +241,8 @@ function GeneralTab() {
           </div>
         </CardContent>
       </Card>
+
+      <ThemeScheduleCard />
 
       <Card>
         <CardHeader className="pb-0">
@@ -547,6 +550,87 @@ export default function Settings() {
         </Suspense>
       </Tabs>
     </div>
+  );
+}
+
+function ThemeScheduleCard() {
+  const { themeMode, schedule, setThemeMode, setSchedule, theme } = useTheme();
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const formatHour = (h: number) => {
+    const suffix = h >= 12 ? "PM" : "AM";
+    const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${display}:00 ${suffix}`;
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-0">
+        <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+          {theme === "dark" ? <Moon className="h-4 w-4 text-muted-foreground" /> : <Sun className="h-4 w-4 text-muted-foreground" />}
+          Theme Schedule
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-3 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="auto-theme" className="text-sm font-medium">Auto Theme</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Automatically switch between dark and light mode based on time of day
+            </p>
+          </div>
+          <Switch
+            id="auto-theme"
+            data-testid="switch-auto-theme"
+            checked={themeMode === "auto"}
+            onCheckedChange={(v) => setThemeMode(v ? "auto" : "manual")}
+          />
+        </div>
+        {themeMode === "auto" && (
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Moon className="h-3.5 w-3.5 text-muted-foreground" />
+              <Label className="text-xs whitespace-nowrap">Dark starts</Label>
+              <Select
+                value={String(schedule.darkStart)}
+                onValueChange={(v) => setSchedule({ ...schedule, darkStart: Number(v) })}
+              >
+                <SelectTrigger className="w-[110px]" data-testid="select-dark-start">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {hours.map(h => (
+                    <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+              <Label className="text-xs whitespace-nowrap">Light starts</Label>
+              <Select
+                value={String(schedule.darkEnd)}
+                onValueChange={(v) => setSchedule({ ...schedule, darkEnd: Number(v) })}
+              >
+                <SelectTrigger className="w-[110px]" data-testid="select-dark-end">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {hours.map(h => (
+                    <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground">
+                Currently: {theme === "dark" ? "Dark" : "Light"} mode
+              </span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

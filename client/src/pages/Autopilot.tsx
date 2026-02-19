@@ -39,8 +39,12 @@ import {
   Wifi,
   WifiOff,
   Play,
+  Pause,
   Calendar,
   ExternalLink,
+  Download,
+  SquareCheck,
+  Square,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 
@@ -356,8 +360,59 @@ export default function Autopilot() {
     },
   });
 
+  const pauseAllMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/autopilot/pause-all", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      toast({ title: "All autopilot features paused" });
+    },
+  });
+
+  const resumeAllMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/autopilot/resume-all", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      toast({ title: "All autopilot features resumed" });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      return apiRequest("POST", "/api/autopilot/queue/bulk-delete", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      setSelectedQueueIds(new Set());
+      toast({ title: "Selected items deleted" });
+    },
+  });
+
+  const [selectedQueueIds, setSelectedQueueIds] = useState<Set<number>>(new Set());
+
   const stats = statsQuery.data;
   const queue = useMemo(() => queueQuery.data || [], [queueQuery.data]);
+
+  const toggleQueueSelect = useCallback((id: number) => {
+    setSelectedQueueIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllQueue = useCallback(() => {
+    if (selectedQueueIds.size === queue.length) {
+      setSelectedQueueIds(new Set());
+    } else {
+      setSelectedQueueIds(new Set(queue.map(q => q.id)));
+    }
+  }, [queue, selectedQueueIds.size]);
   const comments = useMemo(() => commentsQuery.data || [], [commentsQuery.data]);
   const stealth = stats?.stealth;
 
@@ -387,19 +442,46 @@ export default function Autopilot() {
   return (
     <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto overflow-y-auto h-full">
       <UpgradeTabGate requiredTier="pro" featureName="Autopilot" description="Automate your entire content workflow with AI-powered auto-clipping, smart scheduling, comment responses, and cross-platform posting.">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Rocket className="h-6 w-6 text-primary" />
-          <h1 data-testid="text-autopilot-title" className="text-2xl font-bold">Autopilot</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Rocket className="h-6 w-6 text-primary" />
+            <h1 data-testid="text-autopilot-title" className="text-2xl font-bold">Autopilot</h1>
+          </div>
+          <Badge variant="secondary" data-testid="badge-active-features" aria-live="polite">
+            <Bot className="h-3 w-3 mr-1" />
+            {activeFeatureCount}/7 Active
+          </Badge>
+          <Badge variant="outline">
+            <Eye className="h-3 w-3 mr-1" />
+            Full Throttle
+          </Badge>
         </div>
-        <Badge variant="secondary" data-testid="badge-active-features" aria-live="polite">
-          <Bot className="h-3 w-3 mr-1" />
-          {activeFeatureCount}/7 Active
-        </Badge>
-        <Badge variant="outline">
-          <Eye className="h-3 w-3 mr-1" />
-          Full Throttle
-        </Badge>
+        <div className="flex items-center gap-2">
+          {activeFeatureCount > 0 ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => pauseAllMutation.mutate()}
+              disabled={pauseAllMutation.isPending}
+              data-testid="button-pause-all"
+            >
+              <Pause className="h-3.5 w-3.5 mr-1.5" />
+              Pause All
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => resumeAllMutation.mutate()}
+              disabled={resumeAllMutation.isPending}
+              data-testid="button-resume-all"
+            >
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              Resume All
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4" aria-live="polite">
@@ -605,6 +687,46 @@ export default function Autopilot() {
         </TabsContent>
 
         <TabsContent value="queue" className="space-y-3 mt-4">
+          {queue.length > 0 && (
+            <div className="flex items-center justify-between gap-2 flex-wrap" data-testid="container-queue-actions">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={selectAllQueue}
+                  data-testid="button-select-all-queue"
+                >
+                  {selectedQueueIds.size === queue.length ? (
+                    <SquareCheck className="h-3.5 w-3.5 mr-1.5" />
+                  ) : (
+                    <Square className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  {selectedQueueIds.size === queue.length ? "Deselect All" : "Select All"}
+                </Button>
+                {selectedQueueIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedQueueIds))}
+                    disabled={bulkDeleteMutation.isPending}
+                    data-testid="button-bulk-delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Delete {selectedQueueIds.size}
+                  </Button>
+                )}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open("/api/autopilot/queue/export", "_blank")}
+                data-testid="button-export-queue"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export CSV
+              </Button>
+            </div>
+          )}
           {queue.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
@@ -617,38 +739,51 @@ export default function Autopilot() {
             </Card>
           ) : (
             queue.map((item) => (
-              <Card key={item.id} data-testid={`card-queue-${item.id}`}>
+              <Card key={item.id} data-testid={`card-queue-${item.id}`} className={selectedQueueIds.has(item.id) ? "ring-1 ring-primary" : ""}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <StatusIcon status={item.status} />
-                        <Badge variant="outline">{typeLabel(item.type)}</Badge>
-                        <PlatformBadge platform={item.targetPlatform} />
-                        {item.scheduledAt && (
-                          <span className="text-xs text-muted-foreground">
-                            {item.status === "scheduled" ? "Posts" : "Posted"} {formatDistanceToNow(new Date(item.scheduledAt), { addSuffix: true })}
-                          </span>
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <button
+                        onClick={() => toggleQueueSelect(item.id)}
+                        className="mt-1 shrink-0"
+                        data-testid={`checkbox-queue-${item.id}`}
+                      >
+                        {selectedQueueIds.has(item.id) ? (
+                          <SquareCheck className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Square className="h-4 w-4 text-muted-foreground" />
                         )}
-                      </div>
-                      <p className="text-sm break-words">{item.content}</p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {item.metadata?.humanScore != null && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Fingerprint className="h-3 w-3 mr-1" />
-                            Stealth: {Math.round((item.metadata.humanScore as number) * 100)}%
-                          </Badge>
-                        )}
-                        {item.metadata?.uniquenessScore != null && (
-                          <Badge variant="secondary" className="text-xs">
-                            Unique: {Math.round((item.metadata.uniquenessScore as number) * 100)}%
-                          </Badge>
-                        )}
-                        {item.metadata?.safetyGrade && (
-                          <Badge variant={item.metadata.safetyGrade === "A" ? "secondary" : "destructive"} className="text-xs">
-                            Grade: {item.metadata.safetyGrade as string}
-                          </Badge>
-                        )}
+                      </button>
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <StatusIcon status={item.status} />
+                          <Badge variant="outline">{typeLabel(item.type)}</Badge>
+                          <PlatformBadge platform={item.targetPlatform} />
+                          {item.scheduledAt && (
+                            <span className="text-xs text-muted-foreground">
+                              {item.status === "scheduled" ? "Posts" : "Posted"} {formatDistanceToNow(new Date(item.scheduledAt), { addSuffix: true })}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm break-words">{item.content}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {item.metadata?.humanScore != null && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Fingerprint className="h-3 w-3 mr-1" />
+                              Stealth: {Math.round((item.metadata.humanScore as number) * 100)}%
+                            </Badge>
+                          )}
+                          {item.metadata?.uniquenessScore != null && (
+                            <Badge variant="secondary" className="text-xs">
+                              Unique: {Math.round((item.metadata.uniquenessScore as number) * 100)}%
+                            </Badge>
+                          )}
+                          {item.metadata?.safetyGrade && (
+                            <Badge variant={item.metadata.safetyGrade === "A" ? "secondary" : "destructive"} className="text-xs">
+                              Grade: {item.metadata.safetyGrade as string}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

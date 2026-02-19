@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
 import { prefetchForRoute } from "@/lib/prefetch";
+import { BackToTop } from "@/components/BackToTop";
 
 function lazyRetry<T extends { default: any }>(factory: () => Promise<T>): ReturnType<typeof lazy> {
   return lazy(() =>
@@ -511,6 +512,7 @@ function AuthenticatedApp() {
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       <PWAInstallPrompt />
       <GlobalErrorToast />
+      <BackToTop />
     </SidebarProvider>
   );
 }

@@ -28,6 +28,7 @@ import AIActionCenter from "./dashboard/AIActionCenter";
 const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"));
 const LazyChannelGrowthTimeline = lazy(() => import("@/components/ChannelGrowthTimeline"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
+const LazyPlatformHealthCards = lazy(() => import("@/components/PlatformHealthCards"));
 
 type AIResponse = any;
 
@@ -247,6 +248,10 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
+        <LazyPlatformHealthCards />
+      </Suspense>
 
       <MetricsGrid metrics={metrics} />
 
