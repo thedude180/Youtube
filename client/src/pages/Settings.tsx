@@ -325,6 +325,7 @@ function GeneralTab() {
                               className="text-destructive"
                               disabled={disconnecting === p.key}
                               data-testid={`button-disconnect-${p.key}`}
+                              aria-label={`Disconnect ${p.label}`}
                             >
                               {disconnecting === p.key ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

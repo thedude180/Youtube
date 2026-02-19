@@ -19,13 +19,29 @@ interface SystemCheck {
 }
 
 const autoFixLog: Map<string, { count: number; lastFixed: Date }> = new Map();
+const AUTO_FIX_LOG_MAX_SIZE = 1000;
 
-setInterval(() => {
+function enforceAutoFixLogCap(): void {
+  if (autoFixLog.size <= AUTO_FIX_LOG_MAX_SIZE) return;
+  const sorted = Array.from(autoFixLog.entries()).sort(
+    (a, b) => a[1].lastFixed.getTime() - b[1].lastFixed.getTime()
+  );
+  const toRemove = sorted.slice(0, autoFixLog.size - AUTO_FIX_LOG_MAX_SIZE);
+  for (const [key] of toRemove) autoFixLog.delete(key);
+}
+
+function cleanupAutoFixLog(): void {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const [key, entry] of Array.from(autoFixLog)) {
     if (entry.lastFixed.getTime() < cutoff) autoFixLog.delete(key);
   }
-}, 60 * 60 * 1000);
+}
+
+const autoFixCleanupInterval = setInterval(cleanupAutoFixLog, 5 * 60 * 1000);
+
+export function stopAutoFixCleanup(): void {
+  clearInterval(autoFixCleanupInterval);
+}
 
 function logAutoFix(userId: string, system: string, action: string): void {
   const key = `${userId}:${system}`;
@@ -36,6 +52,7 @@ function logAutoFix(userId: string, system: string, action: string): void {
   } else {
     autoFixLog.set(key, { count: 1, lastFixed: new Date() });
   }
+  enforceAutoFixLogCap();
   console.log(`[Autopilot:SelfHeal] Auto-fixed ${system} for user ${userId}: ${action}`);
 }
 

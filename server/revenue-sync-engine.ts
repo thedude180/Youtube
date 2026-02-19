@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import type { Channel } from "@shared/schema";
+import { withRetry } from "./lib/retry";
 
 interface RevenueSyncResult {
   platform: string;
@@ -20,9 +21,9 @@ async function syncYouTubeRevenue(channel: Channel, userId: string): Promise<Rev
     const endStr = now.toISOString().split("T")[0];
 
     const analyticsUrl = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==${channel.channelId}&startDate=${startStr}&endDate=${endStr}&metrics=estimatedRevenue,views,estimatedAdRevenue&dimensions=day&sort=-day`;
-    const analyticsRes = await fetch(analyticsUrl, {
+    const analyticsRes = await withRetry(() => fetch(analyticsUrl, {
       headers: { Authorization: `Bearer ${channel.accessToken}` },
-    });
+    }), { label: "YouTube Analytics API" });
 
     if (analyticsRes.ok) {
       const data = await analyticsRes.json() as any;
@@ -53,9 +54,9 @@ async function syncYouTubeRevenue(channel: Channel, userId: string): Promise<Rev
       }
     } else {
       const monthlyUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channel.channelId}&key=`;
-      const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,contentDetails&id=${channel.channelId}`, {
+      const statsRes = await withRetry(() => fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,contentDetails&id=${channel.channelId}`, {
         headers: { Authorization: `Bearer ${channel.accessToken}` },
-      });
+      }), { label: "YouTube channel stats API" });
       if (statsRes.ok) {
         const statsData = await statsRes.json() as any;
         const stats = statsData.items?.[0]?.statistics;
@@ -90,9 +91,9 @@ async function syncYouTubeRevenue(channel: Channel, userId: string): Promise<Rev
     }
 
     const memberUrl = `https://www.googleapis.com/youtube/v3/membershipsLevels?part=snippet`;
-    const memberRes = await fetch(memberUrl, {
+    const memberRes = await withRetry(() => fetch(memberUrl, {
       headers: { Authorization: `Bearer ${channel.accessToken}` },
-    });
+    }), { label: "YouTube memberships API" });
     if (memberRes.ok) {
       const memberData = await memberRes.json() as any;
       const levels = memberData.items || [];
@@ -125,7 +126,7 @@ async function syncYouTubeRevenue(channel: Channel, userId: string): Promise<Rev
     }
 
     const scUrl = `https://www.googleapis.com/youtube/v3/superChatEvents?part=snippet&maxResults=50`;
-    const scRes = await fetch(scUrl, { headers: { Authorization: `Bearer ${channel.accessToken}` } });
+    const scRes = await withRetry(() => fetch(scUrl, { headers: { Authorization: `Bearer ${channel.accessToken}` } }), { label: "YouTube Super Chat API" });
     if (scRes.ok) {
       const scData = await scRes.json() as any;
       for (const item of (scData.items || [])) {
@@ -172,7 +173,7 @@ async function syncTwitchRevenue(channel: Channel, userId: string): Promise<Reve
 
   try {
     const subUrl = `https://api.twitch.tv/helix/subscriptions?broadcaster_id=${channel.channelId}`;
-    const subRes = await fetch(subUrl, { headers });
+    const subRes = await withRetry(() => fetch(subUrl, { headers }), { label: "Twitch subscriptions API" });
     if (subRes.ok) {
       const subData = await subRes.json() as any;
       const totalSubs = subData.total || 0;
@@ -202,7 +203,7 @@ async function syncTwitchRevenue(channel: Channel, userId: string): Promise<Reve
     }
 
     const bitsUrl = `https://api.twitch.tv/helix/bits/leaderboard?period=month&count=100`;
-    const bitsRes = await fetch(bitsUrl, { headers });
+    const bitsRes = await withRetry(() => fetch(bitsUrl, { headers }), { label: "Twitch bits API" });
     if (bitsRes.ok) {
       const bitsData = await bitsRes.json() as any;
       const totalBits = (bitsData.data || []).reduce((sum: number, entry: any) => sum + (entry.score || 0), 0);

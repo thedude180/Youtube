@@ -8,13 +8,25 @@ interface OptimizationResult {
 
 const lastOptimized: Map<string, number> = new Map();
 const OPTIMIZE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const LAST_OPTIMIZED_MAX_SIZE = 500;
 
-setInterval(() => {
-  const cutoff = Date.now() - OPTIMIZE_COOLDOWN_MS;
+function cleanupLastOptimized(): void {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const [key, ts] of Array.from(lastOptimized)) {
     if (ts < cutoff) lastOptimized.delete(key);
   }
-}, 60 * 60 * 1000);
+  if (lastOptimized.size > LAST_OPTIMIZED_MAX_SIZE) {
+    const sorted = Array.from(lastOptimized.entries()).sort((a, b) => a[1] - b[1]);
+    const toRemove = sorted.slice(0, lastOptimized.size - LAST_OPTIMIZED_MAX_SIZE);
+    for (const [key] of toRemove) lastOptimized.delete(key);
+  }
+}
+
+const settingsCleanupInterval = setInterval(cleanupLastOptimized, 5 * 60 * 1000);
+
+export function stopSettingsCleanup(): void {
+  clearInterval(settingsCleanupInterval);
+}
 
 const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
   gaming: {

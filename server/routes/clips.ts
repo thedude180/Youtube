@@ -1,5 +1,6 @@
 import type { Express } from "express";
-import { requireAuth, requireTier, parseNumericId } from "./helpers";
+import { z } from "zod";
+import { requireAuth, requireTier, parseNumericId, asyncHandler } from "./helpers";
 import { storage } from "../storage";
 import { db } from "../db";
 import { contentClips, autopilotQueue, videos } from "@shared/schema";
@@ -16,7 +17,7 @@ import {
 } from "../human-behavior-engine";
 
 export function registerClipRoutes(app: Express) {
-  app.get("/api/clips/backlog", async (req, res) => {
+  app.get("/api/clips/backlog", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -51,9 +52,9 @@ export function registerClipRoutes(app: Express) {
       console.error("[Clips] Backlog error:", err);
       res.status(500).json({ error: "Failed to fetch clip backlog" });
     }
-  });
+  }));
 
-  app.get("/api/clips/pipeline-status", async (req, res) => {
+  app.get("/api/clips/pipeline-status", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -63,14 +64,21 @@ export function registerClipRoutes(app: Express) {
       console.error("[Clips] Pipeline status error:", err);
       res.status(500).json({ error: "Failed to fetch pipeline status" });
     }
-  });
+  }));
 
-  app.post("/api/clips/run-pipeline", async (req, res) => {
+  app.post("/api/clips/run-pipeline", asyncHandler(async (req: any, res) => {
     const userId = await requireTier(req, res, "pro", "Clip Editor");
     if (!userId) return;
     try {
-      const mode = req.body?.mode === "new-only" ? "new-only" : "full";
-      const result = await startShortsPipeline(userId, mode as "full" | "new-only");
+      const runPipelineSchema = z.object({
+        mode: z.enum(["full", "new-only"]).optional().default("full"),
+      });
+      const parsed = runPipelineSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const mode = parsed.data.mode;
+      const result = await startShortsPipeline(userId, mode);
 
       if (result.status === "already_running") {
         return res.json({
@@ -90,9 +98,9 @@ export function registerClipRoutes(app: Express) {
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to start clip pipeline" });
     }
-  });
+  }));
 
-  app.post("/api/clips/extract/:videoId", async (req, res) => {
+  app.post("/api/clips/extract/:videoId", asyncHandler(async (req: any, res) => {
     const userId = await requireTier(req, res, "pro", "Clip Extraction");
     if (!userId) return;
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
@@ -116,9 +124,9 @@ export function registerClipRoutes(app: Express) {
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to extract clips" });
     }
-  });
+  }));
 
-  app.post("/api/clips/schedule-all", async (req, res) => {
+  app.post("/api/clips/schedule-all", asyncHandler(async (req: any, res) => {
     const userId = await requireTier(req, res, "pro", "Clip Scheduling");
     if (!userId) return;
     try {
@@ -260,9 +268,9 @@ export function registerClipRoutes(app: Express) {
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to schedule clips" });
     }
-  });
+  }));
 
-  app.post("/api/clips/:clipId/schedule", async (req, res) => {
+  app.post("/api/clips/:clipId/schedule", asyncHandler(async (req: any, res) => {
     const userId = await requireTier(req, res, "pro", "Clip Scheduling");
     if (!userId) return;
     const clipId = parseNumericId(req.params.clipId as string, res, "clip ID");
@@ -272,7 +280,15 @@ export function registerClipRoutes(app: Express) {
       const clip = clips.find((c) => c.id === clipId);
       if (!clip) return res.status(404).json({ error: "Clip not found" });
 
-      const platform = req.body?.platform || clip.targetPlatform || "tiktok";
+      const scheduleSchema = z.object({
+        platform: z.string().min(1).max(50).optional(),
+        scheduleAt: z.string().optional(),
+      });
+      const parsedBody = scheduleSchema.safeParse(req.body || {});
+      if (!parsedBody.success) {
+        return res.status(400).json({ error: "Invalid input", details: parsedBody.error.flatten() });
+      }
+      const platform = parsedBody.data.platform || clip.targetPlatform || "tiktok";
 
       let scheduledAt: Date;
       try {
@@ -327,9 +343,9 @@ export function registerClipRoutes(app: Express) {
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to schedule clip" });
     }
-  });
+  }));
 
-  app.delete("/api/clips/:clipId", async (req, res) => {
+  app.delete("/api/clips/:clipId", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const clipId = parseNumericId(req.params.clipId as string, res, "clip ID");
@@ -345,9 +361,9 @@ export function registerClipRoutes(app: Express) {
       console.error("[Clips] Delete error:", err);
       if (!res.headersSent) res.status(500).json({ error: "Failed to delete clip" });
     }
-  });
+  }));
 
-  app.get("/api/clips/stats", async (req, res) => {
+  app.get("/api/clips/stats", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -394,5 +410,5 @@ export function registerClipRoutes(app: Express) {
       console.error("[Clips] Stats error:", err);
       res.status(500).json({ error: "Failed to fetch clip stats" });
     }
-  });
+  }));
 }

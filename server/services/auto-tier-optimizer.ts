@@ -42,13 +42,25 @@ const TIER_LIMITS: Record<string, { platforms: number; price: number; features: 
 
 const lastRecommended: Map<string, { tier: string; timestamp: number }> = new Map();
 const RECOMMENDATION_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const LAST_RECOMMENDED_MAX_SIZE = 500;
 
-setInterval(() => {
-  const cutoff = Date.now() - RECOMMENDATION_COOLDOWN_MS;
+function cleanupLastRecommended(): void {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const [key, entry] of Array.from(lastRecommended)) {
     if (entry.timestamp < cutoff) lastRecommended.delete(key);
   }
-}, 60 * 60 * 1000);
+  if (lastRecommended.size > LAST_RECOMMENDED_MAX_SIZE) {
+    const sorted = Array.from(lastRecommended.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp);
+    const toRemove = sorted.slice(0, lastRecommended.size - LAST_RECOMMENDED_MAX_SIZE);
+    for (const [key] of toRemove) lastRecommended.delete(key);
+  }
+}
+
+const tierCleanupInterval = setInterval(cleanupLastRecommended, 5 * 60 * 1000);
+
+export function stopTierCleanup(): void {
+  clearInterval(tierCleanupInterval);
+}
 
 export async function analyzeAndRecommendTier(userId: string): Promise<TierRecommendation> {
   const user = await storage.getUser(userId);

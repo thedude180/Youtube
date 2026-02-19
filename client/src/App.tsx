@@ -1,6 +1,7 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { Component, lazy, Suspense, useEffect, useState, useCallback } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -632,63 +633,6 @@ function AppContent() {
   return <AuthenticatedApp />;
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, info);
-  }
-
-  handleRecover = () => {
-    this.setState({ hasError: false, error: null });
-  };
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-6">
-          <div className="max-w-md w-full space-y-4 text-center">
-            <div className="h-12 w-12 rounded-md bg-destructive/10 flex items-center justify-center mx-auto">
-              <Zap className="h-6 w-6 text-destructive" />
-            </div>
-            <h1 className="text-xl font-bold">Something went wrong</h1>
-            <p className="text-sm text-muted-foreground">
-              An unexpected error occurred. You can try recovering or refresh the page.
-            </p>
-            {this.state.error && (
-              <p className="text-xs text-muted-foreground/60 font-mono break-all max-h-16 overflow-hidden">
-                {this.state.error.message}
-              </p>
-            )}
-            <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Button
-                data-testid="button-error-recover"
-                variant="outline"
-                onClick={this.handleRecover}
-              >
-                Try to Recover
-              </Button>
-              <Button
-                data-testid="button-error-reload"
-                onClick={() => window.location.reload()}
-              >
-                Reload Page
-              </Button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 class PageErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {

@@ -3,17 +3,17 @@ import { aiUsageLogs } from "@shared/schema";
 import { eq, sql, and, gte, count } from "drizzle-orm";
 import crypto from "crypto";
 import { getBreaker } from "./circuit-breaker";
+import { LRUCache } from "../lib/lru-cache";
 
 interface CacheEntry {
   response: any;
-  timestamp: number;
   userId: string;
   model: string;
 }
 
 const CACHE_MAX_SIZE = 500;
 const CACHE_TTL_MS = 30 * 60 * 1000;
-const cache = new Map<string, CacheEntry>();
+const cache = new LRUCache<string, CacheEntry>(CACHE_MAX_SIZE, CACHE_TTL_MS);
 let cacheHits = 0;
 let cacheMisses = 0;
 
@@ -21,60 +21,28 @@ function makeCacheKey(userId: string, model: string, prompt: string): string {
   return crypto.createHash("sha256").update(userId + model + prompt).digest("hex");
 }
 
-function evictExpired(): void {
-  const now = Date.now();
-  for (const [key, entry] of cache) {
-    if (now - entry.timestamp > CACHE_TTL_MS) cache.delete(key);
-  }
-}
-
-function evictLRU(): void {
-  if (cache.size <= CACHE_MAX_SIZE) return;
-  let oldestKey: string | null = null;
-  let oldestTime = Infinity;
-  for (const [key, entry] of cache) {
-    if (entry.timestamp < oldestTime) {
-      oldestTime = entry.timestamp;
-      oldestKey = key;
-    }
-  }
-  if (oldestKey) cache.delete(oldestKey);
-}
-
 export function getCachedResponse(userId: string, prompt: string, model: string): any | null {
-  evictExpired();
   const key = makeCacheKey(userId, model, prompt);
   const entry = cache.get(key);
-  if (entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+  if (entry) {
     cacheHits++;
-    entry.timestamp = Date.now();
     return entry.response;
   }
   cacheMisses++;
-  if (entry) cache.delete(key);
   return null;
 }
 
 export function setCachedResponse(userId: string, prompt: string, model: string, response: any): void {
-  evictExpired();
   const key = makeCacheKey(userId, model, prompt);
-  cache.set(key, { response, timestamp: Date.now(), userId, model });
-  evictLRU();
+  cache.set(key, { response, userId, model });
 }
 
 export function clearUserCache(userId: string): number {
-  let cleared = 0;
-  for (const [key, entry] of cache) {
-    if (entry.userId === userId) {
-      cache.delete(key);
-      cleared++;
-    }
-  }
-  return cleared;
+  cache.clear();
+  return 0;
 }
 
 export function getCacheStats(): { hits: number; misses: number; size: number; hitRate: number } {
-  evictExpired();
   const total = cacheHits + cacheMisses;
   return {
     hits: cacheHits,

@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "../lib/openai";
 import { db } from "../db";
 import { feedbackSubmissions } from "@shared/schema";
 import { SUBSCRIPTION_TIERS } from "@shared/models/auth";
@@ -6,10 +6,7 @@ import { eq, and, sql, desc, gte } from "drizzle-orm";
 import { notifyAdmin } from "./notifications";
 
 function getOpenAI() {
-  return new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  });
+  return getOpenAIClient();
 }
 
 const ESCALATION_THRESHOLD = 3;

@@ -85,6 +85,38 @@ export async function requireTier(
   return userId;
 }
 
+const endpointLimits = new Map<string, Map<string, { count: number; resetAt: number }>>();
+
+export function rateLimitEndpoint(maxRequests: number = 10, windowMs: number = 60000) {
+  return (req: any, res: any, next: any) => {
+    const key = `${req.path}`;
+    const userId = req.headers["x-replit-user-id"] || req.ip;
+    if (!endpointLimits.has(key)) endpointLimits.set(key, new Map());
+    const users = endpointLimits.get(key)!;
+    const now = Date.now();
+    const entry = users.get(userId);
+    if (!entry || now > entry.resetAt) {
+      users.set(userId, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (entry.count >= maxRequests) {
+      return res.status(429).json({ error: "Too many requests, try again later" });
+    }
+    entry.count++;
+    next();
+  };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [endpoint, users] of endpointLimits) {
+    for (const [userId, entry] of users) {
+      if (now > entry.resetAt) users.delete(userId);
+    }
+    if (users.size === 0) endpointLimits.delete(endpoint);
+  }
+}, 5 * 60 * 1000);
+
 export const EMPIRE_TIER_GATES: Record<string, { minTier: string; label: string }> = {
   "empire-blueprint": { minTier: "starter", label: "Empire Blueprint Builder" },
   "empire-blueprint-view": { minTier: "starter", label: "View Empire Blueprint" },

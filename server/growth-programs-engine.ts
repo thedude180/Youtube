@@ -1,13 +1,10 @@
 import { db } from "./db";
 import { platformGrowthPrograms, channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext } from "./creator-intelligence";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 interface ProgramDefinition {
   platform: string;

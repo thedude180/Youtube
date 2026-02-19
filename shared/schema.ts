@@ -290,7 +290,10 @@ export const auditLogs = pgTable("audit_logs", {
   details: jsonb("details"),
   riskLevel: text("risk_level").default("low"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("audit_logs_user_id_idx").on(table.userId),
+  auditLogs_userId_createdAt_idx: index("auditLogs_userId_createdAt_idx").on(table.userId, table.createdAt),
+}));
 
 export const contentInsights = pgTable("content_insights", {
   id: serial("id").primaryKey(),
@@ -403,6 +406,7 @@ export const scheduleItems = pgTable("schedule_items", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("schedule_items_user_id_idx").on(table.userId),
+  scheduleItems_userId_scheduledAt_idx: index("scheduleItems_userId_scheduledAt_idx").on(table.userId, table.scheduledAt),
 }));
 
 export const revenueRecords = pgTable("revenue_records", {
@@ -433,6 +437,7 @@ export const revenueRecords = pgTable("revenue_records", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("revenue_records_user_id_idx").on(table.userId),
+  revenueRecords_userId_recordedAt_idx: index("revenueRecords_userId_recordedAt_idx").on(table.userId, table.recordedAt),
 }));
 
 export const revenueSyncLog = pgTable("revenue_sync_log", {
@@ -491,6 +496,7 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("notifications_user_id_idx").on(table.userId),
+  notifications_userId_read_idx: index("notifications_userId_read_idx").on(table.userId, table.read),
 }));
 
 export const abTests = pgTable("ab_tests", {
@@ -526,7 +532,9 @@ export const abTests = pgTable("ab_tests", {
   }>(),
   decidedAt: timestamp("decided_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("ab_tests_user_id_idx").on(table.userId),
+}));
 
 export const analyticsSnapshots = pgTable("analytics_snapshots", {
   id: serial("id").primaryKey(),
@@ -542,7 +550,9 @@ export const analyticsSnapshots = pgTable("analytics_snapshots", {
     platformBreakdown: Record<string, { views: number; subscribers: number; revenue: number }>;
   }>().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("analytics_snapshots_user_id_idx").on(table.userId),
+}));
 
 export const channelGrowthTracking = pgTable("channel_growth_tracking", {
   id: serial("id").primaryKey(),
@@ -622,7 +632,9 @@ export const learningInsights = pgTable("learning_insights", {
   isGlobal: boolean("is_global").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("learning_insights_user_id_idx").on(table.userId),
+}));
 
 export const contentIdeas = pgTable("content_ideas", {
   id: serial("id").primaryKey(),
@@ -648,7 +660,9 @@ export const contentIdeas = pgTable("content_ideas", {
     hook?: string;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("content_ideas_user_id_idx").on(table.userId),
+}));
 
 export const creatorMemory = pgTable("creator_memory", {
   id: serial("id").primaryKey(),
@@ -666,7 +680,9 @@ export const creatorMemory = pgTable("creator_memory", {
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("creator_memory_user_id_idx").on(table.userId),
+}));
 
 export const contentClips = pgTable("content_clips", {
   id: serial("id").primaryKey(),
@@ -687,7 +703,10 @@ export const contentClips = pgTable("content_clips", {
   }>(),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("content_clips_user_id_idx").on(table.userId),
+  contentClips_userId_status_idx: index("contentClips_userId_status_idx").on(table.userId, table.status),
+}));
 
 export const videoVersions = pgTable("video_versions", {
   id: serial("id").primaryKey(),
@@ -704,7 +723,9 @@ export const videoVersions = pgTable("video_versions", {
   }>().notNull(),
   changedBy: text("changed_by").default("ai"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("video_versions_user_id_idx").on(table.userId),
+}));
 
 export const streamChatMessages = pgTable("stream_chat_messages", {
   id: serial("id").primaryKey(),
@@ -773,7 +794,9 @@ export const platformHealth = pgTable("platform_health", {
   monetizationStatus: text("monetization_status").default("unknown"),
   lastCheckedAt: timestamp("last_checked_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("platform_health_user_id_idx").on(table.userId),
+}));
 
 export const collaborationLeads = pgTable("collaboration_leads", {
   id: serial("id").primaryKey(),
@@ -787,7 +810,9 @@ export const collaborationLeads = pgTable("collaboration_leads", {
   aiSuggested: boolean("ai_suggested").default(true),
   contactedAt: timestamp("contacted_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("collaboration_leads_user_id_idx").on(table.userId),
+}));
 
 export const audienceSegments = pgTable("audience_segments", {
   id: serial("id").primaryKey(),
@@ -803,7 +828,9 @@ export const audienceSegments = pgTable("audience_segments", {
   }>().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("audience_segments_user_id_idx").on(table.userId),
+}));
 
 export const complianceRules = pgTable("compliance_rules", {
   id: serial("id").primaryKey(),
@@ -832,7 +859,9 @@ export const userFeedback = pgTable("user_feedback", {
     newValue?: string;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("user_feedback_user_id_idx").on(table.userId),
+}));
 
 export const subscriptions = pgTable("subscriptions", {
   id: serial("id").primaryKey(),
@@ -852,7 +881,9 @@ export const subscriptions = pgTable("subscriptions", {
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("subscriptions_user_id_idx").on(table.userId),
+}));
 
 // === BUSINESS EXPANSION TABLES ===
 
@@ -978,7 +1009,9 @@ export const taxEstimates = pgTable("tax_estimates", {
     stateSpecific?: Record<string, any>;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("tax_estimates_user_id_idx").on(table.userId),
+}));
 
 export const brandAssets = pgTable("brand_assets", {
   id: serial("id").primaryKey(),
@@ -1040,7 +1073,9 @@ export const knowledgeMilestones = pgTable("knowledge_milestones", {
   resources: jsonb("resources").$type<{ title: string; url?: string; type: string }[]>(),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("knowledge_milestones_user_id_idx").on(table.userId),
+}));
 
 // === PIPELINE & CLIP TABLES ===
 
@@ -1059,7 +1094,10 @@ export const pipelineRuns = pgTable("pipeline_runs", {
     avgClipsPerVideo?: number;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("pipeline_runs_user_id_idx").on(table.userId),
+  pipelineRuns_userId_status_idx: index("pipeline_runs_userId_status_idx").on(table.userId, table.status),
+}));
 
 export const clipViralityScores = pgTable("clip_virality_scores", {
   id: serial("id").primaryKey(),
@@ -1076,7 +1114,9 @@ export const clipViralityScores = pgTable("clip_virality_scores", {
   }>(),
   accuracy: real("accuracy"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("clip_virality_scores_user_id_idx").on(table.userId),
+}));
 
 export const optimizationPasses = pgTable("optimization_passes", {
   id: serial("id").primaryKey(),
@@ -1093,7 +1133,9 @@ export const optimizationPasses = pgTable("optimization_passes", {
   }[]>(),
   status: text("status").notNull().default("completed"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("optimization_passes_user_id_idx").on(table.userId),
+}));
 
 // === TREND & ALGORITHM TABLES ===
 
@@ -1114,7 +1156,9 @@ export const trendingTopics = pgTable("trending_topics", {
     relevanceScore?: number;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("trending_topics_user_id_idx").on(table.userId),
+}));
 
 export const hashtagHealth = pgTable("hashtag_health", {
   id: serial("id").primaryKey(),
@@ -1127,7 +1171,9 @@ export const hashtagHealth = pgTable("hashtag_health", {
   recommendedUse: text("recommended_use"),
   lastCheckedAt: timestamp("last_checked_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("hashtag_health_user_id_idx").on(table.userId),
+}));
 
 export const algorithmAlerts = pgTable("algorithm_alerts", {
   id: serial("id").primaryKey(),
@@ -1141,7 +1187,9 @@ export const algorithmAlerts = pgTable("algorithm_alerts", {
   acknowledged: boolean("acknowledged").default(false),
   detectedAt: timestamp("detected_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("algorithm_alerts_user_id_idx").on(table.userId),
+}));
 
 // === CONTENT LIFECYCLE TABLES ===
 
@@ -1159,7 +1207,9 @@ export const contentLifecycle = pgTable("content_lifecycle", {
     engagement?: number;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("content_lifecycle_user_id_idx").on(table.userId),
+}));
 
 export const evergreenClassifications = pgTable("evergreen_classifications", {
   id: serial("id").primaryKey(),
@@ -1172,7 +1222,9 @@ export const evergreenClassifications = pgTable("evergreen_classifications", {
   refreshRecommendation: text("refresh_recommendation"),
   lastEvaluatedAt: timestamp("last_evaluated_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("evergreen_classifications_user_id_idx").on(table.userId),
+}));
 
 export const cannibalizationAlerts = pgTable("cannibalization_alerts", {
   id: serial("id").primaryKey(),
@@ -1184,7 +1236,9 @@ export const cannibalizationAlerts = pgTable("cannibalization_alerts", {
   recommendation: text("recommendation"),
   status: text("status").default("active"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("cannibalization_alerts_user_id_idx").on(table.userId),
+}));
 
 // === PREDICTION & ANALYTICS TABLES ===
 
@@ -1200,7 +1254,9 @@ export const viralScorePredictions = pgTable("viral_score_predictions", {
   factors: jsonb("factors").$type<Record<string, number>>(),
   accuracy: real("accuracy"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("viral_score_predictions_user_id_idx").on(table.userId),
+}));
 
 export const commentSentiments = pgTable("comment_sentiments", {
   id: serial("id").primaryKey(),
@@ -1215,7 +1271,9 @@ export const commentSentiments = pgTable("comment_sentiments", {
   actionableInsights: jsonb("actionable_insights").$type<string[]>(),
   analyzedAt: timestamp("analyzed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("comment_sentiments_user_id_idx").on(table.userId),
+}));
 
 export const trendPredictions = pgTable("trend_predictions", {
   id: serial("id").primaryKey(),
@@ -1230,7 +1288,9 @@ export const trendPredictions = pgTable("trend_predictions", {
   predictedAt: timestamp("predicted_at"),
   evaluatedAt: timestamp("evaluated_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("trend_predictions_user_id_idx").on(table.userId),
+}));
 
 export const contentDnaProfiles = pgTable("content_dna_profiles", {
   id: serial("id").primaryKey(),
@@ -1249,7 +1309,9 @@ export const contentDnaProfiles = pgTable("content_dna_profiles", {
   sampleSize: integer("sample_size").default(0),
   lastUpdatedAt: timestamp("last_updated_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("content_dna_profiles_user_id_idx").on(table.userId),
+}));
 
 export const ctrOptimizations = pgTable("ctr_optimizations", {
   id: serial("id").primaryKey(),
@@ -1265,7 +1327,9 @@ export const ctrOptimizations = pgTable("ctr_optimizations", {
   testPeriodDays: integer("test_period_days"),
   improvement: real("improvement"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("ctr_optimizations_user_id_idx").on(table.userId),
+}));
 
 // === PLAYLIST & CONTENT REPURPOSE TABLES ===
 
@@ -1285,7 +1349,9 @@ export const managedPlaylists = pgTable("managed_playlists", {
     rules?: Record<string, any>;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("managed_playlists_user_id_idx").on(table.userId),
+}));
 
 export const playlistItems = pgTable("playlist_items", {
   id: serial("id").primaryKey(),
@@ -1313,7 +1379,9 @@ export const repurposedContent = pgTable("repurposed_content", {
     comments?: number;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("repurposed_content_user_id_idx").on(table.userId),
+}));
 
 export const scriptTemplates = pgTable("script_templates", {
   id: serial("id").primaryKey(),
@@ -1325,7 +1393,9 @@ export const scriptTemplates = pgTable("script_templates", {
   usageCount: integer("usage_count").default(0),
   avgPerformance: real("avg_performance"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("script_templates_user_id_idx").on(table.userId),
+}));
 
 // === AUDIENCE & CONTENT GAP TABLES ===
 
@@ -1339,7 +1409,9 @@ export const audienceActivityPatterns = pgTable("audience_activity_patterns", {
   sampleSize: integer("sample_size").default(0),
   lastUpdatedAt: timestamp("last_updated_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("audience_activity_patterns_user_id_idx").on(table.userId),
+}));
 
 export const contentGapSuggestions = pgTable("content_gap_suggestions", {
   id: serial("id").primaryKey(),
@@ -1353,7 +1425,9 @@ export const contentGapSuggestions = pgTable("content_gap_suggestions", {
   status: text("status").default("suggested"),
   priority: integer("priority").default(0),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("content_gap_suggestions_user_id_idx").on(table.userId),
+}));
 
 // === REVENUE & MONETIZATION TABLES ===
 
@@ -1374,7 +1448,9 @@ export const revenueForecasts = pgTable("revenue_forecasts", {
   }>(),
   assumptions: jsonb("assumptions").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("revenue_forecasts_user_id_idx").on(table.userId),
+}));
 
 export const fanFunnelEvents = pgTable("fan_funnel_events", {
   id: serial("id").primaryKey(),
@@ -1386,7 +1462,9 @@ export const fanFunnelEvents = pgTable("fan_funnel_events", {
   period: text("period"),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("fan_funnel_events_user_id_idx").on(table.userId),
+}));
 
 export const sponsorRates = pgTable("sponsor_rates", {
   id: serial("id").primaryKey(),
@@ -1403,7 +1481,9 @@ export const sponsorRates = pgTable("sponsor_rates", {
   }>(),
   lastCalculatedAt: timestamp("last_calculated_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("sponsor_rates_user_id_idx").on(table.userId),
+}));
 
 export const equipmentRoi = pgTable("equipment_roi", {
   id: serial("id").primaryKey(),
@@ -1417,7 +1497,9 @@ export const equipmentRoi = pgTable("equipment_roi", {
   roiPercent: real("roi_percent"),
   status: text("status").default("paying-off"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("equipment_roi_user_id_idx").on(table.userId),
+}));
 
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
@@ -1436,7 +1518,9 @@ export const invoices = pgTable("invoices", {
   }[]>(),
   paidAt: timestamp("paid_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("invoices_user_id_idx").on(table.userId),
+}));
 
 // === COMMUNITY & FAN TABLES ===
 
@@ -1452,7 +1536,9 @@ export const superfanProfiles = pgTable("superfan_profiles", {
   notes: text("notes"),
   tier: text("tier").default("casual"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("superfan_profiles_user_id_idx").on(table.userId),
+}));
 
 // === LEGAL & CRM TABLES ===
 
@@ -1469,7 +1555,9 @@ export const legalDocuments = pgTable("legal_documents", {
   notes: text("notes"),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("legal_documents_user_id_idx").on(table.userId),
+}));
 
 export const creatorCrm = pgTable("creator_crm", {
   id: serial("id").primaryKey(),
@@ -1485,7 +1573,9 @@ export const creatorCrm = pgTable("creator_crm", {
   notes: text("notes"),
   dealValue: real("deal_value"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("creator_crm_user_id_idx").on(table.userId),
+}));
 
 // === WELLNESS & WORKLOAD TABLES ===
 
@@ -1498,7 +1588,9 @@ export const workloadLogs = pgTable("workload_logs", {
   energyLevel: integer("energy_level"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("workload_logs_user_id_idx").on(table.userId),
+}));
 
 export const burnoutAlerts = pgTable("burnout_alerts", {
   id: serial("id").primaryKey(),
@@ -1509,7 +1601,9 @@ export const burnoutAlerts = pgTable("burnout_alerts", {
   autoThrottleApplied: boolean("auto_throttle_applied").default(false),
   acknowledgedAt: timestamp("acknowledged_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("burnout_alerts_user_id_idx").on(table.userId),
+}));
 
 // === TEAM & OPERATIONS TABLES ===
 
@@ -1525,7 +1619,9 @@ export const teamTasks = pgTable("team_tasks", {
   description: text("description"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("team_tasks_user_id_idx").on(table.userId),
+}));
 
 export const dailyBriefings = pgTable("daily_briefings", {
   id: serial("id").primaryKey(),
@@ -1539,7 +1635,9 @@ export const dailyBriefings = pgTable("daily_briefings", {
     metrics?: Record<string, number>;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("daily_briefings_user_id_idx").on(table.userId),
+}));
 
 export const agentScorecards = pgTable("agent_scorecards", {
   id: serial("id").primaryKey(),
@@ -1552,7 +1650,9 @@ export const agentScorecards = pgTable("agent_scorecards", {
   topActions: jsonb("top_actions").$type<string[]>(),
   improvementAreas: jsonb("improvement_areas").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("agent_scorecards_user_id_idx").on(table.userId),
+}));
 
 // === GROWTH & TEMPLATES TABLES ===
 
@@ -1567,7 +1667,9 @@ export const growthPredictions = pgTable("growth_predictions", {
   confidence: real("confidence"),
   factors: jsonb("factors").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("growth_predictions_user_id_idx").on(table.userId),
+}));
 
 export const descriptionTemplates = pgTable("description_templates", {
   id: serial("id").primaryKey(),
@@ -1578,7 +1680,9 @@ export const descriptionTemplates = pgTable("description_templates", {
   variables: jsonb("variables").$type<string[]>(),
   usageCount: integer("usage_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("description_templates_user_id_idx").on(table.userId),
+}));
 
 // === STREAMING & CHANNEL TABLES ===
 
@@ -1595,7 +1699,9 @@ export const streamPerformanceLogs = pgTable("stream_performance_logs", {
   highlights: jsonb("highlights").$type<string[]>(),
   improvementTips: jsonb("improvement_tips").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("stream_performance_logs_user_id_idx").on(table.userId),
+}));
 
 export const linkedChannels = pgTable("linked_channels", {
   id: serial("id").primaryKey(),
@@ -1926,7 +2032,9 @@ export const aiChains = pgTable("ai_chains", {
   lastRun: timestamp("last_run"),
   status: text("status").notNull().default("idle"),
   lastResult: jsonb("last_result"),
-});
+}, (table) => ({
+  userIdIdx: index("ai_chains_user_id_idx").on(table.userId),
+}));
 
 export const webhookEvents = pgTable("webhook_events", {
   id: serial("id").primaryKey(),
@@ -1936,7 +2044,9 @@ export const webhookEvents = pgTable("webhook_events", {
   payload: jsonb("payload").notNull(),
   processed: boolean("processed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("webhook_events_user_id_idx").on(table.userId),
+}));
 
 export const localizationRecommendations = pgTable("localization_recommendations", {
   id: serial("id").primaryKey(),
@@ -1945,7 +2055,9 @@ export const localizationRecommendations = pgTable("localization_recommendations
   trafficData: jsonb("traffic_data").notNull(),
   source: text("source").notNull().default("ai-audience-analyzer"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("localization_recommendations_user_id_idx").on(table.userId),
+}));
 
 // === AUTOPILOT SYSTEM TABLES ===
 
@@ -2215,7 +2327,9 @@ export const streamHighlights = pgTable("stream_highlights", {
     platforms?: string[];
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("stream_highlights_user_id_idx").on(table.userId),
+}));
 
 export const communityGiveaways = pgTable("community_giveaways", {
   id: serial("id").primaryKey(),
@@ -2233,7 +2347,9 @@ export const communityGiveaways = pgTable("community_giveaways", {
   startsAt: timestamp("starts_at"),
   endsAt: timestamp("ends_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("community_giveaways_user_id_idx").on(table.userId),
+}));
 
 export const loyaltyPoints = pgTable("loyalty_points", {
   id: serial("id").primaryKey(),
@@ -2248,7 +2364,9 @@ export const loyaltyPoints = pgTable("loyalty_points", {
     date: string;
   }[]>().default([]),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("loyalty_points_user_id_idx").on(table.userId),
+}));
 
 export const communityPolls = pgTable("community_polls", {
   id: serial("id").primaryKey(),
@@ -2264,7 +2382,9 @@ export const communityPolls = pgTable("community_polls", {
   publishedAt: timestamp("published_at"),
   endsAt: timestamp("ends_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("community_polls_user_id_idx").on(table.userId),
+}));
 
 export const communityChallenges = pgTable("community_challenges", {
   id: serial("id").primaryKey(),
@@ -2280,7 +2400,9 @@ export const communityChallenges = pgTable("community_challenges", {
   startsAt: timestamp("starts_at"),
   endsAt: timestamp("ends_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("community_challenges_user_id_idx").on(table.userId),
+}));
 
 export const seoScores = pgTable("seo_scores", {
   id: serial("id").primaryKey(),
@@ -2299,7 +2421,9 @@ export const seoScores = pgTable("seo_scores", {
   }[]>(),
   lastCheckedAt: timestamp("last_checked_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("seo_scores_user_id_idx").on(table.userId),
+}));
 
 export const searchRankings = pgTable("search_rankings", {
   id: serial("id").primaryKey(),
@@ -2313,7 +2437,9 @@ export const searchRankings = pgTable("search_rankings", {
   competition: text("competition"),
   lastCheckedAt: timestamp("last_checked_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("search_rankings_user_id_idx").on(table.userId),
+}));
 
 export const moderationActions = pgTable("moderation_actions", {
   id: serial("id").primaryKey(),
@@ -2326,7 +2452,9 @@ export const moderationActions = pgTable("moderation_actions", {
   isAutomatic: boolean("is_automatic").default(false),
   status: text("status").default("completed"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("moderation_actions_user_id_idx").on(table.userId),
+}));
 
 export const userPreferences = pgTable("user_preferences", {
   id: serial("id").primaryKey(),
@@ -2340,7 +2468,9 @@ export const userPreferences = pgTable("user_preferences", {
   language: text("language").default("en"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("user_preferences_user_id_idx").on(table.userId),
+}));
 
 export const editingNotes = pgTable("editing_notes", {
   id: serial("id").primaryKey(),
@@ -2352,7 +2482,9 @@ export const editingNotes = pgTable("editing_notes", {
   resolved: boolean("resolved").default(false),
   assignedTo: text("assigned_to"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("editing_notes_user_id_idx").on(table.userId),
+}));
 
 export const uploadQueue = pgTable("upload_queue", {
   id: serial("id").primaryKey(),
@@ -2370,7 +2502,9 @@ export const uploadQueue = pgTable("upload_queue", {
     privacy?: string;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("upload_queue_user_id_idx").on(table.userId),
+}));
 
 export const insertContentKanbanSchema = createInsertSchema(contentKanban).omit({ id: true, createdAt: true, completedAt: true });
 export const insertStreamHighlightSchema = createInsertSchema(streamHighlights).omit({ id: true, createdAt: true });
@@ -2774,6 +2908,7 @@ export const predictiveTrends = pgTable("predictive_trends", {
 }, (table) => ({
   statusIdx: index("predictive_trends_status_idx").on(table.status),
   topicIdx: index("predictive_trends_topic_idx").on(table.topic),
+  userIdIdx: index("predictive_trends_user_id_idx").on(table.userId),
 }));
 
 export const creatorDnaProfiles = pgTable("creator_dna_profiles", {
@@ -3105,6 +3240,7 @@ export const empireBuilds = pgTable("empire_builds", {
 }, (table) => ({
   tokenIdx: index("empire_builds_token_idx").on(table.buildToken),
   emailIdx: index("empire_builds_email_idx").on(table.email),
+  userIdIdx: index("empire_builds_user_id_idx").on(table.userId),
 }));
 
 export const insertEmpireBuildSchema = createInsertSchema(empireBuilds).omit({ id: true, createdAt: true, completedAt: true, notifiedAt: true });

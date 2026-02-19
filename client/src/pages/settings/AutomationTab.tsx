@@ -94,7 +94,7 @@ function AutomationTab() {
                 <p className="text-xs text-muted-foreground">Events</p>
               </div>
               <div className="text-center p-3 rounded-lg bg-muted/50">
-                <p className="text-2xl font-bold" data-testid="text-notif-count">{unreadCount}</p>
+                <p className="text-2xl font-bold" data-testid="text-notif-count" aria-live="polite">{unreadCount}</p>
                 <p className="text-xs text-muted-foreground">Unread Alerts</p>
               </div>
             </div>

@@ -392,7 +392,7 @@ export default function Autopilot() {
           <Rocket className="h-6 w-6 text-primary" />
           <h1 data-testid="text-autopilot-title" className="text-2xl font-bold">Autopilot</h1>
         </div>
-        <Badge variant="secondary">
+        <Badge variant="secondary" data-testid="badge-active-features" aria-live="polite">
           <Bot className="h-3 w-3 mr-1" />
           {activeFeatureCount}/7 Active
         </Badge>
@@ -402,7 +402,7 @@ export default function Autopilot() {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4" aria-live="polite">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold" data-testid="text-scheduled-posts">{stats?.scheduledPosts || 0}</div>
@@ -659,6 +659,7 @@ export default function Autopilot() {
                           onClick={() => publishNowMutation.mutate(item.id)}
                           disabled={publishNowMutation.isPending}
                           data-testid={`button-publish-${item.id}`}
+                          aria-label="Publish now"
                         >
                           <Send className="h-4 w-4" />
                         </Button>
@@ -669,6 +670,7 @@ export default function Autopilot() {
                         onClick={() => deleteQueueMutation.mutate(item.id)}
                         disabled={deleteQueueMutation.isPending}
                         data-testid={`button-delete-${item.id}`}
+                        aria-label="Delete from queue"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

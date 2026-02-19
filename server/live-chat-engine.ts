@@ -2,7 +2,7 @@ import { db } from "./db";
 import { liveChatMessages, streams, streamDestinations } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import {
   getCommentResponseDelay,
@@ -10,10 +10,7 @@ import {
   getActivityWindow,
 } from "./human-behavior-engine";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 const PLATFORM_CHAT_STYLE: Record<string, string> = {
   youtube: `YouTube Live Chat style:

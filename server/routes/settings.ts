@@ -73,18 +73,6 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/feedback", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const { targetType, targetId, rating, aiFunction } = req.body;
-      await recordFeedback(userId, targetType, targetId, rating, aiFunction);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
-    }
-  });
-
   app.get("/api/creator-memory", async (req, res) => {
     const userId = await requireTier(req, res, "ultimate", "Creator Memory");
     if (!userId) return;
@@ -132,7 +120,16 @@ export function registerSettingsRoutes(app: Express) {
     if (id === null) return;
     const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, id), eq(brandAssets.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const asset = await storage.updateBrandAsset(id, req.body);
+    const updateSchema = z.object({
+      type: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      value: z.string().optional(),
+      url: z.string().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const asset = await storage.updateBrandAsset(id, parsed.data);
     res.json(asset);
   });
 
@@ -179,7 +176,16 @@ export function registerSettingsRoutes(app: Express) {
     if (id === null) return;
     const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, id), eq(competitorTracks.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const competitor = await storage.updateCompetitorTrack(id, req.body);
+    const updateSchema = z.object({
+      name: z.string().min(1).optional(),
+      platform: z.string().optional(),
+      channelUrl: z.string().optional(),
+      notes: z.string().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const competitor = await storage.updateCompetitorTrack(id, parsed.data);
     res.json(competitor);
   });
 
@@ -226,7 +232,16 @@ export function registerSettingsRoutes(app: Express) {
     if (id === null) return;
     const [existing] = await db.select().from(knowledgeMilestones).where(and(eq(knowledgeMilestones.id, id), eq(knowledgeMilestones.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const milestone = await storage.updateKnowledgeMilestone(id, req.body);
+    const updateSchema = z.object({
+      title: z.string().min(1).optional(),
+      category: z.string().optional(),
+      description: z.string().optional(),
+      status: z.string().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const milestone = await storage.updateKnowledgeMilestone(id, parsed.data);
     res.json(milestone);
   });
 
@@ -270,7 +285,13 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await updateAgentScorecard(userId, req.body.agentId, req.body.taskResult);
+      const scorecardSchema = z.object({
+        agentId: z.string().min(1).max(100),
+        taskResult: z.record(z.unknown()),
+      });
+      const parsed = scorecardSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const result = await updateAgentScorecard(userId, parsed.data.agentId, parsed.data.taskResult);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -328,11 +349,10 @@ export function registerSettingsRoutes(app: Express) {
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     try {
-      const { niche } = req.body;
-      if (!niche || typeof niche !== "string") {
-        res.status(400).json({ message: "Niche is required" });
-        return;
-      }
+      const nicheSchema = z.object({ niche: z.string().min(1).max(500) });
+      const parsed = nicheSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const { niche } = parsed.data;
       const { researchYouTubeNiche } = await import("../youtube-learning-engine");
       const research = await researchYouTubeNiche(userId, niche);
       res.json({ success: true, research });
@@ -347,11 +367,10 @@ export function registerSettingsRoutes(app: Express) {
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
     try {
-      const { videoId } = req.body;
-      if (!videoId) {
-        res.status(400).json({ message: "videoId is required" });
-        return;
-      }
+      const videoIdSchema = z.object({ videoId: z.union([z.string().min(1), z.number()]) });
+      const parsedVideo = videoIdSchema.safeParse(req.body);
+      if (!parsedVideo.success) return res.status(400).json({ error: "Invalid input", details: parsedVideo.error.flatten() });
+      const { videoId } = parsedVideo.data;
       const { analyzeVideoPerformanceAndLearn } = await import("../youtube-learning-engine");
       const analysis = await analyzeVideoPerformanceAndLearn(userId, videoId);
       res.json({ success: true, analysis });
@@ -544,11 +563,11 @@ export function registerSettingsRoutes(app: Express) {
         registrationStatus: z.string().optional(),
         registrationSteps: z.any().optional(),
       });
-      const data = schema.parse(req.body);
-      const result = await storage.upsertBusinessDetails(userId, data);
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const result = await storage.upsertBusinessDetails(userId, parsed.data);
       res.json(result);
     } catch (error: any) {
-      if (error.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -559,8 +578,10 @@ export function registerSettingsRoutes(app: Express) {
     try {
       const details = await storage.getBusinessDetails(userId);
       if (!details) return res.status(404).json({ message: "No business details found" });
-      const { steps } = req.body;
-      if (!Array.isArray(steps)) return res.status(400).json({ message: "steps must be an array" });
+      const stepsSchema = z.object({ steps: z.array(z.unknown()) });
+      const parsedSteps = stepsSchema.safeParse(req.body);
+      if (!parsedSteps.success) return res.status(400).json({ error: "Invalid input", details: parsedSteps.error.flatten() });
+      const { steps } = parsedSteps.data;
       const result = await storage.updateBusinessDetailsSteps(details.id, steps);
       res.json(result);
     } catch (error: any) {
@@ -583,22 +604,22 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { mood, energy, stress, hoursWorked, notes } = req.body;
-      const wellnessInput = z.object({
+      const wellnessSchema = z.object({
         mood: z.number().min(1).max(10),
         energy: z.number().min(1).max(10),
         stress: z.number().min(1).max(10),
         hoursWorked: z.number().nullable().optional(),
         notes: z.string().nullable().optional(),
-      }).parse({ mood, energy, stress, hoursWorked, notes });
+      });
+      const parsedWellness = wellnessSchema.safeParse(req.body);
+      if (!parsedWellness.success) return res.status(400).json({ error: "Invalid input", details: parsedWellness.error.flatten() });
 
       const check = await storage.createWellnessCheck({
         userId,
-        ...wellnessInput,
+        ...parsedWellness.data,
       });
       res.status(201).json(check);
     } catch (error: any) {
-      if (error.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });

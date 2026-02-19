@@ -132,7 +132,7 @@ function LibraryTab() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-2" role="status" aria-label="Loading videos">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
@@ -173,7 +173,7 @@ function LibraryTab() {
                           <Badge variant="secondary" className="text-xs">
                             {TYPE_LABEL[video.type] || video.type}
                           </Badge>
-                          <StatusBadge status={video.status} />
+                          <StatusBadge status={video.status} data-testid={`status-video-${video.id}`} />
                           {viewCount != null && (
                             <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                               <Eye className="h-3 w-3" />{Number(viewCount).toLocaleString()}
@@ -196,7 +196,7 @@ function LibraryTab() {
                           rel="noopener noreferrer"
                           data-testid={`link-youtube-${video.id}`}
                         >
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" aria-label="Open on YouTube">
                             <ExternalLink className="h-3.5 w-3.5" />
                           </Button>
                         </a>

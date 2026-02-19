@@ -1,10 +1,7 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "./creator-intelligence";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 export function detectGamingContext(title: string, description?: string | null, category?: string | null, metadata?: any): {
   isGaming: boolean;

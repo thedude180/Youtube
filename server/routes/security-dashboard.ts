@@ -313,11 +313,8 @@ export function registerSecurityDashboardRoutes(app: Express) {
         return res.status(400).json({ error: "Title is required" });
       }
 
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const { getOpenAIClient } = await import("../lib/openai");
+      const openai = getOpenAIClient();
 
       const prompt = `Analyze this content and predict its performance. Return ONLY valid JSON.
 

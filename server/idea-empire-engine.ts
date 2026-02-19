@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { users, aiResults, streamPipelines } from "@shared/schema";
@@ -26,10 +26,7 @@ import {
 } from "./youtube-learning-engine";
 import { creatorSkillProgress } from "@shared/schema";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 async function aiGenerate(prompt: string): Promise<any> {
   const response = await openai.chat.completions.create({
@@ -384,24 +381,26 @@ Every formula should be so specific that a beginner can follow it like a recipe.
     .where(and(eq(aiResults.userId, userId), eq(aiResults.featureKey, "empire-blueprint")))
     .limit(1);
 
-  if (existing.length > 0) {
-    await db
-      .update(aiResults)
-      .set({ result: blueprintData, createdAt: new Date() })
-      .where(eq(aiResults.id, existing[0].id));
-  } else {
-    await db.insert(aiResults).values({
-      userId,
-      featureKey: "empire-blueprint",
-      result: blueprintData,
-    });
-  }
+  await db.transaction(async (tx) => {
+    if (existing.length > 0) {
+      await tx
+        .update(aiResults)
+        .set({ result: blueprintData, createdAt: new Date() })
+        .where(eq(aiResults.id, existing[0].id));
+    } else {
+      await tx.insert(aiResults).values({
+        userId,
+        featureKey: "empire-blueprint",
+        result: blueprintData,
+      });
+    }
 
-  const nicheLabel = nicheAndBrand.niche?.primary || idea;
-  await db
-    .update(users)
-    .set({ contentNiche: nicheLabel, autopilotActive: true })
-    .where(eq(users.id, userId));
+    const nicheLabel = nicheAndBrand.niche?.primary || idea;
+    await tx
+      .update(users)
+      .set({ contentNiche: nicheLabel, autopilotActive: true })
+      .where(eq(users.id, userId));
+  });
 
   try {
     const { updateAutopilotFeatureConfig } = await import("./autopilot-engine");
@@ -1276,41 +1275,41 @@ FINAL CHECK: Before outputting, re-read every script section. If any sentence so
   const newVideoCount = videosCreated + 1;
   const updatedSkill = getSkillLevelFromVideosCreated(newVideoCount);
 
-  await db.insert(aiResults).values({
-    userId,
-    featureKey: videoKey,
-    result: {
-      ...videoPackage,
-      _humanized: true,
-      _stealthVersion: 2,
-      _skillProgression: {
-        videoNumber: newVideoCount,
-        skillLevel: skillInfo.level,
-        skillLabel: skillInfo.label,
-        qualityMultiplier: skillInfo.qualityMultiplier,
-        nextSkillLevel: updatedSkill.level,
-        nextSkillLabel: updatedSkill.label,
+  await db.transaction(async (tx) => {
+    await tx.insert(aiResults).values({
+      userId,
+      featureKey: videoKey,
+      result: {
+        ...videoPackage,
+        _humanized: true,
+        _stealthVersion: 2,
+        _skillProgression: {
+          videoNumber: newVideoCount,
+          skillLevel: skillInfo.level,
+          skillLabel: skillInfo.label,
+          qualityMultiplier: skillInfo.qualityMultiplier,
+          nextSkillLevel: updatedSkill.level,
+          nextSkillLabel: updatedSkill.label,
+        },
+        _antiAiDetection: {
+          bannedPhrasesScanned: FULL_BANNED_AI_PHRASES.length,
+          postProcessed: true,
+          titleImperfections: true,
+          descriptionImperfections: true,
+          tagImperfections: true,
+          creatorIntelligenceUsed: !!creatorStyleContext,
+          humanizationLayerUsed: !!humanizationPrompt,
+        },
+        sourceIdea: contentIdea,
+        createdAt: new Date().toISOString(),
       },
-      _antiAiDetection: {
-        bannedPhrasesScanned: FULL_BANNED_AI_PHRASES.length,
-        postProcessed: true,
-        titleImperfections: true,
-        descriptionImperfections: true,
-        tagImperfections: true,
-        creatorIntelligenceUsed: !!creatorStyleContext,
-        humanizationLayerUsed: !!humanizationPrompt,
-      },
-      sourceIdea: contentIdea,
-      createdAt: new Date().toISOString(),
-    },
-  });
+    });
 
-  try {
-    const [existing] = await db.select().from(creatorSkillProgress)
+    const [existing] = await tx.select().from(creatorSkillProgress)
       .where(eq(creatorSkillProgress.userId, userId)).limit(1);
 
     if (existing) {
-      await db.update(creatorSkillProgress).set({
+      await tx.update(creatorSkillProgress).set({
         videosCreated: newVideoCount,
         skillLevel: updatedSkill.level,
         skillLabel: updatedSkill.label,
@@ -1319,7 +1318,7 @@ FINAL CHECK: Before outputting, re-read every script section. If any sentence so
         updatedAt: new Date(),
       }).where(eq(creatorSkillProgress.id, existing.id));
     } else {
-      await db.insert(creatorSkillProgress).values({
+      await tx.insert(creatorSkillProgress).values({
         userId,
         videosCreated: newVideoCount,
         skillLevel: updatedSkill.level,
@@ -1328,9 +1327,7 @@ FINAL CHECK: Before outputting, re-read every script section. If any sentence so
         lastVideoAt: new Date(),
       });
     }
-  } catch (err: any) {
-    console.error(`[Empire] Failed to update skill progression:`, err.message);
-  }
+  });
 
   return { videoKey, ...videoPackage };
 }

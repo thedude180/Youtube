@@ -9,12 +9,10 @@ import {
   streams, videos
 } from "@shared/schema";
 
-async function getOpenAI() {
-  const OpenAI = (await import("openai")).default;
-  return new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  });
+import { getOpenAIClient } from "../lib/openai";
+
+function getOpenAI() {
+  return getOpenAIClient();
 }
 
 function getStepsForType(pipelineType: string) {
@@ -289,7 +287,7 @@ async function runStreamPipelineStep(
   };
 
   const prompt = prompts[stepId];
-  if (!prompt) throw new Error(`Unknown step: ${stepId}`);
+  if (!prompt) return { error: `Unknown step: ${stepId}` };
 
   const systemMsg = pipelineType === "live"
     ? "You are a gaming livestream content expert. Analyze live streams and generate optimized content. Always respond with valid JSON only, no markdown."
@@ -306,7 +304,7 @@ async function runStreamPipelineStep(
   });
 
   const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No AI response");
+  if (!content) return { error: "No AI response" };
   try {
     return JSON.parse(content);
   } catch {
@@ -540,7 +538,7 @@ Return JSON: {
   });
 
   const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No AI response for VOD cuts");
+  if (!content) return { cuts: [], error: "No AI response for VOD cuts" };
   let aiResult: any;
   try {
     aiResult = JSON.parse(content);
@@ -552,36 +550,38 @@ Return JSON: {
   const createdCuts: any[] = [];
   const vodCutIdsList: number[] = [];
 
-  for (const cut of (aiResult.cuts || [])) {
-    const lengthCategory = cut.category || "medium";
-    const [vodCut] = await db.insert(vodCuts).values({
-      userId,
-      pipelineId,
-      title: cut.title || `${sourceTitle} - ${lengthCategory}`,
-      targetLength: cut.targetLength,
-      actualLength: cut.endTimestamp - cut.startTimestamp,
-      lengthCategory,
-      startTimestamp: cut.startTimestamp,
-      endTimestamp: cut.endTimestamp,
-      isExperiment: !hasGoodData,
-      experimentGroup: experimentId ? `experiment_${experimentId}` : null,
-      status: "pending",
-      platform: "youtube",
-      highlights: cut.highlights || [],
-      aiSuggestion: {
-        reasoning: cut.reasoning,
-        confidenceScore: cut.confidenceScore,
-        suggestedHooks: cut.suggestedHooks || [],
-        cutPoints: [{ start: cut.startTimestamp, end: cut.endTimestamp, reason: cut.reasoning }],
-      },
-    }).returning();
-    createdCuts.push(vodCut);
-    vodCutIdsList.push(vodCut.id);
-  }
+  await db.transaction(async (tx) => {
+    for (const cut of (aiResult.cuts || [])) {
+      const lengthCategory = cut.category || "medium";
+      const [vodCut] = await tx.insert(vodCuts).values({
+        userId,
+        pipelineId,
+        title: cut.title || `${sourceTitle} - ${lengthCategory}`,
+        targetLength: cut.targetLength,
+        actualLength: cut.endTimestamp - cut.startTimestamp,
+        lengthCategory,
+        startTimestamp: cut.startTimestamp,
+        endTimestamp: cut.endTimestamp,
+        isExperiment: !hasGoodData,
+        experimentGroup: experimentId ? `experiment_${experimentId}` : null,
+        status: "pending",
+        platform: "youtube",
+        highlights: cut.highlights || [],
+        aiSuggestion: {
+          reasoning: cut.reasoning,
+          confidenceScore: cut.confidenceScore,
+          suggestedHooks: cut.suggestedHooks || [],
+          cutPoints: [{ start: cut.startTimestamp, end: cut.endTimestamp, reason: cut.reasoning }],
+        },
+      }).returning();
+      createdCuts.push(vodCut);
+      vodCutIdsList.push(vodCut.id);
+    }
 
-  await db.update(streamPipelines)
-    .set({ vodCutIds: vodCutIdsList })
-    .where(eq(streamPipelines.id, pipelineId));
+    await tx.update(streamPipelines)
+      .set({ vodCutIds: vodCutIdsList })
+      .where(eq(streamPipelines.id, pipelineId));
+  });
 
   return {
     cuts: createdCuts,
@@ -913,17 +913,17 @@ export function registerDualPipelineRoutes(app: Express) {
       ...(retentionDropoffs !== undefined && { retentionDropoffs }),
     };
 
-    const [updated] = await db.update(vodCuts)
-      .set({ performance })
-      .where(eq(vodCuts.id, id))
-      .returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const [updatedCut] = await tx.update(vodCuts)
+        .set({ performance })
+        .where(eq(vodCuts.id, id))
+        .returning();
 
-    if (existing.isExperiment && existing.experimentGroup) {
-      const expIdMatch = existing.experimentGroup.match(/experiment_(\d+)/);
-      if (expIdMatch) {
-        const experimentIdNum = parseInt(expIdMatch[1]);
-        try {
-          const [exp] = await db.select().from(lengthExperiments)
+      if (existing.isExperiment && existing.experimentGroup) {
+        const expIdMatch = existing.experimentGroup.match(/experiment_(\d+)/);
+        if (expIdMatch) {
+          const experimentIdNum = parseInt(expIdMatch[1]);
+          const [exp] = await tx.select().from(lengthExperiments)
             .where(eq(lengthExperiments.id, experimentIdNum));
           if (exp) {
             const results = [...(exp.results || [])];
@@ -942,15 +942,15 @@ export function registerDualPipelineRoutes(app: Express) {
               results.push(resultEntry);
             }
             const completedLengths = Array.from(new Set(results.map((r: any) => r.length)));
-            await db.update(lengthExperiments)
+            await tx.update(lengthExperiments)
               .set({ results, completedLengths })
               .where(eq(lengthExperiments.id, experimentIdNum));
           }
-        } catch (expErr) {
-          console.error("[DualPipeline] Error updating experiment results:", expErr);
         }
       }
-    }
+
+      return [updatedCut];
+    });
 
     res.json(updated);
   }));
@@ -1126,7 +1126,7 @@ Return JSON: {
     });
 
     const content = response.choices[0]?.message?.content;
-    if (!content) throw new Error("No AI response");
+    if (!content) return res.status(500).json({ error: "No AI response" });
     let analysis: any;
     try {
       analysis = JSON.parse(content);
@@ -1135,74 +1135,78 @@ Return JSON: {
       analysis = { winningLength: null, confidence: 0 };
     }
 
-    const [updated] = await db.update(lengthExperiments)
-      .set({
-        status: "completed",
-        winningLength: analysis.winningLength,
-        confidence: analysis.confidence,
-        completedAt: new Date(),
-      })
-      .where(eq(lengthExperiments.id, id))
-      .returning();
+    const updated = await db.transaction(async (tx) => {
+      const [updatedExp] = await tx.update(lengthExperiments)
+        .set({
+          status: "completed",
+          winningLength: analysis.winningLength,
+          confidence: analysis.confidence,
+          completedAt: new Date(),
+        })
+        .where(eq(lengthExperiments.id, id))
+        .returning();
 
-    if (analysis.winningLength && analysis.confidence > 0.5) {
-      const category = experiment.contentCategory || "gaming";
-      const [existingPref] = await db.select().from(audienceLengthPreferences)
-        .where(and(
-          eq(audienceLengthPreferences.userId, userId),
-          eq(audienceLengthPreferences.contentCategory, category)
-        ));
+      if (analysis.winningLength && analysis.confidence > 0.5) {
+        const category = experiment.contentCategory || "gaming";
+        const [existingPref] = await tx.select().from(audienceLengthPreferences)
+          .where(and(
+            eq(audienceLengthPreferences.userId, userId),
+            eq(audienceLengthPreferences.contentCategory, category)
+          ));
 
-      const lengthPerf = (experiment.results || []).map((r: any) => ({
-        length: r.length,
-        avgViews: r.views,
-        avgRetention: r.avgPercentWatched,
-        avgEngagement: r.engagement,
-        sampleCount: 1,
-      }));
+        const lengthPerf = (experiment.results || []).map((r: any) => ({
+          length: r.length,
+          avgViews: r.views,
+          avgRetention: r.avgPercentWatched,
+          avgEngagement: r.engagement,
+          sampleCount: 1,
+        }));
 
-      if (existingPref) {
-        const existingPerf = existingPref.lengthPerformance || [];
-        const mergedPerf = [...existingPerf];
-        for (const newP of lengthPerf) {
-          const idx = mergedPerf.findIndex((p: any) => p.length === newP.length);
-          if (idx >= 0) {
-            mergedPerf[idx] = {
-              ...mergedPerf[idx],
-              avgViews: ((mergedPerf[idx] as any).avgViews + newP.avgViews) / 2,
-              avgRetention: ((mergedPerf[idx] as any).avgRetention + newP.avgRetention) / 2,
-              avgEngagement: ((mergedPerf[idx] as any).avgEngagement + newP.avgEngagement) / 2,
-              sampleCount: ((mergedPerf[idx] as any).sampleCount || 0) + 1,
-            };
-          } else {
-            mergedPerf.push(newP);
+        if (existingPref) {
+          const existingPerf = existingPref.lengthPerformance || [];
+          const mergedPerf = [...existingPerf];
+          for (const newP of lengthPerf) {
+            const idx = mergedPerf.findIndex((p: any) => p.length === newP.length);
+            if (idx >= 0) {
+              mergedPerf[idx] = {
+                ...mergedPerf[idx],
+                avgViews: ((mergedPerf[idx] as any).avgViews + newP.avgViews) / 2,
+                avgRetention: ((mergedPerf[idx] as any).avgRetention + newP.avgRetention) / 2,
+                avgEngagement: ((mergedPerf[idx] as any).avgEngagement + newP.avgEngagement) / 2,
+                sampleCount: ((mergedPerf[idx] as any).sampleCount || 0) + 1,
+              };
+            } else {
+              mergedPerf.push(newP);
+            }
           }
-        }
-        await db.update(audienceLengthPreferences)
-          .set({
+          await tx.update(audienceLengthPreferences)
+            .set({
+              optimalLength: analysis.winningLength,
+              confidence: Math.min(1, (existingPref.confidence || 0) + analysis.confidence * 0.3),
+              sampleSize: (existingPref.sampleSize || 0) + 1,
+              lengthPerformance: mergedPerf,
+              lastUpdated: new Date(),
+            })
+            .where(eq(audienceLengthPreferences.id, existingPref.id));
+        } else {
+          const catInfo = Object.entries(LENGTH_CATEGORIES).find(([, v]) => analysis.winningLength >= v.min && analysis.winningLength <= v.max);
+          await tx.insert(audienceLengthPreferences).values({
+            userId,
+            platform: experiment.platform || "youtube",
+            contentCategory: category,
+            preferredMinLength: catInfo ? catInfo[1].min : analysis.winningLength - 60,
+            preferredMaxLength: catInfo ? catInfo[1].max : analysis.winningLength + 60,
             optimalLength: analysis.winningLength,
-            confidence: Math.min(1, (existingPref.confidence || 0) + analysis.confidence * 0.3),
-            sampleSize: (existingPref.sampleSize || 0) + 1,
-            lengthPerformance: mergedPerf,
-            lastUpdated: new Date(),
-          })
-          .where(eq(audienceLengthPreferences.id, existingPref.id));
-      } else {
-        const catInfo = Object.entries(LENGTH_CATEGORIES).find(([, v]) => analysis.winningLength >= v.min && analysis.winningLength <= v.max);
-        await db.insert(audienceLengthPreferences).values({
-          userId,
-          platform: experiment.platform || "youtube",
-          contentCategory: category,
-          preferredMinLength: catInfo ? catInfo[1].min : analysis.winningLength - 60,
-          preferredMaxLength: catInfo ? catInfo[1].max : analysis.winningLength + 60,
-          optimalLength: analysis.winningLength,
-          sampleSize: 1,
-          confidence: analysis.confidence * 0.5,
-          dataSource: "experiment",
-          lengthPerformance: lengthPerf,
-        });
+            sampleSize: 1,
+            confidence: analysis.confidence * 0.5,
+            dataSource: "experiment",
+            lengthPerformance: lengthPerf,
+          });
+        }
       }
-    }
+
+      return updatedExp;
+    });
 
     res.json({ experiment: updated, analysis });
   }));
@@ -1263,61 +1267,63 @@ Return JSON: {
     }
 
     let updated = 0;
-    for (const [category, data] of Object.entries(categoryData)) {
-      const lengthPerf = Object.entries(data.lengths).map(([length, stats]) => ({
-        length: parseInt(length),
-        avgViews: stats.count > 0 ? stats.views / stats.count : 0,
-        avgRetention: stats.count > 0 ? stats.retention / stats.count : 0,
-        avgEngagement: stats.count > 0 ? stats.engagement / stats.count : 0,
-        sampleCount: stats.count,
-      }));
+    await db.transaction(async (tx) => {
+      for (const [category, data] of Object.entries(categoryData)) {
+        const lengthPerf = Object.entries(data.lengths).map(([length, stats]) => ({
+          length: parseInt(length),
+          avgViews: stats.count > 0 ? stats.views / stats.count : 0,
+          avgRetention: stats.count > 0 ? stats.retention / stats.count : 0,
+          avgEngagement: stats.count > 0 ? stats.engagement / stats.count : 0,
+          sampleCount: stats.count,
+        }));
 
-      const bestLength = lengthPerf.sort((a, b) => {
-        const scoreA = a.avgViews * 0.4 + a.avgRetention * 0.3 + a.avgEngagement * 0.3;
-        const scoreB = b.avgViews * 0.4 + b.avgRetention * 0.3 + b.avgEngagement * 0.3;
-        return scoreB - scoreA;
-      })[0];
+        const bestLength = lengthPerf.sort((a, b) => {
+          const scoreA = a.avgViews * 0.4 + a.avgRetention * 0.3 + a.avgEngagement * 0.3;
+          const scoreB = b.avgViews * 0.4 + b.avgRetention * 0.3 + b.avgEngagement * 0.3;
+          return scoreB - scoreA;
+        })[0];
 
-      if (!bestLength) continue;
+        if (!bestLength) continue;
 
-      const totalSamples = lengthPerf.reduce((sum, l) => sum + l.sampleCount, 0);
-      const confidence = Math.min(1, totalSamples / 20);
-      const catInfo = Object.entries(LENGTH_CATEGORIES).find(([, v]) => bestLength.length >= v.min && bestLength.length <= v.max);
+        const totalSamples = lengthPerf.reduce((sum, l) => sum + l.sampleCount, 0);
+        const confidence = Math.min(1, totalSamples / 20);
+        const catInfo = Object.entries(LENGTH_CATEGORIES).find(([, v]) => bestLength.length >= v.min && bestLength.length <= v.max);
 
-      const [existingPref] = await db.select().from(audienceLengthPreferences)
-        .where(and(
-          eq(audienceLengthPreferences.userId, userId),
-          eq(audienceLengthPreferences.contentCategory, category)
-        ));
+        const [existingPref] = await tx.select().from(audienceLengthPreferences)
+          .where(and(
+            eq(audienceLengthPreferences.userId, userId),
+            eq(audienceLengthPreferences.contentCategory, category)
+          ));
 
-      if (existingPref) {
-        await db.update(audienceLengthPreferences)
-          .set({
-            optimalLength: bestLength.length,
+        if (existingPref) {
+          await tx.update(audienceLengthPreferences)
+            .set({
+              optimalLength: bestLength.length,
+              preferredMinLength: catInfo ? catInfo[1].min : bestLength.length - 60,
+              preferredMaxLength: catInfo ? catInfo[1].max : bestLength.length + 60,
+              sampleSize: totalSamples,
+              confidence,
+              lengthPerformance: lengthPerf,
+              lastUpdated: new Date(),
+            })
+            .where(eq(audienceLengthPreferences.id, existingPref.id));
+        } else {
+          await tx.insert(audienceLengthPreferences).values({
+            userId,
+            platform: "youtube",
+            contentCategory: category,
             preferredMinLength: catInfo ? catInfo[1].min : bestLength.length - 60,
             preferredMaxLength: catInfo ? catInfo[1].max : bestLength.length + 60,
+            optimalLength: bestLength.length,
             sampleSize: totalSamples,
             confidence,
+            dataSource: "experiment",
             lengthPerformance: lengthPerf,
-            lastUpdated: new Date(),
-          })
-          .where(eq(audienceLengthPreferences.id, existingPref.id));
-      } else {
-        await db.insert(audienceLengthPreferences).values({
-          userId,
-          platform: "youtube",
-          contentCategory: category,
-          preferredMinLength: catInfo ? catInfo[1].min : bestLength.length - 60,
-          preferredMaxLength: catInfo ? catInfo[1].max : bestLength.length + 60,
-          optimalLength: bestLength.length,
-          sampleSize: totalSamples,
-          confidence,
-          dataSource: "experiment",
-          lengthPerformance: lengthPerf,
-        });
+          });
+        }
+        updated++;
       }
-      updated++;
-    }
+    });
 
     res.json({ message: `Learned from ${completedExperiments.length} experiments`, updated, categories: Object.keys(categoryData) });
   }));

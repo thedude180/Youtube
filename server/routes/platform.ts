@@ -85,7 +85,8 @@ export async function registerPlatformRoutes(app: Express) {
       res.status(201).json(post);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      throw err;
+      console.error("Error creating community post:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -733,7 +734,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/optimization/algorithm-cheatsheet/:platform", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await getAlgorithmCheatSheet(userId, req.params.platform); res.json(result); }
+    const platform = String(req.params.platform).toLowerCase().trim();
+    if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
+    try { const result = await getAlgorithmCheatSheet(userId, platform); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
@@ -862,7 +865,9 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/scheduler/optimal-times/:platform", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await getOptimalPostingTimes(userId, req.params.platform); res.json(result); }
+    const platform = String(req.params.platform).toLowerCase().trim();
+    if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
+    try { const result = await getOptimalPostingTimes(userId, platform); res.json(result); }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
@@ -1130,57 +1135,59 @@ export async function registerPlatformRoutes(app: Express) {
         });
       }
 
-      if (streamKey || rtmpUrl) {
-        const platformInfo = (await import("@shared/schema")).PLATFORM_INFO;
-        const info = platformInfo[platform as Platform];
-        const finalRtmpUrl = rtmpUrl || info?.rtmpUrlTemplate || "";
+      await db.transaction(async (tx) => {
+        if (streamKey || rtmpUrl) {
+          const platformInfo = (await import("@shared/schema")).PLATFORM_INFO;
+          const info = platformInfo[platform as Platform];
+          const finalRtmpUrl = rtmpUrl || info?.rtmpUrlTemplate || "";
 
-        const existingDest = await db.select().from(streamDestinations).where(
-          and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform))
+          const existingDest = await tx.select().from(streamDestinations).where(
+            and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform))
+          );
+
+          if (existingDest.length === 0) {
+            await tx.insert(streamDestinations).values({
+              userId,
+              platform,
+              label: `${channelName} (${config.label})`,
+              rtmpUrl: finalRtmpUrl,
+              streamKey: streamKey || null,
+              enabled: true,
+              settings: { resolution: "1080p", bitrate: "6000", fps: 60, autoStart: true },
+            });
+          } else {
+            await tx.update(streamDestinations)
+              .set({ rtmpUrl: finalRtmpUrl, streamKey: streamKey || existingDest[0].streamKey, label: `${channelName} (${config.label})` })
+              .where(and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform)));
+          }
+        }
+
+        const existingLinked = await tx.select().from(linkedChannels).where(
+          and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform))
         );
-
-        if (existingDest.length === 0) {
-          await db.insert(streamDestinations).values({
+        if (existingLinked.length === 0) {
+          await tx.insert(linkedChannels).values({
             userId,
             platform,
-            label: `${channelName} (${config.label})`,
-            rtmpUrl: finalRtmpUrl,
-            streamKey: streamKey || null,
-            enabled: true,
-            settings: { resolution: "1080p", bitrate: "6000", fps: 60, autoStart: true },
-          });
-        } else {
-          await db.update(streamDestinations)
-            .set({ rtmpUrl: finalRtmpUrl, streamKey: streamKey || existingDest[0].streamKey, label: `${channelName} (${config.label})` })
-            .where(and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform)));
-        }
-      }
-
-      const existingLinked = await db.select().from(linkedChannels).where(
-        and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform))
-      );
-      if (existingLinked.length === 0) {
-        await db.insert(linkedChannels).values({
-          userId,
-          platform,
-          username: channelName,
-          profileUrl: profileUrl || null,
-          isConnected: true,
-          connectionType: "oauth",
-          followerCount: fetchedFollowerCount || null,
-        });
-      } else {
-        await db.update(linkedChannels)
-          .set({
-            isConnected: true,
             username: channelName,
             profileUrl: profileUrl || null,
+            isConnected: true,
             connectionType: "oauth",
-            followerCount: fetchedFollowerCount || existingLinked[0].followerCount,
-            lastVerifiedAt: new Date(),
-          })
-          .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
-      }
+            followerCount: fetchedFollowerCount || null,
+          });
+        } else {
+          await tx.update(linkedChannels)
+            .set({
+              isConnected: true,
+              username: channelName,
+              profileUrl: profileUrl || null,
+              connectionType: "oauth",
+              followerCount: fetchedFollowerCount || existingLinked[0].followerCount,
+              lastVerifiedAt: new Date(),
+            })
+            .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
+        }
+      });
 
       res.redirect(`/channels?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
     } catch (error: any) {
@@ -1263,17 +1270,20 @@ export async function registerPlatformRoutes(app: Express) {
   app.delete("/api/oauth/:platform/disconnect", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = req.params.platform;
+    const platform = String(req.params.platform).toLowerCase().trim();
+    if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
     try {
       const userChannels = await storage.getChannelsByUser(userId);
       const platformChannels = userChannels.filter(c => c.platform === platform);
       for (const ch of platformChannels) {
         await storage.deleteChannel(ch.id);
       }
-      await db.delete(linkedChannels)
-        .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
-      await db.delete(streamDestinations)
-        .where(and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform)));
+      await db.transaction(async (tx) => {
+        await tx.delete(linkedChannels)
+          .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, platform)));
+        await tx.delete(streamDestinations)
+          .where(and(eq(streamDestinations.userId, userId), eq(streamDestinations.platform, platform)));
+      });
       await storage.createAuditLog({
         userId,
         action: "platform_disconnected",

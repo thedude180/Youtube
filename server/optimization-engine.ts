@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -11,10 +11,7 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, gte, inArray } from "drizzle-orm";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 const SUB_ENGINES = [
   "metadata_optimizer", "ab_test_engine", "trending_injector", "performance_decay_detector",

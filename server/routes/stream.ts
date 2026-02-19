@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { requireAuth, parseNumericId } from "./helpers";
+import { requireAuth, parseNumericId, asyncHandler } from "./helpers";
 import {
   generateStreamSeo,
   postStreamOptimize,
@@ -19,14 +19,14 @@ import { sendSSEEvent } from "./events";
 
 
 export function registerStreamRoutes(app: Express) {
-  app.get(api.streamDestinations.list.path, async (req, res) => {
+  app.get(api.streamDestinations.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const destinations = await storage.getStreamDestinations(userId);
     res.json(destinations);
-  });
+  }));
 
-  app.post(api.streamDestinations.create.path, async (req, res) => {
+  app.post(api.streamDestinations.create.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -55,11 +55,12 @@ export function registerStreamRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      console.error("Error creating stream destination:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put(api.streamDestinations.update.path, async (req, res) => {
+  app.put(api.streamDestinations.update.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -81,9 +82,9 @@ export function registerStreamRoutes(app: Express) {
     }
     const dest = await storage.updateStreamDestination(id, parsed.data);
     res.json(dest);
-  });
+  }));
 
-  app.delete(api.streamDestinations.delete.path, async (req, res) => {
+  app.delete(api.streamDestinations.delete.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -94,16 +95,16 @@ export function registerStreamRoutes(app: Express) {
     }
     await storage.deleteStreamDestination(id);
     res.sendStatus(204);
-  });
+  }));
 
-  app.get(api.streams.list.path, async (req, res) => {
+  app.get(api.streams.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const streamList = await storage.getStreams(userId);
     res.json(streamList);
-  });
+  }));
 
-  app.get(api.streams.get.path, async (req, res) => {
+  app.get(api.streams.get.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -111,9 +112,9 @@ export function registerStreamRoutes(app: Express) {
     const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
     res.json(stream);
-  });
+  }));
 
-  app.post(api.streams.create.path, async (req, res) => {
+  app.post(api.streams.create.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -143,11 +144,12 @@ export function registerStreamRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      console.error("Error creating stream:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put(api.streams.update.path, async (req, res) => {
+  app.put(api.streams.update.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -170,9 +172,9 @@ export function registerStreamRoutes(app: Express) {
     }
     const stream = await storage.updateStream(id, parsed.data);
     res.json(stream);
-  });
+  }));
 
-  app.post(api.streams.optimizeSeo.path, async (req, res) => {
+  app.post(api.streams.optimizeSeo.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -201,9 +203,9 @@ export function registerStreamRoutes(app: Express) {
       console.error("Stream SEO error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post(api.streams.goLive.path, async (req, res) => {
+  app.post(api.streams.goLive.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -370,9 +372,9 @@ export function registerStreamRoutes(app: Express) {
       console.error("Go live error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post(api.streams.endStream.path, async (req, res) => {
+  app.post(api.streams.endStream.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -531,9 +533,9 @@ export function registerStreamRoutes(app: Express) {
       console.error("End stream error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.streams.automationStatus.path, async (req, res) => {
+  app.get(api.streams.automationStatus.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const streamId = parseNumericId(req.params.id, res);
@@ -556,9 +558,9 @@ export function registerStreamRoutes(app: Express) {
     });
 
     res.json({ jobs: streamJobs, tasks });
-  });
+  }));
 
-  app.post(api.streams.postStreamProcess.path, async (req, res) => {
+  app.post(api.streams.postStreamProcess.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
@@ -601,9 +603,9 @@ export function registerStreamRoutes(app: Express) {
       console.error("Post-stream processing error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/streams/:id/multi-status", async (req, res) => {
+  app.get("/api/streams/:id/multi-status", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -614,9 +616,9 @@ export function registerStreamRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/streams/:id/chat", async (req, res) => {
+  app.get("/api/streams/:id/chat", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -628,9 +630,9 @@ export function registerStreamRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/streams/:id/chat/stats", async (req, res) => {
+  app.get("/api/streams/:id/chat/stats", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -641,9 +643,9 @@ export function registerStreamRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/streams/:id/chat", async (req, res) => {
+  app.post("/api/streams/:id/chat", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -672,9 +674,9 @@ export function registerStreamRoutes(app: Express) {
       console.error("Live chat error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/youtube/live-status", async (req, res) => {
+  app.get("/api/youtube/live-status", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -698,9 +700,9 @@ export function registerStreamRoutes(app: Express) {
       console.error("[YouTube] Live status error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/youtube/detect-live", async (req, res) => {
+  app.post("/api/youtube/detect-live", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -725,5 +727,5 @@ export function registerStreamRoutes(app: Express) {
       console.error("[YouTube] Detect live error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 }

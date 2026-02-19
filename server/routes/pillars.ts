@@ -53,9 +53,14 @@ export function registerPillarRoutes(app: Express): void {
   app.get("/api/community/segments", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
     const segments = await db.select().from(audienceSegments)
       .where(eq(audienceSegments.userId, userId))
-      .orderBy(desc(audienceSegments.updatedAt));
+      .orderBy(desc(audienceSegments.updatedAt))
+      .limit(limit)
+      .offset(offset);
     res.json(segments);
   }));
 
@@ -64,7 +69,8 @@ export function registerPillarRoutes(app: Express): void {
     if (!userId) return;
     const risks = await db.select().from(churnRiskScores)
       .where(eq(churnRiskScores.userId, userId))
-      .orderBy(desc(churnRiskScores.lastComputedAt));
+      .orderBy(desc(churnRiskScores.lastComputedAt))
+      .limit(500);
     res.json(risks);
   }));
 
@@ -83,7 +89,8 @@ export function registerPillarRoutes(app: Express): void {
     if (!userId) return;
     const milestones = await db.select().from(fanMilestones)
       .where(eq(fanMilestones.userId, userId))
-      .orderBy(desc(fanMilestones.achievedAt));
+      .orderBy(desc(fanMilestones.achievedAt))
+      .limit(500);
     res.json(milestones);
   }));
 
@@ -154,7 +161,8 @@ export function registerPillarRoutes(app: Express): void {
     if (!userId) return;
     const milestones = await db.select().from(skillMilestones)
       .where(eq(skillMilestones.userId, userId))
-      .orderBy(desc(skillMilestones.achievedAt));
+      .orderBy(desc(skillMilestones.achievedAt))
+      .limit(500);
     res.json(milestones);
   }));
 
@@ -215,7 +223,8 @@ export function registerPillarRoutes(app: Express): void {
     if (!userId) return;
     const deals = await db.select().from(brandDeals)
       .where(eq(brandDeals.userId, userId))
-      .orderBy(desc(brandDeals.lastTouchedAt));
+      .orderBy(desc(brandDeals.lastTouchedAt))
+      .limit(500);
     res.json(deals);
   }));
 
@@ -264,9 +273,14 @@ export function registerPillarRoutes(app: Express): void {
   app.get("/api/intelligence/metrics", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
     const metrics = await db.select().from(unifiedMetrics)
       .where(eq(unifiedMetrics.userId, userId))
-      .orderBy(desc(unifiedMetrics.windowEnd));
+      .orderBy(desc(unifiedMetrics.windowEnd))
+      .limit(limit)
+      .offset(offset);
     res.json(metrics);
   }));
 
@@ -305,7 +319,8 @@ export function registerPillarRoutes(app: Express): void {
     if (!userId) return;
     const benchmarks = await db.select().from(performanceBenchmarks)
       .where(eq(performanceBenchmarks.userId, userId))
-      .orderBy(desc(performanceBenchmarks.generatedAt));
+      .orderBy(desc(performanceBenchmarks.generatedAt))
+      .limit(500);
     res.json(benchmarks);
   }));
 
@@ -344,7 +359,8 @@ export function registerPillarRoutes(app: Express): void {
     if (!userId) return;
     const claims = await db.select().from(copyrightClaims)
       .where(eq(copyrightClaims.userId, userId))
-      .orderBy(desc(copyrightClaims.detectedAt));
+      .orderBy(desc(copyrightClaims.detectedAt))
+      .limit(500);
     res.json(claims);
   }));
 

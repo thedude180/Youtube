@@ -8,6 +8,17 @@ import { api } from "@shared/routes";
 import { runAgentTask } from "../ai-engine";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
+import crypto from "crypto";
+
+function verifyWebhookSignature(req: any, secret: string): boolean {
+  const signature = req.headers["x-webhook-signature"] as string | undefined;
+  if (!signature || !secret) return true;
+  const hmac = crypto.createHmac("sha256", secret).update(JSON.stringify(req.body)).digest("hex");
+  const sigBuf = Buffer.from(signature);
+  const hmacBuf = Buffer.from(hmac);
+  if (sigBuf.length !== hmacBuf.length) return false;
+  return crypto.timingSafeEqual(sigBuf, hmacBuf);
+}
 
 export async function registerAutomationRoutes(app: Express) {
   const { initAutomationEngine, processWebhookEvent, runChainManually, evaluateRules,
@@ -130,7 +141,8 @@ export async function registerAutomationRoutes(app: Express) {
       res.status(201).json(rule);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      throw err;
+      console.error("Error creating automation rule:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -141,7 +153,16 @@ export async function registerAutomationRoutes(app: Express) {
     if (id === null) return;
     const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const { name, agentId, trigger, enabled, actions } = req.body || {};
+    const updateRuleSchema = z.object({
+      name: z.string().min(1).max(200).optional(),
+      agentId: z.string().max(100).optional(),
+      trigger: z.string().max(200).optional(),
+      enabled: z.boolean().optional(),
+      actions: z.array(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateRuleSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const { name, agentId, trigger, enabled, actions } = parsed.data;
     const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions });
     res.json(rule);
   });
@@ -192,7 +213,8 @@ export async function registerAutomationRoutes(app: Express) {
       res.status(201).json(item);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      throw err;
+      console.error("Error creating schedule item:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
 
@@ -203,7 +225,17 @@ export async function registerAutomationRoutes(app: Express) {
     if (id === null) return;
     const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const { title, scheduledAt, platform, type, status, metadata } = req.body || {};
+    const updateScheduleSchema = z.object({
+      title: z.string().min(1).max(500).optional(),
+      scheduledAt: z.string().optional(),
+      platform: z.string().max(50).optional(),
+      type: z.string().max(50).optional(),
+      status: z.string().max(50).optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateScheduleSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const { title, scheduledAt, platform, type, status, metadata } = parsed.data;
     const item = await storage.updateScheduleItem(id, { title, scheduledAt, platform, type, status, metadata });
     res.json(item);
   });
@@ -297,7 +329,14 @@ export async function registerAutomationRoutes(app: Express) {
       if (id === null) return;
       const [existing] = await db.select().from(cronJobs).where(and(eq(cronJobs.id, id), eq(cronJobs.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
-      const job = await storage.updateCronJob(id, req.body);
+      const updateCronSchema = z.object({
+        schedule: z.string().max(100).optional(),
+        enabled: z.boolean().optional(),
+        status: z.string().max(50).optional(),
+      }).passthrough();
+      const parsed = updateCronSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const job = await storage.updateCronJob(id, parsed.data);
       res.json(job);
     } catch (err) { res.status(500).json({ error: "Failed to update cron job" }); }
   });
@@ -370,7 +409,15 @@ export async function registerAutomationRoutes(app: Express) {
       if (id === null) return;
       const [existing] = await db.select().from(aiChains).where(and(eq(aiChains.id, id), eq(aiChains.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
-      const chain = await storage.updateAiChain(id, req.body);
+      const updateChainSchema = z.object({
+        name: z.string().min(1).max(200).optional(),
+        steps: z.array(z.unknown()).optional(),
+        enabled: z.boolean().optional(),
+        status: z.string().max(50).optional(),
+      }).passthrough();
+      const parsed = updateChainSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const chain = await storage.updateAiChain(id, parsed.data);
       res.json(chain);
     } catch (err) { res.status(500).json({ error: "Failed to update chain" }); }
   });
@@ -431,10 +478,22 @@ export async function registerAutomationRoutes(app: Express) {
 
   app.post("/api/automation/webhooks/:source", async (req: any, res) => {
     try {
+      const webhookSecret = process.env.WEBHOOK_SECRET || "";
+      if (webhookSecret && !verifyWebhookSignature(req, webhookSecret)) {
+        return res.status(401).json({ error: "Invalid webhook signature" });
+      }
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const event = await processWebhookEvent(userId, req.params.source, req.body.eventType || "unknown", req.body.payload || req.body);
-      const triggered = await evaluateRules(userId, req.body.eventType || req.params.source, req.body);
+      const source = String(req.params.source).trim();
+      if (!source || !/^[a-zA-Z0-9-]+$/.test(source)) return res.status(400).json({ error: "Invalid source format" });
+      const webhookSchema = z.object({
+        eventType: z.string().max(200).optional(),
+        payload: z.record(z.unknown()).optional(),
+      }).passthrough();
+      const parsed = webhookSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const event = await processWebhookEvent(userId, source, parsed.data.eventType || "unknown", parsed.data.payload || parsed.data);
+      const triggered = await evaluateRules(userId, parsed.data.eventType || source, parsed.data);
       res.json({ event, triggeredRules: triggered });
     } catch (err) { res.status(500).json({ error: "Failed to process webhook" }); }
   });
@@ -443,7 +502,11 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const rules = await storage.getAutomationRules(userId);
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+      const offset = (page - 1) * limit;
+      const allRules = await storage.getAutomationRules(userId);
+      const rules = allRules.slice(offset, offset + limit);
       res.json({ rules, triggerTypes: RULE_TRIGGER_TYPES, actionTypes: RULE_ACTION_TYPES });
     } catch (err) { res.status(500).json({ error: "Failed to get rules" }); }
   });
@@ -486,7 +549,16 @@ export async function registerAutomationRoutes(app: Express) {
       if (id === null) return;
       const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
-      const { name, agentId, trigger, enabled, actions } = req.body || {};
+      const patchRuleSchema = z.object({
+        name: z.string().min(1).max(200).optional(),
+        agentId: z.string().max(100).optional(),
+        trigger: z.string().max(200).optional(),
+        enabled: z.boolean().optional(),
+        actions: z.array(z.unknown()).optional(),
+      }).passthrough();
+      const parsed = patchRuleSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const { name, agentId, trigger, enabled, actions } = parsed.data;
       const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions });
       res.json(rule);
     } catch (err) { res.status(500).json({ error: "Failed to update rule" }); }

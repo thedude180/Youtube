@@ -1,4 +1,5 @@
 import type { Platform } from "@shared/schema";
+import { withRetry } from "./lib/retry";
 
 export interface PlatformFetchedData {
   streamKey?: string;
@@ -19,7 +20,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const streamKeyRes = await fetch(`https://api.twitch.tv/helix/streams/key?broadcaster_id=${channelId}`, { headers });
+    const streamKeyRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/streams/key?broadcaster_id=${channelId}`, { headers }), { label: "Twitch stream key API" });
     if (streamKeyRes.ok) {
       const data = await streamKeyRes.json() as any;
       if (data.data?.[0]?.stream_key) {
@@ -32,7 +33,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
   }
 
   try {
-    const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${channelId}`, { headers });
+    const channelRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${channelId}`, { headers }), { label: "Twitch channel API" });
     if (channelRes.ok) {
       const data = await channelRes.json() as any;
       const ch = data.data?.[0];
@@ -50,7 +51,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
   }
 
   try {
-    const userRes = await fetch(`https://api.twitch.tv/helix/users?id=${channelId}`, { headers });
+    const userRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/users?id=${channelId}`, { headers }), { label: "Twitch user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       const user = data.data?.[0];
@@ -67,7 +68,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
   }
 
   try {
-    const followRes = await fetch(`https://api.twitch.tv/helix/channels/followers?broadcaster_id=${channelId}&first=1`, { headers });
+    const followRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/channels/followers?broadcaster_id=${channelId}&first=1`, { headers }), { label: "Twitch followers API" });
     if (followRes.ok) {
       const data = await followRes.json() as any;
       result.followerCount = data.total || 0;
@@ -77,7 +78,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
   }
 
   try {
-    const subsRes = await fetch(`https://api.twitch.tv/helix/subscriptions?broadcaster_id=${channelId}&first=1`, { headers });
+    const subsRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/subscriptions?broadcaster_id=${channelId}&first=1`, { headers }), { label: "Twitch subscriptions API" });
     if (subsRes.ok) {
       const data = await subsRes.json() as any;
       result.platformData!.subscriberCount = data.total || 0;
@@ -87,7 +88,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
   }
 
   try {
-    const videosRes = await fetch(`https://api.twitch.tv/helix/videos?user_id=${channelId}&type=archive&first=100`, { headers });
+    const videosRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/videos?user_id=${channelId}&type=archive&first=100`, { headers }), { label: "Twitch videos API" });
     if (videosRes.ok) {
       const data = await videosRes.json() as any;
       const videos = data.data || [];
@@ -109,7 +110,7 @@ async function fetchFacebookData(accessToken: string, channelId: string): Promis
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const pagesRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`);
+    const pagesRes = await withRetry(() => fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`), { label: "Facebook pages API" });
     if (pagesRes.ok) {
       const data = await pagesRes.json() as any;
       const pages = data.data || [];
@@ -122,7 +123,7 @@ async function fetchFacebookData(accessToken: string, channelId: string): Promis
         result.platformData!.primaryPageToken = page.access_token;
 
         try {
-          const liveRes = await fetch(`https://graph.facebook.com/v19.0/${page.id}/live_videos?access_token=${page.access_token}&fields=stream_url,secure_stream_url,status`);
+          const liveRes = await withRetry(() => fetch(`https://graph.facebook.com/v19.0/${page.id}/live_videos?access_token=${page.access_token}&fields=stream_url,secure_stream_url,status`), { label: "Facebook live videos API" });
           if (liveRes.ok) {
             const liveData = await liveRes.json() as any;
             if (liveData.data?.[0]) {
@@ -139,7 +140,7 @@ async function fetchFacebookData(accessToken: string, channelId: string): Promis
   }
 
   try {
-    const meRes = await fetch(`https://graph.facebook.com/v19.0/me?fields=id,name,picture&access_token=${accessToken}`);
+    const meRes = await withRetry(() => fetch(`https://graph.facebook.com/v19.0/me?fields=id,name,picture&access_token=${accessToken}`), { label: "Facebook profile API" });
     if (meRes.ok) {
       const data = await meRes.json() as any;
       result.channelName = data.name;
@@ -157,9 +158,9 @@ async function fetchTikTokData(accessToken: string, channelId: string): Promise<
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,display_name,avatar_url,follower_count,following_count,likes_count,video_count", {
+    const userRes = await withRetry(() => fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,display_name,avatar_url,follower_count,following_count,likes_count,video_count", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "TikTok user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       const user = data.data?.user;
@@ -179,11 +180,11 @@ async function fetchTikTokData(accessToken: string, channelId: string): Promise<
   }
 
   try {
-    const videosRes = await fetch("https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,share_count,create_time", {
+    const videosRes = await withRetry(() => fetch("https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,share_count,create_time", {
       method: "POST",
       headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ max_count: 20 }),
-    });
+    }), { label: "TikTok videos API" });
     if (videosRes.ok) {
       const data = await videosRes.json() as any;
       const videos = data.data?.videos || [];
@@ -205,9 +206,9 @@ async function fetchXData(accessToken: string, channelId: string): Promise<Platf
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://api.twitter.com/2/users/me?user.fields=public_metrics,profile_image_url,description,created_at", {
+    const userRes = await withRetry(() => fetch("https://api.twitter.com/2/users/me?user.fields=public_metrics,profile_image_url,description,created_at", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "X/Twitter user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       const user = data.data;
@@ -235,7 +236,7 @@ async function fetchInstagramData(accessToken: string, channelId: string): Promi
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch(`https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${accessToken}`);
+    const userRes = await withRetry(() => fetch(`https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${accessToken}`), { label: "Instagram user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.username;
@@ -255,9 +256,9 @@ async function fetchLinkedInData(accessToken: string, channelId: string): Promis
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://api.linkedin.com/v2/userinfo", {
+    const userRes = await withRetry(() => fetch("https://api.linkedin.com/v2/userinfo", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "LinkedIn user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.name;
@@ -279,7 +280,7 @@ async function fetchDiscordData(accessToken: string, channelId: string): Promise
   const headers = { "Authorization": `Bearer ${accessToken}` };
 
   try {
-    const userRes = await fetch("https://discord.com/api/users/@me", { headers });
+    const userRes = await withRetry(() => fetch("https://discord.com/api/users/@me", { headers }), { label: "Discord user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.global_name || data.username;
@@ -295,7 +296,7 @@ async function fetchDiscordData(accessToken: string, channelId: string): Promise
   }
 
   try {
-    const guildsRes = await fetch("https://discord.com/api/users/@me/guilds", { headers });
+    const guildsRes = await withRetry(() => fetch("https://discord.com/api/users/@me/guilds", { headers }), { label: "Discord guilds API" });
     if (guildsRes.ok) {
       const guilds = await guildsRes.json() as any;
       result.platformData!.guilds = guilds.map((g: any) => ({
@@ -318,9 +319,9 @@ async function fetchRedditData(accessToken: string, channelId: string): Promise<
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://oauth.reddit.com/api/v1/me", {
+    const userRes = await withRetry(() => fetch("https://oauth.reddit.com/api/v1/me", {
       headers: { "Authorization": `Bearer ${accessToken}`, "User-Agent": "CreatorOS/1.0" },
-    });
+    }), { label: "Reddit user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.name;
@@ -345,9 +346,9 @@ async function fetchPinterestData(accessToken: string, channelId: string): Promi
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://api.pinterest.com/v5/user_account", {
+    const userRes = await withRetry(() => fetch("https://api.pinterest.com/v5/user_account", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "Pinterest user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.username;
@@ -371,9 +372,9 @@ async function fetchSpotifyData(accessToken: string, channelId: string): Promise
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://api.spotify.com/v1/me", {
+    const userRes = await withRetry(() => fetch("https://api.spotify.com/v1/me", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "Spotify user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.display_name || data.id;
@@ -395,9 +396,9 @@ async function fetchPatreonData(accessToken: string, channelId: string): Promise
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://www.patreon.com/api/oauth2/v2/identity?include=campaign&fields[user]=full_name,vanity,url,image_url,thumb_url&fields[campaign]=creation_name,patron_count,pledge_sum,is_monthly", {
+    const userRes = await withRetry(() => fetch("https://www.patreon.com/api/oauth2/v2/identity?include=campaign&fields[user]=full_name,vanity,url,image_url,thumb_url&fields[campaign]=creation_name,patron_count,pledge_sum,is_monthly", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "Patreon identity API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.data?.attributes?.full_name;
@@ -428,9 +429,9 @@ async function fetchSnapchatData(accessToken: string, channelId: string): Promis
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://kit.snapchat.com/v1/me", {
+    const userRes = await withRetry(() => fetch("https://kit.snapchat.com/v1/me", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "Snapchat user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       const me = data.data?.me;
@@ -451,7 +452,7 @@ async function fetchThreadsData(accessToken: string, channelId: string): Promise
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username,threads_profile_picture_url,threads_biography&access_token=${accessToken}`);
+    const userRes = await withRetry(() => fetch(`https://graph.threads.net/v1.0/me?fields=id,username,threads_profile_picture_url,threads_biography&access_token=${accessToken}`), { label: "Threads user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.username;
@@ -471,9 +472,9 @@ async function fetchMastodonData(accessToken: string, channelId: string): Promis
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const userRes = await fetch("https://mastodon.social/api/v1/accounts/verify_credentials", {
+    const userRes = await withRetry(() => fetch("https://mastodon.social/api/v1/accounts/verify_credentials", {
       headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    }), { label: "Mastodon credentials API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.display_name || data.acct;
@@ -499,11 +500,11 @@ async function fetchTrovoData(accessToken: string, channelId: string): Promise<P
   const clientId = process.env.TROVO_CLIENT_ID || "";
 
   try {
-    const userRes = await fetch("https://open-api.trovo.live/openplatform/getuserinfo", {
+    const userRes = await withRetry(() => fetch("https://open-api.trovo.live/openplatform/getuserinfo", {
       method: "POST",
       headers: { "Authorization": `OAuth ${accessToken}`, "Client-ID": clientId, "Content-Type": "application/json" },
       body: "{}",
-    });
+    }), { label: "Trovo user API" });
     if (userRes.ok) {
       const data = await userRes.json() as any;
       result.channelName = data.nickName || data.userName;
@@ -519,11 +520,11 @@ async function fetchTrovoData(accessToken: string, channelId: string): Promise<P
   }
 
   try {
-    const channelRes = await fetch("https://open-api.trovo.live/openplatform/channels/id", {
+    const channelRes = await withRetry(() => fetch("https://open-api.trovo.live/openplatform/channels/id", {
       method: "POST",
       headers: { "Client-ID": clientId, "Content-Type": "application/json" },
       body: JSON.stringify({ username: channelId }),
-    });
+    }), { label: "Trovo channel API" });
     if (channelRes.ok) {
       const data = await channelRes.json() as any;
       if (data.stream_key) {
@@ -604,7 +605,7 @@ async function fetchWhatsAppData(accessToken: string, channelId: string): Promis
   const result: PlatformFetchedData = { platformData: {} };
 
   try {
-    const res = await fetch(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${accessToken}`);
+    const res = await withRetry(() => fetch(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${accessToken}`), { label: "WhatsApp business API" });
     if (res.ok) {
       const data = await res.json() as any;
       result.platformData!.businessAccountId = data.id;

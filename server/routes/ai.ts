@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../storage";
-import { requireAuth, requireTier } from "./helpers";
+import { requireAuth, requireTier, rateLimitEndpoint } from "./helpers";
 import {
   aiCategorizeExpenses,
   aiFinancialInsights,
@@ -1032,7 +1032,9 @@ import {
 } from "../ai-engine";
 
 export function registerAiRoutes(app: Express) {
-  app.post("/api/ai/categorize-expenses", async (req, res) => {
+  const aiRateLimit = rateLimitEndpoint(5, 60000);
+
+  app.post("/api/ai/categorize-expenses", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1046,7 +1048,7 @@ export function registerAiRoutes(app: Express) {
     }
   });
 
-  app.post("/api/ai/financial-insights", async (req, res) => {
+  app.post("/api/ai/financial-insights", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Financial Insights");
     if (!userId) return;
     try {
@@ -1072,7 +1074,7 @@ export function registerAiRoutes(app: Express) {
     }
   });
 
-  app.post("/api/ai/stream-recommendations", async (req, res) => {
+  app.post("/api/ai/stream-recommendations", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Stream Recommendations");
     if (!userId) return;
     try {
@@ -1092,7 +1094,7 @@ export function registerAiRoutes(app: Express) {
     }
   });
 
-  app.post("/api/ai/content-ideas", async (req, res) => {
+  app.post("/api/ai/content-ideas", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Content Ideas");
     if (!userId) return;
     try {
@@ -1112,18 +1114,15 @@ export function registerAiRoutes(app: Express) {
     }
   });
 
-  app.post("/api/ai/new-creator-plan", async (req, res) => {
+  app.post("/api/ai/new-creator-plan", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "AI New Creator Plan");
     if (!userId) return;
     try {
       const { niche, customIdea } = req.body;
       const topic = customIdea || niche || "general content creation";
 
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const { getOpenAIClient } = await import("../lib/openai");
+      const openai = getOpenAIClient();
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -1205,7 +1204,7 @@ export function registerAiRoutes(app: Express) {
     }
   });
 
-  app.post("/api/ai/dashboard-actions", async (req, res) => {
+  app.post("/api/ai/dashboard-actions", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Dashboard Actions");
     if (!userId) return;
     try {
@@ -1234,7 +1233,7 @@ export function registerAiRoutes(app: Express) {
     }
   });
 
-  app.post("/api/ai/brand-analysis", async (req, res) => {
+  app.post("/api/ai/brand-analysis", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Brand Analysis");
     if (!userId) return;
     try {
@@ -1253,7 +1252,7 @@ export function registerAiRoutes(app: Express) {
     }
   });
 
-  app.post("/api/ai/script-writer", async (req, res) => {
+  app.post("/api/ai/script-writer", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Script Writer");
     if (!userId) return;
     try {
@@ -1264,7 +1263,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI script error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-concepts", async (req, res) => {
+  app.post("/api/ai/thumbnail-concepts", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Thumbnail Concepts");
     if (!userId) return;
     try {
@@ -1274,7 +1273,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI thumbnail error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/chapter-markers", async (req, res) => {
+  app.post("/api/ai/chapter-markers", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Chapter Markers");
     if (!userId) return;
     try {
@@ -1283,7 +1282,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI chapters error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/keyword-research", async (req, res) => {
+  app.post("/api/ai/keyword-research", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Keyword Research");
     if (!userId) return;
     try {
@@ -1293,7 +1292,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI keyword error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/repurpose", async (req, res) => {
+  app.post("/api/ai/repurpose", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Content Repurposer");
     if (!userId) return;
     try {
@@ -1302,7 +1301,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI repurpose error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/seo-audit", async (req, res) => {
+  app.post("/api/ai/seo-audit", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI SEO Audit");
     if (!userId) return;
     try {
@@ -1311,7 +1310,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI SEO error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-calendar", async (req, res) => {
+  app.post("/api/ai/content-calendar", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
     try {
@@ -1321,7 +1320,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI calendar error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsorship-manager", async (req, res) => {
+  app.post("/api/ai/sponsorship-manager", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Sponsorship Manager");
     if (!userId) return;
     try {
@@ -1338,7 +1337,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI sponsorship error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/media-kit", async (req, res) => {
+  app.post("/api/ai/media-kit", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Media Kit");
     if (!userId) return;
     try {
@@ -1353,7 +1352,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI media kit error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pl-report", async (req, res) => {
+  app.post("/api/ai/pl-report", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI P&L Report");
     if (!userId) return;
     try {
@@ -1370,7 +1369,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI P&L error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/chatbot-config", async (req, res) => {
+  app.post("/api/ai/chatbot-config", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1380,7 +1379,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI chatbot error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-checklist", async (req, res) => {
+  app.post("/api/ai/stream-checklist", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Stream Checklist");
     if (!userId) return;
     try {
@@ -1389,7 +1388,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI checklist error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/raid-strategy", async (req, res) => {
+  app.post("/api/ai/raid-strategy", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Raid Strategy");
     if (!userId) return;
     try {
@@ -1399,7 +1398,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI raid error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/post-stream-report", async (req, res) => {
+  app.post("/api/ai/post-stream-report", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Post-Stream Report");
     if (!userId) return;
     try {
@@ -1408,7 +1407,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI post-stream error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/team-manager", async (req, res) => {
+  app.post("/api/ai/team-manager", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Team Manager");
     if (!userId) return;
     try {
@@ -1417,7 +1416,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI team error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/automation-builder", async (req, res) => {
+  app.post("/api/ai/automation-builder", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Automation Builder");
     if (!userId) return;
     try {
@@ -1427,7 +1426,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI automation error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creator-academy", async (req, res) => {
+  app.post("/api/ai/creator-academy", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Creator Academy");
     if (!userId) return;
     try {
@@ -1436,7 +1435,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI academy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/news-feed", async (req, res) => {
+  app.post("/api/ai/news-feed", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1445,7 +1444,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI news error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/milestones", async (req, res) => {
+  app.post("/api/ai/milestones", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1457,7 +1456,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI milestones error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crossplatform-analytics", async (req, res) => {
+  app.post("/api/ai/crossplatform-analytics", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Cross-Platform Analytics");
     if (!userId) return;
     try {
@@ -1475,7 +1474,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI crossplatform error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/comment-manager", async (req, res) => {
+  app.post("/api/ai/comment-manager", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Comment Manager");
     if (!userId) return;
     try {
@@ -1485,7 +1484,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI comment error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-matchmaker", async (req, res) => {
+  app.post("/api/ai/collab-matchmaker", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Collab Matchmaker");
     if (!userId) return;
     try {
@@ -1495,7 +1494,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI collab error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/storyboard", async (req, res) => {
+  app.post("/api/ai/storyboard", aiRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "AI Storyboard");
     if (!userId) return;
     try {
@@ -1504,7 +1503,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/color-grading", async (req, res) => {
+  app.post("/api/ai/color-grading", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1513,7 +1512,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/intro-outro", async (req, res) => {
+  app.post("/api/ai/intro-outro", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1522,7 +1521,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sound-effects", async (req, res) => {
+  app.post("/api/ai/sound-effects", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1531,7 +1530,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pacing", async (req, res) => {
+  app.post("/api/ai/pacing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1540,7 +1539,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/talking-points", async (req, res) => {
+  app.post("/api/ai/talking-points", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1549,7 +1548,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-length", async (req, res) => {
+  app.post("/api/ai/video-length", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1558,7 +1557,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-format", async (req, res) => {
+  app.post("/api/ai/multi-format", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1567,7 +1566,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/watermark", async (req, res) => {
+  app.post("/api/ai/watermark", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1576,7 +1575,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/green-screen", async (req, res) => {
+  app.post("/api/ai/green-screen", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1585,7 +1584,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/teleprompter", async (req, res) => {
+  app.post("/api/ai/teleprompter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1594,7 +1593,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/scene-transitions", async (req, res) => {
+  app.post("/api/ai/scene-transitions", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1603,7 +1602,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-quality", async (req, res) => {
+  app.post("/api/ai/video-quality", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1612,7 +1611,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/aspect-ratio", async (req, res) => {
+  app.post("/api/ai/aspect-ratio", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1621,7 +1620,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/lower-thirds", async (req, res) => {
+  app.post("/api/ai/lower-thirds", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1630,7 +1629,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cta-overlays", async (req, res) => {
+  app.post("/api/ai/cta-overlays", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1639,7 +1638,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/split-screen", async (req, res) => {
+  app.post("/api/ai/split-screen", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1648,7 +1647,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/time-lapse", async (req, res) => {
+  app.post("/api/ai/time-lapse", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1657,7 +1656,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/footage-organizer", async (req, res) => {
+  app.post("/api/ai/footage-organizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1666,7 +1665,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audio-leveling", async (req, res) => {
+  app.post("/api/ai/audio-leveling", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1675,7 +1674,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/noise-detector", async (req, res) => {
+  app.post("/api/ai/noise-detector", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1684,7 +1683,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/jump-cuts", async (req, res) => {
+  app.post("/api/ai/jump-cuts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1693,7 +1692,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cinematic-shots", async (req, res) => {
+  app.post("/api/ai/cinematic-shots", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1702,7 +1701,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/compression", async (req, res) => {
+  app.post("/api/ai/compression", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1711,7 +1710,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-ab", async (req, res) => {
+  app.post("/api/ai/thumbnail-ab", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1720,7 +1719,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-ctr", async (req, res) => {
+  app.post("/api/ai/thumbnail-ctr", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1729,7 +1728,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-styles", async (req, res) => {
+  app.post("/api/ai/thumbnail-styles", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1738,7 +1737,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/face-expressions", async (req, res) => {
+  app.post("/api/ai/face-expressions", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1747,7 +1746,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-text", async (req, res) => {
+  app.post("/api/ai/thumbnail-text", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1756,7 +1755,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/color-psychology", async (req, res) => {
+  app.post("/api/ai/color-psychology", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1765,7 +1764,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/banner", async (req, res) => {
+  app.post("/api/ai/banner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1774,7 +1773,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/social-covers", async (req, res) => {
+  app.post("/api/ai/social-covers", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1783,7 +1782,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/animated-thumbnails", async (req, res) => {
+  app.post("/api/ai/animated-thumbnails", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1792,7 +1791,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-competitors", async (req, res) => {
+  app.post("/api/ai/thumbnail-competitors", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1801,7 +1800,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-watermark", async (req, res) => {
+  app.post("/api/ai/brand-watermark", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1810,7 +1809,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/emoji-stickers", async (req, res) => {
+  app.post("/api/ai/emoji-stickers", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1819,7 +1818,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/infographic", async (req, res) => {
+  app.post("/api/ai/infographic", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1828,7 +1827,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/meme-templates", async (req, res) => {
+  app.post("/api/ai/meme-templates", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1837,7 +1836,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/visual-consistency", async (req, res) => {
+  app.post("/api/ai/visual-consistency", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1846,7 +1845,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/voice-clone", async (req, res) => {
+  app.post("/api/ai/voice-clone", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1855,7 +1854,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/hooks", async (req, res) => {
+  app.post("/api/ai/hooks", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1864,7 +1863,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/title-split-test", async (req, res) => {
+  app.post("/api/ai/title-split-test", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1873,7 +1872,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/title-emotion", async (req, res) => {
+  app.post("/api/ai/title-emotion", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1882,7 +1881,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/clickbait-detect", async (req, res) => {
+  app.post("/api/ai/clickbait-detect", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1891,7 +1890,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/description-templates", async (req, res) => {
+  app.post("/api/ai/description-templates", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1900,7 +1899,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/end-screen-cta", async (req, res) => {
+  app.post("/api/ai/end-screen-cta", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1909,7 +1908,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pinned-comments", async (req, res) => {
+  app.post("/api/ai/pinned-comments", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1918,7 +1917,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/community-posts", async (req, res) => {
+  app.post("/api/ai/community-posts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1927,7 +1926,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/email-subjects", async (req, res) => {
+  app.post("/api/ai/email-subjects", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1936,7 +1935,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/bio-writer", async (req, res) => {
+  app.post("/api/ai/bio-writer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1945,7 +1944,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-tags", async (req, res) => {
+  app.post("/api/ai/video-tags", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1954,7 +1953,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/hashtag-optimizer", async (req, res) => {
+  app.post("/api/ai/hashtag-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1963,7 +1962,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/playlist-writer", async (req, res) => {
+  app.post("/api/ai/playlist-writer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1972,7 +1971,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/press-release", async (req, res) => {
+  app.post("/api/ai/press-release", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1981,7 +1980,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/testimonial-drafter", async (req, res) => {
+  app.post("/api/ai/testimonial-drafter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1990,7 +1989,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tag-cloud", async (req, res) => {
+  app.post("/api/ai/tag-cloud", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1999,7 +1998,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/search-intent", async (req, res) => {
+  app.post("/api/ai/search-intent", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2008,7 +2007,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/algorithm-decoder", async (req, res) => {
+  app.post("/api/ai/algorithm-decoder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2017,7 +2016,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/featured-snippets", async (req, res) => {
+  app.post("/api/ai/featured-snippets", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2026,7 +2025,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cross-platform-seo", async (req, res) => {
+  app.post("/api/ai/cross-platform-seo", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2035,7 +2034,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/backlinks", async (req, res) => {
+  app.post("/api/ai/backlinks", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2044,7 +2043,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-freshness", async (req, res) => {
+  app.post("/api/ai/content-freshness", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2053,7 +2052,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/keyword-cannibalization", async (req, res) => {
+  app.post("/api/ai/keyword-cannibalization", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2062,7 +2061,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/long-tail-keywords", async (req, res) => {
+  app.post("/api/ai/long-tail-keywords", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2071,7 +2070,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-sitemap", async (req, res) => {
+  app.post("/api/ai/video-sitemap", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2080,7 +2079,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/rich-snippets", async (req, res) => {
+  app.post("/api/ai/rich-snippets", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2089,7 +2088,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/voice-search", async (req, res) => {
+  app.post("/api/ai/voice-search", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2098,7 +2097,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/autocomplete", async (req, res) => {
+  app.post("/api/ai/autocomplete", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2107,7 +2106,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/google-trends", async (req, res) => {
+  app.post("/api/ai/google-trends", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2116,7 +2115,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-keywords", async (req, res) => {
+  app.post("/api/ai/competitor-keywords", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2125,7 +2124,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/search-rankings", async (req, res) => {
+  app.post("/api/ai/search-rankings", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2134,7 +2133,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ctr-benchmark", async (req, res) => {
+  app.post("/api/ai/ctr-benchmark", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2143,7 +2142,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/impression-analysis", async (req, res) => {
+  app.post("/api/ai/impression-analysis", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2152,7 +2151,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/related-videos", async (req, res) => {
+  app.post("/api/ai/related-videos", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2161,7 +2160,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/browse-features", async (req, res) => {
+  app.post("/api/ai/browse-features", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2170,7 +2169,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-pillars", async (req, res) => {
+  app.post("/api/ai/content-pillars", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2179,7 +2178,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/series-builder", async (req, res) => {
+  app.post("/api/ai/series-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2188,7 +2187,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/repurpose-matrix", async (req, res) => {
+  app.post("/api/ai/repurpose-matrix", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2197,7 +2196,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/viral-score", async (req, res) => {
+  app.post("/api/ai/viral-score", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2206,7 +2205,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-gaps", async (req, res) => {
+  app.post("/api/ai/content-gaps", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2215,7 +2214,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/trend-surfer", async (req, res) => {
+  app.post("/api/ai/trend-surfer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2224,7 +2223,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/evergreen", async (req, res) => {
+  app.post("/api/ai/evergreen", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2233,7 +2232,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-mix", async (req, res) => {
+  app.post("/api/ai/content-mix", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2242,7 +2241,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/seasonal-content", async (req, res) => {
+  app.post("/api/ai/seasonal-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2251,7 +2250,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-content", async (req, res) => {
+  app.post("/api/ai/collab-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2260,7 +2259,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/bts-planner", async (req, res) => {
+  app.post("/api/ai/bts-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2269,7 +2268,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/reaction-content", async (req, res) => {
+  app.post("/api/ai/reaction-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2278,7 +2277,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/challenge-creator", async (req, res) => {
+  app.post("/api/ai/challenge-creator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2287,7 +2286,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/qna-planner", async (req, res) => {
+  app.post("/api/ai/qna-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2296,7 +2295,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tutorial-structure", async (req, res) => {
+  app.post("/api/ai/tutorial-structure", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2305,7 +2304,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/documentary-planner", async (req, res) => {
+  app.post("/api/ai/documentary-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2314,7 +2313,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/short-form-strategy", async (req, res) => {
+  app.post("/api/ai/short-form-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2323,7 +2322,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-ideas", async (req, res) => {
+  app.post("/api/ai/shorts-ideas", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2332,7 +2331,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-to-long", async (req, res) => {
+  app.post("/api/ai/shorts-to-long", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2341,7 +2340,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/long-to-shorts", async (req, res) => {
+  app.post("/api/ai/long-to-shorts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2350,7 +2349,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/vertical-video", async (req, res) => {
+  app.post("/api/ai/vertical-video", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2359,7 +2358,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-audio", async (req, res) => {
+  app.post("/api/ai/shorts-audio", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2368,7 +2367,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-captions", async (req, res) => {
+  app.post("/api/ai/shorts-captions", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2377,7 +2376,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-hooks", async (req, res) => {
+  app.post("/api/ai/shorts-hooks", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2386,7 +2385,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/duet-stitch", async (req, res) => {
+  app.post("/api/ai/duet-stitch", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2395,7 +2394,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-analytics", async (req, res) => {
+  app.post("/api/ai/shorts-analytics", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2404,7 +2403,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-batch", async (req, res) => {
+  app.post("/api/ai/shorts-batch", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2413,7 +2412,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-remix", async (req, res) => {
+  app.post("/api/ai/shorts-remix", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2422,7 +2421,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-monetization", async (req, res) => {
+  app.post("/api/ai/shorts-monetization", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2431,16 +2430,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-audit", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiContentAudit(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/content-velocity", async (req, res) => {
+  app.post("/api/ai/content-velocity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2449,7 +2439,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/niche-research", async (req, res) => {
+  app.post("/api/ai/niche-research", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2458,16 +2448,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/caption-generator", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiCaptionGenerator(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/caption-styler", async (req, res) => {
+  app.post("/api/ai/caption-styler", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2476,7 +2457,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/subtitle-translator", async (req, res) => {
+  app.post("/api/ai/subtitle-translator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2485,7 +2466,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-language-seo", async (req, res) => {
+  app.post("/api/ai/multi-language-seo", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2494,7 +2475,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/localization", async (req, res) => {
+  app.post("/api/ai/localization", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2503,7 +2484,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/dubbing", async (req, res) => {
+  app.post("/api/ai/dubbing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2512,7 +2493,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/transcript", async (req, res) => {
+  app.post("/api/ai/transcript", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2521,7 +2502,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/caption-compliance", async (req, res) => {
+  app.post("/api/ai/caption-compliance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2530,7 +2511,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audio-description", async (req, res) => {
+  app.post("/api/ai/audio-description", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2539,7 +2520,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/language-priority", async (req, res) => {
+  app.post("/api/ai/language-priority", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2548,16 +2529,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/retention-analyzer", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiRetentionAnalyzer(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/audience-demographics", async (req, res) => {
+  app.post("/api/ai/audience-demographics", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2566,7 +2538,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/watch-time", async (req, res) => {
+  app.post("/api/ai/watch-time", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2575,7 +2547,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/engagement-rate", async (req, res) => {
+  app.post("/api/ai/engagement-rate", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2584,7 +2556,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/subscriber-growth", async (req, res) => {
+  app.post("/api/ai/subscriber-growth", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2593,7 +2565,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/revenue-forecast", async (req, res) => {
+  app.post("/api/ai/revenue-forecast", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2602,7 +2574,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ab-test", async (req, res) => {
+  app.post("/api/ai/ab-test", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2611,7 +2583,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/retention-heatmap", async (req, res) => {
+  app.post("/api/ai/retention-heatmap", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2620,7 +2592,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/traffic-sources", async (req, res) => {
+  app.post("/api/ai/traffic-sources", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2629,7 +2601,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/device-analyzer", async (req, res) => {
+  app.post("/api/ai/device-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2638,7 +2610,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/playback-location", async (req, res) => {
+  app.post("/api/ai/playback-location", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2647,7 +2619,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/end-screen-analyzer", async (req, res) => {
+  app.post("/api/ai/end-screen-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2656,7 +2628,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/card-performance", async (req, res) => {
+  app.post("/api/ai/card-performance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2665,7 +2637,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/impression-funnel", async (req, res) => {
+  app.post("/api/ai/impression-funnel", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2674,7 +2646,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-benchmark", async (req, res) => {
+  app.post("/api/ai/competitor-benchmark", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2683,7 +2655,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/growth-prediction", async (req, res) => {
+  app.post("/api/ai/growth-prediction", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2692,7 +2664,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/churn-predictor", async (req, res) => {
+  app.post("/api/ai/churn-predictor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2701,7 +2673,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/viral-coefficient", async (req, res) => {
+  app.post("/api/ai/viral-coefficient", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2710,7 +2682,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sentiment", async (req, res) => {
+  app.post("/api/ai/sentiment", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2719,7 +2691,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/peak-times", async (req, res) => {
+  app.post("/api/ai/peak-times", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2728,7 +2700,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-lifecycle", async (req, res) => {
+  app.post("/api/ai/video-lifecycle", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2737,7 +2709,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/rpm-optimizer", async (req, res) => {
+  app.post("/api/ai/rpm-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2746,7 +2718,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audience-overlap", async (req, res) => {
+  app.post("/api/ai/audience-overlap", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2755,7 +2727,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/performance-ranker", async (req, res) => {
+  app.post("/api/ai/performance-ranker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2764,7 +2736,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/funnel-leaks", async (req, res) => {
+  app.post("/api/ai/funnel-leaks", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2773,7 +2745,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/predictive-analytics", async (req, res) => {
+  app.post("/api/ai/predictive-analytics", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2782,7 +2754,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/custom-reports", async (req, res) => {
+  app.post("/api/ai/custom-reports", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2791,7 +2763,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-titles", async (req, res) => {
+  app.post("/api/ai/stream-titles", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2800,7 +2772,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-schedule", async (req, res) => {
+  app.post("/api/ai/stream-schedule", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2809,7 +2781,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-overlays", async (req, res) => {
+  app.post("/api/ai/stream-overlays", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2818,7 +2790,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-alerts", async (req, res) => {
+  app.post("/api/ai/stream-alerts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2827,7 +2799,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-moderation", async (req, res) => {
+  app.post("/api/ai/stream-moderation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2836,7 +2808,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-interactions", async (req, res) => {
+  app.post("/api/ai/stream-interactions", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2845,7 +2817,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-revenue", async (req, res) => {
+  app.post("/api/ai/stream-revenue", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2854,7 +2826,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-clips", async (req, res) => {
+  app.post("/api/ai/stream-clips", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2863,7 +2835,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-categories", async (req, res) => {
+  app.post("/api/ai/stream-categories", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2872,7 +2844,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-panels", async (req, res) => {
+  app.post("/api/ai/stream-panels", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2881,7 +2853,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-emotes", async (req, res) => {
+  app.post("/api/ai/stream-emotes", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2890,7 +2862,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-sub-goals", async (req, res) => {
+  app.post("/api/ai/stream-sub-goals", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2899,7 +2871,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-networking", async (req, res) => {
+  app.post("/api/ai/stream-networking", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2908,7 +2880,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-analytics-explainer", async (req, res) => {
+  app.post("/api/ai/stream-analytics-explainer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2917,7 +2889,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-stream", async (req, res) => {
+  app.post("/api/ai/multi-stream", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2926,7 +2898,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-backup", async (req, res) => {
+  app.post("/api/ai/stream-backup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2935,7 +2907,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-community", async (req, res) => {
+  app.post("/api/ai/stream-community", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2944,7 +2916,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-branding", async (req, res) => {
+  app.post("/api/ai/stream-branding", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2953,7 +2925,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-content-calendar", async (req, res) => {
+  app.post("/api/ai/stream-content-calendar", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2962,7 +2934,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-growth", async (req, res) => {
+  app.post("/api/ai/stream-growth", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2971,7 +2943,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ad-revenue", async (req, res) => {
+  app.post("/api/ai/ad-revenue", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2980,7 +2952,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ad-placement", async (req, res) => {
+  app.post("/api/ai/ad-placement", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2989,7 +2961,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cpm-maximizer", async (req, res) => {
+  app.post("/api/ai/cpm-maximizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -2998,7 +2970,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsor-pricing", async (req, res) => {
+  app.post("/api/ai/sponsor-pricing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3007,7 +2979,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsor-outreach", async (req, res) => {
+  app.post("/api/ai/sponsor-outreach", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3016,7 +2988,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsor-negotiation", async (req, res) => {
+  app.post("/api/ai/sponsor-negotiation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3025,7 +2997,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsor-deliverables", async (req, res) => {
+  app.post("/api/ai/sponsor-deliverables", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3034,7 +3006,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/affiliate-optimizer", async (req, res) => {
+  app.post("/api/ai/affiliate-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3043,7 +3015,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/merchandise", async (req, res) => {
+  app.post("/api/ai/merchandise", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3052,7 +3024,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/membership-tiers", async (req, res) => {
+  app.post("/api/ai/membership-tiers", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3061,7 +3033,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/digital-products", async (req, res) => {
+  app.post("/api/ai/digital-products", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3070,7 +3042,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/course-builder", async (req, res) => {
+  app.post("/api/ai/course-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3079,7 +3051,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/patreon", async (req, res) => {
+  app.post("/api/ai/patreon", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3088,7 +3060,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/super-chat", async (req, res) => {
+  app.post("/api/ai/super-chat", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3097,7 +3069,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/membership-growth", async (req, res) => {
+  app.post("/api/ai/membership-growth", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3106,7 +3078,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/revenue-streams", async (req, res) => {
+  app.post("/api/ai/revenue-streams", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3115,7 +3087,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/invoice", async (req, res) => {
+  app.post("/api/ai/invoice", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3124,7 +3096,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/contract-review", async (req, res) => {
+  app.post("/api/ai/contract-review", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3133,7 +3105,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tax-deductions", async (req, res) => {
+  app.post("/api/ai/tax-deductions", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3142,7 +3114,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/quarterly-tax", async (req, res) => {
+  app.post("/api/ai/quarterly-tax", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3151,7 +3123,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-deal", async (req, res) => {
+  app.post("/api/ai/brand-deal", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3160,7 +3132,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/media-kit-enhance", async (req, res) => {
+  app.post("/api/ai/media-kit-enhance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3169,7 +3141,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/rate-card", async (req, res) => {
+  app.post("/api/ai/rate-card", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3178,7 +3150,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsor-roi", async (req, res) => {
+  app.post("/api/ai/sponsor-roi", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3187,7 +3159,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/passive-income", async (req, res) => {
+  app.post("/api/ai/passive-income", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3196,7 +3168,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pricing-strategy", async (req, res) => {
+  app.post("/api/ai/pricing-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3205,7 +3177,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/revenue-attribution", async (req, res) => {
+  app.post("/api/ai/revenue-attribution", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3214,7 +3186,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/donation-optimizer", async (req, res) => {
+  app.post("/api/ai/donation-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3223,7 +3195,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crowdfunding", async (req, res) => {
+  app.post("/api/ai/crowdfunding", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3232,7 +3204,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/licensing", async (req, res) => {
+  app.post("/api/ai/licensing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3241,7 +3213,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/book-deal", async (req, res) => {
+  app.post("/api/ai/book-deal", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3250,7 +3222,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/speaking-fees", async (req, res) => {
+  app.post("/api/ai/speaking-fees", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3259,7 +3231,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/consulting", async (req, res) => {
+  app.post("/api/ai/consulting", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3268,7 +3240,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/expense-tracker-ai", async (req, res) => {
+  app.post("/api/ai/expense-tracker-ai", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3277,7 +3249,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/profit-margin", async (req, res) => {
+  app.post("/api/ai/profit-margin", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3286,7 +3258,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cash-flow", async (req, res) => {
+  app.post("/api/ai/cash-flow", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3295,7 +3267,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/payment-gateway", async (req, res) => {
+  app.post("/api/ai/payment-gateway", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3304,7 +3276,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/subscription-box", async (req, res) => {
+  app.post("/api/ai/subscription-box", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3313,7 +3285,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/nft-advisor", async (req, res) => {
+  app.post("/api/ai/nft-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3322,7 +3294,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/revenue-goals", async (req, res) => {
+  app.post("/api/ai/revenue-goals", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3331,7 +3303,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/comment-response", async (req, res) => {
+  app.post("/api/ai/comment-response", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3340,7 +3312,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/superfan-id", async (req, res) => {
+  app.post("/api/ai/superfan-id", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3349,7 +3321,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/discord-planner", async (req, res) => {
+  app.post("/api/ai/discord-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3358,7 +3330,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/community-events", async (req, res) => {
+  app.post("/api/ai/community-events", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3367,7 +3339,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/poll-creator", async (req, res) => {
+  app.post("/api/ai/poll-creator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3376,7 +3348,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/contest-runner", async (req, res) => {
+  app.post("/api/ai/contest-runner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3385,7 +3357,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/community-guidelines", async (req, res) => {
+  app.post("/api/ai/community-guidelines", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3394,7 +3366,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/moderator-trainer", async (req, res) => {
+  app.post("/api/ai/moderator-trainer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3403,7 +3375,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ama-planner", async (req, res) => {
+  app.post("/api/ai/ama-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3412,7 +3384,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/loyalty-program", async (req, res) => {
+  app.post("/api/ai/loyalty-program", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3421,7 +3393,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ugc-strategy", async (req, res) => {
+  app.post("/api/ai/ugc-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3430,7 +3402,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/community-health", async (req, res) => {
+  app.post("/api/ai/community-health", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3439,7 +3411,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fan-art", async (req, res) => {
+  app.post("/api/ai/fan-art", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3448,7 +3420,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/milestone-events", async (req, res) => {
+  app.post("/api/ai/milestone-events", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3457,7 +3429,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/dm-templates", async (req, res) => {
+  app.post("/api/ai/dm-templates", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3466,7 +3438,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/hashtag-community", async (req, res) => {
+  app.post("/api/ai/hashtag-community", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3475,7 +3447,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/live-qa", async (req, res) => {
+  app.post("/api/ai/live-qa", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3484,7 +3456,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/referral-program", async (req, res) => {
+  app.post("/api/ai/referral-program", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3493,7 +3465,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ambassador-program", async (req, res) => {
+  app.post("/api/ai/ambassador-program", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3502,7 +3474,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/engagement-boost", async (req, res) => {
+  app.post("/api/ai/engagement-boost", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3511,7 +3483,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/hiring", async (req, res) => {
+  app.post("/api/ai/hiring", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3520,7 +3492,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/freelancer", async (req, res) => {
+  app.post("/api/ai/freelancer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3529,7 +3501,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sop-builder", async (req, res) => {
+  app.post("/api/ai/sop-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3538,7 +3510,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/project-timeline", async (req, res) => {
+  app.post("/api/ai/project-timeline", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3547,7 +3519,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/approval-flow", async (req, res) => {
+  app.post("/api/ai/approval-flow", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3556,7 +3528,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/editing-checklist", async (req, res) => {
+  app.post("/api/ai/editing-checklist", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3565,7 +3537,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/production-budget", async (req, res) => {
+  app.post("/api/ai/production-budget", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3574,7 +3546,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/equipment", async (req, res) => {
+  app.post("/api/ai/equipment", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3583,7 +3555,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/studio-setup", async (req, res) => {
+  app.post("/api/ai/studio-setup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3592,7 +3564,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/workflow-optimizer", async (req, res) => {
+  app.post("/api/ai/workflow-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3601,7 +3573,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/batch-recording", async (req, res) => {
+  app.post("/api/ai/batch-recording", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3610,7 +3582,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/outsourcing", async (req, res) => {
+  app.post("/api/ai/outsourcing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3619,7 +3591,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tool-stack", async (req, res) => {
+  app.post("/api/ai/tool-stack", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3628,7 +3600,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-voice", async (req, res) => {
+  app.post("/api/ai/brand-voice", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3637,7 +3609,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-colors", async (req, res) => {
+  app.post("/api/ai/brand-colors", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3646,7 +3618,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-fonts", async (req, res) => {
+  app.post("/api/ai/brand-fonts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3655,7 +3627,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-story", async (req, res) => {
+  app.post("/api/ai/brand-story", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3664,7 +3636,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-consistency", async (req, res) => {
+  app.post("/api/ai/brand-consistency", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3673,7 +3645,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pillar-refine", async (req, res) => {
+  app.post("/api/ai/pillar-refine", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3682,7 +3654,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/channel-trailer", async (req, res) => {
+  app.post("/api/ai/channel-trailer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3691,7 +3663,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/art-direction", async (req, res) => {
+  app.post("/api/ai/art-direction", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3700,7 +3672,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/usp-finder", async (req, res) => {
+  app.post("/api/ai/usp-finder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3709,7 +3681,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/target-audience", async (req, res) => {
+  app.post("/api/ai/target-audience", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3718,7 +3690,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-partnerships", async (req, res) => {
+  app.post("/api/ai/brand-partnerships", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3727,7 +3699,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crisis-comms", async (req, res) => {
+  app.post("/api/ai/crisis-comms", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3736,7 +3708,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/personal-brand", async (req, res) => {
+  app.post("/api/ai/personal-brand", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3745,7 +3717,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-evolution", async (req, res) => {
+  app.post("/api/ai/brand-evolution", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3754,7 +3726,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-diff", async (req, res) => {
+  app.post("/api/ai/competitor-diff", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3763,7 +3735,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-brief", async (req, res) => {
+  app.post("/api/ai/collab-brief", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3772,7 +3744,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/networking-prep", async (req, res) => {
+  app.post("/api/ai/networking-prep", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3781,7 +3753,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mentorship", async (req, res) => {
+  app.post("/api/ai/mentorship", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3790,7 +3762,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/delegation", async (req, res) => {
+  app.post("/api/ai/delegation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3799,7 +3771,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/time-management", async (req, res) => {
+  app.post("/api/ai/time-management", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3808,7 +3780,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mastermind", async (req, res) => {
+  app.post("/api/ai/mastermind", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3817,7 +3789,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/productivity", async (req, res) => {
+  app.post("/api/ai/productivity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3826,7 +3798,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/copyright-check", async (req, res) => {
+  app.post("/api/ai/copyright-check", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3835,7 +3807,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fair-use", async (req, res) => {
+  app.post("/api/ai/fair-use", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3844,7 +3816,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/music-license", async (req, res) => {
+  app.post("/api/ai/music-license", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3853,7 +3825,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/privacy-policy", async (req, res) => {
+  app.post("/api/ai/privacy-policy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3862,7 +3834,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/terms-of-service", async (req, res) => {
+  app.post("/api/ai/terms-of-service", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3871,7 +3843,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ftc-compliance", async (req, res) => {
+  app.post("/api/ai/ftc-compliance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3880,7 +3852,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/coppa", async (req, res) => {
+  app.post("/api/ai/coppa", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3889,7 +3861,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gdpr", async (req, res) => {
+  app.post("/api/ai/gdpr", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3898,7 +3870,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-id", async (req, res) => {
+  app.post("/api/ai/content-id", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3907,7 +3879,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/dispute-resolution", async (req, res) => {
+  app.post("/api/ai/dispute-resolution", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3916,7 +3888,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/trademark", async (req, res) => {
+  app.post("/api/ai/trademark", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3925,7 +3897,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/contract-template", async (req, res) => {
+  app.post("/api/ai/contract-template", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3934,7 +3906,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/insurance", async (req, res) => {
+  app.post("/api/ai/insurance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3943,7 +3915,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/business-entity", async (req, res) => {
+  app.post("/api/ai/business-entity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3952,7 +3924,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ip-protection", async (req, res) => {
+  app.post("/api/ai/ip-protection", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3961,7 +3933,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/meditation", async (req, res) => {
+  app.post("/api/ai/meditation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3970,7 +3942,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/work-life-balance", async (req, res) => {
+  app.post("/api/ai/work-life-balance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3979,7 +3951,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sleep", async (req, res) => {
+  app.post("/api/ai/sleep", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3988,7 +3960,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/exercise", async (req, res) => {
+  app.post("/api/ai/exercise", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -3997,7 +3969,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/eye-strain", async (req, res) => {
+  app.post("/api/ai/eye-strain", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4006,7 +3978,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/voice-care", async (req, res) => {
+  app.post("/api/ai/voice-care", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4015,7 +3987,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stress-management", async (req, res) => {
+  app.post("/api/ai/stress-management", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4024,7 +3996,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/break-scheduler", async (req, res) => {
+  app.post("/api/ai/break-scheduler", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4033,7 +4005,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/youtube-api", async (req, res) => {
+  app.post("/api/ai/youtube-api", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4042,7 +4014,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-integration", async (req, res) => {
+  app.post("/api/ai/twitch-integration", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4051,7 +4023,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/discord-bot", async (req, res) => {
+  app.post("/api/ai/discord-bot", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4060,7 +4032,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ga-setup", async (req, res) => {
+  app.post("/api/ai/ga-setup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4069,7 +4041,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/social-scheduler", async (req, res) => {
+  app.post("/api/ai/social-scheduler", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4078,7 +4050,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/email-marketing", async (req, res) => {
+  app.post("/api/ai/email-marketing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4087,7 +4059,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/podcast", async (req, res) => {
+  app.post("/api/ai/podcast", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4096,7 +4068,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/webhook-manager", async (req, res) => {
+  app.post("/api/ai/webhook-manager", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4105,7 +4077,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/rate-limits", async (req, res) => {
+  app.post("/api/ai/rate-limits", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4114,7 +4086,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-backup", async (req, res) => {
+  app.post("/api/ai/data-backup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4123,7 +4095,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/notification-optimizer", async (req, res) => {
+  app.post("/api/ai/notification-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4132,7 +4104,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cross-post", async (req, res) => {
+  app.post("/api/ai/cross-post", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4141,7 +4113,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/linktree", async (req, res) => {
+  app.post("/api/ai/linktree", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4150,7 +4122,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/qr-codes", async (req, res) => {
+  app.post("/api/ai/qr-codes", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4159,7 +4131,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/chatbot-integrator", async (req, res) => {
+  app.post("/api/ai/chatbot-integrator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4168,7 +4140,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/analytics-dashboard", async (req, res) => {
+  app.post("/api/ai/analytics-dashboard", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4177,7 +4149,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cdn-optimizer", async (req, res) => {
+  app.post("/api/ai/cdn-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4186,7 +4158,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/accessibility", async (req, res) => {
+  app.post("/api/ai/accessibility", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4195,7 +4167,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/device-testing", async (req, res) => {
+  app.post("/api/ai/device-testing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4204,7 +4176,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/performance-monitor", async (req, res) => {
+  app.post("/api/ai/performance-monitor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4213,7 +4185,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/security-audit", async (req, res) => {
+  app.post("/api/ai/security-audit", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4222,7 +4194,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cookie-consent", async (req, res) => {
+  app.post("/api/ai/cookie-consent", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4231,7 +4203,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/age-gating", async (req, res) => {
+  app.post("/api/ai/age-gating", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4240,7 +4212,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-retention", async (req, res) => {
+  app.post("/api/ai/data-retention", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4249,7 +4221,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/incident-response", async (req, res) => {
+  app.post("/api/ai/incident-response", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4258,7 +4230,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shortcuts", async (req, res) => {
+  app.post("/api/ai/shortcuts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4267,7 +4239,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/advanced-search", async (req, res) => {
+  app.post("/api/ai/advanced-search", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4276,7 +4248,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/bulk-upload", async (req, res) => {
+  app.post("/api/ai/bulk-upload", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4285,7 +4257,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/playlist-organizer", async (req, res) => {
+  app.post("/api/ai/playlist-organizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4294,7 +4266,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-account", async (req, res) => {
+  app.post("/api/ai/multi-account", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4303,7 +4275,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/custom-dashboard", async (req, res) => {
+  app.post("/api/ai/custom-dashboard", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4312,7 +4284,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-tagging", async (req, res) => {
+  app.post("/api/ai/auto-tagging", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4321,7 +4293,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/smart-notifications", async (req, res) => {
+  app.post("/api/ai/smart-notifications", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4330,7 +4302,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/template-library", async (req, res) => {
+  app.post("/api/ai/template-library", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4339,7 +4311,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/macro-builder", async (req, res) => {
+  app.post("/api/ai/macro-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4348,7 +4320,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/vr-content", async (req, res) => {
+  app.post("/api/ai/vr-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4357,7 +4329,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ar-filters", async (req, res) => {
+  app.post("/api/ai/ar-filters", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4366,7 +4338,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/voiceover", async (req, res) => {
+  app.post("/api/ai/voiceover", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4375,7 +4347,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/deepfake-detector", async (req, res) => {
+  app.post("/api/ai/deepfake-detector", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4384,7 +4356,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/blockchain-verify", async (req, res) => {
+  app.post("/api/ai/blockchain-verify", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4393,7 +4365,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/predictive-trends", async (req, res) => {
+  app.post("/api/ai/predictive-trends", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4402,7 +4374,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-graph", async (req, res) => {
+  app.post("/api/ai/content-graph", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4411,7 +4383,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/psychographics", async (req, res) => {
+  app.post("/api/ai/psychographics", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4420,7 +4392,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/neuro-marketing", async (req, res) => {
+  app.post("/api/ai/neuro-marketing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4429,7 +4401,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gamification", async (req, res) => {
+  app.post("/api/ai/gamification", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4438,7 +4410,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/personalization", async (req, res) => {
+  app.post("/api/ai/personalization", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4447,7 +4419,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sentiment-predict", async (req, res) => {
+  app.post("/api/ai/sentiment-predict", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4456,16 +4428,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-dna", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiContentDNAAnalyzer(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/algorithm-sim", async (req, res) => {
+  app.post("/api/ai/algorithm-sim", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4474,7 +4437,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creator-economy", async (req, res) => {
+  app.post("/api/ai/creator-economy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4483,7 +4446,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/web3-tools", async (req, res) => {
+  app.post("/api/ai/web3-tools", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4492,7 +4455,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/metaverse", async (req, res) => {
+  app.post("/api/ai/metaverse", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4501,7 +4464,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/agent-customizer", async (req, res) => {
+  app.post("/api/ai/agent-customizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4510,7 +4473,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-viz", async (req, res) => {
+  app.post("/api/ai/data-viz", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4519,7 +4482,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creator-api", async (req, res) => {
+  app.post("/api/ai/creator-api", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4528,7 +4491,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/podcast-launch", async (req, res) => {
+  app.post("/api/ai/podcast-launch", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4537,7 +4500,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/podcast-episode", async (req, res) => {
+  app.post("/api/ai/podcast-episode", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4546,7 +4509,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/podcast-seo", async (req, res) => {
+  app.post("/api/ai/podcast-seo", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4555,7 +4518,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audio-branding", async (req, res) => {
+  app.post("/api/ai/audio-branding", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4564,7 +4527,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/music-composer", async (req, res) => {
+  app.post("/api/ai/music-composer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4573,7 +4536,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/asmr", async (req, res) => {
+  app.post("/api/ai/asmr", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4582,7 +4545,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/voice-training", async (req, res) => {
+  app.post("/api/ai/voice-training", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4591,7 +4554,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audio-mixing", async (req, res) => {
+  app.post("/api/ai/audio-mixing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4600,7 +4563,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/newsletter", async (req, res) => {
+  app.post("/api/ai/newsletter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4609,7 +4572,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/email-sequence", async (req, res) => {
+  app.post("/api/ai/email-sequence", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4618,7 +4581,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/lead-magnet", async (req, res) => {
+  app.post("/api/ai/lead-magnet", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4627,7 +4590,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/email-list", async (req, res) => {
+  app.post("/api/ai/email-list", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4636,7 +4599,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/email-analytics", async (req, res) => {
+  app.post("/api/ai/email-analytics", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4645,7 +4608,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/webinar", async (req, res) => {
+  app.post("/api/ai/webinar", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4654,7 +4617,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/virtual-event", async (req, res) => {
+  app.post("/api/ai/virtual-event", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4663,7 +4626,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/meetup", async (req, res) => {
+  app.post("/api/ai/meetup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4672,7 +4635,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/conference-prep", async (req, res) => {
+  app.post("/api/ai/conference-prep", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4681,7 +4644,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/award-submission", async (req, res) => {
+  app.post("/api/ai/award-submission", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4690,7 +4653,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/panel-prep", async (req, res) => {
+  app.post("/api/ai/panel-prep", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4699,7 +4662,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creator-retreat", async (req, res) => {
+  app.post("/api/ai/creator-retreat", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4708,7 +4671,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/live-workshop", async (req, res) => {
+  app.post("/api/ai/live-workshop", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4717,7 +4680,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/course-launch", async (req, res) => {
+  app.post("/api/ai/course-launch", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4726,7 +4689,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/masterclass", async (req, res) => {
+  app.post("/api/ai/masterclass", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4735,7 +4698,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/media-appearance", async (req, res) => {
+  app.post("/api/ai/media-appearance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4744,7 +4707,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/guest-post", async (req, res) => {
+  app.post("/api/ai/guest-post", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4753,7 +4716,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/influencer-event", async (req, res) => {
+  app.post("/api/ai/influencer-event", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4762,7 +4725,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/product-launch", async (req, res) => {
+  app.post("/api/ai/product-launch", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4771,7 +4734,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/charity-event", async (req, res) => {
+  app.post("/api/ai/charity-event", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4780,7 +4743,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/anniversary", async (req, res) => {
+  app.post("/api/ai/anniversary", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4789,7 +4752,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/seasonal-campaign", async (req, res) => {
+  app.post("/api/ai/seasonal-campaign", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4798,7 +4761,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/holiday-content", async (req, res) => {
+  app.post("/api/ai/holiday-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4807,7 +4770,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/year-review", async (req, res) => {
+  app.post("/api/ai/year-review", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4816,7 +4779,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/skill-assessment", async (req, res) => {
+  app.post("/api/ai/skill-assessment", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4825,7 +4788,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/learning-path", async (req, res) => {
+  app.post("/api/ai/learning-path", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4834,7 +4797,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/certification", async (req, res) => {
+  app.post("/api/ai/certification", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4843,7 +4806,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/book-recommend", async (req, res) => {
+  app.post("/api/ai/book-recommend", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4852,7 +4815,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tool-tutorial", async (req, res) => {
+  app.post("/api/ai/tool-tutorial", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4861,7 +4824,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/industry-report", async (req, res) => {
+  app.post("/api/ai/industry-report", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4870,7 +4833,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/case-study", async (req, res) => {
+  app.post("/api/ai/case-study", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4879,7 +4842,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/portfolio", async (req, res) => {
+  app.post("/api/ai/portfolio", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4888,7 +4851,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/social-proof", async (req, res) => {
+  app.post("/api/ai/social-proof", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4897,7 +4860,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/testimonial-video", async (req, res) => {
+  app.post("/api/ai/testimonial-video", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4906,7 +4869,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/case-study-video", async (req, res) => {
+  app.post("/api/ai/case-study-video", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4915,7 +4878,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/before-after", async (req, res) => {
+  app.post("/api/ai/before-after", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4924,7 +4887,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/influencer-score", async (req, res) => {
+  app.post("/api/ai/influencer-score", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4933,7 +4896,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/credibility", async (req, res) => {
+  app.post("/api/ai/credibility", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4942,7 +4905,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/review-manager", async (req, res) => {
+  app.post("/api/ai/review-manager", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4951,7 +4914,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/reference-page", async (req, res) => {
+  app.post("/api/ai/reference-page", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4960,7 +4923,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ecommerce-store", async (req, res) => {
+  app.post("/api/ai/ecommerce-store", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4969,7 +4932,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/dropshipping", async (req, res) => {
+  app.post("/api/ai/dropshipping", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4978,7 +4941,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/print-on-demand", async (req, res) => {
+  app.post("/api/ai/print-on-demand", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4987,7 +4950,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/digital-download", async (req, res) => {
+  app.post("/api/ai/digital-download", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -4996,7 +4959,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/affiliate-page", async (req, res) => {
+  app.post("/api/ai/affiliate-page", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5005,7 +4968,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/upsell", async (req, res) => {
+  app.post("/api/ai/upsell", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5014,7 +4977,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cart-recovery", async (req, res) => {
+  app.post("/api/ai/cart-recovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5023,7 +4986,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/customer-journey", async (req, res) => {
+  app.post("/api/ai/customer-journey", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5032,7 +4995,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/product-bundle", async (req, res) => {
+  app.post("/api/ai/product-bundle", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5041,7 +5004,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/flash-sale", async (req, res) => {
+  app.post("/api/ai/flash-sale", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5050,7 +5013,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/loyalty-rewards", async (req, res) => {
+  app.post("/api/ai/loyalty-rewards", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5059,7 +5022,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/subscription-model", async (req, res) => {
+  app.post("/api/ai/subscription-model", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5068,7 +5031,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pricing-page", async (req, res) => {
+  app.post("/api/ai/pricing-page", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5077,7 +5040,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/checkout", async (req, res) => {
+  app.post("/api/ai/checkout", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5086,7 +5049,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/inventory", async (req, res) => {
+  app.post("/api/ai/inventory", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5095,7 +5058,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shipping", async (req, res) => {
+  app.post("/api/ai/shipping", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5104,7 +5067,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/youtube-ads", async (req, res) => {
+  app.post("/api/ai/youtube-ads", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5113,7 +5076,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/facebook-ads", async (req, res) => {
+  app.post("/api/ai/facebook-ads", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5122,7 +5085,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/google-ads", async (req, res) => {
+  app.post("/api/ai/google-ads", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5131,7 +5094,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-ads", async (req, res) => {
+  app.post("/api/ai/tiktok-ads", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5140,7 +5103,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/influencer-ads", async (req, res) => {
+  app.post("/api/ai/influencer-ads", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5149,7 +5112,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/retargeting", async (req, res) => {
+  app.post("/api/ai/retargeting", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5158,7 +5121,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ad-copy", async (req, res) => {
+  app.post("/api/ai/ad-copy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5167,7 +5130,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ad-budget", async (req, res) => {
+  app.post("/api/ai/ad-budget", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5176,7 +5139,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/landing-page", async (req, res) => {
+  app.post("/api/ai/landing-page", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5185,7 +5148,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/conversion-rate", async (req, res) => {
+  app.post("/api/ai/conversion-rate", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5194,7 +5157,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-cleaning", async (req, res) => {
+  app.post("/api/ai/data-cleaning", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5203,7 +5166,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-pipeline", async (req, res) => {
+  app.post("/api/ai/data-pipeline", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5212,7 +5175,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/anomaly-detector", async (req, res) => {
+  app.post("/api/ai/anomaly-detector", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5221,7 +5184,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cohort-analysis", async (req, res) => {
+  app.post("/api/ai/cohort-analysis", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5230,7 +5193,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/attribution-model", async (req, res) => {
+  app.post("/api/ai/attribution-model", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5239,7 +5202,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/predictive-churn", async (req, res) => {
+  app.post("/api/ai/predictive-churn", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5248,7 +5211,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ltv-calculator", async (req, res) => {
+  app.post("/api/ai/ltv-calculator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5257,7 +5220,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/accessibility-text", async (req, res) => {
+  app.post("/api/ai/accessibility-text", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5266,7 +5229,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/alt-text", async (req, res) => {
+  app.post("/api/ai/alt-text", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5275,7 +5238,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/color-contrast", async (req, res) => {
+  app.post("/api/ai/color-contrast", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5284,7 +5247,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/screen-reader", async (req, res) => {
+  app.post("/api/ai/screen-reader", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5293,7 +5256,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/keyboard-nav", async (req, res) => {
+  app.post("/api/ai/keyboard-nav", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5302,7 +5265,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/caption-quality", async (req, res) => {
+  app.post("/api/ai/caption-quality", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5311,7 +5274,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/inclusive-language", async (req, res) => {
+  app.post("/api/ai/inclusive-language", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5320,7 +5283,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/dyslexia-format", async (req, res) => {
+  app.post("/api/ai/dyslexia-format", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5329,7 +5292,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/motion-sensitivity", async (req, res) => {
+  app.post("/api/ai/motion-sensitivity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5338,7 +5301,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cognitive-load", async (req, res) => {
+  app.post("/api/ai/cognitive-load", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5347,7 +5310,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-modal", async (req, res) => {
+  app.post("/api/ai/multi-modal", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5356,7 +5319,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/password-security", async (req, res) => {
+  app.post("/api/ai/password-security", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5365,7 +5328,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/phishing", async (req, res) => {
+  app.post("/api/ai/phishing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5374,7 +5337,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/account-recovery", async (req, res) => {
+  app.post("/api/ai/account-recovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5383,7 +5346,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/privacy-settings", async (req, res) => {
+  app.post("/api/ai/privacy-settings", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5392,7 +5355,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-breach", async (req, res) => {
+  app.post("/api/ai/data-breach", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5401,7 +5364,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/vpn", async (req, res) => {
+  app.post("/api/ai/vpn", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5410,7 +5373,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-analysis", async (req, res) => {
+  app.post("/api/ai/competitor-analysis", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5419,7 +5382,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-content", async (req, res) => {
+  app.post("/api/ai/competitor-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5428,7 +5391,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-pricing", async (req, res) => {
+  app.post("/api/ai/competitor-pricing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5437,7 +5400,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/market-share", async (req, res) => {
+  app.post("/api/ai/market-share", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5446,7 +5409,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/swot", async (req, res) => {
+  app.post("/api/ai/swot", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5455,7 +5418,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-social", async (req, res) => {
+  app.post("/api/ai/competitor-social", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5464,7 +5427,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/blue-ocean", async (req, res) => {
+  app.post("/api/ai/blue-ocean", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5473,7 +5436,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mobile-optimize", async (req, res) => {
+  app.post("/api/ai/mobile-optimize", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5482,7 +5445,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/deep-links", async (req, res) => {
+  app.post("/api/ai/deep-links", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5491,7 +5454,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/push-notifications", async (req, res) => {
+  app.post("/api/ai/push-notifications", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5500,7 +5463,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mobile-video", async (req, res) => {
+  app.post("/api/ai/mobile-video", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5509,7 +5472,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/responsive-check", async (req, res) => {
+  app.post("/api/ai/responsive-check", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5518,7 +5481,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mobile-payment", async (req, res) => {
+  app.post("/api/ai/mobile-payment", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5527,7 +5490,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/offline-content", async (req, res) => {
+  app.post("/api/ai/offline-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5536,7 +5499,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mobile-analytics", async (req, res) => {
+  app.post("/api/ai/mobile-analytics", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5545,7 +5508,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/app-store", async (req, res) => {
+  app.post("/api/ai/app-store", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5554,7 +5517,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/widget-design", async (req, res) => {
+  app.post("/api/ai/widget-design", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5563,7 +5526,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gesture-optimize", async (req, res) => {
+  app.post("/api/ai/gesture-optimize", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5572,7 +5535,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mobile-first", async (req, res) => {
+  app.post("/api/ai/mobile-first", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5581,7 +5544,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/wearable", async (req, res) => {
+  app.post("/api/ai/wearable", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5590,7 +5553,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cross-sync", async (req, res) => {
+  app.post("/api/ai/cross-sync", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5599,7 +5562,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/smart-tv", async (req, res) => {
+  app.post("/api/ai/smart-tv", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5608,7 +5571,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/achievements", async (req, res) => {
+  app.post("/api/ai/achievements", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5617,7 +5580,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/leaderboard", async (req, res) => {
+  app.post("/api/ai/leaderboard", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5626,7 +5589,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/points-economy", async (req, res) => {
+  app.post("/api/ai/points-economy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5635,7 +5598,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/badge-system", async (req, res) => {
+  app.post("/api/ai/badge-system", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5644,7 +5607,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/streak-system", async (req, res) => {
+  app.post("/api/ai/streak-system", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5653,7 +5616,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/progress-viz", async (req, res) => {
+  app.post("/api/ai/progress-viz", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5662,7 +5625,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/challenge-system", async (req, res) => {
+  app.post("/api/ai/challenge-system", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5671,7 +5634,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/monthly-report", async (req, res) => {
+  app.post("/api/ai/monthly-report", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5680,7 +5643,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/weekly-digest", async (req, res) => {
+  app.post("/api/ai/weekly-digest", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5689,7 +5652,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/quarterly-review", async (req, res) => {
+  app.post("/api/ai/quarterly-review", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5698,7 +5661,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/annual-strategy", async (req, res) => {
+  app.post("/api/ai/annual-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5707,7 +5670,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-report", async (req, res) => {
+  app.post("/api/ai/competitor-report", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5716,7 +5679,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audience-report", async (req, res) => {
+  app.post("/api/ai/audience-report", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5725,7 +5688,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-report", async (req, res) => {
+  app.post("/api/ai/content-report", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5734,7 +5697,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/roi-report", async (req, res) => {
+  app.post("/api/ai/roi-report", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5743,7 +5706,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gaming-niche", async (req, res) => {
+  app.post("/api/ai/gaming-niche", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5752,7 +5715,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/beauty-niche", async (req, res) => {
+  app.post("/api/ai/beauty-niche", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5761,7 +5724,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tech-review", async (req, res) => {
+  app.post("/api/ai/tech-review", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5770,7 +5733,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/food-content", async (req, res) => {
+  app.post("/api/ai/food-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5779,7 +5742,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fitness-content", async (req, res) => {
+  app.post("/api/ai/fitness-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5788,7 +5751,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/travel-content", async (req, res) => {
+  app.post("/api/ai/travel-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5797,7 +5760,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/education-content", async (req, res) => {
+  app.post("/api/ai/education-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5806,7 +5769,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/finance-content", async (req, res) => {
+  app.post("/api/ai/finance-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5815,7 +5778,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/parenting-content", async (req, res) => {
+  app.post("/api/ai/parenting-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5824,7 +5787,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pet-content", async (req, res) => {
+  app.post("/api/ai/pet-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5833,7 +5796,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/diy-craft", async (req, res) => {
+  app.post("/api/ai/diy-craft", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5842,7 +5805,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/musician-content", async (req, res) => {
+  app.post("/api/ai/musician-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5851,7 +5814,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/comedy-content", async (req, res) => {
+  app.post("/api/ai/comedy-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5860,7 +5823,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sports-content", async (req, res) => {
+  app.post("/api/ai/sports-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5869,7 +5832,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/news-commentary", async (req, res) => {
+  app.post("/api/ai/news-commentary", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5878,7 +5841,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/lifestyle-content", async (req, res) => {
+  app.post("/api/ai/lifestyle-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5887,7 +5850,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-to-book", async (req, res) => {
+  app.post("/api/ai/video-to-book", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5896,7 +5859,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-to-podcast", async (req, res) => {
+  app.post("/api/ai/video-to-podcast", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5905,7 +5868,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-to-course", async (req, res) => {
+  app.post("/api/ai/video-to-course", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5914,7 +5877,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/blog-to-video", async (req, res) => {
+  app.post("/api/ai/blog-to-video", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5923,7 +5886,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitter-thread", async (req, res) => {
+  app.post("/api/ai/twitter-thread", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5932,7 +5895,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/linkedin-adapter", async (req, res) => {
+  app.post("/api/ai/linkedin-adapter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5941,7 +5904,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pinterest-pins", async (req, res) => {
+  app.post("/api/ai/pinterest-pins", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5950,7 +5913,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/reddit-post", async (req, res) => {
+  app.post("/api/ai/reddit-post", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5959,7 +5922,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/quora-answer", async (req, res) => {
+  app.post("/api/ai/quora-answer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5968,7 +5931,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/medium-article", async (req, res) => {
+  app.post("/api/ai/medium-article", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5977,7 +5940,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/slidedeck", async (req, res) => {
+  app.post("/api/ai/slidedeck", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5986,7 +5949,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/infographic-repurpose", async (req, res) => {
+  app.post("/api/ai/infographic-repurpose", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -5995,7 +5958,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-match", async (req, res) => {
+  app.post("/api/ai/collab-match", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6004,7 +5967,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-contract", async (req, res) => {
+  app.post("/api/ai/collab-contract", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6013,7 +5976,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-revenue", async (req, res) => {
+  app.post("/api/ai/collab-revenue", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6022,7 +5985,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-ideas", async (req, res) => {
+  app.post("/api/ai/collab-ideas", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6031,7 +5994,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-outreach", async (req, res) => {
+  app.post("/api/ai/collab-outreach", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6040,7 +6003,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/collab-performance", async (req, res) => {
+  app.post("/api/ai/collab-performance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6049,7 +6012,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/network-effect", async (req, res) => {
+  app.post("/api/ai/network-effect", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6058,7 +6021,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sub-milestone", async (req, res) => {
+  app.post("/api/ai/sub-milestone", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6067,7 +6030,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sub-retention", async (req, res) => {
+  app.post("/api/ai/sub-retention", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6076,7 +6039,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/bell-optimizer", async (req, res) => {
+  app.post("/api/ai/bell-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6085,7 +6048,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/first-video", async (req, res) => {
+  app.post("/api/ai/first-video", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6094,7 +6057,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/membership-perks", async (req, res) => {
+  app.post("/api/ai/membership-perks", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6103,7 +6066,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sub-countdown", async (req, res) => {
+  app.post("/api/ai/sub-countdown", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6112,7 +6075,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/unsub-analyzer", async (req, res) => {
+  app.post("/api/ai/unsub-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6121,7 +6084,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sub-quality", async (req, res) => {
+  app.post("/api/ai/sub-quality", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6130,7 +6093,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/growth-playbook", async (req, res) => {
+  app.post("/api/ai/growth-playbook", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6139,7 +6102,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/viral-engine", async (req, res) => {
+  app.post("/api/ai/viral-engine", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6148,7 +6111,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cross-promo", async (req, res) => {
+  app.post("/api/ai/cross-promo", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6157,7 +6120,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/watch-time-boost", async (req, res) => {
+  app.post("/api/ai/watch-time-boost", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6166,7 +6129,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/open-loops", async (req, res) => {
+  app.post("/api/ai/open-loops", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6175,7 +6138,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pattern-interrupts", async (req, res) => {
+  app.post("/api/ai/pattern-interrupts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6184,7 +6147,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/re-engagement", async (req, res) => {
+  app.post("/api/ai/re-engagement", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6193,7 +6156,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/binge-watch", async (req, res) => {
+  app.post("/api/ai/binge-watch", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6202,7 +6165,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-studio", async (req, res) => {
+  app.post("/api/ai/yt-studio", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6211,7 +6174,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-shorts-algo", async (req, res) => {
+  app.post("/api/ai/yt-shorts-algo", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6220,7 +6183,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-comments", async (req, res) => {
+  app.post("/api/ai/yt-comments", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6229,7 +6192,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-playlists", async (req, res) => {
+  app.post("/api/ai/yt-playlists", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6238,7 +6201,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-premiere", async (req, res) => {
+  app.post("/api/ai/yt-premiere", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6247,7 +6210,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-membership", async (req, res) => {
+  app.post("/api/ai/yt-membership", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6256,7 +6219,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-super-thanks", async (req, res) => {
+  app.post("/api/ai/yt-super-thanks", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6265,7 +6228,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-handle", async (req, res) => {
+  app.post("/api/ai/yt-handle", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6274,7 +6237,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-channel-page", async (req, res) => {
+  app.post("/api/ai/yt-channel-page", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6283,7 +6246,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/yt-hashtags", async (req, res) => {
+  app.post("/api/ai/yt-hashtags", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6292,7 +6255,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-emotes", async (req, res) => {
+  app.post("/api/ai/twitch-emotes", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6301,7 +6264,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-bits", async (req, res) => {
+  app.post("/api/ai/twitch-bits", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6310,7 +6273,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-raids", async (req, res) => {
+  app.post("/api/ai/twitch-raids", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6319,7 +6282,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-points", async (req, res) => {
+  app.post("/api/ai/twitch-points", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6328,7 +6291,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-predictions", async (req, res) => {
+  app.post("/api/ai/twitch-predictions", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6337,7 +6300,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-hype-train", async (req, res) => {
+  app.post("/api/ai/twitch-hype-train", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6346,7 +6309,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-clips", async (req, res) => {
+  app.post("/api/ai/twitch-clips", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6355,7 +6318,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-vods", async (req, res) => {
+  app.post("/api/ai/twitch-vods", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6364,7 +6327,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitch-panels", async (req, res) => {
+  app.post("/api/ai/twitch-panels", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6373,7 +6336,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/kick-stream", async (req, res) => {
+  app.post("/api/ai/kick-stream", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6382,7 +6345,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/kick-monetization", async (req, res) => {
+  app.post("/api/ai/kick-monetization", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6391,7 +6354,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/kick-community", async (req, res) => {
+  app.post("/api/ai/kick-community", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6400,7 +6363,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/kick-differentiator", async (req, res) => {
+  app.post("/api/ai/kick-differentiator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6409,7 +6372,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/kick-discovery", async (req, res) => {
+  app.post("/api/ai/kick-discovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6418,7 +6381,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-router", async (req, res) => {
+  app.post("/api/ai/stream-router", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6427,7 +6390,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-deck", async (req, res) => {
+  app.post("/api/ai/stream-deck", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6436,7 +6399,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/obs-optimizer", async (req, res) => {
+  app.post("/api/ai/obs-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6445,7 +6408,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/streamlabs", async (req, res) => {
+  app.post("/api/ai/streamlabs", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6454,7 +6417,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-elements", async (req, res) => {
+  app.post("/api/ai/stream-elements", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6463,7 +6426,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/chaturbate", async (req, res) => {
+  app.post("/api/ai/chaturbate", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6472,7 +6435,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-algorithm", async (req, res) => {
+  app.post("/api/ai/tiktok-algorithm", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6481,7 +6444,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-sounds", async (req, res) => {
+  app.post("/api/ai/tiktok-sounds", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6490,7 +6453,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-duet", async (req, res) => {
+  app.post("/api/ai/tiktok-duet", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6499,7 +6462,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-live", async (req, res) => {
+  app.post("/api/ai/tiktok-live", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6508,7 +6471,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-shop", async (req, res) => {
+  app.post("/api/ai/tiktok-shop", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6517,7 +6480,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-fund", async (req, res) => {
+  app.post("/api/ai/tiktok-fund", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6526,7 +6489,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-hashtags", async (req, res) => {
+  app.post("/api/ai/tiktok-hashtags", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6535,7 +6498,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/tiktok-profile", async (req, res) => {
+  app.post("/api/ai/tiktok-profile", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6544,7 +6507,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-reels", async (req, res) => {
+  app.post("/api/ai/ig-reels", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6553,7 +6516,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-stories", async (req, res) => {
+  app.post("/api/ai/ig-stories", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6562,7 +6525,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-carousel", async (req, res) => {
+  app.post("/api/ai/ig-carousel", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6571,7 +6534,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-bio", async (req, res) => {
+  app.post("/api/ai/ig-bio", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6580,7 +6543,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-shopping", async (req, res) => {
+  app.post("/api/ai/ig-shopping", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6589,7 +6552,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-collabs", async (req, res) => {
+  app.post("/api/ai/ig-collabs", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6598,7 +6561,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-growth", async (req, res) => {
+  app.post("/api/ai/ig-growth", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6607,7 +6570,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ig-aesthetic", async (req, res) => {
+  app.post("/api/ai/ig-aesthetic", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6616,7 +6579,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/x-growth", async (req, res) => {
+  app.post("/api/ai/x-growth", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6625,7 +6588,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/x-thread", async (req, res) => {
+  app.post("/api/ai/x-thread", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6634,7 +6597,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/linkedin-creator", async (req, res) => {
+  app.post("/api/ai/linkedin-creator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6643,7 +6606,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/linkedin-article", async (req, res) => {
+  app.post("/api/ai/linkedin-article", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6652,7 +6615,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fb-groups", async (req, res) => {
+  app.post("/api/ai/fb-groups", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6661,7 +6624,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fb-reels", async (req, res) => {
+  app.post("/api/ai/fb-reels", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6670,7 +6633,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/snapchat", async (req, res) => {
+  app.post("/api/ai/snapchat", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6679,7 +6642,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/threads", async (req, res) => {
+  app.post("/api/ai/threads", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6688,7 +6651,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/discord-optimize", async (req, res) => {
+  app.post("/api/ai/discord-optimize", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6697,7 +6660,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/patreon-content", async (req, res) => {
+  app.post("/api/ai/patreon-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6706,7 +6669,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/substack", async (req, res) => {
+  app.post("/api/ai/substack", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6715,7 +6678,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gumroad", async (req, res) => {
+  app.post("/api/ai/gumroad", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6724,7 +6687,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/teachable", async (req, res) => {
+  app.post("/api/ai/teachable", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6733,7 +6696,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/buymeacoffee", async (req, res) => {
+  app.post("/api/ai/buymeacoffee", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6742,7 +6705,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/retirement", async (req, res) => {
+  app.post("/api/ai/retirement", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6751,7 +6714,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/emergency-fund", async (req, res) => {
+  app.post("/api/ai/emergency-fund", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6760,7 +6723,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/investment", async (req, res) => {
+  app.post("/api/ai/investment", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6769,7 +6732,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/debt-payoff", async (req, res) => {
+  app.post("/api/ai/debt-payoff", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6778,16 +6741,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/insurance", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiInsuranceAdvisor(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/real-estate", async (req, res) => {
+  app.post("/api/ai/real-estate", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6796,7 +6750,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crypto-portfolio", async (req, res) => {
+  app.post("/api/ai/crypto-portfolio", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6805,16 +6759,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/passive-income", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiPassiveIncomeBuilder(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/freelance-pricing", async (req, res) => {
+  app.post("/api/ai/freelance-pricing", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6823,7 +6768,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/grant-finder", async (req, res) => {
+  app.post("/api/ai/grant-finder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6832,16 +6777,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crowdfunding", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiCrowdfundingAdvisor(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/revenue-diversify", async (req, res) => {
+  app.post("/api/ai/revenue-diversify", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6850,7 +6786,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/budget-tracker", async (req, res) => {
+  app.post("/api/ai/budget-tracker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6859,7 +6795,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/financial-goals", async (req, res) => {
+  app.post("/api/ai/financial-goals", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6868,7 +6804,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/camera-recommend", async (req, res) => {
+  app.post("/api/ai/camera-recommend", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6877,7 +6813,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/microphone", async (req, res) => {
+  app.post("/api/ai/microphone", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6886,7 +6822,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/lighting-setup", async (req, res) => {
+  app.post("/api/ai/lighting-setup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6895,7 +6831,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/editing-software", async (req, res) => {
+  app.post("/api/ai/editing-software", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6904,7 +6840,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/studio-design", async (req, res) => {
+  app.post("/api/ai/studio-design", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6913,25 +6849,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/green-screen", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiGreenScreenSetup(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/teleprompter", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiTeleprompterAdvisor(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/backup-storage", async (req, res) => {
+  app.post("/api/ai/backup-storage", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6940,7 +6858,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/internet-optimize", async (req, res) => {
+  app.post("/api/ai/internet-optimize", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6949,16 +6867,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/hiring", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiHiringAdvisor(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/va-tasks", async (req, res) => {
+  app.post("/api/ai/va-tasks", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6967,7 +6876,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/editor-hiring", async (req, res) => {
+  app.post("/api/ai/editor-hiring", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6976,7 +6885,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-designer", async (req, res) => {
+  app.post("/api/ai/thumbnail-designer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -6985,16 +6894,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/outsourcing", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiOutsourcingStrategyBuilder(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/content-moderation", async (req, res) => {
+  app.post("/api/ai/content-moderation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7003,7 +6903,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/copyright-claim", async (req, res) => {
+  app.post("/api/ai/copyright-claim", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7012,7 +6912,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsorship-disclosure", async (req, res) => {
+  app.post("/api/ai/sponsorship-disclosure", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7021,7 +6921,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/age-restriction", async (req, res) => {
+  app.post("/api/ai/age-restriction", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7030,7 +6930,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/defamation-risk", async (req, res) => {
+  app.post("/api/ai/defamation-risk", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7039,7 +6939,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/plagiarism", async (req, res) => {
+  app.post("/api/ai/plagiarism", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7048,34 +6948,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/coppa", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiCOPPAComplianceChecker(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/gdpr", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiGDPRComplianceAdvisor(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/community-guidelines", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiCommunityGuidelinesWriter(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/hate-speech", async (req, res) => {
+  app.post("/api/ai/hate-speech", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7084,7 +6957,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/misinformation", async (req, res) => {
+  app.post("/api/ai/misinformation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7093,7 +6966,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/trigger-warning", async (req, res) => {
+  app.post("/api/ai/trigger-warning", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7102,7 +6975,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/child-safety", async (req, res) => {
+  app.post("/api/ai/child-safety", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7111,16 +6984,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-retention", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiDataRetentionPlanner(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/brand-audit", async (req, res) => {
+  app.post("/api/ai/brand-audit", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7129,7 +6993,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/elevator-pitch", async (req, res) => {
+  app.post("/api/ai/elevator-pitch", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7138,7 +7002,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/press-kit", async (req, res) => {
+  app.post("/api/ai/press-kit", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7147,7 +7011,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/speaker-bio", async (req, res) => {
+  app.post("/api/ai/speaker-bio", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7156,7 +7020,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/linkedin-profile", async (req, res) => {
+  app.post("/api/ai/linkedin-profile", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7165,7 +7029,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/personal-website", async (req, res) => {
+  app.post("/api/ai/personal-website", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7174,7 +7038,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thought-leadership", async (req, res) => {
+  app.post("/api/ai/thought-leadership", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7183,7 +7047,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/public-speaking", async (req, res) => {
+  app.post("/api/ai/public-speaking", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7192,7 +7056,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/networking-strategy", async (req, res) => {
+  app.post("/api/ai/networking-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7201,7 +7065,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/reputation-monitor", async (req, res) => {
+  app.post("/api/ai/reputation-monitor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7210,7 +7074,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crisis-response", async (req, res) => {
+  app.post("/api/ai/crisis-response", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7219,7 +7083,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/apology-script", async (req, res) => {
+  app.post("/api/ai/apology-script", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7228,7 +7092,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/controversy", async (req, res) => {
+  app.post("/api/ai/controversy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7237,7 +7101,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cancel-culture", async (req, res) => {
+  app.post("/api/ai/cancel-culture", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7246,7 +7110,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/diversity", async (req, res) => {
+  app.post("/api/ai/diversity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7255,7 +7119,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/political-content", async (req, res) => {
+  app.post("/api/ai/political-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7264,7 +7128,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/religious-sensitivity", async (req, res) => {
+  app.post("/api/ai/religious-sensitivity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7273,7 +7137,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cultural-sensitivity", async (req, res) => {
+  app.post("/api/ai/cultural-sensitivity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7282,7 +7146,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/body-image", async (req, res) => {
+  app.post("/api/ai/body-image", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7291,7 +7155,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/addiction-content", async (req, res) => {
+  app.post("/api/ai/addiction-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7300,7 +7164,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/financial-disclaimer", async (req, res) => {
+  app.post("/api/ai/financial-disclaimer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7309,7 +7173,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/workflow-automation", async (req, res) => {
+  app.post("/api/ai/workflow-automation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7318,7 +7182,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/zapier", async (req, res) => {
+  app.post("/api/ai/zapier", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7327,7 +7191,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ifttt", async (req, res) => {
+  app.post("/api/ai/ifttt", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7336,7 +7200,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/make-scenario", async (req, res) => {
+  app.post("/api/ai/make-scenario", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7345,7 +7209,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-scheduler", async (req, res) => {
+  app.post("/api/ai/auto-scheduler", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7354,7 +7218,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-responder", async (req, res) => {
+  app.post("/api/ai/auto-responder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7363,7 +7227,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-moderator", async (req, res) => {
+  app.post("/api/ai/auto-moderator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7372,7 +7236,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-backup", async (req, res) => {
+  app.post("/api/ai/auto-backup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7381,7 +7245,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-reporter", async (req, res) => {
+  app.post("/api/ai/auto-reporter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7390,7 +7254,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-optimizer", async (req, res) => {
+  app.post("/api/ai/auto-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7399,7 +7263,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/batch-processor", async (req, res) => {
+  app.post("/api/ai/batch-processor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7408,7 +7272,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/smart-queue", async (req, res) => {
+  app.post("/api/ai/smart-queue", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7417,7 +7281,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-pipeline", async (req, res) => {
+  app.post("/api/ai/content-pipeline", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7426,7 +7290,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/training-data", async (req, res) => {
+  app.post("/api/ai/training-data", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7435,7 +7299,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crisis-detector", async (req, res) => {
+  app.post("/api/ai/crisis-detector", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7444,7 +7308,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/damage-control", async (req, res) => {
+  app.post("/api/ai/damage-control", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7453,7 +7317,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pr-statement", async (req, res) => {
+  app.post("/api/ai/pr-statement", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7462,7 +7326,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stakeholder-comm", async (req, res) => {
+  app.post("/api/ai/stakeholder-comm", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7471,7 +7335,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/recovery-strategy", async (req, res) => {
+  app.post("/api/ai/recovery-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7480,7 +7344,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/media-response", async (req, res) => {
+  app.post("/api/ai/media-response", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7489,7 +7353,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/legal-risk", async (req, res) => {
+  app.post("/api/ai/legal-risk", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7498,7 +7362,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/social-crisis", async (req, res) => {
+  app.post("/api/ai/social-crisis", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7507,7 +7371,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/influencer-crisis", async (req, res) => {
+  app.post("/api/ai/influencer-crisis", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7516,7 +7380,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-recovery", async (req, res) => {
+  app.post("/api/ai/brand-recovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7525,7 +7389,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/trust-rebuild", async (req, res) => {
+  app.post("/api/ai/trust-rebuild", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7534,7 +7398,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/algo-recovery", async (req, res) => {
+  app.post("/api/ai/algo-recovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7543,7 +7407,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/revenue-recovery", async (req, res) => {
+  app.post("/api/ai/revenue-recovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7552,7 +7416,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/team-crisis", async (req, res) => {
+  app.post("/api/ai/team-crisis", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7561,7 +7425,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/legal-defense", async (req, res) => {
+  app.post("/api/ai/legal-defense", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7570,7 +7434,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/insurance-claim", async (req, res) => {
+  app.post("/api/ai/insurance-claim", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7579,7 +7443,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/contingency", async (req, res) => {
+  app.post("/api/ai/contingency", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7588,7 +7452,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/disaster-recovery", async (req, res) => {
+  app.post("/api/ai/disaster-recovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7597,7 +7461,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/business-continuity", async (req, res) => {
+  app.post("/api/ai/business-continuity", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7606,7 +7470,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/exit-strategy", async (req, res) => {
+  app.post("/api/ai/exit-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7615,7 +7479,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/summer-content", async (req, res) => {
+  app.post("/api/ai/summer-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7624,7 +7488,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/winter-content", async (req, res) => {
+  app.post("/api/ai/winter-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7633,7 +7497,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/back-to-school", async (req, res) => {
+  app.post("/api/ai/back-to-school", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7642,7 +7506,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/halloween-content", async (req, res) => {
+  app.post("/api/ai/halloween-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7651,7 +7515,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/black-friday", async (req, res) => {
+  app.post("/api/ai/black-friday", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7660,7 +7524,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/christmas-content", async (req, res) => {
+  app.post("/api/ai/christmas-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7669,7 +7533,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/new-year-goals", async (req, res) => {
+  app.post("/api/ai/new-year-goals", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7678,7 +7542,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/valentines", async (req, res) => {
+  app.post("/api/ai/valentines", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7687,7 +7551,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/easter-content", async (req, res) => {
+  app.post("/api/ai/easter-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7696,7 +7560,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/super-bowl", async (req, res) => {
+  app.post("/api/ai/super-bowl", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7705,7 +7569,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/parents-day", async (req, res) => {
+  app.post("/api/ai/parents-day", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7714,7 +7578,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/graduation", async (req, res) => {
+  app.post("/api/ai/graduation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7723,7 +7587,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/world-cup", async (req, res) => {
+  app.post("/api/ai/world-cup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7732,7 +7596,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/olympics", async (req, res) => {
+  app.post("/api/ai/olympics", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7741,7 +7605,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/awards-season", async (req, res) => {
+  app.post("/api/ai/awards-season", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7750,7 +7614,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/music-festival", async (req, res) => {
+  app.post("/api/ai/music-festival", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7759,7 +7623,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gaming-event", async (req, res) => {
+  app.post("/api/ai/gaming-event", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7768,7 +7632,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/product-hunt", async (req, res) => {
+  app.post("/api/ai/product-hunt", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7777,7 +7641,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ergonomic-setup", async (req, res) => {
+  app.post("/api/ai/ergonomic-setup", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7786,7 +7650,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/eye-care", async (req, res) => {
+  app.post("/api/ai/eye-care", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7795,7 +7659,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/vocal-health", async (req, res) => {
+  app.post("/api/ai/vocal-health", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7804,7 +7668,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sleep-optimize", async (req, res) => {
+  app.post("/api/ai/sleep-optimize", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7813,7 +7677,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/nutrition", async (req, res) => {
+  app.post("/api/ai/nutrition", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7822,43 +7686,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/exercise", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiExerciseForCreators(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/stress-management", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiStressManagementCoach(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/work-life-balance", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiWorkLifeBalanceOptimizer(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/meditation", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiMeditationGuideForCreators(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/time-blocking", async (req, res) => {
+  app.post("/api/ai/time-blocking", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7867,7 +7695,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/pomodoro", async (req, res) => {
+  app.post("/api/ai/pomodoro", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7876,7 +7704,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/digital-detox", async (req, res) => {
+  app.post("/api/ai/digital-detox", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7885,7 +7713,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gratitude-journal", async (req, res) => {
+  app.post("/api/ai/gratitude-journal", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7894,7 +7722,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/affirmations", async (req, res) => {
+  app.post("/api/ai/affirmations", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7903,7 +7731,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/habit-stack", async (req, res) => {
+  app.post("/api/ai/habit-stack", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7912,7 +7740,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/energy-management", async (req, res) => {
+  app.post("/api/ai/energy-management", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7921,7 +7749,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creator-community", async (req, res) => {
+  app.post("/api/ai/creator-community", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7930,7 +7758,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mastermind-group", async (req, res) => {
+  app.post("/api/ai/mastermind-group", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7939,7 +7767,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/accountability", async (req, res) => {
+  app.post("/api/ai/accountability", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7948,7 +7776,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sabbatical", async (req, res) => {
+  app.post("/api/ai/sabbatical", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7957,7 +7785,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-onboarding", async (req, res) => {
+  app.post("/api/ai/auto-onboarding", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7966,7 +7794,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI auto-onboarding error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-approve-sponsorship", async (req, res) => {
+  app.post("/api/ai/auto-approve-sponsorship", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7975,7 +7803,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI auto-approve error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creative-autonomy", async (req, res) => {
+  app.post("/api/ai/creative-autonomy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7984,7 +7812,7 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI creative-autonomy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/auto-payment-manager", async (req, res) => {
+  app.post("/api/ai/auto-payment-manager", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -7993,896 +7821,868 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI auto-payment error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/video-translator", async (req, res) => {
+  app.post("/api/ai/video-translator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiVideoTranslator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI video-translator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/subtitle-generator", async (req, res) => {
+  app.post("/api/ai/subtitle-generator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSubtitleGenerator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI subtitle-generator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/localization-advisor", async (req, res) => {
+  app.post("/api/ai/localization-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiLocalizationAdvisor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI localization-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-lang-seo", async (req, res) => {
+  app.post("/api/ai/multi-lang-seo", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMultiLangSeo(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI multi-lang-seo error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/dubbing-script", async (req, res) => {
+  app.post("/api/ai/dubbing-script", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDubbingScriptGenerator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI dubbing-script error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cultural-adaptation", async (req, res) => {
+  app.post("/api/ai/cultural-adaptation", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCulturalAdaptation(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI cultural-adaptation error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-localizer", async (req, res) => {
+  app.post("/api/ai/thumbnail-localizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiThumbnailLocalizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI thumbnail-localizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-lang-hashtags", async (req, res) => {
+  app.post("/api/ai/multi-lang-hashtags", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMultiLangHashtags(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI multi-lang-hashtags error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/translation-checker", async (req, res) => {
+  app.post("/api/ai/translation-checker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiTranslationChecker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI translation-checker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audience-language-analyzer", async (req, res) => {
+  app.post("/api/ai/audience-language-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAudienceLanguageAnalyzer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI audience-language error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/regional-trends", async (req, res) => {
+  app.post("/api/ai/regional-trends", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiRegionalTrendScanner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI regional-trends error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cross-lang-comments", async (req, res) => {
+  app.post("/api/ai/cross-lang-comments", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCrossLangCommentManager(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI cross-lang-comments error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/localized-calendar", async (req, res) => {
+  app.post("/api/ai/localized-calendar", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiLocalizedContentCalendar(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI localized-calendar error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-lang-ab-test", async (req, res) => {
+  app.post("/api/ai/multi-lang-ab-test", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMultiLangAbTesting(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI multi-lang-ab-test error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/voice-over-formatter", async (req, res) => {
+  app.post("/api/ai/voice-over-formatter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiVoiceOverFormatter(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI voice-over-formatter error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/regional-compliance", async (req, res) => {
+  app.post("/api/ai/regional-compliance", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiRegionalComplianceChecker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI regional-compliance error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-lang-media-kit", async (req, res) => {
+  app.post("/api/ai/multi-lang-media-kit", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMultiLangMediaKit(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI multi-lang-media-kit error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-tracker", async (req, res) => {
+  app.post("/api/ai/competitor-tracker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCompetitorTracker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI competitor-tracker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-gap-analysis", async (req, res) => {
+  app.post("/api/ai/competitor-gap-analysis", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCompetitorGapAnalysis(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI competitor-gap-analysis error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-alerts", async (req, res) => {
+  app.post("/api/ai/competitor-alerts", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCompetitorAlerts(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI competitor-alerts error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-content-scorer", async (req, res) => {
+  app.post("/api/ai/competitor-content-scorer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCompetitorContentScorer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI competitor-content-scorer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/niche-domination-map", async (req, res) => {
+  app.post("/api/ai/niche-domination-map", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiNicheDominationMap(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI niche-domination-map error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/competitor-audience-overlap", async (req, res) => {
+  app.post("/api/ai/competitor-audience-overlap", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCompetitorAudienceOverlap(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI competitor-audience-overlap error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/viral-predictor", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try { const result = await aiViralPredictor(req.body, userId); res.json(result); }
-    catch (e: any) { console.error("AI viral-predictor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/optimal-schedule", async (req, res) => {
+  app.post("/api/ai/optimal-schedule", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiOptimalSchedule(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI optimal-schedule error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audience-persona-builder", async (req, res) => {
+  app.post("/api/ai/audience-persona-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAudiencePersonaBuilder(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI audience-persona-builder error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/subscriber-magnet", async (req, res) => {
+  app.post("/api/ai/subscriber-magnet", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSubscriberMagnet(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI subscriber-magnet error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/shorts-clips-strategy", async (req, res) => {
+  app.post("/api/ai/shorts-clips-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiShortsClipsStrategy(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI shorts-clips-strategy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/hook-generator", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try { const result = await aiHookGenerator(req.body, userId); res.json(result); }
-    catch (e: any) { console.error("AI hook-generator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/end-screen-optimizer", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try { const result = await aiEndScreenOptimizer(req.body, userId); res.json(result); }
-    catch (e: any) { console.error("AI end-screen-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/deal-negotiation-coach", async (req, res) => {
+  app.post("/api/ai/deal-negotiation-coach", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDealNegotiationCoach(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI deal-negotiation-coach error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/merch-demand-predictor", async (req, res) => {
+  app.post("/api/ai/merch-demand-predictor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMerchDemandPredictor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI merch-demand-predictor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/revenue-stream-optimizer", async (req, res) => {
+  app.post("/api/ai/revenue-stream-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiRevenueStreamOptimizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI revenue-stream-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/revenue-forecaster", async (req, res) => {
+  app.post("/api/ai/revenue-forecaster", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiRevenueForecaster(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI revenue-forecaster error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sponsorship-rate-calculator", async (req, res) => {
+  app.post("/api/ai/sponsorship-rate-calculator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSponsorshipRateCalculator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI sponsorship-rate-calculator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/membership-tier-designer", async (req, res) => {
+  app.post("/api/ai/membership-tier-designer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMembershipTierDesigner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI membership-tier-designer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/super-chat-optimizer", async (req, res) => {
+  app.post("/api/ai/super-chat-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSuperChatOptimizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI super-chat-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/affiliate-link-manager", async (req, res) => {
+  app.post("/api/ai/affiliate-link-manager", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAffiliateLinkManager(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI affiliate-link-manager error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/script-coach", async (req, res) => {
+  app.post("/api/ai/script-coach", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiScriptCoach(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI script-coach error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/thumbnail-ctr-predictor", async (req, res) => {
+  app.post("/api/ai/thumbnail-ctr-predictor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiThumbnailCTRPredictor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI thumbnail-ctr-predictor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/watch-time-optimizer", async (req, res) => {
+  app.post("/api/ai/watch-time-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiWatchTimeOptimizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI watch-time-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/platform-repurposer", async (req, res) => {
+  app.post("/api/ai/platform-repurposer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiPlatformRepurposer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI platform-repurposer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-decay-detector", async (req, res) => {
+  app.post("/api/ai/content-decay-detector", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContentDecayDetector(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-decay-detector error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/title-ab-tester", async (req, res) => {
+  app.post("/api/ai/title-ab-tester", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiTitleAbTester(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI title-ab-tester error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/description-optimizer", async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try { const result = await aiDescriptionOptimizer(req.body, userId); res.json(result); }
-    catch (e: any) { console.error("AI description-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/pacing-analyzer", async (req, res) => {
+  app.post("/api/ai/pacing-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiPacingAnalyzer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI pacing-analyzer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fan-loyalty-tracker", async (req, res) => {
+  app.post("/api/ai/fan-loyalty-tracker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiFanLoyaltyTracker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI fan-loyalty-tracker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/comment-strategy", async (req, res) => {
+  app.post("/api/ai/comment-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCommentStrategy(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI comment-strategy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/community-poll-generator", async (req, res) => {
+  app.post("/api/ai/community-poll-generator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCommunityPollGenerator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI community-poll-generator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/live-chat-moderator", async (req, res) => {
+  app.post("/api/ai/live-chat-moderator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiLiveChatModerator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI live-chat-moderator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fan-milestone-celebrator", async (req, res) => {
+  app.post("/api/ai/fan-milestone-celebrator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiFanMilestoneCelebrator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI fan-milestone-celebrator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/engagement-booster", async (req, res) => {
+  app.post("/api/ai/engagement-booster", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiEngagementBooster(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI engagement-booster error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cross-platform-unifier", async (req, res) => {
+  app.post("/api/ai/cross-platform-unifier", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCrossPlatformUnifier(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI cross-platform-unifier error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/platform-priority-ranker", async (req, res) => {
+  app.post("/api/ai/platform-priority-ranker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiPlatformPriorityRanker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI platform-priority-ranker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/cross-post-scheduler", async (req, res) => {
+  app.post("/api/ai/cross-post-scheduler", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCrossPostScheduler(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI cross-post-scheduler error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/platform-specific-optimizer", async (req, res) => {
+  app.post("/api/ai/platform-specific-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiPlatformSpecificOptimizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI platform-specific-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-auditor", async (req, res) => {
+  app.post("/api/ai/brand-auditor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBrandAuditor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI brand-auditor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/media-kit-auto-updater", async (req, res) => {
+  app.post("/api/ai/media-kit-auto-updater", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMediaKitAutoUpdater(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI media-kit-auto-updater error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-voice-analyzer", async (req, res) => {
+  app.post("/api/ai/brand-voice-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBrandVoiceAnalyzer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI brand-voice-analyzer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/visual-identity-checker", async (req, res) => {
+  app.post("/api/ai/visual-identity-checker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiVisualIdentityChecker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI visual-identity-checker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-partnership-scorer", async (req, res) => {
+  app.post("/api/ai/brand-partnership-scorer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBrandPartnershipScorer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI brand-partnership-scorer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/copyright-shield", async (req, res) => {
+  app.post("/api/ai/copyright-shield", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCopyrightShield(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI copyright-shield error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/contract-analyzer", async (req, res) => {
+  app.post("/api/ai/contract-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContractAnalyzer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI contract-analyzer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-insurance-advisor", async (req, res) => {
+  app.post("/api/ai/content-insurance-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContentInsuranceAdvisor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-insurance-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fair-use-analyzer", async (req, res) => {
+  app.post("/api/ai/fair-use-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiFairUseAnalyzer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI fair-use-analyzer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/dmca-defense-assistant", async (req, res) => {
+  app.post("/api/ai/dmca-defense-assistant", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDMCADefenseAssistant(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI dmca-defense-assistant error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/subscriber-milestone-predictor", async (req, res) => {
+  app.post("/api/ai/subscriber-milestone-predictor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSubscriberMilestonePredictor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI subscriber-milestone-predictor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/retention-heatmap-analyzer", async (req, res) => {
+  app.post("/api/ai/retention-heatmap-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiRetentionHeatmapAnalyzer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI retention-heatmap-analyzer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/best-video-formula-detector", async (req, res) => {
+  app.post("/api/ai/best-video-formula-detector", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBestVideoFormulaDetector(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI best-video-formula-detector error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/growth-trajectory-modeler", async (req, res) => {
+  app.post("/api/ai/growth-trajectory-modeler", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiGrowthTrajectoryModeler(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI growth-trajectory-modeler error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/ab-testing-dashboard", async (req, res) => {
+  app.post("/api/ai/ab-testing-dashboard", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAbTestingDashboard(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI ab-testing-dashboard error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-decay-refresher", async (req, res) => {
+  app.post("/api/ai/content-decay-refresher", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContentDecayRefresher(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-decay-refresher error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-batching-planner", async (req, res) => {
+  app.post("/api/ai/content-batching-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContentBatchingPlanner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-batching-planner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creative-block-solver", async (req, res) => {
+  app.post("/api/ai/creative-block-solver", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCreativeBlockSolver(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI creative-block-solver error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/work-life-balance-tracker", async (req, res) => {
+  app.post("/api/ai/work-life-balance-tracker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiWorkLifeBalanceTracker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI work-life-balance-tracker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/motivation-engine", async (req, res) => {
+  app.post("/api/ai/motivation-engine", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMotivationEngine(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI motivation-engine error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/gear-advisor", async (req, res) => {
+  app.post("/api/ai/gear-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiGearAdvisor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI gear-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/editing-style-coach", async (req, res) => {
+  app.post("/api/ai/editing-style-coach", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiEditingStyleCoach(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI editing-style-coach error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/public-speaking-trainer", async (req, res) => {
+  app.post("/api/ai/public-speaking-trainer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiPublicSpeakingTrainer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI public-speaking-trainer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/niche-expert-builder", async (req, res) => {
+  app.post("/api/ai/niche-expert-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiNicheExpertBuilder(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI niche-expert-builder error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/hiring-advisor", async (req, res) => {
+  app.post("/api/ai/hiring-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiHiringAdvisor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI hiring-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/task-delegator", async (req, res) => {
+  app.post("/api/ai/task-delegator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiTaskDelegator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI task-delegator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/team-performance-tracker", async (req, res) => {
+  app.post("/api/ai/team-performance-tracker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiTeamPerformanceTracker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI team-performance-tracker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sops-generator", async (req, res) => {
+  app.post("/api/ai/sops-generator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSOPsGenerator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI sops-generator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/crisis-response-planner", async (req, res) => {
+  app.post("/api/ai/crisis-response-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCrisisResponsePlanner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI crisis-response-planner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/statement-drafter", async (req, res) => {
+  app.post("/api/ai/statement-drafter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiStatementDrafter(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI statement-drafter error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/survey-builder", async (req, res) => {
+  app.post("/api/ai/survey-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSurveyBuilder(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI survey-builder error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/viewer-journey-mapper", async (req, res) => {
+  app.post("/api/ai/viewer-journey-mapper", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiViewerJourneyMapper(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI viewer-journey-mapper error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/demographic-deep-dive", async (req, res) => {
+  app.post("/api/ai/demographic-deep-dive", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDemographicDeepDive(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI demographic-deep-dive error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/viewer-intent-analyzer", async (req, res) => {
+  app.post("/api/ai/viewer-intent-analyzer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiViewerIntentAnalyzer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI viewer-intent-analyzer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/course-product-planner", async (req, res) => {
+  app.post("/api/ai/course-product-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCourseProductPlanner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI course-product-planner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/membership-strategy", async (req, res) => {
+  app.post("/api/ai/membership-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMembershipStrategy(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI membership-strategy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/speaking-engagement-finder", async (req, res) => {
+  app.post("/api/ai/speaking-engagement-finder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSpeakingEngagementFinder(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI speaking-engagement-finder error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-roadmap", async (req, res) => {
+  app.post("/api/ai/content-roadmap", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContentRoadmap(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-roadmap error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-pillar-architect", async (req, res) => {
+  app.post("/api/ai/content-pillar-architect", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContentPillarArchitect(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-pillar-architect error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/seasonal-content-planner", async (req, res) => {
+  app.post("/api/ai/seasonal-content-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSeasonalContentPlanner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI seasonal-content-planner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/evergreen-content-identifier", async (req, res) => {
+  app.post("/api/ai/evergreen-content-identifier", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiEvergreenContentIdentifier(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI evergreen-content-identifier error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/industry-event-tracker", async (req, res) => {
+  app.post("/api/ai/industry-event-tracker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiIndustryEventTracker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI industry-event-tracker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/talent-agent-simulator", async (req, res) => {
+  app.post("/api/ai/talent-agent-simulator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiTalentAgentSimulator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI talent-agent-simulator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/creator-economy-news-feed", async (req, res) => {
+  app.post("/api/ai/creator-economy-news-feed", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCreatorEconomyNewsFeed(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI creator-economy-news-feed error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-overlay-designer", async (req, res) => {
+  app.post("/api/ai/stream-overlay-designer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiStreamOverlayDesigner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI stream-overlay-designer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/raid-target-optimizer", async (req, res) => {
+  app.post("/api/ai/raid-target-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiRaidTargetOptimizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI raid-target-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/stream-highlight-clipper", async (req, res) => {
+  app.post("/api/ai/stream-highlight-clipper", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiStreamHighlightClipper(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI stream-highlight-clipper error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/donation-goal-strategist", async (req, res) => {
+  app.post("/api/ai/donation-goal-strategist", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDonationGoalStrategist(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI donation-goal-strategist error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/multi-stream-chat-unifier", async (req, res) => {
+  app.post("/api/ai/multi-stream-chat-unifier", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMultiStreamChatUnifier(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI multi-stream-chat-unifier error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/background-music-matcher", async (req, res) => {
+  app.post("/api/ai/background-music-matcher", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBackgroundMusicMatcher(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI background-music-matcher error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/audio-quality-enhancer", async (req, res) => {
+  app.post("/api/ai/audio-quality-enhancer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAudioQualityEnhancer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI audio-quality-enhancer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sound-effect-recommender", async (req, res) => {
+  app.post("/api/ai/sound-effect-recommender", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSoundEffectRecommender(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI sound-effect-recommender error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/accessibility-checker", async (req, res) => {
+  app.post("/api/ai/accessibility-checker", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAccessibilityChecker(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI accessibility-checker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/alt-text-generator", async (req, res) => {
+  app.post("/api/ai/alt-text-generator", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAltTextGenerator(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI alt-text-generator error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/sign-language-advisor", async (req, res) => {
+  app.post("/api/ai/sign-language-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSignLanguageAdvisor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI sign-language-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/privacy-scanner", async (req, res) => {
+  app.post("/api/ai/privacy-scanner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiPrivacyScanner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI privacy-scanner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/account-security-auditor", async (req, res) => {
+  app.post("/api/ai/account-security-auditor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiAccountSecurityAuditor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI account-security-auditor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/data-backup-strategist", async (req, res) => {
+  app.post("/api/ai/data-backup-strategist", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDataBackupStrategist(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI data-backup-strategist error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/digital-collectible-advisor", async (req, res) => {
+  app.post("/api/ai/digital-collectible-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDigitalCollectibleAdvisor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI digital-collectible-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/exclusive-content-planner", async (req, res) => {
+  app.post("/api/ai/exclusive-content-planner", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiExclusiveContentPlanner(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI exclusive-content-planner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/fan-marketplace-builder", async (req, res) => {
+  app.post("/api/ai/fan-marketplace-builder", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiFanMarketplaceBuilder(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI fan-marketplace-builder error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/channel-exit-strategy", async (req, res) => {
+  app.post("/api/ai/channel-exit-strategy", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiChannelExitStrategy(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI channel-exit-strategy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/content-archive-optimizer", async (req, res) => {
+  app.post("/api/ai/content-archive-optimizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiContentArchiveOptimizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI content-archive-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/brand-licensing-advisor", async (req, res) => {
+  app.post("/api/ai/brand-licensing-advisor", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBrandLicensingAdvisor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI brand-licensing-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/inbox-prioritizer", async (req, res) => {
+  app.post("/api/ai/inbox-prioritizer", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiInboxPrioritizer(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI inbox-prioritizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/daily-action-plan", async (req, res) => {
+  app.post("/api/ai/daily-action-plan", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiDailyActionPlan(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI daily-action-plan error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/burnout-risk", async (req, res) => {
+  app.post("/api/ai/burnout-risk", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBurnoutRiskAssessor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI burnout-risk error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mental-health", async (req, res) => {
+  app.post("/api/ai/mental-health", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCreatorMentalHealthMonitor(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI mental-health error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/burnout-recovery", async (req, res) => {
+  app.post("/api/ai/burnout-recovery", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiCreatorBurnoutRecovery(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI burnout-recovery error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/burnout-prevention", async (req, res) => {
+  app.post("/api/ai/burnout-prevention", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiBurnoutPrevention(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI burnout-prevention error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/mental-health-content", async (req, res) => {
+  app.post("/api/ai/mental-health-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiMentalHealthContentGuide(req.body, userId); res.json(result); }
     catch (e: any) { console.error("AI mental-health-content error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/autumn-content", async (req, res) => {
+  app.post("/api/ai/autumn-content", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await aiSeasonalContentPlanner({ ...req.body, quarter: "Q4" }, userId); res.json(result); }

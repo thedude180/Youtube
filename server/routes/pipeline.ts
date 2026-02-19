@@ -15,12 +15,10 @@ function requireAuth(req: Request, res: Response): string | null {
 
 const STEP_IDS = PIPELINE_STEPS.map(s => s.id);
 
-async function getOpenAI() {
-  const OpenAI = (await import("openai")).default;
-  return new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  });
+import { getOpenAIClient } from "../lib/openai";
+
+function getOpenAI() {
+  return getOpenAIClient();
 }
 
 export function buildPrompts(videoTitle: string, mode: string, existingResults: Record<string, any>): Record<string, string> {
@@ -81,7 +79,7 @@ export function buildPrompts(videoTitle: string, mode: string, existingResults: 
 async function runPipelineStep(pipelineId: number, step: string, videoTitle: string, mode: string, existingResults: Record<string, any>) {
   const prompts = buildPrompts(videoTitle, mode, existingResults);
   const prompt = prompts[step];
-  if (!prompt) throw new Error(`Unknown step: ${step}`);
+  if (!prompt) return { error: `Unknown step: ${step}` };
 
   const systemMsg = mode === "live"
     ? "You are a gaming livestream content expert. The stream is LIVE RIGHT NOW. All content must convey urgency and drive immediate viewers. Always respond with valid JSON only, no markdown."
@@ -103,7 +101,7 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
   });
 
   const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No AI response");
+  if (!content) return { error: "No AI response" };
   try {
     return JSON.parse(content);
   } catch {

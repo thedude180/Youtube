@@ -66,15 +66,21 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/fortress/ip-reputation/:ip", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const reputation = await getIpReputation(req.params.ip as string);
+    const ip = req.params.ip as string;
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+    if (!ip || !ipRegex.test(ip)) return res.status(400).json({ error: "Invalid IP address format" });
+    const reputation = await getIpReputation(ip);
     res.json(reputation);
   }));
 
   app.get("/api/fortress/behavior/:ip", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const score = getBehaviorScore(req.params.ip as string);
-    res.json({ ip: req.params.ip, score });
+    const ip = req.params.ip as string;
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+    if (!ip || !ipRegex.test(ip)) return res.status(400).json({ error: "Invalid IP address format" });
+    const score = getBehaviorScore(ip);
+    res.json({ ip, score });
   }));
 
   app.get("/api/fortress/sessions", asyncHandler(async (req: Request, res: Response) => {
@@ -87,7 +93,10 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/fortress/sessions/invalidate", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const reason = req.body.reason || "User requested";
+    const sessionSchema = z.object({ reason: z.string().max(500).optional().default("User requested") });
+    const parsed = sessionSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const reason = parsed.data.reason;
     await invalidateAllSessions(userId, reason);
     res.json({ success: true, message: "All sessions invalidated" });
   }));
@@ -118,8 +127,10 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/fortress/lockouts/unlock/:identifier", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    await unlockAccount(req.params.identifier as string);
-    res.json({ success: true, message: `Account ${req.params.identifier} unlocked` });
+    const identifier = String(req.params.identifier).trim();
+    if (!identifier || identifier.length > 200) return res.status(400).json({ error: "Invalid identifier" });
+    await unlockAccount(identifier);
+    res.json({ success: true, message: `Account ${identifier} unlocked` });
   }));
 
   app.get("/api/fortress/threat-patterns", asyncHandler(async (req: Request, res: Response) => {
@@ -242,7 +253,9 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/ai-ops/batch/:id", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const status = getBatchStatus(req.params.id as string);
+    const batchId = String(req.params.id).trim();
+    if (!batchId || batchId.length > 100 || !/^[a-zA-Z0-9_-]+$/.test(batchId)) return res.status(400).json({ error: "Invalid batch ID format" });
+    const status = getBatchStatus(batchId);
     if (!status) return res.status(404).json({ error: "Batch not found" });
     res.json(status);
   }));
@@ -307,8 +320,11 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/automation-ops/rate-limits/:platform", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const status = getRateLimitStatus(req.params.platform as string);
-    const canCall = canMakeApiCall(req.params.platform as string);
+    const allowedPlatforms = ["youtube", "twitch", "tiktok", "twitter", "instagram", "facebook", "discord", "kick", "rumble"];
+    const platform = String(req.params.platform).toLowerCase().trim();
+    if (!platform || !allowedPlatforms.includes(platform)) return res.status(400).json({ error: "Invalid platform", allowed: allowedPlatforms });
+    const status = getRateLimitStatus(platform);
+    const canCall = canMakeApiCall(platform);
     res.json({ ...status, canMakeCall: canCall });
   }));
 
@@ -340,7 +356,16 @@ export function registerFortressRoutes(app: Express) {
   app.put("/api/notification-ops/preferences", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const updated = await updateNotificationPreferences(userId, req.body);
+    const prefsSchema = z.object({
+      email: z.boolean().optional(),
+      push: z.boolean().optional(),
+      inApp: z.boolean().optional(),
+      digest: z.enum(["daily", "weekly", "never"]).optional(),
+      categories: z.record(z.boolean()).optional(),
+    }).passthrough();
+    const parsed = prefsSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const updated = await updateNotificationPreferences(userId, parsed.data);
     res.json(updated);
   }));
 
@@ -354,8 +379,10 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/notification-ops/mark-category-read", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const { category } = req.body;
-    if (!category) return res.status(400).json({ error: "category is required" });
+    const catSchema = z.object({ category: z.string().min(1).max(100) });
+    const parsed = catSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const { category } = parsed.data;
     const count = await markCategoryRead(userId, category);
     res.json({ marked: count, category });
   }));
@@ -370,7 +397,10 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/notification-ops/cleanup", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const days = Math.min(365, Math.max(1, parseInt(req.body.days) || 30));
+    const cleanupSchema = z.object({ days: z.number().int().min(1).max(365).optional().default(30) });
+    const parsed = cleanupSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const days = parsed.data.days;
     const deleted = await deleteOldNotifications(userId, days);
     res.json({ deleted, olderThanDays: days });
   }));
@@ -395,7 +425,10 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/billing/pause", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const result = await pauseSubscription(userId, req.body.reason);
+    const pauseSchema = z.object({ reason: z.string().max(500).optional() });
+    const parsed = pauseSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const result = await pauseSubscription(userId, parsed.data.reason);
     res.json(result);
   }));
 
@@ -443,8 +476,13 @@ export function registerFortressRoutes(app: Express) {
   app.post("/api/billing/trial/start", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const tier = req.body.tier || "starter";
-    const days = Math.min(365, Math.max(1, parseInt(req.body.days) || 14));
+    const trialSchema = z.object({
+      tier: z.enum(["starter", "pro", "ultimate"]).optional().default("starter"),
+      days: z.number().int().min(1).max(365).optional().default(14),
+    });
+    const parsed = trialSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const { tier, days } = parsed.data;
     const result = await startFreeTrial(userId, tier, days);
     res.json(result);
   }));
@@ -497,7 +535,8 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/flags/:key", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const flagKey = String(req.params.key);
+    const flagKey = String(req.params.key).trim();
+    if (!flagKey || flagKey.length > 100 || !/^[a-zA-Z0-9_.-]+$/.test(flagKey)) return res.status(400).json({ error: "Invalid flag key format" });
     const [flag] = await db.select().from(featureFlags).where(eq(featureFlags.flagKey, flagKey)).limit(1);
     if (!flag) return res.status(404).json({ error: "Flag not found" });
     res.json(flag);
@@ -506,7 +545,8 @@ export function registerFortressRoutes(app: Express) {
   app.put("/api/flags/:key", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const flagKey = String(req.params.key);
+    const flagKey = String(req.params.key).trim();
+    if (!flagKey || flagKey.length > 100 || !/^[a-zA-Z0-9_.-]+$/.test(flagKey)) return res.status(400).json({ error: "Invalid flag key format" });
     const schema = z.object({
       enabled: z.boolean().optional(),
       rolloutPercentage: z.number().min(0).max(100).optional(),

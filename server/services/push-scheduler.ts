@@ -26,6 +26,28 @@ const lastPushTime: Map<string, number> = new Map();
 let schedulerRunning = false;
 let schedulerInterval: ReturnType<typeof setInterval> | null = null;
 
+function cleanupPushMaps(): void {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const [key, entry] of Array.from(dailyPushCounts)) {
+    if (entry.date !== today) dailyPushCounts.delete(key);
+  }
+  const now = new Date();
+  const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString().slice(0, 13);
+  for (const [key, entry] of Array.from(hourlyPushCounts)) {
+    if (entry.hour < twoHoursAgo) hourlyPushCounts.delete(key);
+  }
+  const lastPushCutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const [key, ts] of Array.from(lastPushTime)) {
+    if (ts < lastPushCutoff) lastPushTime.delete(key);
+  }
+}
+
+const pushCleanupInterval = setInterval(cleanupPushMaps, 5 * 60 * 1000);
+
+export function stopPushCleanup(): void {
+  clearInterval(pushCleanupInterval);
+}
+
 const YOUTUBE_UPDATE_LIMITS = {
   maxUpdatesPerHour: 15,
   maxUpdatesPerDay: 50,

@@ -1,13 +1,10 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { autopilotQueue } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 interface VariationOptions {
   videoTitle: string;

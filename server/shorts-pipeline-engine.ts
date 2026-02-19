@@ -1,13 +1,10 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
 import { pipelineRuns, clipViralityScores, contentClips } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 type PipelineState = "idle" | "running" | "paused" | "completed" | "failed";
 

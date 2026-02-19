@@ -2,12 +2,9 @@ import { db } from "./db";
 import { securityEvents, securityRules } from "@shared/schema";
 import { eq, desc, sql, and, gte, count } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 const ipFailureMap = new Map<string, { count: number; firstAttempt: number }>();
 const ipRequestMap = new Map<string, { count: number; windowStart: number }>();

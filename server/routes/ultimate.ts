@@ -776,25 +776,11 @@ export function registerUltimateRoutes(app: Express) {
     res.json({ currentTier: userTier, gates, empireGates });
   }));
 
-  app.get("/api/security/dashboard", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    const dashboard = await getSecurityDashboard();
-    res.json(dashboard);
-  }));
-
   app.get("/api/security/rules", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const rules = await getSecurityRules();
     res.json(rules);
-  }));
-
-  app.get("/api/security/blocked-ips", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    const ips = await getBlockedIPs();
-    res.json(ips);
   }));
 
   app.post("/api/security/learn/:id", asyncHandler(async (req, res) => {

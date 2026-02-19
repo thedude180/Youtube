@@ -1,12 +1,9 @@
 import { db } from "../db";
 import { videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
-import OpenAI from "openai";
+import { getOpenAIClient } from "../lib/openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 export async function analyzeChannelKeywords(userId: string) {
   const userChannels = await db.select().from(channels)

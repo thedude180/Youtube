@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import OpenAI from "openai";
+import { getOpenAIClient } from "../lib/openai";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and } from "drizzle-orm";
@@ -9,10 +9,7 @@ import {
   scheduleItems, communityPosts,
 } from "@shared/schema";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 async function callAI(systemPrompt: string, userPrompt: string): Promise<any> {
   const response = await openai.chat.completions.create({

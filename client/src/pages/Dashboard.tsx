@@ -199,7 +199,7 @@ export default function Dashboard() {
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">
             {greeting()}, {userName}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Your command center overview</p>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your command center overview</p>
         </div>
       </div>
 
@@ -224,11 +224,11 @@ export default function Dashboard() {
                   humanReviewMode ? "bg-amber-400" : "bg-emerald-400"
                 }`} />
               </span>
-              <div>
+              <div aria-live="polite">
                 <p data-testid="text-ai-status" className="text-sm font-medium">
                   {humanReviewMode ? "Human review required before publishing" : "AI is running everything"}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground" data-testid="text-tasks-today">
                   {tasksToday} task{tasksToday !== 1 ? "s" : ""} completed today
                 </p>
               </div>

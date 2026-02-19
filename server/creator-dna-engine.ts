@@ -1,13 +1,10 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { creatorDnaProfiles, videos, channels } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 export async function buildDnaProfile(userId: string) {
   const userChannels = await db

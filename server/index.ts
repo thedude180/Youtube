@@ -18,6 +18,14 @@ import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequ
 import { processDeadLetterQueue } from "./services/automation-hardening";
 import { processAllDigests } from "./services/notification-system";
 import { startSentinel } from "./services/ai-security-sentinel";
+import { stopFortressCleanup } from "./services/security-fortress";
+import { stopPushCleanup } from "./services/push-scheduler";
+import { stopAutoFixCleanup } from "./services/autopilot-monitor";
+import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
+import { stopTierCleanup } from "./services/auto-tier-optimizer";
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("express");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -32,18 +40,18 @@ declare module "http" {
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    console.warn('DATABASE_URL not set, skipping Stripe init');
+    logger.warn('DATABASE_URL not set, skipping Stripe init');
     return;
   }
 
   try {
-    console.log('Initializing Stripe schema...');
+    logger.info('Initializing Stripe schema...');
     await runMigrations({ databaseUrl, schema: 'stripe' } as any);
-    console.log('Stripe schema ready');
+    logger.info('Stripe schema ready');
 
     const stripeSync = await getStripeSync();
 
-    console.log('Setting up managed webhook...');
+    logger.info('Setting up managed webhook...');
     const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0];
     if (replitDomain) {
       const webhookBaseUrl = `https://${replitDomain}`;
@@ -51,23 +59,23 @@ async function initStripe() {
         const result = await stripeSync.findOrCreateManagedWebhook(
           `${webhookBaseUrl}/api/stripe/webhook`
         );
-        console.log(`Webhook configured: ${result?.webhook?.url || 'ready'}`);
+        logger.info(`Webhook configured: ${result?.webhook?.url || 'ready'}`);
       } catch (webhookError) {
-        console.warn('Webhook setup skipped (non-critical):', webhookError);
+        logger.warn('Webhook setup skipped (non-critical)', { error: String(webhookError) });
       }
     } else {
-      console.warn('REPLIT_DOMAINS not set, skipping webhook setup');
+      logger.warn('REPLIT_DOMAINS not set, skipping webhook setup');
     }
 
-    console.log('Syncing Stripe data...');
+    logger.info('Syncing Stripe data...');
     stripeSync.syncBackfill()
       .then(() => {
-        console.log('Stripe data synced');
+        logger.info('Stripe data synced');
         return seedStripeProducts();
       })
-      .catch((err: any) => console.error('Error syncing Stripe data:', err));
+      .catch((err: any) => logger.error('Error syncing Stripe data', { error: String(err) }));
   } catch (error) {
-    console.error('Failed to initialize Stripe:', error);
+    logger.error('Failed to initialize Stripe', { error: String(error) });
   }
 }
 
@@ -88,19 +96,20 @@ app.post(
       const sig = Array.isArray(signature) ? signature[0] : signature;
 
       if (!Buffer.isBuffer(req.body)) {
-        console.error('STRIPE WEBHOOK ERROR: req.body is not a Buffer');
+        logger.error('STRIPE WEBHOOK ERROR: req.body is not a Buffer');
         return res.status(500).json({ error: 'Webhook processing error' });
       }
 
       await WebhookHandlers.processWebhook(req.body as Buffer, sig);
       res.status(200).json({ received: true });
     } catch (error: any) {
-      console.error('Webhook error:', error.message);
+      logger.error('Webhook error', { error: error.message });
       res.status(400).json({ error: 'Webhook processing error' });
     }
   }
 );
 
+// compression() is active and runs before all routes for gzip/deflate response compression
 app.use(compression());
 
 const isProduction = !!process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
@@ -169,7 +178,15 @@ app.use(
 
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
-initSecurityEngine().catch(err => console.error("[SecurityEngine] Init failed:", err));
+app.use((req: any, res, next) => {
+  const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+  req.headers['x-request-id'] = requestId;
+  req.requestId = requestId;
+  res.setHeader("X-Request-ID", requestId);
+  next();
+});
+
+initSecurityEngine().catch(err => logger.error("SecurityEngine init failed", { error: String(err) }));
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   if (req.query) {
@@ -345,29 +362,21 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
-});
-
-type LogLevel = "info" | "warn" | "error" | "debug";
-
-export function log(message: string, source = "express", level: LogLevel = "info") {
-  const ts = new Date().toISOString();
-  const prefix = `${ts} [${level.toUpperCase()}] [${source}]`;
-  if (level === "error") {
-    console.error(`${prefix} ${message}`);
-  } else if (level === "warn") {
-    console.warn(`${prefix} ${message}`);
-  } else {
-    console.log(`${prefix} ${message}`);
+app.get("/api/health", async (_req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: "degraded", uptime: process.uptime(), timestamp: new Date().toISOString(), error: "Database connectivity check failed" });
   }
-}
-
-app.use((req: any, res, next) => {
-  req.requestId = crypto.randomUUID().slice(0, 8);
-  res.setHeader("X-Request-Id", req.requestId);
-  next();
 });
+
+export function log(message: string, source = "express", level: "info" | "warn" | "error" | "debug" = "info") {
+  const moduleLogger = createLogger(source);
+  if (level === "error") moduleLogger.error(message);
+  else if (level === "warn") moduleLogger.warn(message);
+  else moduleLogger.info(message);
+}
 
 app.use((req: any, res, next) => {
   const start = Date.now();
@@ -401,7 +410,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     const message = status < 500 ? (err.message || "Request Error") : "Internal Server Error";
 
     if (status >= 500) {
-      console.error("Internal Server Error:", err);
+      logger.error("Internal Server Error", { error: String(err) });
     }
 
     if (res.headersSent) {
@@ -436,25 +445,28 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       startAutopilotMonitor();
       startConnectionGuardian();
 
-      seedRetentionPolicies().catch(err => console.error("[DataRetention] Seed failed:", err));
+      seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
+
+      const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
+      const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
 
       const dlqInterval = setInterval(() => {
-        processDeadLetterQueue().catch(err => console.error("[DLQ] Process failed:", err));
-      }, 5 * 60 * 1000);
+        processDeadLetterQueue().catch(err => logger.error("DLQ process failed", { error: String(err) }));
+      }, DLQ_INTERVAL_MS);
 
       const digestInterval = setInterval(() => {
-        processAllDigests().catch(err => console.error("[Digest] Process failed:", err));
-      }, 60 * 60 * 1000);
+        processAllDigests().catch(err => logger.error("Digest process failed", { error: String(err) }));
+      }, DIGEST_INTERVAL_MS);
 
       backgroundIntervals.push(dlqInterval, digestInterval);
 
-      try { startSentinel(); } catch (err) { console.error("[AI Sentinel] Init failed:", err); }
+      try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); }
 
-      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => console.error("[Community Engine] Init failed:", err));
-      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => console.error("[Education Engine] Init failed:", err));
-      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => console.error("[Brand Engine] Init failed:", err));
-      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => console.error("[Analytics Engine] Init failed:", err));
-      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => console.error("[Compliance Engine] Init failed:", err));
+      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) }));
+      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) }));
+      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) }));
+      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) }));
+      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) }));
 
       log("All 10 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot");
     },
@@ -466,6 +478,11 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     for (const interval of backgroundIntervals) clearInterval(interval);
     stopAutopilotMonitor();
     stopConnectionGuardian();
+    stopFortressCleanup();
+    stopPushCleanup();
+    stopAutoFixCleanup();
+    stopSettingsCleanup();
+    stopTierCleanup();
 
     httpServer.close(() => {
       pool.end().then(() => {
@@ -479,9 +496,9 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   process.on("SIGINT", () => shutdown("SIGINT"));
 
   process.on("unhandledRejection", (reason) => {
-    console.error("[Process] Unhandled promise rejection:", reason);
+    logger.error("Unhandled promise rejection", { error: String(reason) });
   });
   process.on("uncaughtException", (err) => {
-    console.error("[Process] Uncaught exception:", err);
+    logger.error("Uncaught exception", { error: String(err) });
   });
 })();

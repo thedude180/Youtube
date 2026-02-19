@@ -31,6 +31,25 @@ const REP_EVENTS: Record<string, number> = {
   session_hijack: -30,
 };
 
+function cleanupMaps(): void {
+  const now = Date.now();
+  const requestTimingCutoff = now - 10 * 60 * 1000;
+  for (const [key, entry] of Array.from(requestTimingMap)) {
+    const newest = entry.timestamps.length > 0 ? Math.max(...entry.timestamps) : 0;
+    if (newest < requestTimingCutoff) requestTimingMap.delete(key);
+  }
+  const sessionCutoff = now - 30 * 60 * 1000;
+  for (const [key, entry] of Array.from(sessionMap)) {
+    if (entry.lastSeen < sessionCutoff) sessionMap.delete(key);
+  }
+}
+
+const fortressCleanupInterval = setInterval(cleanupMaps, 60_000);
+
+export function stopFortressCleanup(): void {
+  clearInterval(fortressCleanupInterval);
+}
+
 const LOCKOUT_TIERS = [
   { t: 5, m: 5 },
   { t: 10, m: 30 },

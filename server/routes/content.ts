@@ -7,10 +7,11 @@ import {
   autopilotQueue, communityPosts, uploadQueue, streams,
   reengagementCampaigns, streamPipelines, channels,
   keywordInsights, trafficStrategies, videoUpdateHistory,
+  contentInsights, complianceRecords, growthStrategies,
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
-import { requireAuth, requireTier, parseNumericId } from "./helpers";
+import { requireAuth, requireTier, parseNumericId, asyncHandler, rateLimitEndpoint } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
   generateVideoMetadata,
@@ -32,7 +33,9 @@ import {
 } from "../backlog-engine";
 
 export function registerContentRoutes(app: Express) {
-  app.post("/api/auto-connect-youtube", async (req, res) => {
+  const contentRateLimit = rateLimitEndpoint(10, 60000);
+
+  app.post("/api/auto-connect-youtube", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const email = (req.user as any)?.claims?.email;
@@ -70,16 +73,16 @@ export function registerContentRoutes(app: Express) {
       console.error("Auto-connect YouTube error:", err);
       res.status(500).json({ message: "Failed to auto-connect YouTube" });
     }
-  });
+  }));
 
-  app.get(api.channels.list.path, async (req, res) => {
+  app.get(api.channels.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channels = await storage.getChannelsByUser(userId);
     res.json(channels);
-  });
+  }));
 
-  app.post(api.channels.create.path, async (req, res) => {
+  app.post(api.channels.create.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -97,11 +100,12 @@ export function registerContentRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      console.error("Error creating channel:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put(api.channels.update.path, async (req, res) => {
+  app.put(api.channels.update.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -122,11 +126,12 @@ export function registerContentRoutes(app: Express) {
       res.json(channel);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      throw err;
+      console.error("Error updating channel:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.delete("/api/channels/:id", async (req, res) => {
+  app.delete("/api/channels/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -142,16 +147,20 @@ export function registerContentRoutes(app: Express) {
       riskLevel: "medium",
     });
     res.json({ success: true });
-  });
+  }));
 
-  app.get(api.videos.list.path, async (req, res) => {
+  app.get(api.videos.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const videos = await storage.getVideosByUser(userId);
-    res.json(videos);
-  });
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+    const allVideos = await storage.getVideosByUser(userId);
+    const paginated = allVideos.slice(offset, offset + limit);
+    res.json(paginated);
+  }));
 
-  app.post(api.videos.create.path, async (req, res) => {
+  app.post(api.videos.create.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -170,11 +179,12 @@ export function registerContentRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      console.error("Error creating video:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/videos/updated", async (req, res) => {
+  app.get("/api/videos/updated", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -183,9 +193,9 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/videos/update-history", async (req, res) => {
+  app.get("/api/videos/update-history", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -281,9 +291,9 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/videos/processing", async (req, res) => {
+  app.get("/api/videos/processing", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -297,9 +307,9 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.videos.get.path, async (req, res) => {
+  app.get(api.videos.get.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const videoId = parseNumericId(req.params.id as string, res, "video ID");
@@ -311,9 +321,9 @@ export function registerContentRoutes(app: Express) {
       if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
     }
     res.json(video);
-  });
+  }));
 
-  app.put(api.videos.update.path, async (req, res) => {
+  app.put(api.videos.update.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const vidId = parseNumericId(req.params.id as string, res, "video ID");
@@ -352,9 +362,9 @@ export function registerContentRoutes(app: Express) {
     } catch (e) {
       res.status(404).json({ message: "Video not found" });
     }
-  });
+  }));
 
-  app.delete(api.videos.delete.path, async (req, res) => {
+  app.delete(api.videos.delete.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const delId = parseNumericId(req.params.id as string, res, "video ID");
@@ -374,9 +384,9 @@ export function registerContentRoutes(app: Express) {
     });
     sendSSEEvent(userId, "content-update", { type: "video" });
     res.sendStatus(204);
-  });
+  }));
 
-  app.post(api.videos.generateMetadata.path, async (req, res) => {
+  app.post(api.videos.generateMetadata.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Metadata Generation");
     if (!userId) return;
     const videoId = parseNumericId(req.params.id as string, res);
@@ -420,16 +430,16 @@ export function registerContentRoutes(app: Express) {
       console.error("AI metadata generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.jobs.list.path, async (req, res) => {
+  app.get(api.jobs.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const jobs = await storage.getJobs();
     res.json(jobs);
-  });
+  }));
 
-  app.post(api.jobs.create.path, async (req, res) => {
+  app.post(api.jobs.create.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -448,34 +458,35 @@ export function registerContentRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      console.error("Error creating job:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.dashboard.stats.path, async (req, res) => {
+  app.get(api.dashboard.stats.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const stats = await storage.getStats();
     res.json(stats);
-  });
+  }));
 
-  app.get(api.auditLogs.list.path, async (req, res) => {
+  app.get(api.auditLogs.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const logs = await storage.getAuditLogs();
     res.json(logs);
-  });
+  }));
 
-  app.get(api.insights.list.path, async (req, res) => {
+  app.get(api.insights.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
     const insights = await storage.getContentInsights(channelId);
     res.json(insights);
-  });
+  }));
 
-  app.post(api.insights.generate.path, async (req, res) => {
+  app.post(api.insights.generate.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Insights");
     if (!userId) return;
     const schema = z.object({
@@ -502,18 +513,19 @@ export function registerContentRoutes(app: Express) {
 
       if (channelId) await storage.clearInsights(channelId);
 
-      for (const insight of (result.insights || [])) {
-        await storage.createContentInsight({
-          channelId: channelId || null,
-          insightType: insight.insightType,
-          category: insight.category,
-          data: {
-            finding: insight.finding,
-            confidence: insight.confidence,
-            recommendation: insight.recommendation,
-            evidence: insight.evidence || [],
-          },
-        });
+      const insightValues = (result.insights || []).map((insight: any) => ({
+        channelId: channelId || null,
+        insightType: insight.insightType,
+        category: insight.category,
+        data: {
+          finding: insight.finding,
+          confidence: insight.confidence,
+          recommendation: insight.recommendation,
+          evidence: insight.evidence || [],
+        },
+      }));
+      if (insightValues.length > 0) {
+        await db.insert(contentInsights).values(insightValues);
       }
 
       await storage.createAuditLog({
@@ -528,18 +540,18 @@ export function registerContentRoutes(app: Express) {
       console.error("Insights generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.compliance.list.path, async (req, res) => {
+  app.get(api.compliance.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
     const records = await storage.getComplianceRecords(channelId);
     res.json(records);
-  });
+  }));
 
-  app.post(api.compliance.run.path, async (req, res) => {
+  app.post(api.compliance.run.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "free", "Compliance Checks");
     if (!userId) return;
     const schema = z.object({
@@ -576,19 +588,20 @@ export function registerContentRoutes(app: Express) {
 
       if (channelId) await storage.clearComplianceRecords(channelId);
 
-      for (const check of (result.checks || [])) {
-        await storage.createComplianceRecord({
-          channelId: channel.id,
-          platform: channel.platform,
-          checkType: check.checkType,
-          status: check.status,
-          details: {
-            rule: check.rule,
-            description: check.description,
-            severity: check.severity,
-            recommendation: check.recommendation,
-          },
-        });
+      const checkValues = (result.checks || []).map((check: any) => ({
+        channelId: channel.id,
+        platform: channel.platform,
+        checkType: check.checkType,
+        status: check.status,
+        details: {
+          rule: check.rule,
+          description: check.description,
+          severity: check.severity,
+          recommendation: check.recommendation,
+        },
+      }));
+      if (checkValues.length > 0) {
+        await db.insert(complianceRecords).values(checkValues);
       }
 
       await storage.createAuditLog({
@@ -604,18 +617,18 @@ export function registerContentRoutes(app: Express) {
       console.error("Compliance check error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.strategies.list.path, async (req, res) => {
+  app.get(api.strategies.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
     const strategies = await storage.getGrowthStrategies(channelId);
     res.json(strategies);
-  });
+  }));
 
-  app.post(api.strategies.generate.path, async (req, res) => {
+  app.post(api.strategies.generate.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Growth Strategies");
     if (!userId) return;
     const schema = z.object({
@@ -652,18 +665,19 @@ export function registerContentRoutes(app: Express) {
         })),
       });
 
-      for (const strategy of (result.strategies || [])) {
-        await storage.createGrowthStrategy({
-          channelId: channel.id,
-          title: strategy.title,
-          description: strategy.description,
-          category: strategy.category,
-          priority: strategy.priority,
-          actionItems: strategy.actionItems || [],
-          estimatedImpact: strategy.estimatedImpact,
-          status: "pending",
-          aiGenerated: true,
-        });
+      const strategyValues = (result.strategies || []).map((strategy: any) => ({
+        channelId: channel.id,
+        title: strategy.title,
+        description: strategy.description,
+        category: strategy.category,
+        priority: strategy.priority,
+        actionItems: strategy.actionItems || [],
+        estimatedImpact: strategy.estimatedImpact,
+        status: "pending",
+        aiGenerated: true,
+      }));
+      if (strategyValues.length > 0) {
+        await db.insert(growthStrategies).values(strategyValues);
       }
 
       await storage.createAuditLog({
@@ -678,9 +692,9 @@ export function registerContentRoutes(app: Express) {
       console.error("Strategy generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put(api.strategies.updateStatus.path, async (req, res) => {
+  app.put(api.strategies.updateStatus.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -694,9 +708,9 @@ export function registerContentRoutes(app: Express) {
     }
     const strategy = await storage.updateGrowthStrategy(id, { status: parsed.data.status });
     res.json(strategy);
-  });
+  }));
 
-  app.post(api.advisor.ask.path, async (req, res) => {
+  app.post(api.advisor.ask.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -731,9 +745,9 @@ export function registerContentRoutes(app: Express) {
       console.error("Advisor error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post(api.backlog.optimize.path, async (req, res) => {
+  app.post(api.backlog.optimize.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -820,9 +834,9 @@ export function registerContentRoutes(app: Express) {
       console.error("Backlog optimization error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.backlog.status.path, async (req, res) => {
+  app.get(api.backlog.status.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -845,9 +859,9 @@ export function registerContentRoutes(app: Express) {
       console.error("[Backlog] Status error:", err);
       res.status(500).json({ error: "Failed to get backlog status" });
     }
-  });
+  }));
 
-  app.post(api.backlog.autoStart.path, async (req, res) => {
+  app.post(api.backlog.autoStart.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -876,9 +890,9 @@ export function registerContentRoutes(app: Express) {
       console.error("Auto backlog start error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.backlog.engineStatus.path, async (req, res) => {
+  app.get(api.backlog.engineStatus.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -887,30 +901,30 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post(api.backlog.pause.path, async (req, res) => {
+  app.post(api.backlog.pause.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const success = await pauseBacklog(userId);
     res.json({ success });
-  });
+  }));
 
-  app.post(api.backlog.resume.path, async (req, res) => {
+  app.post(api.backlog.resume.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const success = await resumeBacklog(userId);
     res.json({ success });
-  });
+  }));
 
-  app.get(api.backlog.videoScores.path, async (req, res) => {
+  app.get(api.backlog.videoScores.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const scores = await getVideosWithScores(userId);
     res.json(scores);
-  });
+  }));
 
-  app.post(api.backlog.bulkOptimize.path, async (req, res) => {
+  app.post(api.backlog.bulkOptimize.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -936,9 +950,9 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post(api.backlog.autoSchedule.path, async (req, res) => {
+  app.post(api.backlog.autoSchedule.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -947,16 +961,16 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.backlog.staleVideos.path, async (req, res) => {
+  app.get(api.backlog.staleVideos.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const stale = await getStaleVideos(userId);
     res.json(stale);
-  });
+  }));
 
-  app.post(api.thumbnails.generate.path, async (req, res) => {
+  app.post(api.thumbnails.generate.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -1020,17 +1034,17 @@ export function registerContentRoutes(app: Express) {
       console.error("Thumbnail generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/content-ideas", async (req, res) => {
+  app.get("/api/content-ideas", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const status = req.query.status as string | undefined;
     const ideas = await storage.getContentIdeas(userId, status);
     res.json(ideas);
-  });
+  }));
 
-  app.post("/api/content-ideas", async (req, res) => {
+  app.post("/api/content-ideas", contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1039,9 +1053,9 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put("/api/content-ideas/:id", async (req, res) => {
+  app.put("/api/content-ideas/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -1050,9 +1064,9 @@ export function registerContentRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     const idea = await storage.updateContentIdea(id, req.body);
     res.json(idea);
-  });
+  }));
 
-  app.delete("/api/content-ideas/:id", async (req, res) => {
+  app.delete("/api/content-ideas/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -1061,27 +1075,27 @@ export function registerContentRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteContentIdea(id);
     res.sendStatus(204);
-  });
+  }));
 
-  app.get("/api/video-versions/:videoId", async (req, res) => {
+  app.get("/api/video-versions/:videoId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     const versions = await storage.getVideoVersions(videoId);
     res.json(versions);
-  });
+  }));
 
-  app.get("/api/content-clips", async (req, res) => {
+  app.get("/api/content-clips", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const sourceVideoId = req.query.sourceVideoId ? Number(req.query.sourceVideoId) : undefined;
     if (sourceVideoId !== undefined && isNaN(sourceVideoId)) return res.status(400).json({ error: "Invalid sourceVideoId" });
     const clips = await storage.getContentClips(userId, sourceVideoId);
     res.json(clips);
-  });
+  }));
 
-  app.post("/api/content-clips", async (req, res) => {
+  app.post("/api/content-clips", contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1090,16 +1104,16 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/collaboration-leads", async (req, res) => {
+  app.get("/api/collaboration-leads", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const leads = await storage.getCollaborationLeads(userId);
     res.json(leads);
-  });
+  }));
 
-  app.post("/api/collaboration-leads", async (req, res) => {
+  app.post("/api/collaboration-leads", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1108,26 +1122,26 @@ export function registerContentRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/compliance-rules", async (req, res) => {
+  app.get("/api/compliance-rules", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const platform = req.query.platform as string | undefined;
     const rules = await storage.getComplianceRules(platform);
     res.json(rules);
-  });
+  }));
 
-  app.get("/api/localization/recommendations", async (req, res) => {
+  app.get("/api/localization/recommendations", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
       const rec = await storage.getLocalizationRecommendations(userId);
       res.json(rec || { recommendedLanguages: [], trafficData: {}, source: "none" });
     } catch (e: any) { console.error("Localization recommendations error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
+  }));
 
-  app.get("/api/calendar/uploads", async (req, res) => {
+  app.get("/api/calendar/uploads", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1321,9 +1335,9 @@ export function registerContentRoutes(app: Express) {
       console.error("[Calendar Uploads] Error:", err);
       res.status(500).json({ error: "Failed to load upload calendar" });
     }
-  });
+  }));
 
-  app.get("/api/keywords/insights", async (req, res) => {
+  app.get("/api/keywords/insights", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1335,9 +1349,9 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/keywords/analyze", async (req, res) => {
+  app.post("/api/keywords/analyze", contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1348,9 +1362,9 @@ export function registerContentRoutes(app: Express) {
       console.error("[Keywords] Analyze error:", err);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/traffic/strategies", async (req, res) => {
+  app.get("/api/traffic/strategies", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1362,9 +1376,9 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/traffic/generate", async (req, res) => {
+  app.post("/api/traffic/generate", contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1375,9 +1389,9 @@ export function registerContentRoutes(app: Express) {
       console.error("[Traffic] Generate error:", err);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/calendar/schedule-pipelines", async (req, res) => {
+  app.post("/api/calendar/schedule-pipelines", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1390,7 +1404,8 @@ export function registerContentRoutes(app: Express) {
           eq(streamPipelines.userId, userId),
           eq(streamPipelines.pipelineType, "vod"),
         ))
-        .orderBy(streamPipelines.id);
+        .orderBy(streamPipelines.id)
+        .limit(500);
 
       if (pipelines.length === 0) {
         return res.json({ success: true, message: "No pipelines found to schedule", scheduled: 0 });
@@ -1425,63 +1440,68 @@ export function registerContentRoutes(app: Express) {
         videoSchedDate.setHours(hourSlot, Math.floor(Math.random() * 30), 0, 0);
 
         const cleanTags = Array.isArray(videoTags) ? videoTags.slice(0, 15).map(String) : [];
-        const [videoRecord] = await db.insert(videos).values({
-          title: pipeline.sourceTitle,
-          description: typeof videoDescription === 'string' ? videoDescription.substring(0, 5000) : pipeline.sourceTitle,
-          type: "vod",
-          status: "scheduled",
-          platform: "youtube",
-          metadata: {
-            tags: cleanTags,
-            seoScore: descData.seoScore || 85,
-            aiOptimized: true,
-            aiOptimizedAt: new Date().toISOString(),
-          } as any,
-          scheduledTime: videoSchedDate,
-        }).returning();
-
-        await db.insert(scheduleItems).values({
-          userId,
-          title: pipeline.sourceTitle,
-          type: "vod",
-          platform: "youtube",
-          scheduledAt: videoSchedDate,
-          status: "scheduled",
-          videoId: videoRecord.id,
-          metadata: {
-            description: typeof videoDescription === 'string' ? videoDescription.substring(0, 2000) : undefined,
-            tags: cleanTags,
-            autoPublish: true,
-            aiOptimized: true,
-          },
-        });
-
         const crossPlatform = platforms.filter(p => p !== "youtube").slice(0, 3);
-        for (let cpIdx = 0; cpIdx < crossPlatform.length; cpIdx++) {
-          const cpDate = new Date(videoSchedDate);
-          cpDate.setMinutes(cpDate.getMinutes() + (cpIdx + 1) * 45);
-          await db.insert(scheduleItems).values({
+
+        const { videoRecord, crossPosts } = await db.transaction(async (tx) => {
+          const [videoRecord] = await tx.insert(videos).values({
+            title: pipeline.sourceTitle,
+            description: typeof videoDescription === 'string' ? videoDescription.substring(0, 5000) : pipeline.sourceTitle,
+            type: "vod",
+            status: "scheduled",
+            platform: "youtube",
+            metadata: {
+              tags: cleanTags,
+              seoScore: descData.seoScore || 85,
+              aiOptimized: true,
+              aiOptimizedAt: new Date().toISOString(),
+            } as any,
+            scheduledTime: videoSchedDate,
+          }).returning();
+
+          await tx.insert(scheduleItems).values({
             userId,
-            title: `${pipeline.sourceTitle} — ${crossPlatform[cpIdx]} clip`,
-            type: "clip",
-            platform: crossPlatform[cpIdx],
-            scheduledAt: cpDate,
+            title: pipeline.sourceTitle,
+            type: "vod",
+            platform: "youtube",
+            scheduledAt: videoSchedDate,
             status: "scheduled",
             videoId: videoRecord.id,
             metadata: {
+              description: typeof videoDescription === 'string' ? videoDescription.substring(0, 2000) : undefined,
+              tags: cleanTags,
               autoPublish: true,
               aiOptimized: true,
-              crossPost: [crossPlatform[cpIdx]],
             },
           });
-        }
+
+          for (let cpIdx = 0; cpIdx < crossPlatform.length; cpIdx++) {
+            const cpDate = new Date(videoSchedDate);
+            cpDate.setMinutes(cpDate.getMinutes() + (cpIdx + 1) * 45);
+            await tx.insert(scheduleItems).values({
+              userId,
+              title: `${pipeline.sourceTitle} — ${crossPlatform[cpIdx]} clip`,
+              type: "clip",
+              platform: crossPlatform[cpIdx],
+              scheduledAt: cpDate,
+              status: "scheduled",
+              videoId: videoRecord.id,
+              metadata: {
+                autoPublish: true,
+                aiOptimized: true,
+                crossPost: [crossPlatform[cpIdx]],
+              },
+            });
+          }
+
+          return { videoRecord, crossPosts: crossPlatform.length };
+        });
 
         created.push({
           pipelineId: pipeline.id,
           videoId: videoRecord.id,
           title: pipeline.sourceTitle,
           scheduledAt: videoSchedDate.toISOString(),
-          crossPosts: crossPlatform.length,
+          crossPosts,
         });
 
         slotIndex++;
@@ -1504,5 +1524,5 @@ export function registerContentRoutes(app: Express) {
       console.error("[Calendar] Schedule pipelines error:", err);
       res.status(500).json({ success: false, message: "Failed to schedule pipeline content." });
     }
-  });
+  }));
 }

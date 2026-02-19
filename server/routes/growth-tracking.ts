@@ -27,7 +27,8 @@ export function registerGrowthTrackingRoutes(app: Express) {
           eq(channelGrowthTracking.userId, userId),
           gte(channelGrowthTracking.snapshotDate, since),
         ))
-        .orderBy(channelGrowthTracking.snapshotDate);
+        .orderBy(channelGrowthTracking.snapshotDate)
+        .limit(1000);
 
       if (snapshots.length > 0) {
         return formatGrowthData(snapshots, days);
@@ -38,7 +39,8 @@ export function registerGrowthTrackingRoutes(app: Express) {
           eq(analyticsSnapshots.userId, userId),
           gte(analyticsSnapshots.snapshotDate, since),
         ))
-        .orderBy(analyticsSnapshots.snapshotDate);
+        .orderBy(analyticsSnapshots.snapshotDate)
+        .limit(1000);
 
       const userChannels = await db.select().from(channels)
         .where(eq(channels.userId, userId));
@@ -194,7 +196,8 @@ export function registerGrowthTrackingRoutes(app: Express) {
       for (const ch of userChannels) {
         const snapshots = await db.select().from(channelBaselineSnapshots)
           .where(eq(channelBaselineSnapshots.channelId, ch.id))
-          .orderBy(asc(channelBaselineSnapshots.snapshotDate));
+          .orderBy(asc(channelBaselineSnapshots.snapshotDate))
+          .limit(500);
 
         const baseline = snapshots.find(s => s.snapshotType === "baseline");
         const periodic = snapshots.filter(s => s.snapshotType === "periodic");

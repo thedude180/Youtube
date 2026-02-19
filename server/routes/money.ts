@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { sql, eq, and } from "drizzle-orm";
 import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals } from "@shared/schema";
-import { requireAuth, requireTier, parseNumericId } from "./helpers";
+import { requireAuth, requireTier, parseNumericId, asyncHandler } from "./helpers";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
 import {
@@ -16,7 +16,7 @@ import {
 import { syncAllRevenue, syncPlatformRevenue } from "../revenue-sync-engine";
 
 export function registerMoneyRoutes(app: Express) {
-  app.post("/api/stripe/create-checkout-session", async (req, res) => {
+  app.post("/api/stripe/create-checkout-session", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -53,9 +53,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Stripe checkout error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/stripe/verify-session", async (req, res) => {
+  app.post("/api/stripe/verify-session", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -109,9 +109,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("[VerifySession] Error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/stripe/customer-portal", async (req, res) => {
+  app.post("/api/stripe/customer-portal", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -128,9 +128,9 @@ export function registerMoneyRoutes(app: Express) {
     } catch (e: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/stripe/products-with-prices", async (_req, res) => {
+  app.get("/api/stripe/products-with-prices", asyncHandler(async (_req, res) => {
     try {
       const result = await db.execute(sql`
         SELECT p.id as product_id, p.name as product_name, p.description as product_description,
@@ -170,9 +170,9 @@ export function registerMoneyRoutes(app: Express) {
         res.status(500).json({ error: "An internal error occurred. Please try again." });
       }
     }
-  });
+  }));
 
-  app.get("/api/stripe/publishable-key", async (_req, res) => {
+  app.get("/api/stripe/publishable-key", asyncHandler(async (_req, res) => {
     try {
       const key = await getStripePublishableKey();
       res.json({ publishableKey: key });
@@ -180,9 +180,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Stripe key error:", error);
       res.status(500).json({ error: "Failed to get Stripe key" });
     }
-  });
+  }));
 
-  app.post("/api/stripe/create-payment-link", async (req, res) => {
+  app.post("/api/stripe/create-payment-link", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -231,9 +231,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Create payment link error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/stripe/payments", async (req, res) => {
+  app.get("/api/stripe/payments", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -248,9 +248,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Fetch payments error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/stripe/balance", async (req, res) => {
+  app.get("/api/stripe/balance", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -261,17 +261,17 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Balance error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get(api.revenue.list.path, async (req, res) => {
+  app.get(api.revenue.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const platform = req.query.platform as string | undefined;
     const records = await storage.getRevenueRecords(userId, platform);
     res.json(records);
-  });
+  }));
 
-  app.post(api.revenue.create.path, async (req, res) => {
+  app.post(api.revenue.create.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -289,30 +289,30 @@ export function registerMoneyRoutes(app: Express) {
     const input = { ...parsed.data, userId: userId };
     const record = await storage.createRevenueRecord(input as any);
     res.status(201).json(record);
-  });
+  }));
 
-  app.get(api.revenue.summary.path, async (req, res) => {
+  app.get(api.revenue.summary.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const summary = await storage.getRevenueSummary(userId);
     res.json(summary);
-  });
+  }));
 
-  app.get("/api/expenses/summary", async (req, res) => {
+  app.get("/api/expenses/summary", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const summary = await storage.getExpenseSummary(userId);
     res.json(summary);
-  });
+  }));
 
-  app.get("/api/expenses", async (req, res) => {
+  app.get("/api/expenses", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const records = await storage.getExpenseRecords(userId);
     res.json(records);
-  });
+  }));
 
-  app.post("/api/expenses", async (req, res) => {
+  app.post("/api/expenses", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -322,22 +322,34 @@ export function registerMoneyRoutes(app: Express) {
       res.status(201).json(record);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      throw err;
+      console.error("Error creating expense:", err);
+      return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put("/api/expenses/:id", async (req, res) => {
+  app.put("/api/expenses/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, id), eq(expenseRecords.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const record = await storage.updateExpenseRecord(id, req.body);
+    const updateExpenseSchema = z.object({
+      category: z.string().optional(),
+      description: z.string().optional(),
+      amount: z.number().optional(),
+      date: z.string().optional(),
+      vendor: z.string().optional(),
+      taxDeductible: z.boolean().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateExpenseSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const record = await storage.updateExpenseRecord(id, parsed.data);
     res.json(record);
-  });
+  }));
 
-  app.delete("/api/expenses/:id", async (req, res) => {
+  app.delete("/api/expenses/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -346,16 +358,26 @@ export function registerMoneyRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteExpenseRecord(id);
     res.sendStatus(204);
-  });
+  }));
 
-  app.post("/api/expenses/import-csv", async (req, res) => {
+  app.post("/api/expenses/import-csv", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { rows } = req.body;
-      if (!Array.isArray(rows) || rows.length === 0) {
-        return res.status(400).json({ error: "No rows provided" });
+      const csvSchema = z.object({
+        rows: z.array(z.object({
+          description: z.string().optional(),
+          amount: z.union([z.string(), z.number()]),
+          category: z.string().optional(),
+          date: z.string().optional(),
+          vendor: z.string().optional(),
+        }).passthrough()).min(1, "No rows provided"),
+      });
+      const csvParsed = csvSchema.safeParse(req.body || {});
+      if (!csvParsed.success) {
+        return res.status(400).json({ error: "Invalid input", details: csvParsed.error.flatten() });
       }
+      const { rows } = csvParsed.data;
 
       const imported = [];
       for (const row of rows) {
@@ -385,9 +407,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("CSV import error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/tax-analyze", async (req, res) => {
+  app.post("/api/tax-analyze", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Tax Intelligence");
     if (!userId) return;
     try {
@@ -396,9 +418,9 @@ export function registerMoneyRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/expense-analyze", async (req, res) => {
+  app.post("/api/expense-analyze", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Financial AI Tools");
     if (!userId) return;
     try {
@@ -407,16 +429,16 @@ export function registerMoneyRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/ventures", async (req, res) => {
+  app.get("/api/ventures", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const ventures = await storage.getBusinessVentures(userId);
     res.json(ventures);
-  });
+  }));
 
-  app.post("/api/ventures", async (req, res) => {
+  app.post("/api/ventures", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -434,20 +456,31 @@ export function registerMoneyRoutes(app: Express) {
     }
     const venture = await storage.createBusinessVenture({ ...parsed.data, userId } as any);
     res.status(201).json(venture);
-  });
+  }));
 
-  app.put("/api/ventures/:id", async (req, res) => {
+  app.put("/api/ventures/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, id), eq(businessVentures.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const venture = await storage.updateBusinessVenture(id, req.body);
+    const updateVentureSchema = z.object({
+      name: z.string().min(1).optional(),
+      type: z.string().optional(),
+      status: z.string().optional(),
+      description: z.string().optional(),
+      revenue: z.number().optional(),
+      expenses: z.number().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateVentureSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const venture = await storage.updateBusinessVenture(id, parsed.data);
     res.json(venture);
-  });
+  }));
 
-  app.delete("/api/ventures/:id", async (req, res) => {
+  app.delete("/api/ventures/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -456,16 +489,16 @@ export function registerMoneyRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteBusinessVenture(id);
     res.sendStatus(204);
-  });
+  }));
 
-  app.get("/api/goals", async (req, res) => {
+  app.get("/api/goals", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const goals = await storage.getBusinessGoals(userId);
     res.json(goals);
-  });
+  }));
 
-  app.post("/api/goals", async (req, res) => {
+  app.post("/api/goals", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -484,20 +517,32 @@ export function registerMoneyRoutes(app: Express) {
     }
     const goal = await storage.createBusinessGoal({ ...parsed.data, userId } as any);
     res.status(201).json(goal);
-  });
+  }));
 
-  app.put("/api/goals/:id", async (req, res) => {
+  app.put("/api/goals/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, id), eq(businessGoals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const goal = await storage.updateBusinessGoal(id, req.body);
+    const updateGoalSchema = z.object({
+      title: z.string().min(1).optional(),
+      description: z.string().optional(),
+      targetAmount: z.number().optional(),
+      currentAmount: z.number().optional(),
+      deadline: z.string().optional(),
+      status: z.string().optional(),
+      category: z.string().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateGoalSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const goal = await storage.updateBusinessGoal(id, parsed.data);
     res.json(goal);
-  });
+  }));
 
-  app.delete("/api/goals/:id", async (req, res) => {
+  app.delete("/api/goals/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -506,18 +551,18 @@ export function registerMoneyRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteBusinessGoal(id);
     res.sendStatus(204);
-  });
+  }));
 
-  app.get("/api/tax-estimates", async (req, res) => {
+  app.get("/api/tax-estimates", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const year = req.query.year ? Number(req.query.year) : undefined;
     if (year !== undefined && (isNaN(year) || year < 2020 || year > 2100)) return res.status(400).json({ error: "Invalid year" });
     const estimates = await storage.getTaxEstimates(userId, year);
     res.json(estimates);
-  });
+  }));
 
-  app.post("/api/tax-estimates", async (req, res) => {
+  app.post("/api/tax-estimates", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -534,28 +579,38 @@ export function registerMoneyRoutes(app: Express) {
     }
     const estimate = await storage.createTaxEstimate({ ...parsed.data, userId } as any);
     res.status(201).json(estimate);
-  });
+  }));
 
-  app.put("/api/tax-estimates/:id", async (req, res) => {
+  app.put("/api/tax-estimates/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(taxEstimates).where(and(eq(taxEstimates.id, id), eq(taxEstimates.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const estimate = await storage.updateTaxEstimate(id, req.body);
+    const updateTaxSchema = z.object({
+      year: z.number().optional(),
+      quarter: z.number().optional(),
+      estimatedIncome: z.number().optional(),
+      estimatedTax: z.number().optional(),
+      status: z.string().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateTaxSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const estimate = await storage.updateTaxEstimate(id, parsed.data);
     res.json(estimate);
-  });
+  }));
 
-  app.get("/api/sponsorship-deals", async (req, res) => {
+  app.get("/api/sponsorship-deals", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const status = req.query.status as string | undefined;
     const deals = await storage.getSponsorshipDeals(userId, status);
     res.json(deals);
-  });
+  }));
 
-  app.post("/api/sponsorship-deals", async (req, res) => {
+  app.post("/api/sponsorship-deals", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -578,20 +633,32 @@ export function registerMoneyRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put("/api/sponsorship-deals/:id", async (req, res) => {
+  app.put("/api/sponsorship-deals/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const deal = await storage.updateSponsorshipDeal(id, req.body);
+    const updateDealSchema = z.object({
+      brandName: z.string().min(1).optional(),
+      dealValue: z.number().optional(),
+      status: z.string().optional(),
+      contactEmail: z.string().optional(),
+      deliverables: z.array(z.string()).optional(),
+      deadline: z.string().optional(),
+      notes: z.string().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    }).passthrough();
+    const parsed = updateDealSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const deal = await storage.updateSponsorshipDeal(id, parsed.data);
     res.json(deal);
-  });
+  }));
 
-  app.post("/api/monetization/ad-breaks/:videoId", async (req, res) => {
+  app.post("/api/monetization/ad-breaks/:videoId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -603,33 +670,43 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/monetization/revenue-forecast", async (req, res) => {
+  app.post("/api/monetization/revenue-forecast", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await generateRevenueForecast(userId, req.body.period || "monthly");
+      const forecastSchema = z.object({ period: z.enum(["daily", "weekly", "monthly", "quarterly", "yearly"]).optional().default("monthly") });
+      const parsedForecast = forecastSchema.safeParse(req.body || {});
+      if (!parsedForecast.success) return res.status(400).json({ error: "Invalid input", details: parsedForecast.error.flatten() });
+      const result = await generateRevenueForecast(userId, parsedForecast.data.period);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/monetization/fan-funnel", async (req, res) => {
+  app.post("/api/monetization/fan-funnel", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await trackFanFunnel(userId, req.body.eventType, req.body.platform, req.body.count);
+      const funnelSchema = z.object({
+        eventType: z.string().min(1).max(100),
+        platform: z.string().min(1).max(50),
+        count: z.number().optional(),
+      });
+      const parsedFunnel = funnelSchema.safeParse(req.body || {});
+      if (!parsedFunnel.success) return res.status(400).json({ error: "Invalid input", details: parsedFunnel.error.flatten() });
+      const result = await trackFanFunnel(userId, parsedFunnel.data.eventType, parsedFunnel.data.platform, parsedFunnel.data.count);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/monetization/fan-funnel", async (req, res) => {
+  app.get("/api/monetization/fan-funnel", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -639,9 +716,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/monetization/sponsor-rates", async (req, res) => {
+  app.post("/api/monetization/sponsor-rates", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -651,9 +728,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/monetization/sponsor-rates", async (req, res) => {
+  app.get("/api/monetization/sponsor-rates", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -663,21 +740,30 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/monetization/equipment-roi", async (req, res) => {
+  app.post("/api/monetization/equipment-roi", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await trackEquipmentRoi(userId, req.body);
+      const equipmentSchema = z.object({
+        name: z.string().min(1).max(200),
+        category: z.string().optional(),
+        cost: z.number().optional(),
+        purchaseDate: z.string().optional(),
+        metadata: z.record(z.unknown()).optional(),
+      }).passthrough();
+      const parsedEquip = equipmentSchema.safeParse(req.body || {});
+      if (!parsedEquip.success) return res.status(400).json({ error: "Invalid input", details: parsedEquip.error.flatten() });
+      const result = await trackEquipmentRoi(userId, parsedEquip.data);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/monetization/equipment-roi", async (req, res) => {
+  app.get("/api/monetization/equipment-roi", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -687,9 +773,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/monetization/invoice/:dealId", async (req, res) => {
+  app.post("/api/monetization/invoice/:dealId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -701,9 +787,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/monetization/invoices", async (req, res) => {
+  app.get("/api/monetization/invoices", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -713,9 +799,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/monetization/analyze-deal/:dealId", async (req, res) => {
+  app.post("/api/monetization/analyze-deal/:dealId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -727,9 +813,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/revenue/sync", async (req, res) => {
+  app.post("/api/revenue/sync", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -739,21 +825,24 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Revenue sync error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/revenue/sync/:platform", async (req, res) => {
+  app.post("/api/revenue/sync/:platform", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await syncPlatformRevenue(userId, req.params.platform);
+      const allowedPlatforms = ["youtube", "twitch", "tiktok", "twitter", "instagram", "facebook", "discord", "kick", "rumble", "patreon"];
+      const platform = String(req.params.platform).toLowerCase().trim();
+      if (!platform || !allowedPlatforms.includes(platform)) return res.status(400).json({ error: "Invalid platform" });
+      const result = await syncPlatformRevenue(userId, platform);
       res.json(result);
     } catch (error: any) {
       console.error("Platform revenue sync error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/revenue/sync-status", async (req, res) => {
+  app.get("/api/revenue/sync-status", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -775,9 +864,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Sync status error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/revenue/breakdown", async (req, res) => {
+  app.get("/api/revenue/breakdown", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -817,9 +906,9 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Revenue breakdown error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/revenue/opportunities", async (req, res) => {
+  app.get("/api/revenue/opportunities", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1065,5 +1154,5 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Revenue opportunities error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 }

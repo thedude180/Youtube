@@ -1,13 +1,10 @@
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { revenueModels, revenueRecords, channels } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 const MODEL_TYPES = ["sponsorship", "membership", "super_chat", "merch", "affiliate", "ads"] as const;
 

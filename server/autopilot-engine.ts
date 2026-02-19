@@ -2,8 +2,11 @@ import { db } from "./db";
 import { autopilotQueue, commentResponses, autopilotConfig, videos, channels, notifications } from "@shared/schema";
 import { eq, and, desc, lte, sql, gte } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
-import OpenAI from "openai";
+import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("autopilot");
 import {
   getAudienceDrivenTime,
   getAudienceDrivenStaggeredSchedule,
@@ -36,10 +39,7 @@ async function getTrafficStrategyContext(userId: string): Promise<string> {
   }
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openai = getOpenAIClient();
 
 const AUTOPILOT_FEATURES = [
   "auto-clip",
@@ -95,13 +95,13 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
     });
     return response.choices[0]?.message?.content || "";
   } catch (err) {
-    console.error("[Autopilot] AI generation error:", err);
+    logger.error("AI generation error", { error: String(err) });
     return "";
   }
 }
 
 export async function processNewVideoUpload(userId: string, videoId: number) {
-  console.log(`[Autopilot] Processing new video upload: videoId=${videoId}, userId=${userId}`);
+  logger.info("Processing new video upload", { videoId, userId });
 
   const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) return;
@@ -131,7 +131,7 @@ async function generateFullThrottleDistribution(
   const supportedPlatforms = platforms.filter(p => ALL_DISTRIBUTION_PLATFORMS.includes(p) && connectedPlatforms.has(p));
 
   if (supportedPlatforms.length === 0) {
-    console.log(`[Autopilot] No connected platforms for ${userId}, skipping ${contentType} distribution`);
+    logger.info("No connected platforms, skipping distribution", { userId, contentType });
     return;
   }
 
@@ -163,7 +163,7 @@ async function generateFullThrottleDistribution(
       ));
 
     if ((todayCount?.count || 0) >= budget) {
-      console.log(`[Autopilot] Daily budget reached for ${platform} (${todayCount?.count}/${budget})`);
+      logger.info("Daily budget reached", { platform, count: todayCount?.count, budget });
       continue;
     }
 
@@ -184,7 +184,7 @@ async function generateFullThrottleDistribution(
     const safety = await checkContentSafety(result.content, userId, platform);
 
     if (!safety.safe) {
-      console.log(`[Autopilot] Content failed safety check for ${platform}: ${safety.issues.join(", ")}`);
+      logger.warn("Content failed safety check", { platform, issues: safety.issues });
       const retry = await generateUniqueContent({
         videoTitle: video.title,
         videoDescription: video.description || "",
@@ -201,7 +201,7 @@ async function generateFullThrottleDistribution(
 
       const retrySafety = await checkContentSafety(retry.content, userId, platform);
       if (!retrySafety.safe) {
-        console.log(`[Autopilot] Retry also failed safety for ${platform}, skipping`);
+        logger.warn("Retry also failed safety, skipping", { platform });
         continue;
       }
 
@@ -250,7 +250,7 @@ async function generateFullThrottleDistribution(
 async function generateDiscordAnnouncement(userId: string, video: any, creatorTone: string) {
   const connectedPlatforms = await getUserConnectedPlatforms(userId);
   if (!connectedPlatforms.has("discord")) {
-    console.log(`[Autopilot] Discord not connected for ${userId}, skipping announcement`);
+    logger.info("Discord not connected, skipping announcement", { userId });
     return;
   }
 
@@ -294,7 +294,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
 }
 
 export async function processGoLiveAnnouncements(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
-  console.log(`[Autopilot] Processing go-live announcements: stream="${streamTitle}", userId=${userId}`);
+  logger.info("Processing go-live announcements", { streamTitle, userId });
 
   const smartScheduleConfig = await getAutopilotConfig(userId, "smart-schedule");
   if (smartScheduleConfig && smartScheduleConfig.enabled === false) return;
@@ -369,7 +369,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
 }
 
 export async function processPostStreamHighlights(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
-  console.log(`[Autopilot] Processing post-stream highlights: stream="${streamTitle}", userId=${userId}`);
+  logger.info("Processing post-stream highlights", { streamTitle, userId });
 
   const smartScheduleConfig = await getAutopilotConfig(userId, "smart-schedule");
   if (smartScheduleConfig && smartScheduleConfig.enabled === false) return;
@@ -387,7 +387,7 @@ export async function processPostStreamHighlights(userId: string, streamId: numb
   const highlightPlatforms = ALL_ANNOUNCE_PLATFORMS.filter(p => postStreamConnected.has(p));
 
   if (highlightPlatforms.length === 0) {
-    console.log(`[Autopilot] No connected platforms for ${userId}, skipping post-stream highlights`);
+    logger.info("No connected platforms, skipping post-stream highlights", { userId });
     return;
   }
 
@@ -404,7 +404,7 @@ export async function processCommentResponses(userId: string) {
 
   const { isActive } = getActivityWindow();
   if (!isActive) {
-    console.log(`[Autopilot] Outside activity window, skipping comments for ${userId}`);
+    logger.info("Outside activity window, skipping comments", { userId });
     return;
   }
 
@@ -414,7 +414,7 @@ export async function processCommentResponses(userId: string) {
 
   const connectedChannel = userChannels.find(c => c.accessToken);
   if (!connectedChannel) {
-    console.log(`[Autopilot] No connected YouTube channel for ${userId}, skipping comments`);
+    logger.info("No connected YouTube channel, skipping comments", { userId });
     return;
   }
 
@@ -440,10 +440,10 @@ export async function processCommentResponses(userId: string) {
       realComments = await fetchYouTubeComments(connectedChannel.id, ytId, 20);
     } catch (err: any) {
       if (err.code === 403 || err.message?.includes("quota")) {
-        console.log(`[Autopilot] YouTube quota hit fetching comments for video ${ytId}`);
+        logger.warn("YouTube quota hit fetching comments", { videoId: ytId });
         break;
       }
-      console.log(`[Autopilot] Failed to fetch comments for video ${ytId}: ${err.message}`);
+      logger.error("Failed to fetch comments", { videoId: ytId, error: err.message });
       continue;
     }
 
@@ -518,7 +518,7 @@ Write a quick reply as yourself. Output ONLY the reply text.`;
     if (totalProcessed >= 15) break;
   }
 
-  console.log(`[Autopilot] Processed ${totalProcessed} real YouTube comments for ${userId}`);
+  logger.info("Processed YouTube comments", { count: totalProcessed, userId });
 }
 
 export async function processContentRecycling(userId: string) {
@@ -566,7 +566,7 @@ export async function processCrossPromotion(userId: string) {
 
   const connectedPlatforms = await getUserConnectedPlatforms(userId);
   if (connectedPlatforms.size === 0) {
-    console.log(`[Autopilot] No connected platforms for ${userId}, skipping cross-promo`);
+    logger.info("No connected platforms, skipping cross-promo", { userId });
     return;
   }
 
@@ -610,7 +610,7 @@ export async function processScheduledPosts() {
 
   if (duePosts.length === 0) return;
 
-  console.log(`[Autopilot] Processing ${duePosts.length} due posts (active=${isActive})`);
+  logger.info("Processing due posts", { count: duePosts.length, isActive });
 
   const connectedByUser = new Map<string, Set<string>>();
   const { publishToplatform } = await import("./platform-publisher");
@@ -623,7 +623,7 @@ export async function processScheduledPosts() {
       const connected = connectedByUser.get(post.userId)!;
 
       if (!connected.has(post.targetPlatform)) {
-        console.log(`[Autopilot] ${post.targetPlatform} not connected for ${post.userId}, cancelling post ${post.id}`);
+        logger.info("Platform not connected, cancelling post", { platform: post.targetPlatform, userId: post.userId, postId: post.id });
         await db.update(autopilotQueue)
           .set({ status: "failed", errorMessage: `${post.targetPlatform} is not connected. Connect your account to enable posting.` })
           .where(eq(autopilotQueue.id, post.id));
@@ -656,13 +656,13 @@ export async function processScheduledPosts() {
           })
           .where(eq(autopilotQueue.id, post.id));
 
-        console.log(`[Autopilot] Published post ${post.id} to ${post.targetPlatform}: ${result.postUrl || result.postId}`);
+        logger.info("Published post", { postId: post.id, platform: post.targetPlatform, url: result.postUrl || result.postId });
         sendSSEEvent(post.userId, "autopilot", { type: "post_published", postId: post.id, platform: post.targetPlatform, url: result.postUrl });
 
         await createNotification(post.userId, "autopilot", `Posted to ${post.targetPlatform}`,
           `Content published${result.postUrl ? `: ${result.postUrl}` : ""}`, "info");
       } else {
-        console.error(`[Autopilot] Publish failed for post ${post.id} on ${post.targetPlatform}: ${result.error}`);
+        logger.error("Publish failed", { postId: post.id, platform: post.targetPlatform, error: result.error });
         await db.update(autopilotQueue)
           .set({ status: "failed", errorMessage: result.error || "Unknown publish error" })
           .where(eq(autopilotQueue.id, post.id));
@@ -671,7 +671,7 @@ export async function processScheduledPosts() {
           result.error || "Publishing failed", "warning");
       }
     } catch (err) {
-      console.error(`[Autopilot] Failed to publish post ${post.id}:`, err);
+      logger.error("Failed to publish post", { postId: post.id, error: String(err) });
       await db.update(autopilotQueue)
         .set({ status: "failed", errorMessage: String(err) })
         .where(eq(autopilotQueue.id, post.id));

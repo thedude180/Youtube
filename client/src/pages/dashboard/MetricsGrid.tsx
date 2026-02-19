@@ -26,7 +26,7 @@ export default memo(function MetricsGrid({ metrics }: MetricsGridProps) {
                   <Icon className="h-4 w-4 text-primary" />
                 </div>
               </div>
-              <p className="text-2xl font-extrabold font-display">{m.value}</p>
+              <p className="text-2xl font-extrabold font-display" data-testid={`text-metric-value-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>{m.value}</p>
             </CardContent>
           </Card>
         );
