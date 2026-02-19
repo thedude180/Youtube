@@ -668,10 +668,23 @@ export function registerAutopilotRoutes(app: Express) {
     try {
       const { runDailyContentGeneration } = await import("../daily-content-engine");
       await runDailyContentGeneration();
-      res.json({ success: true, message: "Daily content generation triggered" });
+      res.json({ success: true, message: "Stream exhaust engine triggered" });
     } catch (err) {
-      console.error("[DailyContent] Trigger error:", err);
-      res.status(500).json({ error: "Failed to trigger daily content generation" });
+      console.error("[StreamExhaust] Trigger error:", err);
+      res.status(500).json({ error: "Failed to trigger content generation" });
+    }
+  });
+
+  app.get("/api/stream-exhaust/status", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getStreamExhaustStatus } = await import("../daily-content-engine");
+      const status = await getStreamExhaustStatus(userId);
+      res.json(status);
+    } catch (err) {
+      console.error("[StreamExhaust] Status error:", err);
+      res.status(500).json({ error: "Failed to get stream exhaust status" });
     }
   });
 }

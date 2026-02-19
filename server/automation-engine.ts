@@ -284,12 +284,12 @@ export async function initAutomationEngine() {
     }
   });
 
-  cron.schedule("0 6 * * *", async () => {
+  cron.schedule("0 */2 * * *", async () => {
     try {
       const { runDailyContentGeneration } = await import("./daily-content-engine");
       await runDailyContentGeneration();
     } catch (err) {
-      console.error("[AutomationEngine] Daily content engine error:", err);
+      console.error("[AutomationEngine] Stream exhaust engine error:", err);
     }
   });
 

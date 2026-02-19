@@ -249,6 +249,8 @@ export const streams = pgTable("streams", {
   detectedSource: text("detected_source"),
   isAutoDetected: boolean("is_auto_detected").default(false),
   vodVideoId: integer("vod_video_id"),
+  contentMinutesExtracted: real("content_minutes_extracted").default(0),
+  contentFullyExhausted: boolean("content_fully_exhausted").default(false),
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -2081,6 +2083,13 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     originalPostDate?: string;
     aiModel?: string;
     humanScore?: number;
+    contentType?: string;
+    sourceStreamId?: number;
+    segmentStartMin?: number;
+    segmentEndMin?: number;
+    batchNumber?: number;
+    crossPlatformGroupId?: string;
+    crossLinkedPlatforms?: string[];
   }>(),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),

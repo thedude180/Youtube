@@ -1,26 +1,27 @@
 import { db } from "./db";
-import { videos, streams, contentClips, autopilotQueue, channels, notifications } from "@shared/schema";
-import { eq, and, desc, sql, gte, lte, isNotNull } from "drizzle-orm";
+import { videos, streams, autopilotQueue, channels, notifications } from "@shared/schema";
+import { eq, and, desc, sql, gte, lte, isNotNull, ne } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
-import { storage } from "./storage";
 import { generateHumanScheduledTime } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunDailyContent } from "./priority-orchestrator";
 
-const logger = createLogger("daily-content");
+const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
 
-const LAUNCH_DATE = new Date("2026-02-20T00:00:00Z");
 const LONG_FORM_MAX_MINUTES = 15;
-const SHORTS_PER_DAY = 3;
-const LONG_FORM_PER_DAY = 1;
+const SHORTS_PER_BATCH = 3;
+const LONG_FORM_PER_BATCH = 1;
+const MINUTES_PER_BATCH = 20;
+const MAX_BATCHES_PER_RUN = 3;
+const CROSS_PLATFORMS = ["tiktok", "x", "discord"];
 
 interface ContentPlan {
   longForm: {
     title: string;
     description: string;
-    segments: Array<{ sourceTitle: string; startTime: string; endTime: string; hook: string }>;
+    segments: Array<{ startMinute: number; endMinute: number; hook: string }>;
     totalDurationEstimate: string;
     tags: string[];
     thumbnailConcept: string;
@@ -28,9 +29,8 @@ interface ContentPlan {
   shorts: Array<{
     title: string;
     description: string;
-    sourceTitle: string;
-    startTime: string;
-    endTime: string;
+    startMinute: number;
+    endMinute: number;
     hook: string;
     hashtags: string[];
     targetDuration: string;
@@ -50,74 +50,78 @@ async function getUserIdsWithYouTube(): Promise<string[]> {
   return rows.map(r => r.userId).filter((id): id is string => !!id);
 }
 
-async function getAvailableSourceContent(userId: string) {
-  const userChannelIds = await db
-    .select({ id: channels.id })
+async function getUserConnectedPlatforms(userId: string): Promise<string[]> {
+  const userChannels = await db
+    .select({ platform: channels.platform, accessToken: channels.accessToken })
     .from(channels)
-    .where(and(eq(channels.userId, userId)));
+    .where(eq(channels.userId, userId));
+  return userChannels
+    .filter(c => c.accessToken && CROSS_PLATFORMS.includes(c.platform))
+    .map(c => c.platform);
+}
 
-  const channelIds = userChannelIds.map(c => c.id);
+interface StreamWithRemaining {
+  stream: typeof streams.$inferSelect;
+  totalMinutes: number;
+  extractedMinutes: number;
+  remainingMinutes: number;
+  nextSegmentStart: number;
+}
 
-  let userVideos: any[] = [];
-  if (channelIds.length > 0) {
-    userVideos = await db.select().from(videos)
-      .orderBy(desc(videos.createdAt))
-      .limit(50);
-    userVideos = userVideos.filter(v => channelIds.includes(v.channelId));
-  }
-
-  const userStreams = await db.select().from(streams)
-    .where(and(eq(streams.userId, userId), isNotNull(streams.endedAt)))
+async function getStreamsWithRemainingContent(userId: string): Promise<StreamWithRemaining[]> {
+  const endedStreams = await db.select().from(streams)
+    .where(and(
+      eq(streams.userId, userId),
+      isNotNull(streams.endedAt),
+      isNotNull(streams.startedAt),
+      eq(streams.contentFullyExhausted, false),
+    ))
     .orderBy(desc(streams.startedAt))
     .limit(20);
 
-  return { videos: userVideos, streams: userStreams };
+  const results: StreamWithRemaining[] = [];
+  for (const stream of endedStreams) {
+    if (!stream.startedAt || !stream.endedAt) continue;
+    const totalMinutes = Math.floor(
+      (new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()) / 60000
+    );
+    if (totalMinutes < 5) continue;
+
+    const extractedMinutes = stream.contentMinutesExtracted || 0;
+    const remainingMinutes = totalMinutes - extractedMinutes;
+    if (remainingMinutes < 3) {
+      await db.update(streams)
+        .set({ contentFullyExhausted: true })
+        .where(eq(streams.id, stream.id));
+      continue;
+    }
+
+    results.push({
+      stream,
+      totalMinutes,
+      extractedMinutes,
+      remainingMinutes,
+      nextSegmentStart: extractedMinutes,
+    });
+  }
+
+  return results;
 }
 
-async function getUsedContentIds(userId: string): Promise<Set<string>> {
-  const recentPosts = await db.select({ sourceVideoId: autopilotQueue.sourceVideoId })
-    .from(autopilotQueue)
-    .where(and(
-      eq(autopilotQueue.userId, userId),
-      gte(autopilotQueue.createdAt, new Date(Date.now() - 7 * 86400000)),
-    ));
-
-  return new Set(recentPosts.map(p => String(p.sourceVideoId)).filter(s => s !== "null"));
+async function getCurrentLiveStream(userId: string): Promise<typeof streams.$inferSelect | null> {
+  const [live] = await db.select().from(streams)
+    .where(and(eq(streams.userId, userId), eq(streams.status, "live")))
+    .limit(1);
+  return live || null;
 }
 
-async function generateDailyContentPlan(
-  sourceContent: { videos: any[]; streams: any[] },
-  usedIds: Set<string>,
+async function generateBatchPlan(
+  stream: StreamWithRemaining,
+  batchNumber: number,
 ): Promise<ContentPlan | null> {
-  const available = [
-    ...sourceContent.streams.map(s => ({
-      id: String(s.id),
-      title: s.title || "Untitled Stream",
-      description: s.description || "",
-      type: "livestream" as const,
-      duration: s.endedAt && s.startedAt
-        ? Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000)
-        : null,
-    })),
-    ...sourceContent.videos.map(v => ({
-      id: String(v.id),
-      title: v.title || "Untitled Video",
-      description: v.description || "",
-      type: (v.type === "live-stream" ? "livestream" : "video") as "livestream" | "video",
-      duration: (v.metadata as any)?.duration
-        ? parseInt(String((v.metadata as any).duration))
-        : null,
-    })),
-  ];
-
-  const unused = available.filter(item => !usedIds.has(item.id));
-  const pool = unused.length > 0 ? unused : available;
-
-  if (pool.length === 0) return null;
-
-  const contentList = pool.slice(0, 15).map((item, i) =>
-    `${i + 1}. [${item.type.toUpperCase()}] "${item.title}" - ${item.duration ? `${item.duration} min` : "unknown duration"} - ${item.description.substring(0, 100)}`
-  ).join("\n");
+  const segStart = stream.nextSegmentStart;
+  const availableMinutes = Math.min(stream.remainingMinutes, MINUTES_PER_BATCH);
+  const segEnd = segStart + availableMinutes;
 
   try {
     const response = await openai.chat.completions.create({
@@ -125,37 +129,41 @@ async function generateDailyContentPlan(
       messages: [
         {
           role: "system",
-          content: `You are a top-tier YouTube content strategist specializing in gaming content. Your job is to plan daily content that maximizes watch time, engagement, and algorithmic favor.
+          content: `You are a top-tier YouTube content strategist for gaming content. Your job: extract maximum viral content from livestream footage.
 
-Rules:
-- Long-form video MUST NOT exceed ${LONG_FORM_MAX_MINUTES} minutes total
-- Create exactly ${SHORTS_PER_DAY} shorts (21-59 seconds each, sweet spot is 30-45 seconds)
-- Long-form should be a highlight compilation or themed edit from livestream/video footage
-- Shorts should be the most exciting, funny, or skill-showcasing moments
+STREAM INFO:
+- Title: "${stream.stream.title}"
+- Total Duration: ${stream.totalMinutes} minutes
+- Current Segment: ${segStart} min to ${segEnd} min (${availableMinutes} min available)
+- Batch #${batchNumber} from this stream
+
+RULES:
+- Long-form MUST NOT exceed ${LONG_FORM_MAX_MINUTES} minutes. Use segments from ${segStart}-${segEnd} minutes.
+- Create exactly ${SHORTS_PER_BATCH} shorts (21-59 seconds each, sweet spot 30-45 seconds)
+- All timestamps MUST be within the ${segStart}-${segEnd} minute range
 - Every title must be clickbait-worthy but honest
-- Use timestamps from the source content for segment references
-- Gaming content should emphasize epic moments, fails, clutch plays, reactions
-- Include trending hooks and patterns from current YouTube gaming meta
+- Gaming content: epic moments, fails, clutch plays, reactions, funny moments
+- Each batch should feel like a FRESH video, not a continuation
+- Shorts must be designed to go viral on YouTube Shorts AND TikTok
 
-Return ONLY valid JSON matching this structure:
+Return ONLY valid JSON:
 {
   "longForm": {
     "title": "string - clickbait title under 60 chars",
-    "description": "string - SEO optimized description",
-    "segments": [{"sourceTitle": "string", "startTime": "MM:SS", "endTime": "MM:SS", "hook": "what makes this segment exciting"}],
+    "description": "string - SEO description with call to action",
+    "segments": [{"startMinute": number, "endMinute": number, "hook": "string"}],
     "totalDurationEstimate": "string like 12:30",
-    "tags": ["array of SEO tags"],
-    "thumbnailConcept": "description of ideal thumbnail"
+    "tags": ["array of 10+ SEO tags"],
+    "thumbnailConcept": "description of thumbnail"
   },
   "shorts": [
     {
       "title": "string - hook title under 50 chars",
       "description": "string",
-      "sourceTitle": "string - which source video/stream",
-      "startTime": "MM:SS",
-      "endTime": "MM:SS",
-      "hook": "what makes this viral-worthy",
-      "hashtags": ["array"],
+      "startMinute": number,
+      "endMinute": number,
+      "hook": "what makes this moment viral",
+      "hashtags": ["array of 5-8 hashtags"],
       "targetDuration": "string like 0:34"
     }
   ]
@@ -163,10 +171,10 @@ Return ONLY valid JSON matching this structure:
         },
         {
           role: "user",
-          content: `Plan today's YouTube content (1 long-form max ${LONG_FORM_MAX_MINUTES} min + ${SHORTS_PER_DAY} shorts) using these available source materials:\n\n${contentList}\n\nPrioritize livestream footage. Use every available minute of content. Make it gaming-focused and designed to grow the channel fast.`
+          content: `Create Batch #${batchNumber} YouTube content from stream "${stream.stream.title}". Use footage from minute ${segStart} to minute ${segEnd}. This is ${availableMinutes} minutes of footage. Make it feel fresh — these are brand new videos, not "part 2". Think of unique angles, compilation themes, or highlight moments.`
         }
       ],
-      temperature: 0.8,
+      temperature: 0.85,
       max_tokens: 2000,
     });
 
@@ -178,26 +186,33 @@ Return ONLY valid JSON matching this structure:
     }
 
     const plan = JSON.parse(jsonMatch[0]) as ContentPlan;
-
     if (!plan.longForm?.title || !plan.shorts || plan.shorts.length === 0) {
       logger.error("AI content plan missing required fields");
       return null;
     }
 
-    if (plan.shorts.length > SHORTS_PER_DAY) {
-      plan.shorts = plan.shorts.slice(0, SHORTS_PER_DAY);
+    if (plan.shorts.length > SHORTS_PER_BATCH) {
+      plan.shorts = plan.shorts.slice(0, SHORTS_PER_BATCH);
     }
 
     return plan;
   } catch (err: any) {
-    logger.error("Failed to generate content plan", { error: err.message });
+    logger.error("Failed to generate batch plan", { error: err.message, batchNumber });
     return null;
   }
 }
 
-async function queueContentForDay(userId: string, plan: ContentPlan): Promise<{ longFormQueued: boolean; shortsQueued: number }> {
+async function queueBatchContent(
+  userId: string,
+  plan: ContentPlan,
+  stream: StreamWithRemaining,
+  batchNumber: number,
+  connectedPlatforms: string[],
+): Promise<{ longFormQueued: boolean; shortsQueued: number; crossPostsQueued: number }> {
   let longFormQueued = false;
   let shortsQueued = 0;
+  let crossPostsQueued = 0;
+  const groupId = `exhaust-${stream.stream.id}-batch-${batchNumber}-${Date.now()}`;
 
   const longFormTime = generateHumanScheduledTime({
     platform: "youtube",
@@ -205,6 +220,8 @@ async function queueContentForDay(userId: string, plan: ContentPlan): Promise<{ 
     contentType: "new-video",
     urgency: "normal",
   });
+
+  const allPlatforms = ["youtube", ...connectedPlatforms];
 
   try {
     await db.insert(autopilotQueue).values({
@@ -220,10 +237,15 @@ async function queueContentForDay(userId: string, plan: ContentPlan): Promise<{ 
         contentType: "long-form-compilation",
         style: "highlight-reel",
         aiModel: "gpt-4o-mini",
-      } as any,
+        sourceStreamId: stream.stream.id,
+        segmentStartMin: stream.nextSegmentStart,
+        segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
+        batchNumber,
+        crossPlatformGroupId: groupId,
+        crossLinkedPlatforms: allPlatforms,
+      },
     });
     longFormQueued = true;
-    logger.info("Queued long-form video", { userId, title: plan.longForm.title, scheduledAt: longFormTime });
   } catch (err: any) {
     logger.error("Failed to queue long-form", { userId, error: err.message });
   }
@@ -246,47 +268,140 @@ async function queueContentForDay(userId: string, plan: ContentPlan): Promise<{ 
           contentType: "youtube-short",
           style: "short-clip",
           aiModel: "gpt-4o-mini",
-        } as any,
+          sourceStreamId: stream.stream.id,
+          segmentStartMin: short.startMinute,
+          segmentEndMin: short.endMinute,
+          batchNumber,
+          crossPlatformGroupId: groupId,
+          crossLinkedPlatforms: allPlatforms,
+        },
       });
       shortsQueued++;
-      logger.info("Queued YouTube Short", { userId, title: short.title, index: i + 1, scheduledAt: shortTime });
     } catch (err: any) {
       logger.error("Failed to queue short", { userId, index: i + 1, error: err.message });
     }
   }
 
-  return { longFormQueued, shortsQueued };
+  for (const platform of connectedPlatforms) {
+    if (platform === "tiktok") {
+      const longFormCrossTime = new Date(longFormTime.getTime() + 30 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
+      try {
+        await db.insert(autopilotQueue).values({
+          userId,
+          sourceVideoId: null,
+          type: "cross-post",
+          targetPlatform: platform,
+          content: `${plan.longForm.title}\n\n${plan.longForm.description}\n\n${plan.longForm.tags.slice(0, 5).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ")} #gaming #fyp`,
+          caption: plan.longForm.title,
+          status: "scheduled",
+          scheduledAt: longFormCrossTime,
+          metadata: {
+            contentType: "cross-platform-long-form",
+            style: "highlight-reel",
+            aiModel: "gpt-4o-mini",
+            sourceStreamId: stream.stream.id,
+            segmentStartMin: stream.nextSegmentStart,
+            segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
+            batchNumber,
+            crossPlatformGroupId: groupId,
+            crossLinkedPlatforms: allPlatforms,
+          },
+        });
+        crossPostsQueued++;
+      } catch (err: any) {
+        logger.error("Failed to queue long-form cross-post", { platform, error: err.message });
+      }
+    }
+
+    for (let i = 0; i < plan.shorts.length; i++) {
+      const short = plan.shorts[i];
+      const crossTime = new Date(longFormTime.getTime() + (i + 2) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
+      const platformCaption = platform === "tiktok"
+        ? `${short.title} ${short.hashtags.map(h => `#${h.replace('#', '')}`).join(" ")} #gaming #fyp`
+        : platform === "x"
+          ? `${short.hook}\n\n${short.hashtags.slice(0, 3).join(" ")}\n\nFull video on YouTube`
+          : `${short.title} - check the full stream on YouTube`;
+
+      try {
+        await db.insert(autopilotQueue).values({
+          userId,
+          sourceVideoId: null,
+          type: "cross-post",
+          targetPlatform: platform,
+          content: platformCaption,
+          caption: short.title,
+          status: "scheduled",
+          scheduledAt: crossTime,
+          metadata: {
+            contentType: "cross-platform-short",
+            style: "short-clip",
+            aiModel: "gpt-4o-mini",
+            sourceStreamId: stream.stream.id,
+            segmentStartMin: short.startMinute,
+            segmentEndMin: short.endMinute,
+            batchNumber,
+            crossPlatformGroupId: groupId,
+            crossLinkedPlatforms: allPlatforms,
+          },
+        });
+        crossPostsQueued++;
+      } catch (err: any) {
+        logger.error("Failed to queue cross-post", { platform, error: err.message });
+      }
+    }
+  }
+
+  const allSegments = [
+    ...plan.longForm.segments.map(s => ({ start: s.startMinute, end: s.endMinute })),
+    ...plan.shorts.map(s => ({ start: s.startMinute, end: s.endMinute })),
+  ];
+  const maxEndMinute = allSegments.length > 0
+    ? Math.max(...allSegments.map(s => s.end))
+    : stream.nextSegmentStart + MINUTES_PER_BATCH;
+  const minutesConsumed = Math.max(0, maxEndMinute - stream.nextSegmentStart);
+  const newTotal = (stream.extractedMinutes || 0) + minutesConsumed;
+  const fullyExhausted = newTotal >= stream.totalMinutes - 2;
+
+  await db.update(streams)
+    .set({
+      contentMinutesExtracted: newTotal,
+      contentFullyExhausted: fullyExhausted,
+    })
+    .where(eq(streams.id, stream.stream.id));
+
+  logger.info("Batch queued + stream progress updated", {
+    streamId: stream.stream.id,
+    batchNumber,
+    minutesConsumed,
+    totalExtracted: newTotal,
+    totalMinutes: stream.totalMinutes,
+    fullyExhausted,
+    crossPostsQueued,
+  });
+
+  return { longFormQueued, shortsQueued, crossPostsQueued };
 }
 
-async function hasContentForToday(userId: string): Promise<boolean> {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+async function getLiveStreamAsExhaustCandidate(userId: string): Promise<StreamWithRemaining | null> {
+  const live = await getCurrentLiveStream(userId);
+  if (!live || !live.startedAt) return null;
 
-  const [existing] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(autopilotQueue)
-    .where(and(
-      eq(autopilotQueue.userId, userId),
-      eq(autopilotQueue.targetPlatform, "youtube"),
-      gte(autopilotQueue.scheduledAt, todayStart),
-      lte(autopilotQueue.scheduledAt, todayEnd),
-      sql`${autopilotQueue.metadata}->>'contentType' IN ('long-form-compilation', 'youtube-short')`,
-    ));
+  const elapsedMinutes = Math.floor((Date.now() - new Date(live.startedAt).getTime()) / 60000);
+  const extracted = live.contentMinutesExtracted || 0;
+  const availableMinutes = elapsedMinutes - extracted - 10;
+  if (availableMinutes < MINUTES_PER_BATCH) return null;
 
-  return (existing?.count || 0) >= (LONG_FORM_PER_DAY + SHORTS_PER_DAY);
+  return {
+    stream: live,
+    totalMinutes: elapsedMinutes,
+    extractedMinutes: extracted,
+    remainingMinutes: availableMinutes,
+    nextSegmentStart: extracted,
+  };
 }
 
 export async function runDailyContentGeneration(): Promise<void> {
-  const now = new Date();
-
-  if (now < LAUNCH_DATE) {
-    logger.info("Daily content engine not yet active", { launchDate: LAUNCH_DATE.toISOString(), now: now.toISOString() });
-    return;
-  }
-
-  logger.info("Starting daily content generation cycle");
+  logger.info("Stream Exhaust Engine cycle starting");
 
   const userIds = await getUserIdsWithYouTube();
   if (userIds.length === 0) {
@@ -296,51 +411,175 @@ export async function runDailyContentGeneration(): Promise<void> {
 
   for (const userId of userIds) {
     try {
-      if (!shouldRunDailyContent(userId)) {
-        logger.info("Daily content skipped (livestream active)", { userId });
+      const connectedPlatforms = await getUserConnectedPlatforms(userId);
+
+      const liveCandidate = await getLiveStreamAsExhaustCandidate(userId);
+      if (liveCandidate) {
+        logger.info("Live stream has harvestable footage", {
+          userId,
+          streamId: liveCandidate.stream.id,
+          elapsedMinutes: liveCandidate.totalMinutes,
+          availableMinutes: liveCandidate.remainingMinutes,
+        });
+      }
+
+      const endedStreams = shouldRunDailyContent(userId)
+        ? await getStreamsWithRemainingContent(userId)
+        : [];
+
+      const streamsWithContent: StreamWithRemaining[] = [];
+      if (liveCandidate) streamsWithContent.push(liveCandidate);
+      streamsWithContent.push(...endedStreams);
+
+      if (streamsWithContent.length === 0) {
+        logger.info("No streams with remaining content to exhaust", { userId });
         continue;
       }
 
-      const alreadyPlanned = await hasContentForToday(userId);
-      if (alreadyPlanned) {
-        logger.info("Content already planned for today", { userId });
-        continue;
+      let totalBatchesThisRun = 0;
+
+      for (const streamData of streamsWithContent) {
+        if (totalBatchesThisRun >= MAX_BATCHES_PER_RUN) {
+          logger.info("Max batches per run reached, saving rest for next cycle", { userId });
+          break;
+        }
+
+        const existingBatches = await db
+          .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
+          .from(autopilotQueue)
+          .where(and(
+            eq(autopilotQueue.userId, userId),
+            sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
+          ));
+
+        const batchNumber = (existingBatches[0]?.count || 0) + 1;
+
+        logger.info("Generating batch from stream", {
+          userId,
+          streamId: streamData.stream.id,
+          streamTitle: streamData.stream.title,
+          batchNumber,
+          remainingMinutes: streamData.remainingMinutes,
+          totalMinutes: streamData.totalMinutes,
+        });
+
+        const plan = await generateBatchPlan(streamData, batchNumber);
+        if (!plan) {
+          logger.warn("Could not generate batch plan, skipping stream", {
+            userId,
+            streamId: streamData.stream.id,
+          });
+          continue;
+        }
+
+        const result = await queueBatchContent(userId, plan, streamData, batchNumber, connectedPlatforms);
+        totalBatchesThisRun++;
+
+        const ytCount = (result.longFormQueued ? 1 : 0) + result.shortsQueued;
+        const totalPieces = ytCount + result.crossPostsQueued;
+
+        logger.info("Batch complete", {
+          userId,
+          streamId: streamData.stream.id,
+          batchNumber,
+          youtubeItems: ytCount,
+          crossPosts: result.crossPostsQueued,
+          totalPieces,
+        });
+
+        await notify(
+          userId,
+          `Content Batch #${batchNumber} from "${streamData.stream.title}"`,
+          `Queued ${ytCount} YouTube pieces + ${result.crossPostsQueued} cross-platform posts. ${Math.round(streamData.remainingMinutes - MINUTES_PER_BATCH)} min of stream footage remaining.`,
+          "info",
+        );
       }
 
-      const sourceContent = await getAvailableSourceContent(userId);
-      if (sourceContent.videos.length === 0 && sourceContent.streams.length === 0) {
-        logger.info("No source content available", { userId });
-        continue;
+      if (totalBatchesThisRun > 0) {
+        logger.info("Stream exhaust cycle complete for user", { userId, batchesGenerated: totalBatchesThisRun });
       }
-
-      const usedIds = await getUsedContentIds(userId);
-      const plan = await generateDailyContentPlan(sourceContent, usedIds);
-
-      if (!plan) {
-        logger.warn("Could not generate content plan", { userId });
-        continue;
-      }
-
-      const result = await queueContentForDay(userId, plan);
-      logger.info("Daily content queued", {
-        userId,
-        longForm: result.longFormQueued,
-        shorts: result.shortsQueued,
-        totalItems: (result.longFormQueued ? 1 : 0) + result.shortsQueued,
-      });
-
-      await notify(
-        userId,
-        "Daily content plan ready",
-        `Queued ${result.longFormQueued ? "1 long-form (max 15 min)" : "0 long-form"} + ${result.shortsQueued} shorts for YouTube today. Priority: TOP.`,
-        "info",
-      );
     } catch (err: any) {
-      logger.error("Daily content generation failed for user", { userId, error: err.message });
+      logger.error("Stream exhaust failed for user", { userId, error: err.message });
     }
   }
 
-  logger.info("Daily content generation cycle complete");
+  logger.info("Stream Exhaust Engine cycle complete");
+}
+
+export async function getStreamExhaustStatus(userId: string): Promise<{
+  activeStreamsWithContent: number;
+  totalRemainingMinutes: number;
+  totalExtractedMinutes: number;
+  totalStreamMinutes: number;
+  exhaustPercentage: number;
+  batchesQueued: number;
+  nextBatchEta: string;
+  streams: Array<{
+    id: number;
+    title: string;
+    totalMinutes: number;
+    extractedMinutes: number;
+    remainingMinutes: number;
+    exhausted: boolean;
+  }>;
+}> {
+  const allStreams = await db.select().from(streams)
+    .where(and(
+      eq(streams.userId, userId),
+      isNotNull(streams.endedAt),
+      isNotNull(streams.startedAt),
+    ))
+    .orderBy(desc(streams.startedAt))
+    .limit(20);
+
+  let totalRemaining = 0;
+  let totalExtracted = 0;
+  let totalStreamMinutes = 0;
+  let activeCount = 0;
+  const streamList: any[] = [];
+
+  for (const stream of allStreams) {
+    if (!stream.startedAt || !stream.endedAt) continue;
+    const total = Math.floor(
+      (new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()) / 60000
+    );
+    const extracted = stream.contentMinutesExtracted || 0;
+    const remaining = Math.max(0, total - extracted);
+    const exhausted = stream.contentFullyExhausted || false;
+
+    totalStreamMinutes += total;
+    totalExtracted += extracted;
+    totalRemaining += remaining;
+    if (!exhausted && remaining > 2) activeCount++;
+
+    streamList.push({
+      id: stream.id,
+      title: stream.title,
+      totalMinutes: total,
+      extractedMinutes: extracted,
+      remainingMinutes: remaining,
+      exhausted,
+    });
+  }
+
+  const [batchCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      sql`${autopilotQueue.metadata}->>'sourceStreamId' IS NOT NULL`,
+    ));
+
+  return {
+    activeStreamsWithContent: activeCount,
+    totalRemainingMinutes: totalRemaining,
+    totalExtractedMinutes: totalExtracted,
+    totalStreamMinutes,
+    exhaustPercentage: totalStreamMinutes > 0 ? Math.round((totalExtracted / totalStreamMinutes) * 100) : 0,
+    batchesQueued: batchCount?.count || 0,
+    nextBatchEta: "Runs every 2 hours",
+    streams: streamList,
+  };
 }
 
 export async function getDailyContentStatus(userId: string): Promise<{
@@ -351,9 +590,9 @@ export async function getDailyContentStatus(userId: string): Promise<{
   shortsPerDay: number;
   maxLongFormMinutes: number;
   todayItems: number;
+  streamExhaust: Awaited<ReturnType<typeof getStreamExhaustStatus>>;
 }> {
-  const now = new Date();
-  const active = now >= LAUNCH_DATE;
+  const active = true;
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -368,16 +607,18 @@ export async function getDailyContentStatus(userId: string): Promise<{
       eq(autopilotQueue.targetPlatform, "youtube"),
       gte(autopilotQueue.scheduledAt, todayStart),
       lte(autopilotQueue.scheduledAt, todayEnd),
-      sql`${autopilotQueue.metadata}->>'contentType' IN ('long-form-compilation', 'youtube-short')`,
     ));
+
+  const streamExhaust = await getStreamExhaustStatus(userId);
 
   return {
     active,
-    launchDate: LAUNCH_DATE.toISOString(),
-    todayPlanned: (todayCount?.count || 0) >= (LONG_FORM_PER_DAY + SHORTS_PER_DAY),
-    longFormPerDay: LONG_FORM_PER_DAY,
-    shortsPerDay: SHORTS_PER_DAY,
+    launchDate: "2026-02-20T00:00:00.000Z",
+    todayPlanned: (todayCount?.count || 0) >= (LONG_FORM_PER_BATCH + SHORTS_PER_BATCH),
+    longFormPerDay: LONG_FORM_PER_BATCH,
+    shortsPerDay: SHORTS_PER_BATCH,
     maxLongFormMinutes: LONG_FORM_MAX_MINUTES,
     todayItems: todayCount?.count || 0,
+    streamExhaust,
   };
 }
