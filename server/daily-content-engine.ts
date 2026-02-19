@@ -6,6 +6,7 @@ import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 import { generateHumanScheduledTime } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
+import { shouldRunDailyContent } from "./priority-orchestrator";
 
 const logger = createLogger("daily-content");
 const openai = getOpenAIClient();
@@ -295,6 +296,11 @@ export async function runDailyContentGeneration(): Promise<void> {
 
   for (const userId of userIds) {
     try {
+      if (!shouldRunDailyContent(userId)) {
+        logger.info("Daily content skipped (livestream active)", { userId });
+        continue;
+      }
+
       const alreadyPlanned = await hasContentForToday(userId);
       if (alreadyPlanned) {
         logger.info("Content already planned for today", { userId });

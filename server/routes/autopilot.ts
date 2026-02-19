@@ -623,6 +623,32 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  app.get("/api/priority/status", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getPriorityDashboard } = await import("../priority-orchestrator");
+      const dashboard = await getPriorityDashboard(userId);
+      res.json(dashboard);
+    } catch (err) {
+      console.error("[Priority] Status error:", err);
+      res.status(500).json({ error: "Failed to get priority status" });
+    }
+  });
+
+  app.get("/api/vod-optimizer/stats", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getVodOptimizationStats } = await import("../vod-optimizer-engine");
+      const stats = await getVodOptimizationStats(userId);
+      res.json(stats);
+    } catch (err) {
+      console.error("[VODOptimizer] Stats error:", err);
+      res.status(500).json({ error: "Failed to get VOD optimizer stats" });
+    }
+  });
+
   app.get("/api/daily-content/status", async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

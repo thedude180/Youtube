@@ -52,6 +52,9 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     -   **Cross-Platform Analytics**: Unified dashboard for aggregated video, stream, views, and revenue data.
     -   **Keyword Learning Engine**: Analyzes video performance to identify, score, and track winning keywords, injecting them into new content creation prompts.
     -   **Traffic Growth Engine**: Generates 100% legitimate, ToS-compliant traffic strategies covering SEO, community engagement, cross-platform distribution, and more, explicitly blocking banned tactics.
+    -   **Priority Orchestrator** (`server/priority-orchestrator.ts`): Central priority management system with dynamic mode switching. Priorities: #1 Top YouTuber Growth, #2 Daily Content Upload (1 long-form max 15min + 3 shorts), #3 VOD Optimization. Livestream detection overrides all priorities; post-stream harvest mode (2hr) auto-clips content before resuming normal priorities. State recovers from DB on restart.
+    -   **Daily Content Engine** (`server/daily-content-engine.ts`): AI-powered daily content planner using GPT-4o-mini. Generates 1 long-form video (max 15 min) + 3 YouTube Shorts from livestream/VOD footage. Launches 2/20/2026, runs daily at 6 AM UTC via cron.
+    -   **VOD Optimizer Engine** (`server/vod-optimizer-engine.ts`): Finds underperforming old videos (7+ days old), generates optimized titles/descriptions/tags/thumbnails via AI, queues optimizations. Runs every 8 hours, respects priority system (paused during livestream/post-stream harvest).
 
 ### Authentication & Authorization
 -   **Authentication**: Replit Auth (OIDC-based).

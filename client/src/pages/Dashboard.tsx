@@ -29,6 +29,7 @@ import DashboardSkeleton from "./dashboard/DashboardSkeleton";
 import MetricsGrid from "./dashboard/MetricsGrid";
 import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
+import PriorityCommandCenter from "@/components/PriorityCommandCenter";
 
 const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"));
 const LazyChannelGrowthTimeline = lazy(() => import("@/components/ChannelGrowthTimeline"));
@@ -253,6 +254,8 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <PriorityCommandCenter />
 
       <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
         <LazyPlatformHealthCards />

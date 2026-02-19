@@ -293,6 +293,15 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("0 */8 * * *", async () => {
+    try {
+      const { runVodOptimizationCycle } = await import("./vod-optimizer-engine");
+      await runVodOptimizationCycle();
+    } catch (err) {
+      console.error("[AutomationEngine] VOD optimization error:", err);
+    }
+  });
+
   cron.schedule("0 */4 * * *", async () => {
     try {
       const { processCommentResponses } = await import("./autopilot-engine");
