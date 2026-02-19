@@ -20,10 +20,10 @@ const PLATFORM_TIMING: Record<string, PlatformTimingProfile> = {
   youtube: {
     peakHours: [10, 11, 12, 14, 15, 16, 17, 18, 19, 20],
     offPeakHours: [8, 9, 13, 21, 22],
-    maxPostsPerDay: 2,
-    minGapMinutes: 120,
-    avgGapMinutes: 300,
-    weekendMultiplier: 0.7,
+    maxPostsPerDay: 4,
+    minGapMinutes: 90,
+    avgGapMinutes: 180,
+    weekendMultiplier: 1.0,
   },
   tiktok: {
     peakHours: [11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22],

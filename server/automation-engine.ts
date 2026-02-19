@@ -284,6 +284,15 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("0 6 * * *", async () => {
+    try {
+      const { runDailyContentGeneration } = await import("./daily-content-engine");
+      await runDailyContentGeneration();
+    } catch (err) {
+      console.error("[AutomationEngine] Daily content engine error:", err);
+    }
+  });
+
   cron.schedule("0 */4 * * *", async () => {
     try {
       const { processCommentResponses } = await import("./autopilot-engine");

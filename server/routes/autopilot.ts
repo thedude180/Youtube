@@ -622,4 +622,30 @@ export function registerAutopilotRoutes(app: Express) {
       if (!res.headersSent) res.status(500).json({ error: "Failed to activate autopilot" });
     }
   });
+
+  app.get("/api/daily-content/status", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getDailyContentStatus } = await import("../daily-content-engine");
+      const status = await getDailyContentStatus(userId);
+      res.json(status);
+    } catch (err) {
+      console.error("[DailyContent] Status error:", err);
+      res.status(500).json({ error: "Failed to get daily content status" });
+    }
+  });
+
+  app.post("/api/daily-content/trigger", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { runDailyContentGeneration } = await import("../daily-content-engine");
+      await runDailyContentGeneration();
+      res.json({ success: true, message: "Daily content generation triggered" });
+    } catch (err) {
+      console.error("[DailyContent] Trigger error:", err);
+      res.status(500).json({ error: "Failed to trigger daily content generation" });
+    }
+  });
 }
