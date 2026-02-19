@@ -114,7 +114,7 @@ export function NotificationBell() {
             </Button>
           )}
         </div>
-        <ScrollArea className="max-h-80">
+        <ScrollArea className="h-[400px]">
           {isLoading ? (
             <div className="space-y-3 p-3">
               {Array.from({ length: 3 }).map((_, i) => (
