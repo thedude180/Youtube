@@ -3,6 +3,9 @@ import { db } from "../db";
 import { eq, and, desc, gte, lte, sql, asc } from "drizzle-orm";
 import { requireAuth, asyncHandler } from "./helpers";
 import { cached } from "../lib/cache";
+import { getOpenAIClient } from "../lib/openai";
+import { createLogger } from "../lib/logger";
+const logger = createLogger("growth-tracking");
 import {
   channelGrowthTracking, analyticsSnapshots, channels, videos,
   autopilotQueue, streamPipelines, channelBaselineSnapshots
@@ -269,6 +272,364 @@ export function registerGrowthTrackingRoutes(app: Express) {
 
     res.json(result);
   }));
+
+  app.get("/api/growth/trajectory", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const result = await cached(`growth-trajectory:${userId}`, 300, async () => {
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+      const userChannels = await db.select().from(channels)
+        .where(eq(channels.userId, userId));
+
+      const snapshots = await db.select().from(channelGrowthTracking)
+        .where(and(
+          eq(channelGrowthTracking.userId, userId),
+          gte(channelGrowthTracking.snapshotDate, ninetyDaysAgo),
+        ))
+        .orderBy(asc(channelGrowthTracking.snapshotDate))
+        .limit(500);
+
+      const baselineSnapshots = await db.select().from(channelBaselineSnapshots)
+        .where(and(
+          eq(channelBaselineSnapshots.userId, userId),
+          gte(channelBaselineSnapshots.snapshotDate, ninetyDaysAgo),
+        ))
+        .orderBy(asc(channelBaselineSnapshots.snapshotDate))
+        .limit(500);
+
+      const completedOps = await db.select({
+        count: sql<number>`count(*)::int`,
+      }).from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.status, "completed"),
+        ));
+
+      const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
+      const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
+      const totalVideos = userChannels.reduce((s, c) => s + (c.videoCount || 0), 0);
+      const optimizations = completedOps[0]?.count || 0;
+
+      const viewsTimeline: number[] = [];
+      const subsTimeline: number[] = [];
+      const dateLabels: string[] = [];
+
+      if (snapshots.length >= 3) {
+        for (const s of snapshots) {
+          viewsTimeline.push(s.actualViews || 0);
+          subsTimeline.push(s.actualSubscribers || 0);
+          dateLabels.push(new Date(s.snapshotDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+        }
+      } else if (baselineSnapshots.length >= 3) {
+        for (const s of baselineSnapshots) {
+          viewsTimeline.push(s.views || 0);
+          subsTimeline.push(s.subscribers || 0);
+          dateLabels.push(new Date(s.snapshotDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+        }
+      }
+
+      const growthRates = computeGrowthRates(viewsTimeline);
+      const subsGrowthRates = computeGrowthRates(subsTimeline);
+      const plateau = detectPlateau(growthRates);
+      const subsPlateau = detectPlateau(subsGrowthRates);
+      const inflection = predictInflection(viewsTimeline, growthRates, optimizations, totalVideos);
+
+      const curveData = buildTrajectoryData(viewsTimeline, subsTimeline, dateLabels, totalViews, totalSubs, optimizations, totalVideos);
+
+      let aiInsights = null;
+      try {
+        const openai = getOpenAIClient();
+        const prompt = buildTrajectoryPrompt({
+          totalViews, totalSubs, totalVideos, optimizations,
+          growthRates, subsGrowthRates,
+          plateau, subsPlateau, inflection,
+          channelCount: userChannels.length,
+          platforms: userChannels.map(c => c.platform),
+        });
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 1200,
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (content) {
+          try {
+            const parsed = JSON.parse(content);
+            aiInsights = {
+              inflectionAnalysis: typeof parsed.inflectionAnalysis === "string" ? parsed.inflectionAnalysis : "Analysis unavailable.",
+              plateauBreakers: Array.isArray(parsed.plateauBreakers) ? parsed.plateauBreakers.slice(0, 5).map((b: any) => ({
+                title: String(b.title || "Strategy"),
+                description: String(b.description || ""),
+                impact: ["high", "medium", "low"].includes(b.impact) ? b.impact : "medium",
+                timeframe: String(b.timeframe || "1-2 weeks"),
+              })) : [],
+              growthAccelerators: Array.isArray(parsed.growthAccelerators) ? parsed.growthAccelerators.slice(0, 5).map(String) : [],
+              riskFactors: Array.isArray(parsed.riskFactors) ? parsed.riskFactors.slice(0, 4).map(String) : [],
+              nextMilestone: parsed.nextMilestone && typeof parsed.nextMilestone === "object" ? {
+                metric: String(parsed.nextMilestone.metric || "views"),
+                target: Number(parsed.nextMilestone.target) || 10000,
+                estimatedDays: Number(parsed.nextMilestone.estimatedDays) || 30,
+                description: String(parsed.nextMilestone.description || "Growth milestone"),
+              } : { metric: "views", target: totalViews * 2 || 10000, estimatedDays: 60, description: "Double your current views" },
+            };
+          } catch (parseErr: any) {
+            logger.error("Failed to parse AI trajectory response", { error: parseErr.message });
+          }
+        }
+      } catch (err: any) {
+        logger.error("Failed to get AI trajectory insights", { error: err.message });
+      }
+
+      return {
+        currentMetrics: { totalViews, totalSubs, totalVideos, optimizations, channelCount: userChannels.length },
+        trajectory: curveData,
+        inflection,
+        plateau: {
+          views: plateau,
+          subscribers: subsPlateau,
+        },
+        aiInsights,
+      };
+    });
+
+    res.json(result);
+  }));
+}
+
+function computeGrowthRates(values: number[]): number[] {
+  const rates: number[] = [];
+  for (let i = 1; i < values.length; i++) {
+    const prev = values[i - 1];
+    if (prev > 0) {
+      rates.push((values[i] - prev) / prev);
+    } else {
+      rates.push(values[i] > 0 ? 1 : 0);
+    }
+  }
+  return rates;
+}
+
+function detectPlateau(growthRates: number[]): {
+  detected: boolean;
+  severity: "none" | "mild" | "moderate" | "severe";
+  durationDays: number;
+  avgGrowthRate: number;
+} {
+  if (growthRates.length < 3) {
+    return { detected: false, severity: "none", durationDays: 0, avgGrowthRate: 0 };
+  }
+
+  const recentRates = growthRates.slice(-7);
+  const avgRate = recentRates.reduce((a, b) => a + b, 0) / recentRates.length;
+
+  let plateauDays = 0;
+  for (let i = growthRates.length - 1; i >= 0; i--) {
+    if (Math.abs(growthRates[i]) < 0.005) {
+      plateauDays++;
+    } else {
+      break;
+    }
+  }
+
+  let severity: "none" | "mild" | "moderate" | "severe" = "none";
+  if (plateauDays >= 14) severity = "severe";
+  else if (plateauDays >= 7) severity = "moderate";
+  else if (plateauDays >= 3) severity = "mild";
+
+  return {
+    detected: plateauDays >= 3,
+    severity,
+    durationDays: plateauDays,
+    avgGrowthRate: Math.round(avgRate * 10000) / 100,
+  };
+}
+
+function predictInflection(
+  viewsTimeline: number[],
+  growthRates: number[],
+  optimizations: number,
+  totalVideos: number,
+): {
+  predicted: boolean;
+  estimatedDays: number | null;
+  estimatedDate: string | null;
+  confidence: number;
+  currentPhase: string;
+  phaseDescription: string;
+} {
+  const avgRate = growthRates.length > 0
+    ? growthRates.reduce((a, b) => a + b, 0) / growthRates.length
+    : 0;
+
+  const recentRate = growthRates.length >= 3
+    ? growthRates.slice(-3).reduce((a, b) => a + b, 0) / 3
+    : avgRate;
+
+  const acceleration = growthRates.length >= 5
+    ? (growthRates.slice(-3).reduce((a, b) => a + b, 0) / 3) -
+      (growthRates.slice(-6, -3).reduce((a, b) => a + b, 0) / Math.min(3, growthRates.slice(-6, -3).length || 1))
+    : 0;
+
+  let currentPhase = "Building Foundation";
+  let phaseDescription = "Growing your content library and audience base";
+
+  if (recentRate > 0.05) {
+    currentPhase = "Explosive Growth";
+    phaseDescription = "You've hit the inflection point - growth is compounding rapidly";
+  } else if (recentRate > 0.02) {
+    currentPhase = "Acceleration";
+    phaseDescription = "Growth is picking up speed - algorithm is noticing your consistency";
+  } else if (recentRate > 0.005) {
+    currentPhase = "Momentum Building";
+    phaseDescription = "Steady upward trend - keep pushing content to trigger the algorithm";
+  } else if (recentRate < -0.005) {
+    currentPhase = "Recovery Needed";
+    phaseDescription = "Growth has dipped - time to refresh strategy and increase output";
+  }
+
+  const contentVelocityFactor = Math.min(1, totalVideos / 50);
+  const optimizationFactor = Math.min(1, optimizations / 100);
+  const consistencyFactor = Math.min(1, viewsTimeline.length / 30);
+
+  let readiness = (contentVelocityFactor * 0.35 + optimizationFactor * 0.25 + consistencyFactor * 0.2 + Math.min(1, recentRate * 20) * 0.2);
+  readiness = Math.round(readiness * 100) / 100;
+
+  let estimatedDays: number | null = null;
+  if (readiness < 0.9 && currentPhase !== "Explosive Growth") {
+    if (acceleration > 0) {
+      estimatedDays = Math.max(7, Math.round((1 - readiness) * 120 / Math.max(0.01, acceleration * 10 + recentRate * 5)));
+    } else {
+      estimatedDays = Math.max(14, Math.round((1 - readiness) * 180));
+    }
+    estimatedDays = Math.min(estimatedDays, 365);
+  }
+
+  const estimatedDate = estimatedDays
+    ? new Date(Date.now() + estimatedDays * 86400000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : null;
+
+  return {
+    predicted: estimatedDays !== null,
+    estimatedDays,
+    estimatedDate,
+    confidence: Math.round(readiness * 100),
+    currentPhase,
+    phaseDescription,
+  };
+}
+
+function buildTrajectoryData(
+  viewsTimeline: number[],
+  subsTimeline: number[],
+  dateLabels: string[],
+  currentViews: number,
+  currentSubs: number,
+  optimizations: number,
+  totalVideos: number,
+) {
+  const historical: { date: string; views: number; subscribers: number; type: "historical" }[] = [];
+
+  if (viewsTimeline.length > 0) {
+    for (let i = 0; i < viewsTimeline.length; i++) {
+      historical.push({
+        date: dateLabels[i] || `Day ${i + 1}`,
+        views: viewsTimeline[i],
+        subscribers: subsTimeline[i] || 0,
+        type: "historical",
+      });
+    }
+  } else {
+    const baseViews = Math.max(1, currentViews);
+    const baseSubs = Math.max(1, currentSubs);
+    for (let i = 30; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const factor = 1 - (i * 0.008);
+      historical.push({
+        date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        views: Math.round(baseViews * Math.max(0.7, factor)),
+        subscribers: Math.round(baseSubs * Math.max(0.85, factor)),
+        type: "historical",
+      });
+    }
+  }
+
+  const last = historical[historical.length - 1];
+  const baseGrowth = 0.003;
+  const aiBoost = Math.min(0.04, optimizations * 0.001 + totalVideos * 0.0005);
+  const projected: { date: string; projectedViews: number; projectedSubs: number; inflectionViews: number; inflectionSubs: number; type: "projected" }[] = [];
+
+  for (let i = 1; i <= 90; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+
+    const compoundFactor = Math.pow(1 + baseGrowth + aiBoost, i);
+    const inflectionFactor = Math.pow(1 + baseGrowth + aiBoost * 2, i);
+
+    projected.push({
+      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      projectedViews: Math.round(last.views * compoundFactor),
+      projectedSubs: Math.round(last.subscribers * compoundFactor),
+      inflectionViews: Math.round(last.views * inflectionFactor),
+      inflectionSubs: Math.round(last.subscribers * inflectionFactor),
+      type: "projected",
+    });
+  }
+
+  return { historical, projected };
+}
+
+function buildTrajectoryPrompt(data: {
+  totalViews: number;
+  totalSubs: number;
+  totalVideos: number;
+  optimizations: number;
+  growthRates: number[];
+  subsGrowthRates: number[];
+  plateau: ReturnType<typeof detectPlateau>;
+  subsPlateau: ReturnType<typeof detectPlateau>;
+  inflection: ReturnType<typeof predictInflection>;
+  channelCount: number;
+  platforms: string[];
+}): string {
+  return `You are a YouTube growth strategist AI. Analyze this creator's growth data and provide actionable insights.
+
+CHANNEL DATA:
+- Total Views: ${data.totalViews.toLocaleString()}
+- Total Subscribers: ${data.totalSubs.toLocaleString()}
+- Total Videos: ${data.totalVideos}
+- AI Optimizations Applied: ${data.optimizations}
+- Connected Platforms: ${data.platforms.join(", ") || "None"}
+- Current Growth Phase: ${data.inflection.currentPhase}
+- Views Growth Rate (recent): ${data.growthRates.slice(-3).map(r => (r * 100).toFixed(1) + "%").join(", ") || "N/A"}
+- Subs Growth Rate (recent): ${data.subsGrowthRates.slice(-3).map(r => (r * 100).toFixed(1) + "%").join(", ") || "N/A"}
+- Views Plateau: ${data.plateau.detected ? `Yes (${data.plateau.severity}, ${data.plateau.durationDays} days)` : "No"}
+- Subs Plateau: ${data.subsPlateau.detected ? `Yes (${data.subsPlateau.severity}, ${data.subsPlateau.durationDays} days)` : "No"}
+- Predicted Inflection: ${data.inflection.predicted ? `${data.inflection.estimatedDays} days (${data.inflection.confidence}% readiness)` : "Already in explosive growth"}
+
+Respond in JSON with this exact structure:
+{
+  "inflectionAnalysis": "2-3 sentence analysis of when and why the inflection point will happen",
+  "plateauBreakers": [
+    {"title": "short action title", "description": "1-2 sentence specific actionable strategy", "impact": "high|medium|low", "timeframe": "immediate|1-2 weeks|1 month"},
+    {"title": "short action title", "description": "1-2 sentence specific actionable strategy", "impact": "high|medium|low", "timeframe": "immediate|1-2 weeks|1 month"},
+    {"title": "short action title", "description": "1-2 sentence specific actionable strategy", "impact": "high|medium|low", "timeframe": "immediate|1-2 weeks|1 month"}
+  ],
+  "growthAccelerators": [
+    "specific action that will speed up reaching inflection",
+    "specific action that will speed up reaching inflection",
+    "specific action that will speed up reaching inflection"
+  ],
+  "riskFactors": ["potential risk to growth", "potential risk to growth"],
+  "nextMilestone": {"metric": "views or subscribers", "target": number, "estimatedDays": number, "description": "what hitting this milestone means"}
+}`;
 }
 
 function formatGrowthData(snapshots: any[], days: number) {

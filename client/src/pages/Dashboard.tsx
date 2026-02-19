@@ -32,6 +32,7 @@ import AIActionCenter from "./dashboard/AIActionCenter";
 import PriorityCommandCenter from "@/components/PriorityCommandCenter";
 
 const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"));
+const LazyGrowthTrajectoryPredictor = lazy(() => import("@/components/GrowthTrajectoryPredictor"));
 const LazyChannelGrowthTimeline = lazy(() => import("@/components/ChannelGrowthTimeline"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
 const LazyPlatformHealthCards = lazy(() => import("@/components/PlatformHealthCards"));
@@ -265,6 +266,10 @@ export default function Dashboard() {
 
       <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-lg" />}>
         <LazyGrowthImpactChart />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="h-[500px] w-full rounded-lg" />}>
+        <LazyGrowthTrajectoryPredictor />
       </Suspense>
 
       <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
