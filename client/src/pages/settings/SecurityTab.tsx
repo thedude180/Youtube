@@ -17,10 +17,10 @@ import {
 } from "lucide-react";
 
 function SecurityOverviewSection() {
-  const { data: dashboard, isLoading } = useQuery<any>({ queryKey: ["/api/security/dashboard"] });
+  const { data: dashboard, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/dashboard"], retry: false });
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-security-overview" />;
-  if (!dashboard) return null;
+  if (isError || !dashboard) return null;
 
   const stats = dashboard.stats;
   const metrics = [
@@ -59,9 +59,11 @@ function SecurityOverviewSection() {
 }
 
 function BlockedIPsSection() {
-  const { data: ips, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/blocked-ips"] });
+  const { data: rawIps, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/blocked-ips"], retry: false });
+  const ips = Array.isArray(rawIps) ? rawIps : [];
 
   if (isLoading) return <Skeleton className="h-20" data-testid="skeleton-blocked-ips" />;
+  if (isError) return null;
 
   return (
     <Card data-testid="card-blocked-ips">
@@ -73,7 +75,7 @@ function BlockedIPsSection() {
         <Badge variant="secondary" className="text-xs" data-testid="badge-blocked-count">{ips?.length || 0} blocked</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0">
-        {!ips || ips.length === 0 ? (
+        {ips.length === 0 ? (
           <div className="flex flex-col items-center py-4">
             <CheckCircle2 className="w-6 h-6 text-emerald-500/20 mb-1" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-blocked">No blocked IPs</p>
@@ -99,9 +101,11 @@ function BlockedIPsSection() {
 }
 
 function SecurityEventsSection() {
-  const { data: events, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/events"] });
+  const { data: rawEvents, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/events"], retry: false });
+  const events = Array.isArray(rawEvents) ? rawEvents : [];
 
   if (isLoading) return <Skeleton className="h-32" data-testid="skeleton-events" />;
+  if (isError) return null;
 
   const severityColor = (s: string) => {
     switch (s) {
@@ -122,7 +126,7 @@ function SecurityEventsSection() {
         <Badge variant="secondary" className="text-xs" data-testid="badge-events-count">{events?.length || 0} events</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0">
-        {!events || events.length === 0 ? (
+        {events.length === 0 ? (
           <div className="flex flex-col items-center py-4">
             <CheckCircle2 className="w-6 h-6 text-emerald-500/20 mb-1" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-events">No recent events</p>
@@ -156,12 +160,12 @@ function SecurityEventsSection() {
 }
 
 function CircuitBreakersSection() {
-  const { data: breakers, isLoading } = useQuery<any>({ queryKey: ["/api/security/circuit-breakers"] });
+  const { data: breakers, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/circuit-breakers"], retry: false });
 
   if (isLoading) return <Skeleton className="h-24" data-testid="skeleton-breakers" />;
-  if (!breakers) return null;
+  if (isError || !breakers) return null;
 
-  const breakerList = Object.values(breakers) as any[];
+  const breakerList = Array.isArray(breakers) ? breakers : Object.values(breakers || {}) as any[];
 
   const statusColor = (state: string) => {
     switch (state) {
@@ -210,7 +214,8 @@ function ApiKeysSection() {
   const { toast } = useToast();
   const [newKeyName, setNewKeyName] = useState("");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const { data: keys, isLoading } = useQuery<any[]>({ queryKey: ["/api/keys"] });
+  const { data: rawKeys, isLoading } = useQuery<any>({ queryKey: ["/api/keys"] });
+  const keys = Array.isArray(rawKeys) ? rawKeys : [];
 
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -325,7 +330,8 @@ function ApiKeysSection() {
 }
 
 function AuditLogSection() {
-  const { data: logs, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/audit-log"] });
+  const { data: rawLogs, isLoading } = useQuery<any>({ queryKey: ["/api/security/audit-log"] });
+  const logs = Array.isArray(rawLogs) ? rawLogs : [];
 
   if (isLoading) return <Skeleton className="h-32" data-testid="skeleton-audit-log" />;
 
@@ -339,7 +345,7 @@ function AuditLogSection() {
         <Badge variant="secondary" className="text-xs" data-testid="badge-log-count">{logs?.length || 0} events</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0">
-        {!logs || logs.length === 0 ? (
+        {logs.length === 0 ? (
           <div className="flex flex-col items-center py-6">
             <Shield className="w-8 h-8 text-muted-foreground/20 mb-2" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-logs">No security events recorded</p>
@@ -388,7 +394,8 @@ function AuditLogSection() {
 
 function ActiveSessionsSection() {
   const { toast } = useToast();
-  const { data: sessions, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/sessions"] });
+  const { data: rawSessions, isLoading } = useQuery<any>({ queryKey: ["/api/security/sessions"] });
+  const sessions = Array.isArray(rawSessions) ? rawSessions : rawSessions?.activeSessions || [];
 
   const terminateMutation = useMutation({
     mutationFn: async (sessionId: string) => {
@@ -411,10 +418,10 @@ function ActiveSessionsSection() {
           <Monitor className="h-3.5 w-3.5 text-primary" />
           Active Sessions
         </CardTitle>
-        <Badge variant="secondary" className="text-xs" data-testid="badge-session-count">{sessions?.length || 0} active</Badge>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-session-count">{sessions.length} active</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0 space-y-1">
-        {!sessions || sessions.length === 0 ? (
+        {sessions.length === 0 ? (
           <div className="flex flex-col items-center py-6">
             <Monitor className="w-8 h-8 text-muted-foreground/20 mb-2" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-sessions">No active sessions</p>
@@ -533,7 +540,8 @@ function TwoFactorSection() {
 }
 
 function SecurityAlertsSection() {
-  const { data: alerts, isLoading } = useQuery<any[]>({ queryKey: ["/api/security/alerts"] });
+  const { data: rawAlerts, isLoading } = useQuery<any>({ queryKey: ["/api/security/alerts"] });
+  const alerts = Array.isArray(rawAlerts) ? rawAlerts : rawAlerts?.alerts || [];
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-alerts" />;
 
@@ -563,10 +571,10 @@ function SecurityAlertsSection() {
           <AlertTriangle className="h-3.5 w-3.5 text-primary" />
           Security Alerts
         </CardTitle>
-        <Badge variant="secondary" className="text-xs" data-testid="badge-alert-count">{alerts?.length || 0} alerts</Badge>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-alert-count">{alerts.length} alerts</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0 space-y-1">
-        {!alerts || alerts.length === 0 ? (
+        {alerts.length === 0 ? (
           <div className="flex flex-col items-center py-6">
             <CheckCircle2 className="w-8 h-8 text-emerald-500/20 mb-2" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-alerts">No security alerts</p>

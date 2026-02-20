@@ -1634,6 +1634,18 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
+  app.get("/api/security/two-factor", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const logs = await storage.getAuditLogsByUser(userId);
+      const enabled = logs.some(l => l.action === "2fa_enabled");
+      res.json({ enabled, method: enabled ? "authenticator" : null });
+    } catch (error: any) {
+      res.json({ enabled: false, method: null });
+    }
+  }));
+
   app.post("/api/security/two-factor", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
