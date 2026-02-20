@@ -27,7 +27,7 @@ import { BackToTop } from "@/components/BackToTop";
 import { GlobalProgress } from "@/components/GlobalProgress";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { SessionTracker } from "@/components/SessionTracker";
-import { lazyRetry } from "@/lib/lazyRetry";
+import { lazyRetry, isChunkError } from "@/lib/lazyRetry";
 
 const CommandPalette = lazyRetry(() => import("@/components/CommandPalette"));
 
@@ -659,6 +659,17 @@ class PageErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("PageErrorBoundary caught:", error, info);
+    if (isChunkError(error)) {
+      const key = "page_eb_chunk_reload_ts";
+      const last = sessionStorage.getItem(key);
+      const now = Date.now();
+      if (!last || now - Number(last) > 15000) {
+        sessionStorage.setItem(key, String(now));
+        window.location.reload();
+        return;
+      }
+      sessionStorage.removeItem(key);
+    }
   }
 
   handleRecover = () => {
@@ -668,35 +679,55 @@ class PageErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
 
   render() {
     if (this.state.hasError) {
+      const chunkErr = isChunkError(this.state.error);
       return (
         <div className="flex items-center justify-center p-8" data-testid="page-error-boundary">
           <div className="max-w-sm w-full space-y-4 text-center">
             <div className="h-10 w-10 rounded-md bg-destructive/10 flex items-center justify-center mx-auto">
               <Zap className="h-5 w-5 text-destructive" />
             </div>
-            <h2 className="text-lg font-bold">This page hit an error</h2>
+            <h2 className="text-lg font-bold">
+              {chunkErr ? "Update Available" : "This page hit an error"}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Something went wrong loading this page. Try recovering or navigate to another page.
+              {chunkErr
+                ? "A new version is available. Please reload to get the latest update."
+                : "Something went wrong loading this page. Try recovering or navigate to another page."}
             </p>
-            {this.state.error && (
+            {this.state.error && !chunkErr && (
               <p className="text-xs text-muted-foreground/60 font-mono break-all max-h-12 overflow-hidden">
                 {this.state.error.message}
               </p>
             )}
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Button
-                data-testid="button-page-recover"
-                variant="outline"
-                onClick={this.handleRecover}
-              >
-                Try Again
-              </Button>
-              <Button
-                data-testid="button-page-home"
-                onClick={() => { this.handleRecover(); window.location.href = "/"; }}
-              >
-                Go Home
-              </Button>
+              {chunkErr ? (
+                <Button
+                  data-testid="button-page-reload"
+                  onClick={() => {
+                    sessionStorage.removeItem("page_eb_chunk_reload_ts");
+                    sessionStorage.removeItem("chunk_reload_ts");
+                    window.location.reload();
+                  }}
+                >
+                  Reload Page
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    data-testid="button-page-recover"
+                    variant="outline"
+                    onClick={this.handleRecover}
+                  >
+                    Try Again
+                  </Button>
+                  <Button
+                    data-testid="button-page-home"
+                    onClick={() => { this.handleRecover(); window.location.href = "/"; }}
+                  >
+                    Go Home
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
