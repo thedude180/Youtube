@@ -4129,6 +4129,131 @@ export type InsertTrafficStrategy = z.infer<typeof insertTrafficStrategySchema>;
 
 
 
+export const marketingCampaigns = pgTable("marketing_campaigns", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  campaignType: text("campaign_type").notNull(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("draft"),
+  mode: text("mode").notNull().default("organic"),
+  budget: real("budget"),
+  spent: real("spent").default(0),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  targetMetrics: jsonb("target_metrics").$type<{
+    targetViews?: number;
+    targetSubscribers?: number;
+    targetEngagementRate?: number;
+    targetCtr?: number;
+    targetCpm?: number;
+  }>(),
+  results: jsonb("results").$type<{
+    impressions?: number;
+    clicks?: number;
+    views?: number;
+    conversions?: number;
+    subscribersGained?: number;
+    ctr?: number;
+    cpm?: number;
+    roi?: number;
+    notes?: string;
+  }>(),
+  strategies: jsonb("strategies").$type<{
+    organic: string[];
+    paid: string[];
+    platforms: string[];
+    audiences: string[];
+    keywords: string[];
+    adCopy?: string;
+    thumbnailConcept?: string;
+    schedule?: Record<string, string>;
+  }>(),
+  metadata: jsonb("metadata").$type<{
+    aiModel?: string;
+    generatedAt?: string;
+    lastOptimizedAt?: string;
+    adPlatform?: string;
+    adAccountId?: string;
+    retentionBeatsApplied?: boolean;
+  }>(),
+  lastRunAt: timestamp("last_run_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("marketing_campaigns_user_idx").on(table.userId),
+  index("marketing_campaigns_status_idx").on(table.userId, table.status),
+]);
+
+export const insertMarketingCampaignSchema = createInsertSchema(marketingCampaigns).omit({ id: true, createdAt: true });
+export type MarketingCampaign = typeof marketingCampaigns.$inferSelect;
+export type InsertMarketingCampaign = z.infer<typeof insertMarketingCampaignSchema>;
+
+export const marketingConfig = pgTable("marketing_config", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  paidAdsEnabled: boolean("paid_ads_enabled").default(false),
+  monthlyAdBudget: real("monthly_ad_budget").default(0),
+  organicStrategies: jsonb("organic_strategies").$type<{
+    seoOptimization: boolean;
+    communityEngagement: boolean;
+    crossPlatformDistribution: boolean;
+    collaborationOutreach: boolean;
+    contentSeriesBuilding: boolean;
+    audienceRetention: boolean;
+    searchTrendRiding: boolean;
+    playlistOptimization: boolean;
+    shortsFunnel: boolean;
+    endScreenOptimization: boolean;
+    commentEngagement: boolean;
+    socialProofBuilding: boolean;
+    hashtagStrategy: boolean;
+    thumbnailOptimization: boolean;
+    communityPosts: boolean;
+  }>().default({
+    seoOptimization: true,
+    communityEngagement: true,
+    crossPlatformDistribution: true,
+    collaborationOutreach: true,
+    contentSeriesBuilding: true,
+    audienceRetention: true,
+    searchTrendRiding: true,
+    playlistOptimization: true,
+    shortsFunnel: true,
+    endScreenOptimization: true,
+    commentEngagement: true,
+    socialProofBuilding: true,
+    hashtagStrategy: true,
+    thumbnailOptimization: true,
+    communityPosts: true,
+  }),
+  adPlatforms: jsonb("ad_platforms").$type<{
+    youtubeAds: boolean;
+    googleAds: boolean;
+    tiktokAds: boolean;
+    xAds: boolean;
+  }>().default({
+    youtubeAds: false,
+    googleAds: false,
+    tiktokAds: false,
+    xAds: false,
+  }),
+  targetAudience: jsonb("target_audience").$type<{
+    ageRange?: string;
+    interests?: string[];
+    locations?: string[];
+    languages?: string[];
+    demographics?: string;
+  }>(),
+  lastCycleAt: timestamp("last_cycle_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("marketing_config_user_idx").on(table.userId),
+]);
+
+export const insertMarketingConfigSchema = createInsertSchema(marketingConfig).omit({ id: true, createdAt: true, updatedAt: true });
+export type MarketingConfig = typeof marketingConfig.$inferSelect;
+export type InsertMarketingConfig = z.infer<typeof insertMarketingConfigSchema>;
+
 export const gettingStartedChecklist = pgTable("getting_started_checklist", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),

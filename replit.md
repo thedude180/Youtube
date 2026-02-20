@@ -49,6 +49,7 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **YouTube Quota Manager & Push Backlog**: Manages YouTube API quota and queues optimizations.
     - **Content Performance Predictor**: AI-powered prediction with actionable suggestions.
     - **Cross-Platform Analytics**: Unified dashboard.
+    - **Autonomous Marketer Engine** (`marketer-engine.ts`): Unified marketing orchestrator that coordinates all 15 organic strategies (SEO, community, cross-platform, collabs, series, retention, trends, playlists, Shorts funnel, end screens, comments, social proof, hashtags, thumbnails, community posts) + optional paid ads (YouTube/Google/TikTok/X ads, only when user explicitly enables). Runs keyword learning, traffic growth, collab scanning, sponsorship readiness, and brand partnerships in a single coordinated cycle every 6 hours. Organic-first by default, Fort Knox coverage with zero gaps.
     - **Keyword Learning Engine**: Analyzes performance to identify and inject winning keywords.
     - **Traffic Growth Engine**: Generates ToS-compliant traffic strategies.
     - **Priority Orchestrator**: Manages dynamic content priorities (e.g., Top YouTuber Growth, Daily Uploads, VOD Optimization, Livestream overrides).

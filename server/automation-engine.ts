@@ -525,31 +525,19 @@ export async function initAutomationEngine() {
     }
   });
 
-  cron.schedule("0 */8 * * *", async () => {
+  cron.schedule("0 */6 * * *", async () => {
     try {
-      const { runKeywordLearningCycle } = await import("./services/keyword-learning-engine");
-      const count = await runKeywordLearningCycle();
+      const { runMarketingCycleForAllUsers } = await import("./marketer-engine");
+      const count = await runMarketingCycleForAllUsers();
       if (count > 0) {
-        console.log(`[KeywordEngine] Learning cycle complete — analyzed ${count} users`);
+        console.log(`[MarketerEngine] Full marketing cycle complete — ${count} users (organic strategies + keyword learning + traffic growth + collab + sponsorship${" + paid ads if enabled"})`);
       }
     } catch (err) {
-      console.error("[KeywordEngine] Learning cycle error:", err);
+      console.error("[MarketerEngine] Marketing cycle error:", err);
     }
   });
 
-  cron.schedule("0 */12 * * *", async () => {
-    try {
-      const { runTrafficGrowthCycle } = await import("./services/traffic-growth-engine");
-      const count = await runTrafficGrowthCycle();
-      if (count > 0) {
-        console.log(`[TrafficEngine] Growth cycle complete — ${count} users`);
-      }
-    } catch (err) {
-      console.error("[TrafficEngine] Growth cycle error:", err);
-    }
-  });
-
-  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Keyword Learning + Traffic Growth)");
+  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Autonomous Marketer + Content Loop)");
 }
 
 async function processAllCronJobs() {
