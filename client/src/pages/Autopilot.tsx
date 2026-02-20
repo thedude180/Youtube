@@ -51,6 +51,8 @@ import {
   Download,
   SquareCheck,
   Square,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 
@@ -66,6 +68,9 @@ interface AutopilotStats {
   totalPosts: number;
   scheduledPosts: number;
   publishedPosts: number;
+  verifiedPosts: number;
+  verificationFailed: number;
+  verificationPending: number;
   totalCommentResponses: number;
   pendingCommentApprovals: number;
   recentActivity: any[];
@@ -80,6 +85,8 @@ interface QueueItem {
   content: string;
   caption: string;
   status: string;
+  verificationStatus: string | null;
+  verifiedAt: string | null;
   scheduledAt: string | null;
   publishedAt: string | null;
   createdAt: string;
@@ -366,6 +373,23 @@ export default function Autopilot() {
     },
   });
 
+  const verifyPostMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/autopilot/queue/${id}/verify`, {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      toast({
+        title: data.verified ? "Verified on platform" : "Verification pending",
+        description: data.verified
+          ? `Content confirmed live — ${data.platformStatus}`
+          : data.error || "Will retry automatically",
+      });
+    },
+  });
+
   const pauseAllMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", "/api/autopilot/pause-all", {});
@@ -509,6 +533,18 @@ export default function Autopilot() {
             </div>
             <AnimatedCounter value={stats?.publishedPosts || 0} className="text-2xl font-bold" data-testid="text-published-posts" />
             <p className="text-xs text-muted-foreground mt-0.5">Published</p>
+            {(stats?.verifiedPosts || 0) > 0 && (
+              <div className="flex items-center gap-1 mt-1" data-testid="text-verified-count">
+                <ShieldCheck className="h-3 w-3 text-green-400" />
+                <span className="text-xs text-green-400">{stats?.verifiedPosts} verified</span>
+              </div>
+            )}
+            {(stats?.verificationFailed || 0) > 0 && (
+              <div className="flex items-center gap-1 mt-0.5" data-testid="text-verification-failed">
+                <AlertTriangle className="h-3 w-3 text-red-400" />
+                <span className="text-xs text-red-400">{stats?.verificationFailed} unconfirmed</span>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className="gradient-border">
@@ -818,6 +854,48 @@ export default function Autopilot() {
                               Grade: {item.metadata.safetyGrade as string}
                             </Badge>
                           )}
+                          {item.status === "published" && item.verificationStatus === "verified" && (
+                            <Badge variant="secondary" className="text-xs bg-green-500/15 text-green-400" data-testid={`badge-verified-${item.id}`}>
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                              Verified Live
+                            </Badge>
+                          )}
+                          {item.status === "published" && item.verificationStatus === "pending" && (
+                            <Badge variant="secondary" className="text-xs bg-yellow-500/15 text-yellow-400" data-testid={`badge-verifying-${item.id}`}>
+                              <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                              Verifying...
+                            </Badge>
+                          )}
+                          {item.status === "published" && item.verificationStatus === "failed" && (
+                            <Badge variant="destructive" className="text-xs" data-testid={`badge-verify-failed-${item.id}`}>
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Not Confirmed
+                            </Badge>
+                          )}
+                          {item.metadata?.verification?.platformUrl && (
+                            <a
+                              href={item.metadata.verification.platformUrl as string}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                              data-testid={`link-platform-${item.id}`}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View
+                            </a>
+                          )}
+                          {!item.metadata?.verification?.platformUrl && item.metadata?.publishResult?.postUrl && item.status === "published" && (
+                            <a
+                              href={item.metadata.publishResult.postUrl as string}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                              data-testid={`link-post-${item.id}`}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -832,6 +910,19 @@ export default function Autopilot() {
                           aria-label="Publish now"
                         >
                           <Send className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {item.status === "published" && item.verificationStatus !== "verified" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => verifyPostMutation.mutate(item.id)}
+                          disabled={verifyPostMutation.isPending}
+                          data-testid={`button-verify-${item.id}`}
+                          aria-label="Verify on platform"
+                          title="Check if content is live on the platform"
+                        >
+                          <ShieldCheck className="h-4 w-4 text-blue-400" />
                         </Button>
                       )}
                       <Button

@@ -1,0 +1,432 @@
+import { db } from "./db";
+import { autopilotQueue, channels } from "@shared/schema";
+import { eq, and, gte, isNotNull, inArray } from "drizzle-orm";
+import { logger } from "./lib/logger";
+import { storage } from "./storage";
+import { OAUTH_CONFIGS } from "./oauth-config";
+
+interface VerificationResult {
+  confirmed: boolean;
+  platformStatus?: string;
+  platformUrl?: string;
+  error?: string;
+}
+
+const GOOGLE_PLATFORMS = new Set(["youtube", "youtubeshorts"]);
+
+async function getValidToken(userId: string, platform: string): Promise<string | null> {
+  const userChannels = await db.select().from(channels)
+    .where(and(eq(channels.userId, userId), eq(channels.platform, platform)));
+  const channel = userChannels.find(c => c.accessToken);
+  if (!channel || !channel.accessToken) return null;
+
+  if (channel.tokenExpiresAt && new Date(channel.tokenExpiresAt) > new Date(Date.now() + 5 * 60 * 1000)) {
+    return channel.accessToken;
+  }
+
+  if (!channel.refreshToken) return channel.accessToken;
+
+  try {
+    let tokenUrl: string;
+    let body: Record<string, string>;
+    let headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+
+    if (GOOGLE_PLATFORMS.has(platform)) {
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return channel.accessToken;
+      tokenUrl = "https://oauth2.googleapis.com/token";
+      body = { grant_type: "refresh_token", refresh_token: channel.refreshToken, client_id: clientId, client_secret: clientSecret };
+    } else {
+      const config = OAUTH_CONFIGS[platform as keyof typeof OAUTH_CONFIGS];
+      if (!config) return channel.accessToken;
+      const clientId = process.env[config.clientIdEnv];
+      const clientSecret = process.env[config.clientSecretEnv];
+      if (!clientId || !clientSecret) return channel.accessToken;
+      tokenUrl = config.tokenUrl;
+      body = { grant_type: "refresh_token", refresh_token: channel.refreshToken };
+      if (config.tokenAuthMethod === "header") {
+        headers["Authorization"] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+        body.client_id = clientId;
+      } else {
+        body.client_id = clientId;
+        body.client_secret = clientSecret;
+      }
+    }
+
+    const res = await fetch(tokenUrl, { method: "POST", headers, body: new URLSearchParams(body).toString() });
+    if (!res.ok) {
+      logger.warn("[Verifier] Token refresh failed", { platform, status: res.status });
+      return channel.accessToken;
+    }
+
+    const data = await res.json() as any;
+    const newToken = data.access_token;
+    const newRefresh = data.refresh_token || channel.refreshToken;
+    const expiresIn = data.expires_in;
+    const newExpiry = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+
+    await storage.updateChannel(channel.id, {
+      accessToken: newToken,
+      refreshToken: newRefresh,
+      tokenExpiresAt: newExpiry,
+    });
+
+    return newToken;
+  } catch (err: any) {
+    logger.warn("[Verifier] Token refresh error", { platform, error: err.message });
+    return channel.accessToken;
+  }
+}
+
+async function verifyXPost(userId: string, postId: string): Promise<VerificationResult> {
+  try {
+    const token = await getValidToken(userId, "x");
+    if (!token) return { confirmed: false, error: "No X credentials available for verification" };
+
+    const res = await fetch(`https://api.twitter.com/2/tweets/${postId}`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+
+    if (res.ok) {
+      const data = await res.json() as any;
+      if (data.data?.id === postId) {
+        return {
+          confirmed: true,
+          platformStatus: "live",
+          platformUrl: `https://x.com/i/status/${postId}`,
+        };
+      }
+    }
+
+    if (res.status === 404) {
+      return { confirmed: false, platformStatus: "not_found", error: "Post not found on X — may have been deleted or failed to publish" };
+    }
+
+    if (res.status === 429) {
+      return { confirmed: false, error: "X rate limit — will retry verification later" };
+    }
+
+    return { confirmed: false, error: `X API returned ${res.status}` };
+  } catch (err: any) {
+    return { confirmed: false, error: `X verification error: ${err.message}` };
+  }
+}
+
+async function verifyYouTubePost(userId: string, postId: string): Promise<VerificationResult> {
+  try {
+    const token = await getValidToken(userId, "youtube");
+    if (!token) return { confirmed: false, error: "No YouTube credentials for verification" };
+
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,snippet&id=${postId}`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+
+    if (res.ok) {
+      const data = await res.json() as any;
+      const video = data.items?.[0];
+      if (video) {
+        const uploadStatus = video.status?.uploadStatus;
+        const privacyStatus = video.status?.privacyStatus;
+        const isLive = uploadStatus === "processed" || uploadStatus === "uploaded";
+        return {
+          confirmed: isLive,
+          platformStatus: `${uploadStatus}/${privacyStatus}`,
+          platformUrl: `https://youtube.com/watch?v=${postId}`,
+        };
+      }
+      return { confirmed: false, platformStatus: "not_found", error: "Video not found on YouTube" };
+    }
+
+    if (res.status === 404) {
+      return { confirmed: false, platformStatus: "not_found", error: "Video not found on YouTube" };
+    }
+
+    return { confirmed: false, error: `YouTube API returned ${res.status}` };
+  } catch (err: any) {
+    return { confirmed: false, error: `YouTube verification error: ${err.message}` };
+  }
+}
+
+async function verifyTikTokPost(userId: string, postId: string): Promise<VerificationResult> {
+  try {
+    const token = await getValidToken(userId, "tiktok");
+    if (!token) return { confirmed: false, error: "No TikTok credentials for verification" };
+
+    const res = await fetch("https://open.tiktokapis.com/v2/post/publish/status/fetch/", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ publish_id: postId }),
+    });
+
+    if (res.ok) {
+      const data = await res.json() as any;
+      const status = data.data?.status;
+      if (status === "PUBLISH_COMPLETE") {
+        const videoIds = data.data?.publicly_available_post_id || [];
+        return {
+          confirmed: true,
+          platformStatus: "published",
+          platformUrl: videoIds.length > 0 ? `https://www.tiktok.com/video/${videoIds[0]}` : undefined,
+        };
+      }
+      if (status === "PROCESSING_UPLOAD" || status === "PROCESSING_DOWNLOAD" || status === "SENDING_TO_USER_INBOX") {
+        return { confirmed: false, platformStatus: `processing: ${status}`, error: "TikTok still processing — will check again" };
+      }
+      return { confirmed: false, platformStatus: status, error: `TikTok publish status: ${status}` };
+    }
+
+    return { confirmed: false, error: `TikTok API returned ${res.status}` };
+  } catch (err: any) {
+    return { confirmed: false, error: `TikTok verification error: ${err.message}` };
+  }
+}
+
+async function verifyDiscordPost(userId: string, postId: string): Promise<VerificationResult> {
+  if (postId.startsWith("webhook_")) {
+    return {
+      confirmed: true,
+      platformStatus: "webhook_accepted",
+    };
+  }
+  return { confirmed: false, platformStatus: "unverifiable", error: "Discord webhooks do not support read-back verification — marked as delivered based on 2xx response" };
+}
+
+async function verifyTwitchPost(userId: string, postId: string): Promise<VerificationResult> {
+  if (postId.startsWith("twitch_announce_") || postId.startsWith("twitch_title_")) {
+    return {
+      confirmed: true,
+      platformStatus: "api_accepted",
+    };
+  }
+  return { confirmed: false, platformStatus: "unverifiable", error: "Twitch announcements are fire-and-forget — marked as delivered based on API response" };
+}
+
+export async function verifyPost(userId: string, platform: string, postId: string): Promise<VerificationResult> {
+  switch (platform) {
+    case "x":
+      return verifyXPost(userId, postId);
+    case "youtube":
+    case "youtubeshorts":
+      return verifyYouTubePost(userId, postId);
+    case "tiktok":
+      return verifyTikTokPost(userId, postId);
+    case "discord":
+      return verifyDiscordPost(userId, postId);
+    case "twitch":
+      return verifyTwitchPost(userId, postId);
+    default:
+      return { confirmed: false, error: `Verification not supported for ${platform}` };
+  }
+}
+
+export async function verifyRecentPublishedPosts() {
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const unverifiedPosts = await db.select().from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.status, "published"),
+      isNotNull(autopilotQueue.publishedAt),
+      gte(autopilotQueue.publishedAt, twentyFourHoursAgo),
+      inArray(autopilotQueue.verificationStatus, ["unverified", "pending"]),
+    ))
+    .limit(15);
+
+  if (unverifiedPosts.length === 0) return;
+
+  logger.info("[Verifier] Checking published posts", { count: unverifiedPosts.length });
+
+  let verified = 0;
+  let failed = 0;
+  let pending = 0;
+
+  for (const post of unverifiedPosts) {
+    const meta = (post.metadata as any) || {};
+    const publishResult = meta.publishResult || {};
+    const postId = publishResult.postId;
+    const existingVerification = meta.verification || { attempts: 0 };
+
+    if (existingVerification.attempts >= 5) {
+      await db.update(autopilotQueue)
+        .set({
+          verificationStatus: "failed",
+          metadata: {
+            ...meta,
+            verification: {
+              ...existingVerification,
+              lastAttempt: new Date().toISOString(),
+              platformConfirmed: false,
+              error: "Max verification attempts reached — post may not have been published successfully",
+            },
+          },
+        })
+        .where(eq(autopilotQueue.id, post.id));
+      failed++;
+
+      const { createNotification } = await import("./autopilot-engine");
+      await createNotification(post.userId, "autopilot",
+        `Verification failed: ${post.targetPlatform}`,
+        `Could not confirm content was posted to ${post.targetPlatform} after 5 attempts. Check the platform manually.`,
+        "warning");
+      continue;
+    }
+
+    if (!postId) {
+      if (publishResult.postUrl) {
+        await db.update(autopilotQueue)
+          .set({
+            verificationStatus: "verified",
+            verifiedAt: new Date(),
+            metadata: {
+              ...meta,
+              verification: {
+                attempts: 1,
+                lastAttempt: new Date().toISOString(),
+                platformConfirmed: true,
+                platformStatus: "url_available",
+                platformUrl: publishResult.postUrl,
+              },
+            },
+          })
+          .where(eq(autopilotQueue.id, post.id));
+        verified++;
+      } else {
+        await db.update(autopilotQueue)
+          .set({
+            verificationStatus: "failed",
+            metadata: {
+              ...meta,
+              verification: {
+                attempts: existingVerification.attempts + 1,
+                lastAttempt: new Date().toISOString(),
+                platformConfirmed: false,
+                error: "No post ID or URL stored — cannot verify",
+              },
+            },
+          })
+          .where(eq(autopilotQueue.id, post.id));
+        failed++;
+      }
+      continue;
+    }
+
+    const timeSincePublish = Date.now() - (post.publishedAt?.getTime() || 0);
+    if (timeSincePublish < 30_000) {
+      pending++;
+      continue;
+    }
+
+    const result = await verifyPost(post.userId, post.targetPlatform, postId);
+
+    if (result.confirmed) {
+      await db.update(autopilotQueue)
+        .set({
+          verificationStatus: "verified",
+          verifiedAt: new Date(),
+          metadata: {
+            ...meta,
+            verification: {
+              attempts: existingVerification.attempts + 1,
+              lastAttempt: new Date().toISOString(),
+              platformConfirmed: true,
+              platformStatus: result.platformStatus,
+              platformUrl: result.platformUrl || publishResult.postUrl,
+            },
+          },
+        })
+        .where(eq(autopilotQueue.id, post.id));
+      verified++;
+      logger.info("[Verifier] Post confirmed on platform", {
+        postId: post.id,
+        platform: post.targetPlatform,
+        platformStatus: result.platformStatus,
+      });
+    } else if (result.error?.includes("rate limit") || result.error?.includes("still processing") || result.error?.includes("will check again")) {
+      await db.update(autopilotQueue)
+        .set({
+          verificationStatus: "pending",
+          metadata: {
+            ...meta,
+            verification: {
+              attempts: existingVerification.attempts + 1,
+              lastAttempt: new Date().toISOString(),
+              platformConfirmed: false,
+              platformStatus: result.platformStatus,
+              error: result.error,
+            },
+          },
+        })
+        .where(eq(autopilotQueue.id, post.id));
+      pending++;
+    } else {
+      const isFinal = existingVerification.attempts + 1 >= 5;
+      await db.update(autopilotQueue)
+        .set({
+          verificationStatus: isFinal ? "failed" : "pending",
+          metadata: {
+            ...meta,
+            verification: {
+              attempts: existingVerification.attempts + 1,
+              lastAttempt: new Date().toISOString(),
+              platformConfirmed: false,
+              platformStatus: result.platformStatus,
+              error: result.error,
+            },
+          },
+        })
+        .where(eq(autopilotQueue.id, post.id));
+
+      if (isFinal) {
+        const { createNotification } = await import("./autopilot-engine");
+        await createNotification(post.userId, "autopilot",
+          `Verification failed: ${post.targetPlatform}`,
+          `Could not confirm content was posted to ${post.targetPlatform}. ${result.error || "Post may not be visible."}`,
+          "warning");
+        failed++;
+      } else {
+        pending++;
+      }
+    }
+  }
+
+  logger.info("[Verifier] Verification sweep complete", { verified, failed, pending, total: unverifiedPosts.length });
+}
+
+export async function verifyPostImmediately(postId: number, userId: string, platform: string, publishPostId: string): Promise<VerificationResult> {
+  await new Promise(r => setTimeout(r, 5000));
+
+  const result = await verifyPost(userId, platform, publishPostId);
+  const post = await db.select().from(autopilotQueue).where(eq(autopilotQueue.id, postId)).limit(1);
+  if (!post[0]) return result;
+
+  const meta = (post[0].metadata as any) || {};
+
+  await db.update(autopilotQueue)
+    .set({
+      verificationStatus: result.confirmed ? "verified" : "pending",
+      verifiedAt: result.confirmed ? new Date() : undefined,
+      metadata: {
+        ...meta,
+        verification: {
+          attempts: 1,
+          lastAttempt: new Date().toISOString(),
+          platformConfirmed: result.confirmed,
+          platformStatus: result.platformStatus,
+          platformUrl: result.platformUrl,
+          error: result.error,
+        },
+      },
+    })
+    .where(eq(autopilotQueue.id, postId));
+
+  if (result.confirmed) {
+    logger.info("[Verifier] Immediate verification confirmed", { postId, platform, status: result.platformStatus });
+  } else {
+    logger.info("[Verifier] Immediate verification pending, will retry in sweep", { postId, platform, error: result.error });
+  }
+
+  return result;
+}

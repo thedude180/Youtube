@@ -2127,6 +2127,8 @@ export const autopilotQueue = pgTable("autopilot_queue", {
   status: text("status").notNull().default("pending"),
   scheduledAt: timestamp("scheduled_at"),
   publishedAt: timestamp("published_at"),
+  verificationStatus: text("verification_status").default("unverified"),
+  verifiedAt: timestamp("verified_at"),
   metadata: jsonb("metadata").$type<{
     clipStart?: number;
     clipEnd?: number;
@@ -2143,6 +2145,22 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     batchNumber?: number;
     crossPlatformGroupId?: string;
     crossLinkedPlatforms?: string[];
+    publishResult?: {
+      postId?: string;
+      postUrl?: string;
+      publishedAt?: string;
+    };
+    verification?: {
+      attempts: number;
+      lastAttempt: string;
+      platformConfirmed: boolean;
+      platformStatus?: string;
+      platformUrl?: string;
+      error?: string;
+    };
+    deliveryType?: string;
+    isVideoDelivery?: boolean;
+    retryCount?: number;
   }>(),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),

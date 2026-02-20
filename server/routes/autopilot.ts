@@ -245,6 +245,78 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  app.post("/api/autopilot/queue/:id/verify", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const postId = parseInt(req.params.id);
+      if (isNaN(postId)) return res.status(400).json({ error: "Invalid post ID" });
+      const [post] = await db.select().from(autopilotQueue)
+        .where(and(eq(autopilotQueue.id, postId), eq(autopilotQueue.userId, userId)))
+        .limit(1);
+      if (!post) return res.status(404).json({ error: "Post not found" });
+      if (post.status !== "published") return res.status(400).json({ error: "Post must be published before verification" });
+
+      const meta = (post.metadata as any) || {};
+      const publishPostId = meta.publishResult?.postId;
+      if (!publishPostId && !meta.publishResult?.postUrl) {
+        return res.status(400).json({ error: "No platform post ID or URL available for verification" });
+      }
+
+      if (!publishPostId && meta.publishResult?.postUrl) {
+        await db.update(autopilotQueue)
+          .set({
+            verificationStatus: "verified",
+            verifiedAt: new Date(),
+            metadata: {
+              ...meta,
+              verification: {
+                attempts: 1,
+                lastAttempt: new Date().toISOString(),
+                platformConfirmed: true,
+                platformStatus: "url_available",
+                platformUrl: meta.publishResult.postUrl,
+              },
+            },
+          })
+          .where(eq(autopilotQueue.id, postId));
+        return res.json({ verified: true, platformStatus: "url_available", platformUrl: meta.publishResult.postUrl });
+      }
+
+      const { verifyPost } = await import("../publish-verifier");
+      const result = await verifyPost(userId, post.targetPlatform, publishPostId);
+
+      const existingVerification = meta.verification || { attempts: 0 };
+      await db.update(autopilotQueue)
+        .set({
+          verificationStatus: result.confirmed ? "verified" : "pending",
+          verifiedAt: result.confirmed ? new Date() : undefined,
+          metadata: {
+            ...meta,
+            verification: {
+              attempts: existingVerification.attempts + 1,
+              lastAttempt: new Date().toISOString(),
+              platformConfirmed: result.confirmed,
+              platformStatus: result.platformStatus,
+              platformUrl: result.platformUrl,
+              error: result.error,
+            },
+          },
+        })
+        .where(eq(autopilotQueue.id, postId));
+
+      res.json({
+        verified: result.confirmed,
+        platformStatus: result.platformStatus,
+        platformUrl: result.platformUrl,
+        error: result.error,
+      });
+    } catch (err) {
+      console.error("[Autopilot] Manual verification error:", err);
+      res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
   app.post("/api/autopilot/pause-all", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

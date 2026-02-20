@@ -745,6 +745,7 @@ export async function processScheduledPosts() {
           .set({
             status: "published",
             publishedAt: new Date(),
+            verificationStatus: "pending",
             metadata: {
               ...((post.metadata as any) || {}),
               publishResult: {
@@ -756,11 +757,18 @@ export async function processScheduledPosts() {
           })
           .where(eq(autopilotQueue.id, post.id));
 
-        logger.info("Published post", { postId: post.id, platform: post.targetPlatform, url: result.postUrl || result.postId });
+        logger.info("Published post, queued for verification", { postId: post.id, platform: post.targetPlatform, url: result.postUrl || result.postId });
         sendSSEEvent(post.userId, "autopilot", { type: "post_published", postId: post.id, platform: post.targetPlatform, url: result.postUrl });
 
+        if (result.postId) {
+          const { verifyPostImmediately } = await import("./publish-verifier");
+          verifyPostImmediately(post.id, post.userId, post.targetPlatform, result.postId).catch(err => {
+            logger.warn("Immediate verification failed, will retry in sweep", { postId: post.id, error: String(err) });
+          });
+        }
+
         await createNotification(post.userId, "autopilot", `Posted to ${post.targetPlatform}`,
-          `Content published${result.postUrl ? `: ${result.postUrl}` : ""}`, "info");
+          `Content published${result.postUrl ? `: ${result.postUrl}` : ""} — verifying...`, "info");
       } else if (result.skipped) {
         logger.info("Post skipped (platform not applicable)", { postId: post.id, platform: post.targetPlatform, reason: result.error });
         await db.update(autopilotQueue)
@@ -847,6 +855,21 @@ export async function getAutopilotStats(userId: string) {
     .from(autopilotQueue)
     .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "published")));
 
+  const [verifiedCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "published"), eq(autopilotQueue.verificationStatus, "verified")));
+
+  const [verificationFailedCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "published"), eq(autopilotQueue.verificationStatus, "failed")));
+
+  const [verificationPendingCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "published"), eq(autopilotQueue.verificationStatus, "pending")));
+
   const [commentCount] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(commentResponses)
@@ -882,6 +905,9 @@ export async function getAutopilotStats(userId: string) {
     totalPosts: queueItems?.count || 0,
     scheduledPosts: scheduledCount?.count || 0,
     publishedPosts: publishedCount?.count || 0,
+    verifiedPosts: verifiedCount?.count || 0,
+    verificationFailed: verificationFailedCount?.count || 0,
+    verificationPending: verificationPendingCount?.count || 0,
     totalCommentResponses: commentCount?.count || 0,
     pendingCommentApprovals: pendingComments?.count || 0,
     recentActivity,

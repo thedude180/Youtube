@@ -267,6 +267,15 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("*/10 * * * *", async () => {
+    try {
+      const { verifyRecentPublishedPosts } = await import("./publish-verifier");
+      await verifyRecentPublishedPosts();
+    } catch (err) {
+      console.error("[AutomationEngine] Publish verification sweep error:", err);
+    }
+  });
+
   cron.schedule("0 */2 * * *", async () => {
     try {
       const { refreshAllUserChannelStats } = await import("./youtube");
