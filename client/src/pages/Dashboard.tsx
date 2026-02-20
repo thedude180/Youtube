@@ -33,6 +33,7 @@ import GettingStartedChecklist from "@/components/GettingStartedChecklist";
 import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
 import PriorityCommandCenter from "@/components/PriorityCommandCenter";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
 const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"));
 const LazyGrowthTrajectoryPredictor = lazy(() => import("@/components/GrowthTrajectoryPredictor"));
@@ -66,6 +67,19 @@ const healthAreas = [
   { key: "legal", label: "Legal", icon: Shield, link: "/settings" },
 ];
 
+function safeNumber(val: unknown): number {
+  if (typeof val === "number" && !isNaN(val)) return val;
+  const n = Number(val);
+  return isNaN(n) ? 0 : n;
+}
+
+function safeString(val: unknown): string {
+  if (val == null) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  try { return JSON.stringify(val); } catch { return ""; }
+}
+
 export default function Dashboard() {
   usePageTitle("Dashboard", "Your AI-powered creator command center. Track content, revenue, growth, and automation across all connected platforms.");
   useSSE();
@@ -88,18 +102,21 @@ export default function Dashboard() {
     localStorage.setItem("humanReviewMode", String(humanReviewMode));
   }, [humanReviewMode]);
 
-  const activeAgents = useMemo(() =>
-    agentStatus?.filter((a) => a.status === "active")?.length || 0,
-    [agentStatus]
-  );
+  const activeAgents = useMemo(() => {
+    if (!Array.isArray(agentStatus)) return 0;
+    return agentStatus.filter((a) => a && a.status === "active").length;
+  }, [agentStatus]);
 
   const tasksToday = useMemo(() => {
+    if (!Array.isArray(agentActivities)) return 0;
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    return agentActivities?.filter((a) => {
-      const created = new Date(a.createdAt);
-      return created >= todayStart;
-    })?.length || 0;
+    return agentActivities.filter((a) => {
+      try {
+        const created = new Date(a.createdAt);
+        return created >= todayStart;
+      } catch { return false; }
+    }).length;
   }, [agentActivities]);
 
   useEffect(() => {
@@ -120,20 +137,20 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  const recentNotifications = useMemo(() =>
-    notifications?.slice(0, 5) || [],
-    [notifications]
-  );
+  const recentNotifications = useMemo(() => {
+    if (!Array.isArray(notifications)) return [];
+    return notifications.slice(0, 5);
+  }, [notifications]);
 
-  const unreadNotifications = useMemo(() =>
-    (notifications || []).filter((n) => !n.read),
-    [notifications]
-  );
+  const unreadNotifications = useMemo(() => {
+    if (!Array.isArray(notifications)) return [];
+    return notifications.filter((n) => !n.read);
+  }, [notifications]);
 
-  const recentActivities = useMemo(() =>
-    (agentActivities || []).slice(0, 5),
-    [agentActivities]
-  );
+  const recentActivities = useMemo(() => {
+    if (!Array.isArray(agentActivities)) return [];
+    return agentActivities.slice(0, 5);
+  }, [agentActivities]);
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -143,29 +160,33 @@ export default function Dashboard() {
   };
 
   const userName = user
-    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || "Creator"
+    ? [user.firstName, user.lastName].filter(Boolean).map(safeString).join(" ") || "Creator"
     : "Creator";
 
   const getHealthStatus = useCallback((area: string): { status: "good" | "warning" | "action"; label: string } => {
     switch (area) {
       case "content":
-        return (stats?.totalVideos || 0) > 0
+        return safeNumber(stats?.totalVideos) > 0
           ? { status: "good", label: "Active" }
           : { status: "action", label: "Get Started" };
       case "revenue":
-        return (stats?.totalRevenue || 0) > 0
+        return safeNumber(stats?.totalRevenue) > 0
           ? { status: "good", label: "Earning" }
           : { status: "warning", label: "No Revenue" };
       case "brand":
         return { status: "good", label: "Managed" };
       case "legal": {
-        const steps = localStorage.getItem("legalFormationSteps");
-        const completed = steps ? JSON.parse(steps).length : 0;
-        return completed >= 6
-          ? { status: "good", label: "Complete" }
-          : completed > 0
-          ? { status: "warning", label: `${completed}/6 Steps` }
-          : { status: "action", label: "Not Started" };
+        try {
+          const steps = localStorage.getItem("legalFormationSteps");
+          const completed = steps ? JSON.parse(steps).length : 0;
+          return completed >= 6
+            ? { status: "good", label: "Complete" }
+            : completed > 0
+            ? { status: "warning", label: `${completed}/6 Steps` }
+            : { status: "action", label: "Not Started" };
+        } catch {
+          return { status: "action", label: "Not Started" };
+        }
       }
       default:
         return { status: "good", label: "OK" };
@@ -188,21 +209,24 @@ export default function Dashboard() {
     );
   }
 
-  const metrics = useMemo(() => [
-    { label: "Videos", value: stats?.totalVideos || 0, icon: Film },
-    { label: "Revenue", value: `$${(stats?.totalRevenue || 0).toLocaleString()}`, icon: DollarSign },
+  const totalVideos = safeNumber(stats?.totalVideos);
+  const totalRevenue = safeNumber(stats?.totalRevenue);
+
+  const metrics = [
+    { label: "Videos", value: totalVideos, icon: Film },
+    { label: "Revenue", value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign },
     { label: "AI Agents", value: `${activeAgents}/11`, icon: Bot },
     { label: "AI Tasks Today", value: tasksToday, icon: Zap },
-  ], [stats?.totalVideos, stats?.totalRevenue, activeAgents, tasksToday]);
+  ];
 
-  const severityColor = useCallback((severity: string) => {
+  const severityColor = (severity: string) => {
     switch (severity) {
       case "critical": return "bg-red-400";
       case "warning": return "bg-amber-400";
       case "success": return "bg-emerald-400";
       default: return "bg-blue-400";
     }
-  }, []);
+  };
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-5xl mx-auto fade-in">
@@ -216,7 +240,9 @@ export default function Dashboard() {
       </div>
 
       {!user?.onboardingCompleted && (
-        <GettingStartedChecklist />
+        <SectionErrorBoundary fallbackTitle="Getting started failed to load">
+          <GettingStartedChecklist />
+        </SectionErrorBoundary>
       )}
 
       <section role="region" aria-label="AI autonomy status">
@@ -267,31 +293,43 @@ export default function Dashboard() {
       </Card>
       </section>
 
-      <PriorityCommandCenter />
+      <SectionErrorBoundary fallbackTitle="Priority center failed to load">
+        <PriorityCommandCenter />
+      </SectionErrorBoundary>
 
-      <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
-        <LazyPlatformHealthCards />
-      </Suspense>
+      <SectionErrorBoundary fallbackTitle="Platform status failed to load">
+        <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
+          <LazyPlatformHealthCards />
+        </Suspense>
+      </SectionErrorBoundary>
 
       <section role="region" aria-label="Key metrics">
       <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
         <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key Metrics</span>
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
-      <MetricsGrid metrics={metrics} />
+      <SectionErrorBoundary fallbackTitle="Metrics failed to load">
+        <MetricsGrid metrics={metrics} />
+      </SectionErrorBoundary>
       </section>
 
-      <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-lg" />}>
-        <LazyGrowthImpactChart />
-      </Suspense>
+      <SectionErrorBoundary fallbackTitle="Growth impact chart failed to load">
+        <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-lg" />}>
+          <LazyGrowthImpactChart />
+        </Suspense>
+      </SectionErrorBoundary>
 
-      <Suspense fallback={<Skeleton className="h-[500px] w-full rounded-lg" />}>
-        <LazyGrowthTrajectoryPredictor />
-      </Suspense>
+      <SectionErrorBoundary fallbackTitle="Growth trajectory failed to load">
+        <Suspense fallback={<Skeleton className="h-[500px] w-full rounded-lg" />}>
+          <LazyGrowthTrajectoryPredictor />
+        </Suspense>
+      </SectionErrorBoundary>
 
-      <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
-        <LazyChannelGrowthTimeline />
-      </Suspense>
+      <SectionErrorBoundary fallbackTitle="Channel growth timeline failed to load">
+        <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
+          <LazyChannelGrowthTimeline />
+        </Suspense>
+      </SectionErrorBoundary>
 
       <section role="region" aria-label="Business health overview">
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
@@ -302,13 +340,15 @@ export default function Dashboard() {
       </section>
 
       <section role="region" aria-label="Activity feed">
-      <Suspense fallback={<Skeleton className="h-12 w-full" />}>
-        <LazyActivityFeedSection
-          recentNotifications={recentNotifications}
-          recentActivities={recentActivities}
-          severityColor={severityColor}
-        />
-      </Suspense>
+      <SectionErrorBoundary fallbackTitle="Activity feed failed to load">
+        <Suspense fallback={<Skeleton className="h-12 w-full" />}>
+          <LazyActivityFeedSection
+            recentNotifications={recentNotifications}
+            recentActivities={recentActivities}
+            severityColor={severityColor}
+          />
+        </Suspense>
+      </SectionErrorBoundary>
       </section>
 
       <div ref={belowFoldRef} />

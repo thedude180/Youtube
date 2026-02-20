@@ -357,7 +357,7 @@ function UpdatedVideosTab() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {safeArray(updatedVideos).map(([videoId, entries]) => (
+            {(updatedVideos as [string, UpdateHistoryEntry[]][]).map(([videoId, entries]) => (
               <VideoUpdateCard key={videoId} videoId={videoId} entries={entries} />
             ))}
           </div>
