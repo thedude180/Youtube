@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { experiments, predictiveTrends, migrationCampaigns, collabCandidates, compoundingJobs, merchIdeas, localizationJobs, liveCopilotSuggestions } from "@shared/schema";
 
 import { getFailureHistory, getHealingStats } from "../pipeline-healing-engine";
+import { getSystemHealthReport, resetSubsystemHealth, getSubsystemNames } from "../self-healing-core";
 import { getOptimizedRoute, updateRoutingRule, getRoutingRules, analyzeRoutePerformance } from "../pipeline-router";
 import { createExperiment, recordVariantMetrics, evaluateExperiment, getActiveExperiments, getExperimentResults } from "../ab-testing-engine";
 
@@ -62,6 +63,30 @@ export function registerUltimateRoutes(app: Express) {
     if (!userId) return;
     const stats = await getHealingStats(userId);
     res.json(stats);
+  }));
+
+  app.get("/api/system/health", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const report = getSystemHealthReport();
+    res.json(report);
+  }));
+
+  app.post("/api/system/health/reset/:subsystem", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { subsystem } = req.params;
+    const success = resetSubsystemHealth(subsystem);
+    if (!success) {
+      return res.status(404).json({ error: "Subsystem not found", available: getSubsystemNames() });
+    }
+    res.json({ success: true, message: `Subsystem "${subsystem}" reset to healthy` });
+  }));
+
+  app.get("/api/system/subsystems", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    res.json({ subsystems: getSubsystemNames() });
   }));
 
   app.get("/api/pipeline/routing-rules", asyncHandler(async (req, res) => {

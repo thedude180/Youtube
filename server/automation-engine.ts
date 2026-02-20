@@ -4,6 +4,7 @@ import { sendSSEEvent } from "./routes/events";
 import { db } from "./db";
 import { cronJobs, aiResults, aiChains, webhookEvents, notifications, channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { selfHealingCore, getSystemHealthReport, type SystemHealthReport } from "./self-healing-core";
 import {
   aiVideoTranslator, aiSubtitleGenerator, aiLocalizationAdvisor,
   aiMultiLangSeo, aiDubbingScriptGenerator, aiCulturalAdaptation,
@@ -206,9 +207,7 @@ export async function initAutomationEngine() {
   cron.schedule("*/5 * * * *", async () => {
     if (!acquireLock(cronLock)) return;
     try {
-      await processAllCronJobs();
-    } catch (err) {
-      console.error("[AutomationEngine] Cron processor error:", err);
+      await selfHealingCore("CronProcessor", () => processAllCronJobs(), { silent: true });
     } finally {
       releaseLock(cronLock);
     }
@@ -217,67 +216,47 @@ export async function initAutomationEngine() {
   cron.schedule("0 * * * *", async () => {
     if (!acquireLock(chainLock)) return;
     try {
-      await processAllChains();
-    } catch (err) {
-      console.error("[AutomationEngine] Chain processor error:", err);
+      await selfHealingCore("ChainProcessor", () => processAllChains(), { silent: true });
     } finally {
       releaseLock(chainLock);
     }
   });
 
   cron.schedule("*/30 * * * *", async () => {
-    try {
-      await processAutoApprovals();
-    } catch (err) {
-      console.error("[AutomationEngine] Auto-approval error:", err);
-    }
+    await selfHealingCore("AutoApprovals", () => processAutoApprovals());
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    try {
-      await processAutoPayments();
-    } catch (err) {
-      console.error("[AutomationEngine] Auto-payment error:", err);
-    }
+    await selfHealingCore("AutoPayments", () => processAutoPayments());
   });
 
   cron.schedule("0 */12 * * *", async () => {
-    try {
-      await processAutoLocalization();
-    } catch (err) {
-      console.error("[AutomationEngine] Auto-localization error:", err);
-    }
+    await selfHealingCore("AutoLocalization", () => processAutoLocalization());
   });
 
   cron.schedule("*/5 * * * *", async () => {
-    try {
+    await selfHealingCore("TokenRefresh", async () => {
       const { refreshExpiringTokens } = await import("./token-refresh");
       await refreshExpiringTokens();
-    } catch (err) {
-      console.error("[AutomationEngine] Token refresh error:", err);
-    }
+    });
   });
 
   cron.schedule("*/5 * * * *", async () => {
-    try {
+    await selfHealingCore("ScheduledPosts", async () => {
       const { processScheduledPosts } = await import("./autopilot-engine");
       await processScheduledPosts();
-    } catch (err) {
-      console.error("[AutomationEngine] Autopilot scheduled posts error:", err);
-    }
+    });
   });
 
   cron.schedule("*/10 * * * *", async () => {
-    try {
+    await selfHealingCore("PublishVerification", async () => {
       const { verifyRecentPublishedPosts } = await import("./publish-verifier");
       await verifyRecentPublishedPosts();
-    } catch (err) {
-      console.error("[AutomationEngine] Publish verification sweep error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */2 * * *", async () => {
-    try {
+    await selfHealingCore("GrowthMonitoring", async () => {
       const { refreshAllUserChannelStats } = await import("./youtube");
       const { runComplianceCheck } = await import("./growth-programs-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
@@ -288,49 +267,41 @@ export async function initAutomationEngine() {
           await runComplianceCheck(userId);
         }
       }
-    } catch (err) {
-      console.error("[AutomationEngine] Growth program monitoring error:", err);
-    }
+    });
   });
 
   setTimeout(async () => {
-    try {
+    await selfHealingCore("ContentLoop", async () => {
       const { bootContentLoops } = await import("./content-loop");
       await bootContentLoops();
       console.log("[AutomationEngine] Content Loop booted — continuous extraction active");
-    } catch (err) {
-      console.error("[AutomationEngine] Content Loop boot error:", err);
-    }
+    }, { maxRetries: 3 });
   }, 5_000);
 
   cron.schedule("0 */4 * * *", async () => {
-    try {
+    await selfHealingCore("CommentResponder", async () => {
       const { processCommentResponses } = await import("./autopilot-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) await processCommentResponses(userId);
       }
-    } catch (err) {
-      console.error("[AutomationEngine] Autopilot comment responder error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    try {
+    await selfHealingCore("ContentRecycler", async () => {
       const { processContentRecycling } = await import("./autopilot-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) await processContentRecycling(userId);
       }
-    } catch (err) {
-      console.error("[AutomationEngine] Autopilot content recycler error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    try {
+    await selfHealingCore("RevenueSync", async () => {
       const { syncAllRevenue } = await import("./revenue-sync-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
@@ -338,13 +309,11 @@ export async function initAutomationEngine() {
         if (userId) await syncAllRevenue(userId);
       }
       console.log("[AutomationEngine] Revenue sync completed for", userIds.length, "users");
-    } catch (err) {
-      console.error("[AutomationEngine] Revenue sync error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */2 * * *", async () => {
-    try {
+    await selfHealingCore("VideoSync", async () => {
       const { syncYouTubeVideosToLibrary } = await import("./youtube");
       const allChannelRows = await db.select().from(channels);
       const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.accessToken && c.userId);
@@ -354,19 +323,17 @@ export async function initAutomationEngine() {
           const result = await syncYouTubeVideosToLibrary(ch.id, ch.userId!);
           totalNew += result.newVideos.length;
         } catch (chErr: any) {
-          console.error(`[AutomationEngine] Video sync failed for channel ${ch.id}:`, chErr.message);
+          console.error(`[SelfHealing] VideoSync sub-task failed for channel ${ch.id}:`, chErr.message);
         }
       }
       if (totalNew > 0) {
         console.log(`[AutomationEngine] Continuous video sync: pulled ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
       }
-    } catch (err) {
-      console.error("[AutomationEngine] Continuous video sync error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */4 * * *", async () => {
-    try {
+    await selfHealingCore("BacklogProcessing", async () => {
       const { startBacklogOnLogin } = await import("./backlog-manager");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
@@ -378,13 +345,11 @@ export async function initAutomationEngine() {
           }
         }
       }
-    } catch (err) {
-      console.error("[AutomationEngine] Continuous backlog processing error:", err);
-    }
+    });
   });
 
   cron.schedule("30 */1 * * *", async () => {
-    try {
+    await selfHealingCore("VideoOptimizer", async () => {
       const { startBacklogProcessing, getBacklogSession } = await import("./backlog-engine");
       const { getBacklogState } = await import("./backlog-manager");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
@@ -402,17 +367,15 @@ export async function initAutomationEngine() {
           }
         } catch (bErr: any) {
           if (!bErr.message?.includes("already")) {
-            console.error(`[AutomationEngine] New video optimizer failed for ${userId}:`, bErr.message);
+            console.error(`[SelfHealing] VideoOptimizer sub-task failed for ${userId}:`, bErr.message);
           }
         }
       }
-    } catch (err) {
-      console.error("[AutomationEngine] New video optimizer error:", err);
-    }
+    });
   });
 
   cron.schedule("15 */2 * * *", async () => {
-    try {
+    await selfHealingCore("AutoScheduler", async () => {
       const { autoScheduleOptimizedContent } = await import("./backlog-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
@@ -424,22 +387,18 @@ export async function initAutomationEngine() {
           sendSSEEvent(userId, "schedule_updated", { scheduled: count });
         }
       }
-    } catch (err) {
-      console.error("[AutomationEngine] Auto-schedule optimized content error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */12 * * *", async () => {
-    try {
+    await selfHealingCore("CrossPromotion", async () => {
       const { processCrossPromotion } = await import("./autopilot-engine");
       const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
       for (const userId of userIds) {
         if (userId) await processCrossPromotion(userId);
       }
-    } catch (err) {
-      console.error("[AutomationEngine] Autopilot cross-promo error:", err);
-    }
+    });
   });
 
   let liveDetectionRunning = false;
@@ -448,29 +407,27 @@ export async function initAutomationEngine() {
     if (liveDetectionRunning) return;
     liveDetectionRunning = true;
     try {
-      const { runMultiPlatformLiveDetection } = await import("./services/live-detection");
-      await runMultiPlatformLiveDetection();
-    } catch (err) {
-      console.error("[AutomationEngine] Unified live detection error:", err);
+      await selfHealingCore("LiveDetection", async () => {
+        const { runMultiPlatformLiveDetection } = await import("./services/live-detection");
+        await runMultiPlatformLiveDetection();
+      });
     } finally {
       liveDetectionRunning = false;
     }
   });
 
   cron.schedule("0 */4 * * *", async () => {
-    try {
+    await selfHealingCore("AlgorithmMonitor", async () => {
       const { scanAlgorithmChanges } = await import("./algorithm-monitor");
       for (const platform of ["youtube", "twitch", "kick", "tiktok", "x"]) {
         await scanAlgorithmChanges(platform);
       }
       console.log("[UltimateEngine] Algorithm scan complete");
-    } catch (err) {
-      console.error("[UltimateEngine] Algorithm scan error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    try {
+    await selfHealingCore("TrendPredictor", async () => {
       const { scanForTrends } = await import("./trend-predictor");
       const allUsers = await db.select().from(channels);
       const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
@@ -478,13 +435,11 @@ export async function initAutomationEngine() {
         await scanForTrends(userId!);
       }
       console.log("[UltimateEngine] Trend prediction scan complete");
-    } catch (err) {
-      console.error("[UltimateEngine] Trend scan error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */8 * * *", async () => {
-    try {
+    await selfHealingCore("ContentCompounding", async () => {
       const { scanForCompoundingOpportunities } = await import("./compounding-engine");
       const allUsers = await db.select().from(channels);
       const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
@@ -492,13 +447,11 @@ export async function initAutomationEngine() {
         await scanForCompoundingOpportunities(userId!);
       }
       console.log("[UltimateEngine] Content compounding scan complete");
-    } catch (err) {
-      console.error("[UltimateEngine] Compounding scan error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */12 * * *", async () => {
-    try {
+    await selfHealingCore("ShadowBanDetector", async () => {
       const { scanForAnomalies } = await import("./shadowban-detector");
       const allUsers = await db.select().from(channels);
       const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
@@ -508,48 +461,47 @@ export async function initAutomationEngine() {
         }
       }
       console.log("[UltimateEngine] Shadow ban detection scan complete");
-    } catch (err) {
-      console.error("[UltimateEngine] Shadow ban scan error:", err);
-    }
+    });
   });
 
   cron.schedule("*/15 * * * *", async () => {
-    try {
+    await selfHealingCore("YouTubePushBacklog", async () => {
       const { processBacklog } = await import("./services/youtube-push-backlog");
       const result = await processBacklog();
       if (result.processed > 0 || result.failed > 0) {
         console.log(`[PushBacklog] Processed ${result.processed}, failed ${result.failed}, remaining ${result.remaining}`);
       }
-    } catch (err) {
-      console.error("[PushBacklog] Backlog processing error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    try {
+    await selfHealingCore("MarketerEngine", async () => {
       const { runMarketingCycleForAllUsers } = await import("./marketer-engine");
       const count = await runMarketingCycleForAllUsers();
       if (count > 0) {
         console.log(`[MarketerEngine] Full marketing cycle complete — ${count} users (organic strategies + keyword learning + traffic growth + collab + sponsorship${" + paid ads if enabled"})`);
       }
-    } catch (err) {
-      console.error("[MarketerEngine] Marketing cycle error:", err);
-    }
+    });
   });
 
   cron.schedule("0 */4 * * *", async () => {
-    try {
+    await selfHealingCore("PlaylistManager", async () => {
       const { runPlaylistOrganizationForAllUsers } = await import("./playlist-manager");
       const count = await runPlaylistOrganizationForAllUsers();
       if (count > 0) {
         console.log(`[PlaylistManager] Auto-organized playlists for ${count} users (game-specific longform + shorts)`);
       }
-    } catch (err) {
-      console.error("[PlaylistManager] Playlist organization error:", err);
+    });
+  });
+
+  cron.schedule("*/30 * * * *", async () => {
+    const report = getSystemHealthReport();
+    if (report.overallStatus !== "healthy") {
+      console.log(`[SelfHealing] 📊 System Health: ${report.overallStatus.toUpperCase()} | Score: ${report.overallScore}/100 | Uptime: ${report.uptimePercent}% | Self-heals: ${report.totalSelfHeals} | Healthy: ${report.healthyCount}/${report.totalSubsystems} | Degraded: ${report.degradedCount} | Failed: ${report.failedCount}`);
     }
   });
 
-  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Autonomous Marketer + Playlist Manager + Content Loop)");
+  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Autonomous Marketer + Playlist Manager + Content Loop + Self-Healing Core)");
 }
 
 async function processAllCronJobs() {
@@ -836,6 +788,8 @@ export async function evaluateRules(userId: string, eventType: string, _eventDat
     return [];
   }
 }
+
+export { getSystemHealthReport } from "./self-healing-core";
 
 export {
   AI_FEATURE_CATEGORIES,

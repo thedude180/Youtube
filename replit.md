@@ -61,6 +61,7 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **Auto-Thumbnail Engine**: AI-powered thumbnail generation, upload, and automatic refresh for underperforming videos (CTR < 4% or views < 30% of channel average, with 14-day cooldown between refreshes).
     - **Stream Clip → YouTube Shorts Pipeline**: Processes stream clips for YouTube Shorts, including downloading, cutting, and uploading.
     - **Reconnect Email Service**: Sends Gmail alerts for OAuth token expiry.
+    - **Self-Healing Core** (`self-healing-core.ts`): Core system function wrapping ALL 25+ automation subsystems with autonomous failure detection, AI-powered diagnosis, automatic retry with exponential backoff, circuit breakers (5-failure threshold with cooldown), and system health monitoring. Every cron job and engine is protected — failures are diagnosed by AI, retried automatically, and circuit-breakers prevent cascading failures. Health report available at `/api/system/health`. Logs self-healing events and notifies on critical failures.
 
 ### Authentication & Authorization
 - **Authentication**: Replit Auth (OIDC-based).
