@@ -62,7 +62,7 @@ export async function apiRequest(
 
     if (res.status === 403) {
       const body = await res.clone().text();
-      if (body.includes("csrf_invalid")) {
+      if (body.includes("csrf_invalid") || body.includes("csrf_missing")) {
         csrfToken = null;
         const newToken = await getCsrfToken();
         if (newToken) {

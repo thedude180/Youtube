@@ -658,6 +658,17 @@ export function registerMoneyRoutes(app: Express) {
     res.json(deal);
   }));
 
+  app.delete("/api/sponsorship-deals/:id", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    await db.delete(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId)));
+    res.json({ success: true });
+  }));
+
   app.post("/api/monetization/ad-breaks/:videoId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
