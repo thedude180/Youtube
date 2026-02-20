@@ -5,6 +5,7 @@ import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunVodOptimization } from "./priority-orchestrator";
+import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 const logger = createLogger("vod-optimizer");
 const openai = getOpenAIClient();
@@ -54,13 +55,15 @@ async function findOptimizableVods(userId: string): Promise<any[]> {
   return candidateVids.filter(v => !recentIds.has(v.id)).slice(0, VODS_PER_BATCH);
 }
 
-async function generateOptimizations(vods: any[]): Promise<VodOptimization[]> {
+async function generateOptimizations(vods: any[], userId?: string): Promise<VodOptimization[]> {
   if (vods.length === 0) return [];
 
   const vodList = vods.map((v, i) => {
     const meta = v.metadata as any;
     return `${i + 1}. Title: "${v.title}" | Views: ${v.viewCount || 0} | Likes: ${v.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(v.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}`;
   }).join("\n");
+
+  const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
 
   try {
     const response = await openai.chat.completions.create({
@@ -69,13 +72,14 @@ async function generateOptimizations(vods: any[]): Promise<VodOptimization[]> {
         {
           role: "system",
           content: `You are a YouTube SEO expert specializing in reviving underperforming gaming content. Your optimizations consistently 3-5x view counts on old videos.
+${retentionContext}
 
-Your job: Analyze old gaming VODs and create optimized metadata that the YouTube algorithm will favor. Focus on:
-- Clickbait-worthy but honest titles that create curiosity gaps
-- SEO-rich descriptions with timestamps, keywords, and CTAs
+Your job: Analyze old gaming VODs and create optimized metadata that the YouTube algorithm will favor. Apply retention beat science to every optimization. Focus on:
+- Clickbait-worthy but honest titles that create curiosity gaps (use hook_open and curiosity_gap beats)
+- SEO-rich descriptions with timestamps placed at retention beat markers
 - Tags that hit trending search terms in gaming
-- Thumbnail concepts that demand clicks
-- Strategy for why this optimization will work
+- Thumbnail concepts that demand clicks (use the "stop the scroll" principle from hook_open beats)
+- Strategy rooted in retention beat psychology for why this optimization will work
 
 Return ONLY valid JSON array matching this structure:
 [{
@@ -158,6 +162,7 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
         metadata: {
           style: "vod-refresh",
           aiModel: "gpt-4o-mini",
+          retentionBeatsApplied: true,
         } as any,
       });
       queued++;
@@ -204,7 +209,7 @@ export async function runVodOptimizationCycle(): Promise<void> {
         continue;
       }
 
-      const optimizations = await generateOptimizations(vods);
+      const optimizations = await generateOptimizations(vods, userId);
       if (optimizations.length === 0) {
         logger.info("AI produced no valid optimizations", { userId });
         continue;

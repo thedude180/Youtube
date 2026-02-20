@@ -6,6 +6,7 @@ import { createLogger } from "./lib/logger";
 import { generateHumanScheduledTime } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunDailyContent } from "./priority-orchestrator";
+import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
@@ -118,10 +119,13 @@ async function getCurrentLiveStream(userId: string): Promise<typeof streams.$inf
 async function generateBatchPlan(
   stream: StreamWithRemaining,
   batchNumber: number,
+  userId?: string,
 ): Promise<ContentPlan | null> {
   const segStart = stream.nextSegmentStart;
   const availableMinutes = Math.min(stream.remainingMinutes, MINUTES_PER_BATCH);
   const segEnd = segStart + availableMinutes;
+
+  const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
 
   try {
     const response = await openai.chat.completions.create({
@@ -129,13 +133,14 @@ async function generateBatchPlan(
       messages: [
         {
           role: "system",
-          content: `You are a top-tier YouTube content strategist for gaming content. Your job: extract maximum viral content from livestream footage.
+          content: `You are a top-tier YouTube content strategist for gaming content. Your job: extract maximum viral content from livestream footage using proven retention science.
 
 STREAM INFO:
 - Title: "${stream.stream.title}"
 - Total Duration: ${stream.totalMinutes} minutes
 - Current Segment: ${segStart} min to ${segEnd} min (${availableMinutes} min available)
 - Batch #${batchNumber} from this stream
+${retentionContext}
 
 RULES:
 - Long-form MUST NOT exceed ${LONG_FORM_MAX_MINUTES} minutes. Use segments from ${segStart}-${segEnd} minutes.
@@ -145,6 +150,7 @@ RULES:
 - Gaming content: epic moments, fails, clutch plays, reactions, funny moments
 - Each batch should feel like a FRESH video, not a continuation
 - Shorts must be designed to go viral on YouTube Shorts AND TikTok
+- CRITICAL: Structure every piece of content using the retention beats above. The hook must grab in first 3 seconds.
 
 Return ONLY valid JSON:
 {
@@ -243,6 +249,7 @@ async function queueBatchContent(
         batchNumber,
         crossPlatformGroupId: groupId,
         crossLinkedPlatforms: allPlatforms,
+        retentionBeatsApplied: true,
       },
     });
     longFormQueued = true;
@@ -271,6 +278,7 @@ async function queueBatchContent(
           sourceStreamId: stream.stream.id,
           segmentStartMin: short.startMinute,
           segmentEndMin: short.endMinute,
+          retentionBeatsApplied: true,
           batchNumber,
           crossPlatformGroupId: groupId,
           crossLinkedPlatforms: allPlatforms,
@@ -463,7 +471,7 @@ export async function runDailyContentGeneration(): Promise<void> {
           totalMinutes: streamData.totalMinutes,
         });
 
-        const plan = await generateBatchPlan(streamData, batchNumber);
+        const plan = await generateBatchPlan(streamData, batchNumber, userId);
         if (!plan) {
           logger.warn("Could not generate batch plan, skipping stream", {
             userId,

@@ -3,6 +3,7 @@ import { db } from "./db";
 import { autopilotQueue } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
+import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 const openai = getOpenAIClient();
 
@@ -196,6 +197,8 @@ export async function generateUniqueContent(options: VariationOptions): Promise<
   ];
   const angle = anglePool[Math.floor(Math.random() * anglePool.length)];
 
+  const retentionContext = await getRetentionBeatsPromptContext(userId);
+
   const systemMsg = `You are the creator themselves, NOT a social media manager. You ARE this person typing from their phone.
 
 ${creatorTone}
@@ -203,6 +206,11 @@ ${creatorTone}
 ${platformVoice}
 
 CONTENT ANGLE FOR THIS POST: ${angle}
+${retentionContext ? `\nAPPLY RETENTION SCIENCE TO THIS POST:
+- Use hook_open beats: First line must stop the scroll
+- Build curiosity — make people need to click/watch
+- For video announcements: tease the best moment without spoiling it
+- Structure your post like a mini retention curve: hook → tension → payoff` : ""}
 
 CRITICAL ANTI-DETECTION RULES:
 - You ARE the creator. First person only. Never third person.

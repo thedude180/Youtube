@@ -377,6 +377,42 @@ Respond with JSON:
   }
 }
 
+export async function getRetentionBeatsPromptContext(userId?: string): Promise<string> {
+  try {
+    const conditions = [];
+    if (userId) {
+      conditions.push(sql`(${retentionBeats.isGlobal} = true OR ${retentionBeats.userId} = ${userId})`);
+    } else {
+      conditions.push(eq(retentionBeats.isGlobal, true));
+    }
+
+    const beats = await db.select().from(retentionBeats)
+      .where(and(...conditions))
+      .orderBy(desc(retentionBeats.retentionImpact))
+      .limit(15);
+
+    if (beats.length === 0) return "";
+
+    const lines = beats.map(b =>
+      `- [${b.beatType}] "${b.technique}" (impact: ${(Number(b.retentionImpact) * 100).toFixed(0)}%) — ${b.description?.substring(0, 120) || ""} | Timing: ${b.timestampMarker || "varies"} | Source: ${b.sourceCreator}`
+    );
+
+    return `\n\nRETENTION BEATS — Apply these proven retention patterns learned from top creators (MrBeast, The Fat Electrician):
+${lines.join("\n")}
+
+RETENTION RULES:
+- First 3 seconds MUST have a hook_open beat (immediate hook that stops the scroll)
+- Place a pattern_interrupt or stakes_raise every 2-3 minutes
+- Build curiosity gaps early — tease what's coming
+- Place the climax at 70-85% of video duration
+- End with resolution + rewatch trigger
+- For shorts: compress beats — hook in frame 1, escalation by second 5, payoff before second 30
+- Every piece of content must feel like "I can't stop watching this"`;
+  } catch {
+    return "";
+  }
+}
+
 export async function getRetentionBeatsLibrary(
   userId?: string,
   beatType?: string,

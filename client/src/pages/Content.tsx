@@ -15,24 +15,25 @@ import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { useTranslation } from "react-i18next";
 import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
-  Calendar as CalendarIcon, Eye, Loader2,
+  Calendar as CalendarIcon, Eye, Loader2, Brain,
 } from "lucide-react";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
 import { LiveTimestamp } from "@/components/LiveTimestamp";
 import { lazyRetry } from "@/lib/lazyRetry";
 
-type ContentTab = "library" | "updated" | "channels" | "calendar";
+type ContentTab = "library" | "updated" | "channels" | "calendar" | "retention";
 
 const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
 const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
+const RetentionBeatsTab = lazyRetry(() => import("./content/RetentionBeatsTab"));
 
 export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar"];
+  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "retention"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useTabMemory("content", initialTab, validTabs);
   const { t } = useTranslation();
@@ -59,6 +60,9 @@ export default function Content() {
             <TabsTrigger value="calendar" data-testid="tab-calendar" aria-label="Content calendar tab">
               <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />Calendar
             </TabsTrigger>
+            <TabsTrigger value="retention" data-testid="tab-retention" aria-label="Retention beats tab">
+              <Brain className="h-3.5 w-3.5 mr-1.5" />Retention
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -78,6 +82,11 @@ export default function Content() {
         <TabsContent value="calendar" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <CalendarTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="retention" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <RetentionBeatsTab />
           </Suspense>
         </TabsContent>
       </Tabs>

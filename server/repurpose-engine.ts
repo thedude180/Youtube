@@ -3,6 +3,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { repurposedContent, scriptTemplates } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 const openai = getOpenAIClient();
 
@@ -36,12 +37,17 @@ export async function repurposeVideo(userId: string, videoId: number, formats: s
       return `"${f}": ${fmt?.description || f}`;
     }).join("\n");
 
-    const prompt = `You are a content repurposing expert. Transform this video into multiple content formats.
+    const retentionContext = await getRetentionBeatsPromptContext(userId);
+
+    const prompt = `You are a content repurposing expert using proven retention science. Transform this video into multiple content formats.
 
 Video Title: "${video.title}"
 Video Description: "${video.description || "None provided"}"
 Video Type: ${video.type}
 Tags: ${video.metadata?.tags?.join(", ") || "None"}
+${retentionContext}
+
+Apply retention beat principles to every format — hook readers/viewers in the first line, build curiosity, deliver payoff.
 
 Generate content for these formats:
 ${formatDescriptions}

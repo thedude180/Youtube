@@ -3,6 +3,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { pipelineRuns, clipViralityScores, contentClips } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 const openai = getOpenAIClient();
 
@@ -206,7 +207,9 @@ export async function extractClipsFromVideo(
   const views = video.metadata?.stats?.views || video.metadata?.viewCount || 0;
   const tags = video.metadata?.tags?.join(", ") || "";
 
-  const prompt = `You are a viral shorts/clips extraction expert. Analyze this video and identify 3-8 clip-worthy moments that would perform well as short-form content on TikTok, YouTube Shorts, and Instagram Reels.
+  const retentionContext = await getRetentionBeatsPromptContext(userId);
+
+  const prompt = `You are a viral shorts/clips extraction expert using proven retention science. Analyze this video and identify 3-8 clip-worthy moments that would perform well as short-form content on TikTok, YouTube Shorts, and Instagram Reels.
 
 Video Title: "${video.title}"
 Description: "${video.description || "Not provided"}"
@@ -215,6 +218,9 @@ Views: ${views}
 Tags: ${tags}
 Type: ${video.type}
 Platform: ${video.platform || "youtube"}
+${retentionContext}
+
+Apply retention beats to every clip — hook in frame 1, escalation by second 5, payoff before the clip ends.
 
 Identify the best clip-worthy moments. For each clip provide:
 - A catchy, attention-grabbing title optimized for short-form
