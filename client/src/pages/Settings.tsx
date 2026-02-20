@@ -33,13 +33,14 @@ import { supportedLanguages } from "@/i18n";
 const SubscriptionTab = lazy(() => import("./settings/AdminTabs"));
 const AdminCodesTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminCodesTab })));
 const AdminUsersTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminUsersTab })));
+const AdminSystemHealthTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminSystemHealthTab })));
 const SecurityTab = lazy(() => import("./settings/SecurityTab"));
 
 const TabFallback = () => <Skeleton className="h-96 w-full rounded-lg" />;
 
-type TabKey = "general" | "security" | "subscription" | "admin-codes" | "admin-users";
+type TabKey = "general" | "security" | "subscription" | "admin-codes" | "admin-users" | "admin-health";
 
-const VALID_TABS: TabKey[] = ["general", "security", "subscription", "admin-codes", "admin-users"];
+const VALID_TABS: TabKey[] = ["general", "security", "subscription", "admin-codes", "admin-users", "admin-health"];
 
 const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "general", label: "General" },
@@ -47,6 +48,7 @@ const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "subscription", label: "Subscription" },
   { key: "admin-codes", label: "Access Codes", adminOnly: true },
   { key: "admin-users", label: "Users", adminOnly: true },
+  { key: "admin-health", label: "System Health", adminOnly: true },
 ];
 
 interface NotificationPrefs {
@@ -113,17 +115,18 @@ function GeneralTab() {
   const connectedCount = channels?.length ?? 0;
   const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
 
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
   const handleExportData = useCallback(async () => {
     setIsExporting(true);
     try {
-      const res = await fetch("/api/user/export", { credentials: "include" });
-      if (!res.ok) throw new Error("Export failed");
+      const res = await apiRequest("POST", "/api/settings/export-data");
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "creatoros-export.json";
+      a.download = "creatoros-data-export.json";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -133,6 +136,19 @@ function GeneralTab() {
       toast({ title: "Export failed", variant: "destructive" });
     } finally {
       setIsExporting(false);
+    }
+  }, [toast]);
+
+  const handleDeleteAccount = useCallback(async () => {
+    setIsDeletingAccount(true);
+    try {
+      const res = await apiRequest("POST", "/api/settings/request-deletion");
+      const data = await res.json();
+      toast({ title: "Deletion request submitted", description: data.message });
+    } catch {
+      toast({ title: "Failed to submit deletion request", variant: "destructive" });
+    } finally {
+      setIsDeletingAccount(false);
     }
   }, [toast]);
 
@@ -178,6 +194,7 @@ function GeneralTab() {
               data-testid="switch-human-review"
               checked={humanReviewMode}
               onCheckedChange={setHumanReviewMode}
+              aria-label="Toggle human review mode"
             />
           </div>
         </CardContent>
@@ -201,6 +218,7 @@ function GeneralTab() {
               data-testid="switch-notif-compliance"
               checked={notificationPrefs.complianceWarnings}
               onCheckedChange={(v) => updateNotificationPref("complianceWarnings", v)}
+              aria-label="Toggle compliance warnings"
             />
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -213,6 +231,7 @@ function GeneralTab() {
               data-testid="switch-notif-milestones"
               checked={notificationPrefs.milestoneAlerts}
               onCheckedChange={(v) => updateNotificationPref("milestoneAlerts", v)}
+              aria-label="Toggle milestone alerts"
             />
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -225,6 +244,7 @@ function GeneralTab() {
               data-testid="switch-notif-platform"
               checked={notificationPrefs.platformIssues}
               onCheckedChange={(v) => updateNotificationPref("platformIssues", v)}
+              aria-label="Toggle platform issue alerts"
             />
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -237,6 +257,7 @@ function GeneralTab() {
               data-testid="switch-notif-revenue"
               checked={notificationPrefs.revenueUpdates}
               onCheckedChange={(v) => updateNotificationPref("revenueUpdates", v)}
+              aria-label="Toggle revenue updates"
             />
           </div>
         </CardContent>
@@ -415,7 +436,7 @@ function GeneralTab() {
                 toast({ title: t("settings.languageChanged", { language: langName }) });
               }}
             >
-              <SelectTrigger className="w-48" data-testid="select-language">
+              <SelectTrigger className="w-48" data-testid="select-language" aria-label="Select language">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -454,6 +475,38 @@ function GeneralTab() {
                 <Download className="h-3.5 w-3.5 mr-1.5" />
                 {isExporting ? "Exporting..." : "Export Data"}
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive"
+                    data-testid="button-delete-account"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Delete Account
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will schedule your account and all associated data for permanent deletion after a 30-day grace period. During this time you can cancel by contacting support. This action cannot be undone after the grace period.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-testid="button-cancel-delete-account">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAccount}
+                      className="bg-destructive text-destructive-foreground"
+                      disabled={isDeletingAccount}
+                      data-testid="button-confirm-delete-account"
+                    >
+                      {isDeletingAccount ? "Processing..." : "Delete My Account"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <Button
                 variant="outline"
                 size="sm"
@@ -530,7 +583,7 @@ export default function Settings() {
             {tabs.map((t) => {
               const Icon = tabIcons[t.key];
               return (
-                <TabsTrigger key={t.key} value={t.key} data-testid={`tab-${t.key}`}>
+                <TabsTrigger key={t.key} value={t.key} data-testid={`tab-${t.key}`} aria-label={`${t.label} settings tab`}>
                   {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
                   {t.label}
                 </TabsTrigger>
@@ -547,6 +600,7 @@ export default function Settings() {
           <TabsContent value="subscription" className="mt-4"><SubscriptionTab /></TabsContent>
           {isAdmin && <TabsContent value="admin-codes" className="mt-4"><AdminCodesTab /></TabsContent>}
           {isAdmin && <TabsContent value="admin-users" className="mt-4"><AdminUsersTab /></TabsContent>}
+          {isAdmin && <TabsContent value="admin-health" className="mt-4"><AdminSystemHealthTab /></TabsContent>}
         </Suspense>
       </Tabs>
     </div>
@@ -583,6 +637,7 @@ function ThemeScheduleCard() {
             data-testid="switch-auto-theme"
             checked={themeMode === "auto"}
             onCheckedChange={(v) => setThemeMode(v ? "auto" : "manual")}
+            aria-label="Toggle automatic theme scheduling"
           />
         </div>
         {themeMode === "auto" && (
@@ -594,7 +649,7 @@ function ThemeScheduleCard() {
                 value={String(schedule.darkStart)}
                 onValueChange={(v) => setSchedule({ ...schedule, darkStart: Number(v) })}
               >
-                <SelectTrigger className="w-[110px]" data-testid="select-dark-start">
+                <SelectTrigger className="w-[110px]" data-testid="select-dark-start" aria-label="Dark mode start time">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -611,7 +666,7 @@ function ThemeScheduleCard() {
                 value={String(schedule.darkEnd)}
                 onValueChange={(v) => setSchedule({ ...schedule, darkEnd: Number(v) })}
               >
-                <SelectTrigger className="w-[110px]" data-testid="select-dark-end">
+                <SelectTrigger className="w-[110px]" data-testid="select-dark-end" aria-label="Light mode start time">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

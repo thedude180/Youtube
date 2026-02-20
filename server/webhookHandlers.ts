@@ -1,9 +1,35 @@
 import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { storage } from './storage';
 import { db } from './db';
-import { users } from '@shared/schema';
+import { users, webhookEvents } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
+import { createLogger } from './lib/logger';
+
+const logger = createLogger('webhook');
+
+async function checkAndRecordWebhookEvent(eventId: string, source: string, eventType: string, payload: any): Promise<boolean> {
+  const existing = await db.select().from(webhookEvents).where(eq(webhookEvents.source, `${source}:${eventId}`)).limit(1);
+  if (existing.length > 0 && existing[0].processed) {
+    return false;
+  }
+  if (existing.length === 0) {
+    await db.insert(webhookEvents).values({
+      userId: 'system',
+      source: `${source}:${eventId}`,
+      eventType,
+      payload,
+      processed: false,
+    });
+  }
+  return true;
+}
+
+async function markWebhookProcessed(eventId: string, source: string): Promise<void> {
+  await db.update(webhookEvents)
+    .set({ processed: true })
+    .where(eq(webhookEvents.source, `${source}:${eventId}`));
+}
 
 const PRODUCT_TIER_MAP: Record<string, string> = {
   youtube: 'youtube',
@@ -150,6 +176,43 @@ async function handleCheckoutComplete(event: Stripe.Event): Promise<void> {
   }
 }
 
+async function handleTrialWillEnd(event: Stripe.Event): Promise<void> {
+  const subscription = event.data.object as Stripe.Subscription;
+  const customerId = typeof subscription.customer === 'string'
+    ? subscription.customer
+    : subscription.customer?.id;
+
+  if (!customerId) {
+    logger.warn('No customer ID on trial_will_end event');
+    return;
+  }
+
+  const userId = await findUserByCustomerId(customerId);
+  if (!userId) {
+    logger.warn(`No user found for Stripe customer ${customerId} (trial_will_end)`);
+    return;
+  }
+
+  const trialEnd = subscription.trial_end
+    ? new Date(subscription.trial_end * 1000).toLocaleDateString()
+    : 'soon';
+
+  try {
+    await storage.createNotification({
+      userId,
+      type: 'billing',
+      title: 'Your trial is ending soon',
+      message: `Your free trial ends on ${trialEnd}. Add a payment method to continue enjoying premium features without interruption.`,
+      severity: 'warning',
+      actionUrl: '/settings',
+      metadata: { source: 'stripe' },
+    });
+    logger.info(`Trial ending notification created for user ${userId}`);
+  } catch (err) {
+    logger.error('Failed to create trial_will_end notification', { error: (err as Error).message });
+  }
+}
+
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
     if (!Buffer.isBuffer(payload)) {
@@ -166,21 +229,38 @@ export class WebhookHandlers {
     try {
       const jsonPayload = JSON.parse(payload.toString()) as Stripe.Event;
       const eventType = jsonPayload?.type;
+      const eventId = jsonPayload?.id;
+
+      if (eventId) {
+        const shouldProcess = await checkAndRecordWebhookEvent(eventId, 'stripe', eventType, jsonPayload);
+        if (!shouldProcess) {
+          logger.info(`Skipping already processed webhook event ${eventId} (${eventType})`);
+          return;
+        }
+      }
 
       switch (eventType) {
         case 'customer.subscription.created':
         case 'customer.subscription.updated':
         case 'customer.subscription.deleted':
-          console.log(`[TierSync] Processing ${eventType}`);
+          logger.info(`Processing ${eventType}`);
           await handleSubscriptionChange(jsonPayload);
           break;
+        case 'customer.subscription.trial_will_end':
+          logger.info(`Processing ${eventType}`);
+          await handleTrialWillEnd(jsonPayload);
+          break;
         case 'checkout.session.completed':
-          console.log(`[TierSync] Processing ${eventType}`);
+          logger.info(`Processing ${eventType}`);
           await handleCheckoutComplete(jsonPayload);
           break;
       }
+
+      if (eventId) {
+        await markWebhookProcessed(eventId, 'stripe');
+      }
     } catch (err: any) {
-      console.error('[TierSync] Event processing error (non-fatal):', err.message);
+      logger.error('Event processing error (non-fatal)', { error: err.message });
     }
   }
 }

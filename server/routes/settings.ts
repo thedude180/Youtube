@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
 import { db } from "../db";
-import { eq, and } from "drizzle-orm";
-import { brandAssets, competitorTracks, knowledgeMilestones } from "@shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
+import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos } from "@shared/schema";
 import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId } from "./helpers";
 import {
   runStyleScan,
@@ -49,6 +49,45 @@ export function registerSettingsRoutes(app: Express) {
     if (!userId) return;
     await storage.markAllRead(userId);
     res.json({ success: true });
+  });
+
+  app.post("/api/notifications/mark-all-read", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.markAllRead(userId);
+    res.json({ success: true });
+  });
+
+  app.get("/api/notifications/preferences", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const prefs = await storage.getNotificationPreferences(userId);
+      res.json(prefs || {
+        emailEnabled: true,
+        pushEnabled: true,
+        smsEnabled: false,
+        discordWebhookUrl: null,
+        quietHoursStart: null,
+        quietHoursEnd: null,
+        timezone: "UTC",
+        digestFrequency: "none",
+        categories: {},
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to get notification preferences" });
+    }
+  });
+
+  app.put("/api/notifications/preferences", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const prefs = await storage.upsertNotificationPreferences(userId, req.body);
+      res.json(prefs);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to update notification preferences" });
+    }
   });
 
   app.post("/api/style-scan/:channelId", async (req, res) => {
@@ -534,6 +573,77 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
+  const exportRateLimit = new Map<string, number>();
+
+  app.post("/api/settings/export-data", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const lastExport = exportRateLimit.get(userId);
+      if (lastExport && Date.now() - lastExport < 3600_000) {
+        return res.status(429).json({ error: "You can only export data once per hour. Please try again later." });
+      }
+      const [user, userChannels, userVideos, notifications, revenueRecords, communityPosts] = await Promise.all([
+        storage.getUser(userId),
+        storage.getChannelsByUser(userId),
+        storage.getVideosByUser(userId),
+        storage.getNotifications(userId),
+        storage.getRevenueRecords(userId),
+        storage.getCommunityPosts(userId),
+      ]);
+      exportRateLimit.set(userId, Date.now());
+      await storage.createAuditLog({
+        userId,
+        action: "data_export",
+        target: "user_data",
+        riskLevel: "low",
+      });
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        user: user ? { id: user.id, role: user.role, tier: user.tier, contentNiche: user.contentNiche, email: user.email } : null,
+        channels: userChannels,
+        videos: userVideos,
+        notifications,
+        revenueRecords,
+        communityPosts,
+      };
+      res.setHeader("Content-Disposition", "attachment; filename=creatoros-data-export.json");
+      res.setHeader("Content-Type", "application/json");
+      res.json(exportData);
+    } catch (e: any) {
+      console.error("Data export error:", e);
+      res.status(500).json({ error: "Failed to export data. Please try again." });
+    }
+  });
+
+  app.post("/api/settings/request-deletion", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      await storage.createAuditLog({
+        userId,
+        action: "account_deletion_requested",
+        target: "user_account",
+        riskLevel: "high",
+      });
+      await storage.createNotification({
+        userId,
+        type: "system",
+        title: "Account Deletion Requested",
+        message: "Your account deletion request has been received. Your account and all associated data will be permanently deleted after a 30-day grace period. You can cancel this request by contacting support.",
+      });
+      res.json({
+        success: true,
+        message: "Account deletion request received. Your account will be permanently deleted after a 30-day grace period. You can cancel this request by contacting support.",
+        gracePeriodDays: 30,
+        scheduledDeletion: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+    } catch (e: any) {
+      console.error("Deletion request error:", e);
+      res.status(500).json({ error: "Failed to process deletion request. Please try again." });
+    }
+  });
+
   app.get("/api/business-details", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -621,6 +731,94 @@ export function registerSettingsRoutes(app: Express) {
       res.status(201).json(check);
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  });
+
+  const CHECKLIST_STEP_IDS = ['connect_youtube', 'connect_platform', 'set_niche', 'enable_autopilot', 'first_content'];
+
+  app.get("/api/onboarding/checklist", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const user = await storage.getUser(userId);
+      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+      const channelIds = userChannels.map(c => c.id);
+      const userVideos = channelIds.length > 0
+        ? await db.select().from(videos).where(inArray(videos.channelId, channelIds)).limit(1)
+        : [];
+
+      const autoDetections: Record<string, boolean> = {
+        connect_youtube: userChannels.some(c => c.platform === 'youtube'),
+        connect_platform: userChannels.length > 0,
+        set_niche: !!(user?.contentNiche),
+        enable_autopilot: !!(user?.autopilotActive),
+        first_content: userVideos.length > 0,
+      };
+
+      const existing = await db.select().from(gettingStartedChecklist).where(eq(gettingStartedChecklist.userId, userId));
+      const existingMap = new Map(existing.map(e => [e.stepId, e]));
+
+      for (const [stepId, detected] of Object.entries(autoDetections)) {
+        if (detected && !existingMap.get(stepId)?.completed) {
+          const existingEntry = existingMap.get(stepId);
+          if (existingEntry) {
+            await db.update(gettingStartedChecklist)
+              .set({ completed: true, completedAt: new Date() })
+              .where(eq(gettingStartedChecklist.id, existingEntry.id));
+          } else {
+            await db.insert(gettingStartedChecklist).values({
+              userId,
+              stepId,
+              completed: true,
+              completedAt: new Date(),
+            });
+          }
+        }
+      }
+
+      const updated = await db.select().from(gettingStartedChecklist).where(eq(gettingStartedChecklist.userId, userId));
+      const updatedMap = new Map(updated.map(e => [e.stepId, e]));
+
+      const steps = CHECKLIST_STEP_IDS.map(stepId => ({
+        stepId,
+        completed: updatedMap.get(stepId)?.completed || false,
+        completedAt: updatedMap.get(stepId)?.completedAt || null,
+      }));
+
+      res.json({ steps, completedCount: steps.filter(s => s.completed).length, totalCount: steps.length });
+    } catch (error: any) {
+      console.error("[Onboarding] Checklist fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch checklist" });
+    }
+  });
+
+  app.post("/api/onboarding/checklist/:stepId/complete", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { stepId } = req.params;
+    if (!CHECKLIST_STEP_IDS.includes(stepId)) {
+      return res.status(400).json({ error: "Invalid step ID" });
+    }
+    try {
+      const [existing] = await db.select().from(gettingStartedChecklist)
+        .where(and(eq(gettingStartedChecklist.userId, userId), eq(gettingStartedChecklist.stepId, stepId)));
+
+      if (existing) {
+        await db.update(gettingStartedChecklist)
+          .set({ completed: true, completedAt: new Date() })
+          .where(eq(gettingStartedChecklist.id, existing.id));
+      } else {
+        await db.insert(gettingStartedChecklist).values({
+          userId,
+          stepId,
+          completed: true,
+          completedAt: new Date(),
+        });
+      }
+      res.json({ success: true, stepId, completed: true });
+    } catch (error: any) {
+      console.error("[Onboarding] Step complete error:", error);
+      res.status(500).json({ message: "Failed to mark step complete" });
     }
   });
 }

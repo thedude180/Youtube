@@ -7,6 +7,7 @@ interface EmptyStateProps {
   icon: LucideIcon;
   title: string;
   description: string;
+  type?: string;
   actionLabel?: string;
   onAction?: () => void;
   actionHref?: string;
@@ -14,7 +15,7 @@ interface EmptyStateProps {
   "data-testid"?: string;
 }
 
-export function EmptyState({ icon: Icon, title, description, actionLabel, onAction, actionHref, tips, ...props }: EmptyStateProps) {
+export function EmptyState({ icon: Icon, title, description, type, actionLabel, onAction, actionHref, tips, ...props }: EmptyStateProps) {
   const [currentTip, setCurrentTip] = useState(0);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, onActi
   }, [tips?.length]);
 
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center" data-testid={props["data-testid"] || "empty-state"}>
+    <div className="flex flex-col items-center justify-center py-12 px-4 text-center" data-testid={props["data-testid"] || (type ? `empty-state-${type}` : "empty-state")}>
       <div className="relative mb-6">
         <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center float">
           <Icon className="h-8 w-8 text-primary" />

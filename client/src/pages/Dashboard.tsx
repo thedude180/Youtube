@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
+import { DateRangePicker } from "@/components/DateRangePicker";
 import { useDashboardStats } from "@/hooks/use-dashboard";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,7 +27,9 @@ import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { PulseOrb } from "@/components/PulseOrb";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import DashboardSkeleton from "./dashboard/DashboardSkeleton";
+import { PageSkeleton } from "@/components/PageSkeleton";
 import MetricsGrid from "./dashboard/MetricsGrid";
+import GettingStartedChecklist from "@/components/GettingStartedChecklist";
 import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
 import PriorityCommandCenter from "@/components/PriorityCommandCenter";
@@ -73,6 +76,7 @@ export default function Dashboard() {
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'] });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
 
+  const [dateRange, setDateRange] = useState(30);
   const [aiActions, setAiActions] = useState<AIResponse>(null);
   const [aiActionsLoading, setAiActionsLoading] = useState(false);
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
@@ -174,7 +178,7 @@ export default function Dashboard() {
     return "bg-red-400";
   }, []);
 
-  if (statsLoading) return <DashboardSkeleton />;
+  if (statsLoading) return <PageSkeleton variant="dashboard" data-testid="skeleton-dashboard" />;
 
   if (statsError) {
     return (
@@ -211,6 +215,11 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {!user?.onboardingCompleted && (
+        <GettingStartedChecklist />
+      )}
+
+      <section role="region" aria-label="AI autonomy status">
       <Card
         data-testid="card-autonomy-banner"
         className={`shine gradient-border ${humanReviewMode
@@ -250,11 +259,13 @@ export default function Dashboard() {
                 data-testid="toggle-human-review"
                 checked={humanReviewMode}
                 onCheckedChange={setHumanReviewMode}
+                aria-label="Toggle human review mode"
               />
             </div>
           </div>
         </CardContent>
       </Card>
+      </section>
 
       <PriorityCommandCenter />
 
@@ -262,7 +273,13 @@ export default function Dashboard() {
         <LazyPlatformHealthCards />
       </Suspense>
 
+      <section role="region" aria-label="Key metrics">
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+        <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key Metrics</span>
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+      </div>
       <MetricsGrid metrics={metrics} />
+      </section>
 
       <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-lg" />}>
         <LazyGrowthImpactChart />
@@ -276,10 +293,15 @@ export default function Dashboard() {
         <LazyChannelGrowthTimeline />
       </Suspense>
 
+      <section role="region" aria-label="Business health overview">
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
+      </section>
 
+      <section role="region" aria-label="AI action center">
       <AIActionCenter aiActions={aiActions} aiActionsLoading={aiActionsLoading} />
+      </section>
 
+      <section role="region" aria-label="Activity feed">
       <Suspense fallback={<Skeleton className="h-12 w-full" />}>
         <LazyActivityFeedSection
           recentNotifications={recentNotifications}
@@ -287,6 +309,7 @@ export default function Dashboard() {
           severityColor={severityColor}
         />
       </Suspense>
+      </section>
 
       <div ref={belowFoldRef} />
     </div>

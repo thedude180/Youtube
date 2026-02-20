@@ -174,28 +174,28 @@ export default function Money() {
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)}>
         <TabsList data-testid="tab-bar">
-          <TabsTrigger value="revenue" data-testid="tab-revenue">
+          <TabsTrigger value="revenue" data-testid="tab-revenue" aria-label="Revenue tab">
             <DollarSign className="h-3.5 w-3.5 mr-1.5" />Revenue
           </TabsTrigger>
-          <TabsTrigger value="opportunities" data-testid="tab-opportunities">
+          <TabsTrigger value="opportunities" data-testid="tab-opportunities" aria-label="Opportunities tab">
             <Sparkles className="h-3.5 w-3.5 mr-1.5" />Opportunities
           </TabsTrigger>
-          <TabsTrigger value="expenses" data-testid="tab-expenses">
+          <TabsTrigger value="expenses" data-testid="tab-expenses" aria-label="Expenses tab">
             <Receipt className="h-3.5 w-3.5 mr-1.5" />Expenses
           </TabsTrigger>
-          <TabsTrigger value="taxes" data-testid="tab-taxes">
+          <TabsTrigger value="taxes" data-testid="tab-taxes" aria-label="Taxes tab">
             <Calculator className="h-3.5 w-3.5 mr-1.5" />Taxes
           </TabsTrigger>
-          <TabsTrigger value="payments" data-testid="tab-payments">
+          <TabsTrigger value="payments" data-testid="tab-payments" aria-label="Payments tab">
             <CreditCard className="h-3.5 w-3.5 mr-1.5" />Payments
           </TabsTrigger>
-          <TabsTrigger value="ventures" data-testid="tab-ventures">
+          <TabsTrigger value="ventures" data-testid="tab-ventures" aria-label="Ventures tab">
             <Briefcase className="h-3.5 w-3.5 mr-1.5" />Ventures
           </TabsTrigger>
-          <TabsTrigger value="goals" data-testid="tab-goals">
+          <TabsTrigger value="goals" data-testid="tab-goals" aria-label="Goals tab">
             <Target className="h-3.5 w-3.5 mr-1.5" />Goals
           </TabsTrigger>
-          <TabsTrigger value="sponsors" data-testid="tab-sponsors">
+          <TabsTrigger value="sponsors" data-testid="tab-sponsors" aria-label="Sponsors tab">
             <Handshake className="h-3.5 w-3.5 mr-1.5" />Sponsors
           </TabsTrigger>
         </TabsList>
@@ -238,7 +238,7 @@ export default function Money() {
               <h2 data-testid="text-payments-title" className="text-lg font-semibold">Stripe Payments</h2>
               <Dialog open={paymentDialogOpen} onOpenChange={(open) => { setPaymentDialogOpen(open); if (!open) setPaymentUrl(""); }}>
                 <DialogTrigger asChild>
-                  <Button data-testid="button-create-payment-link" size="sm">
+                  <Button data-testid="button-create-payment-link" size="sm" aria-label="Create payment link">
                     <Link2 className="w-4 h-4 mr-1" />
                     Create Payment Link
                   </Button>
@@ -262,6 +262,7 @@ export default function Money() {
                           variant="secondary"
                           onClick={() => copyToClipboard(paymentUrl)}
                           data-testid="button-copy-url"
+                          aria-label="Copy payment URL"
                         >
                           <Copy className="w-4 h-4" />
                         </Button>
@@ -279,15 +280,15 @@ export default function Money() {
                     <form onSubmit={handleCreatePayment} className="space-y-4">
                       <div>
                         <Label>Amount ($)</Label>
-                        <Input name="amount" type="number" step="0.01" min="1" required data-testid="input-payment-amount" placeholder="0.00" />
+                        <Input name="amount" type="number" step="0.01" min="1" required data-testid="input-payment-amount" placeholder="0.00" aria-label="Payment amount in dollars" />
                       </div>
                       <div>
                         <Label>Description</Label>
-                        <Input name="description" required data-testid="input-payment-description" placeholder="What is this payment for?" />
+                        <Input name="description" required data-testid="input-payment-description" placeholder="What is this payment for?" aria-label="Payment description" />
                       </div>
                       <div>
                         <Label>Customer Email (optional)</Label>
-                        <Input name="customerEmail" type="email" data-testid="input-payment-email" placeholder="customer@example.com" />
+                        <Input name="customerEmail" type="email" data-testid="input-payment-email" placeholder="customer@example.com" aria-label="Customer email address" />
                       </div>
                       <Button type="submit" className="w-full" disabled={createPaymentMutation.isPending} data-testid="button-submit-payment">
                         {createPaymentMutation.isPending ? "Creating..." : "Create Payment Link"}
@@ -306,9 +307,13 @@ export default function Money() {
                 </CardTitle>
               </CardHeader>
               {!payments || payments.length === 0 ? (
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <CreditCard className="w-10 h-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground" data-testid="text-no-payments">No payments yet. Create a payment link to get started.</p>
+                <CardContent>
+                  <EmptyState
+                    icon={DollarSign}
+                    type="revenue"
+                    title="No Revenue Data Yet"
+                    description="Revenue data will appear here as your channels start earning."
+                  />
                 </CardContent>
               ) : (
                 <CardContent className="p-0">

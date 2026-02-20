@@ -60,6 +60,7 @@ import {
   type WebhookEvent, type InsertWebhookEvent,
   localizationRecommendations,
   type LocalizationRecommendation, type InsertLocalizationRecommendation,
+  notificationPreferences,
   apiKeys, contentPredictions, videoUpdateHistory,
   type ApiKey, type InsertApiKey,
   type ContentPrediction, type InsertContentPrediction,
@@ -307,6 +308,9 @@ export interface IStorage {
 
   getContentPredictions(userId: string): Promise<ContentPrediction[]>;
   createContentPrediction(prediction: InsertContentPrediction): Promise<ContentPrediction>;
+
+  getNotificationPreferences(userId: string): Promise<any | undefined>;
+  upsertNotificationPreferences(userId: string, prefs: any): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1447,6 +1451,26 @@ export class DatabaseStorage implements IStorage {
 
   async createContentPrediction(prediction: InsertContentPrediction): Promise<ContentPrediction> {
     const [created] = await db.insert(contentPredictions).values(prediction).returning();
+    return created;
+  }
+
+  async getNotificationPreferences(userId: string): Promise<any | undefined> {
+    const [prefs] = await db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, userId)).limit(1);
+    return prefs;
+  }
+
+  async upsertNotificationPreferences(userId: string, prefs: any): Promise<any> {
+    const existing = await this.getNotificationPreferences(userId);
+    if (existing) {
+      const [updated] = await db.update(notificationPreferences)
+        .set({ ...prefs, updatedAt: new Date() })
+        .where(eq(notificationPreferences.userId, userId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(notificationPreferences)
+      .values({ ...prefs, userId })
+      .returning();
     return created;
   }
 }

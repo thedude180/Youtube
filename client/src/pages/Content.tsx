@@ -46,16 +46,16 @@ export default function Content() {
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContentTab)}>
         <div className="scrollable-tabs">
           <TabsList data-testid="tabs-content" className="w-auto inline-flex">
-            <TabsTrigger value="library" data-testid="tab-library">
+            <TabsTrigger value="library" data-testid="tab-library" aria-label="Video library tab">
               <Video className="h-3.5 w-3.5 mr-1.5" />{t("content.library")}
             </TabsTrigger>
-            <TabsTrigger value="updated" data-testid="tab-updated">
+            <TabsTrigger value="updated" data-testid="tab-updated" aria-label="Updated videos tab">
               <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Updated
             </TabsTrigger>
-            <TabsTrigger value="channels" data-testid="tab-channels">
+            <TabsTrigger value="channels" data-testid="tab-channels" aria-label="Channels tab">
               <Radio className="h-3.5 w-3.5 mr-1.5" />{t("content.channels")}
             </TabsTrigger>
-            <TabsTrigger value="calendar" data-testid="tab-calendar">
+            <TabsTrigger value="calendar" data-testid="tab-calendar" aria-label="Content calendar tab">
               <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />Calendar
             </TabsTrigger>
           </TabsList>
@@ -117,6 +117,7 @@ function LibraryTab() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8"
             data-testid="input-search-videos"
+            aria-label="Search videos"
           />
         </div>
         <div className="flex items-center gap-1">
@@ -127,6 +128,8 @@ function LibraryTab() {
               size="sm"
               onClick={() => setTypeFilter(t)}
               data-testid={`button-filter-${t}`}
+              aria-label={`Filter by ${t === "all" ? "all types" : TYPE_LABEL[t] || t}`}
+              aria-pressed={typeFilter === t}
             >
               {t === "all" ? "All" : TYPE_LABEL[t] || t}
             </Button>
@@ -143,8 +146,9 @@ function LibraryTab() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={Video}
-          title={searchQuery ? "No matching videos" : "No videos yet"}
-          description={searchQuery ? "Try a different search term." : "Your videos will appear here once CreatorOS starts creating and optimizing content for you."}
+          type="content"
+          title={searchQuery ? "No matching videos" : "No Content Yet"}
+          description={searchQuery ? "Try a different search term." : "Your videos and content will appear here once you connect a platform and start creating."}
         />
       ) : (
         <div className="space-y-2">

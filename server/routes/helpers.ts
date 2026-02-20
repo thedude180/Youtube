@@ -257,3 +257,23 @@ export const APP_TIER_GATES: Record<string, { minTier: string; label: string; ca
   "compliance-fair-use": { minTier: "free", label: "Fair Use Analysis", category: "compliance" },
   "compliance-scan": { minTier: "free", label: "Manual Compliance Scan", category: "compliance" },
 };
+
+export function parsePagination(query: any, defaultLimit = 50, maxLimit = 200) {
+  const page = Math.max(1, parseInt(query.page) || 1);
+  const limit = Math.min(maxLimit, Math.max(1, parseInt(query.limit) || defaultLimit));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
+
+export function paginatedResponse(data: any[], total: number, page: number, limit: number) {
+  return {
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: page * limit < total,
+    }
+  };
+}

@@ -202,6 +202,8 @@ export const videos = pgTable("videos", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   channelIdIdx: index("videos_channel_id_idx").on(table.channelId),
+  videos_status_idx: index("videos_status_idx").on(table.status),
+  videos_status_scheduled_idx: index("videos_status_scheduled_idx").on(table.status, table.scheduledTime),
 }));
 
 export const streamDestinations = pgTable("stream_destinations", {
@@ -260,8 +262,8 @@ export const streams = pgTable("streams", {
 
 export const thumbnails = pgTable("thumbnails", {
   id: serial("id").primaryKey(),
-  videoId: integer("video_id").references(() => videos.id),
-  streamId: integer("stream_id").references(() => streams.id),
+  videoId: integer("video_id").references(() => videos.id, { onDelete: "cascade" }),
+  streamId: integer("stream_id").references(() => streams.id, { onDelete: "cascade" }),
   imageUrl: text("image_url"),
   prompt: text("prompt"),
   platform: text("platform"),
@@ -299,7 +301,7 @@ export const auditLogs = pgTable("audit_logs", {
 
 export const contentInsights = pgTable("content_insights", {
   id: serial("id").primaryKey(),
-  channelId: integer("channel_id").references(() => channels.id),
+  channelId: integer("channel_id").references(() => channels.id, { onDelete: "cascade" }),
   insightType: text("insight_type").notNull(),
   category: text("category"),
   data: jsonb("data").$type<{
@@ -781,6 +783,7 @@ export const sponsorshipDeals = pgTable("sponsorship_deals", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("sponsorship_deals_user_id_idx").on(table.userId),
+  statusIdx: index("sponsorship_deals_status_idx").on(table.userId, table.status),
 }));
 
 export const platformHealth = pgTable("platform_health", {
@@ -4016,3 +4019,21 @@ export const trafficStrategies = pgTable("traffic_strategies", {
 export const insertTrafficStrategySchema = createInsertSchema(trafficStrategies).omit({ id: true, createdAt: true });
 export type TrafficStrategy = typeof trafficStrategies.$inferSelect;
 export type InsertTrafficStrategy = z.infer<typeof insertTrafficStrategySchema>;
+
+
+
+export const gettingStartedChecklist = pgTable("getting_started_checklist", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  stepId: text("step_id").notNull(),
+  completed: boolean("completed").default(false),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("getting_started_user_id_idx").on(table.userId),
+  userStepIdx: index("getting_started_user_step_idx").on(table.userId, table.stepId),
+}));
+
+export const insertGettingStartedChecklistSchema = createInsertSchema(gettingStartedChecklist).omit({ id: true, createdAt: true });
+export type InsertGettingStartedChecklist = z.infer<typeof insertGettingStartedChecklistSchema>;
+export type GettingStartedChecklist = typeof gettingStartedChecklist.$inferSelect;

@@ -64,6 +64,7 @@ const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ defa
 const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
 const FloatingChat = lazyRetry(() => import("@/components/FloatingChat"));
 import { FeedbackWidget } from "@/components/FeedbackWidget";
+import { CookieConsent } from "@/components/CookieConsent";
 
 const sidebarStyle = {
   "--sidebar-width": "13rem",
@@ -177,6 +178,7 @@ function ThemeToggle() {
           size="icon"
           variant="ghost"
           onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
@@ -196,6 +198,7 @@ function AdvancedToggle() {
           size="icon"
           variant={isAdvanced ? "default" : "ghost"}
           onClick={toggleAdvanced}
+          aria-label={isAdvanced ? "Switch to simple mode" : "Switch to advanced mode"}
         >
           <Gauge className="h-4 w-4" />
         </Button>
@@ -371,6 +374,8 @@ function MobileBottomNav() {
                 active ? "text-primary" : "text-muted-foreground"
               }`}
               data-testid={`button-mobile-nav-${item.label.toLowerCase()}`}
+              aria-label={`Navigate to ${item.label}`}
+              aria-current={active ? "page" : undefined}
             >
               <Icon className="h-5 w-5" />
               <span className="text-[10px] font-medium">{item.label}</span>
@@ -492,7 +497,7 @@ function AuthenticatedApp() {
             <div className="flex items-center gap-0.5 shrink-0">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="icon" variant="ghost" onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))} data-testid="button-search">
+                  <Button size="icon" variant="ghost" onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))} data-testid="button-search" aria-label="Search" aria-keyshortcuts="Control+k">
                     <Search className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -501,7 +506,7 @@ function AuthenticatedApp() {
               {!isFocusMode && <OfflineStatusBadge />}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="icon" variant="ghost" onClick={toggleFocusMode} data-testid="button-focus-mode" className="hidden sm:inline-flex">
+                  <Button size="icon" variant="ghost" onClick={toggleFocusMode} data-testid="button-focus-mode" className="hidden sm:inline-flex" aria-label={isFocusMode ? "Exit focus mode" : "Enter focus mode"}>
                     {isFocusMode ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                   </Button>
                 </TooltipTrigger>
@@ -733,6 +738,7 @@ function App() {
           </ThemeProvider>
           <GlobalProgress />
           <Toaster />
+          <CookieConsent />
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>

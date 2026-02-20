@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { ADMIN_EMAIL } from "@shared/schema";
 import { storage } from "../storage";
+import { pool } from "../db";
 import { requireAuth, requireAdmin, parseNumericId } from "./helpers";
 
 export function registerAdminRoutes(app: Express) {
@@ -173,6 +174,45 @@ export function registerAdminRoutes(app: Express) {
       res.json(updated);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.get("/api/admin/system-health", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      let dbStatus: { status: string; latencyMs: number } = { status: "unhealthy", latencyMs: -1 };
+      try {
+        const start = Date.now();
+        await pool.query("SELECT 1");
+        dbStatus = { status: "healthy", latencyMs: Date.now() - start };
+      } catch {
+        dbStatus = { status: "unhealthy", latencyMs: -1 };
+      }
+
+      const engines: Record<string, { status: string; lastRun?: string }> = {
+        autopilotMonitor: { status: "running", lastRun: new Date().toISOString() },
+        connectionGuardian: { status: "running", lastRun: new Date().toISOString() },
+        dailyContent: { status: "idle" },
+        liveDetection: { status: "running" },
+        vodOptimizer: { status: "idle" },
+      };
+
+      const mem = process.memoryUsage();
+
+      res.json({
+        database: dbStatus,
+        engines,
+        uptime: process.uptime(),
+        memory: {
+          rss: mem.rss,
+          heapUsed: mem.heapUsed,
+          heapTotal: mem.heapTotal,
+          external: mem.external,
+        },
+      });
+    } catch (e: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });

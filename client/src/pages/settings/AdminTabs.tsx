@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Shield, Plus, Trash2, Users } from "lucide-react";
+import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw } from "lucide-react";
 
 function SubscriptionTab() {
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
@@ -270,5 +270,151 @@ function AdminUsersTab() {
   );
 }
 
-export { AdminCodesTab, AdminUsersTab };
+function AdminSystemHealthTab() {
+  const { data, isLoading, refetch, isFetching } = useQuery<any>({
+    queryKey: ["/api/admin/system-health"],
+    refetchInterval: 30000,
+  });
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatUptime(seconds: number): string {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h}h ${m}m ${s}s`;
+  }
+
+  function engineStatusDot(status: string): string {
+    switch (status) {
+      case "running": return "bg-emerald-400";
+      case "idle": return "bg-amber-400";
+      default: return "bg-red-400";
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-24 w-full rounded-md" />
+        <Skeleton className="h-48 w-full rounded-md" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="admin-system-health">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <HeartPulse className="w-5 h-5" />
+          System Health
+        </h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          data-testid="button-refresh-health"
+        >
+          <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
+
+      <Card data-testid="card-database-health">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Database
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${data?.database?.status === "healthy" ? "bg-emerald-400" : "bg-red-400"}`} data-testid="dot-database-status" />
+            <Badge
+              variant="secondary"
+              className={`text-xs no-default-hover-elevate ${data?.database?.status === "healthy" ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}
+              data-testid="badge-database-status"
+            >
+              {data?.database?.status ?? "unknown"}
+            </Badge>
+            {data?.database?.latencyMs != null && data.database.latencyMs >= 0 && (
+              <span className="text-xs text-muted-foreground" data-testid="text-database-latency">
+                {data.database.latencyMs}ms latency
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-engines-health">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Cpu className="w-4 h-4" />
+            Background Engines
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {data?.engines && Object.entries(data.engines).map(([name, engine]: [string, any]) => (
+              <div
+                key={name}
+                className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/30 flex-wrap"
+                data-testid={`engine-row-${name}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${engineStatusDot(engine.status)}`} />
+                  <span className="text-sm font-medium">{name}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="secondary" className={`text-xs no-default-hover-elevate ${engine.status === "running" ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                    {engine.status}
+                  </Badge>
+                  {engine.lastRun && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(engine.lastRun).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-system-info">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">System Info</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 rounded-md bg-muted/30" data-testid="text-uptime">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Uptime</p>
+              <p className="text-sm font-bold mt-1">{data?.uptime ? formatUptime(data.uptime) : "N/A"}</p>
+            </div>
+            <div className="p-3 rounded-md bg-muted/30" data-testid="text-heap-used">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Heap Used</p>
+              <p className="text-sm font-bold mt-1">{data?.memory?.heapUsed ? formatBytes(data.memory.heapUsed) : "N/A"}</p>
+            </div>
+            <div className="p-3 rounded-md bg-muted/30" data-testid="text-heap-total">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Heap Total</p>
+              <p className="text-sm font-bold mt-1">{data?.memory?.heapTotal ? formatBytes(data.memory.heapTotal) : "N/A"}</p>
+            </div>
+            <div className="p-3 rounded-md bg-muted/30" data-testid="text-rss">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">RSS</p>
+              <p className="text-sm font-bold mt-1">{data?.memory?.rss ? formatBytes(data.memory.rss) : "N/A"}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export { AdminCodesTab, AdminUsersTab, AdminSystemHealthTab };
 export default SubscriptionTab;

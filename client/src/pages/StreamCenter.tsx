@@ -22,6 +22,7 @@ import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { EmptyState } from "@/components/EmptyState";
 import { LiveChatPanel } from "@/components/LiveChatPanel";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from '@/lib/safe-data';
@@ -2357,12 +2358,12 @@ export default function StreamCenter() {
       )}
 
       {!streamsLoading && streamList.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Zap className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No streams yet. Create one to get started.</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Radio}
+          type="streams"
+          title="No Streams Yet"
+          description="Your livestream sessions will appear here. Connect a platform to get started."
+        />
       )}
       </UpgradeTabGate>
     </div>

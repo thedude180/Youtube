@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { EmptyState } from "@/components/EmptyState";
 import {
   Gift, BarChart3, Trophy, Star, Shield, Plus, Loader2, Users,
   Crown, Award, Medal, Target, MessageSquare, Calendar,
@@ -213,12 +214,12 @@ function GiveawaysTab() {
       ) : error ? (
         <p className="text-xs text-muted-foreground" data-testid="error-giveaways">Failed to load giveaways</p>
       ) : !data?.length ? (
-        <Card data-testid="empty-giveaways">
-          <CardContent className="p-4 text-center">
-            <Gift className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
-            <p className="text-xs text-muted-foreground">No giveaways yet</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Users}
+          type="community"
+          title="No Community Activity"
+          description="Community interactions will appear here as your audience grows."
+        />
       ) : (
         <div className="space-y-1">
           {safeArray(data).map((g) => (
@@ -368,12 +369,12 @@ function PollsTab() {
       ) : error ? (
         <p className="text-xs text-muted-foreground" data-testid="error-polls">Failed to load polls</p>
       ) : !data?.length ? (
-        <Card data-testid="empty-polls">
-          <CardContent className="p-4 text-center">
-            <BarChart3 className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
-            <p className="text-xs text-muted-foreground">No polls yet</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Users}
+          type="community"
+          title="No Community Activity"
+          description="Community interactions will appear here as your audience grows."
+        />
       ) : (
         <div className="space-y-1">
           {safeArray(data).map((poll) => {
@@ -526,12 +527,12 @@ function ChallengesTab() {
       ) : error ? (
         <p className="text-xs text-muted-foreground" data-testid="error-challenges">Failed to load challenges</p>
       ) : !data?.length ? (
-        <Card data-testid="empty-challenges">
-          <CardContent className="p-4 text-center">
-            <Trophy className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
-            <p className="text-xs text-muted-foreground">No challenges yet</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Users}
+          type="community"
+          title="No Community Activity"
+          description="Community interactions will appear here as your audience grows."
+        />
       ) : (
         <div className="space-y-1">
           {safeArray(data).map((c) => (

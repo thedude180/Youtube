@@ -1,66 +1,78 @@
+import { createLogger } from './logger';
+
+const logger = createLogger('cache');
+
 interface CacheEntry<T> {
   data: T;
-  expiry: number;
+  expiresAt: number;
 }
 
-class MemoryCache {
-  private store = new Map<string, CacheEntry<any>>();
-  private maxEntries: number;
+export class SimpleCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  private maxSize: number;
 
-  constructor(maxEntries = 500) {
-    this.maxEntries = maxEntries;
+  constructor(maxSize = 500) {
+    this.maxSize = maxSize;
+    setInterval(() => this.cleanup(), 60_000);
   }
 
   get<T>(key: string): T | null {
-    const entry = this.store.get(key);
+    const entry = this.cache.get(key);
     if (!entry) return null;
-    if (Date.now() > entry.expiry) {
-      this.store.delete(key);
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
       return null;
     }
-    return entry.data;
+    return entry.data as T;
   }
 
-  set<T>(key: string, data: T, ttlSeconds: number): void {
-    if (this.store.size >= this.maxEntries) {
-      const oldest = this.store.keys().next().value;
-      if (oldest) this.store.delete(oldest);
+  set<T>(key: string, data: T, ttlMs = 300_000): void {
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
     }
-    this.store.set(key, { data, expiry: Date.now() + ttlSeconds * 1000 });
+    this.cache.set(key, { data, expiresAt: Date.now() + ttlMs });
   }
 
   invalidate(pattern?: string): void {
     if (!pattern) {
-      this.store.clear();
+      this.cache.clear();
       return;
     }
-    for (const key of this.store.keys()) {
-      if (key.includes(pattern)) this.store.delete(key);
+    for (const key of Array.from(this.cache.keys())) {
+      if (key.includes(pattern)) this.cache.delete(key);
     }
   }
 
-  has(key: string): boolean {
-    return this.get(key) !== null;
+  private cleanup(): void {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [key, entry] of Array.from(this.cache)) {
+      if (now > entry.expiresAt) {
+        this.cache.delete(key);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) logger.debug(`Cleaned ${cleaned} expired cache entries`);
   }
 
-  get size(): number {
-    return this.store.size;
-  }
+  get size(): number { return this.cache.size; }
 }
 
-export const apiCache = new MemoryCache(500);
+export const apiCache = new SimpleCache();
 
 export function cached<T>(key: string, ttlSeconds: number, fn: () => T | Promise<T>): T | Promise<T> {
   const existing = apiCache.get<T>(key);
   if (existing !== null) return existing;
 
+  const ttlMs = ttlSeconds * 1000;
   const result = fn();
   if (result instanceof Promise) {
     return result.then((data) => {
-      apiCache.set(key, data, ttlSeconds);
+      apiCache.set(key, data, ttlMs);
       return data;
     });
   }
-  apiCache.set(key, result, ttlSeconds);
+  apiCache.set(key, result, ttlMs);
   return result;
 }

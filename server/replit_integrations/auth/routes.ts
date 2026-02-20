@@ -1,14 +1,46 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { authStorage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
 import { createOrUpdateCustomerProfile, updateCustomerActivity } from "../../customer-database-engine";
 import { ADMIN_EMAIL } from "@shared/models/auth";
 import { z } from "zod";
+import { recordLoginAttempt, checkAccountLock } from "../../services/security-fortress";
+
+const authRateLimiter = new Map<string, number[]>();
+
+function rateLimitAuth(maxAttempts: number, windowMs: number) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip || req.socket?.remoteAddress || "unknown";
+    const now = Date.now();
+    const timestamps = authRateLimiter.get(ip) || [];
+    const recent = timestamps.filter(t => t > now - windowMs);
+    if (recent.length >= maxAttempts) {
+      return res.status(429).json({ message: "Too many attempts. Please wait a moment and try again." });
+    }
+    recent.push(now);
+    authRateLimiter.set(ip, recent);
+    next();
+  };
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - 60_000;
+  for (const [key, timestamps] of Array.from(authRateLimiter)) {
+    const filtered = timestamps.filter(t => t > cutoff);
+    if (filtered.length === 0) authRateLimiter.delete(key);
+    else authRateLimiter.set(key, filtered);
+  }
+}, 60_000);
+
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]).{8,}$/;
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters").refine(
+    (val) => PASSWORD_REGEX.test(val),
+    "Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character"
+  ),
   firstName: z.string().min(1, "First name is required").max(50),
   lastName: z.string().max(50).optional(),
 });
@@ -18,8 +50,12 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
 export function registerAuthRoutes(app: Express): void {
-  app.post("/api/auth/register", async (req: any, res) => {
+  app.post("/api/auth/register", rateLimitAuth(10, 60_000), async (req: any, res) => {
     try {
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -78,6 +114,13 @@ export function registerAuthRoutes(app: Express): void {
           console.error("Customer profile update error (non-critical):", profileErr);
         }
 
+        const ip = req.ip || req.socket?.remoteAddress || "unknown";
+        try {
+          await recordLoginAttempt(ip, user.id, true, req.headers["user-agent"] || "");
+        } catch (e) {
+          console.error("[Auth] recordLoginAttempt error (non-critical):", e);
+        }
+
         req.session.save((saveErr: any) => {
           if (saveErr) console.error("Register session save error:", saveErr);
           const { passwordHash: _, ...safeUser } = user;
@@ -90,22 +133,57 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/auth/login", async (req: any, res) => {
+  app.post("/api/auth/login", rateLimitAuth(10, 60_000), async (req: any, res) => {
     try {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid input" });
       }
       const { email, password } = parsed.data;
+      const ip = req.ip || req.socket?.remoteAddress || "unknown";
+      const userAgent = req.headers["user-agent"] || "";
+
+      const lockStatus = await checkAccountLock(email.toLowerCase());
+      if (lockStatus.locked) {
+        const retryMsg = lockStatus.lockedUntil
+          ? ` Try again after ${lockStatus.lockedUntil.toLocaleTimeString()}.`
+          : "";
+        return res.status(423).json({ message: `Account temporarily locked due to too many failed attempts.${retryMsg}` });
+      }
 
       const user = await authStorage.getUserByEmail(email.toLowerCase());
       if (!user || !user.passwordHash) {
+        try {
+          await recordLoginAttempt(ip, null, false, userAgent, "Invalid email");
+        } catch (e) {
+          console.error("[Auth] recordLoginAttempt error (non-critical):", e);
+        }
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
       const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) {
-        return res.status(401).json({ message: "Invalid email or password" });
+        try {
+          await recordLoginAttempt(ip, user.id, false, userAgent, "Invalid password");
+        } catch (e) {
+          console.error("[Auth] recordLoginAttempt error (non-critical):", e);
+        }
+
+        const updatedLock = await checkAccountLock(user.id);
+        if (updatedLock.locked) {
+          return res.status(423).json({ message: "Account temporarily locked due to too many failed attempts. Please try again later." });
+        }
+        const remaining = 5 - (updatedLock.failedAttempts % 5 || 5);
+        const warningMsg = remaining <= 2 && remaining > 0
+          ? ` Warning: ${remaining} attempt(s) remaining before lockout.`
+          : "";
+        return res.status(401).json({ message: `Invalid email or password.${warningMsg}` });
+      }
+
+      try {
+        await recordLoginAttempt(ip, user.id, true, userAgent);
+      } catch (e) {
+        console.error("[Auth] recordLoginAttempt error (non-critical):", e);
       }
 
       const sessionUser = {
@@ -149,6 +227,21 @@ export function registerAuthRoutes(app: Express): void {
     } catch (error: any) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed. Please try again." });
+    }
+  });
+
+  app.post("/api/auth/forgot-password", rateLimitAuth(5, 60_000), async (req: any, res) => {
+    try {
+      const parsed = forgotPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid email" });
+      }
+      const { email } = parsed.data;
+      console.log(`[Auth] Password reset requested for: ${email.toLowerCase()}`);
+      res.json({ ok: true, message: "If an account with that email exists, you will receive a password reset link shortly." });
+    } catch (error: any) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });
 

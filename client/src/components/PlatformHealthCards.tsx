@@ -2,6 +2,7 @@ import { memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import { SiYoutube, SiTwitch, SiDiscord, SiTiktok } from "react-icons/si";
 
@@ -43,6 +44,21 @@ function getConnectionStatus(channel: ChannelInfo): { status: "connected" | "exp
   return { status: "connected", label: "Connected" };
 }
 
+function healthDotColor(status: "connected" | "expiring" | "disconnected"): string {
+  if (status === "connected") return "bg-emerald-400";
+  if (status === "expiring") return "bg-amber-400";
+  return "bg-red-400";
+}
+
+function formatLastSync(ts: string | null): string {
+  if (!ts) return "Never synced";
+  try {
+    return `Last sync: ${new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  } catch {
+    return "Last sync: Unknown";
+  }
+}
+
 export default memo(function PlatformHealthCards() {
   const { data: channels, isLoading } = useQuery<ChannelInfo[]>({
     queryKey: ["/api/channels"],
@@ -69,29 +85,40 @@ export default memo(function PlatformHealthCards() {
         const colorClass = PLATFORM_COLORS[channel.platform] || "text-foreground";
 
         return (
-          <Card key={channel.id} data-testid={`card-platform-health-${channel.platform}`}>
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className={`shrink-0 ${colorClass}`}>
-                {Icon ? <Icon className="h-5 w-5" /> : <Wifi className="h-5 w-5" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium capitalize truncate">
-                  {channel.channelName || channel.platform}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  {status === "connected" && <Wifi className="h-3 w-3 text-emerald-400" />}
-                  {status === "expiring" && <AlertTriangle className="h-3 w-3 text-amber-400" />}
-                  {status === "disconnected" && <WifiOff className="h-3 w-3 text-red-400" />}
-                  <span className={`text-[11px] ${
-                    status === "connected" ? "text-emerald-400" :
-                    status === "expiring" ? "text-amber-400" : "text-red-400"
-                  }`}>
-                    {label}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <Tooltip key={channel.id}>
+            <TooltipTrigger asChild>
+              <Card data-testid={`card-platform-health-${channel.platform}`}>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className={`shrink-0 ${colorClass} relative`}>
+                    {Icon ? <Icon className="h-5 w-5" /> : <Wifi className="h-5 w-5" />}
+                    <span
+                      className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${healthDotColor(status)}`}
+                      data-testid={`dot-health-${channel.platform}`}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium capitalize truncate">
+                      {channel.channelName || channel.platform}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {status === "connected" && <Wifi className="h-3 w-3 text-emerald-400" />}
+                      {status === "expiring" && <AlertTriangle className="h-3 w-3 text-amber-400" />}
+                      {status === "disconnected" && <WifiOff className="h-3 w-3 text-red-400" />}
+                      <span className={`text-[11px] ${
+                        status === "connected" ? "text-emerald-400" :
+                        status === "expiring" ? "text-amber-400" : "text-red-400"
+                      }`}>
+                        {label}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent data-testid={`tooltip-sync-${channel.platform}`}>
+              <p>{formatLastSync(channel.lastSyncAt)}</p>
+            </TooltipContent>
+          </Tooltip>
         );
       })}
     </div>

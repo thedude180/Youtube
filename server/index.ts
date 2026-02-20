@@ -24,6 +24,7 @@ import { stopAutoFixCleanup } from "./services/autopilot-monitor";
 import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { createLogger } from "./lib/logger";
+import { AppError, createErrorResponse } from "./lib/errors";
 
 const logger = createLogger("express");
 
@@ -159,10 +160,15 @@ app.use(helmet({
   },
 } as any));
 
-app.use("/api", (_req, res, next) => {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+app.use("/api", (req, res, next) => {
+  const staticEndpoints = ["/health"];
+  if (staticEndpoints.includes(req.path)) {
+    res.setHeader("Cache-Control", "public, max-age=3600");
+  } else {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
   res.removeHeader("X-Powered-By");
   next();
 });
@@ -363,11 +369,35 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 });
 
 app.get("/api/health", async (_req, res) => {
+  const uptime = process.uptime();
+  const memoryUsage = process.memoryUsage();
+  const memory = {
+    rss: Math.round(memoryUsage.rss / 1024 / 1024),
+    heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+    heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+    external: Math.round(memoryUsage.external / 1024 / 1024),
+  };
   try {
+    const dbStart = Date.now();
     await pool.query("SELECT 1");
-    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+    const dbLatencyMs = Date.now() - dbStart;
+    res.json({
+      status: "ok",
+      uptime,
+      uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+      timestamp: new Date().toISOString(),
+      database: { connected: true, latencyMs: dbLatencyMs },
+      memory,
+    });
   } catch (err) {
-    res.status(503).json({ status: "degraded", uptime: process.uptime(), timestamp: new Date().toISOString(), error: "Database connectivity check failed" });
+    res.status(503).json({
+      status: "degraded",
+      uptime,
+      uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+      timestamp: new Date().toISOString(),
+      database: { connected: false, error: "Database connectivity check failed" },
+      memory,
+    });
   }
 });
 
@@ -406,20 +436,28 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = status < 500 ? (err.message || "Request Error") : "Internal Server Error";
-
-    if (status >= 500) {
-      logger.error("Internal Server Error", { error: String(err) });
-    }
+    const requestId = _req.headers['x-request-id'] as string | undefined;
 
     if (res.headersSent) {
       return next(err);
     }
 
+    if (err instanceof AppError) {
+      logger.warn(`AppError [${err.code}]: ${err.message}`, { statusCode: err.statusCode, requestId });
+      return res.status(err.statusCode).json(createErrorResponse(err, requestId));
+    }
+
+    const status = err.status || err.statusCode || 500;
+    const message = status < 500 ? (err.message || "Request Error") : "Internal Server Error";
+
+    if (status >= 500) {
+      logger.error("Internal Server Error", { error: String(err), requestId });
+    }
+
     return res.status(status).json({
       error: status >= 500 ? "internal_error" : "request_error",
       message,
+      ...(requestId ? { requestId } : {}),
       ...(status === 400 && err.errors ? { errors: err.errors } : {}),
     });
   });

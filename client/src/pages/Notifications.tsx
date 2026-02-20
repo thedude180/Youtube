@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bell, CheckCircle2, RefreshCw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { EmptyState } from "@/components/EmptyState";
 
 type CategoryType = "alert" | "ai" | "update" | "system";
 type FilterType = "all" | "alert" | "update" | "ai";
@@ -60,12 +62,15 @@ export default function Notifications() {
     },
   });
 
+  const { toast } = useToast();
+
   const markAllReadMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/automation/notifications/read-all");
+      await apiRequest("POST", "/api/notifications/mark-all-read");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      toast({ title: "All notifications marked as read" });
     },
   });
 
@@ -148,17 +153,12 @@ export default function Notifications() {
       </div>
 
       {filtered.length === 0 ? (
-        <Card data-testid="container-empty-state">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Bell className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium mb-1">
-              {filter === "all" ? "No notifications yet" : `No ${filterOptions.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {filter === "all" ? "When something happens, you'll see it here." : "Try selecting a different filter."}
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Bell}
+          type="notifications"
+          title={filter === "all" ? "All Caught Up!" : `No ${filterOptions.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
+          description={filter === "all" ? "No new notifications. We'll let you know when something needs your attention." : "Try selecting a different filter."}
+        />
       ) : (
         <div className="space-y-2" data-testid="container-notifications">
           {filtered.map(n => {
