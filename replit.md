@@ -1,7 +1,7 @@
 # CreatorOS - YouTube Team In A Box
 
 ## Overview
-CreatorOS is a multi-platform content management and live streaming platform designed to empower creators with AI-powered insights, compliance checks, growth strategies, and content optimization across YouTube, Twitch, Kick, TikTok, X, and Discord. It provides near-100% automated end-to-end business management, aiming to be a "YouTube Team In A Box." The project's vision is to autonomously manage all aspects of a creator's online presence, fostering growth and maximizing revenue.
+CreatorOS is a multi-platform content management and live streaming platform designed to empower creators with AI-powered insights, compliance checks, growth strategies, and content optimization across major platforms like YouTube, Twitch, Kick, TikTok, X, and Discord. It aims to provide near-100% automated end-to-end business management, essentially acting as a "YouTube Team In A Box" to autonomously manage all aspects of a creator's online presence, foster growth, and maximize revenue.
 
 ## User Preferences
 - Dark mode design with deep purple/blue tones
@@ -16,87 +16,86 @@ CreatorOS is a multi-platform content management and live streaming platform des
 - No manual trigger buttons - everything runs autonomously in background
 
 ## System Architecture
-CreatorOS is a full-stack application built with an Express.js backend and a React/Vite frontend, utilizing a PostgreSQL database. It employs a multi-tenant architecture with user ID scoping on all data.
+CreatorOS is a full-stack application built with an Express.js backend and a React/Vite frontend, utilizing a PostgreSQL database in a multi-tenant architecture with user ID scoping.
 
 ### Frontend
--   **Technology**: React + Vite with Tailwind CSS, shadcn/ui, and lucide-react.
--   **UI/UX**: Dark theme with purple accent, consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, floating AI chat, command palette (Ctrl+K) with fuzzy search and recent history, keyboard shortcuts, rich empty states with contextual tips. Focus Mode (Ctrl+Shift+F) hides sidebar for distraction-free work.
--   **QoL Features**: Global loading progress bar (animated top bar), copy-to-clipboard on hover, live auto-updating timestamps, animated counters on dashboard, undo toast for destructive actions, tab memory persistence, focus mode toggle, enhanced command palette with fuzzy matching and recent searches.
--   **State Management**: TanStack Query, ThemeProvider, AdvancedModeProvider, FocusModeProvider with localStorage persistence. All useQuery calls use refetchInterval (15-60s based on data criticality) and staleTime to prevent stale data.
--   **Real-time Updates**: SSE (Server-Sent Events) via `use-sse.ts` hook listens for 9 event types (dashboard-update, notification, job-complete, content-update, stream_update, backlog_update, autopilot-update, pipeline-update, platform-update) and instantly invalidates relevant query caches. Server engines emit SSE events on content generation, autopilot publishing, and platform changes.
--   **Performance**: PWA support with offline capabilities, lazy-loading, code splitting, session expiry detection. Adaptive performance engine detects device capabilities and adjusts rendering (backdrop blur, animations, effects) per performance tier (low/mid/high).
--   **Adaptive System**: `AdaptiveProvider` + `useDeviceCapabilities` hook detects screen class (mobile/tablet/desktop/ultrawide), performance tier, connection speed, input mode, OS preferences (reduced motion, high contrast, color scheme). CSS classes applied to body element for tier-based optimizations.
--   **Native App**: Capacitor integration for iOS/Android app store distribution. Native helper (`client/src/lib/native-app.ts`) handles status bar, keyboard, haptics, deep links, and share. See `NATIVE_APP_GUIDE.md` for build/submit instructions.
--   **Mobile**: Bottom nav bar, scrollable tabs, safe-area padding, keyboard-aware layout, full-screen floating chat.
--   **Internationalization**: `react-i18next` with 12 languages and RTL support.
+- **Technology**: React + Vite with Tailwind CSS, shadcn/ui.
+- **UI/UX**: Dark theme, consolidated tabbed pages, notification bell, Advanced Mode toggle, theme toggle, content calendar, floating AI chat, command palette (Ctrl+K), keyboard shortcuts, rich empty states.
+- **QoL Features**: Global loading bar, copy-to-clipboard, auto-updating timestamps, animated counters, undo toast, tab memory, focus mode.
+- **State Management**: TanStack Query, ThemeProvider, AdvancedModeProvider, FocusModeProvider with localStorage persistence. Real-time updates via SSE.
+- **Adaptive System**: `AdaptiveProvider` detects device capabilities (screen size, performance tier, connection speed, OS preferences) to adjust rendering.
+- **Native App**: Capacitor integration for iOS/Android distribution.
+- **Internationalization**: `react-i18next` with 12 languages and RTL support.
 
 ### Backend
--   **Technology**: Express.js with Drizzle ORM and PostgreSQL.
--   **Architecture**: Domain-based route modularization.
--   **Security**: Comprehensive security features including Helmet, response compression, rate limiting (global and AI-specific), CSRF protection, API key authentication, parameter pollution protection, User-Agent validation, subscription tier enforcement, circuit breaker pattern for external APIs, and an AI Security Sentinel for continuous threat monitoring. A Security Dashboard provides real-time monitoring and management.
--   **AI Integration**: OpenAI (gpt-5-mini) via Replit AI Integrations, with tier-based rate limiting.
--   **Core Engines**:
-    -   **Dual Pipeline System**: Live Stream (65 steps) and VOD (56 steps) pipelines across 9 phases, including live discovery and retention. VOD pipelines auto-spawn after live content publication. Pipeline completion triggers autopilot distribution and user notifications. Pipeline errors also generate notifications and self-healing attempts.
-    -   **Automation Engine**: 6 autonomous systems (Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store) for background processing. 60-second interval auto-starts queued pipelines.
-    -   **Autopilot Engine**: 5 hands-off automation systems (Auto-Clip & Post, Smart Schedule, AI Comment Responder, Discord Announcements, Content Recycler). Automatically triggered by pipeline completion and empire video creation. Content generation is enriched with keyword learning context and active traffic growth strategies.
-    -   **Human Behavior Engine**: Simulates realistic posting patterns with platform-specific peak hours, gaussian timing, waking-hours-only scheduling, weekend multipliers, and daily post budgets.
-    -   **Content Variation Engine**: Generates unique content per platform using 15 content angles, platform-specific voice profiles, banned AI-phrase filtering, keyword learning integration, and traffic strategy alignment.
-    -   **Creator Intelligence System**: Style Scanner, Creator Memory, Humanization Layer, and Learning Engine for personalized AI outputs.
-    -   **Ultimate Engine**: 17 advanced AI-powered features including Self-Healing Pipelines, Dynamic Routing, Predictive Analytics, Creator DNA, Audience Mind Mapping, and Shadow Ban Detection.
-    -   **Idea-to-Empire Builder**: AI-driven tool for new creators, automating content strategy creation, video generation, and activating full autopilot upon niche selection. Includes the "Empire Launcher" for public access.
-    -   **Multi-Platform Live Detection**: Polls connected platforms every 2 minutes for active broadcasts, triggering live pipelines, announcements, and content backlog management.
-    -   **YouTube Learning Source Engine**: Uses YouTube as a primary source for niche trends, successful creator patterns, and algorithm insights, refreshing research based on video performance.
-    -   **Creator Skill Progression System**: Tracks creator maturity (1-100) and adapts AI-generated content quality to match the creator's skill level.
-    -   **Platform Sync Engines**: Auto Revenue Sync (every 6 hours) and Platform Sync (real-time metadata push).
-    -   **YouTube Quota Manager & Push Backlog**: Tracks daily YouTube API quota usage, prioritizing direct pushes when available and queuing optimizations when quota is low.
-    -   **Content Performance Predictor**: AI-powered prediction of video performance with actionable suggestions.
-    -   **Cross-Platform Analytics**: Unified dashboard for aggregated video, stream, views, and revenue data.
-    -   **Keyword Learning Engine**: Analyzes video performance to identify, score, and track winning keywords, injecting them into new content creation prompts.
-    -   **Traffic Growth Engine**: Generates 100% legitimate, ToS-compliant traffic strategies covering SEO, community engagement, cross-platform distribution, and more, explicitly blocking banned tactics.
-    -   **Priority Orchestrator** (`server/priority-orchestrator.ts`): Central priority management system with dynamic mode switching. Priorities: #1 Top YouTuber Growth, #2 Daily Content Upload (1 long-form max 15min + 3 shorts), #3 VOD Optimization. Livestream detection overrides all priorities; post-stream harvest mode (2hr) auto-clips content before resuming normal priorities. State recovers from DB on restart.
-    -   **Daily Content Engine** (`server/daily-content-engine.ts`): Stream Exhaust Engine that continuously drains every minute of livestream footage into content. Generates batches of 1 long-form (max 15 min) + 3 shorts per ~20 min segment. Pulls from live streams in real-time (10-min buffer) and ended streams. Cross-posts all content to TikTok, X, Discord. Tracks `contentMinutesExtracted` per stream and marks `contentFullyExhausted` when done. Runs every 2 hours via cron. Max 3 batches per cycle.
-    -   **VOD Optimizer Engine** (`server/vod-optimizer-engine.ts`): Finds underperforming old videos (7+ days old), generates optimized titles/descriptions/tags/thumbnails via AI, queues optimizations. Runs every 8 hours, respects priority system (paused during livestream/post-stream harvest).
-    -   **Retention Beats Engine** (`server/retention-beats-engine.ts`): Learns retention patterns from top YouTube creators (MrBeast, The Fat Electrician) and applies them to optimize content. Seeds 30 retention beat patterns (15 per creator) covering 15 beat types (hook_open, curiosity_gap, escalation, pattern_interrupt, etc.). Features: video analysis with beat mapping, learning from real performance data, studying new creators, auto-refresh of stale beats every 12 hours. Integrated into both Live (66 steps) and VOD (57 steps) pipelines as `retention_beats_scan` step. API routes at `/api/retention-beats/*`. Study-creator requires pro tier, manual seed requires ultimate tier.
-    -   **Publish Verification Engine** (`server/publish-verifier.ts`): Post-publish verification protocol that confirms content is actually live on each platform. After publishing, immediately queries platform APIs (YouTube Data API, X API, TikTok Content Posting API) to verify content exists. Runs a sweep every 10 minutes for up to 5 retry attempts per post. Tracks verificationStatus (unverified → pending → verified/failed), verifiedAt timestamp, and platform-specific status in autopilot_queue metadata. Manual verification trigger available via API. Frontend shows real-time verification badges (Verified Live / Verifying / Not Confirmed) with direct links to platform content.
+- **Technology**: Express.js with Drizzle ORM and PostgreSQL.
+- **Architecture**: Domain-based route modularization.
+- **Security**: Helmet, response compression, rate limiting, CSRF protection, API key auth, parameter pollution protection, User-Agent validation, subscription tier enforcement, circuit breaker, AI Security Sentinel.
+- **AI Integration**: OpenAI (gpt-5-mini) via Replit AI Integrations.
+- **Core Engines**:
+    - **Dual Pipeline System**: 65-step Live Stream and 56-step VOD pipelines across 9 phases, including live discovery and retention.
+    - **Automation Engine**: Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store for background processing.
+    - **Autopilot Engine**: Auto-Clip & Post, Smart Schedule, AI Comment Responder, Discord Announcements, Content Recycler.
+    - **Human Behavior Engine**: Simulates realistic posting patterns.
+    - **Content Variation Engine**: Generates unique content per platform using 15 content angles and platform-specific voice profiles.
+    - **Creator Intelligence System**: Style Scanner, Creator Memory, Humanization Layer, Learning Engine.
+    - **Ultimate Engine**: 17 advanced AI features including Self-Healing Pipelines, Predictive Analytics, Creator DNA, Audience Mind Mapping, and Shadow Ban Detection.
+    - **Idea-to-Empire Builder**: AI-driven tool for new creators, automating content strategy and activation of autopilot.
+    - **Multi-Platform Live Detection**: Polls connected platforms every 2 minutes for active broadcasts.
+    - **YouTube Learning Source Engine**: Uses YouTube for niche trends, creator patterns, and algorithm insights.
+    - **Creator Skill Progression System**: Tracks creator maturity (1-100) and adapts AI outputs.
+    - **Platform Sync Engines**: Auto Revenue Sync and Platform Sync.
+    - **YouTube Quota Manager & Push Backlog**: Manages YouTube API quota and queues optimizations.
+    - **Content Performance Predictor**: AI-powered prediction with actionable suggestions.
+    - **Cross-Platform Analytics**: Unified dashboard.
+    - **Keyword Learning Engine**: Analyzes performance to identify and inject winning keywords.
+    - **Traffic Growth Engine**: Generates ToS-compliant traffic strategies.
+    - **Priority Orchestrator**: Manages dynamic content priorities (e.g., Top YouTuber Growth, Daily Uploads, VOD Optimization, Livestream overrides).
+    - **Daily Content Engine**: Extracts content from livestreams, generating long-form videos and shorts, and cross-posts to TikTok, X, Discord.
+    - **VOD Optimizer Engine**: Identifies underperforming old videos for AI-driven optimization of metadata and thumbnails.
+    - **Retention Beats Engine**: Learns and applies retention patterns from top YouTube creators to optimize content.
+    - **Publish Verification Engine**: Confirms content is live on platforms post-publishing via API checks.
+    - **Auto-Thumbnail Engine**: AI-powered thumbnail generation and upload.
+    - **Stream Clip → YouTube Shorts Pipeline**: Processes stream clips for YouTube Shorts, including downloading, cutting, and uploading.
+    - **Reconnect Email Service**: Sends Gmail alerts for OAuth token expiry.
 
 ### Authentication & Authorization
--   **Authentication**: Replit Auth (OIDC-based).
--   **OAuth**: Universal OAuth framework for 23 platforms with automatic token refresh.
--   **Subscription & Access**: Multi-tier subscription model with role-based access control.
+- **Authentication**: Replit Auth (OIDC-based).
+- **OAuth**: Universal OAuth framework for 23 platforms with auto token refresh.
+- **Subscription & Access**: Multi-tier subscription model with role-based access control.
 
 ### Notification & Feedback Systems
--   **Notification Engine**: Sends email (Gmail) and optional SMS alerts for warnings/critical issues.
--   **AI Feedback Processor**: Analyzes user feedback, auto-categorizes, and resolves config-type issues.
+- **Notification Engine**: Email and optional SMS alerts.
+- **AI Feedback Processor**: Analyzes user feedback for auto-categorization and resolution.
 
-### Infrastructure & Hardening (Feb 2026)
--   **Centralized OpenAI**: Single shared client via `server/lib/openai.ts` (40+ files consolidated).
--   **Retry Wrapper**: `server/lib/retry.ts` with exponential backoff for 29+ external API calls.
--   **LRU Cache**: `server/lib/lru-cache.ts` replaces unbounded Maps for AI response caching.
--   **Structured Logger**: `server/lib/logger.ts` with JSON output and configurable log levels.
--   **Memory Leak Prevention**: Cleanup intervals on 5 in-memory Maps with graceful shutdown.
--   **Database Indexes**: 66 userId indexes + 6 composite indexes for query optimization.
--   **Database Transactions**: Atomic multi-step writes on platform connect/disconnect and pipeline operations.
--   **Input Validation**: Zod schemas on all POST/PUT bodies, URL param sanitization.
--   **Rate Limiting**: Per-endpoint rate limiting on AI (5/min) and content generation (10/min) routes.
--   **Request Tracking**: X-Request-ID header on all responses, health check with DB connectivity.
--   **Webhook Security**: HMAC-SHA256 signature verification on webhook endpoints.
--   **Error Handling**: asyncHandler wrapping on 122+ route handlers, ErrorBoundary on all pages.
--   **Frontend**: Lazy loading, data-testid attributes, ARIA accessibility labels.
--   **Pagination**: List endpoints support `page` and `limit` query params.
+### Infrastructure & Hardening
+- **Centralized OpenAI**: Single shared client.
+- **Retry Wrapper**: Exponential backoff for external API calls.
+- **LRU Cache**: For AI response caching.
+- **Structured Logger**: JSON output, configurable levels.
+- **Memory Leak Prevention**: Cleanup intervals for in-memory Maps.
+- **Database Indexes**: userId and composite indexes.
+- **Database Transactions**: Atomic multi-step writes.
+- **Input Validation**: Zod schemas on all POST/PUT bodies.
+- **Rate Limiting**: Per-endpoint limits.
+- **Request Tracking**: X-Request-ID header.
+- **Webhook Security**: HMAC-SHA256 signature verification.
+- **Error Handling**: asyncHandler wrapping, ErrorBoundary.
+- **Frontend**: Lazy loading, data-testid attributes, ARIA accessibility.
+- **Pagination**: List endpoints support `page` and `limit`.
 
 ### TikTok Video Publishing Pipeline
--   **Clip Video Processor** (`server/clip-video-processor.ts`): Downloads YouTube source videos via yt-dlp, cuts clip segments with ffmpeg into 9:16 vertical format for TikTok. Includes file caching (24h), concurrent download deduplication, and automatic temp file cleanup.
--   **TikTok Publisher** (`server/tiktok-publisher.ts`): Uploads clips to TikTok via Content Posting API using FILE_UPLOAD method with chunked transfer. Handles token refresh, creator info query, privacy level detection, and publish status polling.
--   **Integration**: Platform publisher routes TikTok posts through video publisher. Autopilot passes clip metadata (clipId, sourceVideoId) to enable video lookup. Manual publish endpoint at `POST /api/clips/:clipId/publish-tiktok`.
--   **TikTok Optimization**: Shorts pipeline generates TikTok-optimized clips (21-34s sweet spot, trending hooks, hashtag strategy). Content variation engine has TikTok-specific voice profile.
+- **Clip Video Processor**: Downloads YouTube source videos, cuts clips to 9:16 vertical format for TikTok.
+- **TikTok Publisher**: Uploads clips to TikTok via Content Posting API with chunked transfer and token refresh.
+- **Integration**: Autopilot and manual publish endpoints for TikTok clips.
+- **TikTok Optimization**: Shorts pipeline generates TikTok-optimized clips with trending hooks and hashtag strategy.
 
 ## External Dependencies
--   **Replit Auth**: User authentication.
--   **OpenAI API**: AI-driven functionalities.
--   **Gmail API**: Email notifications via Replit Connectors.
--   **react-i18next / i18next**: Internationalization.
--   **PostgreSQL (Neon-backed)**: Primary database.
--   **YouTube Data API v3**: YouTube integration and OAuth2.
--   **Stripe**: Payment processing and subscription management.
--   **node-cron**: Background task scheduling.
--   **googleapis**: Gmail API client.
+- **Replit Auth**: User authentication.
+- **OpenAI API**: AI-driven functionalities.
+- **Gmail API**: Email notifications (via Replit Connectors).
+- **react-i18next / i18next**: Internationalization.
+- **PostgreSQL**: Primary database (Neon-backed).
+- **YouTube Data API v3**: YouTube integration and OAuth2.
+- **Stripe**: Payment processing and subscription management.
+- **node-cron**: Background task scheduling.

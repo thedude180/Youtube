@@ -82,6 +82,23 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
         await storage.updateChannel(channel.id, {
           tokenExpiresAt: new Date(0),
         });
+
+        try {
+          const platformName = channel.platform.charAt(0).toUpperCase() + channel.platform.slice(1);
+          await storage.createNotification({
+            userId: channel.userId,
+            type: "platform_disconnect",
+            title: `${platformName} Disconnected`,
+            message: `Your ${platformName} connection has expired. Please reconnect in Settings > Channels to resume automation.`,
+            severity: "critical",
+          });
+
+          const { sendReconnectEmail } = await import("./services/reconnect-email");
+          sendReconnectEmail(channel.userId, channel.platform).catch(() => {});
+        } catch (notifyErr) {
+          console.error("[Publisher] Failed to send disconnect notification:", notifyErr);
+        }
+
         return null;
       }
       return channel.accessToken;
@@ -265,7 +282,7 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
   }
 }
 
-async function postToKick(accessToken: string, content: string, channelData: any): Promise<PublishResult> {
+async function postToKick(_accessToken: string, _content: string, _channelData: any): Promise<PublishResult> {
   return {
     success: false,
     platform: "kick",

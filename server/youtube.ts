@@ -101,7 +101,7 @@ export async function handleCallback(code: string, userId: string) {
     subscriberCount: subCount,
     videoCount: vidCount,
     viewCount: vwCount,
-    settings: { preset: "normal" as const, autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+    settings: { preset: "normal" as const, autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
   };
 
   let channel;
@@ -133,7 +133,7 @@ export async function handleCallback(code: string, userId: string) {
     accessToken: tokens.access_token || null,
     refreshToken: tokens.refresh_token || null,
     tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-    settings: { preset: "normal" as const, autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+    settings: { preset: "normal" as const, autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
   };
 
   if (existingShortsChannel) {
@@ -150,6 +150,16 @@ export async function handleCallback(code: string, userId: string) {
     await storage.updateChannel(existingShortsChannel.id, shortsUpdate);
   } else {
     await storage.createChannel(shortsData);
+  }
+
+  try {
+    const user = await storage.getUser(userId);
+    if (user && !user.autopilotActive) {
+      await storage.updateUserProfile(userId, { autopilotActive: true });
+      console.log(`[YouTube] Auto-enabled autopilot for ${userId} on channel connect`);
+    }
+  } catch (err) {
+    console.error(`[YouTube] Failed to auto-enable autopilot for ${userId}:`, err);
   }
 
   return {

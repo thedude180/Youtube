@@ -311,6 +311,15 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("0 */6 * * *", async () => {
+    try {
+      const { runAutoThumbnailGeneration } = await import("./auto-thumbnail-engine");
+      await runAutoThumbnailGeneration();
+    } catch (err) {
+      console.error("[AutomationEngine] Auto-thumbnail generation error:", err);
+    }
+  });
+
   cron.schedule("0 */4 * * *", async () => {
     try {
       const { processCommentResponses } = await import("./autopilot-engine");
@@ -450,147 +459,16 @@ export async function initAutomationEngine() {
     }
   });
 
-  const cronTrackedBroadcasts = new Map<string, { streamId: number; broadcastId: string; missCount: number; trackedAt: number }>();
   let liveDetectionRunning = false;
-
-  setInterval(() => {
-    const cutoff = Date.now() - 12 * 60 * 60 * 1000;
-    for (const [userId, entry] of cronTrackedBroadcasts) {
-      if (entry.trackedAt < cutoff) cronTrackedBroadcasts.delete(userId);
-    }
-  }, 30 * 60 * 1000);
 
   cron.schedule("*/2 * * * *", async () => {
     if (liveDetectionRunning) return;
     liveDetectionRunning = true;
     try {
-      const { checkYouTubeLiveBroadcasts } = await import("./youtube");
-      const { createPipelineForStream } = await import("./routes/pipeline");
-      const { pauseForLive, resumeAfterStream } = await import("./backlog-manager");
-      const { pivotToStream, resumeFromStream } = await import("./backlog-engine");
-      const { processGoLiveAnnouncements, processPostStreamHighlights } = await import("./autopilot-engine");
-      const { storage } = await import("./storage");
-
-      const allChannelRows = await db.select().from(channels);
-      const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.accessToken && c.userId);
-
-      for (const ytChannel of ytChannels) {
-        const userId = ytChannel.userId!;
-        try {
-          const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
-          const streamList = await storage.getStreams(userId);
-          const existingLive = streamList.find(s => s.status === "live");
-          const existingPlanned = streamList.find(s => s.status === "planned");
-          const tracked = cronTrackedBroadcasts.get(userId);
-
-          if (!tracked && existingLive && broadcasts.length > 0) {
-            cronTrackedBroadcasts.set(userId, { streamId: existingLive.id, broadcastId: broadcasts[0].broadcastId, missCount: 0, trackedAt: Date.now() });
-            console.log(`[AutomationEngine] Reconciled tracked broadcast for ${userId}: stream ${existingLive.id} (server restart recovery)`);
-          }
-
-          if (broadcasts.length > 0 && !existingLive && !existingPlanned && !tracked) {
-            const broadcast = broadcasts[0];
-            const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
-
-            const stream = await storage.createStream({
-              userId,
-              title: broadcast.title,
-              description: broadcast.description,
-              category: "Gaming",
-              platforms: allPlatforms,
-              status: "planned",
-            });
-
-            await storage.updateStream(stream.id, {
-              status: "live",
-              startedAt: broadcast.startedAt ? new Date(broadcast.startedAt) : new Date(),
-            });
-
-            cronTrackedBroadcasts.set(userId, { streamId: stream.id, broadcastId: broadcast.broadcastId, missCount: 0, trackedAt: Date.now() });
-
-            pauseForLive(userId, stream.id);
-            pivotToStream(userId, stream.id).catch(() => {});
-            processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(() => {});
-            createPipelineForStream(userId, broadcast.title, "live").catch(() => {});
-
-            await storage.createNotification({
-              userId,
-              type: "stream_live",
-              title: "YouTube LIVE Detected",
-              message: `"${broadcast.title}" — all 6 platform automations triggered automatically`,
-              severity: "info",
-            });
-
-            sendSSEEvent(userId, "stream_update", { type: "live_detected", streamId: stream.id, title: broadcast.title });
-            sendSSEEvent(userId, "notification", { type: "new" });
-            sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId: stream.id });
-
-            await storage.createAuditLog({
-              userId,
-              action: "youtube_live_auto_detected_cron",
-              target: broadcast.title,
-              details: { broadcastId: broadcast.broadcastId, platforms: allPlatforms },
-              riskLevel: "low",
-            });
-
-            console.log(`[AutomationEngine] YouTube LIVE detected for ${userId}: "${broadcast.title}"`);
-          } else if (broadcasts.length > 0 && tracked) {
-            tracked.missCount = 0;
-          }
-
-          if (broadcasts.length === 0 && tracked && !existingLive) {
-            cronTrackedBroadcasts.delete(userId);
-            console.log(`[AutomationEngine] Cleaned up orphaned tracked broadcast for ${userId} — no matching live stream in DB`);
-          }
-
-          if (broadcasts.length === 0 && tracked && existingLive) {
-            tracked.missCount++;
-            if (tracked.missCount >= 2) {
-              const endedAt = new Date();
-              await storage.updateStream(existingLive.id, { status: "ended", endedAt });
-
-              resumeFromStream(userId, existingLive.id).catch(() => {});
-              processPostStreamHighlights(userId, existingLive.id, existingLive.title, existingLive.description || "", (existingLive.platforms as string[]) || ["youtube"]).catch(() => {});
-              createPipelineForStream(userId, existingLive.title, "replay").catch(() => {});
-              resumeAfterStream(userId).catch(() => {});
-
-              cronTrackedBroadcasts.delete(userId);
-
-              await storage.createNotification({
-                userId,
-                type: "stream_ended",
-                title: "Stream Ended",
-                message: `"${existingLive.title}" — REPLAY pipeline started, backlog will resume automatically`,
-                severity: "info",
-              });
-
-              sendSSEEvent(userId, "stream_update", { type: "stream_ended", streamId: existingLive.id, title: existingLive.title });
-              sendSSEEvent(userId, "notification", { type: "new" });
-              sendSSEEvent(userId, "backlog_update", { state: "waiting_for_replay" });
-
-              await storage.createAuditLog({
-                userId,
-                action: "youtube_live_auto_ended_cron",
-                target: existingLive.title,
-                details: { backlogResumed: true },
-                riskLevel: "low",
-              });
-
-              console.log(`[AutomationEngine] YouTube stream ended for ${userId}: "${existingLive.title}"`);
-            }
-          }
-        } catch (err) {
-          console.error(`[AutomationEngine] YouTube live check failed for channel ${ytChannel.id}:`, err);
-        }
-      }
-      try {
-        const { runMultiPlatformLiveDetection } = await import("./services/live-detection");
-        await runMultiPlatformLiveDetection();
-      } catch (err) {
-        console.error("[AutomationEngine] Multi-platform live detection error:", err);
-      }
+      const { runMultiPlatformLiveDetection } = await import("./services/live-detection");
+      await runMultiPlatformLiveDetection();
     } catch (err) {
-      console.error("[AutomationEngine] YouTube live detection cron error:", err);
+      console.error("[AutomationEngine] Unified live detection error:", err);
     } finally {
       liveDetectionRunning = false;
     }

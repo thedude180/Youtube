@@ -691,6 +691,83 @@ export async function processCrossPromotion(userId: string) {
   await generateFullThrottleDistribution(userId, video, creatorTone, [crossPlatform], "cross-promo");
 }
 
+async function handleStreamClipPublish(post: any, meta: any): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
+  try {
+    const streamId = meta.sourceStreamId;
+    const startMin = meta.segmentStartMin;
+    const endMin = meta.segmentEndMin;
+    const contentType = meta.contentType;
+    const isShort = contentType === "youtube-short";
+
+    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
+    if (!stream) return { success: false, error: "Source stream not found" };
+
+    const streamVideos = await db.select().from(videos)
+      .where(eq(videos.userId, post.userId))
+      .orderBy(desc(videos.createdAt))
+      .limit(50);
+
+    const streamVideo = streamVideos.find(v => {
+      const vm = (v.metadata as any) || {};
+      return vm.youtubeId && (vm.sourceStreamId === streamId || v.title?.toLowerCase().includes(stream.title?.toLowerCase()?.substring(0, 20) || ""));
+    });
+
+    if (!streamVideo) {
+      logger.info("No source video with YouTube ID found for stream clip, falling back to text publish", { streamId, postId: post.id });
+      const { publishToplatform } = await import("./platform-publisher");
+      return publishToplatform(post.userId, post.targetPlatform, post.content || "", { ...meta, sourceVideoId: post.sourceVideoId });
+    }
+
+    const youtubeSourceId = (streamVideo.metadata as any)?.youtubeId;
+    if (!youtubeSourceId) {
+      logger.info("Stream video has no YouTube ID, falling back to text publish", { videoId: streamVideo.id });
+      const { publishToplatform } = await import("./platform-publisher");
+      return publishToplatform(post.userId, post.targetPlatform, post.content || "", { ...meta, sourceVideoId: post.sourceVideoId });
+    }
+
+    const ytChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, post.userId), eq(channels.platform, "youtube")));
+    const ytChannel = ytChannels.find(c => c.accessToken);
+    if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
+
+    const { downloadSourceVideo, cutClipFromVideo, cleanupClipFile } = await import("./clip-video-processor");
+    const sourcePath = await downloadSourceVideo(youtubeSourceId);
+    const clipPath = await cutClipFromVideo(sourcePath, startMin * 60, endMin * 60, post.id);
+
+    const { uploadVideoToYouTube } = await import("./youtube");
+    const title = isShort ? `${(post.caption || "Clip").substring(0, 90)} #Shorts` : (post.caption || "Stream Highlight").substring(0, 100);
+
+    const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
+      title,
+      description: post.content || "",
+      tags: isShort ? ["shorts", "gaming", "highlights"] : ["gaming", "highlights", "stream"],
+      categoryId: "20",
+      privacyStatus: "public",
+      videoFilePath: clipPath,
+    });
+
+    cleanupClipFile(clipPath);
+
+    if (uploadResult) {
+      logger.info("Stream clip uploaded to YouTube", { postId: post.id, youtubeId: uploadResult.youtubeId, isShort });
+
+      const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
+      generateThumbnailForNewVideo(post.userId, streamVideo.id).catch(() => {});
+
+      return {
+        success: true,
+        postId: uploadResult.youtubeId,
+        postUrl: `https://www.youtube.com/watch?v=${uploadResult.youtubeId}`,
+      };
+    }
+
+    return { success: false, error: "YouTube upload returned no result" };
+  } catch (err: any) {
+    logger.error("Stream clip publish failed", { postId: post.id, error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
 export async function processScheduledPosts() {
   const now = new Date();
   const { isActive } = getActivityWindow();
@@ -730,15 +807,22 @@ export async function processScheduledPosts() {
         .set({ status: "publishing" as any })
         .where(eq(autopilotQueue.id, post.id));
 
-      const result = await publishToplatform(
-        post.userId,
-        post.targetPlatform,
-        post.content || "",
-        {
-          ...(post.metadata as any || {}),
-          sourceVideoId: post.sourceVideoId,
-        },
-      );
+      const meta = (post.metadata as any) || {};
+      let result: any;
+
+      if (post.type === "auto-clip" && post.targetPlatform === "youtube" && meta.sourceStreamId && meta.segmentStartMin != null) {
+        result = await handleStreamClipPublish(post, meta);
+      } else {
+        result = await publishToplatform(
+          post.userId,
+          post.targetPlatform,
+          post.content || "",
+          {
+            ...meta,
+            sourceVideoId: post.sourceVideoId,
+          },
+        );
+      }
 
       if (result.success) {
         await db.update(autopilotQueue)

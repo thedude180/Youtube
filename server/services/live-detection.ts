@@ -59,6 +59,59 @@ async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
   }
 }
 
+async function checkYouTubeLive(channelRow: any): Promise<DetectedBroadcast[]> {
+  try {
+    const { checkYouTubeLiveBroadcasts } = await import("../youtube");
+    const broadcasts = await checkYouTubeLiveBroadcasts(channelRow.id);
+    return broadcasts
+      .filter((b: any) => b.status === "active" || b.status === "live")
+      .map((b: any) => ({
+        platform: "youtube",
+        broadcastId: b.broadcastId,
+        title: b.title || "YouTube Stream",
+        description: b.description || "Live on YouTube",
+        startedAt: b.startedAt || b.scheduledStartTime,
+        viewerCount: undefined,
+      }));
+  } catch (err) {
+    console.error(`[LiveDetection] YouTube check failed for channel ${channelRow.id}:`, err);
+    return [];
+  }
+}
+
+async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast[]> {
+  const token = channelRow.accessToken;
+  if (!token) return [];
+
+  try {
+    const res = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=display_name,avatar_url,is_verified,bio_description", {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const user = data?.data?.user;
+
+    if (!user) return [];
+
+    const liveCheckField = user.is_live ?? user.live_status;
+    if (!liveCheckField) return [];
+
+    return [{
+      platform: "tiktok",
+      broadcastId: `tiktok_live_${channelRow.channelId || Date.now()}`,
+      title: `${user.display_name || channelRow.channelName || "Creator"} is LIVE on TikTok`,
+      description: `Live on TikTok — ${user.display_name || channelRow.channelName || ""}`,
+      startedAt: new Date().toISOString(),
+      viewerCount: undefined,
+    }];
+  } catch (err) {
+    console.error(`[LiveDetection] TikTok check failed for channel ${channelRow.id}:`, err);
+    return [];
+  }
+}
+
 async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
   const token = channelRow.accessToken;
   if (!token) return [];
@@ -238,8 +291,10 @@ export async function runMultiPlatformLiveDetection() {
   try {
     const allChannelRows = await db.select().from(channels);
     const platformCheckers: Record<string, (ch: any) => Promise<DetectedBroadcast[]>> = {
+      youtube: checkYouTubeLive,
       twitch: checkTwitchLive,
       kick: checkKickLive,
+      tiktok: checkTikTokLive,
     };
 
     for (const ch of allChannelRows) {

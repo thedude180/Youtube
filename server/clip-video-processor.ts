@@ -25,7 +25,7 @@ function getYouTubeUrl(youtubeId: string): string {
   return `https://www.youtube.com/watch?v=${youtubeId}`;
 }
 
-async function downloadSourceVideo(youtubeId: string): Promise<string> {
+export async function downloadSourceVideo(youtubeId: string): Promise<string> {
   const outputPath = path.join(CLIP_DIR, `source_${youtubeId}.mp4`);
 
   if (fs.existsSync(outputPath)) {
@@ -158,6 +158,88 @@ export async function processClipForTikTok(
     return { filePath: clipPath, fileSize: stats.size };
   } catch (err: any) {
     logger.error("Failed to process clip for TikTok", { clipId, error: err.message });
+    return null;
+  }
+}
+
+export async function processClipForYouTubeShorts(
+  clipId: number,
+  userId: string,
+): Promise<{ youtubeId: string; title: string } | null> {
+  const clips = await storage.getContentClips(userId);
+  const clip = clips.find(c => c.id === clipId);
+
+  if (!clip) {
+    logger.error("Clip not found for Shorts upload", { clipId, userId });
+    return null;
+  }
+
+  if (!clip.sourceVideoId) {
+    logger.error("Clip has no source video for Shorts upload", { clipId });
+    return null;
+  }
+
+  const [video] = await db.select().from(videos).where(eq(videos.id, clip.sourceVideoId));
+  if (!video) {
+    logger.error("Source video not found for Shorts upload", { sourceVideoId: clip.sourceVideoId });
+    return null;
+  }
+
+  const youtubeId = (video.metadata as any)?.youtubeId;
+  if (!youtubeId) {
+    logger.error("Source video has no YouTube ID for Shorts upload", { videoId: video.id });
+    return null;
+  }
+
+  const startTime = clip.startTime ?? 0;
+  let endTime = clip.endTime ?? 60;
+
+  if (endTime - startTime < 3) {
+    logger.warn("Clip too short for Shorts", { clipId, duration: endTime - startTime });
+    return null;
+  }
+
+  const MAX_SHORTS_DURATION = 60;
+  if (endTime - startTime > MAX_SHORTS_DURATION) {
+    endTime = startTime + MAX_SHORTS_DURATION;
+  }
+
+  try {
+    const sourcePath = await downloadSourceVideo(youtubeId);
+    const clipPath = await cutClipFromVideo(sourcePath, startTime, endTime, clipId);
+
+    const { channels } = await import("@shared/schema");
+    const { eq: eqOp, and: andOp } = await import("drizzle-orm");
+    const ytChannels = await db.select().from(channels)
+      .where(andOp(eqOp(channels.userId, userId), eqOp(channels.platform, "youtube")));
+    const ytChannel = ytChannels.find(c => c.accessToken);
+
+    if (!ytChannel) {
+      logger.error("No YouTube channel found for Shorts upload", { userId });
+      cleanupClipFile(clipPath);
+      return null;
+    }
+
+    const { uploadVideoToYouTube } = await import("./youtube");
+    const shortsTitle = `${(clip.title || video.title || "Clip").substring(0, 90)} #Shorts`;
+    const result = await uploadVideoToYouTube(ytChannel.id, {
+      title: shortsTitle,
+      description: clip.description || `${video.title} highlight clip`,
+      tags: ["shorts", "gaming", "highlights", "clips"],
+      categoryId: "20",
+      privacyStatus: "public",
+      videoFilePath: clipPath,
+    });
+
+    cleanupClipFile(clipPath);
+
+    if (result) {
+      logger.info("YouTube Short uploaded", { clipId, youtubeId: result.youtubeId, title: result.title });
+      return { youtubeId: result.youtubeId, title: result.title };
+    }
+    return null;
+  } catch (err: any) {
+    logger.error("Failed to upload clip as YouTube Short", { clipId, error: err.message });
     return null;
   }
 }
