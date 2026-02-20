@@ -313,6 +313,7 @@ async function queueBatchContent(
             batchNumber,
             crossPlatformGroupId: groupId,
             crossLinkedPlatforms: allPlatforms,
+            retentionBeatsApplied: true,
           },
         });
         crossPostsQueued++;
@@ -350,6 +351,7 @@ async function queueBatchContent(
             batchNumber,
             crossPlatformGroupId: groupId,
             crossLinkedPlatforms: allPlatforms,
+            retentionBeatsApplied: true,
           },
         });
         crossPostsQueued++;

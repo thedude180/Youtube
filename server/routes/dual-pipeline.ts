@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 
 import { getOpenAIClient } from "../lib/openai";
+import { getRetentionBeatsPromptContext } from "../retention-beats-engine";
 
 function getOpenAI() {
   return getOpenAIClient();
@@ -184,7 +185,8 @@ async function runStreamPipelineStep(
   sourceTitle: string,
   pipelineType: string,
   existingResults: Record<string, any>,
-  sourceDuration?: number | null
+  sourceDuration?: number | null,
+  userId?: string | null
 ) {
   const openai = await getOpenAI();
   const ctx = (key: string) => JSON.stringify(existingResults[key] || {});
@@ -236,7 +238,7 @@ async function runStreamPipelineStep(
       ? `Suggest 3 thumbnail concepts for VOD replay of live stream "${originalLiveTitle}".${replayContext} Context: ${ctx("analyze")}. Thumbnails MUST include a visible "REPLAY" or "STREAM REPLAY" or "FULL STREAM" badge/text overlay to clearly distinguish from original live thumbnails. Use different color treatment (e.g. blue/purple tint for replay vs red for live). Include the original stream title text. Return JSON: { concepts: array of {visual: string, textOverlay: string, replayBadge: string, colors: array, emotion: string, ctrImpact: string, differentiationFromLive: string} }`
       : `Suggest 3 thumbnail concepts for "${sourceTitle}". Context: ${ctx("analyze")}. Visual, text overlay, colors, emotion. Return JSON: { concepts: array of {visual: string, textOverlay: string, colors: array, emotion: string, ctrImpact: string} }`,
     thumb_ab: `A/B test thumbnail concepts for "${sourceTitle}". Context: ${ctx("thumbnail")}. Pick top 2, predict CTR difference, eye-tracking analysis. Return JSON: { variantA: object, variantB: object, predictedWinner: string, ctrDifference: number, eyeTrackingNotes: string, colorPsychology: string }`,
-    retention_hooks: `Generate retention hooks for "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}, ${ctx("retention_analyze") || "{}"}. Identify the exact moments where viewers are likely to drop off and create re-engagement hooks for each one. Include verbal hooks (things to say), visual hooks (things to show), and tease hooks (previewing what's coming). For live: real-time prompts the streamer can use. For VOD: edit markers for post-production. Return JSON: { dropOffPoints: array of {timestamp: number, retentionPct: number, severity: string}, hooks: array of {timestamp: number, type: string, hookText: string, visualSuggestion: string, teaseNext: string, expectedRetentionLift: number}, overallRetentionScore: number, criticalSavePoints: array, openLoopStrategies: array of {description: string, setupTimestamp: number, payoffTimestamp: number} }`,
+    retention_hooks: `Generate retention hooks for "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}, ${ctx("retention_analyze") || "{}"}, retention_beats: ${ctx("retention_beats_scan") || "{}"}. Use the retention beats scan results to place hooks at scientifically-proven moments. Identify the exact moments where viewers are likely to drop off and create re-engagement hooks for each one. Include verbal hooks (things to say), visual hooks (things to show), and tease hooks (previewing what's coming). For live: real-time prompts the streamer can use. For VOD: edit markers for post-production. Return JSON: { dropOffPoints: array of {timestamp: number, retentionPct: number, severity: string}, hooks: array of {timestamp: number, type: string, hookText: string, visualSuggestion: string, teaseNext: string, expectedRetentionLift: number, beatReference: string}, overallRetentionScore: number, criticalSavePoints: array, openLoopStrategies: array of {description: string, setupTimestamp: number, payoffTimestamp: number} }`,
     pattern_interrupts: `Plan pattern interrupts for "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}, ${ctx("retention_hooks")}. Design visual, audio, and pacing changes that reset viewer attention every 2-3 minutes. Include zoom cuts, music shifts, graphic overlays, text pop-ups, sound effects, camera angle changes, and energy shifts. For live: overlay triggers and alert suggestions. For VOD: edit timeline with exact cut points. Return JSON: { interrupts: array of {timestamp: number, type: string, description: string, duration: number, intensity: string, editInstruction: string}, pacingMap: array of {startTime: number, endTime: number, energy: string, suggestedTempo: string}, audioShifts: array of {timestamp: number, fromStyle: string, toStyle: string, reason: string}, visualEffects: array of {timestamp: number, effect: string, purpose: string}, intervalStrategy: string, totalInterrupts: number }`,
     engagement_inserts: `Design on-screen engagement elements for "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}, ${ctx("retention_hooks")}, ${ctx("pattern_interrupts")}. Create polls, questions, subscribe reminders, comment prompts, teasers, countdown timers, and interactive CTAs placed at strategic moments throughout the content. For live: chat interaction prompts and overlay triggers. For VOD: lower-third graphics, pinned comments, and card placements. Return JSON: { inserts: array of {timestamp: number, type: string, content: string, duration: number, position: string, style: string, expectedEngagementLift: number}, subscribeCTAs: array of {timestamp: number, trigger: string, message: string}, commentPrompts: array of {timestamp: number, question: string, reason: string}, teasers: array of {timestamp: number, teaseContent: string, payoffTimestamp: number}, interactiveElements: array of {type: string, timestamp: number, options: array}, totalInserts: number }`,
     pacing_optimizer: `Optimize pacing for maximum watch-through on "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}, ${ctx("retention_hooks")}, ${ctx("pattern_interrupts")}, ${ctx("engagement_inserts")}. Analyze the entire content structure and suggest re-ordering, trimming dead air, accelerating slow sections, adding breather moments after intense sections, and creating a rhythm that keeps viewers locked in. For live: segment timing recommendations. For VOD: full edit timeline with trim/cut/speed suggestions. Return JSON: { pacingScore: number, segments: array of {startTime: number, endTime: number, currentPacing: string, suggestedPacing: string, action: string, reason: string}, trimSuggestions: array of {startTime: number, endTime: number, reason: string, timeSaved: number}, speedAdjustments: array of {startTime: number, endTime: number, speedMultiplier: number, reason: string}, deadAirMoments: array of {timestamp: number, duration: number, fix: string}, rhythmMap: string, estimatedRetentionImprovement: number, idealTotalLength: number }`,
@@ -286,12 +288,31 @@ async function runStreamPipelineStep(
     security_alerts: `Check security alerts for "${sourceTitle}" pipeline. Anomaly detection, unauthorized access, rate limit status. Return JSON: { activeAlerts: array, anomalies: array, unauthorizedAttempts: number, rateLimitStatus: string, overallThreatLevel: string, recommendations: array }`,
   };
 
-  const prompt = prompts[stepId];
+  let prompt = prompts[stepId];
+
+  if (stepId === "retention_beats_scan") {
+    const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
+    prompt = `Apply proven retention beat patterns to "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}, ${ctx("retention_analyze") || "{}"}.
+
+${retentionContext}
+
+Using the REAL retention beats above (learned from top creators), map each beat to specific timestamps in this ${typeLabel}. For each beat, specify exactly when and how to apply it — hook placement, curiosity gaps, escalation points, pattern interrupts, and payoff moments.
+
+For LIVE streams: Generate real-time overlay cues the streamer can trigger, chat engagement prompts timed to retention dips, and mid-stream pacing adjustments.
+For VOD/edited content: Generate an edit timeline with exact cut points, re-ordering suggestions, and post-production beat insertions.
+
+Return JSON: { beatsApplied: array of {beatType: string, beatName: string, timestamp: number, application: string, expectedRetentionLift: number, source: string}, liveOverlayCues: array of {timestamp: number, cueType: string, message: string, duration: number}, editTimeline: array of {timestamp: number, action: string, beatReference: string, instruction: string}, pacingAdjustments: array of {fromTimestamp: number, toTimestamp: number, currentPacing: string, suggestedPacing: string, beatReason: string}, overallRetentionScore: number, beatsFromCreators: array of string, totalBeatsApplied: number }`;
+  }
+
   if (!prompt) return { error: `Unknown step: ${stepId}` };
 
+  const retentionSystemBoost = stepId === "retention_beats_scan"
+    ? " You have been given REAL retention beat data learned from studying top creators like MrBeast and The Fat Electrician. Use these specific patterns — do NOT make up generic advice. Every recommendation must reference a specific beat from the data provided."
+    : "";
+
   const systemMsg = pipelineType === "live"
-    ? "You are a gaming livestream content expert. Analyze live streams and generate optimized content. Always respond with valid JSON only, no markdown."
-    : `You are a VOD content optimization expert specializing in live stream replays and highlights. This VOD was pulled from a completed live stream. All content (titles, descriptions, tags, thumbnails, announcements) MUST clearly indicate this is a replay/highlight of a live stream and reference the original. Always respond with valid JSON only, no markdown.`;
+    ? `You are a gaming livestream content expert. Analyze live streams and generate optimized content.${retentionSystemBoost} Always respond with valid JSON only, no markdown.`
+    : `You are a VOD content optimization expert specializing in live stream replays and highlights. This VOD was pulled from a completed live stream. All content (titles, descriptions, tags, thumbnails, announcements) MUST clearly indicate this is a replay/highlight of a live stream and reference the original.${retentionSystemBoost} Always respond with valid JSON only, no markdown.`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -300,7 +321,7 @@ async function runStreamPipelineStep(
       { role: "user", content: prompt },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 1500,
+    max_completion_tokens: stepId === "retention_beats_scan" ? 3000 : 1500,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -346,10 +367,10 @@ async function executeStreamPipelineInBackground(
           currentResults[step] = cutResult;
         } catch (cutErr: any) {
           console.error(`[DualPipeline] VOD cutting failed, using AI fallback:`, cutErr.message);
-          currentResults[step] = await runStreamPipelineStep(step, sourceTitle, pipelineType, currentResults, sourceDuration);
+          currentResults[step] = await runStreamPipelineStep(step, sourceTitle, pipelineType, currentResults, sourceDuration, userId);
         }
       } else {
-        currentResults[step] = await runStreamPipelineStep(step, sourceTitle, pipelineType, currentResults, sourceDuration);
+        currentResults[step] = await runStreamPipelineStep(step, sourceTitle, pipelineType, currentResults, sourceDuration, userId);
       }
 
       completedSteps.push(step);
@@ -725,7 +746,7 @@ export function registerDualPipelineRoutes(app: Express) {
       if (targetStep === "cut_vods") {
         result = await generateVodCutsInternal(userId, id, pipeline.sourceTitle, pipeline.sourceDuration || 0, "gaming");
       } else {
-        result = await runStreamPipelineStep(targetStep, pipeline.sourceTitle, pipeline.pipelineType, currentResults, pipeline.sourceDuration);
+        result = await runStreamPipelineStep(targetStep, pipeline.sourceTitle, pipeline.pipelineType, currentResults, pipeline.sourceDuration, userId);
       }
 
       currentResults[targetStep] = result;
