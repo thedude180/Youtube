@@ -917,15 +917,26 @@ Respond as JSON:
   "todaySummary": "What AI is working on today - 2-3 sentences"
 }`;
 
-  const actResponse = await openai.chat.completions.create({
-    model: "gpt-5-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 1500,
-  });
-  const actContent = actResponse.choices[0]?.message?.content;
-  if (!actContent) throw new Error("No response from AI");
-  return JSON.parse(actContent);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const actResponse = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 1500,
+      });
+      const actContent = actResponse.choices[0]?.message?.content;
+      if (!actContent) {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 1000)); continue; }
+        throw new Error("No response from AI");
+      }
+      return JSON.parse(actContent);
+    } catch (err: any) {
+      if (attempt === 0 && !err.message?.includes("rate")) { await new Promise(r => setTimeout(r, 1000)); continue; }
+      throw err;
+    }
+  }
+  return { actionItems: [], opportunities: [], todaySummary: "AI is analyzing your channel data. Check back shortly." };
 }
 
 export async function aiBrandAnalysis(data: {

@@ -100,7 +100,7 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
       const errText = await res.text();
       console.error(`[TokenRefresh:${platform}] Failed:`, errText);
 
-      if (errText.includes("invalid_grant") || errText.includes("expired") || res.status === 401) {
+      if (errText.includes("invalid_grant") || errText.includes("invalid_request") || errText.includes("expired") || errText.includes("was invalid") || res.status === 401) {
         return { success: false, error: `Token expired - user needs to re-authorize ${platform}` };
       }
       return { success: false, error: `Token refresh failed: ${res.status}` };

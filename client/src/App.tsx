@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { Component, lazy, Suspense, useEffect, useState, useCallback } from "react";
+import { Component, Suspense, useEffect, useState, useCallback } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { queryClient, apiRequest } from "./lib/queryClient";
@@ -27,21 +27,7 @@ import { BackToTop } from "@/components/BackToTop";
 import { GlobalProgress } from "@/components/GlobalProgress";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { SessionTracker } from "@/components/SessionTracker";
-
-function lazyRetry<T extends { default: any }>(factory: () => Promise<T>): ReturnType<typeof lazy> {
-  return lazy(() =>
-    factory().catch((err: any) => {
-      const hasReloaded = sessionStorage.getItem("chunk_reload");
-      if (!hasReloaded) {
-        sessionStorage.setItem("chunk_reload", "1");
-        window.location.reload();
-        return new Promise(() => {});
-      }
-      sessionStorage.removeItem("chunk_reload");
-      throw err;
-    })
-  );
-}
+import { lazyRetry } from "@/lib/lazyRetry";
 
 const CommandPalette = lazyRetry(() => import("@/components/CommandPalette"));
 

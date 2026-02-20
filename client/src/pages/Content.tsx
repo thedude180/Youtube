@@ -1,4 +1,4 @@
-import { useState, useMemo, lazy, Suspense } from "react";
+import { useState, useMemo, Suspense } from "react";
 import { useParams } from "wouter";
 import { useTabMemory } from "@/hooks/use-tab-memory";
 import { useVideos } from "@/hooks/use-videos";
@@ -20,12 +20,13 @@ import {
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
 import { LiveTimestamp } from "@/components/LiveTimestamp";
+import { lazyRetry } from "@/lib/lazyRetry";
 
 type ContentTab = "library" | "updated" | "channels" | "calendar";
 
-const UpdatedVideosTab = lazy(() => import("./content/UpdatedVideosTab"));
-const ChannelsTab = lazy(() => import("./content/ChannelsTab"));
-const CalendarTab = lazy(() => import("./content/CalendarTab"));
+const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
+const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
+const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
 
 export default function Content() {
   usePageTitle("Content");
