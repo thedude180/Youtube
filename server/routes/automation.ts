@@ -240,6 +240,27 @@ export async function registerAutomationRoutes(app: Express) {
     res.json(item);
   });
 
+  app.patch("/api/schedule/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    const patchSchema = z.object({
+      scheduledAt: z.string().optional(),
+      title: z.string().min(1).max(500).optional(),
+      platform: z.string().max(50).optional(),
+      type: z.string().max(50).optional(),
+      status: z.string().max(50).optional(),
+      metadata: z.record(z.unknown()).optional(),
+    });
+    const parsed = patchSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    const item = await storage.updateScheduleItem(id, parsed.data);
+    res.json(item);
+  });
+
   app.delete(api.schedule.delete.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -595,5 +616,21 @@ export async function registerAutomationRoutes(app: Express) {
     } catch (err) { res.status(500).json({ error: "Failed to get latest result" }); }
   });
 
+  app.post("/api/reports/weekly/test", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const { sendTestReport } = await import("../weekly-report-engine");
+      const result = await sendTestReport(userId);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[WeeklyReport] Test endpoint error:", err);
+      res.status(500).json({ success: false, message: "Failed to send test report" });
+    }
+  });
+
   initAutomationEngine().catch(console.error);
+
+  const { initWeeklyReportEngine } = await import("../weekly-report-engine");
+  initWeeklyReportEngine();
 }

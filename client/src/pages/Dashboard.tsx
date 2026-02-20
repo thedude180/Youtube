@@ -40,6 +40,9 @@ const LazyGrowthTrajectoryPredictor = lazy(() => import("@/components/GrowthTraj
 const LazyChannelGrowthTimeline = lazy(() => import("@/components/ChannelGrowthTimeline"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
 const LazyPlatformHealthCards = lazy(() => import("@/components/PlatformHealthCards"));
+const LazyMissionControl = lazy(() => import("./dashboard/MissionControl"));
+const LazyAIProofOfWork = lazy(() => import("./dashboard/AIProofOfWork"));
+const LazyCompetitorBenchmark = lazy(() => import("./dashboard/CompetitorBenchmark"));
 
 type AIResponse = any;
 
@@ -331,12 +334,28 @@ export default function Dashboard() {
         </Suspense>
       </SectionErrorBoundary>
 
+      <section role="region" aria-label="Mission control - system health">
+      <SectionErrorBoundary fallbackTitle="Mission Control failed to load">
+        <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
+          <LazyMissionControl />
+        </Suspense>
+      </SectionErrorBoundary>
+      </section>
+
       <section role="region" aria-label="Business health overview">
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
       </section>
 
       <section role="region" aria-label="AI action center">
       <AIActionCenter aiActions={aiActions} aiActionsLoading={aiActionsLoading} />
+      </section>
+
+      <section role="region" aria-label="AI proof of work">
+      <SectionErrorBoundary fallbackTitle="AI Work Log failed to load">
+        <Suspense fallback={<Skeleton className="h-[200px] w-full rounded-lg" />}>
+          <LazyAIProofOfWork />
+        </Suspense>
+      </SectionErrorBoundary>
       </section>
 
       <section role="region" aria-label="Activity feed">
@@ -347,6 +366,14 @@ export default function Dashboard() {
             recentActivities={recentActivities}
             severityColor={severityColor}
           />
+        </Suspense>
+      </SectionErrorBoundary>
+      </section>
+
+      <section role="region" aria-label="Competitor benchmarking">
+      <SectionErrorBoundary fallbackTitle="Competitive Intelligence failed to load">
+        <Suspense fallback={<Skeleton className="h-[200px] w-full rounded-lg" />}>
+          <LazyCompetitorBenchmark />
         </Suspense>
       </SectionErrorBoundary>
       </section>

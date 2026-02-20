@@ -107,6 +107,19 @@ function CalendarTab() {
     },
   });
 
+  const rescheduleMutation = useMutation({
+    mutationFn: async ({ id, newDate }: { id: number; newDate: string }) => {
+      const res = await apiRequest("PATCH", `/api/schedule/${id}`, { scheduledAt: newDate });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/uploads"] });
+      toast({ title: "Rescheduled" });
+    },
+  });
+
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -431,6 +444,9 @@ function CalendarTab() {
             setDetailDate(d);
           }}
           onDelete={(id) => deleteMutation.mutate(id)}
+          rescheduleMutation={rescheduleMutation}
+          dragOverDate={dragOverDate}
+          setDragOverDate={setDragOverDate}
         />
       )}
       {viewMode === "month" && (
@@ -446,6 +462,9 @@ function CalendarTab() {
             setCurrentDate(d);
             setViewMode("day");
           }}
+          rescheduleMutation={rescheduleMutation}
+          dragOverDate={dragOverDate}
+          setDragOverDate={setDragOverDate}
         />
       )}
       {viewMode === "year" && (
@@ -583,7 +602,15 @@ function UploadRow({
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-3 p-2 rounded bg-secondary/30 mb-1"
+      className={`flex items-center justify-between gap-3 p-2 rounded bg-secondary/30 mb-1 ${entry.rawId ? "cursor-grab active:cursor-grabbing" : ""}`}
+      draggable={!!entry.rawId}
+      onDragStart={(e) => {
+        if (entry.rawId) {
+          e.dataTransfer.setData("entryId", String(entry.rawId));
+          e.dataTransfer.setData("entryTitle", entry.title);
+          e.dataTransfer.effectAllowed = "move";
+        }
+      }}
       data-testid={`entry-${entry.id}`}
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -642,12 +669,18 @@ function WeekView({
   selectedDate,
   onSelectDate,
   onDelete,
+  rescheduleMutation,
+  dragOverDate,
+  setDragOverDate,
 }: {
   date: Date;
   entries: UploadEntry[];
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
   onDelete: (id: number) => void;
+  rescheduleMutation: any;
+  dragOverDate: string | null;
+  setDragOverDate: (d: string | null) => void;
 }) {
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -667,8 +700,11 @@ function WeekView({
                 : selected
                   ? "border-border bg-secondary/30"
                   : "border-border"
-            }`}
+            } ${dragOverDate === day.toISOString() ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
             onClick={() => onSelectDate(day)}
+            onDragOver={(e) => { e.preventDefault(); setDragOverDate(day.toISOString()); }}
+            onDragLeave={() => setDragOverDate(null)}
+            onDrop={(e) => { e.preventDefault(); const entryId = e.dataTransfer.getData("entryId"); if (entryId) { rescheduleMutation.mutate({ id: Number(entryId), newDate: day.toISOString() }); } setDragOverDate(null); }}
             data-testid={`calendar-day-${format(day, "yyyy-MM-dd")}`}
           >
             <div className="flex items-center justify-between mb-2">
@@ -719,12 +755,18 @@ function MonthView({
   selectedDate,
   onSelectDate,
   onDayClick,
+  rescheduleMutation,
+  dragOverDate,
+  setDragOverDate,
 }: {
   date: Date;
   entries: UploadEntry[];
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
   onDayClick: (d: Date) => void;
+  rescheduleMutation: any;
+  dragOverDate: string | null;
+  setDragOverDate: (d: string | null) => void;
 }) {
   const monthStart = startOfMonth(date);
   const monthEnd = endOfMonth(date);
@@ -764,9 +806,12 @@ function MonthView({
                     : selected
                       ? "border-border bg-secondary/30"
                       : "border-border/50"
-              }`}
+              } ${dragOverDate === day.toISOString() ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
               onClick={() => onSelectDate(day)}
               onDoubleClick={() => onDayClick(day)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverDate(day.toISOString()); }}
+              onDragLeave={() => setDragOverDate(null)}
+              onDrop={(e) => { e.preventDefault(); const entryId = e.dataTransfer.getData("entryId"); if (entryId) { rescheduleMutation.mutate({ id: Number(entryId), newDate: day.toISOString() }); } setDragOverDate(null); }}
               data-testid={`month-day-${format(day, "yyyy-MM-dd")}`}
             >
               <div className="flex items-center justify-end mb-1">

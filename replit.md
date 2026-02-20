@@ -62,6 +62,14 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **Stream Clip → YouTube Shorts Pipeline**: Processes stream clips for YouTube Shorts, including downloading, cutting, and uploading.
     - **Reconnect Email Service**: Sends Gmail alerts for OAuth token expiry.
     - **Self-Healing Core** (`self-healing-core.ts`): Core system function wrapping ALL 25+ automation subsystems with autonomous failure detection, AI-powered diagnosis, automatic retry with exponential backoff, circuit breakers (5-failure threshold with cooldown), and system health monitoring. Every cron job and engine is protected — failures are diagnosed by AI, retried automatically, and circuit-breakers prevent cascading failures. Health report available at `/api/system/health`. Logs self-healing events and notifies on critical failures.
+    - **Weekly Report Engine** (`weekly-report-engine.ts`): Automated Monday 9:00 AM UTC email digest sent via Gmail. Summarizes weekly stats (videos created, optimizations, posts), AI work summary, and system health score. Test endpoint at `POST /api/reports/weekly/test`.
+
+### Dashboard Features
+- **Mission Control**: Real-time system health dashboard with animated score gauge (0-100), subsystem grid showing status/healing rate/circuit breaker state, and quick stats. Fetches from `/api/system/health` every 15s.
+- **AI Proof of Work Feed**: Live feed showing all AI actions grouped by time period (Just Now, Earlier Today, Yesterday, This Week). Shows agent name, action description, and result badges.
+- **Competitor Benchmarking**: AI-powered competitive intelligence with session-cached analysis. Shows niche averages, comparison metrics, insights, and recommended actions.
+- **Enhanced Onboarding**: 8-milestone checklist with 3 phases (Setup → Activate → Grow), next-step highlighting, and congrats celebration on completion.
+- **Calendar Drag-and-Drop**: HTML5 drag-drop rescheduling in Month and Week views with visual drop zone feedback.
 
 ### Authentication & Authorization
 - **Authentication**: Replit Auth (OIDC-based).
