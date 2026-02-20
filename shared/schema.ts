@@ -18,6 +18,56 @@ export const PLATFORMS = [
 ] as const;
 export type Platform = typeof PLATFORMS[number];
 
+export type ContentCapability = "video" | "short_video" | "text" | "image" | "live_stream";
+
+export const PLATFORM_CAPABILITIES: Record<Platform, {
+  supports: ContentCapability[];
+  primaryType: "video" | "text";
+  maxVideoLength: number | null;
+  description: string;
+}> = {
+  youtube: {
+    supports: ["video", "short_video", "live_stream", "text", "image"],
+    primaryType: "video",
+    maxVideoLength: null,
+    description: "Full video uploads, Shorts, live streaming, community posts",
+  },
+  twitch: {
+    supports: ["live_stream", "text"],
+    primaryType: "text",
+    maxVideoLength: null,
+    description: "Live streaming primary, chat announcements for text",
+  },
+  kick: {
+    supports: ["live_stream"],
+    primaryType: "video",
+    maxVideoLength: null,
+    description: "Live streaming only, no content posting API",
+  },
+  tiktok: {
+    supports: ["short_video", "text", "image"],
+    primaryType: "video",
+    maxVideoLength: 600,
+    description: "Short-form video clips (up to 10 min), optimized for vertical 9:16",
+  },
+  x: {
+    supports: ["text", "image"],
+    primaryType: "text",
+    maxVideoLength: null,
+    description: "Text posts, stream announcements, traffic driving, throwback content",
+  },
+  discord: {
+    supports: ["text", "image"],
+    primaryType: "text",
+    maxVideoLength: null,
+    description: "Community announcements, text posts via webhooks",
+  },
+};
+
+export const VIDEO_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].supports.includes("video") || PLATFORM_CAPABILITIES[p].supports.includes("short_video"));
+export const TEXT_ONLY_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].primaryType === "text" && !PLATFORM_CAPABILITIES[p].supports.includes("video") && !PLATFORM_CAPABILITIES[p].supports.includes("short_video"));
+export const LIVE_STREAM_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].supports.includes("live_stream"));
+
 export const PLATFORM_INFO: Record<Platform, {
   label: string;
   color: string;
@@ -2576,7 +2626,7 @@ export const LIVE_PIPELINE_STEPS = [
   { id: "detect", label: "Detect Stream", description: "Auto-detect live stream start/end", phase: "intake" },
   { id: "live_seo_boost", label: "Live SEO Boost", description: "Optimize title/tags/description on all platforms while live", phase: "intake" },
   { id: "live_thumbnail", label: "Live Thumbnail", description: "Generate & push optimized thumbnails to all live platforms", phase: "intake" },
-  { id: "live_announce", label: "Go-Live Announce", description: "Auto-post 'I'm live!' across all 6 platforms", phase: "intake" },
+  { id: "live_announce", label: "Go-Live Announce", description: "Auto-post 'I'm live!' — text alerts to X/Discord/Twitch, stream links to video platforms", phase: "intake" },
   { id: "live_discovery_tags", label: "Discovery Tags", description: "Push trending tags & hashtags to all live platforms in real-time", phase: "intake" },
   { id: "analyze", label: "Analyze Stream", description: "AI deep-scan content, highlights, key moments", phase: "intake" },
   { id: "chat_sentiment", label: "Chat Sentiment", description: "Real-time chat mood & toxicity scan", phase: "intake" },
@@ -2609,11 +2659,11 @@ export const LIVE_PIPELINE_STEPS = [
   { id: "clips", label: "Extract Clips", description: "AI identifies best moments for clips", phase: "distribution" },
   { id: "cut_vods", label: "Cut VODs", description: "Auto-cut into audience-optimized lengths", phase: "distribution" },
   { id: "shorts_strat", label: "Shorts Strategy", description: "Generate Shorts/TikTok cut plan", phase: "distribution" },
-  { id: "repurpose", label: "Repurpose", description: "Create unique posts per platform", phase: "distribution" },
-  { id: "community_post", label: "Community Post", description: "Generate community/Discord announcements", phase: "distribution" },
+  { id: "repurpose", label: "Repurpose", description: "Video clips → YouTube/TikTok, text posts → X/Discord — platform-matched content", phase: "distribution" },
+  { id: "community_post", label: "Community Post", description: "Text announcements to Discord/X, video highlights to TikTok/YouTube", phase: "distribution" },
   { id: "collab_pitch", label: "Collab Pitch", description: "Draft collaboration outreach messages", phase: "distribution" },
-  { id: "upload_time", label: "Upload Time", description: "Calculate optimal upload time per platform", phase: "distribution" },
-  { id: "schedule", label: "Schedule & Post", description: "Queue at peak hours with human timing", phase: "distribution" },
+  { id: "upload_time", label: "Upload Time", description: "Calculate optimal upload time per platform based on audience activity", phase: "distribution" },
+  { id: "schedule", label: "Schedule & Post", description: "Queue videos to video platforms, text to text platforms at peak hours", phase: "distribution" },
   { id: "overlay_gen", label: "Overlay Gen", description: "Generate stream overlay alerts & graphics", phase: "distribution" },
   { id: "raid_plan", label: "Raid Plan", description: "Auto-plan raid targets for network growth", phase: "distribution" },
   { id: "audience_heatmap", label: "Audience Heat", description: "Watch-time heatmap analysis", phase: "audience" },
@@ -2668,13 +2718,13 @@ export const VOD_PIPELINE_STEPS = [
   { id: "seo_opportunities", label: "SEO Gaps", description: "Find untapped keyword opportunities", phase: "seo_growth" },
   { id: "end_screen", label: "End Screen", description: "Optimize end screen elements & CTAs", phase: "seo_growth" },
   { id: "playlist_opt", label: "Playlist Optimize", description: "Assign to optimal playlist position", phase: "seo_growth" },
-  { id: "clips", label: "Extract Clips", description: "Find best moments for Shorts/TikTok", phase: "distribution" },
-  { id: "shorts_strat", label: "Shorts Strategy", description: "Generate Shorts/TikTok cut plan", phase: "distribution" },
-  { id: "repurpose", label: "Repurpose", description: "Create unique posts per platform", phase: "distribution" },
-  { id: "community_post", label: "Community Post", description: "Generate community/Discord announcements", phase: "distribution" },
+  { id: "clips", label: "Extract Clips", description: "Find best moments → video clips for YouTube/TikTok", phase: "distribution" },
+  { id: "shorts_strat", label: "Shorts Strategy", description: "Generate Shorts/TikTok vertical video cut plan", phase: "distribution" },
+  { id: "repurpose", label: "Repurpose", description: "Video clips → YouTube/TikTok, text posts → X/Discord — platform-matched content", phase: "distribution" },
+  { id: "community_post", label: "Community Post", description: "Text announcements to Discord/X, video highlights to TikTok/YouTube", phase: "distribution" },
   { id: "collab_pitch", label: "Collab Pitch", description: "Draft collaboration outreach messages", phase: "distribution" },
-  { id: "upload_time", label: "Upload Time", description: "Calculate optimal upload time per platform", phase: "distribution" },
-  { id: "schedule", label: "Schedule & Post", description: "Queue at peak hours with human timing", phase: "distribution" },
+  { id: "upload_time", label: "Upload Time", description: "Calculate optimal upload time per platform based on audience activity", phase: "distribution" },
+  { id: "schedule", label: "Schedule & Post", description: "Queue videos to video platforms, text to text platforms at peak hours", phase: "distribution" },
   { id: "audience_heatmap", label: "Audience Heat", description: "Watch-time heatmap analysis", phase: "audience" },
   { id: "audience_segments", label: "Segments", description: "Cluster viewers into behavioral segments", phase: "audience" },
   { id: "audience_sentiment", label: "Sentiment", description: "Overall audience sentiment scoring", phase: "audience" },

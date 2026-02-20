@@ -208,29 +208,35 @@ export function getCurrentPriority(userId: string): {
     {
       rank: 0,
       name: "Livestream Pipeline",
-      status: isLive ? `ACTIVE — "${state.streamTitle}"` : "Standby (auto-activates on stream detection)",
+      status: isLive ? `ACTIVE — "${state.streamTitle}" — live to YouTube/Twitch/Kick, text alerts to X/Discord` : "Standby (auto-activates on stream detection)",
       active: isLive,
     },
     {
       rank: 1,
-      name: "Top YouTuber Growth",
-      status: isLive ? "Paused (livestream priority)" : "Active — Algorithmic optimization running",
-      active: !isLive,
+      name: "Post-Stream Harvest",
+      status: isHarvesting ? `ACTIVE — Extracting clips & content from "${state.streamTitle}" — videos → YouTube/TikTok, text → X/Discord` : "Standby (auto-activates after stream ends)",
+      active: isHarvesting,
     },
     {
       rank: 2,
-      name: "Daily Content Upload",
-      status: isLive || isHarvesting
-        ? isHarvesting ? "Paused (harvesting stream content)" : "Paused (livestream priority)"
-        : "Active — 1 long-form + 3 shorts daily",
+      name: "Top YouTuber Growth",
+      status: isLive || isHarvesting ? "Paused (livestream/harvest priority)" : "Active — Algorithmic optimization running",
       active: !isLive && !isHarvesting,
     },
     {
       rank: 3,
+      name: "Daily Content Upload",
+      status: isLive || isHarvesting
+        ? isHarvesting ? "Paused (harvesting stream content)" : "Paused (livestream priority)"
+        : "Active — 1 long-form + 3 shorts daily, videos → YouTube/TikTok, text → X/Discord",
+      active: !isLive && !isHarvesting,
+    },
+    {
+      rank: 4,
       name: "VOD Optimization",
       status: isLive || isHarvesting
         ? "Paused (higher priority active)"
-        : "Active — Optimizing old videos for new views",
+        : "Active — Optimizing old videos, resurfacing on X/Discord to drive traffic",
       active: !isLive && !isHarvesting,
     },
   ];
@@ -244,10 +250,10 @@ export function getCurrentPriority(userId: string): {
   };
 
   const descriptions: Record<PriorityMode, string> = {
-    livestream: `Live stream "${state.streamTitle}" detected — all systems supporting live broadcast`,
-    "post-stream-harvest": `Harvesting content from "${state.streamTitle}" — clips, highlights, and shorts being generated`,
-    "daily-content": "Creating and uploading daily content (1 long-form + 3 shorts) + optimizing existing VODs",
-    "vod-optimization": "Optimizing old videos for renewed viewership — titles, tags, descriptions, thumbnails",
+    livestream: `Live stream "${state.streamTitle}" detected — streaming to YouTube/Twitch/Kick, text alerts firing on X/Discord`,
+    "post-stream-harvest": `Harvesting content from "${state.streamTitle}" — video clips → YouTube/TikTok, text announcements → X/Discord`,
+    "daily-content": "Creating daily content — videos uploaded to YouTube/TikTok, optimized text posts to X/Discord, driving traffic across all platforms",
+    "vod-optimization": "Optimizing old videos — refreshing metadata on YouTube, resurfacing on X/Discord to drive new traffic",
     idle: "All systems on standby",
   };
 

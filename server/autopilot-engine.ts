@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { autopilotQueue, commentResponses, autopilotConfig, videos, channels, notifications } from "@shared/schema";
+import { autopilotQueue, commentResponses, autopilotConfig, videos, channels, notifications, PLATFORM_CAPABILITIES, VIDEO_PLATFORMS, TEXT_ONLY_PLATFORMS, LIVE_STREAM_PLATFORMS } from "@shared/schema";
 import { eq, and, desc, lte, sql, gte } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
@@ -55,6 +55,49 @@ type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
 const ALL_DISTRIBUTION_PLATFORMS = ["x", "discord", "twitch", "tiktok"];
 const ALL_ANNOUNCE_PLATFORMS = ["x", "discord", "twitch"];
+
+function getContentTypeForPlatform(platform: string, sourceContentType: string): "video" | "text" | "short_video" {
+  const caps = PLATFORM_CAPABILITIES[platform as keyof typeof PLATFORM_CAPABILITIES];
+  if (!caps) return "text";
+
+  const isVideoSource = ["new-video", "post-stream", "auto-clip"].includes(sourceContentType);
+  const isLiveSource = sourceContentType === "go-live";
+
+  if (isVideoSource) {
+    if (caps.supports.includes("short_video")) return "short_video";
+    if (caps.supports.includes("video")) return "video";
+    return "text";
+  }
+
+  if (isLiveSource) {
+    return "text";
+  }
+
+  if (sourceContentType === "recycle" || sourceContentType === "cross-promo") {
+    if (caps.supports.includes("short_video")) return "short_video";
+    if (caps.supports.includes("video")) return "video";
+    return "text";
+  }
+
+  return caps.primaryType === "video" ? "video" : "text";
+}
+
+function getPlatformsForContentType(contentType: string, connectedPlatforms: Set<string>): { videoPlatforms: string[]; textPlatforms: string[] } {
+  const videoPlatforms: string[] = [];
+  const textPlatforms: string[] = [];
+
+  for (const platform of ALL_DISTRIBUTION_PLATFORMS) {
+    if (!connectedPlatforms.has(platform)) continue;
+    const deliveryType = getContentTypeForPlatform(platform, contentType);
+    if (deliveryType === "video" || deliveryType === "short_video") {
+      videoPlatforms.push(platform);
+    } else {
+      textPlatforms.push(platform);
+    }
+  }
+
+  return { videoPlatforms, textPlatforms };
+}
 
 async function getUserConnectedPlatforms(userId: string): Promise<Set<string>> {
   const userChannels = await db.select({ platform: channels.platform, accessToken: channels.accessToken })
@@ -135,9 +178,36 @@ async function generateFullThrottleDistribution(
     return;
   }
 
-  const activePlatforms = supportedPlatforms.filter(p => {
+  const capabilityFilteredPlatforms = supportedPlatforms.filter(p => {
+    const caps = PLATFORM_CAPABILITIES[p as keyof typeof PLATFORM_CAPABILITIES];
+    if (!caps) return true;
+    if (caps.supports.length === 0) {
+      logger.info("Platform has no posting capabilities, skipping", { platform: p });
+      return false;
+    }
+    if (!caps.supports.includes("text") && !caps.supports.includes("video") && !caps.supports.includes("short_video") && !caps.supports.includes("image")) {
+      logger.info("Platform only supports live streaming, no posting — skipping", { platform: p });
+      return false;
+    }
+    return true;
+  });
+
+  const activePlatforms = capabilityFilteredPlatforms.filter(p => {
     if (contentType === "new-video" || contentType === "go-live" || contentType === "post-stream") return true;
     return shouldPostToday(p);
+  });
+
+  if (activePlatforms.length === 0) {
+    logger.info("No eligible platforms after capability filtering", { userId, contentType });
+    return;
+  }
+
+  const { videoPlatforms, textPlatforms } = getPlatformsForContentType(contentType, new Set(activePlatforms));
+  logger.info("Platform-aware distribution enforced", {
+    userId, contentType,
+    videoPlatforms, textPlatforms,
+    totalActive: activePlatforms.length,
+    filtered: supportedPlatforms.length - capabilityFilteredPlatforms.length,
   });
 
   const [kwContext, tsContext] = await Promise.all([
@@ -147,6 +217,9 @@ async function generateFullThrottleDistribution(
 
   const scheduleType = contentType === "cross-promo" ? "engagement" : contentType === "go-live" ? "new-video" : contentType === "post-stream" ? "new-video" : contentType;
   const schedule = await getAudienceDrivenStaggeredSchedule(activePlatforms, scheduleType, userId);
+
+  let queuedVideo = 0;
+  let queuedText = 0;
 
   for (const platform of activePlatforms) {
     const budget = calculateDailyPostBudget(platform);
@@ -167,12 +240,23 @@ async function generateFullThrottleDistribution(
       continue;
     }
 
+    const deliveryType = getContentTypeForPlatform(platform, contentType);
+    const isVideoDelivery = deliveryType === "video" || deliveryType === "short_video";
+
+    const effectiveContentType = isVideoDelivery
+      ? contentType
+      : (contentType === "new-video" || contentType === "post-stream" ? "cross-promo" as const : contentType);
+
+    const effectiveQueueType = isVideoDelivery
+      ? (contentType === "new-video" ? "auto-clip" : contentType === "recycle" ? "content-recycle" : contentType === "go-live" ? "go-live" : contentType === "post-stream" ? "post-stream" : "cross-promo")
+      : (contentType === "go-live" ? "go-live" : "cross-promo");
+
     const result = await generateUniqueContent({
       videoTitle: video.title,
       videoDescription: video.description || "",
-      videoType: video.type || "video",
+      videoType: isVideoDelivery ? (video.type || "video") : "text-promo",
       platform,
-      contentType,
+      contentType: effectiveContentType,
       creatorTone,
       userId,
       keywordContext: kwContext,
@@ -188,9 +272,9 @@ async function generateFullThrottleDistribution(
       const retry = await generateUniqueContent({
         videoTitle: video.title,
         videoDescription: video.description || "",
-        videoType: video.type || "video",
+        videoType: isVideoDelivery ? (video.type || "video") : "text-promo",
         platform,
-        contentType,
+        contentType: effectiveContentType,
         creatorTone,
         userId,
         keywordContext: kwContext,
@@ -222,14 +306,16 @@ async function generateFullThrottleDistribution(
     await db.insert(autopilotQueue).values({
       userId,
       sourceVideoId: video.id,
-      type: contentType === "new-video" ? "auto-clip" : contentType === "recycle" ? "content-recycle" : contentType === "go-live" ? "go-live" : contentType === "post-stream" ? "post-stream" : "cross-promo",
+      type: effectiveQueueType,
       targetPlatform: platform,
       content: result.content,
-      caption: `${contentType}: ${video.title}`,
+      caption: `${isVideoDelivery ? "video" : "text"}: ${video.title}`,
       status: "scheduled",
       scheduledAt: finalSchedule,
       metadata: {
-        contentType,
+        contentType: effectiveContentType,
+        deliveryType,
+        isVideoDelivery,
         angle: "ai-selected",
         style: "human",
         aiModel: "gpt-5-mini",
@@ -240,10 +326,13 @@ async function generateFullThrottleDistribution(
         schedulingMethod: "audience-driven",
       },
     } as any);
+
+    if (isVideoDelivery) queuedVideo++; else queuedText++;
+    logger.info("Queued content", { platform, deliveryType, isVideoDelivery, effectiveContentType, effectiveQueueType, scheduledAt: finalSchedule.toISOString() });
   }
 
   await createNotification(userId, "autopilot", "Content distributed",
-    `${activePlatforms.length} platform${activePlatforms.length !== 1 ? "s" : ""} queued for "${video.title}" with audience-driven scheduling`,
+    `${queuedVideo + queuedText} platform${(queuedVideo + queuedText) !== 1 ? "s" : ""} queued for "${video.title}" — ${queuedVideo} video, ${queuedText} text-optimized — audience-driven scheduling`,
     "info");
 }
 
@@ -384,17 +473,22 @@ export async function processPostStreamHighlights(userId: string, streamId: numb
   };
 
   const postStreamConnected = await getUserConnectedPlatforms(userId);
-  const highlightPlatforms = ALL_ANNOUNCE_PLATFORMS.filter(p => postStreamConnected.has(p));
+  const highlightPlatforms = ALL_DISTRIBUTION_PLATFORMS.filter(p => postStreamConnected.has(p));
 
   if (highlightPlatforms.length === 0) {
     logger.info("No connected platforms, skipping post-stream highlights", { userId });
     return;
   }
 
+  const { videoPlatforms: postVideoPlats, textPlatforms: postTextPlats } = getPlatformsForContentType("post-stream", postStreamConnected);
+  logger.info("Post-stream distribution routing", {
+    userId, videoPlatforms: postVideoPlats, textPlatforms: postTextPlats,
+  });
+
   await generateFullThrottleDistribution(userId, streamAsVideo, creatorTone, highlightPlatforms, "post-stream");
 
   await createNotification(userId, "autopilot", "Stream highlights queued",
-    `Post-stream clips queued across ${highlightPlatforms.length} connected platform${highlightPlatforms.length !== 1 ? "s" : ""} for "${streamTitle}"`,
+    `Post-stream content queued — ${postVideoPlats.length} video platform${postVideoPlats.length !== 1 ? "s" : ""}, ${postTextPlats.length} text platform${postTextPlats.length !== 1 ? "s" : ""} for "${streamTitle}"`,
     "info");
 }
 
