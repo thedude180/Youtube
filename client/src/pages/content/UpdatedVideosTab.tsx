@@ -282,13 +282,12 @@ function UpdatedVideosTab() {
     );
   }
 
+  const safeHistory = safeArray<UpdateHistoryEntry>(updateHistory);
   const grouped = new Map<string, UpdateHistoryEntry[]>();
-  if (updateHistory) {
-    for (const entry of updateHistory) {
-      const key = entry.youtubeVideoId;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(entry);
-    }
+  for (const entry of safeHistory) {
+    const key = entry.youtubeVideoId;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(entry);
   }
 
   const updatedVideos = Array.from(grouped.entries())
@@ -298,7 +297,7 @@ function UpdatedVideosTab() {
       return dateB - dateA;
     });
 
-  const processingEntries = (processing || []).filter(p => p.status === "queued" || p.status === "processing");
+  const processingEntries = safeArray<PipelineEntry>(processing).filter(p => p.status === "queued" || p.status === "processing");
 
   return (
     <div className="space-y-6">

@@ -31,7 +31,8 @@ export default function VenturesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
 
-  const { data: ventures, isLoading, error } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
+  const { data: rawVentures, isLoading, error } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
+  const ventures = safeArray(rawVentures);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -56,7 +57,7 @@ export default function VenturesTab() {
     });
   };
 
-  const filtered = ventures?.filter((v: any) =>
+  const filtered = ventures.filter((v: any) =>
     activeFilter === "All" ? true : v.type?.toLowerCase() === activeFilter.toLowerCase()
   );
 
@@ -156,7 +157,7 @@ export default function VenturesTab() {
         ))}
       </div>
 
-      {!filtered || filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState

@@ -75,7 +75,8 @@ function BrandTab() {
       .finally(() => setAiBrandLoading(false));
   }, [aiToolsOpen]);
 
-  const { data: assets, isLoading } = useQuery<any[]>({ queryKey: ['/api/brand-assets'] });
+  const { data: rawAssets, isLoading } = useQuery<any[]>({ queryKey: ['/api/brand-assets'] });
+  const assets = safeArray(rawAssets);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -115,9 +116,9 @@ function BrandTab() {
     });
   };
 
-  const filtered = filterType ? assets?.filter((a: any) => a.assetType === filterType) : assets;
-  const colorAssets = filtered?.filter((a: any) => a.assetType === "color") || [];
-  const otherAssets = filtered?.filter((a: any) => a.assetType !== "color") || [];
+  const filtered = filterType ? assets.filter((a: any) => a.assetType === filterType) : assets;
+  const colorAssets = filtered.filter((a: any) => a.assetType === "color");
+  const otherAssets = filtered.filter((a: any) => a.assetType !== "color");
 
   useEffect(() => {
     if (!showPersonalBrandAI) return;
@@ -360,7 +361,7 @@ function BrandTab() {
         ))}
       </div>
 
-      {(!filtered || filtered.length === 0) ? (
+      {filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Palette className="w-10 h-10 text-muted-foreground/30 mb-3" />

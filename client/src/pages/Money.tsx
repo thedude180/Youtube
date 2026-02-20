@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
+import { safeArray } from "@/lib/safe-data";
 
 const LazyRevenueTab = lazy(() => import("./money/RevenueTab"));
 const LazyExpensesTab = lazy(() => import("./money/ExpensesTab"));
@@ -99,7 +100,8 @@ export default function Money() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
 
-  const { data: payments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'] });
+  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'] });
+  const payments = safeArray(rawPayments);
 
   const createPaymentMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -306,7 +308,7 @@ export default function Money() {
                   Recent Payments
                 </CardTitle>
               </CardHeader>
-              {!payments || payments.length === 0 ? (
+              {payments.length === 0 ? (
                 <CardContent>
                   <EmptyState
                     icon={DollarSign}

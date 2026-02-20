@@ -12,6 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { EmptyState } from "@/components/EmptyState";
+import { safeArray } from "@/lib/safe-data";
 
 type CategoryType = "alert" | "ai" | "update" | "system";
 type FilterType = "all" | "alert" | "update" | "ai";
@@ -51,7 +52,8 @@ const severityColor = (severity: string) => {
 export default function Notifications() {
   usePageTitle("Notifications");
   const [filter, setFilter] = useState<FilterType>("all");
-  const { data: notifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
+  const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
+  const notifications = safeArray(rawNotifications);
 
   const markReadMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -74,12 +76,12 @@ export default function Notifications() {
     },
   });
 
-  const filtered = (notifications || []).filter(n => {
+  const filtered = notifications.filter(n => {
     if (filter === "all") return true;
     return deriveCategory(n) === filter;
   });
 
-  const unreadCount = (notifications || []).filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const filterOptions: { key: FilterType; label: string }[] = [
     { key: "all", label: "All" },

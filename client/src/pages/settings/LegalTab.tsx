@@ -585,8 +585,10 @@ function BusinessStructureSection() {
 
 function LegalTab() {
   const { toast } = useToast();
-  const { data: ventures } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
-  const { data: taxEstimates } = useQuery<any[]>({ queryKey: ['/api/tax-estimates'] });
+  const { data: rawVentures } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
+  const ventures = safeArray(rawVentures);
+  const { data: rawTaxEstimates } = useQuery<any[]>({ queryKey: ['/api/tax-estimates'] });
+  const taxEstimates = safeArray(rawTaxEstimates);
 
   const [completedSteps, setCompletedSteps] = useState<string[]>(() => {
     const stored = localStorage.getItem("legalFormationSteps");
@@ -603,10 +605,10 @@ function LegalTab() {
 
   const completionPct = Math.round((completedSteps.length / FORMATION_STEPS.length) * 100);
 
-  const activeVenture = ventures?.find((v: any) => v.status === "active");
+  const activeVenture = ventures.find((v: any) => v.status === "active");
   const entityType = activeVenture?.metadata?.entityType || activeVenture?.type || null;
 
-  const upcomingTax = taxEstimates?.find((t: any) => !t.paid && t.dueDate && new Date(t.dueDate) > new Date());
+  const upcomingTax = taxEstimates.find((t: any) => !t.paid && t.dueDate && new Date(t.dueDate) > new Date());
 
   const [location, setLocation] = useState(() => localStorage.getItem("creatorLocation") || "");
   const [locationInput, setLocationInput] = useState(() => localStorage.getItem("creatorLocation") || "");

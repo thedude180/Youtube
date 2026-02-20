@@ -122,7 +122,8 @@ function CollabsTab() {
     ));
   };
 
-  const { data: leads, isLoading } = useQuery<any[]>({ queryKey: ['/api/collaboration-leads'] });
+  const { data: rawLeads, isLoading } = useQuery<any[]>({ queryKey: ['/api/collaboration-leads'] });
+  const leads = safeArray(rawLeads);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -150,8 +151,8 @@ function CollabsTab() {
     });
   };
 
-  const filtered = filterStatus ? leads?.filter((l: any) => l.status === filterStatus) : leads;
-  const aiSuggestedCount = leads?.filter((l: any) => l.aiSuggested)?.length || 0;
+  const filtered = filterStatus ? leads.filter((l: any) => l.status === filterStatus) : leads;
+  const aiSuggestedCount = leads.filter((l: any) => l.aiSuggested).length;
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
 
@@ -292,9 +293,9 @@ function CollabsTab() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <Badge variant={filterStatus === null ? "default" : "secondary"} className="cursor-pointer" onClick={() => setFilterStatus(null)} data-testid="filter-collab-all">All ({leads?.length || 0})</Badge>
+        <Badge variant={filterStatus === null ? "default" : "secondary"} className="cursor-pointer" onClick={() => setFilterStatus(null)} data-testid="filter-collab-all">All ({leads.length})</Badge>
         {COLLAB_STATUSES.map((s) => {
-          const count = leads?.filter((l: any) => l.status === s)?.length || 0;
+          const count = leads.filter((l: any) => l.status === s).length;
           return (
             <Badge key={s} variant={filterStatus === s ? "default" : "secondary"} className="cursor-pointer capitalize" onClick={() => setFilterStatus(filterStatus === s ? null : s)} data-testid={`filter-collab-${s}`}>
               {s} ({count})

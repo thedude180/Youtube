@@ -84,7 +84,8 @@ export default function ExpensesTab() {
   const [taxDeductible, setTaxDeductible] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
 
-  const { data: expenses, isLoading: expensesLoading, error: expensesError } = useQuery<any[]>({ queryKey: ['/api/expenses'] });
+  const { data: rawExpenses, isLoading: expensesLoading, error: expensesError } = useQuery<any[]>({ queryKey: ['/api/expenses'] });
+  const expenses = safeArray(rawExpenses);
   const { data: expenseSummary } = useQuery<any>({ queryKey: ['/api/expenses/summary'] });
 
   const createExpenseMutation = useMutation({
@@ -140,7 +141,6 @@ export default function ExpensesTab() {
   }, [byCategory]);
 
   const filteredExpenses = useMemo(() => {
-    if (!expenses) return [];
     if (activeFilter === "All") return expenses;
     const filterLower = activeFilter.toLowerCase().replace(/\//g, "_").replace(/ /g, "_");
     return expenses.filter((e: any) => {
@@ -380,7 +380,7 @@ export default function ExpensesTab() {
         <CardHeader className="pb-0">
           <CardTitle className="text-base">Expenses</CardTitle>
         </CardHeader>
-        {!filteredExpenses || filteredExpenses.length === 0 ? (
+        {filteredExpenses.length === 0 ? (
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Receipt className="w-10 h-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm text-muted-foreground" data-testid="text-no-expenses">No expenses found.</p>

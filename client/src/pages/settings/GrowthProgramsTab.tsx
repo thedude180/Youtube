@@ -134,9 +134,10 @@ export default function GrowthProgramsTab() {
   const [expandedPrograms, setExpandedPrograms] = useState<Set<number>>(new Set());
   const [showAiRecs, setShowAiRecs] = useState(false);
 
-  const { data: programs = [], isLoading } = useQuery<GrowthProgram[]>({
+  const { data: rawPrograms, isLoading } = useQuery<GrowthProgram[]>({
     queryKey: ["/api/growth-programs"],
   });
+  const programs = safeArray<GrowthProgram>(rawPrograms);
 
   const aiRecsMutation = useMutation({
     mutationFn: async () => {

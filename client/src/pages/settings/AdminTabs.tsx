@@ -107,7 +107,8 @@ function AdminCodesTab() {
   const [tier, setTier] = useState("ultimate");
   const [maxUses, setMaxUses] = useState("1");
 
-  const { data: codes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"] });
+  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"] });
+  const codes = safeArray(rawCodes);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -172,7 +173,7 @@ function AdminCodesTab() {
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-20 w-full" />
-          ) : !codes?.length ? (
+          ) : codes.length === 0 ? (
             <p className="text-sm text-muted-foreground">No access codes created yet</p>
           ) : (
             <div className="space-y-2">
@@ -207,7 +208,8 @@ function AdminCodesTab() {
 
 function AdminUsersTab() {
   const { toast } = useToast();
-  const { data: allUsers, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/users"] });
+  const { data: rawAllUsers, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/users"] });
+  const allUsers = safeArray(rawAllUsers);
 
   const updateTierMutation = useMutation({
     mutationFn: async ({ userId, tier, role }: { userId: string; tier: string; role: string }) => {
@@ -227,13 +229,13 @@ function AdminUsersTab() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Users className="w-5 h-5" />
-            All Users ({allUsers?.length || 0})
+            All Users ({allUsers.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-20 w-full" />
-          ) : !allUsers?.length ? (
+          ) : allUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground">No users found</p>
           ) : (
             <div className="space-y-2">

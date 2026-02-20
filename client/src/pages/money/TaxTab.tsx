@@ -61,7 +61,8 @@ export default function TaxTab() {
   const [selectedState, setSelectedState] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AIResponse>(null);
 
-  const { data: taxEstimates, isLoading: taxLoading, error: taxError } = useQuery<any[]>({ queryKey: ['/api/tax-estimates', '?year=2026'] });
+  const { data: rawTaxEstimates, isLoading: taxLoading, error: taxError } = useQuery<any[]>({ queryKey: ['/api/tax-estimates', '?year=2026'] });
+  const taxEstimates = safeArray(rawTaxEstimates);
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
 
   const totalRevenue = revenueSummary?.total || 0;
@@ -144,7 +145,7 @@ export default function TaxTab() {
 
       <div>
         <h2 data-testid="text-quarterly-title" className="text-lg font-semibold mb-3">Quarterly Estimates</h2>
-        {(!taxEstimates || taxEstimates.length === 0) ? (
+        {taxEstimates.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
               <Calculator className="w-10 h-10 text-muted-foreground/30 mb-3" />

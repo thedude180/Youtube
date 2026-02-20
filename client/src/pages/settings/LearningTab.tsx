@@ -121,16 +121,17 @@ function LearningTab() {
     ));
   };
 
-  const { data: insights, isLoading } = useQuery<any[]>({ queryKey: ['/api/learning-insights'] });
+  const { data: rawInsights, isLoading } = useQuery<any[]>({ queryKey: ['/api/learning-insights'] });
+  const insights = safeArray(rawInsights);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
   const categories = useMemo(() => {
-    if (!insights) return [];
+    if (insights.length === 0) return [];
     const cats = new Set(insights.map((i: any) => i.category));
     return Array.from(cats).sort();
   }, [insights]);
 
-  const filtered = filterCategory ? insights?.filter((i: any) => i.category === filterCategory) : insights;
+  const filtered = filterCategory ? insights.filter((i: any) => i.category === filterCategory) : insights;
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
 
@@ -237,7 +238,7 @@ function LearningTab() {
         </p>
       </div>
 
-      {insights && insights.length > 0 && (
+      {insights.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4 text-center">

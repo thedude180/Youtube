@@ -90,7 +90,8 @@ export default function SponsorsTab() {
     }
   }, [aiToolsOpen]);
 
-  const { data: deals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"] });
+  const { data: rawDeals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"] });
+  const deals = safeArray(rawDeals);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -126,7 +127,6 @@ export default function SponsorsTab() {
   });
 
   const { totalPipeline, activeCount, completedTotal } = useMemo(() => {
-    if (!deals) return { totalPipeline: 0, activeCount: 0, completedTotal: 0 };
     let total = 0, active = 0, completed = 0;
     for (const d of deals) {
       const val = d.dealValue || 0;
@@ -137,7 +137,7 @@ export default function SponsorsTab() {
     return { totalPipeline: total, activeCount: active, completedTotal: completed };
   }, [deals]);
 
-  const filtered = filterStage ? deals?.filter((d: any) => d.status === filterStage) : deals;
+  const filtered = filterStage ? deals.filter((d: any) => d.status === filterStage) : deals;
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -548,7 +548,7 @@ export default function SponsorsTab() {
         ))}
       </div>
 
-      {!filtered || filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Handshake className="w-10 h-10 text-muted-foreground/30 mb-3" />

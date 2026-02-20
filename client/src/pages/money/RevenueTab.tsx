@@ -34,7 +34,8 @@ export default function RevenueTab() {
   const [aiPLReportLoading, setAiPLReportLoading] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
-  const { data: revenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
+  const { data: rawRevenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'] });
+  const revenueRecords = safeArray(rawRevenueRecords);
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'] });
   const { data: syncStatus } = useQuery<any>({ queryKey: ['/api/revenue/sync-status'] });
   const { data: breakdown } = useQuery<any>({ queryKey: ['/api/revenue/breakdown'] });
@@ -77,7 +78,7 @@ export default function RevenueTab() {
   const byPlatform = revenueSummary?.byPlatform || {};
 
   const { thisMonth, avgPerVideo } = useMemo(() => {
-    if (!revenueRecords || revenueRecords.length === 0) return { thisMonth: 0, avgPerVideo: 0 };
+    if (revenueRecords.length === 0) return { thisMonth: 0, avgPerVideo: 0 };
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -679,7 +680,7 @@ export default function RevenueTab() {
         <CardHeader className="pb-0">
           <CardTitle className="text-base">Revenue Records</CardTitle>
         </CardHeader>
-        {!revenueRecords || revenueRecords.length === 0 ? (
+        {revenueRecords.length === 0 ? (
           <CardContent>
             <EmptyState
               icon={DollarSign}

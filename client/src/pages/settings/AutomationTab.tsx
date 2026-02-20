@@ -21,11 +21,13 @@ function AutomationTab() {
   const [showNotifSection, setShowNotifSection] = useState(false);
 
   const { data: status, isLoading: statusLoading } = useQuery<any>({ queryKey: ["/api/automation/status"] });
-  const { data: cronJobsData } = useQuery<any[]>({ queryKey: ["/api/automation/cron-jobs"] });
+  const { data: rawCronJobsData } = useQuery<any[]>({ queryKey: ["/api/automation/cron-jobs"] });
+  const cronJobsData = safeArray(rawCronJobsData);
   const { data: chainsData } = useQuery<any>({ queryKey: ["/api/automation/chains"] });
   const { data: rulesData } = useQuery<any>({ queryKey: ["/api/automation/rules"] });
   const { data: notifsData } = useQuery<any>({ queryKey: ["/api/automation/notifications"] });
-  const { data: webhookData } = useQuery<any[]>({ queryKey: ["/api/automation/webhook-events"] });
+  const { data: rawWebhookData } = useQuery<any[]>({ queryKey: ["/api/automation/webhook-events"] });
+  const webhookData = safeArray(rawWebhookData);
 
   const createCronMutation = useMutation({
     mutationFn: async (data: any) => { const r = await apiRequest("POST", "/api/automation/cron-jobs", data); return r.json(); },
@@ -53,13 +55,13 @@ function AutomationTab() {
   });
 
   const automationLevel = status?.automationLevel || 90;
-  const cronJobs = cronJobsData || [];
+  const cronJobs = cronJobsData;
   const chains = chainsData?.chains || [];
   const chainTemplates = chainsData?.templates || status?.chainTemplates || [];
   const rules = rulesData?.rules || [];
   const notifs = notifsData?.notifications || [];
   const unreadCount = notifsData?.unreadCount || 0;
-  const webhookEvents = webhookData || [];
+  const webhookEvents = webhookData;
   const schedulePresets = status?.schedulePresets || {};
   const featureCategories = status?.categories || {};
 

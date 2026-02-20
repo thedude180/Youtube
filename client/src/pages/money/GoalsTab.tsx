@@ -50,7 +50,8 @@ export default function GoalsTab() {
   const [category, setCategory] = useState("Revenue");
   const [unit, setUnit] = useState("USD");
 
-  const { data: goals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/goals"] });
+  const { data: rawGoals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/goals"] });
+  const goals = safeArray(rawGoals);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -164,7 +165,7 @@ export default function GoalsTab() {
         </Dialog>
       </div>
 
-      {!goals || goals.length === 0 ? (
+      {goals.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState

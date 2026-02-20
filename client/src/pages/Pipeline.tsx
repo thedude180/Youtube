@@ -27,6 +27,7 @@ import {
 import type {
   StreamPipelineRecord, VodCut, LengthExperiment, AudienceLengthPreference,
 } from "@shared/schema";
+import { safeArray } from "@/lib/safe-data";
 
 type PipelineTab = "live" | "vod" | "vod-cuts" | "length-lab";
 
@@ -185,11 +186,12 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
 
   const steps = (pipelineType === "live" ? LIVE_PIPELINE_STEPS : VOD_PIPELINE_STEPS) as readonly StepDef[];
 
-  const { data: allPipelines, isLoading, error } = useQuery<StreamPipelineRecord[]>({
+  const { data: rawAllPipelines, isLoading, error } = useQuery<StreamPipelineRecord[]>({
     queryKey: ['/api/stream-pipeline'],
   });
+  const allPipelines = safeArray(rawAllPipelines);
 
-  const pipelines = (allPipelines || []).filter(p => p.pipelineType === pipelineType);
+  const pipelines = allPipelines.filter(p => p.pipelineType === pipelineType);
 
   const createMutation = useMutation({
     mutationFn: async (body: { sourceTitle: string; pipelineType: string; mode: string }) => {
@@ -518,9 +520,10 @@ function VodCutsTab() {
   const [editingCut, setEditingCut] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
-  const { data: cuts, isLoading: cutsLoading } = useQuery<VodCut[]>({
+  const { data: rawCuts, isLoading: cutsLoading } = useQuery<VodCut[]>({
     queryKey: ['/api/vod-cuts'],
   });
+  const cuts = safeArray(rawCuts);
 
   const generateMutation = useMutation({
     mutationFn: async (body: { sourceTitle: string; sourceDuration: number; contentCategory: string }) => {
@@ -563,7 +566,7 @@ function VodCutsTab() {
   });
 
   const experimentGroups = new Map<string, VodCut[]>();
-  (cuts || []).forEach(cut => {
+  cuts.forEach(cut => {
     if (cut.isExperiment && cut.experimentGroup) {
       const group = experimentGroups.get(cut.experimentGroup) || [];
       group.push(cut);
@@ -623,16 +626,16 @@ function VodCutsTab() {
       )}
 
       <div>
-        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Active Cuts {cuts ? `(${cuts.length})` : ""}</p>
+        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Active Cuts ({cuts.length})</p>
         {cutsLoading && <div className="space-y-1">{[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full" />)}</div>}
-        {!cutsLoading && (!cuts || cuts.length === 0) && (
+        {!cutsLoading && cuts.length === 0 && (
           <Card><CardContent className="p-4 text-center">
             <Scissors className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
             <p className="text-xs text-muted-foreground" data-testid="text-empty-cuts">No VOD cuts yet</p>
           </CardContent></Card>
         )}
         <div className="space-y-1">
-          {(cuts || []).filter(c => !c.isExperiment).map(cut => (
+          {cuts.filter(c => !c.isExperiment).map(cut => (
             <CutCard key={cut.id} cut={cut} onStatus={statusMutation.mutate} onEdit={(id) => { setEditingCut(id); setEditTitle(cut.title); }} editingCut={editingCut} editTitle={editTitle} setEditTitle={setEditTitle} onSaveEdit={editMutation.mutate} statusPending={statusMutation.isPending} />
           ))}
         </div>
@@ -694,8 +697,10 @@ function CutCard({ cut, onStatus, onEdit, editingCut, editTitle, setEditTitle, o
 function LengthLabTab() {
   const { toast } = useToast();
 
-  const { data: experiments, isLoading: expLoading } = useQuery<LengthExperiment[]>({ queryKey: ['/api/length-experiments'] });
-  const { data: preferences, isLoading: prefLoading } = useQuery<AudienceLengthPreference[]>({ queryKey: ['/api/length-preferences'] });
+  const { data: rawExperiments, isLoading: expLoading } = useQuery<LengthExperiment[]>({ queryKey: ['/api/length-experiments'] });
+  const experiments = safeArray(rawExperiments);
+  const { data: rawPreferences, isLoading: prefLoading } = useQuery<AudienceLengthPreference[]>({ queryKey: ['/api/length-preferences'] });
+  const preferences = safeArray(rawPreferences);
   const { data: insights, isLoading: insightsLoading } = useQuery<any>({ queryKey: ['/api/length-experiments', 'insights'] });
 
   const analyzeMutation = useMutation({
@@ -717,7 +722,7 @@ function LengthLabTab() {
           <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Active Experiments</p>
         </div>
         {expLoading && <div className="space-y-1">{[1,2].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>}
-        {!expLoading && (!experiments || experiments.length === 0) && (
+        {!expLoading && experiments.length === 0 && (
           <Card><CardContent className="p-3 text-center">
             <FlaskConical className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
             <p className="text-xs text-muted-foreground" data-testid="text-empty-experiments">No experiments</p>
@@ -725,7 +730,7 @@ function LengthLabTab() {
           </CardContent></Card>
         )}
         <div className="space-y-1">
-          {(experiments || []).map(exp => {
+          {experiments.map(exp => {
             const tested = (exp.completedLengths || []).length;
             const total = (exp.lengthsToTest || []).length;
             const pct = total > 0 ? (tested / total) * 100 : 0;
@@ -800,13 +805,13 @@ function LengthLabTab() {
           </Button>
         </div>
         {prefLoading && <Skeleton className="h-16 w-full" />}
-        {!prefLoading && (!preferences || preferences.length === 0) && (
+        {!prefLoading && preferences.length === 0 && (
           <Card><CardContent className="p-3 text-center">
             <Brain className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
             <p className="text-xs text-muted-foreground" data-testid="text-empty-prefs">No preferences learned</p>
           </CardContent></Card>
         )}
-        {preferences && preferences.length > 0 && (
+        {preferences.length > 0 && (
           <div className="space-y-1">
             {preferences.map(pref => {
               const confidencePct = Math.round((pref.confidence || 0) * 100);

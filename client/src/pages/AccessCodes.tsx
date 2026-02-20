@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { Shield, Trash2, Copy, Check, KeyRound, Users, Gift, Sparkles, Crown, Zap, Rocket } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
+import { safeArray } from "@/lib/safe-data";
 
 const TIERS = [
   { value: "youtube", label: "YouTube", price: "$9.99/mo", icon: SiYoutube, color: "text-red-500", border: "border-red-500/40", bg: "bg-red-500/10" },
@@ -26,7 +27,8 @@ export default function AccessCodes() {
   const [maxUses, setMaxUses] = useState("1");
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
-  const { data: codes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"] });
+  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"] });
+  const codes = safeArray(rawCodes);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -76,8 +78,8 @@ export default function AccessCodes() {
     );
   }
 
-  const activeCodes = codes?.filter((c: any) => c.active) || [];
-  const usedCodes = codes?.filter((c: any) => !c.active) || [];
+  const activeCodes = codes.filter((c: any) => c.active);
+  const usedCodes = codes.filter((c: any) => !c.active);
   const selectedTier = TIERS.find(t => t.value === tier) || TIERS[3];
 
   return (

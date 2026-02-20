@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,8 @@ export default function ContentPredictions() {
   const [description, setDescription] = useState("");
   const [platform, setPlatform] = useState("youtube");
 
-  const { data: predictions, isLoading } = useQuery<any[]>({ queryKey: ["/api/predictions"] });
+  const { data: rawPredictions, isLoading } = useQuery<any[]>({ queryKey: ["/api/predictions"] });
+  const predictions = safeArray(rawPredictions);
 
   const predictMutation = useMutation({
     mutationFn: async () => {
@@ -103,7 +105,7 @@ export default function ContentPredictions() {
 
       {isLoading && <Skeleton className="h-40" data-testid="skeleton-predictions" />}
 
-      {predictions && predictions.length > 0 && (
+      {predictions.length > 0 && (
         <div className="space-y-2">
           {predictions.map((pred: any) => (
             <Card key={pred.id} data-testid={`card-prediction-${pred.id}`}>
@@ -194,7 +196,7 @@ export default function ContentPredictions() {
         </div>
       )}
 
-      {!isLoading && (!predictions || predictions.length === 0) && (
+      {!isLoading && predictions.length === 0 && (
         <Card>
           <CardContent className="p-6 text-center">
             <BarChart3 className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />

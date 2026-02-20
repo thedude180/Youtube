@@ -149,7 +149,7 @@ export default function ClipsTab() {
 
   const stats = statsQuery.data;
   const pipeline = pipelineQuery.data;
-  const clips = backlogQuery.data || [];
+  const clips = safeArray<ClipItem>(backlogQuery.data);
   const isRunning = pipeline?.state === "running";
 
   const grouped: Record<string, ClipItem[]> = {};

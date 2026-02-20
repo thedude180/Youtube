@@ -21,7 +21,8 @@ function scoreColor(score: number) {
 }
 
 function SEOScoresSection() {
-  const { data: scores, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/scores/me"] });
+  const { data: rawScores, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/scores/me"] });
+  const scores = safeArray(rawScores);
 
   if (isLoading) return <Skeleton className="h-32" data-testid="skeleton-seo-scores" />;
 
@@ -32,10 +33,10 @@ function SEOScoresSection() {
           <BarChart3 className="h-3.5 w-3.5 text-primary" />
           SEO Scores
         </CardTitle>
-        <Badge variant="secondary" className="text-xs" data-testid="badge-score-count">{scores?.length || 0} videos</Badge>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-score-count">{scores.length} videos</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0">
-        {!scores || scores.length === 0 ? (
+        {scores.length === 0 ? (
           <div className="flex flex-col items-center py-6">
             <BarChart3 className="w-8 h-8 text-muted-foreground/20 mb-2" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-scores">No SEO scores available</p>
@@ -75,7 +76,8 @@ function SEOScoresSection() {
 }
 
 function SearchRankingsSection() {
-  const { data: rankings, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/rankings/me"] });
+  const { data: rawRankings, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/rankings/me"] });
+  const rankings = safeArray(rawRankings);
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-rankings" />;
 
@@ -92,10 +94,10 @@ function SearchRankingsSection() {
           <TrendingUp className="h-3.5 w-3.5 text-primary" />
           Search Rankings
         </CardTitle>
-        <Badge variant="secondary" className="text-xs" data-testid="badge-ranking-count">{rankings?.length || 0} keywords</Badge>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-ranking-count">{rankings.length} keywords</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0">
-        {!rankings || rankings.length === 0 ? (
+        {rankings.length === 0 ? (
           <div className="flex flex-col items-center py-6">
             <Search className="w-8 h-8 text-muted-foreground/20 mb-2" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-rankings">No tracked keywords yet</p>
@@ -146,7 +148,8 @@ function SearchRankingsSection() {
 }
 
 function SEOOpportunitiesSection() {
-  const { data: opportunities, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/opportunities/me"] });
+  const { data: rawOpportunities, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/opportunities/me"] });
+  const opportunities = safeArray(rawOpportunities);
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-opportunities" />;
 
@@ -166,10 +169,10 @@ function SEOOpportunitiesSection() {
           <Lightbulb className="h-3.5 w-3.5 text-primary" />
           SEO Opportunities
         </CardTitle>
-        <Badge variant="secondary" className="text-xs" data-testid="badge-opportunity-count">{opportunities?.length || 0} suggestions</Badge>
+        <Badge variant="secondary" className="text-xs" data-testid="badge-opportunity-count">{opportunities.length} suggestions</Badge>
       </CardHeader>
       <CardContent className="p-2 pt-0 space-y-1">
-        {!opportunities || opportunities.length === 0 ? (
+        {opportunities.length === 0 ? (
           <div className="flex flex-col items-center py-6">
             <Lightbulb className="w-8 h-8 text-muted-foreground/20 mb-2" />
             <p className="text-xs text-muted-foreground" data-testid="text-no-opportunities">No SEO opportunities found</p>

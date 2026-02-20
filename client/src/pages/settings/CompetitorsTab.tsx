@@ -23,7 +23,8 @@ function CompetitorsTab() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: competitors, isLoading } = useQuery<any[]>({ queryKey: ['/api/competitors'] });
+  const { data: rawCompetitors, isLoading } = useQuery<any[]>({ queryKey: ['/api/competitors'] });
+  const competitors = safeArray(rawCompetitors);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -64,8 +65,8 @@ function CompetitorsTab() {
     });
   };
 
-  const totalSubs = competitors?.reduce((sum: number, c: any) => sum + (c.subscribers || 0), 0) || 0;
-  const avgViewsAll = competitors?.length ? Math.round(competitors.reduce((sum: number, c: any) => sum + (c.avgViews || 0), 0) / competitors.length) : 0;
+  const totalSubs = competitors.reduce((sum: number, c: any) => sum + (c.subscribers || 0), 0);
+  const avgViewsAll = competitors.length ? Math.round(competitors.reduce((sum: number, c: any) => sum + (c.avgViews || 0), 0) / competitors.length) : 0;
 
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [showCompetitorAI, setShowCompetitorAI] = useState(false);
@@ -271,7 +272,7 @@ function CompetitorsTab() {
         </Dialog>
       </div>
 
-      {competitors && competitors.length > 0 && (
+      {competitors.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4">
@@ -294,7 +295,7 @@ function CompetitorsTab() {
         </div>
       )}
 
-      {(!competitors || competitors.length === 0) ? (
+      {competitors.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Eye className="w-10 h-10 text-muted-foreground/30 mb-3" />
