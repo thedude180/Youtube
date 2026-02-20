@@ -163,10 +163,26 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
           style: "vod-refresh",
           aiModel: "gpt-4o-mini",
           retentionBeatsApplied: true,
+          regenerateThumbnail: true,
         } as any,
       });
+
+      try {
+        const [video] = await db.select().from(videos).where(eq(videos.id, opt.videoId));
+        if (video) {
+          const meta = (video.metadata as any) || {};
+          await db.update(videos).set({
+            metadata: {
+              ...meta,
+              autoThumbnailGenerated: false,
+              thumbnailRefreshReason: `VOD optimization: ${opt.strategyNotes}`,
+            },
+          }).where(eq(videos.id, opt.videoId));
+        }
+      } catch {}
+
       queued++;
-      logger.info("Queued VOD optimization", {
+      logger.info("Queued VOD optimization + thumbnail refresh", {
         userId,
         videoId: opt.videoId,
         original: opt.originalTitle,

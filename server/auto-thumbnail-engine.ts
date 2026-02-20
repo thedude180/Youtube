@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
-import { eq, and, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
@@ -245,5 +245,114 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
   } catch (err) {
     logger.error("Thumbnail generation for new video failed", { videoDbId, error: String(err) });
     return false;
+  }
+}
+
+const UNDERPERFORM_CTR_THRESHOLD = 4.0;
+const UNDERPERFORM_VIEW_RATIO = 0.3;
+const THUMBNAIL_REFRESH_COOLDOWN_DAYS = 14;
+
+export async function regenerateThumbnailsForUnderperformers(userId: string): Promise<number> {
+  let regenerated = 0;
+  try {
+    const ytChannels = await db.select().from(channels)
+      .where(and(
+        eq(channels.platform, "youtube"),
+        eq(channels.userId, userId),
+        sql`${channels.accessToken} IS NOT NULL`,
+      ));
+
+    if (ytChannels.length === 0) return 0;
+    const channelIds = ytChannels.map(c => c.id);
+
+    const minAge = new Date(Date.now() - 7 * 86400000);
+    const cooldownCutoff = new Date(Date.now() - THUMBNAIL_REFRESH_COOLDOWN_DAYS * 86400000);
+
+    const userVids = await db.select().from(videos)
+      .where(and(
+        lt(videos.createdAt, minAge),
+        sql`${videos.channelId} IN (${sql.join(channelIds.map(id => sql`${id}`), sql`, `)})`
+      ))
+      .orderBy(desc(videos.createdAt))
+      .limit(50);
+
+    for (const video of userVids) {
+      if (regenerated >= MAX_THUMBNAILS_PER_RUN) break;
+
+      const meta = (video.metadata as any) || {};
+      const youtubeId = meta.youtubeId;
+      if (!youtubeId || !video.channelId) continue;
+
+      const lastRefresh = meta.thumbnailRefreshedAt ? new Date(meta.thumbnailRefreshedAt) : null;
+      if (lastRefresh && lastRefresh > cooldownCutoff) continue;
+
+      const stats = meta.stats || {};
+      const ctr = stats.ctr || 0;
+      const views = meta.viewCount || stats.views || 0;
+
+      const avgViews = await getChannelAvgViews(video.channelId);
+      const isUnderperforming = (ctr > 0 && ctr < UNDERPERFORM_CTR_THRESHOLD) ||
+        (avgViews > 0 && views < avgViews * UNDERPERFORM_VIEW_RATIO);
+
+      if (!isUnderperforming) continue;
+
+      logger.info("Regenerating thumbnail for underperforming video", {
+        videoId: video.id, title: video.title, ctr, views, avgViews
+      });
+
+      await db.update(videos).set({
+        metadata: {
+          ...meta,
+          autoThumbnailGenerated: false,
+          thumbnailRefreshReason: `underperforming (CTR: ${ctr}%, views: ${views} vs avg: ${avgViews})`,
+        },
+      }).where(eq(videos.id, video.id));
+
+      const success = await generateAndUploadThumbnail(
+        userId, video.id, video.title, video.description || "",
+        video.type || "video", youtubeId, video.channelId
+      );
+
+      if (success) {
+        await db.update(videos).set({
+          metadata: {
+            ...((await db.select().from(videos).where(eq(videos.id, video.id)))[0]?.metadata as any || {}),
+            thumbnailRefreshedAt: new Date().toISOString(),
+            thumbnailRefreshCount: (meta.thumbnailRefreshCount || 0) + 1,
+          },
+        }).where(eq(videos.id, video.id));
+        regenerated++;
+      }
+    }
+
+    if (regenerated > 0) {
+      await db.insert(notifications).values({
+        userId,
+        type: "autopilot",
+        title: "Thumbnails Refreshed",
+        message: `Regenerated ${regenerated} thumbnail(s) for underperforming videos to boost CTR.`,
+        severity: "info",
+      });
+      sendSSEEvent(userId, "notification", { type: "new" });
+    }
+  } catch (err) {
+    logger.error("Thumbnail refresh for underperformers failed", { userId, error: String(err) });
+  }
+  return regenerated;
+}
+
+async function getChannelAvgViews(channelId: number): Promise<number> {
+  try {
+    const channelVids = await db.select().from(videos)
+      .where(eq(videos.channelId, channelId))
+      .limit(20);
+    if (channelVids.length === 0) return 0;
+    const totalViews = channelVids.reduce((sum, v) => {
+      const meta = (v.metadata as any) || {};
+      return sum + (meta.viewCount || meta.stats?.views || 0);
+    }, 0);
+    return Math.floor(totalViews / channelVids.length);
+  } catch {
+    return 0;
   }
 }

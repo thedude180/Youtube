@@ -54,10 +54,11 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **Traffic Growth Engine**: Generates ToS-compliant traffic strategies.
     - **Priority Orchestrator**: Manages dynamic content priorities (e.g., Top YouTuber Growth, Daily Uploads, VOD Optimization, Livestream overrides).
     - **Daily Content Engine**: Extracts content from livestreams, generating long-form videos and shorts, and cross-posts to TikTok, X, Discord.
-    - **VOD Optimizer Engine**: Identifies underperforming old videos for AI-driven optimization of metadata and thumbnails.
+    - **VOD Optimizer Engine**: Identifies underperforming old videos for AI-driven optimization of metadata and thumbnails. Triggers thumbnail regeneration for optimized videos.
+    - **Auto-Playlist Manager** (`playlist-manager.ts`): Automatically organizes all videos into game-specific playlists. Long-form videos go into "{Game} - Full Gameplay & Videos" playlists, shorts into "{Game} - Shorts & Highlights" playlists. Creates YouTube playlists via API, detects game from metadata/title/tags, runs every 4 hours and after content loop completes. Channel-scoped to prevent cross-channel playlist mixing.
     - **Retention Beats Engine**: Learns and applies retention patterns from top YouTube creators to optimize content.
     - **Publish Verification Engine**: Confirms content is live on platforms post-publishing via API checks.
-    - **Auto-Thumbnail Engine**: AI-powered thumbnail generation and upload.
+    - **Auto-Thumbnail Engine**: AI-powered thumbnail generation, upload, and automatic refresh for underperforming videos (CTR < 4% or views < 30% of channel average, with 14-day cooldown between refreshes).
     - **Stream Clip → YouTube Shorts Pipeline**: Processes stream clips for YouTube Shorts, including downloading, cutting, and uploading.
     - **Reconnect Email Service**: Sends Gmail alerts for OAuth token expiry.
 

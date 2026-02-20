@@ -537,7 +537,19 @@ export async function initAutomationEngine() {
     }
   });
 
-  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Autonomous Marketer + Content Loop)");
+  cron.schedule("0 */4 * * *", async () => {
+    try {
+      const { runPlaylistOrganizationForAllUsers } = await import("./playlist-manager");
+      const count = await runPlaylistOrganizationForAllUsers();
+      if (count > 0) {
+        console.log(`[PlaylistManager] Auto-organized playlists for ${count} users (game-specific longform + shorts)`);
+      }
+    } catch (err) {
+      console.error("[PlaylistManager] Playlist organization error:", err);
+    }
+  });
+
+  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Autonomous Marketer + Playlist Manager + Content Loop)");
 }
 
 async function processAllCronJobs() {

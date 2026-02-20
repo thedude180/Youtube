@@ -294,6 +294,26 @@ async function runLoopIteration(userId: string) {
       return;
     }
 
+    try {
+      const { regenerateThumbnailsForUnderperformers } = await import("./auto-thumbnail-engine");
+      const refreshed = await regenerateThumbnailsForUnderperformers(userId);
+      if (refreshed > 0) {
+        logger.info("Refreshed thumbnails for underperformers", { userId, count: refreshed });
+      }
+    } catch (err) {
+      logger.error("Underperformer thumbnail refresh failed in loop", { userId, error: String(err) });
+    }
+
+    try {
+      const { organizePlaylistsForUser } = await import("./playlist-manager");
+      const { assigned, playlistsCreated } = await organizePlaylistsForUser(userId);
+      if (assigned > 0 || playlistsCreated > 0) {
+        logger.info("Auto-organized playlists", { userId, assigned, playlistsCreated });
+      }
+    } catch (err) {
+      logger.error("Playlist organization failed in loop", { userId, error: String(err) });
+    }
+
     state.phase = "idle";
   }
 
