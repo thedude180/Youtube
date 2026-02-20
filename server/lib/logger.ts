@@ -32,3 +32,5 @@ export function createLogger(module: string) {
     },
   };
 }
+
+export const logger = createLogger("express");
