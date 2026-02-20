@@ -29,6 +29,8 @@ export function useUserProfile() {
   const { data: profile, isLoading } = useQuery<UserProfile>({
     queryKey: ["/api/user/profile"],
     enabled: !!user,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const tier = profile?.tier || "free";

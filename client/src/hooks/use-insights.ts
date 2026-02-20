@@ -6,6 +6,8 @@ export function useInsights(channelId?: number) {
   const url = channelId ? `/api/insights?channelId=${channelId}` : '/api/insights';
   return useQuery<ContentInsight[]>({
     queryKey: [url],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 

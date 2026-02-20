@@ -82,6 +82,7 @@ export default function GrowthTrajectoryPredictor() {
   const { data, isLoading } = useQuery<TrajectoryData>({
     queryKey: ["/api/growth/trajectory"],
     staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 

@@ -141,6 +141,8 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
 
   const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
     queryKey: ["/api/oauth/status"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   useEffect(() => {

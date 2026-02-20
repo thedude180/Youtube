@@ -21,7 +21,7 @@ function scoreColor(score: number) {
 }
 
 function SEOScoresSection() {
-  const { data: rawScores, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/scores/me"] });
+  const { data: rawScores, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/scores/me"], refetchInterval: 60_000, staleTime: 30_000 });
   const scores = safeArray(rawScores);
 
   if (isLoading) return <Skeleton className="h-32" data-testid="skeleton-seo-scores" />;
@@ -76,7 +76,7 @@ function SEOScoresSection() {
 }
 
 function SearchRankingsSection() {
-  const { data: rawRankings, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/rankings/me"] });
+  const { data: rawRankings, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/rankings/me"], refetchInterval: 60_000, staleTime: 30_000 });
   const rankings = safeArray(rawRankings);
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-rankings" />;
@@ -148,7 +148,7 @@ function SearchRankingsSection() {
 }
 
 function SEOOpportunitiesSection() {
-  const { data: rawOpportunities, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/opportunities/me"] });
+  const { data: rawOpportunities, isLoading } = useQuery<any[]>({ queryKey: ["/api/seo/opportunities/me"], refetchInterval: 60_000, staleTime: 30_000 });
   const opportunities = safeArray(rawOpportunities);
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-opportunities" />;

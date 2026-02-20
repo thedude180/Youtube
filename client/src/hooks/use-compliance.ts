@@ -6,6 +6,8 @@ export function useCompliance(channelId?: number) {
   const url = channelId ? `/api/compliance?channelId=${channelId}` : '/api/compliance';
   return useQuery<ComplianceRecord[]>({
     queryKey: [url],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 

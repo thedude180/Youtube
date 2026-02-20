@@ -70,6 +70,8 @@ function GeneralTab() {
   const { data: channels } = useChannels();
   const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
     queryKey: ["/api/oauth/status"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
@@ -529,7 +531,7 @@ export default function Settings() {
   const params = useParams<{ tab?: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
+  const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
   const isAdmin = profile?.role === "admin";
   const tabs = useMemo(() => baseTabs.filter((t) => !t.adminOnly || isAdmin), [isAdmin]);
   const activeTab: TabKey = VALID_TABS.includes(params.tab as TabKey) ? (params.tab as TabKey) : "general";
@@ -701,6 +703,8 @@ function LanguageTrafficSuggestions() {
 
   const { data: recommendations } = useQuery<any>({
     queryKey: ["/api/localization/recommendations"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const recLangs: string[] = Array.isArray(recommendations?.recommendedLanguages)

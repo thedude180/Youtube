@@ -134,6 +134,8 @@ export default function GrowthImpactChart() {
     summary: { viewsLift: number; subsLift: number; totalOptimizations: number; dataPoints: number };
   }>({
     queryKey: [`/api/growth/impact?range=${range}`],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const { data: summaryData, isLoading: summaryLoading } = useQuery<{
@@ -146,6 +148,8 @@ export default function GrowthImpactChart() {
     estimatedImpact: { viewsMultiplier: number; subsMultiplier: number; revenueMultiplier: number };
   }>({
     queryKey: ["/api/growth/summary"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const config = METRIC_CONFIG[metric];

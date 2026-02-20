@@ -507,6 +507,8 @@ export async function runDailyContentGeneration(): Promise<void> {
 
       if (totalBatchesThisRun > 0) {
         logger.info("Stream exhaust cycle complete for user", { userId, batchesGenerated: totalBatchesThisRun });
+        sendSSEEvent(userId, "content-update", { source: "stream-exhaust", batches: totalBatchesThisRun });
+        sendSSEEvent(userId, "autopilot-update", { source: "stream-exhaust" });
       }
     } catch (err: any) {
       logger.error("Stream exhaust failed for user", { userId, error: err.message });

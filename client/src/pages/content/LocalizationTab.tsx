@@ -23,6 +23,8 @@ function LocalizationTab() {
 
   const { data: recommendations, isLoading: recsLoading, error: recsError } = useQuery<any>({
     queryKey: ["/api/localization/recommendations"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const recLangs: string[] = Array.isArray(recommendations?.recommendedLanguages)

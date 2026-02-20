@@ -616,9 +616,9 @@ export default function StreamCenter() {
     apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiChatUnifierLoading(false));
   }, [aiToolsOpen]);
 
-  const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"] });
-  const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"] });
-  const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"] });
+  const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"], refetchInterval: 30_000, staleTime: 20_000 });
   const ytLivePoll = useAdaptiveInterval(30000);
   const { data: ytLiveStatus } = useQuery<any>({
     queryKey: ["/api/youtube/live-status"],

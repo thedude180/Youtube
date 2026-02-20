@@ -13,7 +13,7 @@ import { Link } from "wouter";
 import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw } from "lucide-react";
 
 function SubscriptionTab() {
-  const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
+  const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
   const { toast } = useToast();
   const [code, setCode] = useState("");
 
@@ -107,7 +107,7 @@ function AdminCodesTab() {
   const [tier, setTier] = useState("ultimate");
   const [maxUses, setMaxUses] = useState("1");
 
-  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"] });
+  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"], refetchInterval: 30_000, staleTime: 20_000 });
   const codes = safeArray(rawCodes);
 
   const createMutation = useMutation({
@@ -208,7 +208,7 @@ function AdminCodesTab() {
 
 function AdminUsersTab() {
   const { toast } = useToast();
-  const { data: rawAllUsers, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/users"] });
+  const { data: rawAllUsers, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/users"], refetchInterval: 30_000, staleTime: 20_000 });
   const allUsers = safeArray(rawAllUsers);
 
   const updateTierMutation = useMutation({

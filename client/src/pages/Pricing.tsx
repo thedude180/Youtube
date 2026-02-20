@@ -178,10 +178,14 @@ export default function Pricing() {
   const { data: profile } = useQuery<any>({
     queryKey: ["/api/user/profile"],
     enabled: !!user,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const { data: products } = useQuery<any[]>({
     queryKey: ["/api/stripe/products-with-prices"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const checkoutMutation = useMutation({

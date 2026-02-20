@@ -6,6 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 export function useChannels() {
   return useQuery<Channel[]>({
     queryKey: ['/api/channels'],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 }
 

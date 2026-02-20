@@ -20,13 +20,13 @@ function AutomationTab() {
   const [showWebhookSection, setShowWebhookSection] = useState(false);
   const [showNotifSection, setShowNotifSection] = useState(false);
 
-  const { data: status, isLoading: statusLoading } = useQuery<any>({ queryKey: ["/api/automation/status"] });
-  const { data: rawCronJobsData } = useQuery<any[]>({ queryKey: ["/api/automation/cron-jobs"] });
+  const { data: status, isLoading: statusLoading } = useQuery<any>({ queryKey: ["/api/automation/status"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawCronJobsData } = useQuery<any[]>({ queryKey: ["/api/automation/cron-jobs"], refetchInterval: 30_000, staleTime: 20_000 });
   const cronJobsData = safeArray(rawCronJobsData);
-  const { data: chainsData } = useQuery<any>({ queryKey: ["/api/automation/chains"] });
-  const { data: rulesData } = useQuery<any>({ queryKey: ["/api/automation/rules"] });
-  const { data: notifsData } = useQuery<any>({ queryKey: ["/api/automation/notifications"] });
-  const { data: rawWebhookData } = useQuery<any[]>({ queryKey: ["/api/automation/webhook-events"] });
+  const { data: chainsData } = useQuery<any>({ queryKey: ["/api/automation/chains"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rulesData } = useQuery<any>({ queryKey: ["/api/automation/rules"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: notifsData } = useQuery<any>({ queryKey: ["/api/automation/notifications"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawWebhookData } = useQuery<any[]>({ queryKey: ["/api/automation/webhook-events"], refetchInterval: 30_000, staleTime: 20_000 });
   const webhookData = safeArray(rawWebhookData);
 
   const createCronMutation = useMutation({

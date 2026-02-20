@@ -6,6 +6,8 @@ export function useStrategies(channelId?: number) {
   const url = channelId ? `/api/strategies?channelId=${channelId}` : '/api/strategies';
   return useQuery<GrowthStrategy[]>({
     queryKey: [url],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 

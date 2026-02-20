@@ -27,7 +27,7 @@ export default function AccessCodes() {
   const [maxUses, setMaxUses] = useState("1");
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
-  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"] });
+  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"], refetchInterval: 30_000, staleTime: 20_000 });
   const codes = safeArray(rawCodes);
 
   const createMutation = useMutation({

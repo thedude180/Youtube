@@ -58,7 +58,7 @@ function CalendarTab() {
   const [detailDate, setDetailDate] = useState<Date | null>(null);
 
   const { data: calendarData, isLoading, error: calendarError } =
-    useQuery<any[]>({ queryKey: ["/api/calendar/uploads"] });
+    useQuery<any[]>({ queryKey: ["/api/calendar/uploads"], refetchInterval: 30_000, staleTime: 20_000 });
 
   const uploads = useMemo<UploadEntry[]>(() => {
     if (!calendarData) return [];

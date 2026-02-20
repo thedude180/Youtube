@@ -44,6 +44,9 @@ export function useSSE() {
       try {
         queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
         queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/uploads"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/clips/stats"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/clips/backlog"] });
       } catch {}
     });
 
@@ -51,6 +54,7 @@ export function useSSE() {
       try {
         queryClient.invalidateQueries({ queryKey: ["/api/streams"] });
         queryClient.invalidateQueries({ queryKey: ["/api/youtube/live-status"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/stream-destinations"] });
       } catch {}
     });
 
@@ -58,6 +62,38 @@ export function useSSE() {
       try {
         queryClient.invalidateQueries({ queryKey: ["/api/backlog/status"] });
         queryClient.invalidateQueries({ queryKey: ["/api/pipeline"] });
+      } catch {}
+    });
+
+    es.addEventListener("autopilot-update", (e) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/autopilot/calendar-feed"] });
+      } catch {}
+    });
+
+    es.addEventListener("autopilot", (e) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+      } catch {}
+    });
+
+    es.addEventListener("pipeline-update", (e) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ["/api/stream-pipeline"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/production/kanban"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/clips/pipeline-status"] });
+      } catch {}
+    });
+
+    es.addEventListener("platform-update", (e) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/oauth/status"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/analytics/cross-platform"] });
       } catch {}
     });
 

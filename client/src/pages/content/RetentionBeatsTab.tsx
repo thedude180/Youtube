@@ -433,10 +433,14 @@ function RetentionBeatsTab() {
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const { data: sources } = useQuery<SourcesData>({
     queryKey: ["/api/retention-beats/sources"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const filtered = (beats || []).filter(b => {

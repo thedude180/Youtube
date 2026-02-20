@@ -236,6 +236,8 @@ export default function PipelineTab() {
 
   const { data: items = [], isLoading, error } = useQuery<KanbanItem[]>({
     queryKey: ["/api/production/kanban"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   const moveMutation = useMutation({

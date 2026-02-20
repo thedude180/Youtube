@@ -18,6 +18,8 @@ export function useVideos(filters?: { status?: string; type?: string }) {
       if (!res.ok) throw new Error("Failed to fetch videos");
       return res.json();
     },
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 }
 

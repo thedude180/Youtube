@@ -245,6 +245,8 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
 export default function ChannelGrowthTimeline() {
   const { data, isLoading } = useQuery<{ channels: ChannelData[] }>({
     queryKey: ["/api/growth/channels"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const channelsList = useMemo(() => safeArray(data?.channels) as ChannelData[], [data]);
