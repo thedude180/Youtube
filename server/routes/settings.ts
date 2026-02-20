@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
 import { db } from "../db";
-import { eq, and, inArray } from "drizzle-orm";
-import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos } from "@shared/schema";
-import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId } from "./helpers";
+import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
+import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities } from "@shared/schema";
+import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler } from "./helpers";
 import {
   runStyleScan,
   recordFeedback,
@@ -821,4 +821,52 @@ export function registerSettingsRoutes(app: Express) {
       res.status(500).json({ message: "Failed to mark step complete" });
     }
   });
+
+  app.get("/api/agents/status", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentActivities = await db
+      .select({
+        agentId: aiAgentActivities.agentId,
+        lastRun: sql<string>`max(${aiAgentActivities.createdAt})`,
+        count: sql<number>`count(*)`,
+      })
+      .from(aiAgentActivities)
+      .where(and(eq(aiAgentActivities.userId, userId), gte(aiAgentActivities.createdAt, oneDayAgo)))
+      .groupBy(aiAgentActivities.agentId);
+
+    const activityMap = new Map(recentActivities.map(a => [a.agentId, a]));
+
+    const statuses = AI_AGENTS.map(agent => {
+      const recent = activityMap.get(agent.id);
+      let status: "active" | "idle" | "error" = "idle";
+      if (recent) {
+        const lastRunTime = new Date(recent.lastRun).getTime();
+        const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
+        status = lastRunTime > sixHoursAgo ? "active" : "idle";
+      }
+      return {
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        icon: agent.icon,
+        status,
+        lastRun: recent?.lastRun || null,
+        tasksToday: recent?.count || 0,
+      };
+    });
+
+    res.json(statuses);
+  }));
+
+  app.get("/api/agents/activities", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const activities = await storage.getAgentActivities(userId, undefined, limit);
+    res.json(activities);
+  }));
 }

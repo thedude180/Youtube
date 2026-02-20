@@ -441,8 +441,15 @@ export async function initAutomationEngine() {
     }
   });
 
-  const cronTrackedBroadcasts = new Map<string, { streamId: number; broadcastId: string; missCount: number }>();
+  const cronTrackedBroadcasts = new Map<string, { streamId: number; broadcastId: string; missCount: number; trackedAt: number }>();
   let liveDetectionRunning = false;
+
+  setInterval(() => {
+    const cutoff = Date.now() - 12 * 60 * 60 * 1000;
+    for (const [userId, entry] of cronTrackedBroadcasts) {
+      if (entry.trackedAt < cutoff) cronTrackedBroadcasts.delete(userId);
+    }
+  }, 30 * 60 * 1000);
 
   cron.schedule("*/2 * * * *", async () => {
     if (liveDetectionRunning) return;
@@ -468,7 +475,7 @@ export async function initAutomationEngine() {
           const tracked = cronTrackedBroadcasts.get(userId);
 
           if (!tracked && existingLive && broadcasts.length > 0) {
-            cronTrackedBroadcasts.set(userId, { streamId: existingLive.id, broadcastId: broadcasts[0].broadcastId, missCount: 0 });
+            cronTrackedBroadcasts.set(userId, { streamId: existingLive.id, broadcastId: broadcasts[0].broadcastId, missCount: 0, trackedAt: Date.now() });
             console.log(`[AutomationEngine] Reconciled tracked broadcast for ${userId}: stream ${existingLive.id} (server restart recovery)`);
           }
 
@@ -490,7 +497,7 @@ export async function initAutomationEngine() {
               startedAt: broadcast.startedAt ? new Date(broadcast.startedAt) : new Date(),
             });
 
-            cronTrackedBroadcasts.set(userId, { streamId: stream.id, broadcastId: broadcast.broadcastId, missCount: 0 });
+            cronTrackedBroadcasts.set(userId, { streamId: stream.id, broadcastId: broadcast.broadcastId, missCount: 0, trackedAt: Date.now() });
 
             pauseForLive(userId, stream.id);
             pivotToStream(userId, stream.id).catch(() => {});

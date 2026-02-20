@@ -54,6 +54,16 @@ const STREAM_SUPPORT_AGENTS = [
 
 const sessions = new Map<string, BacklogSession>();
 
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, session] of sessions) {
+    if (now - session.lastActivityAt.getTime() > SESSION_TTL_MS) {
+      sessions.delete(userId);
+    }
+  }
+}, 10 * 60 * 1000);
+
 export function getBacklogSession(userId: string): BacklogSession | null {
   return sessions.get(userId) || null;
 }

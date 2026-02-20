@@ -132,7 +132,7 @@ export default function Dashboard() {
           setAiActions(data);
           sessionStorage.setItem("aiDashboardActions", JSON.stringify({ data, ts: Date.now() }));
         })
-        .catch(() => {})
+        .catch((err) => { console.warn("[Dashboard] AI actions fetch failed:", err?.message || err); })
         .finally(() => setAiActionsLoading(false));
     }
   }, [user]);
