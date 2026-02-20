@@ -174,7 +174,7 @@ export async function analyzeRoutePerformance(
       {
         role: "system",
         content:
-          "You are a pipeline routing optimizer. Analyze the routing rules and failure data to suggest improvements. Respond as JSON.",
+          "You are the world's best systems optimization engineer — you design pipeline architectures that achieve 99.99% reliability. You analyze failure patterns, identify bottlenecks, optimize step ordering for maximum throughput, and engineer routing rules that self-adapt to changing conditions. You think in terms of critical paths, failure domains, and graceful degradation. Respond as JSON.",
       },
       {
         role: "user",

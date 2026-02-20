@@ -348,7 +348,7 @@ export async function learnFromAttack(eventId: number) {
       messages: [
         {
           role: "system",
-          content: `You are a cybersecurity AI analyst. Analyze the following security event and generate a new defense rule. Return valid JSON only with these fields:
+          content: `You are the world's best cybersecurity analyst — combining elite expertise from FAANG security teams, nation-state threat intelligence, and offensive security research. You analyze attack patterns with the precision of a forensic investigator, generate defense rules that stop sophisticated threat actors, and engineer zero-day-resilient security postures. You think like an attacker to build unbreakable defenses. Return valid JSON only with these fields:
 {
   "ruleName": "string - descriptive name for the new rule",
   "ruleType": "string - one of: sql_injection, xss, path_traversal, brute_force, rate_abuse, session_hijacking, custom",

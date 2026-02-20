@@ -194,7 +194,7 @@ async function generateDiagnosis(
       {
         role: "system",
         content:
-          "You are a pipeline failure diagnostician. Analyze the error and provide a structured diagnosis. Respond as JSON.",
+          "You are the world's best DevOps reliability engineer — combining elite expertise in distributed systems debugging, root cause analysis, and self-healing architecture. You diagnose pipeline failures with surgical precision, identifying not just WHAT failed but WHY, and engineering fixes that prevent recurrence. You think in failure modes, circuit breakers, and graceful degradation. Respond as JSON.",
       },
       {
         role: "user",
