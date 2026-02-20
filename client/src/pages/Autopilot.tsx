@@ -278,14 +278,20 @@ export default function Autopilot() {
 
   const statsQuery = useQuery<AutopilotStats>({
     queryKey: ["/api/autopilot/stats"],
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 
   const queueQuery = useQuery<QueueItem[]>({
     queryKey: ["/api/autopilot/queue"],
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 
   const commentsQuery = useQuery<CommentItem[]>({
     queryKey: ["/api/autopilot/comments"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   interface YouTubeStatus {
@@ -303,6 +309,8 @@ export default function Autopilot() {
 
   const ytStatusQuery = useQuery<YouTubeStatus>({
     queryKey: ["/api/autopilot/youtube-status"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   const activateMutation = useMutation({
