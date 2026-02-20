@@ -505,8 +505,9 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) }));
       import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) }));
       import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) }));
+      import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) }));
 
-      log("All 10 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot");
+      log("All 11 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot, Retention Beats");
     },
   );
 

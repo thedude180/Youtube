@@ -690,6 +690,40 @@ export const learningInsights = pgTable("learning_insights", {
   userIdIdx: index("learning_insights_user_id_idx").on(table.userId),
 }));
 
+export const retentionBeats = pgTable("retention_beats", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  sourceCreator: text("source_creator").notNull(),
+  beatType: text("beat_type").notNull(),
+  timestampMarker: text("timestamp_marker"),
+  technique: text("technique").notNull(),
+  description: text("description").notNull(),
+  psychologyPrinciple: text("psychology_principle"),
+  retentionImpact: real("retention_impact").default(0),
+  confidence: real("confidence").default(0.5),
+  niche: text("niche"),
+  videoStyle: text("video_style"),
+  data: jsonb("data").$type<{
+    examples: string[];
+    counterExamples?: string[];
+    timingRules?: string;
+    emotionalArc?: string;
+    audienceReaction?: string;
+    platformOptimal?: string[];
+    combinedWith?: string[];
+    avoidWith?: string[];
+  }>(),
+  isGlobal: boolean("is_global").default(true),
+  sampleSize: integer("sample_size").default(0),
+  lastRefreshed: timestamp("last_refreshed").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("retention_beats_user_id_idx").on(table.userId),
+  sourceCreatorIdx: index("retention_beats_source_creator_idx").on(table.sourceCreator),
+  beatTypeIdx: index("retention_beats_beat_type_idx").on(table.beatType),
+}));
+
 export const contentIdeas = pgTable("content_ideas", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -1798,6 +1832,7 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
 export const insertAbTestSchema = createInsertSchema(abTests).omit({ id: true, createdAt: true });
 export const insertAnalyticsSnapshotSchema = createInsertSchema(analyticsSnapshots).omit({ id: true, createdAt: true });
 export const insertLearningInsightSchema = createInsertSchema(learningInsights).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRetentionBeatSchema = createInsertSchema(retentionBeats).omit({ id: true, createdAt: true, updatedAt: true, lastRefreshed: true });
 export const insertContentIdeaSchema = createInsertSchema(contentIdeas).omit({ id: true, createdAt: true });
 export const insertCreatorMemorySchema = createInsertSchema(creatorMemory).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertContentClipSchema = createInsertSchema(contentClips).omit({ id: true, createdAt: true });
@@ -1879,6 +1914,8 @@ export type Notification = typeof notifications.$inferSelect;
 export type AbTest = typeof abTests.$inferSelect;
 export type AnalyticsSnapshot = typeof analyticsSnapshots.$inferSelect;
 export type LearningInsight = typeof learningInsights.$inferSelect;
+export type RetentionBeat = typeof retentionBeats.$inferSelect;
+export type InsertRetentionBeat = z.infer<typeof insertRetentionBeatSchema>;
 export type ContentIdea = typeof contentIdeas.$inferSelect;
 export type CreatorMemoryEntry = typeof creatorMemory.$inferSelect;
 export type ContentClip = typeof contentClips.$inferSelect;
@@ -2665,6 +2702,7 @@ export const LIVE_PIPELINE_STEPS = [
   { id: "thumbnail", label: "Thumbnail Ideas", description: "AI thumbnail concepts for replay/clips", phase: "content_ops" },
   { id: "thumb_ab", label: "Thumbnail A/B", description: "A/B test thumbnail variations", phase: "content_ops" },
   { id: "retention_hooks", label: "Retention Hooks", description: "Insert re-engagement hooks at predicted drop-off points", phase: "content_ops" },
+  { id: "retention_beats_scan", label: "Retention Beats", description: "Apply learned retention patterns from MrBeast & Fat Electrician — hooks, payoffs, curiosity loops", phase: "content_ops" },
   { id: "pattern_interrupts", label: "Pattern Interrupts", description: "Plan visual/audio/pacing changes to reset viewer attention", phase: "content_ops" },
   { id: "engagement_inserts", label: "Engage Inserts", description: "On-screen polls, questions, teasers, CTAs at key moments", phase: "content_ops" },
   { id: "pacing_optimizer", label: "Pacing Optimizer", description: "Analyze & restructure pacing for maximum watch-through", phase: "content_ops" },
@@ -2728,6 +2766,7 @@ export const VOD_PIPELINE_STEPS = [
   { id: "thumbnail", label: "Thumbnail Ideas", description: "AI thumbnail concepts", phase: "content_ops" },
   { id: "thumb_ab", label: "Thumbnail A/B", description: "A/B test thumbnail variations", phase: "content_ops" },
   { id: "retention_hooks", label: "Retention Hooks", description: "Insert re-engagement hooks at predicted drop-off points", phase: "content_ops" },
+  { id: "retention_beats_scan", label: "Retention Beats", description: "Apply learned retention patterns from MrBeast & Fat Electrician — hooks, payoffs, curiosity loops", phase: "content_ops" },
   { id: "pattern_interrupts", label: "Pattern Interrupts", description: "Plan visual/audio/pacing changes to reset viewer attention", phase: "content_ops" },
   { id: "engagement_inserts", label: "Engage Inserts", description: "On-screen polls, questions, teasers, CTAs at key moments", phase: "content_ops" },
   { id: "pacing_optimizer", label: "Pacing Optimizer", description: "Analyze & restructure pacing for maximum watch-through", phase: "content_ops" },
