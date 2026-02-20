@@ -86,9 +86,9 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [belowFoldRef] = useLazyVisible("400px");
   const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
-  const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'] });
-  const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'] });
-  const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
+  const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 30_000, staleTime: 20_000 });
 
   const [dateRange, setDateRange] = useState(30);
   const [aiActions, setAiActions] = useState<AIResponse>(null);

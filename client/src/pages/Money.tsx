@@ -100,7 +100,7 @@ export default function Money() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
 
-  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'] });
+  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'], refetchInterval: 60_000, staleTime: 30_000 });
   const payments = safeArray(rawPayments);
 
   const createPaymentMutation = useMutation({

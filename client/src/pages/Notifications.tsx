@@ -52,7 +52,7 @@ const severityColor = (severity: string) => {
 export default function Notifications() {
   usePageTitle("Notifications");
   const [filter, setFilter] = useState<FilterType>("all");
-  const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'] });
+  const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 15_000, staleTime: 10_000 });
   const notifications = safeArray(rawNotifications);
 
   const markReadMutation = useMutation({

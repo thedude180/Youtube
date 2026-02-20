@@ -188,6 +188,8 @@ function PipelineList({ pipelineType }: { pipelineType: "live" | "vod" }) {
 
   const { data: rawAllPipelines, isLoading, error } = useQuery<StreamPipelineRecord[]>({
     queryKey: ['/api/stream-pipeline'],
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
   const allPipelines = safeArray(rawAllPipelines);
 
@@ -522,6 +524,8 @@ function VodCutsTab() {
 
   const { data: rawCuts, isLoading: cutsLoading } = useQuery<VodCut[]>({
     queryKey: ['/api/vod-cuts'],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
   const cuts = safeArray(rawCuts);
 
@@ -697,11 +701,11 @@ function CutCard({ cut, onStatus, onEdit, editingCut, editTitle, setEditTitle, o
 function LengthLabTab() {
   const { toast } = useToast();
 
-  const { data: rawExperiments, isLoading: expLoading } = useQuery<LengthExperiment[]>({ queryKey: ['/api/length-experiments'] });
+  const { data: rawExperiments, isLoading: expLoading } = useQuery<LengthExperiment[]>({ queryKey: ['/api/length-experiments'], refetchInterval: 30_000, staleTime: 20_000 });
   const experiments = safeArray(rawExperiments);
-  const { data: rawPreferences, isLoading: prefLoading } = useQuery<AudienceLengthPreference[]>({ queryKey: ['/api/length-preferences'] });
+  const { data: rawPreferences, isLoading: prefLoading } = useQuery<AudienceLengthPreference[]>({ queryKey: ['/api/length-preferences'], refetchInterval: 30_000, staleTime: 20_000 });
   const preferences = safeArray(rawPreferences);
-  const { data: insights, isLoading: insightsLoading } = useQuery<any>({ queryKey: ['/api/length-experiments', 'insights'] });
+  const { data: insights, isLoading: insightsLoading } = useQuery<any>({ queryKey: ['/api/length-experiments', 'insights'], refetchInterval: 60_000, staleTime: 30_000 });
 
   const analyzeMutation = useMutation({
     mutationFn: async (id: number) => { const res = await apiRequest("POST", `/api/length-experiments/${id}/analyze`, {}); return res.json(); },

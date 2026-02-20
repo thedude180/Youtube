@@ -37,13 +37,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
 const navLinks = [
-  { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free" },
-  { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free" },
-  { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube" },
-  { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro" },
-  { href: "/community", labelKey: "Community", icon: Users, minTier: "starter" },
-  { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free" },
-  { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free" },
+  { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free", advancedOnly: false },
+  { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free", advancedOnly: false },
+  { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
+  { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
+  { href: "/community", labelKey: "Community", icon: Users, minTier: "starter", advancedOnly: true },
+  { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free", advancedOnly: true },
+  { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free", advancedOnly: false },
 ];
 
 const TIER_BADGE_LABELS: Record<string, string> = {
@@ -102,7 +102,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navLinks.map((link) => {
+              {navLinks.filter(link => !link.advancedOnly || isAdvanced).map((link) => {
                 const Icon = link.icon;
                 const active = isActive(link.href);
                 const label = t(link.labelKey);

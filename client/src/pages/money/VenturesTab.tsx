@@ -31,7 +31,7 @@ export default function VenturesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
 
-  const { data: rawVentures, isLoading, error } = useQuery<any[]>({ queryKey: ['/api/ventures'] });
+  const { data: rawVentures, isLoading, error } = useQuery<any[]>({ queryKey: ['/api/ventures'], refetchInterval: 30_000, staleTime: 20_000 });
   const ventures = safeArray(rawVentures);
 
   const createMutation = useMutation({

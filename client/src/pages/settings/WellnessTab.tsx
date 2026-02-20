@@ -333,7 +333,7 @@ function WellnessTab() {
     ));
   };
 
-  const { data: checks, isLoading } = useQuery<any[]>({ queryKey: ['/api/wellness'] });
+  const { data: checks, isLoading } = useQuery<any[]>({ queryKey: ['/api/wellness'], refetchInterval: 30_000, staleTime: 20_000 });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {

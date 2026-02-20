@@ -75,7 +75,7 @@ function BrandTab() {
       .finally(() => setAiBrandLoading(false));
   }, [aiToolsOpen]);
 
-  const { data: rawAssets, isLoading } = useQuery<any[]>({ queryKey: ['/api/brand-assets'] });
+  const { data: rawAssets, isLoading } = useQuery<any[]>({ queryKey: ['/api/brand-assets'], refetchInterval: 30_000, staleTime: 20_000 });
   const assets = safeArray(rawAssets);
 
   const createMutation = useMutation({

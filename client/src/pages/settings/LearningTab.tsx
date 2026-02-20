@@ -121,7 +121,7 @@ function LearningTab() {
     ));
   };
 
-  const { data: rawInsights, isLoading } = useQuery<any[]>({ queryKey: ['/api/learning-insights'] });
+  const { data: rawInsights, isLoading } = useQuery<any[]>({ queryKey: ['/api/learning-insights'], refetchInterval: 30_000, staleTime: 20_000 });
   const insights = safeArray(rawInsights);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 

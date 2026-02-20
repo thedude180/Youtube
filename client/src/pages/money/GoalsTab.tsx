@@ -50,7 +50,7 @@ export default function GoalsTab() {
   const [category, setCategory] = useState("Revenue");
   const [unit, setUnit] = useState("USD");
 
-  const { data: rawGoals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/goals"] });
+  const { data: rawGoals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/goals"], refetchInterval: 30_000, staleTime: 20_000 });
   const goals = safeArray(rawGoals);
 
   const createMutation = useMutation({

@@ -20,7 +20,7 @@ export default function ContentPredictions() {
   const [description, setDescription] = useState("");
   const [platform, setPlatform] = useState("youtube");
 
-  const { data: rawPredictions, isLoading } = useQuery<any[]>({ queryKey: ["/api/predictions"] });
+  const { data: rawPredictions, isLoading } = useQuery<any[]>({ queryKey: ["/api/predictions"], refetchInterval: 30_000, staleTime: 20_000 });
   const predictions = safeArray(rawPredictions);
 
   const predictMutation = useMutation({

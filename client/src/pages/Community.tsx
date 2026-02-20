@@ -103,6 +103,8 @@ function GiveawaysTab() {
 
   const { data, isLoading, error } = useQuery<Giveaway[]>({
     queryKey: ["/api/community/giveaways"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   const createMutation = useMutation({
@@ -276,6 +278,8 @@ function PollsTab() {
 
   const { data, isLoading, error } = useQuery<Poll[]>({
     queryKey: ["/api/community/polls"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   const createMutation = useMutation({
@@ -430,6 +434,8 @@ function ChallengesTab() {
 
   const { data, isLoading, error } = useQuery<Challenge[]>({
     queryKey: ["/api/community/challenges"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   const createMutation = useMutation({
@@ -577,6 +583,8 @@ function LoyaltyTab() {
 
   const { data, isLoading, error } = useQuery<LoyaltyMember[]>({
     queryKey: ["/api/community/loyalty"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   const awardMutation = useMutation({
@@ -690,6 +698,8 @@ function ModerationTab() {
 
   const { data, isLoading, error } = useQuery<ModerationAction[]>({
     queryKey: ["/api/community/moderation"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   const createMutation = useMutation({
