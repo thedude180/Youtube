@@ -35,6 +35,8 @@ export default function GettingStartedChecklist() {
   const { data, isLoading } = useQuery<ChecklistResponse>({
     queryKey: ['/api/onboarding/checklist'],
     enabled: !dismissed,
+    refetchInterval: 20_000,
+    staleTime: 15_000,
   });
 
   if (dismissed || isLoading || !data) return null;
