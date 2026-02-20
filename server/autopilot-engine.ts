@@ -870,6 +870,19 @@ export async function getAutopilotStats(userId: string) {
     .from(autopilotQueue)
     .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "published"), eq(autopilotQueue.verificationStatus, "pending")));
 
+  const [failedCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")));
+
+  const [processingCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      sql`${autopilotQueue.status} IN ('publishing', 'processing', 'generating', 'queued')`
+    ));
+
   const [commentCount] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(commentResponses)
@@ -905,6 +918,8 @@ export async function getAutopilotStats(userId: string) {
     totalPosts: queueItems?.count || 0,
     scheduledPosts: scheduledCount?.count || 0,
     publishedPosts: publishedCount?.count || 0,
+    failedPosts: failedCount?.count || 0,
+    processingPosts: processingCount?.count || 0,
     verifiedPosts: verifiedCount?.count || 0,
     verificationFailed: verificationFailedCount?.count || 0,
     verificationPending: verificationPendingCount?.count || 0,

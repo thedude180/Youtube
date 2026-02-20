@@ -68,6 +68,8 @@ interface AutopilotStats {
   totalPosts: number;
   scheduledPosts: number;
   publishedPosts: number;
+  failedPosts: number;
+  processingPosts: number;
   verifiedPosts: number;
   verificationFailed: number;
   verificationPending: number;
@@ -85,6 +87,10 @@ interface QueueItem {
   content: string;
   caption: string;
   status: string;
+  sourceVideoId: number | null;
+  sourceVideoTitle: string | null;
+  sourceVideoPlatform: string | null;
+  errorMessage: string | null;
   verificationStatus: string | null;
   verifiedAt: string | null;
   scheduledAt: string | null;
@@ -177,6 +183,11 @@ function StatusIcon({ status }: { status: string }) {
       return <CheckCircle2 className="h-4 w-4 text-green-500" />;
     case "scheduled":
       return <Clock className="h-4 w-4 text-blue-500" />;
+    case "publishing":
+    case "processing":
+    case "generating":
+    case "queued":
+      return <RefreshCw className="h-4 w-4 text-purple-400 animate-spin" />;
     case "failed":
       return <AlertCircle className="h-4 w-4 text-red-500" />;
     case "approved":
@@ -188,6 +199,24 @@ function StatusIcon({ status }: { status: string }) {
     default:
       return <Activity className="h-4 w-4 text-muted-foreground" />;
   }
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case "published": return "Published";
+    case "scheduled": return "Scheduled";
+    case "publishing": return "Publishing...";
+    case "processing": return "Processing...";
+    case "generating": return "Generating...";
+    case "queued": return "Queued";
+    case "failed": return "Failed";
+    case "pending": return "Pending";
+    default: return status;
+  }
+}
+
+function isProcessingStatus(status: string) {
+  return ["publishing", "processing", "generating", "queued"].includes(status);
 }
 
 function typeLabel(type: string) {
@@ -370,6 +399,10 @@ export default function Autopilot() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      toast({ title: "Item deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Delete failed", description: err?.message || "Could not delete item. Try again.", variant: "destructive" });
     },
   });
 
@@ -419,6 +452,9 @@ export default function Autopilot() {
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
       setSelectedQueueIds(new Set());
       toast({ title: "Selected items deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Delete failed", description: err?.message || "Could not delete items. Try again.", variant: "destructive" });
     },
   });
 
@@ -514,7 +550,7 @@ export default function Autopilot() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4" aria-live="polite">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" aria-live="polite">
         <Card className="gradient-border">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-1">
@@ -523,6 +559,16 @@ export default function Autopilot() {
             </div>
             <AnimatedCounter value={stats?.scheduledPosts || 0} className="text-2xl font-bold" data-testid="text-scheduled-posts" />
             <p className="text-xs text-muted-foreground mt-0.5">Scheduled</p>
+          </CardContent>
+        </Card>
+        <Card className="gradient-border">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <RefreshCw className="h-4 w-4 text-purple-400" />
+              {(stats?.processingPosts || 0) > 0 && <PulseOrb status="active" size="sm" />}
+            </div>
+            <AnimatedCounter value={stats?.processingPosts || 0} className="text-2xl font-bold" data-testid="text-processing-posts" />
+            <p className="text-xs text-muted-foreground mt-0.5">Processing</p>
           </CardContent>
         </Card>
         <Card className="gradient-border">
@@ -539,6 +585,16 @@ export default function Autopilot() {
                 <span className="text-xs text-green-400">{stats?.verifiedPosts} verified</span>
               </div>
             )}
+          </CardContent>
+        </Card>
+        <Card className="gradient-border">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              {(stats?.failedPosts || 0) > 0 && <PulseOrb status="warning" size="sm" />}
+            </div>
+            <AnimatedCounter value={stats?.failedPosts || 0} className="text-2xl font-bold" data-testid="text-failed-posts" />
+            <p className="text-xs text-muted-foreground mt-0.5">Failed</p>
             {(stats?.verificationFailed || 0) > 0 && (
               <div className="flex items-center gap-1 mt-0.5" data-testid="text-verification-failed">
                 <AlertTriangle className="h-3 w-3 text-red-400" />
@@ -554,16 +610,12 @@ export default function Autopilot() {
             </div>
             <AnimatedCounter value={stats?.totalCommentResponses || 0} className="text-2xl font-bold" data-testid="text-total-comments" />
             <p className="text-xs text-muted-foreground mt-0.5">AI Replies</p>
-          </CardContent>
-        </Card>
-        <Card className="gradient-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-1">
-              <Clock className="h-4 w-4 text-yellow-500" />
-              {(stats?.pendingCommentApprovals || 0) > 0 && <PulseOrb status="warning" size="sm" />}
-            </div>
-            <AnimatedCounter value={stats?.pendingCommentApprovals || 0} className="text-2xl font-bold" data-testid="text-pending-approvals" />
-            <p className="text-xs text-muted-foreground mt-0.5">Pending Review</p>
+            {(stats?.pendingCommentApprovals || 0) > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                <Clock className="h-3 w-3 text-yellow-400" />
+                <span className="text-xs text-yellow-400">{stats?.pendingCommentApprovals} pending</span>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className="gradient-border">
@@ -814,6 +866,9 @@ export default function Autopilot() {
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <StatusIcon status={item.status} />
+                          <Badge variant={item.status === "failed" ? "destructive" : isProcessingStatus(item.status) ? "default" : "outline"}>
+                            {statusLabel(item.status)}
+                          </Badge>
                           <Badge variant="outline">{typeLabel(item.type)}</Badge>
                           <PlatformBadge platform={item.targetPlatform} />
                           {item.scheduledAt && item.status === "scheduled" && new Date(item.scheduledAt) > new Date() ? (
@@ -829,6 +884,12 @@ export default function Autopilot() {
                             />
                           ) : null}
                         </div>
+                        {item.sourceVideoTitle && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid={`text-source-video-${item.id}`}>
+                            <Youtube className="h-3 w-3 text-red-400 shrink-0" />
+                            <span className="truncate">From: {item.sourceVideoTitle}</span>
+                          </div>
+                        )}
                         <div className="flex items-start gap-1 group">
                           <p className="text-sm break-words flex-1">{item.content}</p>
                           <CopyButton
@@ -837,6 +898,12 @@ export default function Autopilot() {
                             data-testid={`button-copy-queue-${item.id}`}
                           />
                         </div>
+                        {item.errorMessage && (
+                          <div className="flex items-start gap-1.5 text-xs text-red-400 bg-red-500/10 rounded-md px-2 py-1.5" data-testid={`text-error-${item.id}`}>
+                            <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+                            <span>{item.errorMessage}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 flex-wrap">
                           {item.metadata?.humanScore != null && (
                             <Badge variant="secondary" className="text-xs">

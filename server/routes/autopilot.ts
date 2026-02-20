@@ -59,14 +59,33 @@ export function registerAutopilotRoutes(app: Express) {
     if (!userId) return;
     try {
       const status = req.query.status as string;
-      let query = db.select().from(autopilotQueue)
+      const items = await db.select({
+        id: autopilotQueue.id,
+        userId: autopilotQueue.userId,
+        sourceVideoId: autopilotQueue.sourceVideoId,
+        type: autopilotQueue.type,
+        targetPlatform: autopilotQueue.targetPlatform,
+        content: autopilotQueue.content,
+        caption: autopilotQueue.caption,
+        status: autopilotQueue.status,
+        scheduledAt: autopilotQueue.scheduledAt,
+        publishedAt: autopilotQueue.publishedAt,
+        verificationStatus: autopilotQueue.verificationStatus,
+        verifiedAt: autopilotQueue.verifiedAt,
+        metadata: autopilotQueue.metadata,
+        errorMessage: autopilotQueue.errorMessage,
+        createdAt: autopilotQueue.createdAt,
+        sourceVideoTitle: videos.title,
+        sourceVideoPlatform: videos.platform,
+      }).from(autopilotQueue)
+        .leftJoin(videos, eq(autopilotQueue.sourceVideoId, videos.id))
         .where(eq(autopilotQueue.userId, userId))
         .orderBy(desc(autopilotQueue.createdAt))
         .limit(100);
-      const items = await query;
       const filtered = status ? items.filter(i => i.status === status) : items;
       res.json(filtered);
     } catch (err) {
+      console.error("[Autopilot] Queue fetch error:", err);
       res.status(500).json({ error: "Failed to fetch queue" });
     }
   });
