@@ -103,7 +103,8 @@ async function recordFailure(sub: SubsystemHealth, error: Error): Promise<void> 
 
   if (sub.consecutiveFailures >= sub.circuitBreakerOpensAt) {
     sub.circuitBreakerOpen = true;
-    const cooldownMs = CIRCUIT_BREAKER_COOLDOWN_MS * Math.min(sub.consecutiveFailures / CIRCUIT_BREAKER_THRESHOLD, 4);
+    const exponent = Math.min(Math.floor(sub.consecutiveFailures / CIRCUIT_BREAKER_THRESHOLD) - 1, 3);
+    const cooldownMs = CIRCUIT_BREAKER_COOLDOWN_MS * Math.pow(2, Math.max(0, exponent));
     sub.cooldownUntil = new Date(Date.now() + cooldownMs);
     sub.status = "failed";
     console.log(`[SelfHealing] 🔴 Circuit breaker OPEN for "${sub.name}" — cooldown ${Math.round(cooldownMs / 1000)}s (${sub.consecutiveFailures} consecutive failures)`);
