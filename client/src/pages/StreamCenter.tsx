@@ -736,7 +736,7 @@ export default function StreamCenter() {
                   <Select value={newDest.platform} onValueChange={(val) => setNewDest(prev => ({ ...prev, platform: val, rtmpUrl: PLATFORM_INFO[val as Platform]?.rtmpUrlTemplate || "" }))}>
                     <SelectTrigger data-testid="select-dest-platform"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {PLATFORMS.map(p => (
+                      {PLATFORMS.filter(p => PLATFORM_INFO[p].rtmpUrlTemplate !== "").map(p => (
                         <SelectItem key={p} value={p}>{PLATFORM_INFO[p].label}</SelectItem>
                       ))}
                     </SelectContent>

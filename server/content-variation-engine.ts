@@ -102,7 +102,11 @@ const PLATFORM_VOICE: Record<string, string> = {
 - 1-2 hashtags max, or none
 - Thread hooks work great for gaming content
 - React to your own content like you're a viewer
-- Sound like you're tweeting from your couch`,
+- Sound like you're tweeting from your couch
+- STREAM ANNOUNCEMENTS: Hype up upcoming/active livestreams with urgency ("LIVE NOW", "Going live in 10")
+- TRAFFIC DRIVING: Resurface older videos with fresh angles ("Still one of my best clips", "This aged well", "Y'all slept on this one")
+- Mix new content posts with throwback/catalog posts to keep all content active
+- Use quote tweets and reply threads to link older videos naturally`,
 
   discord: `PLATFORM: Discord
 - Talking to your community, your people
