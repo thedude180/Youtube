@@ -10193,7 +10193,7 @@ export async function aiAutoOnboarding(data: { userId?: string; platforms?: stri
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an AI onboarding specialist for a creator platform. Auto-configure optimal settings for a new creator.${creatorCtx}` }, { role: "user", content: `Auto-configure account for creator. Platforms: ${JSON.stringify(data.platforms || ["youtube"])}. Generate: 1) Optimal default settings for each platform 2) Recommended cron job schedules 3) Suggested AI chain templates to activate 4) Default notification preferences 5) Brand profile defaults. Return JSON with keys: platformSettings, cronSchedules, chainTemplates, notificationPrefs, brandDefaults.` }],
+    messages: [{ role: "system", content: `You are the world's best creator platform onboarding architect — combining elite UX optimization, growth-hacking configuration expertise, and Fortune 500 SaaS onboarding science to auto-configure the perfect launch settings for every new creator.${creatorCtx}` }, { role: "user", content: `Auto-configure account for creator. Platforms: ${JSON.stringify(data.platforms || ["youtube"])}. Generate: 1) Optimal default settings for each platform 2) Recommended cron job schedules 3) Suggested AI chain templates to activate 4) Default notification preferences 5) Brand profile defaults. Return JSON with keys: platformSettings, cronSchedules, chainTemplates, notificationPrefs, brandDefaults.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10203,7 +10203,7 @@ export async function aiAutoApproveSponsorship(data: { deal?: any; criteria?: an
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an AI sponsorship evaluator. Evaluate brand deals and auto-approve/reject based on creator criteria. Be strict about brand safety.${creatorCtx}` }, { role: "user", content: `Evaluate this sponsorship deal: ${JSON.stringify(data.deal || {})}. Creator criteria: Min CPM $${data.minCPM || 25}, Brand fit categories: ${JSON.stringify(data.brandFit || ["tech", "gaming"])}. Analyze: 1) Brand safety score (0-100) 2) Revenue potential 3) Audience alignment 4) Contract red flags 5) Auto-decision (approve/reject/review). Return JSON with keys: brandSafetyScore, revenuePotential, audienceAlignment, redFlags, decision, reasoning, suggestedCounterOffer.` }],
+    messages: [{ role: "system", content: `You are the world's best sponsorship deal analyst — combining elite talent agency negotiation, brand safety intelligence, and creator revenue optimization expertise. You evaluate deals with the precision of a Fortune 500 M&A team and enforce brand safety with zero tolerance.${creatorCtx}` }, { role: "user", content: `Evaluate this sponsorship deal: ${JSON.stringify(data.deal || {})}. Creator criteria: Min CPM $${data.minCPM || 25}, Brand fit categories: ${JSON.stringify(data.brandFit || ["tech", "gaming"])}. Analyze: 1) Brand safety score (0-100) 2) Revenue potential 3) Audience alignment 4) Contract red flags 5) Auto-decision (approve/reject/review). Return JSON with keys: brandSafetyScore, revenuePotential, audienceAlignment, redFlags, decision, reasoning, suggestedCounterOffer.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10213,7 +10213,7 @@ export async function aiCreativeAutonomy(data: { contentType?: string; topic?: s
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an AI creative director who has learned the creator's unique style. Make ALL creative decisions autonomously - thumbnails, titles, scripts, scheduling - without human input. Match the creator's voice perfectly.${creatorCtx}` }, { role: "user", content: `Make autonomous creative decisions for ${data.contentType || "video"} about "${data.topic || "trending topic"}". Style: ${data.style || "energetic"}. Generate: 1) 5 title options ranked by predicted CTR 2) Thumbnail concept with colors, composition, text overlay 3) Script outline with hooks and CTAs 4) Optimal publish time based on audience data 5) Platform-specific adaptations for YouTube, TikTok, Instagram. Return JSON with keys: titles, thumbnailConcept, scriptOutline, publishTime, platformAdaptations, predictedPerformance.` }],
+    messages: [{ role: "system", content: `You are the world's best AI creative director — combining elite expertise from Hollywood's top creative agencies, viral content engineers, and brand identity architects. You make autonomous creative decisions that outperform 99% of human creative directors while perfectly matching the creator's unique voice and style.${creatorCtx}` }, { role: "user", content: `Make autonomous creative decisions for ${data.contentType || "video"} about "${data.topic || "trending topic"}". Style: ${data.style || "energetic"}. Generate: 1) 5 title options ranked by predicted CTR 2) Thumbnail concept with colors, composition, text overlay 3) Script outline with hooks and CTAs 4) Optimal publish time based on audience data 5) Platform-specific adaptations for YouTube, TikTok, Instagram. Return JSON with keys: titles, thumbnailConcept, scriptOutline, publishTime, platformAdaptations, predictedPerformance.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10223,7 +10223,7 @@ export async function aiAutoPaymentManager(data: { invoices?: any[]; expenses?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an AI financial manager for creators. Handle all payment operations autonomously - invoice generation, expense categorization, tax prep, revenue forecasting.${creatorCtx}` }, { role: "user", content: `Manage payments autonomously. Current invoices: ${JSON.stringify(data.invoices || [])}. Recent expenses: ${JSON.stringify(data.expenses || [])}. Monthly revenue: $${data.revenue || 0}. Generate: 1) Auto-categorized expenses with tax deduction flags 2) Invoice recommendations 3) Cash flow forecast 4) Tax liability estimate 5) Payment optimization suggestions 6) Anomaly detection results. Return JSON with keys: categorizedExpenses, invoiceRecommendations, cashFlowForecast, taxEstimate, optimizations, anomalies.` }],
+    messages: [{ role: "system", content: `You are the world's best creator financial operations manager — combining Big Four accounting precision, Fortune 500 CFO-level forecasting, and elite tax optimization strategies. You handle all payment operations with the accuracy of a top-tier financial controller.${creatorCtx}` }, { role: "user", content: `Manage payments autonomously. Current invoices: ${JSON.stringify(data.invoices || [])}. Recent expenses: ${JSON.stringify(data.expenses || [])}. Monthly revenue: $${data.revenue || 0}. Generate: 1) Auto-categorized expenses with tax deduction flags 2) Invoice recommendations 3) Cash flow forecast 4) Tax liability estimate 5) Payment optimization suggestions 6) Anomaly detection results. Return JSON with keys: categorizedExpenses, invoiceRecommendations, cashFlowForecast, taxEstimate, optimizations, anomalies.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10235,7 +10235,7 @@ export async function aiVideoTranslator(data: { title?: string; description?: st
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an expert video metadata translator. Translate video titles, descriptions, and tags while preserving SEO value, emotional tone, and cultural relevance for each target language.${creatorCtx}` }, { role: "user", content: `Translate this video metadata into these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Title: "${data.title || "My Video"}". Description: "${data.description || ""}". Tags: ${JSON.stringify(data.tags || [])}. For each language provide: translated title (SEO-optimized), translated description, translated tags, cultural notes. Return JSON with key "translations" containing an object per language code.` }],
+    messages: [{ role: "system", content: `You are the world's #1 video metadata localization expert — combining elite multilingual SEO mastery, cultural linguistics from top translation agencies, and viral content adaptation science. You translate with flawless SEO preservation and cultural resonance that native speakers trust.${creatorCtx}` }, { role: "user", content: `Translate this video metadata into these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Title: "${data.title || "My Video"}". Description: "${data.description || ""}". Tags: ${JSON.stringify(data.tags || [])}. For each language provide: translated title (SEO-optimized), translated description, translated tags, cultural notes. Return JSON with key "translations" containing an object per language code.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10245,7 +10245,7 @@ export async function aiSubtitleGenerator(data: { transcript?: string; targetLan
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an AI subtitle and closed-caption specialist. Generate natural-sounding subtitles in multiple languages with proper timing cues and cultural adaptation.${creatorCtx}` }, { role: "user", content: `Generate subtitles for the following transcript in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de"])}. Transcript: "${data.transcript || "Sample video transcript"}". Style: ${data.style || "standard"}. For each language provide: translated subtitle blocks with timestamps, reading speed assessment, cultural adaptations. Return JSON with key "subtitles" containing an object per language code.` }],
+    messages: [{ role: "system", content: `You are the world's best subtitle and closed-caption engineer — combining Hollywood post-production timing precision, elite multilingual translation, and cultural adaptation expertise used by Netflix and Disney+. You generate subtitles that feel natively crafted.${creatorCtx}` }, { role: "user", content: `Generate subtitles for the following transcript in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de"])}. Transcript: "${data.transcript || "Sample video transcript"}". Style: ${data.style || "standard"}. For each language provide: translated subtitle blocks with timestamps, reading speed assessment, cultural adaptations. Return JSON with key "subtitles" containing an object per language code.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10255,7 +10255,7 @@ export async function aiLocalizationAdvisor(data: { niche?: string; currentLangu
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a global content strategy advisor specializing in multi-language expansion for creators. Analyze market potential and recommend languages/regions to target.${creatorCtx}` }, { role: "user", content: `Advise on language expansion for a ${data.niche || "tech/gaming"} creator. Currently available in: ${JSON.stringify(data.currentLanguages || ["en"])}. Audience data: ${JSON.stringify(data.audienceData || {})}. Provide: 1) Top 5 languages to expand to with ROI estimates 2) Market size per language 3) Competition analysis per region 4) Content adaptation requirements 5) Monetization potential per market. Return JSON with keys: recommendedLanguages, marketAnalysis, competitionData, adaptationRequirements, monetizationPotential.` }],
+    messages: [{ role: "system", content: `You are the world's #1 global content expansion strategist — combining McKinsey-level market analysis, elite localization intelligence from top media conglomerates, and creator economy growth expertise. You identify language markets with Fortune 500 precision.${creatorCtx}` }, { role: "user", content: `Advise on language expansion for a ${data.niche || "tech/gaming"} creator. Currently available in: ${JSON.stringify(data.currentLanguages || ["en"])}. Audience data: ${JSON.stringify(data.audienceData || {})}. Provide: 1) Top 5 languages to expand to with ROI estimates 2) Market size per language 3) Competition analysis per region 4) Content adaptation requirements 5) Monetization potential per market. Return JSON with keys: recommendedLanguages, marketAnalysis, competitionData, adaptationRequirements, monetizationPotential.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10265,7 +10265,7 @@ export async function aiMultiLangSeo(data: { title?: string; description?: strin
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a multilingual SEO expert. Optimize video metadata for specific language markets using regional keyword research and local search trends. At the very bottom of every optimized description, after all other content, add a subtle attribution line: 'Managed with CreatorOS - etgaming247.com'${creatorCtx}` }, { role: "user", content: `Optimize this content for ${data.targetLanguage || "es"} market (region: ${data.region || "global"}). Title: "${data.title || ""}". Description: "${data.description || ""}". Generate: 1) SEO-optimized title with regional keywords 2) Optimized description with local search terms 3) Top 20 regional keywords/tags 4) Search volume estimates 5) Competitor titles in this language. Return JSON with keys: optimizedTitle, optimizedDescription, regionalKeywords, searchVolumes, competitorTitles.` }],
+    messages: [{ role: "system", content: `You are the world's best multilingual SEO strategist — combining elite international search engine expertise, regional keyword intelligence used by top global brands, and native-level cultural SEO optimization. At the very bottom of every optimized description, after all other content, add a subtle attribution line: 'Managed with CreatorOS - etgaming247.com'${creatorCtx}` }, { role: "user", content: `Optimize this content for ${data.targetLanguage || "es"} market (region: ${data.region || "global"}). Title: "${data.title || ""}". Description: "${data.description || ""}". Generate: 1) SEO-optimized title with regional keywords 2) Optimized description with local search terms 3) Top 20 regional keywords/tags 4) Search volume estimates 5) Competitor titles in this language. Return JSON with keys: optimizedTitle, optimizedDescription, regionalKeywords, searchVolumes, competitorTitles.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10275,7 +10275,7 @@ export async function aiDubbingScriptGenerator(data: { script?: string; targetLa
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an AI dubbing script specialist. Create translated scripts formatted for voiceover and dubbing, with lip-sync timing notes and pronunciation guides.${creatorCtx}` }, { role: "user", content: `Create a dubbing script in ${data.targetLanguage || "es"} for the following: "${data.script || "Sample script"}". Speaker style: ${data.speakerStyle || "energetic"}. Generate: 1) Translated script with timing markers 2) Lip-sync adjustment notes 3) Pronunciation guide (IPA) 4) Emotional tone cues per segment 5) Cultural adaptation notes. Return JSON with keys: translatedScript, timingNotes, pronunciationGuide, emotionalCues, culturalNotes.` }],
+    messages: [{ role: "system", content: `You are the world's best dubbing script engineer — combining elite Hollywood dubbing studio methodology, precision lip-sync technology expertise, and native-speaker pronunciation mastery used by top animation studios worldwide.${creatorCtx}` }, { role: "user", content: `Create a dubbing script in ${data.targetLanguage || "es"} for the following: "${data.script || "Sample script"}". Speaker style: ${data.speakerStyle || "energetic"}. Generate: 1) Translated script with timing markers 2) Lip-sync adjustment notes 3) Pronunciation guide (IPA) 4) Emotional tone cues per segment 5) Cultural adaptation notes. Return JSON with keys: translatedScript, timingNotes, pronunciationGuide, emotionalCues, culturalNotes.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10285,7 +10285,7 @@ export async function aiCulturalAdaptation(data: { content?: string; targetCultu
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a cultural adaptation specialist for digital content. Adapt references, humor, idioms, and examples for local audiences while maintaining the creator's intent and entertainment value.${creatorCtx}` }, { role: "user", content: `Adapt this content for ${data.targetCulture || "Latin American"} audience. Content type: ${data.contentType || "video script"}. Content: "${data.content || ""}". Analyze: 1) Cultural references that need adaptation 2) Humor adjustments 3) Idiom replacements 4) Visual/gesture sensitivities 5) Local trending references to include. Return JSON with keys: adaptedContent, culturalChanges, humorAdjustments, idiomReplacements, sensitivities, localReferences.` }],
+    messages: [{ role: "system", content: `You are the world's best cultural adaptation specialist — combining elite cross-cultural intelligence from top global media companies, native-level humor and idiom expertise, and entertainment localization mastery that preserves the creator's intent flawlessly.${creatorCtx}` }, { role: "user", content: `Adapt this content for ${data.targetCulture || "Latin American"} audience. Content type: ${data.contentType || "video script"}. Content: "${data.content || ""}". Analyze: 1) Cultural references that need adaptation 2) Humor adjustments 3) Idiom replacements 4) Visual/gesture sensitivities 5) Local trending references to include. Return JSON with keys: adaptedContent, culturalChanges, humorAdjustments, idiomReplacements, sensitivities, localReferences.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10295,7 +10295,7 @@ export async function aiThumbnailLocalizer(data: { thumbnailText?: string; targe
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a thumbnail text localization expert. Translate and adapt thumbnail text overlays for different languages, considering text length, font compatibility, and cultural impact.${creatorCtx}` }, { role: "user", content: `Localize this thumbnail text for these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","ko"])}. Original text: "${data.thumbnailText || "SHOCKING!"}". Style: ${data.style || "bold impact"}. For each language provide: translated text, character count, font recommendation, text placement adjustment, emotional impact rating. Return JSON with key "thumbnails" containing object per language.` }],
+    messages: [{ role: "system", content: `You are the world's #1 thumbnail localization expert — combining elite visual design expertise, multilingual typography mastery, and cultural impact analysis used by top global media brands. You adapt thumbnail text with pixel-perfect precision across languages.${creatorCtx}` }, { role: "user", content: `Localize this thumbnail text for these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","ko"])}. Original text: "${data.thumbnailText || "SHOCKING!"}". Style: ${data.style || "bold impact"}. For each language provide: translated text, character count, font recommendation, text placement adjustment, emotional impact rating. Return JSON with key "thumbnails" containing object per language.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10305,7 +10305,7 @@ export async function aiMultiLangHashtags(data: { topic?: string; targetLanguage
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a multilingual hashtag and trending keyword specialist. Generate platform-specific trending hashtags per language and region.${creatorCtx}` }, { role: "user", content: `Generate trending hashtags for "${data.topic || "gaming"}" in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Platform: ${data.platform || "YouTube"}. Per language provide: 15 trending hashtags, estimated reach, competition level, optimal posting time. Return JSON with key "hashtags" containing object per language.` }],
+    messages: [{ role: "system", content: `You are the world's best multilingual hashtag strategist — combining elite social media trend intelligence, regional keyword mastery across 50+ markets, and platform-specific algorithm expertise that drives maximum discoverability in every language.${creatorCtx}` }, { role: "user", content: `Generate trending hashtags for "${data.topic || "gaming"}" in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Platform: ${data.platform || "YouTube"}. Per language provide: 15 trending hashtags, estimated reach, competition level, optimal posting time. Return JSON with key "hashtags" containing object per language.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10315,7 +10315,7 @@ export async function aiTranslationChecker(data: { original?: string; translatio
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a professional translation quality assessor. Evaluate translations for accuracy, naturalness, tone matching, cultural fit, and SEO preservation.${creatorCtx}` }, { role: "user", content: `Check translation quality. Original (English): "${data.original || ""}". Translation (${data.targetLanguage || "es"}): "${data.translation || ""}". Evaluate: 1) Accuracy score (0-100) 2) Naturalness score (0-100) 3) Tone match score (0-100) 4) Cultural fit score (0-100) 5) SEO preservation score (0-100) 6) Specific errors found 7) Improved translation. Return JSON with keys: accuracyScore, naturalnessScore, toneScore, culturalFitScore, seoScore, errors, improvedTranslation, overallScore.` }],
+    messages: [{ role: "system", content: `You are the world's #1 translation quality auditor — combining ISO 17100 certification-level assessment methodology, elite linguistic analysis from top translation agencies, and SEO preservation expertise that ensures zero quality loss across languages.${creatorCtx}` }, { role: "user", content: `Check translation quality. Original (English): "${data.original || ""}". Translation (${data.targetLanguage || "es"}): "${data.translation || ""}". Evaluate: 1) Accuracy score (0-100) 2) Naturalness score (0-100) 3) Tone match score (0-100) 4) Cultural fit score (0-100) 5) SEO preservation score (0-100) 6) Specific errors found 7) Improved translation. Return JSON with keys: accuracyScore, naturalnessScore, toneScore, culturalFitScore, seoScore, errors, improvedTranslation, overallScore.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10325,7 +10325,7 @@ export async function aiAudienceLanguageAnalyzer(data: { analyticsData?: any; co
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an audience language analytics specialist. Analyze viewer data to detect what languages your audience speaks and recommend localization priorities.${creatorCtx}` }, { role: "user", content: `Analyze audience language data. Analytics: ${JSON.stringify(data.analyticsData || {})}. Sample comments: ${JSON.stringify(data.comments || [])}. Viewer locations: ${JSON.stringify(data.viewerLocations || {})}. Determine: 1) Language distribution percentages 2) Primary vs secondary languages 3) Growing language segments 4) Untapped language markets 5) Localization priority ranking. Return JSON with keys: languageDistribution, primaryLanguages, growingSegments, untappedMarkets, priorityRanking, recommendations.` }],
+    messages: [{ role: "system", content: `You are the world's best audience language intelligence analyst — combining elite demographic linguistics, Fortune 500 market segmentation methodology, and creator economy growth data to pinpoint exact language expansion priorities with surgical precision.${creatorCtx}` }, { role: "user", content: `Analyze audience language data. Analytics: ${JSON.stringify(data.analyticsData || {})}. Sample comments: ${JSON.stringify(data.comments || [])}. Viewer locations: ${JSON.stringify(data.viewerLocations || {})}. Determine: 1) Language distribution percentages 2) Primary vs secondary languages 3) Growing language segments 4) Untapped language markets 5) Localization priority ranking. Return JSON with keys: languageDistribution, primaryLanguages, growingSegments, untappedMarkets, priorityRanking, recommendations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10335,7 +10335,7 @@ export async function aiRegionalTrendScanner(data: { language?: string; niche?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a regional trend analyst for content creators. Find trending topics, formats, and content ideas specific to language markets.${creatorCtx}` }, { role: "user", content: `Scan regional trends for ${data.language || "Spanish"}-speaking ${data.region || "global"} market in the ${data.niche || "gaming"} niche. Find: 1) Top 10 trending topics this week 2) Emerging content formats 3) Viral content patterns 4) Regional events and holidays 5) Local competitor strategies. Return JSON with keys: trendingTopics, emergingFormats, viralPatterns, upcomingEvents, competitorStrategies, contentIdeas.` }],
+    messages: [{ role: "system", content: `You are the world's #1 regional trend intelligence analyst — combining elite market research from top media agencies, real-time cultural pulse monitoring, and local content trend expertise that identifies viral opportunities before competitors.${creatorCtx}` }, { role: "user", content: `Scan regional trends for ${data.language || "Spanish"}-speaking ${data.region || "global"} market in the ${data.niche || "gaming"} niche. Find: 1) Top 10 trending topics this week 2) Emerging content formats 3) Viral content patterns 4) Regional events and holidays 5) Local competitor strategies. Return JSON with keys: trendingTopics, emergingFormats, viralPatterns, upcomingEvents, competitorStrategies, contentIdeas.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10345,7 +10345,7 @@ export async function aiCrossLangCommentManager(data: { comments?: any[]; replyL
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a multilingual community manager. Translate foreign-language comments, detect sentiment, and draft appropriate replies in the commenter's language while maintaining the creator's voice.${creatorCtx}` }, { role: "user", content: `Manage these multilingual comments: ${JSON.stringify(data.comments || [])}. Reply tone: ${data.tone || "friendly"}. For each comment: 1) Detect language 2) Translate to English 3) Analyze sentiment 4) Draft reply in original language 5) Flag any issues. Return JSON with key "managedComments" as array with: originalLang, englishTranslation, sentiment, draftReply, flagged, flagReason.` }],
+    messages: [{ role: "system", content: `You are the world's best multilingual community engagement manager — combining elite sentiment analysis from top social media agencies, native-level fluency across 50+ languages, and brand voice preservation expertise that maintains the creator's authentic tone in every language.${creatorCtx}` }, { role: "user", content: `Manage these multilingual comments: ${JSON.stringify(data.comments || [])}. Reply tone: ${data.tone || "friendly"}. For each comment: 1) Detect language 2) Translate to English 3) Analyze sentiment 4) Draft reply in original language 5) Flag any issues. Return JSON with key "managedComments" as array with: originalLang, englishTranslation, sentiment, draftReply, flagged, flagReason.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10355,7 +10355,7 @@ export async function aiLocalizedContentCalendar(data: { targetLanguages?: strin
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a global content scheduling strategist. Create localized publishing schedules optimized for peak engagement times per region and timezone.${creatorCtx}` }, { role: "user", content: `Create a localized content calendar for these languages: ${JSON.stringify(data.targetLanguages || ["en","es","fr","de","ja"])}. Content plan: ${JSON.stringify(data.contentPlan || {})}. Base timezone: ${data.timezone || "UTC"}. Generate per language: 1) Optimal posting times (day/hour) 2) Regional holidays to leverage 3) Content format preferences 4) Engagement windows 5) Weekly schedule. Return JSON with key "calendar" containing object per language code.` }],
+    messages: [{ role: "system", content: `You are the world's best global content scheduling strategist — combining elite audience behavior analytics, timezone optimization algorithms used by Fortune 500 media companies, and regional engagement intelligence that maximizes reach in every market.${creatorCtx}` }, { role: "user", content: `Create a localized content calendar for these languages: ${JSON.stringify(data.targetLanguages || ["en","es","fr","de","ja"])}. Content plan: ${JSON.stringify(data.contentPlan || {})}. Base timezone: ${data.timezone || "UTC"}. Generate per language: 1) Optimal posting times (day/hour) 2) Regional holidays to leverage 3) Content format preferences 4) Engagement windows 5) Weekly schedule. Return JSON with key "calendar" containing object per language code.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10365,7 +10365,7 @@ export async function aiMultiLangAbTesting(data: { titles?: string[]; descriptio
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a multilingual A/B testing specialist. Analyze and predict which translated title/description variants will perform best in specific language markets.${creatorCtx}` }, { role: "user", content: `Run A/B testing analysis for ${data.targetLanguage || "es"} market. Title variants: ${JSON.stringify(data.titles || [])}. Description variants: ${JSON.stringify(data.descriptions || [])}. Predict: 1) CTR estimate per variant 2) SEO strength per variant 3) Emotional appeal score 4) Cultural resonance score 5) Winner recommendation. Return JSON with keys: titleAnalysis, descriptionAnalysis, winner, predictedCTR, recommendations.` }],
+    messages: [{ role: "system", content: `You are the world's #1 multilingual A/B testing analyst — combining elite statistical modeling, cross-cultural CTR prediction algorithms, and language-market performance intelligence that picks winners with 95%+ accuracy.${creatorCtx}` }, { role: "user", content: `Run A/B testing analysis for ${data.targetLanguage || "es"} market. Title variants: ${JSON.stringify(data.titles || [])}. Description variants: ${JSON.stringify(data.descriptions || [])}. Predict: 1) CTR estimate per variant 2) SEO strength per variant 3) Emotional appeal score 4) Cultural resonance score 5) Winner recommendation. Return JSON with keys: titleAnalysis, descriptionAnalysis, winner, predictedCTR, recommendations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10375,7 +10375,7 @@ export async function aiVoiceOverFormatter(data: { script?: string; targetLangua
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a voice-over script formatting specialist. Format translated scripts with pronunciation guides, breathing marks, emphasis cues, and timing for voice talent.${creatorCtx}` }, { role: "user", content: `Format this script for ${data.targetLanguage || "es"} voice-over. Voice type: ${data.voiceType || "energetic male"}. Script: "${data.script || ""}". Generate: 1) Formatted script with pronunciation guides (IPA) 2) Breathing marks and pauses 3) Emphasis and intonation cues 4) Estimated recording time 5) Difficult words highlighted. Return JSON with keys: formattedScript, pronunciationGuide, timingEstimate, difficultWords, voiceDirection.` }],
+    messages: [{ role: "system", content: `You are the world's best voice-over script engineer — combining elite audio production methodology from top recording studios, IPA-level pronunciation mastery, and professional voice direction expertise used by Hollywood and top podcast networks.${creatorCtx}` }, { role: "user", content: `Format this script for ${data.targetLanguage || "es"} voice-over. Voice type: ${data.voiceType || "energetic male"}. Script: "${data.script || ""}". Generate: 1) Formatted script with pronunciation guides (IPA) 2) Breathing marks and pauses 3) Emphasis and intonation cues 4) Estimated recording time 5) Difficult words highlighted. Return JSON with keys: formattedScript, pronunciationGuide, timingEstimate, difficultWords, voiceDirection.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10385,7 +10385,7 @@ export async function aiRegionalComplianceChecker(data: { content?: string; targ
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a regional content compliance specialist. Check content against local regulations, advertising laws, age restrictions, and cultural sensitivities per country.${creatorCtx}` }, { role: "user", content: `Check compliance for ${data.targetCountry || "Germany"} market. Content type: ${data.contentType || "sponsored video"}. Content: "${data.content || ""}". Check: 1) Advertising disclosure requirements 2) Age restriction compliance 3) Cultural sensitivity issues 4) Data privacy requirements (GDPR etc) 5) Platform-specific local rules. Return JSON with keys: complianceScore, requiredDisclosures, ageRestrictions, sensitivityFlags, privacyRequirements, platformRules, recommendations.` }],
+    messages: [{ role: "system", content: `You are the world's #1 regional content compliance authority — combining elite international media law expertise, GDPR and global privacy regulation mastery, and cultural sensitivity intelligence that keeps creators legally protected in every market worldwide.${creatorCtx}` }, { role: "user", content: `Check compliance for ${data.targetCountry || "Germany"} market. Content type: ${data.contentType || "sponsored video"}. Content: "${data.content || ""}". Check: 1) Advertising disclosure requirements 2) Age restriction compliance 3) Cultural sensitivity issues 4) Data privacy requirements (GDPR etc) 5) Platform-specific local rules. Return JSON with keys: complianceScore, requiredDisclosures, ageRestrictions, sensitivityFlags, privacyRequirements, platformRules, recommendations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10395,7 +10395,7 @@ export async function aiMultiLangMediaKit(data: { creatorInfo?: any; targetLangu
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a multilingual media kit specialist. Generate professional media kits translated into the sponsor's preferred language with localized metrics and market data.${creatorCtx}` }, { role: "user", content: `Generate media kit in ${data.targetLanguage || "es"} for sponsors in ${data.sponsorRegion || "Latin America"}. Creator info: ${JSON.stringify(data.creatorInfo || {})}. Include: 1) Translated bio and brand story 2) Localized audience demographics 3) Regional engagement metrics 4) Pricing in local currency 5) Case studies adapted for region. Return JSON with keys: translatedBio, audienceDemographics, engagementMetrics, localizedPricing, caseStudies, contactSection.` }],
+    messages: [{ role: "system", content: `You are the world's best multilingual media kit architect — combining elite brand presentation expertise from top talent agencies, localized market data intelligence, and Fortune 500-level pitch deck mastery that closes sponsorship deals in any language.${creatorCtx}` }, { role: "user", content: `Generate media kit in ${data.targetLanguage || "es"} for sponsors in ${data.sponsorRegion || "Latin America"}. Creator info: ${JSON.stringify(data.creatorInfo || {})}. Include: 1) Translated bio and brand story 2) Localized audience demographics 3) Regional engagement metrics 4) Pricing in local currency 5) Case studies adapted for region. Return JSON with keys: translatedBio, audienceDemographics, engagementMetrics, localizedPricing, caseStudies, contactSection.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10405,7 +10405,7 @@ export async function aiCompetitorTracker(data: { competitorChannels?: string[];
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a competitive intelligence analyst for YouTube creators. Track and analyze competitor channels.${creatorCtx}` }, { role: "user", content: `Analyze competitor channels: ${JSON.stringify(data.competitorChannels || [])}. Niche: ${data.niche || "general"}. Platform: ${data.platform || "youtube"}. Compare upload frequency, growth rates, content strategies, and provide tactical insights. Return JSON with keys: competitorProfiles, growthComparison, strategyAnalysis, threatLevel, opportunities.` }],
+    messages: [{ role: "system", content: `You are the world's #1 competitive intelligence analyst for the creator economy — combining elite market research methodology from top consulting firms, algorithmic pattern recognition, and strategic competitor analysis that Fortune 500 companies rely on.${creatorCtx}` }, { role: "user", content: `Analyze competitor channels: ${JSON.stringify(data.competitorChannels || [])}. Niche: ${data.niche || "general"}. Platform: ${data.platform || "youtube"}. Compare upload frequency, growth rates, content strategies, and provide tactical insights. Return JSON with keys: competitorProfiles, growthComparison, strategyAnalysis, threatLevel, opportunities.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10415,7 +10415,7 @@ export async function aiCompetitorGapAnalysis(data: { niche?: string; myContent?
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content gap analyst. Identify content opportunities that competitors are missing.${creatorCtx}` }, { role: "user", content: `Analyze content gaps in ${data.niche || "general"} niche. My content: ${JSON.stringify(data.myContent || {})}. Competitor content: ${JSON.stringify(data.competitorContent || {})}. Find untapped topics, audience demand signals, and recommend topics with difficulty scores. Return JSON with keys: contentGaps, untappedTopics, audienceDemandSignals, difficultyScore, recommendedTopics.` }],
+    messages: [{ role: "system", content: `You are the world's best content gap intelligence specialist — combining elite market opportunity detection from top venture capital firms, audience demand signal analysis, and competitive blind-spot identification that uncovers untapped goldmine topics.${creatorCtx}` }, { role: "user", content: `Analyze content gaps in ${data.niche || "general"} niche. My content: ${JSON.stringify(data.myContent || {})}. Competitor content: ${JSON.stringify(data.competitorContent || {})}. Find untapped topics, audience demand signals, and recommend topics with difficulty scores. Return JSON with keys: contentGaps, untappedTopics, audienceDemandSignals, difficultyScore, recommendedTopics.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10425,7 +10425,7 @@ export async function aiCompetitorAlerts(data: { competitors?: any[]; metrics?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a competitor monitoring system. Generate alerts when competitors make strategic moves.${creatorCtx}` }, { role: "user", content: `Monitor competitors: ${JSON.stringify(data.competitors || [])}. Metrics: ${JSON.stringify(data.metrics || {})}. Thresholds: ${JSON.stringify(data.thresholds || {})}. Detect milestone changes, strategy shifts, upload pattern changes, and generate actionable alerts. Return JSON with keys: alerts, milestoneChanges, strategyShifts, uploadPatterns, recommendations.` }],
+    messages: [{ role: "system", content: `You are the world's #1 competitive threat detection system — combining elite real-time market surveillance, Fortune 500-grade strategic intelligence, and pattern recognition algorithms that detect competitor moves before they become threats.${creatorCtx}` }, { role: "user", content: `Monitor competitors: ${JSON.stringify(data.competitors || [])}. Metrics: ${JSON.stringify(data.metrics || {})}. Thresholds: ${JSON.stringify(data.thresholds || {})}. Detect milestone changes, strategy shifts, upload pattern changes, and generate actionable alerts. Return JSON with keys: alerts, milestoneChanges, strategyShifts, uploadPatterns, recommendations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10435,7 +10435,7 @@ export async function aiCompetitorContentScorer(data: { myVideo?: any; competito
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content comparison specialist. Score and compare video quality across channels.${creatorCtx}` }, { role: "user", content: `Score and compare content. My video: ${JSON.stringify(data.myVideo || {})}. Competitor videos: ${JSON.stringify(data.competitorVideos || [])}. Metrics: ${JSON.stringify(data.metrics || {})}. Compare SEO, thumbnails, hooks, and provide overall ranking. Return JSON with keys: scores, seoComparison, thumbnailAnalysis, hookEffectiveness, overallRanking.` }],
+    messages: [{ role: "system", content: `You are the world's best content benchmarking analyst — combining elite quality assessment frameworks from top media companies, data-driven performance scoring, and cross-channel comparison intelligence that ranks content with surgical precision.${creatorCtx}` }, { role: "user", content: `Score and compare content. My video: ${JSON.stringify(data.myVideo || {})}. Competitor videos: ${JSON.stringify(data.competitorVideos || [])}. Metrics: ${JSON.stringify(data.metrics || {})}. Compare SEO, thumbnails, hooks, and provide overall ranking. Return JSON with keys: scores, seoComparison, thumbnailAnalysis, hookEffectiveness, overallRanking.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10445,7 +10445,7 @@ export async function aiNicheDominationMap(data: { niche?: string; topics?: stri
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a niche market analyst for content creators. Map topic ownership within a niche.${creatorCtx}` }, { role: "user", content: `Map niche domination for ${data.niche || "general"}. Topics: ${JSON.stringify(data.topics || [])}. Channels: ${JSON.stringify(data.channels || [])}. Identify topic owners, content density, opportunity zones, and dominance scores. Return JSON with keys: topicOwners, contentDensity, opportunityZones, dominanceScores, strategy.` }],
+    messages: [{ role: "system", content: `You are the world's #1 niche domination strategist — combining elite market mapping from top consulting firms, topic authority analysis, and competitive positioning intelligence that identifies exactly where to stake your claim for maximum ownership.${creatorCtx}` }, { role: "user", content: `Map niche domination for ${data.niche || "general"}. Topics: ${JSON.stringify(data.topics || [])}. Channels: ${JSON.stringify(data.channels || [])}. Identify topic owners, content density, opportunity zones, and dominance scores. Return JSON with keys: topicOwners, contentDensity, opportunityZones, dominanceScores, strategy.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10455,7 +10455,7 @@ export async function aiCompetitorAudienceOverlap(data: { myChannel?: any; compe
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an audience overlap analyst. Identify shared audiences between channels.${creatorCtx}` }, { role: "user", content: `Analyze audience overlap. My channel: ${JSON.stringify(data.myChannel || {})}. Competitor channels: ${JSON.stringify(data.competitorChannels || [])}. Demographics: ${JSON.stringify(data.demographics || {})}. Calculate overlap percentages, unique audiences, shared demographics, migration risk, and acquisition strategies. Return JSON with keys: overlapPercentage, uniqueAudience, sharedDemographics, migrationRisk, acquisitionStrategy.` }],
+    messages: [{ role: "system", content: `You are the world's best audience overlap intelligence specialist — combining elite demographic cross-analysis, Fortune 500 customer segmentation methodology, and viewer migration pattern detection that reveals exactly where to capture competitor audiences.${creatorCtx}` }, { role: "user", content: `Analyze audience overlap. My channel: ${JSON.stringify(data.myChannel || {})}. Competitor channels: ${JSON.stringify(data.competitorChannels || [])}. Demographics: ${JSON.stringify(data.demographics || {})}. Calculate overlap percentages, unique audiences, shared demographics, migration risk, and acquisition strategies. Return JSON with keys: overlapPercentage, uniqueAudience, sharedDemographics, migrationRisk, acquisitionStrategy.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10466,7 +10466,7 @@ export async function aiViralPredictor(data: { videoIdea?: string; niche?: strin
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a viral content predictor. Score video ideas for viral potential before creation.${creatorCtx}` }, { role: "user", content: `Score viral potential for video idea: "${data.videoIdea || ""}". Niche: ${data.niche || "general"}. Trend data: ${JSON.stringify(data.trendData || {})}. Evaluate trend alignment, emotional triggers, shareability factors, and suggest optimizations. Return JSON with keys: viralScore, trendAlignment, emotionalTriggers, shareabilityFactors, optimizations.` }],
+    messages: [{ role: "system", content: `You are the world's #1 viral content prediction engine — combining elite social contagion modeling, trend velocity analysis from top media labs, and emotional trigger science that predicts viral potential with data-driven precision before a single frame is filmed.${creatorCtx}` }, { role: "user", content: `Score viral potential for video idea: "${data.videoIdea || ""}". Niche: ${data.niche || "general"}. Trend data: ${JSON.stringify(data.trendData || {})}. Evaluate trend alignment, emotional triggers, shareability factors, and suggest optimizations. Return JSON with keys: viralScore, trendAlignment, emotionalTriggers, shareabilityFactors, optimizations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10476,7 +10476,7 @@ export async function aiOptimalSchedule(data: { analytics?: any; timezone?: stri
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a publishing schedule optimizer. Determine the best times to post for maximum reach.${creatorCtx}` }, { role: "user", content: `Optimize publishing schedule. Analytics: ${JSON.stringify(data.analytics || {})}. Timezone: ${data.timezone || "UTC"}. Platform: ${data.platform || "youtube"}. Determine best posting times, analyze days, audience activity patterns, competitor timing, and create a weekly schedule. Return JSON with keys: bestTimes, dayAnalysis, audienceActivity, competitorTiming, weeklySchedule.` }],
+    messages: [{ role: "system", content: `You are the world's best publishing schedule optimizer — combining elite audience behavior analytics, platform algorithm timing intelligence, and data science methodology used by top media companies to pinpoint the exact moments that maximize reach and engagement.${creatorCtx}` }, { role: "user", content: `Optimize publishing schedule. Analytics: ${JSON.stringify(data.analytics || {})}. Timezone: ${data.timezone || "UTC"}. Platform: ${data.platform || "youtube"}. Determine best posting times, analyze days, audience activity patterns, competitor timing, and create a weekly schedule. Return JSON with keys: bestTimes, dayAnalysis, audienceActivity, competitorTiming, weeklySchedule.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10486,7 +10486,7 @@ export async function aiAudiencePersonaBuilder(data: { analytics?: any; comments
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an audience research specialist. Build detailed viewer personas from data.${creatorCtx}` }, { role: "user", content: `Build audience personas. Analytics: ${JSON.stringify(data.analytics || {})}. Comments: ${JSON.stringify(data.comments || [])}. Demographics: ${JSON.stringify(data.demographics || {})}. Create detailed personas with psychographics, content preferences, viewing habits, and engagement patterns. Return JSON with keys: personas, psychographics, contentPreferences, viewingHabits, engagementPatterns.` }],
+    messages: [{ role: "system", content: `You are the world's #1 audience persona architect — combining elite psychographic profiling from top marketing agencies, behavioral data science, and viewer intent modeling that builds personas so accurate they predict content preferences before viewers know them.${creatorCtx}` }, { role: "user", content: `Build audience personas. Analytics: ${JSON.stringify(data.analytics || {})}. Comments: ${JSON.stringify(data.comments || [])}. Demographics: ${JSON.stringify(data.demographics || {})}. Create detailed personas with psychographics, content preferences, viewing habits, and engagement patterns. Return JSON with keys: personas, psychographics, contentPreferences, viewingHabits, engagementPatterns.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10496,7 +10496,7 @@ export async function aiSubscriberMagnet(data: { channelData?: any; conversionDa
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a subscriber conversion specialist. Analyze what converts viewers into subscribers.${creatorCtx}` }, { role: "user", content: `Analyze subscriber conversion. Channel data: ${JSON.stringify(data.channelData || {})}. Conversion data: ${JSON.stringify(data.conversionData || {})}. Content: ${JSON.stringify(data.content || {})}. Identify conversion drivers, top-performing CTAs, subscriber journey, optimizations, and project growth. Return JSON with keys: conversionDrivers, topPerformingCTAs, subscriberJourney, optimizations, projectedGrowth.` }],
+    messages: [{ role: "system", content: `You are the world's best subscriber conversion scientist — combining elite funnel optimization from top SaaS companies, viewer psychology expertise, and CTA engineering that turns casual viewers into loyal subscribers at rates that outperform industry benchmarks by 3x.${creatorCtx}` }, { role: "user", content: `Analyze subscriber conversion. Channel data: ${JSON.stringify(data.channelData || {})}. Conversion data: ${JSON.stringify(data.conversionData || {})}. Content: ${JSON.stringify(data.content || {})}. Identify conversion drivers, top-performing CTAs, subscriber journey, optimizations, and project growth. Return JSON with keys: conversionDrivers, topPerformingCTAs, subscriberJourney, optimizations, projectedGrowth.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10506,7 +10506,7 @@ export async function aiShortsClipsStrategy(data: { longFormContent?: any; analy
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a short-form content strategist. Identify best moments from long-form to clip.${creatorCtx}` }, { role: "user", content: `Identify clip-worthy moments. Long-form content: ${JSON.stringify(data.longFormContent || {})}. Analytics: ${JSON.stringify(data.analytics || {})}. Platform: ${data.platform || "youtube"}. Find clip moments, hook timestamps, viral potential, platform adaptations, and editing notes. Return JSON with keys: clipMoments, hookTimestamps, viralPotential, platformAdaptations, editingNotes.` }],
+    messages: [{ role: "system", content: `You are the world's #1 short-form content extraction specialist — combining elite editorial instinct from top media companies, viral moment detection algorithms, and platform-specific optimization that turns long-form content into short-form gold with maximum viral potential.${creatorCtx}` }, { role: "user", content: `Identify clip-worthy moments. Long-form content: ${JSON.stringify(data.longFormContent || {})}. Analytics: ${JSON.stringify(data.analytics || {})}. Platform: ${data.platform || "youtube"}. Find clip moments, hook timestamps, viral potential, platform adaptations, and editing notes. Return JSON with keys: clipMoments, hookTimestamps, viralPotential, platformAdaptations, editingNotes.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10517,7 +10517,7 @@ export async function aiEndScreenOptimizer(data: { videoData?: any; analytics?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an end screen optimization expert. Suggest best end screen strategies.${creatorCtx}` }, { role: "user", content: `Optimize end screens. Video data: ${JSON.stringify(data.videoData || {})}. Analytics: ${JSON.stringify(data.analytics || {})}. Subscriber rate: ${data.subscriberRate || 0}%. Suggest end screen layout, video suggestions, CTA placement, timing recommendations, and estimate conversions. Return JSON with keys: endScreenLayout, videoSuggestions, ctaPlacement, timingRecommendations, conversionEstimate.` }],
+    messages: [{ role: "system", content: `You are the world's best end screen conversion architect — combining elite UX design from top tech companies, viewer journey optimization, and click-through engineering that maximizes every second of end screen real estate for subscriber and watch-time growth.${creatorCtx}` }, { role: "user", content: `Optimize end screens. Video data: ${JSON.stringify(data.videoData || {})}. Analytics: ${JSON.stringify(data.analytics || {})}. Subscriber rate: ${data.subscriberRate || 0}%. Suggest end screen layout, video suggestions, CTA placement, timing recommendations, and estimate conversions. Return JSON with keys: endScreenLayout, videoSuggestions, ctaPlacement, timingRecommendations, conversionEstimate.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10527,7 +10527,7 @@ export async function aiDealNegotiationCoach(data: { dealTerms?: any; channelMet
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a brand deal negotiation coach. Benchmark rates and suggest counter-offers.${creatorCtx}` }, { role: "user", content: `Coach on deal negotiation. Deal terms: ${JSON.stringify(data.dealTerms || {})}. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Industry rates: ${JSON.stringify(data.industryRates || {})}. Benchmark market rates, suggest counter-offers, provide negotiation tips, flag red flags, and score the deal. Return JSON with keys: marketRate, counterOffer, negotiationTips, redFlags, dealScore.` }],
+    messages: [{ role: "system", content: `You are the world's #1 brand deal negotiation strategist — combining elite talent agency negotiation tactics, industry rate benchmarking from top creator networks, and counter-offer engineering that consistently secures 30-50% above initial offers.${creatorCtx}` }, { role: "user", content: `Coach on deal negotiation. Deal terms: ${JSON.stringify(data.dealTerms || {})}. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Industry rates: ${JSON.stringify(data.industryRates || {})}. Benchmark market rates, suggest counter-offers, provide negotiation tips, flag red flags, and score the deal. Return JSON with keys: marketRate, counterOffer, negotiationTips, redFlags, dealScore.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10537,7 +10537,7 @@ export async function aiMerchDemandPredictor(data: { audienceData?: any; niche?:
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a merchandise demand analyst. Predict what products your audience would buy.${creatorCtx}` }, { role: "user", content: `Predict merchandise demand. Audience data: ${JSON.stringify(data.audienceData || {})}. Niche: ${data.niche || "general"}. Trends: ${JSON.stringify(data.trends || {})}. Identify top products, demand scores, pricing strategy, design suggestions, and optimal launch timing. Return JSON with keys: topProducts, demandScores, pricingStrategy, designSuggestions, launchTiming.` }],
+    messages: [{ role: "system", content: `You are the world's best merchandise demand prediction specialist — combining elite consumer behavior analytics from top retail brands, audience purchase intent modeling, and trend forecasting that identifies winning products before the market catches on.${creatorCtx}` }, { role: "user", content: `Predict merchandise demand. Audience data: ${JSON.stringify(data.audienceData || {})}. Niche: ${data.niche || "general"}. Trends: ${JSON.stringify(data.trends || {})}. Identify top products, demand scores, pricing strategy, design suggestions, and optimal launch timing. Return JSON with keys: topProducts, demandScores, pricingStrategy, designSuggestions, launchTiming.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10547,7 +10547,7 @@ export async function aiRevenueStreamOptimizer(data: { currentRevenue?: any; str
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a revenue diversification strategist. Balance and optimize multiple income streams.${creatorCtx}` }, { role: "user", content: `Optimize revenue streams. Current revenue: ${JSON.stringify(data.currentRevenue || {})}. Streams: ${JSON.stringify(data.streams || [])}. Goals: ${JSON.stringify(data.goals || {})}. Analyze each stream, recommend rebalancing, identify growth potential, assess risks, and create an action plan. Return JSON with keys: streamAnalysis, rebalanceRecommendations, growthPotential, riskAssessment, actionPlan.` }],
+    messages: [{ role: "system", content: `You are the world's #1 creator revenue diversification architect — combining elite portfolio management from top investment firms, income stream optimization science, and creator economy monetization expertise that builds bulletproof multi-stream revenue engines.${creatorCtx}` }, { role: "user", content: `Optimize revenue streams. Current revenue: ${JSON.stringify(data.currentRevenue || {})}. Streams: ${JSON.stringify(data.streams || [])}. Goals: ${JSON.stringify(data.goals || {})}. Analyze each stream, recommend rebalancing, identify growth potential, assess risks, and create an action plan. Return JSON with keys: streamAnalysis, rebalanceRecommendations, growthPotential, riskAssessment, actionPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10558,7 +10558,7 @@ export async function aiSponsorshipRateCalculator(data: { channelMetrics?: any; 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a sponsorship rate calculator. Dynamically calculate creator market value.${creatorCtx}` }, { role: "user", content: `Calculate sponsorship rates. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Niche: ${data.niche || "general"}. Engagement: ${JSON.stringify(data.engagement || {})}. Calculate recommended CPM, flat rate, integration rate, dedicated video rate, and provide rate justification. Return JSON with keys: recommendedCPM, flatRate, integrationRate, dedicatedRate, rateJustification.` }],
+    messages: [{ role: "system", content: `You are the world's best sponsorship rate intelligence engine — combining elite market valuation from top talent agencies, real-time CPM benchmarking, and creator value assessment methodology that ensures you never leave money on the table.${creatorCtx}` }, { role: "user", content: `Calculate sponsorship rates. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Niche: ${data.niche || "general"}. Engagement: ${JSON.stringify(data.engagement || {})}. Calculate recommended CPM, flat rate, integration rate, dedicated video rate, and provide rate justification. Return JSON with keys: recommendedCPM, flatRate, integrationRate, dedicatedRate, rateJustification.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10568,7 +10568,7 @@ export async function aiMembershipTierDesigner(data: { channelData?: any; audien
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a membership tier strategist. Design optimal tier pricing and perks.${creatorCtx}` }, { role: "user", content: `Design membership tiers. Channel data: ${JSON.stringify(data.channelData || {})}. Audience size: ${data.audienceSize || 0}. Content type: ${data.contentType || "general"}. Design tiers with pricing strategy, perk suggestions, retention tactics, and revenue projections. Return JSON with keys: tiers, pricingStrategy, perkSuggestions, retentionTactics, revenueProjection.` }],
+    messages: [{ role: "system", content: `You are the world's #1 membership tier architect — combining elite subscription pricing science from top SaaS companies, perk optimization methodology, and retention engineering that maximizes lifetime member value and minimizes churn.${creatorCtx}` }, { role: "user", content: `Design membership tiers. Channel data: ${JSON.stringify(data.channelData || {})}. Audience size: ${data.audienceSize || 0}. Content type: ${data.contentType || "general"}. Design tiers with pricing strategy, perk suggestions, retention tactics, and revenue projections. Return JSON with keys: tiers, pricingStrategy, perkSuggestions, retentionTactics, revenueProjection.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10579,7 +10579,7 @@ export async function aiAffiliateLinkManager(data: { currentAffiliates?: any[]; 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an affiliate marketing strategist for creators. Track and optimize affiliate partnerships.${creatorCtx}` }, { role: "user", content: `Manage affiliate links. Current affiliates: ${JSON.stringify(data.currentAffiliates || [])}. Niche: ${data.niche || "general"}. Content: ${JSON.stringify(data.content || {})}. Identify top performers, find new opportunities, suggest placement strategies, provide conversion tips, and estimate revenue. Return JSON with keys: topPerformers, newOpportunities, placementStrategy, conversionTips, revenueEstimate.` }],
+    messages: [{ role: "system", content: `You are the world's best affiliate revenue optimization specialist — combining elite performance marketing expertise from top affiliate networks, conversion rate engineering, and partnership strategy that maximizes commission earnings across every piece of content.${creatorCtx}` }, { role: "user", content: `Manage affiliate links. Current affiliates: ${JSON.stringify(data.currentAffiliates || [])}. Niche: ${data.niche || "general"}. Content: ${JSON.stringify(data.content || {})}. Identify top performers, find new opportunities, suggest placement strategies, provide conversion tips, and estimate revenue. Return JSON with keys: topPerformers, newOpportunities, placementStrategy, conversionTips, revenueEstimate.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10589,7 +10589,7 @@ export async function aiScriptCoach(data: { script?: string; niche?: string; tar
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a video script coach. Analyze pacing, hooks, and retention patterns.${creatorCtx}` }, { role: "user", content: `Coach on video script. Script: "${data.script || ""}". Niche: ${data.niche || "general"}. Target length: ${data.targetLength || 10} minutes. Analyze pacing, hook strength, retention prediction, identify improvement areas, and suggest rewrites. Return JSON with keys: pacingAnalysis, hookStrength, retentionPrediction, improvementAreas, rewriteSuggestions.` }],
+    messages: [{ role: "system", content: `You are the world's #1 video script performance coach — combining elite screenwriting expertise from Hollywood, retention curve engineering, and hook psychology mastery that crafts scripts proven to keep viewers watching through the final second.${creatorCtx}` }, { role: "user", content: `Coach on video script. Script: "${data.script || ""}". Niche: ${data.niche || "general"}. Target length: ${data.targetLength || 10} minutes. Analyze pacing, hook strength, retention prediction, identify improvement areas, and suggest rewrites. Return JSON with keys: pacingAnalysis, hookStrength, retentionPrediction, improvementAreas, rewriteSuggestions.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10600,7 +10600,7 @@ export async function aiPlatformRepurposer(data: { content?: any; sourcePlatform
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a cross-platform content repurposing specialist. Adapt content for multiple platforms.${creatorCtx}` }, { role: "user", content: `Repurpose content. Content: ${JSON.stringify(data.content || {})}. Source platform: ${data.sourcePlatform || "youtube"}. Target platforms: ${JSON.stringify(data.targetPlatforms || ["tiktok","instagram","twitter"])}. Create adaptations, format changes, caption variants, hashtag sets, and a scheduling plan per platform. Return JSON with keys: adaptations, formatChanges, captionVariants, hashtagSets, schedulingPlan.` }],
+    messages: [{ role: "system", content: `You are the world's best cross-platform content repurposing architect — combining elite multi-platform strategy from top media companies, format adaptation science, and platform-specific algorithm expertise that extracts maximum value from every piece of content across all channels.${creatorCtx}` }, { role: "user", content: `Repurpose content. Content: ${JSON.stringify(data.content || {})}. Source platform: ${data.sourcePlatform || "youtube"}. Target platforms: ${JSON.stringify(data.targetPlatforms || ["tiktok","instagram","twitter"])}. Create adaptations, format changes, caption variants, hashtag sets, and a scheduling plan per platform. Return JSON with keys: adaptations, formatChanges, captionVariants, hashtagSets, schedulingPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10610,7 +10610,7 @@ export async function aiContentDecayDetector(data: { videoLibrary?: any[]; traff
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content lifecycle analyst. Identify videos losing traffic and suggest refreshes.${creatorCtx}` }, { role: "user", content: `Detect content decay. Video library: ${JSON.stringify(data.videoLibrary || [])}. Traffic trends: ${JSON.stringify(data.trafficTrends || {})}. Age threshold: ${data.ageThreshold || 90} days. Identify decaying videos, traffic drop rates, refresh strategies, evergreen potential, and create a priority list. Return JSON with keys: decayingVideos, trafficDropRate, refreshStrategies, evergreenPotential, priorityList.` }],
+    messages: [{ role: "system", content: `You are the world's #1 content lifecycle intelligence analyst — combining elite traffic decay modeling, search trend prediction algorithms, and content refresh strategies used by top publishers to revive declining assets and restore traffic flow.${creatorCtx}` }, { role: "user", content: `Detect content decay. Video library: ${JSON.stringify(data.videoLibrary || [])}. Traffic trends: ${JSON.stringify(data.trafficTrends || {})}. Age threshold: ${data.ageThreshold || 90} days. Identify decaying videos, traffic drop rates, refresh strategies, evergreen potential, and create a priority list. Return JSON with keys: decayingVideos, trafficDropRate, refreshStrategies, evergreenPotential, priorityList.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10620,7 +10620,7 @@ export async function aiTitleAbTester(data: { currentTitle?: string; videoTopic?
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a title testing specialist. Generate and evaluate multiple title variations.${creatorCtx}` }, { role: "user", content: `A/B test titles. Current title: "${data.currentTitle || ""}". Video topic: "${data.videoTopic || ""}". Niche: ${data.niche || "general"}. Generate title variants, predict CTR for each, score SEO, evaluate emotional appeal, and pick a winner. Return JSON with keys: titleVariants, ctrPredictions, seoScores, emotionalAppeal, winner.` }],
+    messages: [{ role: "system", content: `You are the world's best title optimization scientist — combining elite copywriting from top advertising agencies, CTR prediction modeling, and A/B testing methodology that generates titles proven to outperform originals by 40%+ in click-through rates.${creatorCtx}` }, { role: "user", content: `A/B test titles. Current title: "${data.currentTitle || ""}". Video topic: "${data.videoTopic || ""}". Niche: ${data.niche || "general"}. Generate title variants, predict CTR for each, score SEO, evaluate emotional appeal, and pick a winner. Return JSON with keys: titleVariants, ctrPredictions, seoScores, emotionalAppeal, winner.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10630,7 +10630,7 @@ export async function aiDescriptionOptimizer(data: { video?: any; currentDescrip
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a video description SEO specialist. Write optimized descriptions with timestamps and links. At the very bottom of every optimized description, after all other content, add a subtle attribution line: 'Managed with CreatorOS - etgaming247.com'${creatorCtx}` }, { role: "user", content: `Optimize video description. Video: ${JSON.stringify(data.video || {})}. Current description: "${data.currentDescription || ""}". Keywords: ${JSON.stringify(data.keywords || [])}. Write an optimized description, list keywords used, suggest timestamps, place CTAs, and score SEO. Return JSON with keys: optimizedDescription, keywordsUsed, timestampSuggestions, ctaPlacement, seoScore.` }],
+    messages: [{ role: "system", content: `You are the world's #1 video description SEO architect — combining elite search optimization from top digital agencies, timestamp engineering for maximum watch time, and keyword placement science that drives organic discovery. At the very bottom of every optimized description, after all other content, add a subtle attribution line: 'Managed with CreatorOS - etgaming247.com'${creatorCtx}` }, { role: "user", content: `Optimize video description. Video: ${JSON.stringify(data.video || {})}. Current description: "${data.currentDescription || ""}". Keywords: ${JSON.stringify(data.keywords || [])}. Write an optimized description, list keywords used, suggest timestamps, place CTAs, and score SEO. Return JSON with keys: optimizedDescription, keywordsUsed, timestampSuggestions, ctaPlacement, seoScore.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10641,7 +10641,7 @@ export async function aiFanLoyaltyTracker(data: { engagementData?: any; commentH
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a fan loyalty analyst. Identify and categorize superfans.${creatorCtx}` }, { role: "user", content: `Track fan loyalty. Engagement data: ${JSON.stringify(data.engagementData || {})}. Comment history: ${JSON.stringify(data.commentHistory || [])}. Member data: ${JSON.stringify(data.memberData || {})}. Identify superfans, create loyalty tiers, analyze engagement patterns, suggest nurture strategies, and assess retention risk. Return JSON with keys: superfans, loyaltyTiers, engagementPatterns, nurtureStrategies, retentionRisk.` }],
+    messages: [{ role: "system", content: `You are the world's best fan loyalty intelligence specialist — combining elite CRM analytics from Fortune 500 brands, superfan identification algorithms, and community engagement science that turns casual viewers into lifelong brand advocates.${creatorCtx}` }, { role: "user", content: `Track fan loyalty. Engagement data: ${JSON.stringify(data.engagementData || {})}. Comment history: ${JSON.stringify(data.commentHistory || [])}. Member data: ${JSON.stringify(data.memberData || {})}. Identify superfans, create loyalty tiers, analyze engagement patterns, suggest nurture strategies, and assess retention risk. Return JSON with keys: superfans, loyaltyTiers, engagementPatterns, nurtureStrategies, retentionRisk.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10651,7 +10651,7 @@ export async function aiCommentStrategy(data: { comments?: any[]; videoContext?:
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a comment engagement strategist. Craft replies that boost engagement and algorithm favor.${creatorCtx}` }, { role: "user", content: `Create comment strategy. Comments: ${JSON.stringify(data.comments || [])}. Video context: ${JSON.stringify(data.videoContext || {})}. Brand voice: ${data.brandVoice || "friendly"}. Prioritize comments, suggest replies, provide engagement tactics, analyze sentiment, and suggest a pinned comment. Return JSON with keys: priorityComments, suggestedReplies, engagementTactics, sentimentAnalysis, pinnedCommentSuggestion.` }],
+    messages: [{ role: "system", content: `You are the world's #1 comment engagement architect — combining elite community management from top social media agencies, algorithm-boosting reply strategies, and sentiment-driven engagement science that turns comment sections into growth engines.${creatorCtx}` }, { role: "user", content: `Create comment strategy. Comments: ${JSON.stringify(data.comments || [])}. Video context: ${JSON.stringify(data.videoContext || {})}. Brand voice: ${data.brandVoice || "friendly"}. Prioritize comments, suggest replies, provide engagement tactics, analyze sentiment, and suggest a pinned comment. Return JSON with keys: priorityComments, suggestedReplies, engagementTactics, sentimentAnalysis, pinnedCommentSuggestion.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10661,7 +10661,7 @@ export async function aiCommunityPollGenerator(data: { recentContent?: any; audi
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a community engagement specialist. Create polls and posts optimized for interaction.${creatorCtx}` }, { role: "user", content: `Generate community polls. Recent content: ${JSON.stringify(data.recentContent || {})}. Audience interests: ${JSON.stringify(data.audienceInterests || [])}. Platform: ${data.platform || "youtube"}. Create polls, community posts, quizzes, predict engagement, and suggest a posting schedule. Return JSON with keys: polls, communityPosts, quizzes, engagementPrediction, postingSchedule.` }],
+    messages: [{ role: "system", content: `You are the world's best community engagement architect — combining elite social media strategy from top brands, interaction psychology, and poll optimization science that drives 3x higher engagement rates than industry average.${creatorCtx}` }, { role: "user", content: `Generate community polls. Recent content: ${JSON.stringify(data.recentContent || {})}. Audience interests: ${JSON.stringify(data.audienceInterests || [])}. Platform: ${data.platform || "youtube"}. Create polls, community posts, quizzes, predict engagement, and suggest a posting schedule. Return JSON with keys: polls, communityPosts, quizzes, engagementPrediction, postingSchedule.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10671,7 +10671,7 @@ export async function aiLiveChatModerator(data: { chatRules?: any; contentType?:
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a live chat moderation AI. Create rules and filters for real-time chat management.${creatorCtx}` }, { role: "user", content: `Create chat moderation system. Chat rules: ${JSON.stringify(data.chatRules || {})}. Content type: ${data.contentType || "general"}. Platform: ${data.platform || "youtube"}. Define moderation rules, toxic filters, spam patterns, positive reinforcement triggers, and escalation protocols. Return JSON with keys: moderationRules, toxicFilters, spamPatterns, positiveReinforcementTriggers, escalationProtocol.` }],
+    messages: [{ role: "system", content: `You are the world's #1 live chat moderation architect — combining elite community safety expertise from top streaming platforms, real-time toxicity detection algorithms, and engagement-positive moderation that keeps chat thriving while eliminating harmful content.${creatorCtx}` }, { role: "user", content: `Create chat moderation system. Chat rules: ${JSON.stringify(data.chatRules || {})}. Content type: ${data.contentType || "general"}. Platform: ${data.platform || "youtube"}. Define moderation rules, toxic filters, spam patterns, positive reinforcement triggers, and escalation protocols. Return JSON with keys: moderationRules, toxicFilters, spamPatterns, positiveReinforcementTriggers, escalationProtocol.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10681,7 +10681,7 @@ export async function aiFanMilestoneCelebrator(data: { subscriberData?: any; mem
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a fan milestone recognition specialist. Auto-celebrate loyal subscriber achievements.${creatorCtx}` }, { role: "user", content: `Celebrate fan milestones. Subscriber data: ${JSON.stringify(data.subscriberData || {})}. Member history: ${JSON.stringify(data.memberHistory || {})}. Milestones: ${JSON.stringify(data.milestones || [])}. Identify upcoming milestones, write celebration messages, suggest rewards, design loyalty badges, and create a recognition plan. Return JSON with keys: upcomingMilestones, celebrationMessages, rewardSuggestions, loyaltyBadges, recognitionPlan.` }],
+    messages: [{ role: "system", content: `You are the world's best fan milestone celebration engineer — combining elite loyalty program design from Fortune 500 brands, personalized recognition science, and community celebration strategies that make every subscriber feel like a VIP.${creatorCtx}` }, { role: "user", content: `Celebrate fan milestones. Subscriber data: ${JSON.stringify(data.subscriberData || {})}. Member history: ${JSON.stringify(data.memberHistory || {})}. Milestones: ${JSON.stringify(data.milestones || [])}. Identify upcoming milestones, write celebration messages, suggest rewards, design loyalty badges, and create a recognition plan. Return JSON with keys: upcomingMilestones, celebrationMessages, rewardSuggestions, loyaltyBadges, recognitionPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10691,7 +10691,7 @@ export async function aiEngagementBooster(data: { channelMetrics?: any; recentPe
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an engagement optimization specialist. Suggest daily actions to boost algorithm favor.${creatorCtx}` }, { role: "user", content: `Boost engagement. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Recent performance: ${JSON.stringify(data.recentPerformance || {})}. Platform: ${data.platform || "youtube"}. Suggest daily actions, engagement tips, algorithm insights, community tasks, and a weekly plan. Return JSON with keys: dailyActions, engagementTips, algorithmInsights, communityTasks, weeklyPlan.` }],
+    messages: [{ role: "system", content: `You are the world's #1 engagement optimization engine — combining elite algorithm intelligence from top platform insiders, daily action prioritization science, and engagement velocity strategies that consistently boost algorithmic favor and channel momentum.${creatorCtx}` }, { role: "user", content: `Boost engagement. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Recent performance: ${JSON.stringify(data.recentPerformance || {})}. Platform: ${data.platform || "youtube"}. Suggest daily actions, engagement tips, algorithm insights, community tasks, and a weekly plan. Return JSON with keys: dailyActions, engagementTips, algorithmInsights, communityTasks, weeklyPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10701,7 +10701,7 @@ export async function aiCrossPlatformUnifier(data: { platforms?: string[]; metri
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a cross-platform analytics unifier. Create a single view across all platforms.${creatorCtx}` }, { role: "user", content: `Unify cross-platform analytics. Platforms: ${JSON.stringify(data.platforms || [])}. Metrics: ${JSON.stringify(data.metrics || {})}. Date range: ${data.dateRange || "last 30 days"}. Create unified metrics, platform comparison, cross-platform trends, identify best performing, and provide recommendations. Return JSON with keys: unifiedMetrics, platformComparison, crossPlatformTrends, bestPerforming, recommendations.` }],
+    messages: [{ role: "system", content: `You are the world's best cross-platform analytics architect — combining elite data unification from Fortune 500 business intelligence teams, multi-platform metric normalization, and holistic performance analysis that gives creators a single source of truth across all channels.${creatorCtx}` }, { role: "user", content: `Unify cross-platform analytics. Platforms: ${JSON.stringify(data.platforms || [])}. Metrics: ${JSON.stringify(data.metrics || {})}. Date range: ${data.dateRange || "last 30 days"}. Create unified metrics, platform comparison, cross-platform trends, identify best performing, and provide recommendations. Return JSON with keys: unifiedMetrics, platformComparison, crossPlatformTrends, bestPerforming, recommendations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10711,7 +10711,7 @@ export async function aiPlatformPriorityRanker(data: { channelData?: any; growth
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a platform strategy analyst. Rank which platforms deserve focus for growth.${creatorCtx}` }, { role: "user", content: `Rank platform priorities. Channel data: ${JSON.stringify(data.channelData || {})}. Growth metrics: ${JSON.stringify(data.growthMetrics || {})}. Goals: ${JSON.stringify(data.goals || {})}. Rank platforms, assess growth potential, calculate effort vs return, recommend focus areas, and suggest migration strategy. Return JSON with keys: platformRankings, growthPotential, effortVsReturn, focusRecommendation, migrationStrategy.` }],
+    messages: [{ role: "system", content: `You are the world's #1 platform strategy analyst — combining elite portfolio prioritization from top consulting firms, growth potential modeling, and ROI-driven resource allocation that tells creators exactly where to invest their time for maximum returns.${creatorCtx}` }, { role: "user", content: `Rank platform priorities. Channel data: ${JSON.stringify(data.channelData || {})}. Growth metrics: ${JSON.stringify(data.growthMetrics || {})}. Goals: ${JSON.stringify(data.goals || {})}. Rank platforms, assess growth potential, calculate effort vs return, recommend focus areas, and suggest migration strategy. Return JSON with keys: platformRankings, growthPotential, effortVsReturn, focusRecommendation, migrationStrategy.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10721,7 +10721,7 @@ export async function aiCrossPostScheduler(data: { content?: any; platforms?: st
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a cross-platform posting scheduler. Optimize timing per platform for maximum reach.${creatorCtx}` }, { role: "user", content: `Schedule cross-platform posts. Content: ${JSON.stringify(data.content || {})}. Platforms: ${JSON.stringify(data.platforms || [])}. Timezones: ${JSON.stringify(data.timezones || ["UTC"])}. Create per-platform schedule, identify peak times, avoid conflicts, suggest batching strategy, and build a weekly calendar. Return JSON with keys: scheduleByPlatform, peakTimes, conflictAvoidance, batchingStrategy, weeklyCalendar.` }],
+    messages: [{ role: "system", content: `You are the world's best cross-platform scheduling optimizer — combining elite media planning from top advertising agencies, platform-specific peak timing algorithms, and timezone optimization science that maximizes global reach with surgical precision.${creatorCtx}` }, { role: "user", content: `Schedule cross-platform posts. Content: ${JSON.stringify(data.content || {})}. Platforms: ${JSON.stringify(data.platforms || [])}. Timezones: ${JSON.stringify(data.timezones || ["UTC"])}. Create per-platform schedule, identify peak times, avoid conflicts, suggest batching strategy, and build a weekly calendar. Return JSON with keys: scheduleByPlatform, peakTimes, conflictAvoidance, batchingStrategy, weeklyCalendar.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10731,7 +10731,7 @@ export async function aiPlatformSpecificOptimizer(data: { content?: any; platfor
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a platform-specific content optimizer. Adapt tone and format per platform.${creatorCtx}` }, { role: "user", content: `Optimize content for ${data.platform || "youtube"}. Content: ${JSON.stringify(data.content || {})}. Audience data: ${JSON.stringify(data.audienceData || {})}. Adapt content, suggest format changes, shift tone, create hashtag strategy, and list platform best practices. Return JSON with keys: adaptedContent, formatChanges, toneShift, hashtagStrategy, platformBestPractices.` }],
+    messages: [{ role: "system", content: `You are the world's #1 platform-specific content optimizer — combining elite format adaptation expertise from top multi-platform creators, algorithm-native content engineering, and platform-specific audience psychology that makes every piece of content feel native.${creatorCtx}` }, { role: "user", content: `Optimize content for ${data.platform || "youtube"}. Content: ${JSON.stringify(data.content || {})}. Audience data: ${JSON.stringify(data.audienceData || {})}. Adapt content, suggest format changes, shift tone, create hashtag strategy, and list platform best practices. Return JSON with keys: adaptedContent, formatChanges, toneShift, hashtagStrategy, platformBestPractices.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10742,7 +10742,7 @@ export async function aiBrandAuditor(data: { channelData?: any; socialProfiles?:
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a personal brand auditor. Analyze consistency across platforms.${creatorCtx}` }, { role: "user", content: `Audit personal brand. Channel data: ${JSON.stringify(data.channelData || {})}. Social profiles: ${JSON.stringify(data.socialProfiles || {})}. Content samples: ${JSON.stringify(data.contentSamples || [])}. Score consistency, identify brand strengths, find inconsistencies, provide recommendations, and assess competitive position. Return JSON with keys: consistencyScore, brandStrengths, inconsistencies, recommendations, competitivePosition.` }],
+    messages: [{ role: "system", content: `You are the world's best personal brand audit specialist — combining elite brand strategy from top global agencies, cross-platform consistency analysis, and brand equity assessment methodology used by Fortune 500 companies to ensure flawless brand cohesion.${creatorCtx}` }, { role: "user", content: `Audit personal brand. Channel data: ${JSON.stringify(data.channelData || {})}. Social profiles: ${JSON.stringify(data.socialProfiles || {})}. Content samples: ${JSON.stringify(data.contentSamples || [])}. Score consistency, identify brand strengths, find inconsistencies, provide recommendations, and assess competitive position. Return JSON with keys: consistencyScore, brandStrengths, inconsistencies, recommendations, competitivePosition.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10752,7 +10752,7 @@ export async function aiMediaKitAutoUpdater(data: { channelMetrics?: any; recent
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a media kit auto-updater. Keep media kits current with latest stats.${creatorCtx}` }, { role: "user", content: `Update media kit. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Recent work: ${JSON.stringify(data.recentWork || [])}. Achievements: ${JSON.stringify(data.achievements || [])}. Update sections, highlight new achievements, feature key metrics, suggest design changes, and note last updated date. Return JSON with keys: updatedSections, newAchievements, metricHighlights, designSuggestions, lastUpdated.` }],
+    messages: [{ role: "system", content: `You are the world's #1 media kit optimization engine — combining elite pitch deck design from top talent agencies, real-time metric curation, and presentation science that keeps media kits perpetually polished and sponsor-ready.${creatorCtx}` }, { role: "user", content: `Update media kit. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Recent work: ${JSON.stringify(data.recentWork || [])}. Achievements: ${JSON.stringify(data.achievements || [])}. Update sections, highlight new achievements, feature key metrics, suggest design changes, and note last updated date. Return JSON with keys: updatedSections, newAchievements, metricHighlights, designSuggestions, lastUpdated.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10762,7 +10762,7 @@ export async function aiBrandVoiceAnalyzer(data: { contentSamples?: any[]; comme
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a brand voice analyst. Ensure consistent tone and messaging across content.${creatorCtx}` }, { role: "user", content: `Analyze brand voice. Content samples: ${JSON.stringify(data.contentSamples || [])}. Comments: ${JSON.stringify(data.comments || [])}. Social posts: ${JSON.stringify(data.socialPosts || [])}. Profile the voice, assess tone consistency, check messaging alignment, flag deviations, and create guidelines. Return JSON with keys: voiceProfile, toneConsistency, messagingAlignment, deviations, guidelines.` }],
+    messages: [{ role: "system", content: `You are the world's best brand voice intelligence analyst — combining elite brand linguistics from top creative agencies, tone consistency algorithms, and messaging alignment science that ensures every piece of content speaks with one unmistakable voice.${creatorCtx}` }, { role: "user", content: `Analyze brand voice. Content samples: ${JSON.stringify(data.contentSamples || [])}. Comments: ${JSON.stringify(data.comments || [])}. Social posts: ${JSON.stringify(data.socialPosts || [])}. Profile the voice, assess tone consistency, check messaging alignment, flag deviations, and create guidelines. Return JSON with keys: voiceProfile, toneConsistency, messagingAlignment, deviations, guidelines.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10772,7 +10772,7 @@ export async function aiVisualIdentityChecker(data: { thumbnails?: any[]; social
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a visual brand identity checker. Flag inconsistent colors, fonts, and logos.${creatorCtx}` }, { role: "user", content: `Check visual identity. Thumbnails: ${JSON.stringify(data.thumbnails || [])}. Social assets: ${JSON.stringify(data.socialAssets || {})}. Branding: ${JSON.stringify(data.branding || {})}. Score consistency, analyze color palette, check font usage, evaluate logo placement, and suggest fixes. Return JSON with keys: consistencyScore, colorPaletteAnalysis, fontUsage, logoPlacement, fixes.` }],
+    messages: [{ role: "system", content: `You are the world's #1 visual brand identity auditor — combining elite design system expertise from top branding agencies, color theory and typography analysis, and visual consistency detection that catches every deviation with pixel-perfect precision.${creatorCtx}` }, { role: "user", content: `Check visual identity. Thumbnails: ${JSON.stringify(data.thumbnails || [])}. Social assets: ${JSON.stringify(data.socialAssets || {})}. Branding: ${JSON.stringify(data.branding || {})}. Score consistency, analyze color palette, check font usage, evaluate logo placement, and suggest fixes. Return JSON with keys: consistencyScore, colorPaletteAnalysis, fontUsage, logoPlacement, fixes.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10782,7 +10782,7 @@ export async function aiBrandPartnershipScorer(data: { brand?: any; channelData?
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a brand partnership alignment scorer. Rate brand-audience fit.${creatorCtx}` }, { role: "user", content: `Score brand partnership. Brand: ${JSON.stringify(data.brand || {})}. Channel data: ${JSON.stringify(data.channelData || {})}. Audience data: ${JSON.stringify(data.audienceData || {})}. Calculate alignment score, assess audience match, evaluate values fit, identify risk factors, and suggest partnership terms. Return JSON with keys: alignmentScore, audienceMatch, valuesFit, riskFactors, partnershipTerms.` }],
+    messages: [{ role: "system", content: `You are the world's best brand-creator alignment analyst — combining elite partnership evaluation from top talent management firms, audience psychographic matching, and brand safety intelligence that scores fit with Fortune 500-level due diligence.${creatorCtx}` }, { role: "user", content: `Score brand partnership. Brand: ${JSON.stringify(data.brand || {})}. Channel data: ${JSON.stringify(data.channelData || {})}. Audience data: ${JSON.stringify(data.audienceData || {})}. Calculate alignment score, assess audience match, evaluate values fit, identify risk factors, and suggest partnership terms. Return JSON with keys: alignmentScore, audienceMatch, valuesFit, riskFactors, partnershipTerms.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10792,7 +10792,7 @@ export async function aiCopyrightShield(data: { content?: any; audioSources?: an
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a copyright protection specialist for creators. Scan content for potential strikes.${creatorCtx}` }, { role: "user", content: `Scan for copyright risks. Content: ${JSON.stringify(data.content || {})}. Audio sources: ${JSON.stringify(data.audioSources || [])}. Visual sources: ${JSON.stringify(data.visualSources || [])}. Assess risk level, flag elements, suggest alternatives, analyze fair use, and provide recommendations. Return JSON with keys: riskLevel, flaggedElements, alternatives, fairUseAnalysis, recommendations.` }],
+    messages: [{ role: "system", content: `You are the world's #1 copyright protection intelligence specialist — combining elite IP law expertise, content ID system knowledge used by major platforms, and proactive strike prevention strategies that keep creators safe from claims before they happen.${creatorCtx}` }, { role: "user", content: `Scan for copyright risks. Content: ${JSON.stringify(data.content || {})}. Audio sources: ${JSON.stringify(data.audioSources || [])}. Visual sources: ${JSON.stringify(data.visualSources || [])}. Assess risk level, flag elements, suggest alternatives, analyze fair use, and provide recommendations. Return JSON with keys: riskLevel, flaggedElements, alternatives, fairUseAnalysis, recommendations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10802,7 +10802,7 @@ export async function aiContractAnalyzer(data: { contractText?: string; dealType
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creator contract analyst. Review sponsorship contracts for unfavorable terms.${creatorCtx}` }, { role: "user", content: `Analyze contract. Contract text: "${data.contractText || ""}". Deal type: ${data.dealType || "sponsorship"}. Industry: ${data.industry || "general"}. Score risk, flag unfavorable clauses, identify missing protections, suggest negotiation points, and provide overall recommendation. Return JSON with keys: riskScore, flaggedClauses, missingProtections, negotiationPoints, recommendation.` }],
+    messages: [{ role: "system", content: `You are the world's best creator contract analyst — combining elite entertainment law expertise, talent agency contract negotiation intelligence, and red-flag detection algorithms that protect creators from unfavorable terms with the precision of a top-tier legal team.${creatorCtx}` }, { role: "user", content: `Analyze contract. Contract text: "${data.contractText || ""}". Deal type: ${data.dealType || "sponsorship"}. Industry: ${data.industry || "general"}. Score risk, flag unfavorable clauses, identify missing protections, suggest negotiation points, and provide overall recommendation. Return JSON with keys: riskScore, flaggedClauses, missingProtections, negotiationPoints, recommendation.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10812,7 +10812,7 @@ export async function aiContentInsuranceAdvisor(data: { channelValue?: any; cont
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a digital asset protection specialist. Recommend protection strategies.${creatorCtx}` }, { role: "user", content: `Advise on content protection. Channel value: ${JSON.stringify(data.channelValue || {})}. Content types: ${JSON.stringify(data.contentTypes || [])}. Risks: ${JSON.stringify(data.risks || [])}. Assess risks, recommend protection strategies, create backup plans, suggest insurance options, and list priority actions. Return JSON with keys: riskAssessment, protectionStrategies, backupPlan, insuranceOptions, priorityActions.` }],
+    messages: [{ role: "system", content: `You are the world's #1 digital asset protection strategist — combining elite risk management from Fortune 500 companies, content insurance expertise, and comprehensive backup engineering that ensures no creator ever loses their most valuable assets.${creatorCtx}` }, { role: "user", content: `Advise on content protection. Channel value: ${JSON.stringify(data.channelValue || {})}. Content types: ${JSON.stringify(data.contentTypes || [])}. Risks: ${JSON.stringify(data.risks || [])}. Assess risks, recommend protection strategies, create backup plans, suggest insurance options, and list priority actions. Return JSON with keys: riskAssessment, protectionStrategies, backupPlan, insuranceOptions, priorityActions.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10823,7 +10823,7 @@ export async function aiDMCADefenseAssistant(data: { claimDetails?: any; origina
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a DMCA defense specialist for creators. Help respond to false copyright claims.${creatorCtx}` }, { role: "user", content: `Assist with DMCA defense. Claim details: ${JSON.stringify(data.claimDetails || {})}. Original content: ${JSON.stringify(data.originalContent || {})}. Evidence: ${JSON.stringify(data.evidence || [])}. Create defense strategy, draft counter-notice template, build evidence checklist, outline timeline, and suggest escalation path. Return JSON with keys: defenseStrategy, counterNoticeTemplate, evidenceChecklist, timeline, escalationPath.` }],
+    messages: [{ role: "system", content: `You are the world's best DMCA defense strategist — combining elite intellectual property law expertise, counter-notification mastery, and evidence-building methodology that has a 95%+ success rate overturning false copyright claims for creators.${creatorCtx}` }, { role: "user", content: `Assist with DMCA defense. Claim details: ${JSON.stringify(data.claimDetails || {})}. Original content: ${JSON.stringify(data.originalContent || {})}. Evidence: ${JSON.stringify(data.evidence || [])}. Create defense strategy, draft counter-notice template, build evidence checklist, outline timeline, and suggest escalation path. Return JSON with keys: defenseStrategy, counterNoticeTemplate, evidenceChecklist, timeline, escalationPath.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10833,7 +10833,7 @@ export async function aiSubscriberMilestonePredictor(data: { currentSubs?: numbe
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a subscriber growth prediction specialist. Forecast milestone dates.${creatorCtx}` }, { role: "user", content: `Predict subscriber milestones. Current subs: ${data.currentSubs || 0}. Growth rate: ${data.growthRate || 0}%. History: ${JSON.stringify(data.history || {})}. Predict next milestone, estimated date, confidence level, acceleration tips, and growth trajectory. Return JSON with keys: nextMilestone, predictedDate, confidenceLevel, accelerationTips, growthTrajectory.` }],
+    messages: [{ role: "system", content: `You are the world's #1 subscriber growth prediction engine — combining elite statistical forecasting from top data science firms, growth trajectory modeling, and milestone acceleration intelligence that predicts subscriber milestones with remarkable accuracy.${creatorCtx}` }, { role: "user", content: `Predict subscriber milestones. Current subs: ${data.currentSubs || 0}. Growth rate: ${data.growthRate || 0}%. History: ${JSON.stringify(data.history || {})}. Predict next milestone, estimated date, confidence level, acceleration tips, and growth trajectory. Return JSON with keys: nextMilestone, predictedDate, confidenceLevel, accelerationTips, growthTrajectory.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10844,7 +10844,7 @@ export async function aiRetentionHeatmapAnalyzer(data: { retentionData?: any; vi
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an audience retention heatmap analyst. Break down where viewers leave.${creatorCtx}` }, { role: "user", content: `Analyze retention heatmap. Retention data: ${JSON.stringify(data.retentionData || {})}. Video structure: ${JSON.stringify(data.videoStructure || {})}. Content type: ${data.contentType || "general"}. Provide heatmap insights, identify drop-off points, find engagement peaks, diagnose structural issues, and suggest fixes. Return JSON with keys: heatmapInsights, dropOffPoints, engagementPeaks, structuralIssues, fixes.` }],
+    messages: [{ role: "system", content: `You are the world's best audience retention analyst — combining elite viewer behavior science, second-by-second engagement modeling, and drop-off diagnosis expertise used by top streaming platforms to engineer maximum watch time from every video.${creatorCtx}` }, { role: "user", content: `Analyze retention heatmap. Retention data: ${JSON.stringify(data.retentionData || {})}. Video structure: ${JSON.stringify(data.videoStructure || {})}. Content type: ${data.contentType || "general"}. Provide heatmap insights, identify drop-off points, find engagement peaks, diagnose structural issues, and suggest fixes. Return JSON with keys: heatmapInsights, dropOffPoints, engagementPeaks, structuralIssues, fixes.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10854,7 +10854,7 @@ export async function aiBestVideoFormulaDetector(data: { topVideos?: any[]; chan
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content success pattern analyst. Find formulas in top-performing videos.${creatorCtx}` }, { role: "user", content: `Detect winning video formulas. Top videos: ${JSON.stringify(data.topVideos || [])}. Channel data: ${JSON.stringify(data.channelData || {})}. Metrics: ${JSON.stringify(data.metrics || {})}. Identify winning formulas, common elements, title patterns, thumbnail patterns, and create a structure blueprint. Return JSON with keys: winningFormulas, commonElements, titlePatterns, thumbnailPatterns, structureBlueprint.` }],
+    messages: [{ role: "system", content: `You are the world's #1 content success pattern detection engine — combining elite performance analytics, winning formula extraction algorithms, and data-driven content blueprint methodology that reverse-engineers exactly why top videos outperform the rest.${creatorCtx}` }, { role: "user", content: `Detect winning video formulas. Top videos: ${JSON.stringify(data.topVideos || [])}. Channel data: ${JSON.stringify(data.channelData || {})}. Metrics: ${JSON.stringify(data.metrics || {})}. Identify winning formulas, common elements, title patterns, thumbnail patterns, and create a structure blueprint. Return JSON with keys: winningFormulas, commonElements, titlePatterns, thumbnailPatterns, structureBlueprint.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10864,7 +10864,7 @@ export async function aiGrowthTrajectoryModeler(data: { channelData?: any; strat
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a channel growth trajectory modeler. Project growth under different strategies.${creatorCtx}` }, { role: "user", content: `Model growth trajectory. Channel data: ${JSON.stringify(data.channelData || {})}. Strategies: ${JSON.stringify(data.strategies || [])}. Goals: ${JSON.stringify(data.goals || {})}. Project scenarios, projected growth, strategy comparison, risk factors, and optimal path. Return JSON with keys: scenarios, projectedGrowth, strategyComparison, riskFactors, optimalPath.` }],
+    messages: [{ role: "system", content: `You are the world's best channel growth modeling specialist — combining elite forecasting from top investment banks, multi-scenario growth projection algorithms, and strategy impact analysis that maps the optimal path to every growth milestone.${creatorCtx}` }, { role: "user", content: `Model growth trajectory. Channel data: ${JSON.stringify(data.channelData || {})}. Strategies: ${JSON.stringify(data.strategies || [])}. Goals: ${JSON.stringify(data.goals || {})}. Project scenarios, projected growth, strategy comparison, risk factors, and optimal path. Return JSON with keys: scenarios, projectedGrowth, strategyComparison, riskFactors, optimalPath.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10874,7 +10874,7 @@ export async function aiAbTestingDashboard(data: { activeTests?: any[]; results?
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an A/B testing analyst for creators. Manage and analyze all split tests.${creatorCtx}` }, { role: "user", content: `Analyze A/B tests. Active tests: ${JSON.stringify(data.activeTests || [])}. Results: ${JSON.stringify(data.results || {})}. Metrics: ${JSON.stringify(data.metrics || {})}. Summarize active tests, completed results, winner analysis, statistical significance, and next tests. Return JSON with keys: activeTests, completedResults, winnerAnalysis, statisticalSignificance, nextTests.` }],
+    messages: [{ role: "system", content: `You are the world's #1 creator A/B testing analyst — combining elite experimental design from top tech companies, statistical significance modeling, and split-test optimization science that identifies winning variations with confidence and speed.${creatorCtx}` }, { role: "user", content: `Analyze A/B tests. Active tests: ${JSON.stringify(data.activeTests || [])}. Results: ${JSON.stringify(data.results || {})}. Metrics: ${JSON.stringify(data.metrics || {})}. Summarize active tests, completed results, winner analysis, statistical significance, and next tests. Return JSON with keys: activeTests, completedResults, winnerAnalysis, statisticalSignificance, nextTests.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10884,7 +10884,7 @@ export async function aiContentDecayRefresher(data: { videoId?: string; currentM
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content refresh specialist. Revitalize declining videos with updated metadata.${creatorCtx}` }, { role: "user", content: `Refresh declining content. Video ID: ${data.videoId || "unknown"}. Current metrics: ${JSON.stringify(data.currentMetrics || {})}. Original metadata: ${JSON.stringify(data.originalMetadata || {})}. Provide refreshed title, refreshed description, updated tags, thumbnail suggestions, and projected recovery. Return JSON with keys: refreshedTitle, refreshedDescription, updatedTags, thumbnailSuggestions, projectedRecovery.` }],
+    messages: [{ role: "system", content: `You are the world's best content revitalization specialist — combining elite SEO recovery strategies from top digital agencies, metadata refresh engineering, and traffic resurrection science that breathes new life into declining videos and restores their search ranking.${creatorCtx}` }, { role: "user", content: `Refresh declining content. Video ID: ${data.videoId || "unknown"}. Current metrics: ${JSON.stringify(data.currentMetrics || {})}. Original metadata: ${JSON.stringify(data.originalMetadata || {})}. Provide refreshed title, refreshed description, updated tags, thumbnail suggestions, and projected recovery. Return JSON with keys: refreshedTitle, refreshedDescription, updatedTags, thumbnailSuggestions, projectedRecovery.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10894,7 +10894,7 @@ export async function aiBurnoutPrevention(data: { workload?: any; schedule?: any
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creator wellness and burnout prevention specialist. Monitor workload and suggest sustainable pace.${creatorCtx}` }, { role: "user", content: `Assess burnout risk. Workload: ${JSON.stringify(data.workload || {})}. Schedule: ${JSON.stringify(data.schedule || {})}. Stress indicators: ${JSON.stringify(data.stressIndicators || {})}. Evaluate burnout risk, workload analysis, rest recommendations, schedule adjustments, and wellness score. Return JSON with keys: burnoutRisk, workloadAnalysis, restRecommendations, scheduleAdjustments, wellnessScore.` }],
+    messages: [{ role: "system", content: `You are the world's #1 creator wellness and burnout prevention specialist — combining elite occupational psychology, sustainable productivity science, and workload optimization methodology that keeps creators performing at their peak without sacrificing their health.${creatorCtx}` }, { role: "user", content: `Assess burnout risk. Workload: ${JSON.stringify(data.workload || {})}. Schedule: ${JSON.stringify(data.schedule || {})}. Stress indicators: ${JSON.stringify(data.stressIndicators || {})}. Evaluate burnout risk, workload analysis, rest recommendations, schedule adjustments, and wellness score. Return JSON with keys: burnoutRisk, workloadAnalysis, restRecommendations, scheduleAdjustments, wellnessScore.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10904,7 +10904,7 @@ export async function aiContentBatchingPlanner(data: { contentPlan?: any; resour
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content batching efficiency specialist. Design filming schedules that maximize output.${creatorCtx}` }, { role: "user", content: `Plan content batching. Content plan: ${JSON.stringify(data.contentPlan || {})}. Resources: ${JSON.stringify(data.resources || {})}. Time available: ${JSON.stringify(data.timeAvailable || {})}. Create batch schedule, setup optimizations, equipment checklist, energy management, and time estimates. Return JSON with keys: batchSchedule, setupOptimizations, equipmentChecklist, energyManagement, timeEstimates.` }],
+    messages: [{ role: "system", content: `You are the world's best content batching architect — combining elite production efficiency from Hollywood studios, filming schedule optimization science, and resource management methodology that lets creators produce 3x more content in half the time.${creatorCtx}` }, { role: "user", content: `Plan content batching. Content plan: ${JSON.stringify(data.contentPlan || {})}. Resources: ${JSON.stringify(data.resources || {})}. Time available: ${JSON.stringify(data.timeAvailable || {})}. Create batch schedule, setup optimizations, equipment checklist, energy management, and time estimates. Return JSON with keys: batchSchedule, setupOptimizations, equipmentChecklist, energyManagement, timeEstimates.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10914,7 +10914,7 @@ export async function aiCreativeBlockSolver(data: { niche?: string; recentConten
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creative ideation specialist for creators. Generate fresh ideas when creativity is blocked.${creatorCtx}` }, { role: "user", content: `Solve creative block. Niche: ${data.niche || "general"}. Recent content: ${JSON.stringify(data.recentContent || [])}. Interests: ${JSON.stringify(data.interests || [])}. Generate fresh ideas, inspiration sources, exercise suggestions, format experiments, and collaboration ideas. Return JSON with keys: freshIdeas, inspirationSources, exerciseSuggestions, formatExperiments, collaborationIdeas.` }],
+    messages: [{ role: "system", content: `You are the world's #1 creative ideation engine — combining elite brainstorming methodology from top advertising agencies, lateral thinking frameworks, and inspiration algorithms that shatter creative blocks and generate breakthrough content ideas on demand.${creatorCtx}` }, { role: "user", content: `Solve creative block. Niche: ${data.niche || "general"}. Recent content: ${JSON.stringify(data.recentContent || [])}. Interests: ${JSON.stringify(data.interests || [])}. Generate fresh ideas, inspiration sources, exercise suggestions, format experiments, and collaboration ideas. Return JSON with keys: freshIdeas, inspirationSources, exerciseSuggestions, formatExperiments, collaborationIdeas.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10924,7 +10924,7 @@ export async function aiWorkLifeBalanceTracker(data: { workHours?: any; personal
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a work-life balance analyst for content creators. Monitor hours and suggest boundaries.${creatorCtx}` }, { role: "user", content: `Track work-life balance. Work hours: ${JSON.stringify(data.workHours || {})}. Personal time: ${JSON.stringify(data.personalTime || {})}. Goals: ${JSON.stringify(data.goals || {})}. Calculate balance score, time breakdown, boundary recommendations, automation opportunities, and weekly plan. Return JSON with keys: balanceScore, timeBreakdown, boundaryRecommendations, automationOpportunities, weeklyPlan.` }],
+    messages: [{ role: "system", content: `You are the world's best work-life balance optimizer for creators — combining elite time management science, boundary-setting frameworks from top executive coaches, and sustainable creator career methodology that maximizes both productivity and personal fulfillment.${creatorCtx}` }, { role: "user", content: `Track work-life balance. Work hours: ${JSON.stringify(data.workHours || {})}. Personal time: ${JSON.stringify(data.personalTime || {})}. Goals: ${JSON.stringify(data.goals || {})}. Calculate balance score, time breakdown, boundary recommendations, automation opportunities, and weekly plan. Return JSON with keys: balanceScore, timeBreakdown, boundaryRecommendations, automationOpportunities, weeklyPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10934,7 +10934,7 @@ export async function aiMotivationEngine(data: { milestones?: any[]; recentPerfo
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creator motivation coach. Celebrate wins and provide encouragement during plateaus.${creatorCtx}` }, { role: "user", content: `Boost motivation. Milestones: ${JSON.stringify(data.milestones || [])}. Recent performance: ${JSON.stringify(data.recentPerformance || {})}. Goals: ${JSON.stringify(data.goals || {})}. Provide celebrations, progress highlights, motivational insights, next goals, and affirmations. Return JSON with keys: celebrations, progressHighlights, motivationalInsights, nextGoals, affirmations.` }],
+    messages: [{ role: "system", content: `You are the world's #1 creator motivation architect — combining elite performance psychology from Olympic-level coaches, milestone celebration science, and plateau-breaking strategies that keep creators inspired, driven, and consistently moving toward their goals.${creatorCtx}` }, { role: "user", content: `Boost motivation. Milestones: ${JSON.stringify(data.milestones || [])}. Recent performance: ${JSON.stringify(data.recentPerformance || {})}. Goals: ${JSON.stringify(data.goals || {})}. Provide celebrations, progress highlights, motivational insights, next goals, and affirmations. Return JSON with keys: celebrations, progressHighlights, motivationalInsights, nextGoals, affirmations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10944,7 +10944,7 @@ export async function aiGearAdvisor(data: { contentType?: string; budget?: any; 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creator equipment specialist. Recommend gear upgrades based on content type and budget.${creatorCtx}` }, { role: "user", content: `Advise on gear. Content type: ${data.contentType || "general"}. Budget: ${JSON.stringify(data.budget || {})}. Current gear: ${JSON.stringify(data.currentGear || {})}. Provide recommendations, priority upgrades, budget options, premium options, and setup guide. Return JSON with keys: recommendations, priorityUpgrades, budgetOptions, premiumOptions, setupGuide.` }],
+    messages: [{ role: "system", content: `You are the world's best creator equipment advisor — combining elite production technology expertise, cost-performance optimization from top video production houses, and gear upgrade prioritization that delivers maximum quality improvement per dollar spent.${creatorCtx}` }, { role: "user", content: `Advise on gear. Content type: ${data.contentType || "general"}. Budget: ${JSON.stringify(data.budget || {})}. Current gear: ${JSON.stringify(data.currentGear || {})}. Provide recommendations, priority upgrades, budget options, premium options, and setup guide. Return JSON with keys: recommendations, priorityUpgrades, budgetOptions, premiumOptions, setupGuide.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10954,7 +10954,7 @@ export async function aiEditingStyleCoach(data: { contentType?: string; currentS
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a video editing style coach. Analyze top creators' editing techniques to adopt.${creatorCtx}` }, { role: "user", content: `Coach editing style. Content type: ${data.contentType || "general"}. Current style: ${data.currentStyle || "basic"}. Target audience: ${data.targetAudience || "general"}. Identify trending styles, technique breakdown, software tools, transition tips, and practice exercises. Return JSON with keys: trendingStyles, techniqueBreakdown, softwareTools, transitionTips, practiceExercises.` }],
+    messages: [{ role: "system", content: `You are the world's #1 video editing style coach — combining elite post-production expertise from Hollywood editors, trending editing technique analysis, and style-matching algorithms that help creators develop a signature editing style that captivates audiences.${creatorCtx}` }, { role: "user", content: `Coach editing style. Content type: ${data.contentType || "general"}. Current style: ${data.currentStyle || "basic"}. Target audience: ${data.targetAudience || "general"}. Identify trending styles, technique breakdown, software tools, transition tips, and practice exercises. Return JSON with keys: trendingStyles, techniqueBreakdown, softwareTools, transitionTips, practiceExercises.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10964,7 +10964,7 @@ export async function aiPublicSpeakingTrainer(data: { contentSamples?: any[]; de
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a public speaking and on-camera coach for creators. Rate delivery and suggest improvements.${creatorCtx}` }, { role: "user", content: `Train public speaking. Content samples: ${JSON.stringify(data.contentSamples || [])}. Delivery notes: ${data.deliveryNotes || "none"}. Goals: ${JSON.stringify(data.goals || {})}. Rate delivery score, energy level, body language tips, voice analysis, and practice routine. Return JSON with keys: deliveryScore, energyLevel, bodyLanguageTips, voiceAnalysis, practiceRoutine.` }],
+    messages: [{ role: "system", content: `You are the world's best on-camera performance coach — combining elite presentation training from TED Talk coaches, vocal dynamics expertise, and body language mastery that transforms creators into magnetic on-screen personalities.${creatorCtx}` }, { role: "user", content: `Train public speaking. Content samples: ${JSON.stringify(data.contentSamples || [])}. Delivery notes: ${data.deliveryNotes || "none"}. Goals: ${JSON.stringify(data.goals || {})}. Rate delivery score, energy level, body language tips, voice analysis, and practice routine. Return JSON with keys: deliveryScore, energyLevel, bodyLanguageTips, voiceAnalysis, practiceRoutine.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10974,7 +10974,7 @@ export async function aiNicheExpertBuilder(data: { niche?: string; currentKnowle
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a niche authority building specialist. Curate research and talking points for expertise.${creatorCtx}` }, { role: "user", content: `Build niche expertise. Niche: ${data.niche || "general"}. Current knowledge: ${JSON.stringify(data.currentKnowledge || {})}. Audience: ${JSON.stringify(data.audience || {})}. Provide research topics, talking points, expertise gaps, credibility strategies, and content plan. Return JSON with keys: researchTopics, talkingPoints, expertiseGaps, credibilityStrategies, contentPlan.` }],
+    messages: [{ role: "system", content: `You are the world's #1 niche authority architect — combining elite thought leadership strategy from top consulting firms, expertise curation methodology, and credibility-building science that positions creators as the undisputed go-to expert in their niche.${creatorCtx}` }, { role: "user", content: `Build niche expertise. Niche: ${data.niche || "general"}. Current knowledge: ${JSON.stringify(data.currentKnowledge || {})}. Audience: ${JSON.stringify(data.audience || {})}. Provide research topics, talking points, expertise gaps, credibility strategies, and content plan. Return JSON with keys: researchTopics, talkingPoints, expertiseGaps, credibilityStrategies, contentPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10985,7 +10985,7 @@ export async function aiTaskDelegator(data: { tasks?: any[]; teamMembers?: any[]
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a task delegation specialist for creator teams. Auto-assign tasks based on skills.${creatorCtx}` }, { role: "user", content: `Delegate tasks. Tasks: ${JSON.stringify(data.tasks || [])}. Team members: ${JSON.stringify(data.teamMembers || [])}. Deadlines: ${JSON.stringify(data.deadlines || {})}. Create assignments, workload balance, priority queue, deadline alerts, and efficiency score. Return JSON with keys: assignments, workloadBalance, priorityQueue, deadlineAlerts, efficiencyScore.` }],
+    messages: [{ role: "system", content: `You are the world's best task delegation optimizer — combining elite project management from Fortune 500 companies, skills-based assignment algorithms, and workload balancing science that maximizes team output while preventing bottlenecks.${creatorCtx}` }, { role: "user", content: `Delegate tasks. Tasks: ${JSON.stringify(data.tasks || [])}. Team members: ${JSON.stringify(data.teamMembers || [])}. Deadlines: ${JSON.stringify(data.deadlines || {})}. Create assignments, workload balance, priority queue, deadline alerts, and efficiency score. Return JSON with keys: assignments, workloadBalance, priorityQueue, deadlineAlerts, efficiencyScore.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10995,7 +10995,7 @@ export async function aiTeamPerformanceTracker(data: { teamData?: any; deliverab
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creative team performance analyst. Monitor quality and efficiency.${creatorCtx}` }, { role: "user", content: `Track team performance. Team data: ${JSON.stringify(data.teamData || {})}. Deliverables: ${JSON.stringify(data.deliverables || [])}. Timelines: ${JSON.stringify(data.timelines || {})}. Evaluate performance scores, bottlenecks, quality metrics, improvement areas, and team health. Return JSON with keys: performanceScores, bottlenecks, qualityMetrics, improvementAreas, teamHealth.` }],
+    messages: [{ role: "system", content: `You are the world's #1 creative team performance analyst — combining elite workforce analytics from top tech companies, quality-efficiency optimization frameworks, and talent development science that helps creator teams consistently deliver exceptional work.${creatorCtx}` }, { role: "user", content: `Track team performance. Team data: ${JSON.stringify(data.teamData || {})}. Deliverables: ${JSON.stringify(data.deliverables || [])}. Timelines: ${JSON.stringify(data.timelines || {})}. Evaluate performance scores, bottlenecks, quality metrics, improvement areas, and team health. Return JSON with keys: performanceScores, bottlenecks, qualityMetrics, improvementAreas, teamHealth.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11005,7 +11005,7 @@ export async function aiSOPsGenerator(data: { process?: string; role?: string; f
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a standard operating procedures specialist for content teams. Create SOPs for repeatable tasks.${creatorCtx}` }, { role: "user", content: `Generate SOP. Process: ${data.process || "general"}. Role: ${data.role || "team member"}. Frequency: ${data.frequency || "weekly"}. Create SOP document, step by step instructions, quality checklist, time estimate, and automation opportunities. Return JSON with keys: sopDocument, stepByStep, qualityChecklist, timeEstimate, automationOpportunities.` }],
+    messages: [{ role: "system", content: `You are the world's best operations documentation architect — combining elite process engineering from Fortune 500 companies, SOP optimization methodology, and workflow automation intelligence that turns chaotic creator workflows into repeatable, scalable systems.${creatorCtx}` }, { role: "user", content: `Generate SOP. Process: ${data.process || "general"}. Role: ${data.role || "team member"}. Frequency: ${data.frequency || "weekly"}. Create SOP document, step by step instructions, quality checklist, time estimate, and automation opportunities. Return JSON with keys: sopDocument, stepByStep, qualityChecklist, timeEstimate, automationOpportunities.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11016,7 +11016,7 @@ export async function aiStatementDrafter(data: { situation?: string; tone?: stri
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a public statement specialist for creators. Craft appropriate public statements.${creatorCtx}` }, { role: "user", content: `Draft statement. Situation: ${data.situation || "general"}. Tone: ${data.tone || "professional"}. Audience: ${JSON.stringify(data.audience || {})}. Create statement, tone analysis, distribution plan, follow-up actions, and media guidelines. Return JSON with keys: statement, toneAnalysis, distributionPlan, followUpActions, mediaGuidelines.` }],
+    messages: [{ role: "system", content: `You are the world's #1 crisis communications and public statement specialist — combining elite PR expertise from top global agencies, reputation management science, and strategic messaging that protects and enhances creator brands during sensitive moments.${creatorCtx}` }, { role: "user", content: `Draft statement. Situation: ${data.situation || "general"}. Tone: ${data.tone || "professional"}. Audience: ${JSON.stringify(data.audience || {})}. Create statement, tone analysis, distribution plan, follow-up actions, and media guidelines. Return JSON with keys: statement, toneAnalysis, distributionPlan, followUpActions, mediaGuidelines.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11026,7 +11026,7 @@ export async function aiSurveyBuilder(data: { goals?: any; audience?: any; platf
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an audience survey specialist. Create surveys and analyze potential results.${creatorCtx}` }, { role: "user", content: `Build survey. Goals: ${JSON.stringify(data.goals || {})}. Audience: ${JSON.stringify(data.audience || {})}. Platform: ${data.platform || "general"}. Design survey questions, distribution strategy, expected insights, incentive ideas, and analysis framework. Return JSON with keys: surveyQuestions, distributionStrategy, expectedInsights, incentiveIdeas, analysisFramework.` }],
+    messages: [{ role: "system", content: `You are the world's best audience research and survey architect — combining elite market research methodology from top firms, survey design science, and response analysis expertise that extracts actionable insights from every question.${creatorCtx}` }, { role: "user", content: `Build survey. Goals: ${JSON.stringify(data.goals || {})}. Audience: ${JSON.stringify(data.audience || {})}. Platform: ${data.platform || "general"}. Design survey questions, distribution strategy, expected insights, incentive ideas, and analysis framework. Return JSON with keys: surveyQuestions, distributionStrategy, expectedInsights, incentiveIdeas, analysisFramework.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11036,7 +11036,7 @@ export async function aiViewerJourneyMapper(data: { touchpoints?: any[]; analyti
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a viewer journey mapping specialist. Track how fans discover and engage with your channel.${creatorCtx}` }, { role: "user", content: `Map viewer journey. Touchpoints: ${JSON.stringify(data.touchpoints || [])}. Analytics: ${JSON.stringify(data.analytics || {})}. Funnel data: ${JSON.stringify(data.funnelData || {})}. Identify journey stages, touchpoints, conversion points, drop-off areas, and optimizations. Return JSON with keys: journeyStages, touchpoints, conversionPoints, dropOffAreas, optimizations.` }],
+    messages: [{ role: "system", content: `You are the world's #1 viewer journey intelligence specialist — combining elite customer journey mapping from Fortune 500 companies, touchpoint optimization science, and conversion funnel engineering that reveals exactly how viewers become superfans.${creatorCtx}` }, { role: "user", content: `Map viewer journey. Touchpoints: ${JSON.stringify(data.touchpoints || [])}. Analytics: ${JSON.stringify(data.analytics || {})}. Funnel data: ${JSON.stringify(data.funnelData || {})}. Identify journey stages, touchpoints, conversion points, drop-off areas, and optimizations. Return JSON with keys: journeyStages, touchpoints, conversionPoints, dropOffAreas, optimizations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11046,7 +11046,7 @@ export async function aiDemographicDeepDive(data: { analytics?: any; platformDat
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a demographic analysis specialist for creators. Provide deep audience breakdowns.${creatorCtx}` }, { role: "user", content: `Deep dive demographics. Analytics: ${JSON.stringify(data.analytics || {})}. Platform data: ${JSON.stringify(data.platformData || {})}. Content performance: ${JSON.stringify(data.contentPerformance || {})}. Analyze demographics, psychographics, viewing behaviors, spending patterns, and content preferences. Return JSON with keys: demographics, psychographics, viewingBehaviors, spendingPatterns, contentPreferences.` }],
+    messages: [{ role: "system", content: `You are the world's best demographic intelligence analyst — combining elite audience segmentation from top media companies, psychographic profiling methodology, and behavioral data science that delivers the deepest possible understanding of who your viewers really are.${creatorCtx}` }, { role: "user", content: `Deep dive demographics. Analytics: ${JSON.stringify(data.analytics || {})}. Platform data: ${JSON.stringify(data.platformData || {})}. Content performance: ${JSON.stringify(data.contentPerformance || {})}. Analyze demographics, psychographics, viewing behaviors, spending patterns, and content preferences. Return JSON with keys: demographics, psychographics, viewingBehaviors, spendingPatterns, contentPreferences.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11056,7 +11056,7 @@ export async function aiViewerIntentAnalyzer(data: { searchData?: any; comments?
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a viewer intent analyst. Understand why people watch specific content.${creatorCtx}` }, { role: "user", content: `Analyze viewer intent. Search data: ${JSON.stringify(data.searchData || {})}. Comments: ${JSON.stringify(data.comments || [])}. Watch patterns: ${JSON.stringify(data.watchPatterns || {})}. Categorize intent, motivations, content mapping, unmet needs, and content strategy. Return JSON with keys: intentCategories, motivations, contentMapping, unmetNeeds, contentStrategy.` }],
+    messages: [{ role: "system", content: `You are the world's #1 viewer intent intelligence engine — combining elite search intent analysis from top SEO firms, behavioral psychology, and content-motivation mapping that reveals the hidden reasons viewers choose your content over everything else.${creatorCtx}` }, { role: "user", content: `Analyze viewer intent. Search data: ${JSON.stringify(data.searchData || {})}. Comments: ${JSON.stringify(data.comments || [])}. Watch patterns: ${JSON.stringify(data.watchPatterns || {})}. Categorize intent, motivations, content mapping, unmet needs, and content strategy. Return JSON with keys: intentCategories, motivations, contentMapping, unmetNeeds, contentStrategy.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11066,7 +11066,7 @@ export async function aiCourseProductPlanner(data: { expertise?: any; audience?:
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a digital product strategist. Design online courses based on creator expertise.${creatorCtx}` }, { role: "user", content: `Plan course product. Expertise: ${JSON.stringify(data.expertise || {})}. Audience: ${JSON.stringify(data.audience || {})}. Market: ${JSON.stringify(data.market || {})}. Create course outline, pricing strategy, platform recommendation, marketing plan, and revenue projection. Return JSON with keys: courseOutline, pricingStrategy, platformRecommendation, marketingPlan, revenueProjection.` }],
+    messages: [{ role: "system", content: `You are the world's best digital product architect — combining elite online education design from top e-learning platforms, pricing psychology from leading SaaS companies, and course structure optimization that maximizes both student outcomes and creator revenue.${creatorCtx}` }, { role: "user", content: `Plan course product. Expertise: ${JSON.stringify(data.expertise || {})}. Audience: ${JSON.stringify(data.audience || {})}. Market: ${JSON.stringify(data.market || {})}. Create course outline, pricing strategy, platform recommendation, marketing plan, and revenue projection. Return JSON with keys: courseOutline, pricingStrategy, platformRecommendation, marketingPlan, revenueProjection.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11076,7 +11076,7 @@ export async function aiMembershipStrategy(data: { currentTiers?: any; audienceS
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a membership and Patreon strategy specialist. Optimize exclusive content tiers.${creatorCtx}` }, { role: "user", content: `Optimize membership strategy. Current tiers: ${JSON.stringify(data.currentTiers || {})}. Audience size: ${data.audienceSize || 0}. Content type: ${data.contentType || "general"}. Design tier structure, content calendar, pricing model, retention tactics, and growth plan. Return JSON with keys: tierStructure, contentCalendar, pricingModel, retentionTactics, growthPlan.` }],
+    messages: [{ role: "system", content: `You are the world's #1 membership monetization strategist — combining elite subscription economics from top SaaS companies, exclusive content engineering, and churn reduction science that builds loyal recurring revenue engines for creators.${creatorCtx}` }, { role: "user", content: `Optimize membership strategy. Current tiers: ${JSON.stringify(data.currentTiers || {})}. Audience size: ${data.audienceSize || 0}. Content type: ${data.contentType || "general"}. Design tier structure, content calendar, pricing model, retention tactics, and growth plan. Return JSON with keys: tierStructure, contentCalendar, pricingModel, retentionTactics, growthPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11086,7 +11086,7 @@ export async function aiSpeakingEngagementFinder(data: { expertise?: any; audien
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a speaking engagement matchmaker. Find conferences and events for creators.${creatorCtx}` }, { role: "user", content: `Find speaking engagements. Expertise: ${JSON.stringify(data.expertise || {})}. Audience: ${JSON.stringify(data.audience || {})}. Location: ${data.location || "any"}. Identify opportunities, application templates, preparation tips, pricing guide, and networking strategy. Return JSON with keys: opportunities, applicationTemplates, preparationTips, pricingGuide, networkingStrategy.` }],
+    messages: [{ role: "system", content: `You are the world's best speaking engagement strategist — combining elite talent booking expertise from top speakers bureaus, conference matching algorithms, and professional development intelligence that opens doors to high-value stage opportunities.${creatorCtx}` }, { role: "user", content: `Find speaking engagements. Expertise: ${JSON.stringify(data.expertise || {})}. Audience: ${JSON.stringify(data.audience || {})}. Location: ${data.location || "any"}. Identify opportunities, application templates, preparation tips, pricing guide, and networking strategy. Return JSON with keys: opportunities, applicationTemplates, preparationTips, pricingGuide, networkingStrategy.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11096,7 +11096,7 @@ export async function aiContentRoadmap(data: { goals?: any; niche?: string; curr
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content strategy roadmap specialist. Build full quarter strategies.${creatorCtx}` }, { role: "user", content: `Build content roadmap. Goals: ${JSON.stringify(data.goals || {})}. Niche: ${data.niche || "general"}. Current content: ${JSON.stringify(data.currentContent || {})}. Quarter: ${data.quarter || "Q1"}. Plan monthly themes, weekly topics, milestone goals, content mix, and measurement plan. Return JSON with keys: monthlyThemes, weeklyTopics, milestoneGoals, contentMix, measurementPlan.` }],
+    messages: [{ role: "system", content: `You are the world's #1 content strategy roadmap architect — combining elite strategic planning from top media companies, quarterly content framework methodology, and goal-aligned planning science that turns creative vision into executable growth roadmaps.${creatorCtx}` }, { role: "user", content: `Build content roadmap. Goals: ${JSON.stringify(data.goals || {})}. Niche: ${data.niche || "general"}. Current content: ${JSON.stringify(data.currentContent || {})}. Quarter: ${data.quarter || "Q1"}. Plan monthly themes, weekly topics, milestone goals, content mix, and measurement plan. Return JSON with keys: monthlyThemes, weeklyTopics, milestoneGoals, contentMix, measurementPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11106,7 +11106,7 @@ export async function aiContentPillarArchitect(data: { brand?: any; audience?: a
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content pillar strategist. Define core content themes for brand consistency.${creatorCtx}` }, { role: "user", content: `Architect content pillars. Brand: ${JSON.stringify(data.brand || {})}. Audience: ${JSON.stringify(data.audience || {})}. Niche: ${data.niche || "general"}. Define pillars, subtopics, content ratio, cross-pillar ideas, and brand alignment. Return JSON with keys: pillars, subtopics, contentRatio, crossPillarIdeas, brandAlignment.` }],
+    messages: [{ role: "system", content: `You are the world's best content pillar architect — combining elite brand strategy from top creative agencies, thematic content framework methodology, and audience-aligned pillar design that ensures every piece of content reinforces brand authority and drives growth.${creatorCtx}` }, { role: "user", content: `Architect content pillars. Brand: ${JSON.stringify(data.brand || {})}. Audience: ${JSON.stringify(data.audience || {})}. Niche: ${data.niche || "general"}. Define pillars, subtopics, content ratio, cross-pillar ideas, and brand alignment. Return JSON with keys: pillars, subtopics, contentRatio, crossPillarIdeas, brandAlignment.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11117,7 +11117,7 @@ export async function aiEvergreenContentIdentifier(data: { videoIdeas?: any[]; n
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an evergreen content strategist. Identify ideas that drive traffic for years.${creatorCtx}` }, { role: "user", content: `Identify evergreen content. Video ideas: ${JSON.stringify(data.videoIdeas || [])}. Niche: ${data.niche || "general"}. Search trends: ${JSON.stringify(data.searchTrends || {})}. Find evergreen topics, search volume, competition level, format suggestions, and SEO strategy. Return JSON with keys: evergreenTopics, searchVolume, competitionLevel, formatSuggestions, seoStrategy.` }],
+    messages: [{ role: "system", content: `You are the world's #1 evergreen content intelligence specialist — combining elite search trend forecasting, long-term SEO strategy from top publishers, and content longevity science that identifies topics guaranteed to drive traffic for years to come.${creatorCtx}` }, { role: "user", content: `Identify evergreen content. Video ideas: ${JSON.stringify(data.videoIdeas || [])}. Niche: ${data.niche || "general"}. Search trends: ${JSON.stringify(data.searchTrends || {})}. Find evergreen topics, search volume, competition level, format suggestions, and SEO strategy. Return JSON with keys: evergreenTopics, searchVolume, competitionLevel, formatSuggestions, seoStrategy.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11127,7 +11127,7 @@ export async function aiIndustryEventTracker(data: { niche?: string; location?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creator industry event tracker. Monitor conferences, summits, and networking opportunities.${creatorCtx}` }, { role: "user", content: `Track industry events. Niche: ${data.niche || "general"}. Location: ${data.location || "any"}. Interests: ${JSON.stringify(data.interests || [])}. List upcoming events, relevance scores, networking tips, application deadlines, and travel planning. Return JSON with keys: upcomingEvents, relevanceScores, networkingTips, applicationDeadlines, travelPlanning.` }],
+    messages: [{ role: "system", content: `You are the world's best creator industry event intelligence specialist — combining elite event curation from top industry networks, networking opportunity analysis, and strategic event prioritization that ensures creators never miss a career-changing opportunity.${creatorCtx}` }, { role: "user", content: `Track industry events. Niche: ${data.niche || "general"}. Location: ${data.location || "any"}. Interests: ${JSON.stringify(data.interests || [])}. List upcoming events, relevance scores, networking tips, application deadlines, and travel planning. Return JSON with keys: upcomingEvents, relevanceScores, networkingTips, applicationDeadlines, travelPlanning.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11137,7 +11137,7 @@ export async function aiTalentAgentSimulator(data: { channelMetrics?: any; goals
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a talent management advisor for creators. Advise on representation needs.${creatorCtx}` }, { role: "user", content: `Simulate talent agent advice. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Goals: ${JSON.stringify(data.goals || {})}. Industry: ${data.industry || "general"}. Assess readiness score, agent benefits, what to look for, negotiation tips, and alternatives. Return JSON with keys: readinessScore, agentBenefits, whatToLookFor, negotiationTips, alternatives.` }],
+    messages: [{ role: "system", content: `You are the world's #1 talent management intelligence advisor — combining elite representation strategy from top talent agencies like CAA and WME, career trajectory analysis, and negotiation coaching that helps creators make the best representation decisions.${creatorCtx}` }, { role: "user", content: `Simulate talent agent advice. Channel metrics: ${JSON.stringify(data.channelMetrics || {})}. Goals: ${JSON.stringify(data.goals || {})}. Industry: ${data.industry || "general"}. Assess readiness score, agent benefits, what to look for, negotiation tips, and alternatives. Return JSON with keys: readinessScore, agentBenefits, whatToLookFor, negotiationTips, alternatives.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11147,7 +11147,7 @@ export async function aiCreatorEconomyNewsFeed(data: { interests?: string[]; pla
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a creator economy news curator. Provide curated industry news affecting revenue and strategy.${creatorCtx}` }, { role: "user", content: `Curate creator economy news. Interests: ${JSON.stringify(data.interests || [])}. Platforms: ${JSON.stringify(data.platforms || [])}. Niche: ${data.niche || "general"}. Compile top stories, platform updates, monetization changes, trend analysis, and action items. Return JSON with keys: topStories, platformUpdates, monetizationChanges, trendAnalysis, actionItems.` }],
+    messages: [{ role: "system", content: `You are the world's best creator economy intelligence curator — combining elite industry analysis from top media analysts, revenue impact assessment, and strategic news filtering that delivers only the insights that directly affect creator bottom lines.${creatorCtx}` }, { role: "user", content: `Curate creator economy news. Interests: ${JSON.stringify(data.interests || [])}. Platforms: ${JSON.stringify(data.platforms || [])}. Niche: ${data.niche || "general"}. Compile top stories, platform updates, monetization changes, trend analysis, and action items. Return JSON with keys: topStories, platformUpdates, monetizationChanges, trendAnalysis, actionItems.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11158,7 +11158,7 @@ export async function aiRaidTargetOptimizer(data: { streamData?: any; network?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a raid strategy optimizer. Pick the best channels to raid for mutual growth.${creatorCtx}` }, { role: "user", content: `Optimize raid targets. Stream data: ${JSON.stringify(data.streamData || {})}. Network: ${JSON.stringify(data.network || {})}. Goals: ${JSON.stringify(data.goals || {})}. Identify raid targets, compatibility scores, timing strategy, message templates, and expected benefits. Return JSON with keys: raidTargets, compatibilityScores, timingStrategy, messageTemplates, expectedBenefits.` }],
+    messages: [{ role: "system", content: `You are the world's #1 raid strategy optimizer — combining elite network growth science, community compatibility algorithms, and mutual benefit analysis that identifies the perfect raid targets for maximum audience cross-pollination and growth.${creatorCtx}` }, { role: "user", content: `Optimize raid targets. Stream data: ${JSON.stringify(data.streamData || {})}. Network: ${JSON.stringify(data.network || {})}. Goals: ${JSON.stringify(data.goals || {})}. Identify raid targets, compatibility scores, timing strategy, message templates, and expected benefits. Return JSON with keys: raidTargets, compatibilityScores, timingStrategy, messageTemplates, expectedBenefits.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11168,7 +11168,7 @@ export async function aiStreamHighlightClipper(data: { streamData?: any; chatAct
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a stream highlight detection specialist. Identify best moments for clips.${creatorCtx}` }, { role: "user", content: `Clip stream highlights. Stream data: ${JSON.stringify(data.streamData || {})}. Chat activity: ${JSON.stringify(data.chatActivity || {})}. Viewer peaks: ${JSON.stringify(data.viewerPeaks || {})}. Find highlight moments, clip suggestions, viral potential, editing notes, and platform targets. Return JSON with keys: highlightMoments, clipSuggestions, viralPotential, editingNotes, platformTargets.` }],
+    messages: [{ role: "system", content: `You are the world's best stream highlight detection engine — combining elite editorial instinct from top broadcast producers, viewer engagement spike analysis, and viral moment identification algorithms that extract the most clip-worthy moments with precision.${creatorCtx}` }, { role: "user", content: `Clip stream highlights. Stream data: ${JSON.stringify(data.streamData || {})}. Chat activity: ${JSON.stringify(data.chatActivity || {})}. Viewer peaks: ${JSON.stringify(data.viewerPeaks || {})}. Find highlight moments, clip suggestions, viral potential, editing notes, and platform targets. Return JSON with keys: highlightMoments, clipSuggestions, viralPotential, editingNotes, platformTargets.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11178,7 +11178,7 @@ export async function aiDonationGoalStrategist(data: { streamType?: string; audi
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a donation and charity stream strategist. Optimize goals and engagement.${creatorCtx}` }, { role: "user", content: `Strategize donation goals. Stream type: ${data.streamType || "charity"}. Audience size: ${data.audienceSize || 0}. Goal amount: ${data.goalAmount || 0}. Design goal structure, milestone rewards, engagement tactics, promotion plan, and projected total. Return JSON with keys: goalStructure, milestoneRewards, engagementTactics, promotionPlan, projectedTotal.` }],
+    messages: [{ role: "system", content: `You are the world's #1 donation and charity stream strategist — combining elite fundraising methodology from top nonprofits, viewer generosity psychology, and goal structure optimization that consistently exceeds donation targets by engaging audiences emotionally.${creatorCtx}` }, { role: "user", content: `Strategize donation goals. Stream type: ${data.streamType || "charity"}. Audience size: ${data.audienceSize || 0}. Goal amount: ${data.goalAmount || 0}. Design goal structure, milestone rewards, engagement tactics, promotion plan, and projected total. Return JSON with keys: goalStructure, milestoneRewards, engagementTactics, promotionPlan, projectedTotal.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11188,7 +11188,7 @@ export async function aiMultiStreamChatUnifier(data: { platforms?: string[]; cha
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a multi-platform chat unification specialist. Merge and manage chat across platforms.${creatorCtx}` }, { role: "user", content: `Unify multi-stream chat. Platforms: ${JSON.stringify(data.platforms || [])}. Chat rules: ${JSON.stringify(data.chatRules || {})}. Moderation: ${JSON.stringify(data.moderation || {})}. Create unification strategy, moderation rules, command setup, alert config, and platform priority. Return JSON with keys: unificationStrategy, moderationRules, commandSetup, alertConfig, platformPriority.` }],
+    messages: [{ role: "system", content: `You are the world's best multi-platform chat unification architect — combining elite real-time communication engineering, cross-platform moderation systems, and unified chat experience design that seamlessly merges all platform chats into one cohesive community.${creatorCtx}` }, { role: "user", content: `Unify multi-stream chat. Platforms: ${JSON.stringify(data.platforms || [])}. Chat rules: ${JSON.stringify(data.chatRules || {})}. Moderation: ${JSON.stringify(data.moderation || {})}. Create unification strategy, moderation rules, command setup, alert config, and platform priority. Return JSON with keys: unificationStrategy, moderationRules, commandSetup, alertConfig, platformPriority.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11198,7 +11198,7 @@ export async function aiBackgroundMusicMatcher(data: { videoMood?: string; conte
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a music curation specialist for video creators. Suggest royalty-free music matching video mood.${creatorCtx}` }, { role: "user", content: `Match background music. Video mood: ${data.videoMood || "neutral"}. Content type: ${data.contentType || "general"}. Duration: ${data.duration || 0} seconds. Suggest music, mood matching, licensing info, transition points, and volume levels. Return JSON with keys: musicSuggestions, moodMatching, licensingInfo, transitionPoints, volumeLevels.` }],
+    messages: [{ role: "system", content: `You are the world's #1 video music curation specialist — combining elite audio direction from Hollywood post-production studios, mood-matching algorithms, and royalty-free library expertise that selects the perfect soundtrack to elevate every video.${creatorCtx}` }, { role: "user", content: `Match background music. Video mood: ${data.videoMood || "neutral"}. Content type: ${data.contentType || "general"}. Duration: ${data.duration || 0} seconds. Suggest music, mood matching, licensing info, transition points, and volume levels. Return JSON with keys: musicSuggestions, moodMatching, licensingInfo, transitionPoints, volumeLevels.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11208,7 +11208,7 @@ export async function aiAudioQualityEnhancer(data: { audioIssues?: any; recordin
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an audio quality specialist for creators. Detect and suggest fixes for audio issues.${creatorCtx}` }, { role: "user", content: `Enhance audio quality. Audio issues: ${JSON.stringify(data.audioIssues || {})}. Recording setup: ${JSON.stringify(data.recordingSetup || {})}. Environment: ${data.environment || "unknown"}. Assess quality score, issues detected, fix suggestions, equipment recommendations, and settings guide. Return JSON with keys: qualityScore, issuesDetected, fixSuggestions, equipmentRecommendations, settingsGuide.` }],
+    messages: [{ role: "system", content: `You are the world's best audio quality engineer for creators — combining elite audio mastering expertise from Grammy-winning studios, acoustic troubleshooting methodology, and recording optimization science that ensures broadcast-quality sound from any setup.${creatorCtx}` }, { role: "user", content: `Enhance audio quality. Audio issues: ${JSON.stringify(data.audioIssues || {})}. Recording setup: ${JSON.stringify(data.recordingSetup || {})}. Environment: ${data.environment || "unknown"}. Assess quality score, issues detected, fix suggestions, equipment recommendations, and settings guide. Return JSON with keys: qualityScore, issuesDetected, fixSuggestions, equipmentRecommendations, settingsGuide.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11218,7 +11218,7 @@ export async function aiSoundEffectRecommender(data: { contentType?: string; edi
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a sound design specialist for video creators. Suggest sound effects for transitions and reactions.${creatorCtx}` }, { role: "user", content: `Recommend sound effects. Content type: ${data.contentType || "general"}. Editing style: ${data.editingStyle || "standard"}. Moments: ${JSON.stringify(data.moments || [])}. Suggest effect suggestions, placement guide, mood enhancement, library recommendations, and timing tips. Return JSON with keys: effectSuggestions, placementGuide, moodEnhancement, libraryRecommendations, timingTips.` }],
+    messages: [{ role: "system", content: `You are the world's #1 sound design specialist for content creators — combining elite sound design from Hollywood post-production, emotional impact engineering, and transition audio science that adds professional polish and viewer engagement to every video.${creatorCtx}` }, { role: "user", content: `Recommend sound effects. Content type: ${data.contentType || "general"}. Editing style: ${data.editingStyle || "standard"}. Moments: ${JSON.stringify(data.moments || [])}. Suggest effect suggestions, placement guide, mood enhancement, library recommendations, and timing tips. Return JSON with keys: effectSuggestions, placementGuide, moodEnhancement, libraryRecommendations, timingTips.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11228,7 +11228,7 @@ export async function aiAccessibilityChecker(data: { content?: any; platform?: s
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an accessibility specialist for digital content. Ensure content is accessible to all audiences.${creatorCtx}` }, { role: "user", content: `Check accessibility. Content: ${JSON.stringify(data.content || {})}. Platform: ${data.platform || "general"}. Standards: ${JSON.stringify(data.standards || [])}. Evaluate accessibility score, issues, caption quality, color contrast analysis, and recommendations. Return JSON with keys: accessibilityScore, issues, captionQuality, colorContrastAnalysis, recommendations.` }],
+    messages: [{ role: "system", content: `You are the world's best digital accessibility specialist — combining elite WCAG compliance expertise, inclusive design methodology from top tech companies, and universal access engineering that ensures content reaches and resonates with every viewer regardless of ability.${creatorCtx}` }, { role: "user", content: `Check accessibility. Content: ${JSON.stringify(data.content || {})}. Platform: ${data.platform || "general"}. Standards: ${JSON.stringify(data.standards || [])}. Evaluate accessibility score, issues, caption quality, color contrast analysis, and recommendations. Return JSON with keys: accessibilityScore, issues, captionQuality, colorContrastAnalysis, recommendations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11239,7 +11239,7 @@ export async function aiSignLanguageAdvisor(data: { contentType?: string; audien
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a sign language accessibility advisor. Recommend when and how to add sign language interpretation.${creatorCtx}` }, { role: "user", content: `Advise on sign language. Content type: ${data.contentType || "general"}. Audience: ${JSON.stringify(data.audience || {})}. Budget: ${JSON.stringify(data.budget || {})}. Provide recommendation, implementation guide, cost estimate, partner suggestions, and impact analysis. Return JSON with keys: recommendation, implementationGuide, costEstimate, partnerSuggestions, impactAnalysis.` }],
+    messages: [{ role: "system", content: `You are the world's #1 sign language accessibility advisor — combining elite deaf community engagement expertise, sign language interpretation best practices from top broadcasters, and inclusive content strategy that opens your content to millions of underserved viewers.${creatorCtx}` }, { role: "user", content: `Advise on sign language. Content type: ${data.contentType || "general"}. Audience: ${JSON.stringify(data.audience || {})}. Budget: ${JSON.stringify(data.budget || {})}. Provide recommendation, implementation guide, cost estimate, partner suggestions, and impact analysis. Return JSON with keys: recommendation, implementationGuide, costEstimate, partnerSuggestions, impactAnalysis.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11249,7 +11249,7 @@ export async function aiPrivacyScanner(data: { contentDescription?: string; scre
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a privacy protection specialist for creators. Detect accidental personal info exposure.${creatorCtx}` }, { role: "user", content: `Scan for privacy risks. Content description: ${data.contentDescription || "unknown"}. Screen recording: ${JSON.stringify(data.screenRecording || {})}. Live stream: ${JSON.stringify(data.liveStream || {})}. Assess risk level, flagged items, prevention tips, checklist, and automation suggestions. Return JSON with keys: riskLevel, flaggedItems, preventionTips, checklist, automationSuggestions.` }],
+    messages: [{ role: "system", content: `You are the world's best creator privacy protection specialist — combining elite OPSEC methodology, personal information detection algorithms, and privacy risk assessment used by top cybersecurity firms to prevent accidental data exposure.${creatorCtx}` }, { role: "user", content: `Scan for privacy risks. Content description: ${data.contentDescription || "unknown"}. Screen recording: ${JSON.stringify(data.screenRecording || {})}. Live stream: ${JSON.stringify(data.liveStream || {})}. Assess risk level, flagged items, prevention tips, checklist, and automation suggestions. Return JSON with keys: riskLevel, flaggedItems, preventionTips, checklist, automationSuggestions.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11259,7 +11259,7 @@ export async function aiAccountSecurityAuditor(data: { connectedAccounts?: any[]
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an account security specialist for creators. Review connected accounts for vulnerabilities.${creatorCtx}` }, { role: "user", content: `Audit account security. Connected accounts: ${JSON.stringify(data.connectedAccounts || [])}. Security settings: ${JSON.stringify(data.securitySettings || {})}. Platforms: ${JSON.stringify(data.platforms || [])}. Evaluate security score, vulnerabilities, recommendations, two-factor status, and action plan. Return JSON with keys: securityScore, vulnerabilities, recommendations, twoFactorStatus, actionPlan.` }],
+    messages: [{ role: "system", content: `You are the world's #1 creator account security auditor — combining elite cybersecurity assessment from top security firms, multi-platform vulnerability detection, and access control best practices that fortify creator accounts against all threat vectors.${creatorCtx}` }, { role: "user", content: `Audit account security. Connected accounts: ${JSON.stringify(data.connectedAccounts || [])}. Security settings: ${JSON.stringify(data.securitySettings || {})}. Platforms: ${JSON.stringify(data.platforms || [])}. Evaluate security score, vulnerabilities, recommendations, two-factor status, and action plan. Return JSON with keys: securityScore, vulnerabilities, recommendations, twoFactorStatus, actionPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11269,7 +11269,7 @@ export async function aiDataBackupStrategist(data: { contentVolume?: any; platfo
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a data backup specialist for creators. Ensure content and business data are safely backed up.${creatorCtx}` }, { role: "user", content: `Strategize data backup. Content volume: ${JSON.stringify(data.contentVolume || {})}. Platforms: ${JSON.stringify(data.platforms || [])}. Current backup: ${JSON.stringify(data.currentBackup || {})}. Create backup plan, storage recommendations, automation setup, recovery plan, and cost estimate. Return JSON with keys: backupPlan, storageRecommendations, automationSetup, recoveryPlan, costEstimate.` }],
+    messages: [{ role: "system", content: `You are the world's best creator data protection architect — combining elite disaster recovery planning from Fortune 500 IT departments, automated backup engineering, and content preservation strategies that ensure zero data loss under any circumstances.${creatorCtx}` }, { role: "user", content: `Strategize data backup. Content volume: ${JSON.stringify(data.contentVolume || {})}. Platforms: ${JSON.stringify(data.platforms || [])}. Current backup: ${JSON.stringify(data.currentBackup || {})}. Create backup plan, storage recommendations, automation setup, recovery plan, and cost estimate. Return JSON with keys: backupPlan, storageRecommendations, automationSetup, recoveryPlan, costEstimate.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11279,7 +11279,7 @@ export async function aiDigitalCollectibleAdvisor(data: { brand?: any; audience?
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a digital collectibles and NFT strategist for creators. Evaluate if collectibles fit your brand.${creatorCtx}` }, { role: "user", content: `Advise on digital collectibles. Brand: ${JSON.stringify(data.brand || {})}. Audience: ${JSON.stringify(data.audience || {})}. Market: ${JSON.stringify(data.market || {})}. Assess feasibility, concept ideas, platform options, pricing strategy, and community impact. Return JSON with keys: feasibility, conceptIdeas, platformOptions, pricingStrategy, communityImpact.` }],
+    messages: [{ role: "system", content: `You are the world's #1 digital collectibles strategist — combining elite blockchain monetization expertise, community-driven collectible design, and brand-fit analysis that helps creators launch digital products that resonate with fans and generate meaningful revenue.${creatorCtx}` }, { role: "user", content: `Advise on digital collectibles. Brand: ${JSON.stringify(data.brand || {})}. Audience: ${JSON.stringify(data.audience || {})}. Market: ${JSON.stringify(data.market || {})}. Assess feasibility, concept ideas, platform options, pricing strategy, and community impact. Return JSON with keys: feasibility, conceptIdeas, platformOptions, pricingStrategy, communityImpact.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11289,7 +11289,7 @@ export async function aiExclusiveContentPlanner(data: { contentType?: string; me
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an exclusive content strategist. Design behind-the-scenes and bonus content for paying fans.${creatorCtx}` }, { role: "user", content: `Plan exclusive content. Content type: ${data.contentType || "general"}. Member count: ${data.memberCount || 0}. Interests: ${JSON.stringify(data.interests || [])}. Generate content ideas, production plan, exclusivity tiers, release schedule, and retention impact. Return JSON with keys: contentIdeas, productionPlan, exclusivityTiers, releaseSchedule, retentionImpact.` }],
+    messages: [{ role: "system", content: `You are the world's best exclusive content architect — combining elite premium content strategy from top subscription platforms, behind-the-scenes production design, and fan value engineering that makes paying members feel they're getting 10x their money's worth.${creatorCtx}` }, { role: "user", content: `Plan exclusive content. Content type: ${data.contentType || "general"}. Member count: ${data.memberCount || 0}. Interests: ${JSON.stringify(data.interests || [])}. Generate content ideas, production plan, exclusivity tiers, release schedule, and retention impact. Return JSON with keys: contentIdeas, productionPlan, exclusivityTiers, releaseSchedule, retentionImpact.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11299,7 +11299,7 @@ export async function aiFanMarketplaceBuilder(data: { offerings?: any; audience?
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a fan experience marketplace designer. Design and price custom fan experiences.${creatorCtx}` }, { role: "user", content: `Build fan marketplace. Offerings: ${JSON.stringify(data.offerings || {})}. Audience: ${JSON.stringify(data.audience || {})}. Pricing: ${JSON.stringify(data.pricing || {})}. Design experience options, pricing tiers, delivery process, marketing strategy, and revenue projection. Return JSON with keys: experienceOptions, pricingTiers, deliveryProcess, marketingStrategy, revenueProjection.` }],
+    messages: [{ role: "system", content: `You are the world's #1 fan experience marketplace architect — combining elite experiential marketing from Fortune 500 brands, custom experience pricing science, and fan engagement design that creates unforgettable moments fans will pay premium prices for.${creatorCtx}` }, { role: "user", content: `Build fan marketplace. Offerings: ${JSON.stringify(data.offerings || {})}. Audience: ${JSON.stringify(data.audience || {})}. Pricing: ${JSON.stringify(data.pricing || {})}. Design experience options, pricing tiers, delivery process, marketing strategy, and revenue projection. Return JSON with keys: experienceOptions, pricingTiers, deliveryProcess, marketingStrategy, revenueProjection.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11309,7 +11309,7 @@ export async function aiChannelExitStrategy(data: { channelValue?: any; goals?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a channel exit strategy advisor. Plan for selling, licensing, or transitioning channels.${creatorCtx}` }, { role: "user", content: `Plan exit strategy. Channel value: ${JSON.stringify(data.channelValue || {})}. Goals: ${JSON.stringify(data.goals || {})}. Timeline: ${JSON.stringify(data.timeline || {})}. Estimate valuation, exit options, preparation steps, timeline, and legal considerations. Return JSON with keys: valuationEstimate, exitOptions, preparationSteps, timeline, legalConsiderations.` }],
+    messages: [{ role: "system", content: `You are the world's best channel exit strategy advisor — combining elite M&A expertise from top investment banks, digital asset valuation methodology, and creator business transition planning that maximizes channel sale value and ensures smooth ownership transfers.${creatorCtx}` }, { role: "user", content: `Plan exit strategy. Channel value: ${JSON.stringify(data.channelValue || {})}. Goals: ${JSON.stringify(data.goals || {})}. Timeline: ${JSON.stringify(data.timeline || {})}. Estimate valuation, exit options, preparation steps, timeline, and legal considerations. Return JSON with keys: valuationEstimate, exitOptions, preparationSteps, timeline, legalConsiderations.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11319,7 +11319,7 @@ export async function aiContentArchiveOptimizer(data: { backCatalog?: any; perfo
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a content archive optimization specialist. Organize back catalog for maximum long-term search traffic.${creatorCtx}` }, { role: "user", content: `Optimize content archive. Back catalog: ${JSON.stringify(data.backCatalog || {})}. Performance data: ${JSON.stringify(data.performanceData || {})}. Search trends: ${JSON.stringify(data.searchTrends || {})}. Create catalog strategy, playlist structure, metadata updates, inter-linking plan, and projected traffic. Return JSON with keys: catalogStrategy, playlistStructure, metadataUpdates, interLinkingPlan, projectedTraffic.` }],
+    messages: [{ role: "system", content: `You are the world's #1 content archive optimization specialist — combining elite library curation from top media companies, long-tail SEO engineering, and back-catalog monetization science that turns old content into a perpetual traffic and revenue engine.${creatorCtx}` }, { role: "user", content: `Optimize content archive. Back catalog: ${JSON.stringify(data.backCatalog || {})}. Performance data: ${JSON.stringify(data.performanceData || {})}. Search trends: ${JSON.stringify(data.searchTrends || {})}. Create catalog strategy, playlist structure, metadata updates, inter-linking plan, and projected traffic. Return JSON with keys: catalogStrategy, playlistStructure, metadataUpdates, interLinkingPlan, projectedTraffic.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11329,7 +11329,7 @@ export async function aiBrandLicensingAdvisor(data: { brand?: any; ipAssets?: an
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a brand licensing specialist for creators. Identify opportunities to license your brand and IP.${creatorCtx}` }, { role: "user", content: `Advise on brand licensing. Brand: ${JSON.stringify(data.brand || {})}. IP assets: ${JSON.stringify(data.ipAssets || {})}. Market: ${JSON.stringify(data.market || {})}. Identify licensing opportunities, revenue estimate, partner categories, contract guidelines, and protection strategy. Return JSON with keys: licensingOpportunities, revenueEstimate, partnerCategories, contractGuidelines, protectionStrategy.` }],
+    messages: [{ role: "system", content: `You are the world's best brand licensing strategist — combining elite IP monetization from top entertainment companies, licensing deal structure expertise, and brand extension intelligence that unlocks revenue streams most creators never even consider.${creatorCtx}` }, { role: "user", content: `Advise on brand licensing. Brand: ${JSON.stringify(data.brand || {})}. IP assets: ${JSON.stringify(data.ipAssets || {})}. Market: ${JSON.stringify(data.market || {})}. Identify licensing opportunities, revenue estimate, partner categories, contract guidelines, and protection strategy. Return JSON with keys: licensingOpportunities, revenueEstimate, partnerCategories, contractGuidelines, protectionStrategy.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11339,7 +11339,7 @@ export async function aiInboxPrioritizer(data: { messages?: any[]; categories?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are an inbox management specialist for creators. Sort business messages by opportunity value.${creatorCtx}` }, { role: "user", content: `Prioritize inbox. Messages: ${JSON.stringify(data.messages || [])}. Categories: ${JSON.stringify(data.categories || [])}. Urgency: ${JSON.stringify(data.urgency || {})}. Provide prioritized messages, category breakdown, response templates, delegation suggestions, and time estimate. Return JSON with keys: prioritizedMessages, categoryBreakdown, responseTemplates, delegationSuggestions, timeEstimate.` }],
+    messages: [{ role: "system", content: `You are the world's #1 inbox intelligence specialist — combining elite executive assistant methodology from Fortune 500 C-suites, opportunity value scoring algorithms, and communication triage science that ensures no high-value message ever gets buried.${creatorCtx}` }, { role: "user", content: `Prioritize inbox. Messages: ${JSON.stringify(data.messages || [])}. Categories: ${JSON.stringify(data.categories || [])}. Urgency: ${JSON.stringify(data.urgency || {})}. Provide prioritized messages, category breakdown, response templates, delegation suggestions, and time estimate. Return JSON with keys: prioritizedMessages, categoryBreakdown, responseTemplates, delegationSuggestions, timeEstimate.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -11349,7 +11349,7 @@ export async function aiDailyActionPlan(data: { channelGoals?: any; schedule?: a
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are a daily productivity planner for creators. Generate the perfect daily to-do list.${creatorCtx}` }, { role: "user", content: `Create daily action plan. Channel goals: ${JSON.stringify(data.channelGoals || {})}. Schedule: ${JSON.stringify(data.schedule || {})}. Pending tasks: ${JSON.stringify(data.pendingTasks || [])}. Generate prioritized tasks, time blocks, focus areas, delegate tasks, and day score. Return JSON with keys: prioritizedTasks, timeBlocks, focusAreas, delegateTasks, dayScore.` }],
+    messages: [{ role: "system", content: `You are the world's best creator productivity architect — combining elite time management from top CEO coaches, priority optimization algorithms, and daily action planning science that generates the single most impactful to-do list for maximum channel growth every day.${creatorCtx}` }, { role: "user", content: `Create daily action plan. Channel goals: ${JSON.stringify(data.channelGoals || {})}. Schedule: ${JSON.stringify(data.schedule || {})}. Pending tasks: ${JSON.stringify(data.pendingTasks || [])}. Generate prioritized tasks, time blocks, focus areas, delegate tasks, and day score. Return JSON with keys: prioritizedTasks, timeBlocks, focusAreas, delegateTasks, dayScore.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
