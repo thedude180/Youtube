@@ -22,6 +22,7 @@ import { registerFortressRoutes } from "./routes/fortress";
 import { registerPillarRoutes } from "./routes/pillars";
 import { registerClipRoutes } from "./routes/clips";
 import { registerGrowthTrackingRoutes } from "./routes/growth-tracking";
+import { registerSyncRoutes } from "./routes/sync";
 import { getUserId } from "./routes/helpers";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -173,6 +174,7 @@ export async function registerRoutes(
   registerPillarRoutes(app);
   registerClipRoutes(app);
   registerGrowthTrackingRoutes(app);
+  registerSyncRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

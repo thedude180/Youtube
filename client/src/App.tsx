@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { FocusModeProvider, useFocusMode } from "@/hooks/use-focus-mode";
+import { useLoginSync } from "@/hooks/use-login-sync";
 import { AdaptiveProvider } from "@/hooks/use-adaptive";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -415,6 +416,8 @@ function AuthenticatedApp() {
   const { isFocusMode, toggleFocusMode } = useFocusMode();
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+
+  useLoginSync();
 
   useEffect(() => {
     offlineEngine.setAuthenticated(true);
