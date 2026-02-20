@@ -194,7 +194,9 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     const { createPipelineForStream } = await import("../routes/pipeline");
 
     const { setLivestreamPriority } = await import("../priority-orchestrator");
+    const { onLivestreamDetected } = await import("../content-loop");
     setLivestreamPriority(userId, stream.id, broadcast.title);
+    onLivestreamDetected(userId, stream.id);
     pauseForLive(userId, stream.id);
     pivotToStream(userId, stream.id).catch(() => {});
     processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(() => {});
@@ -252,7 +254,9 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
     const { resumeAfterStream } = await import("../backlog-manager");
 
     const { setPostStreamHarvest } = await import("../priority-orchestrator");
+    const { onStreamEnded } = await import("../content-loop");
     setPostStreamHarvest(userId, liveStream.id, liveStream.title);
+    onStreamEnded(userId, liveStream.id);
     resumeFromStream(userId, liveStream.id).catch(() => {});
     processPostStreamHighlights(userId, liveStream.id, liveStream.title, liveStream.description || "", (liveStream.platforms as string[]) || ["youtube"]).catch(() => {});
     createPipelineForStream(userId, liveStream.title, "replay").catch(() => {});

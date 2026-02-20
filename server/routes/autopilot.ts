@@ -719,11 +719,26 @@ export function registerAutopilotRoutes(app: Express) {
     if (!userId) return;
     try {
       const { getPriorityDashboard } = await import("../priority-orchestrator");
+      const { getLoopStatus } = await import("../content-loop");
       const dashboard = await getPriorityDashboard(userId);
-      res.json(dashboard);
+      const loopStatus = getLoopStatus(userId);
+      res.json({ ...dashboard, contentLoop: loopStatus });
     } catch (err) {
       console.error("[Priority] Status error:", err);
       res.status(500).json({ error: "Failed to get priority status" });
+    }
+  });
+
+  app.post("/api/content-loop/force-start", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { forceStartLoop, getLoopStatus } = await import("../content-loop");
+      forceStartLoop(userId);
+      res.json({ success: true, status: getLoopStatus(userId) });
+    } catch (err) {
+      console.error("[ContentLoop] Force start error:", err);
+      res.status(500).json({ error: "Failed to start content loop" });
     }
   });
 

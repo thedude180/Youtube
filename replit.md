@@ -34,7 +34,8 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **AI Integration**: OpenAI (gpt-5-mini) via Replit AI Integrations.
 - **Core Engines**:
     - **Dual Pipeline System**: 65-step Live Stream and 56-step VOD pipelines across 9 phases, including live discovery and retention.
-    - **Automation Engine**: Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store for background processing.
+    - **Content Loop Engine** (`content-loop.ts`): Continuous state machine replacing cron-based content generation. Phases: livestream → stream-exhaust → vod-optimize → thumbnail-gen → idle. Runs continuously after stream ends, extracting ALL content before moving to VOD optimization. Instantly preempts on new livestream detection. Only idles when all content is fully squeezed.
+    - **Automation Engine**: Cron Scheduler (live detection 2min, comment responder 4h, content recycler 6h), Content Loop boot, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store.
     - **Autopilot Engine**: Auto-Clip & Post, Smart Schedule, AI Comment Responder, Discord Announcements, Content Recycler.
     - **Human Behavior Engine**: Simulates realistic posting patterns.
     - **Content Variation Engine**: Generates unique content per platform using 15 content angles and platform-specific voice profiles.

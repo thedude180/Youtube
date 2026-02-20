@@ -293,32 +293,15 @@ export async function initAutomationEngine() {
     }
   });
 
-  cron.schedule("0 */2 * * *", async () => {
+  setTimeout(async () => {
     try {
-      const { runDailyContentGeneration } = await import("./daily-content-engine");
-      await runDailyContentGeneration();
+      const { bootContentLoops } = await import("./content-loop");
+      await bootContentLoops();
+      console.log("[AutomationEngine] Content Loop booted — continuous extraction active");
     } catch (err) {
-      console.error("[AutomationEngine] Stream exhaust engine error:", err);
+      console.error("[AutomationEngine] Content Loop boot error:", err);
     }
-  });
-
-  cron.schedule("0 */8 * * *", async () => {
-    try {
-      const { runVodOptimizationCycle } = await import("./vod-optimizer-engine");
-      await runVodOptimizationCycle();
-    } catch (err) {
-      console.error("[AutomationEngine] VOD optimization error:", err);
-    }
-  });
-
-  cron.schedule("0 */6 * * *", async () => {
-    try {
-      const { runAutoThumbnailGeneration } = await import("./auto-thumbnail-engine");
-      await runAutoThumbnailGeneration();
-    } catch (err) {
-      console.error("[AutomationEngine] Auto-thumbnail generation error:", err);
-    }
-  });
+  }, 5_000);
 
   cron.schedule("0 */4 * * *", async () => {
     try {

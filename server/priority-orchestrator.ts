@@ -129,7 +129,6 @@ export function setLivestreamPriority(userId: string, streamId: number, streamTi
 
 export function setPostStreamHarvest(userId: string, streamId: number, streamTitle: string): void {
   const current = getUserPriorityStateSync(userId);
-  const cooldownEnd = new Date(Date.now() + 2 * 60 * 60 * 1000);
   const previousMode = current.previousMode;
 
   userStates.set(userId, {
@@ -139,30 +138,22 @@ export function setPostStreamHarvest(userId: string, streamId: number, streamTit
     streamStartedAt: current.streamStartedAt,
     previousMode,
     modeChangedAt: new Date(),
-    postStreamCooldownUntil: cooldownEnd,
+    postStreamCooldownUntil: null,
   });
 
-  logger.info("PRIORITY SHIFT: Post-stream harvest mode", {
+  logger.info("PRIORITY SHIFT: Post-stream harvest mode (content loop drives transitions)", {
     userId,
     streamId,
     streamTitle,
     previousMode,
-    cooldownUntil: cooldownEnd.toISOString(),
   });
 
   sendSSEEvent(userId, "priority_change", {
     mode: "post-stream-harvest",
     streamId,
     streamTitle,
-    message: "Stream ended — Harvesting highlights, clips, and content from stream",
+    message: "Stream ended — Content loop extracting all content continuously until exhausted",
   });
-
-  setTimeout(() => {
-    const state = getUserPriorityStateSync(userId);
-    if (state.mode === "post-stream-harvest" && state.activeStreamId === streamId) {
-      resumeNormalPriorities(userId);
-    }
-  }, 2 * 60 * 60 * 1000);
 }
 
 export function resumeNormalPriorities(userId: string): void {

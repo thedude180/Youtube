@@ -410,6 +410,74 @@ async function getLiveStreamAsExhaustCandidate(userId: string): Promise<StreamWi
   };
 }
 
+export async function runSingleBatchForUser(userId: string): Promise<{ didWork: boolean; exhausted: boolean }> {
+  try {
+    const connectedPlatforms = await getUserConnectedPlatforms(userId);
+    const liveCandidate = await getLiveStreamAsExhaustCandidate(userId);
+    const endedStreams = await getStreamsWithRemainingContent(userId);
+
+    const streamsWithContent: StreamWithRemaining[] = [];
+    if (liveCandidate) streamsWithContent.push(liveCandidate);
+    streamsWithContent.push(...endedStreams);
+
+    if (streamsWithContent.length === 0) {
+      return { didWork: false, exhausted: true };
+    }
+
+    const streamData = streamsWithContent[0];
+
+    const existingBatches = await db
+      .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
+      ));
+
+    const batchNumber = (existingBatches[0]?.count || 0) + 1;
+
+    logger.info("Loop: generating batch from stream", {
+      userId,
+      streamId: streamData.stream.id,
+      batchNumber,
+      remainingMinutes: streamData.remainingMinutes,
+    });
+
+    const plan = await generateBatchPlan(streamData, batchNumber, userId);
+    if (!plan) {
+      return { didWork: false, exhausted: false };
+    }
+
+    const result = await queueBatchContent(userId, plan, streamData, batchNumber, connectedPlatforms);
+
+    const ytCount = (result.longFormQueued ? 1 : 0) + result.shortsQueued;
+    logger.info("Loop: batch queued", {
+      userId,
+      batchNumber,
+      youtubeItems: ytCount,
+      crossPosts: result.crossPostsQueued,
+    });
+
+    await notify(
+      userId,
+      `Content Batch #${batchNumber} from "${streamData.stream.title}"`,
+      `Queued ${ytCount} YouTube pieces + ${result.crossPostsQueued} cross-platform posts. ${Math.round(streamData.remainingMinutes - MINUTES_PER_BATCH)} min remaining.`,
+      "info",
+    );
+
+    sendSSEEvent(userId, "content-update", { source: "content-loop", batches: 1 });
+    sendSSEEvent(userId, "autopilot-update", { source: "content-loop" });
+
+    const remainingAfter = streamData.remainingMinutes - MINUTES_PER_BATCH;
+    const allExhausted = remainingAfter < 3 && endedStreams.length <= 1 && !liveCandidate;
+
+    return { didWork: true, exhausted: allExhausted };
+  } catch (err: any) {
+    logger.error("Loop: single batch failed", { userId, error: err.message });
+    return { didWork: false, exhausted: false };
+  }
+}
+
 export async function runDailyContentGeneration(): Promise<void> {
   logger.info("Stream Exhaust Engine cycle starting");
 

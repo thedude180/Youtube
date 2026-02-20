@@ -107,6 +107,46 @@ async function generateAndUploadThumbnail(
   }
 }
 
+export async function runAutoThumbnailForUser(userId: string): Promise<number> {
+  let generated = 0;
+  try {
+    const ytChannels = await db.select().from(channels)
+      .where(and(
+        eq(channels.platform, "youtube"),
+        eq(channels.userId, userId),
+        sql`${channels.accessToken} IS NOT NULL`,
+      ));
+
+    for (const ytChannel of ytChannels) {
+      if (generated >= MAX_THUMBNAILS_PER_RUN) break;
+
+      const userVideos = await db.select().from(videos)
+        .where(eq(videos.channelId, ytChannel.id))
+        .orderBy(desc(videos.createdAt))
+        .limit(10);
+
+      for (const video of userVideos) {
+        if (generated >= MAX_THUMBNAILS_PER_RUN) break;
+        const meta = (video.metadata as any) || {};
+        if (meta.autoThumbnailGenerated) continue;
+        const youtubeId = meta.youtubeId;
+        if (!youtubeId) continue;
+        if (video.thumbnailUrl && !video.thumbnailUrl.includes("default")) {
+          await db.update(videos).set({
+            metadata: { ...meta, autoThumbnailGenerated: true, autoThumbnailSkipped: "already_has_custom_thumbnail" },
+          }).where(eq(videos.id, video.id));
+          continue;
+        }
+        const success = await generateAndUploadThumbnail(userId, video.id, video.title, video.description || "", video.type || "video", youtubeId, ytChannel.id);
+        if (success) generated++;
+      }
+    }
+  } catch (err) {
+    logger.error("Auto-thumbnail for user failed", { userId, error: String(err) });
+  }
+  return generated;
+}
+
 export async function runAutoThumbnailGeneration(): Promise<{ generated: number; skipped: number }> {
   let generated = 0;
   let skipped = 0;
