@@ -3,6 +3,9 @@ import { videos, channels, managedPlaylists, playlistItems, notifications } from
 import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
+import { getOpenAIClient } from "./lib/openai";
+
+const openai = getOpenAIClient();
 
 const logger = createLogger("playlist-manager");
 
@@ -175,7 +178,103 @@ async function createYouTubePlaylist(channelId: number, title: string, descripti
     },
   });
 
-  return response.data.id || "";
+  const playlistId = response.data.id || "";
+
+  if (playlistId) {
+    try {
+      await generateAndSetPlaylistThumbnail(channelId, playlistId, title);
+    } catch (err) {
+      logger.warn("Playlist created but thumbnail failed (non-blocking)", {
+        playlistId, error: String(err)
+      });
+    }
+  }
+
+  return playlistId;
+}
+
+async function generatePlaylistThumbnailPrompt(playlistTitle: string): Promise<string> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a YouTube thumbnail design expert specializing in playlist cover art. Create a vivid, high-contrast image generation prompt for a playlist thumbnail. The image should instantly communicate the game/content theme. Use bold colors, dramatic lighting, and iconic visual elements. Never include text overlays — YouTube adds the playlist title automatically. The image should look premium and professional, like a AAA game cover art or cinematic screenshot.`,
+        },
+        {
+          role: "user",
+          content: `Create a thumbnail image prompt for this YouTube playlist: "${playlistTitle}"\n\nReturn ONLY the image generation prompt, nothing else. Make it specific, visual, and optimized for a 1280x720 YouTube playlist thumbnail.`,
+        },
+      ],
+      max_completion_tokens: 300,
+    });
+    return response.choices[0]?.message?.content?.trim() || "";
+  } catch (err) {
+    logger.error("Failed to generate playlist thumbnail prompt", { error: String(err) });
+    return "";
+  }
+}
+
+async function generateAndSetPlaylistThumbnail(
+  channelId: number,
+  youtubePlaylistId: string,
+  playlistTitle: string
+): Promise<boolean> {
+  try {
+    const prompt = await generatePlaylistThumbnailPrompt(playlistTitle);
+    if (!prompt) {
+      logger.warn("Empty playlist thumbnail prompt", { youtubePlaylistId });
+      return false;
+    }
+
+    if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY || !process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
+      logger.warn("Image generation not configured, skipping playlist thumbnail", { youtubePlaylistId });
+      return false;
+    }
+
+    logger.info("Generating playlist thumbnail", { youtubePlaylistId, playlistTitle });
+
+    let imageBuffer: Buffer;
+    try {
+      const { generateImageBuffer } = await import("./replit_integrations/image/client");
+      imageBuffer = await generateImageBuffer(prompt, "1024x1024");
+    } catch (imgErr) {
+      logger.error("Image generation failed for playlist thumbnail", { error: String(imgErr) });
+      return false;
+    }
+
+    if (!imageBuffer || imageBuffer.length < 1000) {
+      logger.warn("Generated playlist thumbnail too small", { size: imageBuffer?.length });
+      return false;
+    }
+
+    const { getAuthenticatedClient } = await import("./youtube");
+    const { google } = await import("googleapis");
+    const { oauth2Client } = await getAuthenticatedClient(channelId);
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+
+    const { Readable } = await import("stream");
+    const readable = new Readable();
+    readable.push(imageBuffer);
+    readable.push(null);
+
+    await youtube.thumbnails.set({
+      videoId: youtubePlaylistId,
+      media: {
+        mimeType: "image/png",
+        body: readable,
+      },
+    });
+
+    logger.info("Playlist thumbnail uploaded", { youtubePlaylistId, playlistTitle });
+    return true;
+  } catch (err) {
+    logger.error("Playlist thumbnail generation/upload failed", {
+      youtubePlaylistId, error: String(err)
+    });
+    return false;
+  }
 }
 
 async function addVideoToYouTubePlaylist(channelId: number, playlistId: string, youtubeVideoId: string): Promise<boolean> {
