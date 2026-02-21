@@ -43,6 +43,7 @@ const LazyPlatformHealthCards = lazy(() => import("@/components/PlatformHealthCa
 const LazyMissionControl = lazy(() => import("./dashboard/MissionControl"));
 const LazyAIProofOfWork = lazy(() => import("./dashboard/AIProofOfWork"));
 const LazyCompetitorBenchmark = lazy(() => import("./dashboard/CompetitorBenchmark"));
+const LazyContentVerification = lazy(() => import("./dashboard/ContentVerification"));
 
 type AIResponse = any;
 
@@ -348,6 +349,14 @@ export default function Dashboard() {
 
       <section role="region" aria-label="AI action center">
       <AIActionCenter aiActions={aiActions} aiActionsLoading={aiActionsLoading} />
+      </section>
+
+      <section role="region" aria-label="Content verification">
+      <SectionErrorBoundary fallbackTitle="Content Verification failed to load">
+        <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
+          <LazyContentVerification />
+        </Suspense>
+      </SectionErrorBoundary>
       </section>
 
       <section role="region" aria-label="AI proof of work">

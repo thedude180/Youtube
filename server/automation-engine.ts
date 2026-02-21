@@ -255,6 +255,13 @@ export async function initAutomationEngine() {
     });
   });
 
+  cron.schedule("*/30 * * * *", async () => {
+    await selfHealingCore("ContentVerification", async () => {
+      const { runContentVerificationSweep } = await import("./content-verification-engine");
+      await runContentVerificationSweep();
+    });
+  });
+
   cron.schedule("0 */2 * * *", async () => {
     await selfHealingCore("GrowthMonitoring", async () => {
       const { refreshAllUserChannelStats } = await import("./youtube");

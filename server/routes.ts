@@ -25,6 +25,7 @@ import { registerGrowthTrackingRoutes } from "./routes/growth-tracking";
 import { registerSyncRoutes } from "./routes/sync";
 import { registerRetentionBeatsRoutes } from "./routes/retention-beats";
 import { registerMarketingRoutes } from "./routes/marketing";
+import { registerContentVerificationRoutes } from "./routes/content-verification";
 import { getUserId } from "./routes/helpers";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -179,6 +180,7 @@ export async function registerRoutes(
   registerSyncRoutes(app);
   registerRetentionBeatsRoutes(app);
   registerMarketingRoutes(app);
+  registerContentVerificationRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
