@@ -78,7 +78,7 @@ async function seedAutopilotForUser(userId: string): Promise<number> {
     return existingScheduled?.count || 0;
   }
 
-  const platforms = ["x", "discord", "twitch"];
+  const platforms = ["x", "discord"];
   const contentTypes = ["auto-clip", "content-recycle", "cross-promo"];
   let seeded = 0;
   const now = new Date();

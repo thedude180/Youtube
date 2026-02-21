@@ -1273,7 +1273,7 @@ export function registerContentRoutes(app: Express) {
 
       const VIDEO_CONTENT_TYPES = new Set(["video", "short", "stream", "auto-clip", "clip"]);
       const TEXT_CONTENT_TYPES = new Set(["post", "cross-post", "campaign", "community"]);
-      const VIDEO_PLATFORMS = new Set(["youtube", "tiktok", "kick", "twitch"]);
+      const VIDEO_PLATFORMS = new Set(["youtube", "tiktok"]);
       const TEXT_ONLY_PLATFORMS = new Set(["x", "discord"]);
 
       function resolveContentCategory(contentType: string, platform: string, metadata?: any): "video" | "text" {
@@ -1523,7 +1523,7 @@ export function registerContentRoutes(app: Express) {
         .where(sql`${videos.title} IN (${sql.join(pipelines.map(p => sql`${p.sourceTitle}`), sql`, `)})`);
       const existingTitles = new Set(existingVideos.map(v => v.title));
 
-      const platforms = ["youtube", "twitch", "tiktok", "x", "kick", "discord"];
+      const platforms = ["youtube", "tiktok", "x", "discord"];
       const peakHours = [9, 11, 13, 15, 17, 19];
       const created: any[] = [];
       let slotIndex = 0;

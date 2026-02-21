@@ -685,7 +685,7 @@ export function registerAutopilotRoutes(app: Express) {
             .limit(5)
         : [];
 
-      const platforms = ["x", "discord", "twitch"];
+      const platforms = ["x", "discord"];
       const contentTypes = ["auto-clip", "content-recycle", "cross-promo"];
       let seeded = 0;
       const now = new Date();

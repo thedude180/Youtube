@@ -566,7 +566,7 @@ export async function getStealthReport(userId: string): Promise<{
   recentIssues: string[];
   recommendations: string[];
 }> {
-  const platforms = ["youtube", "tiktok", "x", "discord", "twitch", "kick"];
+  const platforms = ["youtube", "tiktok", "x", "discord"];
   const platformGrades: Record<string, { grade: string; score: number; postCount: number }> = {};
   const allIssues: string[] = [];
 

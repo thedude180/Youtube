@@ -37,13 +37,13 @@ export const PLATFORM_CAPABILITIES: Record<Platform, {
     supports: ["live_stream"],
     primaryType: "video",
     maxVideoLength: null,
-    description: "Live streaming only — no content posting, stream detection and monitoring",
+    description: "AI-driven streaming only — no content posting, stream detection and monitoring",
   },
   kick: {
     supports: ["live_stream"],
     primaryType: "video",
     maxVideoLength: null,
-    description: "Live streaming only, no content posting API",
+    description: "AI-driven streaming only — no content posting, stream detection and monitoring",
   },
   tiktok: {
     supports: ["short_video", "text", "image"],
@@ -64,10 +64,10 @@ export const PLATFORM_CAPABILITIES: Record<Platform, {
     description: "Community announcements, text posts via webhooks",
   },
   rumble: {
-    supports: ["video", "live_stream"],
+    supports: ["live_stream"],
     primaryType: "video",
     maxVideoLength: null,
-    description: "Free-speech video platform with monetization, video uploads and live streaming",
+    description: "AI-driven streaming only — no content posting, stream detection and monitoring",
   },
 };
 

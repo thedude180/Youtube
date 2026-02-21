@@ -49,22 +49,6 @@ const PLATFORM_TIMING: Record<string, PlatformTimingProfile> = {
     avgGapMinutes: 480,
     weekendMultiplier: 1.3,
   },
-  twitch: {
-    peakHours: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
-    offPeakHours: [10, 11, 12, 13],
-    maxPostsPerDay: 2,
-    minGapMinutes: 180,
-    avgGapMinutes: 360,
-    weekendMultiplier: 1.1,
-  },
-  kick: {
-    peakHours: [15, 16, 17, 18, 19, 20, 21, 22, 23],
-    offPeakHours: [11, 12, 13, 14],
-    maxPostsPerDay: 2,
-    minGapMinutes: 180,
-    avgGapMinutes: 360,
-    weekendMultiplier: 1.1,
-  },
 };
 
 function gaussianRandom(mean: number, stddev: number): number {
