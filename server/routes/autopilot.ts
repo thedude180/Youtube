@@ -289,6 +289,33 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  app.post("/api/autopilot/queue/retry-failed", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      await db.update(autopilotQueue)
+        .set({ status: "scheduled", errorMessage: null, scheduledAt: new Date(Date.now() + 60_000) })
+        .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")));
+      res.json({ success: true, message: "Failed posts re-queued for retry" });
+    } catch (err) {
+      console.error("[Autopilot] Retry failed error:", err);
+      res.status(500).json({ error: "Failed to retry" });
+    }
+  });
+
+  app.post("/api/autopilot/queue/clear-failed", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      await db.delete(autopilotQueue)
+        .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")));
+      res.json({ success: true, message: "Failed posts cleared" });
+    } catch (err) {
+      console.error("[Autopilot] Clear failed error:", err);
+      res.status(500).json({ error: "Failed to clear" });
+    }
+  });
+
   app.post("/api/autopilot/queue/bulk-reschedule", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

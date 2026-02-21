@@ -272,10 +272,21 @@ function StealthScoreRing({ score }: { score: number }) {
   );
 }
 
+const QUEUE_PAGE_SIZE = 15;
+const QUEUE_STATUS_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "processing", label: "Processing" },
+  { value: "published", label: "Published" },
+  { value: "failed", label: "Failed" },
+] as const;
+
 export default function Autopilot() {
   usePageTitle("Autopilot");
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
+  const [queueStatusFilter, setQueueStatusFilter] = useState("all");
+  const [queuePage, setQueuePage] = useState(0);
 
   const statsQuery = useQuery<AutopilotStats>({
     queryKey: ["/api/autopilot/stats"],
@@ -467,10 +478,61 @@ export default function Autopilot() {
     },
   });
 
+  const retryFailedMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/autopilot/queue/retry-failed", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      toast({ title: "Retrying failed posts" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Retry failed", description: err?.message || "Could not retry. Try again.", variant: "destructive" });
+    },
+  });
+
+  const clearFailedMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/autopilot/queue/clear-failed", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      setSelectedQueueIds(new Set());
+      toast({ title: "Failed posts cleared" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Clear failed", description: err?.message || "Could not clear. Try again.", variant: "destructive" });
+    },
+  });
+
   const [selectedQueueIds, setSelectedQueueIds] = useState<Set<number>>(new Set());
 
   const stats = statsQuery.data;
-  const queue = useMemo(() => queueQuery.data || [], [queueQuery.data]);
+  const rawQueue = useMemo(() => queueQuery.data || [], [queueQuery.data]);
+  const queue = useMemo(() => {
+    const filtered = queueStatusFilter === "all"
+      ? rawQueue
+      : queueStatusFilter === "processing"
+        ? rawQueue.filter(i => isProcessingStatus(i.status))
+        : rawQueue.filter(i => i.status === queueStatusFilter);
+    return filtered;
+  }, [rawQueue, queueStatusFilter]);
+  const queuePageCount = Math.max(1, Math.ceil(queue.length / QUEUE_PAGE_SIZE));
+  const clampedPage = Math.min(queuePage, queuePageCount - 1);
+  if (clampedPage !== queuePage) {
+    setTimeout(() => setQueuePage(clampedPage), 0);
+  }
+  const paginatedQueue = useMemo(() => {
+    const safePage = Math.min(queuePage, Math.max(0, Math.ceil(queue.length / QUEUE_PAGE_SIZE) - 1));
+    const start = safePage * QUEUE_PAGE_SIZE;
+    return queue.slice(start, start + QUEUE_PAGE_SIZE);
+  }, [queue, queuePage]);
+  const failedCount = useMemo(() => rawQueue.filter(i => i.status === "failed").length, [rawQueue]);
+  const scheduledCount = useMemo(() => rawQueue.filter(i => i.status === "scheduled").length, [rawQueue]);
+  const processingCount = useMemo(() => rawQueue.filter(i => isProcessingStatus(i.status)).length, [rawQueue]);
+  const publishedCount = useMemo(() => rawQueue.filter(i => i.status === "published").length, [rawQueue]);
 
   const toggleQueueSelect = useCallback((id: number) => {
     setSelectedQueueIds(prev => {
@@ -482,12 +544,14 @@ export default function Autopilot() {
   }, []);
 
   const selectAllQueue = useCallback(() => {
-    if (selectedQueueIds.size === queue.length) {
+    const visibleIds = paginatedQueue.map(q => q.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedQueueIds.has(id));
+    if (allSelected) {
       setSelectedQueueIds(new Set());
     } else {
-      setSelectedQueueIds(new Set(queue.map(q => q.id)));
+      setSelectedQueueIds(new Set(visibleIds));
     }
-  }, [queue, selectedQueueIds.size]);
+  }, [paginatedQueue, selectedQueueIds]);
   const comments = useMemo(() => commentsQuery.data || [], [commentsQuery.data]);
   const stealth = stats?.stealth;
 
@@ -811,7 +875,7 @@ export default function Autopilot() {
             </div>
           ) : queueQuery.error ? (
             <ErrorState message="Failed to load queue" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] })} />
-          ) : queue.length === 0 ? (
+          ) : rawQueue.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <CalendarClock className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
@@ -823,20 +887,41 @@ export default function Autopilot() {
             </Card>
           ) : (
             <>
+            <div className="flex items-center gap-2 flex-wrap" data-testid="container-queue-filters">
+              {QUEUE_STATUS_FILTERS.map(f => {
+                const count = f.value === "all" ? rawQueue.length
+                  : f.value === "scheduled" ? scheduledCount
+                  : f.value === "processing" ? processingCount
+                  : f.value === "published" ? publishedCount
+                  : failedCount;
+                return (
+                  <Button
+                    key={f.value}
+                    size="sm"
+                    variant={queueStatusFilter === f.value ? "default" : "outline"}
+                    onClick={() => { setQueueStatusFilter(f.value); setQueuePage(0); }}
+                    data-testid={`filter-queue-${f.value}`}
+                    className={f.value === "failed" && count > 0 ? "border-red-500/50 text-red-400" : ""}
+                  >
+                    {f.label} ({count})
+                  </Button>
+                );
+              })}
+            </div>
             <div className="flex items-center justify-between gap-2 flex-wrap" data-testid="container-queue-actions">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={selectAllQueue}
                   data-testid="button-select-all-queue"
                 >
-                  {selectedQueueIds.size === queue.length ? (
+                  {selectedQueueIds.size === paginatedQueue.length && paginatedQueue.length > 0 ? (
                     <SquareCheck className="h-3.5 w-3.5 mr-1.5" />
                   ) : (
                     <Square className="h-3.5 w-3.5 mr-1.5" />
                   )}
-                  {selectedQueueIds.size === queue.length ? "Deselect All" : "Select All"}
+                  {selectedQueueIds.size === paginatedQueue.length && paginatedQueue.length > 0 ? "Deselect All" : "Select All"}
                 </Button>
                 {selectedQueueIds.size > 0 && (
                   <Button
@@ -850,6 +935,32 @@ export default function Autopilot() {
                     Delete {selectedQueueIds.size}
                   </Button>
                 )}
+                {failedCount > 0 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => retryFailedMutation.mutate()}
+                      disabled={retryFailedMutation.isPending}
+                      data-testid="button-retry-failed"
+                      className="border-yellow-500/50 text-yellow-400 hover:text-yellow-300"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      Retry Failed ({failedCount})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => clearFailedMutation.mutate()}
+                      disabled={clearFailedMutation.isPending}
+                      data-testid="button-clear-failed"
+                      className="border-red-500/50 text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      Clear Failed
+                    </Button>
+                  </>
+                )}
               </div>
               <Button
                 size="sm"
@@ -861,8 +972,14 @@ export default function Autopilot() {
                 Export CSV
               </Button>
             </div>
-            {
-            queue.map((item) => (
+            {queue.length === 0 ? (
+              <Card>
+                <CardContent className="p-6 text-center">
+                  <p className="text-sm text-muted-foreground">No {queueStatusFilter} posts</p>
+                </CardContent>
+              </Card>
+            ) :
+            paginatedQueue.map((item) => (
               <Card key={item.id} data-testid={`card-queue-${item.id}`} className={selectedQueueIds.has(item.id) ? "ring-1 ring-primary" : ""}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -1022,6 +1139,31 @@ export default function Autopilot() {
                 </CardContent>
               </Card>
             ))}
+            {queuePageCount > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-2" data-testid="container-queue-pagination">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={queuePage === 0}
+                  onClick={() => setQueuePage(p => Math.max(0, p - 1))}
+                  data-testid="button-queue-prev"
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {queuePage + 1} of {queuePageCount}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={queuePage >= queuePageCount - 1}
+                  onClick={() => setQueuePage(p => Math.min(queuePageCount - 1, p + 1))}
+                  data-testid="button-queue-next"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
             </>
           )}
         </TabsContent>
