@@ -371,6 +371,15 @@ export async function publishToplatform(
     return postToKick("", content, null);
   }
 
+  if (platform === "rumble") {
+    return {
+      success: false,
+      platform: "rumble",
+      skipped: true,
+      error: "Rumble is streaming-only. Your Rumble account is connected for stream key access and live detection. Content is not cross-posted to Rumble.",
+    };
+  }
+
   const userChannels = await db.select().from(channels)
     .where(and(eq(channels.userId, userId), eq(channels.platform, platform)));
 
