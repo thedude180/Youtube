@@ -16,23 +16,16 @@ function isVideoPostable(video: any): boolean {
   const meta = (video.metadata as any) || {};
   const privacy = meta.privacyStatus || "";
 
-  if (privacy === "public") return true;
-
-  if (privacy === "private" && meta.publishAt) {
-    const scheduledTime = new Date(meta.publishAt);
-    if (scheduledTime.getTime() > Date.now()) {
-      return true;
-    }
-  }
-
-  if (privacy === "private" || privacy === "unlisted") {
-    logger.info("Skipping non-public video for content extraction", { videoId: video.id, title: video.title, privacyStatus: privacy });
+  if (privacy === "unlisted") {
+    logger.info("Skipping unlisted video for content extraction", { videoId: video.id, title: video.title });
     return false;
   }
 
-  if (!privacy) {
-    logger.info("Video missing privacy status, allowing by default", { videoId: video.id, title: video.title });
-    return true;
+  if (privacy === "public") return true;
+
+  if (privacy === "private") {
+    logger.info("Skipping private video for content extraction", { videoId: video.id, title: video.title });
+    return false;
   }
 
   return true;
