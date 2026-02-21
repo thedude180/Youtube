@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Zap, ArrowRight, Bot, DollarSign, BarChart3,
   Monitor, CheckCircle2, Link2, Cpu, TrendingUp,
@@ -58,6 +58,140 @@ function useInView(threshold = 0.15) {
   return { ref, inView };
 }
 
+function ParticleCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: 0, y: 0 });
+  const particlesRef = useRef<Array<{
+    x: number; y: number; vx: number; vy: number;
+    size: number; opacity: number; hue: number;
+  }>>([]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let width = 0;
+    let height = 0;
+
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = canvas.parentElement?.clientWidth || window.innerWidth;
+      height = canvas.parentElement?.clientHeight || 600;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.scale(dpr, dpr);
+    };
+
+    const initParticles = () => {
+      const count = Math.min(Math.floor((width * height) / 12000), 80);
+      particlesRef.current = Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: Math.random() * 2 + 0.5,
+        opacity: Math.random() * 0.5 + 0.1,
+        hue: 260 + Math.random() * 40,
+      }));
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, width, height);
+      const particles = particlesRef.current;
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = width;
+        if (p.x > width) p.x = 0;
+        if (p.y < 0) p.y = height;
+        if (p.y > height) p.y = 0;
+
+        const dx = mx - p.x;
+        const dy = my - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const influence = Math.max(0, 1 - dist / 200);
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size + influence * 2, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${p.hue}, 80%, 65%, ${p.opacity + influence * 0.3})`;
+        ctx.fill();
+
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j];
+          const ddx = p.x - p2.x;
+          const ddy = p.y - p2.y;
+          const d = Math.sqrt(ddx * ddx + ddy * ddy);
+          if (d < 120) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `hsla(265, 70%, 60%, ${0.08 * (1 - d / 120)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+
+      animId = requestAnimationFrame(draw);
+    };
+
+    const handleMouse = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+
+    resize();
+    initParticles();
+    draw();
+
+    window.addEventListener("resize", () => { resize(); initParticles(); });
+    const parent = canvas.parentElement;
+    if (parent) parent.addEventListener("mousemove", handleMouse);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("resize", resize);
+      if (parent) parent.removeEventListener("mousemove", handleMouse);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 pointer-events-none"
+      style={{ mixBlendMode: "screen" }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function FloatingOrb({ delay, size, x, y }: { delay: number; size: number; x: string; y: string }) {
+  return (
+    <div
+      className="absolute rounded-full blur-3xl pointer-events-none"
+      style={{
+        width: size,
+        height: size,
+        left: x,
+        top: y,
+        background: `radial-gradient(circle, hsla(265, 80%, 60%, 0.15), hsla(220, 80%, 60%, 0.05), transparent)`,
+        animation: `float ${6 + delay}s ease-in-out infinite`,
+        animationDelay: `${delay}s`,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
 const PIPELINE_STEPS = [
   { icon: Radio, label: "Go Live", desc: "Stream on any platform" },
   { icon: Cpu, label: "AI Detects", desc: "Auto-captures highlights" },
@@ -73,36 +207,42 @@ const FEATURES = [
     title: "AI Content Engine",
     description: "Autonomous content creation from livestreams. AI extracts highlights, generates clips, optimizes metadata, and publishes — zero manual work.",
     metric: "832 AI features",
+    gradient: "from-violet-500/20 to-purple-500/10",
   },
   {
     icon: Radio,
     title: "Multi-Platform Live",
     description: "Stream to YouTube, Twitch, Kick, and more simultaneously. AI monitors chat, detects highlights, and captures key moments in real-time.",
     metric: "25+ platforms",
+    gradient: "from-blue-500/20 to-cyan-500/10",
   },
   {
     icon: Target,
     title: "Retention Science",
     description: "Every piece of content shaped by proven retention beats from top creators. Hook patterns, pacing, and chapter structure that keeps viewers watching.",
     metric: "95% retention",
+    gradient: "from-emerald-500/20 to-green-500/10",
   },
   {
     icon: Eye,
     title: "SEO Domination",
     description: "AI-powered titles, descriptions, tags, and thumbnails optimized by world-class SEO algorithms. A/B testing built in for maximum click-through rates.",
     metric: "3x more views",
+    gradient: "from-amber-500/20 to-orange-500/10",
   },
   {
     icon: DollarSign,
     title: "Revenue Intelligence",
     description: "Automated monetization with P&L tracking, tax optimization, sponsorship management, and AI-powered brand deal negotiation.",
     metric: "Full P&L",
+    gradient: "from-rose-500/20 to-pink-500/10",
   },
   {
     icon: Shield,
     title: "Self-Healing System",
     description: "25+ subsystems protected by autonomous failure detection, AI diagnosis, auto-retry, and circuit breakers. 99.9% uptime guaranteed.",
     metric: "Always on",
+    gradient: "from-indigo-500/20 to-blue-500/10",
   },
 ];
 
@@ -177,14 +317,16 @@ export default function Landing() {
   const featuresView = useInView(0.1);
   const testimonialsView = useInView(0.1);
   const pricingView = useInView(0.1);
+  const howItWorksView = useInView(0.1);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <nav className="border-b border-border/50 sticky top-0 z-50 bg-background/80 backdrop-blur-xl">
+      <nav className="border-b border-border/30 sticky top-0 z-50 bg-background/60 backdrop-blur-2xl">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 h-14 px-4 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center glow-sm">
-              <Zap className="h-4 w-4 text-primary-foreground" />
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center glow-sm relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+              <Zap className="h-4 w-4 text-primary-foreground relative z-10" />
             </div>
             <span data-testid="text-landing-logo" className="font-display font-bold text-base tracking-tight">
               Creator<span className="text-primary">OS</span>
@@ -194,7 +336,7 @@ export default function Landing() {
             <a href="/pricing">
               <Button data-testid="button-nav-pricing" variant="ghost" size="sm">Pricing</Button>
             </a>
-            <Button data-testid="button-sign-in-nav" size="sm" onClick={() => setShowAuthForm(true)}>
+            <Button data-testid="button-sign-in-nav" size="sm" className="glow-sm" onClick={() => setShowAuthForm(true)}>
               Sign In
             </Button>
           </div>
@@ -203,26 +345,29 @@ export default function Landing() {
 
       {showAuthForm && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-md"
           data-testid="modal-auth"
           onClick={(e) => { if (e.target === e.currentTarget) setShowAuthForm(false); }}
         >
-          <div className="relative">
+          <div className="relative scale-in">
             <button data-testid="button-close-auth" onClick={() => setShowAuthForm(false)} className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">&times;</button>
             <AuthForm />
           </div>
         </div>
       )}
 
-      <section className="relative aurora-bg" data-testid="section-hero" ref={heroRef}>
-        <div className="absolute inset-0 grid-pattern opacity-30" aria-hidden="true" />
-        <div className="absolute inset-0 hero-glow" aria-hidden="true" />
+      <section className="relative overflow-hidden" data-testid="section-hero" ref={heroRef}>
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.03] via-transparent to-background" aria-hidden="true" />
+        <FloatingOrb delay={0} size={400} x="10%" y="10%" />
+        <FloatingOrb delay={2} size={300} x="70%" y="20%" />
+        <FloatingOrb delay={4} size={250} x="40%" y="60%" />
+        <ParticleCanvas />
 
-        <div className="relative py-24 sm:py-32 lg:py-40">
+        <div className="relative py-24 sm:py-32 lg:py-44">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="max-w-3xl">
               <div className="slide-up-stagger" style={{ animationDelay: '0s' }}>
-                <Badge variant="secondary" className="mb-6 text-xs tracking-wide border-primary/20 bg-primary/5" data-testid="badge-hero">
+                <Badge variant="secondary" className="mb-6 text-xs tracking-wide border-primary/20 bg-primary/5 backdrop-blur-sm" data-testid="badge-hero">
                   <Sparkles className="w-3 h-3 mr-1.5 text-primary" />
                   Autonomous Creator Intelligence
                 </Badge>
@@ -241,12 +386,12 @@ export default function Landing() {
               </p>
 
               <div className="slide-up-stagger mt-10 flex flex-col sm:flex-row gap-3" style={{ animationDelay: '0.3s' }}>
-                <Button data-testid="button-hero-get-started" size="lg" className="text-base glow border-glow-animated" onClick={() => setShowAuthForm(true)}>
+                <Button data-testid="button-hero-get-started" size="lg" className="text-base glow border-glow-animated group" onClick={() => setShowAuthForm(true)}>
                   Start Free — No Card Required
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                  <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
                 </Button>
                 <a href="/pricing">
-                  <Button data-testid="button-hero-view-pricing" variant="outline" size="lg" className="w-full sm:w-auto text-base">
+                  <Button data-testid="button-hero-view-pricing" variant="outline" size="lg" className="w-full sm:w-auto text-base backdrop-blur-sm">
                     <Play className="h-3.5 w-3.5 mr-2" />
                     See Plans
                   </Button>
@@ -280,7 +425,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28 border-t border-border/50 relative overflow-hidden" data-testid="section-pipeline" ref={pipelineView.ref}>
+      <section className="py-20 sm:py-28 border-t border-border/30 relative overflow-hidden" data-testid="section-pipeline" ref={pipelineView.ref}>
         <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.02] to-transparent" aria-hidden="true" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
@@ -300,25 +445,25 @@ export default function Landing() {
               return (
                 <div
                   key={step.label}
-                  className={`relative text-center p-4 sm:p-5 rounded-xl border transition-all duration-500 ${
+                  className={`relative text-center p-4 sm:p-5 rounded-xl border transition-all duration-500 group ${
                     isActive
                       ? "border-primary/40 bg-primary/5 shadow-lg shadow-primary/10 scale-105"
                       : isPast
                       ? "border-emerald-500/20 bg-emerald-500/5"
-                      : "border-border/50 bg-card/50"
+                      : "border-border/50 bg-card/50 hover:border-primary/20 hover:bg-primary/[0.02]"
                   }`}
                   data-testid={`pipeline-step-${i}`}
                   style={{ transitionDelay: `${i * 50}ms` }}
                 >
-                  <div className={`mx-auto h-10 w-10 rounded-lg flex items-center justify-center mb-3 transition-colors duration-300 ${
-                    isActive ? "bg-primary/20 text-primary" : isPast ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"
+                  <div className={`mx-auto h-10 w-10 rounded-lg flex items-center justify-center mb-3 transition-all duration-300 ${
+                    isActive ? "bg-primary/20 text-primary scale-110" : isPast ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
                   }`}>
                     <step.icon className="h-5 w-5" />
                   </div>
                   <p className={`text-sm font-semibold mb-1 transition-colors ${isActive ? "text-primary" : ""}`}>{step.label}</p>
                   <p className="text-[11px] text-muted-foreground leading-tight">{step.desc}</p>
                   {i < PIPELINE_STEPS.length - 1 && (
-                    <ChevronRight className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+                    <ChevronRight className={`hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${isActive ? "text-primary/60" : "text-muted-foreground/40"}`} />
                   )}
                 </div>
               );
@@ -327,7 +472,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28 border-t border-border/50 spotlight" data-testid="section-features" onMouseMove={handleSpotlight} ref={featuresView.ref}>
+      <section className="py-20 sm:py-28 border-t border-border/30 spotlight" data-testid="section-features" onMouseMove={handleSpotlight} ref={featuresView.ref}>
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Core Systems</p>
@@ -342,25 +487,28 @@ export default function Landing() {
             {FEATURES.map((feature, i) => (
               <div
                 key={feature.title}
-                className="card-premium p-6 space-y-4"
+                className="card-premium p-6 space-y-4 group"
                 data-testid={`card-feature-${feature.title.toLowerCase().replace(/\s+/g, "-")}`}
                 style={{ transitionDelay: `${i * 80}ms` }}
               >
-                <div className="flex items-center justify-between">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <feature.icon className="h-5 w-5 text-primary" />
+                <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                <div className="relative">
+                  <div className="flex items-center justify-between">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      <feature.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <Badge variant="secondary" className="text-[10px] font-mono">{feature.metric}</Badge>
                   </div>
-                  <Badge variant="secondary" className="text-[10px] font-mono">{feature.metric}</Badge>
+                  <h3 className="text-base font-semibold mt-4">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-2">{feature.description}</p>
                 </div>
-                <h3 className="text-base font-semibold">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="py-20 sm:py-28 border-t border-border/50 relative overflow-hidden" data-testid="section-how-it-works">
+      <section className="py-20 sm:py-28 border-t border-border/30 relative overflow-hidden" data-testid="section-how-it-works" ref={howItWorksView.ref}>
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-blue-500/[0.02]" aria-hidden="true" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
@@ -369,10 +517,10 @@ export default function Landing() {
               Three Steps to <span className="gradient-text">Autopilot</span>
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            {HOW_IT_WORKS.map((step) => (
-              <div key={step.step} className="relative text-center space-y-5" data-testid={`step-${step.step}`}>
-                <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 transition-all duration-700 ${howItWorksView.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            {HOW_IT_WORKS.map((step, i) => (
+              <div key={step.step} className="relative text-center space-y-5" data-testid={`step-${step.step}`} style={{ transitionDelay: `${i * 150}ms` }}>
+                <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 group hover:bg-primary/15 transition-colors">
                   <step.icon className="h-8 w-8 text-primary" />
                 </div>
                 <div className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-primary text-primary-foreground text-xs font-bold">
@@ -384,13 +532,18 @@ export default function Landing() {
                   <Clock className="h-2.5 w-2.5 mr-1" />
                   {step.time}
                 </Badge>
+                {i < HOW_IT_WORKS.length - 1 && (
+                  <div className="hidden md:block absolute top-8 -right-4 lg:-right-8">
+                    <ArrowRight className="h-5 w-5 text-primary/30" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="py-20 sm:py-28 border-t border-border/50" data-testid="section-testimonials" ref={testimonialsView.ref}>
+      <section className="py-20 sm:py-28 border-t border-border/30" data-testid="section-testimonials" ref={testimonialsView.ref}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Creator Results</p>
@@ -400,11 +553,11 @@ export default function Landing() {
           </div>
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 transition-all duration-700 ${testimonialsView.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             {TESTIMONIALS.map((t, i) => (
-              <Card key={t.name} className="shine" data-testid={`card-testimonial-${i}`}>
+              <Card key={t.name} className="shine group hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-500" data-testid={`card-testimonial-${i}`}>
                 <CardContent className="p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-sm font-bold text-primary ring-2 ring-primary/10">
                         {t.avatar}
                       </div>
                       <div>
@@ -424,7 +577,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28 border-t border-border/50 relative" data-testid="section-trust">
+      <section className="py-20 sm:py-28 border-t border-border/30 relative" data-testid="section-trust">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Platform Capabilities</p>
@@ -439,8 +592,8 @@ export default function Landing() {
               { value: "11", label: "AI Agents", icon: Bot },
               { value: "99.9%", label: "Uptime", icon: Shield },
             ].map((item) => (
-              <div key={item.label} className="card-premium p-6 text-center" data-testid={`card-trust-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                <item.icon className="w-5 h-5 text-primary mx-auto mb-3" />
+              <div key={item.label} className="card-premium p-6 text-center group" data-testid={`card-trust-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                <item.icon className="w-5 h-5 text-primary mx-auto mb-3 group-hover:scale-110 transition-transform" />
                 <p className="text-3xl font-extrabold font-display text-primary">{item.value}</p>
                 <p className="text-xs text-muted-foreground mt-1.5 font-medium">{item.label}</p>
               </div>
@@ -453,7 +606,7 @@ export default function Landing() {
             <div className="flex gap-3 marquee whitespace-nowrap" data-testid="container-platforms">
               {[...Array(2)].map((_, setIdx) => (
                 <div key={setIdx} className="flex gap-3 shrink-0">
-                  {["YouTube", "TikTok", "Twitch", "X", "Discord", "Kick", "Instagram", "Facebook", "LinkedIn", "Rumble", "Reddit", "Pinterest", "Snapchat", "Spotify", "Patreon", "Ko-fi", "Substack", "Threads", "Bluesky", "DLive", "Trovo", "WhatsApp", "YouTube Shorts", "Apple Podcasts", "Mastodon"].map((p) => (
+                  {["YouTube", "TikTok", "Twitch", "X", "Discord", "Kick", "Rumble", "LinkedIn", "Reddit", "Pinterest", "Snapchat", "Spotify", "Patreon", "Ko-fi", "Substack", "Threads", "Bluesky", "DLive", "Trovo", "WhatsApp", "YouTube Shorts", "Apple Podcasts", "Mastodon"].map((p) => (
                     <Badge key={`${setIdx}-${p}`} variant="secondary" className="text-xs py-1.5 px-3 whitespace-nowrap">
                       {p}
                     </Badge>
@@ -465,7 +618,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28 border-t border-border/50" data-testid="section-pricing" ref={pricingView.ref}>
+      <section className="py-20 sm:py-28 border-t border-border/30" data-testid="section-pricing" ref={pricingView.ref}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Pricing</p>
@@ -477,11 +630,12 @@ export default function Landing() {
             </p>
           </div>
           <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 transition-all duration-700 ${pricingView.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-            {TIERS.map((tier) => (
+            {TIERS.map((tier, i) => (
               <div
                 key={tier.name}
-                className={`card-premium p-5 space-y-4 ${tier.popular ? "ring-2 ring-primary border-glow-animated" : ""}`}
+                className={`card-premium p-5 space-y-4 ${tier.popular ? "ring-2 ring-primary border-glow-animated scale-[1.02]" : ""}`}
                 data-testid={`card-pricing-${tier.name.toLowerCase()}`}
+                style={{ transitionDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold">{tier.name}</h3>
@@ -507,7 +661,7 @@ export default function Landing() {
                   ))}
                 </ul>
                 <a href="/pricing">
-                  <Button variant={tier.popular ? "default" : "outline"} size="sm" className="w-full mt-2" data-testid={`button-pricing-${tier.name.toLowerCase()}`}>
+                  <Button variant={tier.popular ? "default" : "outline"} size="sm" className={`w-full mt-2 ${tier.popular ? "glow-sm" : ""}`} data-testid={`button-pricing-${tier.name.toLowerCase()}`}>
                     {tier.price === "$0" ? "Get Started" : "Upgrade"}
                   </Button>
                 </a>
@@ -516,16 +670,16 @@ export default function Landing() {
           </div>
           <div className="text-center mt-10">
             <a href="/pricing">
-              <Button variant="outline" size="lg" data-testid="button-view-full-pricing">
+              <Button variant="outline" size="lg" data-testid="button-view-full-pricing" className="group">
                 View Full Pricing Details
-                <ArrowRight className="h-4 w-4 ml-2" />
+                <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
               </Button>
             </a>
           </div>
         </div>
       </section>
 
-      <section className="py-24 sm:py-32 border-t border-border/50 relative overflow-hidden aurora-bg" data-testid="section-cta">
+      <section className="py-24 sm:py-32 border-t border-border/30 relative overflow-hidden aurora-bg" data-testid="section-cta">
         <div className="absolute inset-0 grid-pattern opacity-20" aria-hidden="true" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 text-center">
           <Award className="h-12 w-12 text-primary mx-auto mb-6 float" />
@@ -536,9 +690,9 @@ export default function Landing() {
             Join creators who let AI handle the heavy lifting while they focus on what they love.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button data-testid="button-cta-get-started" size="lg" className="text-base glow border-glow-animated" onClick={() => setShowAuthForm(true)}>
+            <Button data-testid="button-cta-get-started" size="lg" className="text-base glow border-glow-animated group" onClick={() => setShowAuthForm(true)}>
               Get Started Free
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
             </Button>
             <a href="/pricing">
               <Button data-testid="button-cta-view-pricing" variant="outline" size="lg" className="text-base">
@@ -558,7 +712,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-border/50 py-8">
+      <footer className="border-t border-border/30 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2.5">
             <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">

@@ -239,9 +239,9 @@ export default function Dashboard() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">
-            {greeting()}, {userName}
+            {greeting()}, <span className="gradient-text">{userName}</span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your command center overview</p>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your AI command center — everything runs autonomously</p>
         </div>
       </div>
 
@@ -258,22 +258,23 @@ export default function Dashboard() {
       <section role="region" aria-label="AI autonomy status">
       <Card
         data-testid="card-autonomy-banner"
-        className={`shine gradient-border ${humanReviewMode
+        className={`shine relative overflow-hidden ${humanReviewMode
           ? "border-amber-500/20"
           : "border-emerald-500/20"
         }`}
       >
-        <CardContent className="p-4">
+        <div className={`absolute inset-0 bg-gradient-to-r ${humanReviewMode ? "from-amber-500/5 to-transparent" : "from-emerald-500/5 via-primary/3 to-transparent"} pointer-events-none`} />
+        <CardContent className="p-4 relative">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <PulseOrb
                 status={humanReviewMode ? "warning" : "active"}
-                size="md"
+                size="lg"
                 data-testid="status-ai-pulse"
               />
               <div aria-live="polite">
                 <div className="flex items-center gap-2">
-                  <p data-testid="text-ai-status" className="text-sm font-medium">
+                  <p data-testid="text-ai-status" className="text-sm font-semibold">
                     {humanReviewMode ? "Human review required" : "AI is running everything"}
                   </p>
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate">

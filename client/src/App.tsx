@@ -371,7 +371,7 @@ function MobileBottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/50 bg-background/95 backdrop-blur-xl safe-area-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/30 bg-background/60 backdrop-blur-2xl safe-area-bottom"
       data-testid="nav-mobile-bottom"
     >
       <div className="flex items-center justify-around h-14">
@@ -382,13 +382,14 @@ function MobileBottomNav() {
             <button
               key={item.href}
               onClick={() => setLocation(item.href)}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
+              className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all ${
                 active ? "text-primary" : "text-muted-foreground"
               }`}
               data-testid={`button-mobile-nav-${item.label.toLowerCase()}`}
               aria-label={`Navigate to ${item.label}`}
               aria-current={active ? "page" : undefined}
             >
+              {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary" />}
               <Icon className="h-5 w-5" />
               <span className="text-[10px] font-medium">{item.label}</span>
             </button>
@@ -488,13 +489,14 @@ function AuthenticatedApp() {
         <RouteAnnouncer />
         {!isFocusMode && <AppSidebar />}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className={`sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 border-b border-border/50 bg-background/80 backdrop-blur-xl shrink-0 transition-all duration-200 ${isFocusMode ? "h-10" : "h-12"}`}>
+          <header className={`sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 border-b border-border/30 bg-background/60 backdrop-blur-2xl shrink-0 transition-all duration-300 ${isFocusMode ? "h-10" : "h-12"}`}>
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {!isFocusMode && <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden shrink-0" />}
               {!isFocusMode && (
                 <div className="hidden md:flex items-center gap-2.5">
-                  <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
-                    <Zap className="h-3 w-3 text-primary-foreground" />
+                  <div className="h-6 w-6 rounded-md bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+                    <Zap className="h-3 w-3 text-primary-foreground relative z-10" />
                   </div>
                   <span data-testid="text-header-app-name" className="font-display font-bold text-sm tracking-tight">
                     Creator<span className="text-primary">OS</span>
