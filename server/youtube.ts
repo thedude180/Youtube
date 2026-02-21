@@ -372,30 +372,48 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
 export async function updateYouTubeVideo(
   channelId: number,
   videoId: string,
-  updates: { title?: string; description?: string; tags?: string[]; categoryId?: string }
+  updates: { title?: string; description?: string; tags?: string[]; categoryId?: string; enableMonetization?: boolean }
 ) {
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
+  const parts: string[] = ["snippet"];
+  if (updates.enableMonetization !== undefined) {
+    parts.push("status");
+  }
+
   const currentVideo = await youtube.videos.list({
-    part: ["snippet"],
+    part: parts,
     id: [videoId],
   });
 
-  const snippet = currentVideo.data.items?.[0]?.snippet;
+  const item = currentVideo.data.items?.[0];
+  const snippet = item?.snippet;
   if (!snippet) throw new Error("Video not found on YouTube");
 
-  const response = await youtube.videos.update({
-    part: ["snippet"],
-    requestBody: {
-      id: videoId,
-      snippet: {
-        title: updates.title || snippet.title || "",
-        description: updates.description !== undefined ? updates.description : (snippet.description || ""),
-        tags: updates.tags || snippet.tags || [],
-        categoryId: updates.categoryId || snippet.categoryId || "22",
-      },
+  const requestBody: any = {
+    id: videoId,
+    snippet: {
+      title: updates.title || snippet.title || "",
+      description: updates.description !== undefined ? updates.description : (snippet.description || ""),
+      tags: updates.tags || snippet.tags || [],
+      categoryId: updates.categoryId || snippet.categoryId || "22",
     },
+  };
+
+  if (updates.enableMonetization) {
+    requestBody.status = {
+      ...(item?.status || {}),
+      selfDeclaredMadeForKids: false,
+      embeddable: true,
+      license: "youtube",
+      publicStatsViewable: true,
+    };
+  }
+
+  const response = await youtube.videos.update({
+    part: parts,
+    requestBody,
   });
 
   return {
@@ -417,6 +435,7 @@ export async function uploadVideoToYouTube(
     scheduledStartTime?: string;
     videoFilePath?: string;
     videoBuffer?: Buffer;
+    enableMonetization?: boolean;
   }
 ): Promise<{ youtubeId: string; title: string; status: string } | null> {
   const { oauth2Client } = await getAuthenticatedClient(channelId);
@@ -437,6 +456,13 @@ export async function uploadVideoToYouTube(
   let privacyStatus = options.privacyStatus || "public";
   const statusBody: any = { privacyStatus };
 
+  if (options.enableMonetization === true) {
+    statusBody.selfDeclaredMadeForKids = false;
+    statusBody.embeddable = true;
+    statusBody.license = "youtube";
+    statusBody.publicStatsViewable = true;
+  }
+
   if (options.scheduledStartTime && privacyStatus === "public") {
     const scheduledDate = new Date(options.scheduledStartTime);
     if (scheduledDate.getTime() > Date.now() + 60_000) {
@@ -450,7 +476,8 @@ export async function uploadVideoToYouTube(
   const cleanDescription = removeBannedPhrases(options.description).slice(0, 5000);
   const cleanTags = (options.tags || []).map(t => removeBannedPhrases(t)).filter(Boolean).slice(0, 500);
 
-  console.log(`[YouTube] Uploading video "${cleanTitle}" (privacy: ${statusBody.privacyStatus})`);
+  const monetizationLabel = options.enableMonetization === true ? ", monetization: enabled" : "";
+  console.log(`[YouTube] Uploading video "${cleanTitle}" (privacy: ${statusBody.privacyStatus}${monetizationLabel})`);
 
   const response = await youtube.videos.insert({
     part: ["snippet", "status"],
@@ -475,7 +502,7 @@ export async function uploadVideoToYouTube(
     throw new Error("YouTube upload succeeded but no video ID returned");
   }
 
-  console.log(`[YouTube] Upload complete — YouTube ID: ${youtubeId}, title: "${cleanTitle}"`);
+  console.log(`[YouTube] Upload complete — YouTube ID: ${youtubeId}, title: "${cleanTitle}", monetization: ${options.enableMonetization === true ? "on" : "off"}`);
 
   return {
     youtubeId,

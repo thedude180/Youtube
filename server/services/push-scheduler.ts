@@ -353,6 +353,9 @@ async function processJob(job: PushJob): Promise<boolean> {
         return true;
       }
 
+      const { isMonetizationUnlocked } = await import("./monetization-check");
+      const monetizationEnabled = await isMonetizationUnlocked(job.userId, "youtube");
+
       const meta = (video.metadata as any) || {};
       const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
         title: video.title,
@@ -363,6 +366,7 @@ async function processJob(job: PushJob): Promise<boolean> {
         scheduledStartTime: job.data?.scheduledPublishTime,
         videoFilePath: meta.filePath || job.data?.filePath,
         videoBuffer: job.data?.videoBuffer,
+        enableMonetization: monetizationEnabled,
       });
 
       if (uploadResult?.youtubeId) {

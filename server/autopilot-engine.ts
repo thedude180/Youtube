@@ -753,7 +753,10 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     const clipPath = await cutClipFromVideo(sourcePath, startMin * 60, endMin * 60, post.id);
 
     const { uploadVideoToYouTube } = await import("./youtube");
+    const { isMonetizationUnlocked } = await import("./services/monetization-check");
     const title = isShort ? `${(post.caption || "Clip").substring(0, 90)} #Shorts` : (post.caption || "Stream Highlight").substring(0, 100);
+
+    const monetizationEnabled = await isMonetizationUnlocked(post.userId, "youtube");
 
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title,
@@ -762,6 +765,7 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
       categoryId: "20",
       privacyStatus: "public",
       videoFilePath: clipPath,
+      enableMonetization: monetizationEnabled,
     });
 
     cleanupClipFile(clipPath);

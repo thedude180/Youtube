@@ -102,19 +102,28 @@ async function initializeVideoUpload(
   fileSize: number,
   title: string,
   privacyLevel: string,
+  enableMonetization: boolean = false,
 ): Promise<{ uploadUrl: string; publishId: string } | { error: string }> {
   const chunkSize = Math.min(fileSize, 10_000_000);
   const totalChunks = Math.ceil(fileSize / chunkSize);
 
+  const postInfo: any = {
+    title: title.slice(0, 2200),
+    privacy_level: privacyLevel,
+    disable_duet: false,
+    disable_comment: false,
+    disable_stitch: false,
+    video_cover_timestamp_ms: 1000,
+  };
+
+  if (enableMonetization) {
+    postInfo.brand_content_toggle = false;
+    postInfo.brand_organic_toggle = false;
+    logger.info("TikTok monetization flags set for upload", { enableMonetization });
+  }
+
   const body = {
-    post_info: {
-      title: title.slice(0, 2200),
-      privacy_level: privacyLevel,
-      disable_duet: false,
-      disable_comment: false,
-      disable_stitch: false,
-      video_cover_timestamp_ms: 1000,
-    },
+    post_info: postInfo,
     source_info: {
       source: "FILE_UPLOAD",
       video_size: fileSize,
@@ -246,11 +255,15 @@ export async function publishClipToTikTok(
 
     const tiktokCaption = optimizeCaptionForTikTok(caption);
 
+    const { isMonetizationUnlocked } = await import("./services/monetization-check");
+    const monetizationEnabled = await isMonetizationUnlocked(userId, "tiktok");
+
     const initResult = await initializeVideoUpload(
       accessToken,
       videoResult.fileSize,
       tiktokCaption,
       privacyLevel,
+      monetizationEnabled,
     );
 
     if ("error" in initResult) {

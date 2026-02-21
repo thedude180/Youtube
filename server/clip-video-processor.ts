@@ -221,7 +221,9 @@ export async function processClipForYouTubeShorts(
     }
 
     const { uploadVideoToYouTube } = await import("./youtube");
+    const { isMonetizationUnlocked } = await import("./services/monetization-check");
     const shortsTitle = `${(clip.title || video.title || "Clip").substring(0, 90)} #Shorts`;
+    const monetizationEnabled = await isMonetizationUnlocked(userId, "youtube");
     const result = await uploadVideoToYouTube(ytChannel.id, {
       title: shortsTitle,
       description: clip.description || `${video.title} highlight clip`,
@@ -229,6 +231,7 @@ export async function processClipForYouTubeShorts(
       categoryId: "20",
       privacyStatus: "public",
       videoFilePath: clipPath,
+      enableMonetization: monetizationEnabled,
     });
 
     cleanupClipFile(clipPath);

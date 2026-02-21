@@ -247,10 +247,14 @@ export async function registerPlatformRoutes(app: Express) {
       const channel = await storage.getChannel(video.channelId);
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
 
+      const { isMonetizationUnlocked } = await import("../services/monetization-check");
+      const monetizationEnabled = await isMonetizationUnlocked(userId, "youtube");
+
       const updates: any = {};
       if (video.title) updates.title = video.title;
       if (video.description) updates.description = video.description;
       if (video.metadata?.tags) updates.tags = video.metadata.tags;
+      if (monetizationEnabled) updates.enableMonetization = true;
 
       const result = await smartPushOrQueue({
         userId,
