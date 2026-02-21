@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Calendar as CalendarIcon,
   ChevronLeft, ChevronRight, Video, Radio, Upload, Clock,
-  MessageSquare, FileText, Filter, Scissors, Sparkles, Share2, Zap,
+  MessageSquare, FileText, Filter, Scissors, Sparkles, Share2, Zap, Wrench,
 } from "lucide-react";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
@@ -35,9 +35,9 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type ViewMode = "day" | "week" | "month" | "year";
-type CategoryFilter = "all" | "video" | "short" | "text" | "stream";
+type CategoryFilter = "all" | "video" | "short" | "text" | "stream" | "update";
 
-type ContentKind = "new-video" | "short" | "cross-post" | "stream" | "text";
+type ContentKind = "new-video" | "short" | "cross-post" | "stream" | "text" | "meta-update";
 
 interface UploadEntry {
   id: string;
@@ -53,7 +53,14 @@ interface UploadEntry {
   rawId?: number;
 }
 
+const META_UPDATE_TYPES = new Set([
+  "vod-optimization", "metadata_update", "title_update",
+  "description_refresh", "tag_update", "thumbnail_swap",
+  "thumbnail_refresh", "seo-optimization", "trend_ride",
+]);
+
 function resolveContentKind(contentType: string, contentCategory: "video" | "text"): ContentKind {
+  if (META_UPDATE_TYPES.has(contentType)) return "meta-update";
   if (contentType === "stream") return "stream";
   if (contentType === "short" || contentType === "auto-clip" || contentType === "clip") return "short";
   if (contentType === "cross-post" || contentType === "campaign" || contentType === "community" || contentType === "post") return "cross-post";
@@ -62,16 +69,18 @@ function resolveContentKind(contentType: string, contentCategory: "video" | "tex
 }
 
 const KIND_COLORS: Record<ContentKind, { bg: string; text: string; border: string; dot: string }> = {
-  "new-video": { bg: "bg-emerald-500/15", text: "text-emerald-300", border: "border-emerald-500/40", dot: "bg-emerald-400" },
-  "short":     { bg: "bg-cyan-500/15", text: "text-cyan-300", border: "border-cyan-500/40", dot: "bg-cyan-400" },
-  "cross-post":{ bg: "bg-amber-500/10", text: "text-amber-300", border: "border-amber-500/30", dot: "bg-amber-400" },
-  "stream":    { bg: "bg-red-500/15", text: "text-red-300", border: "border-red-500/40", dot: "bg-red-400" },
-  "text":      { bg: "bg-slate-500/10", text: "text-slate-300", border: "border-slate-500/30", dot: "bg-slate-400" },
+  "new-video":   { bg: "bg-emerald-500/15", text: "text-emerald-300", border: "border-emerald-500/40", dot: "bg-emerald-400" },
+  "short":       { bg: "bg-cyan-500/15", text: "text-cyan-300", border: "border-cyan-500/40", dot: "bg-cyan-400" },
+  "meta-update": { bg: "bg-violet-500/15", text: "text-violet-300", border: "border-violet-500/40", dot: "bg-violet-400" },
+  "cross-post":  { bg: "bg-amber-500/10", text: "text-amber-300", border: "border-amber-500/30", dot: "bg-amber-400" },
+  "stream":      { bg: "bg-red-500/15", text: "text-red-300", border: "border-red-500/40", dot: "bg-red-400" },
+  "text":        { bg: "bg-slate-500/10", text: "text-slate-300", border: "border-slate-500/30", dot: "bg-slate-400" },
 };
 
 const KIND_LABELS: Record<ContentKind, string> = {
   "new-video": "New Video",
   "short": "Short / Clip",
+  "meta-update": "Video Update",
   "cross-post": "Cross-Post",
   "stream": "Live Stream",
   "text": "Text Post",
@@ -122,6 +131,7 @@ function CalendarTab() {
     if (categoryFilter === "video") return uploads.filter((e) => e.contentKind === "new-video");
     if (categoryFilter === "short") return uploads.filter((e) => e.contentKind === "short");
     if (categoryFilter === "stream") return uploads.filter((e) => e.contentKind === "stream");
+    if (categoryFilter === "update") return uploads.filter((e) => e.contentKind === "meta-update");
     if (categoryFilter === "text") return uploads.filter((e) => e.contentKind === "cross-post" || e.contentKind === "text");
     return uploads;
   }, [uploads, categoryFilter]);
@@ -235,6 +245,7 @@ function CalendarTab() {
 
   const newVideoCount = uploads.filter((e) => e.contentKind === "new-video").length;
   const shortCount = uploads.filter((e) => e.contentKind === "short").length;
+  const updateCount = uploads.filter((e) => e.contentKind === "meta-update").length;
   const streamCount = uploads.filter((e) => e.contentKind === "stream").length;
   const textCount = uploads.filter((e) => e.contentKind === "cross-post" || e.contentKind === "text").length;
   const scheduledCount = filteredUploads.filter((e) => e.status === "scheduled").length;
@@ -298,6 +309,16 @@ function CalendarTab() {
             >
               <Radio className="w-3 h-3 mr-1" />
               Streams ({streamCount})
+            </Button>
+            <Button
+              variant={categoryFilter === "update" ? "default" : "ghost"}
+              size="sm"
+              className={`h-7 px-2 text-xs ${categoryFilter === "update" ? "" : "text-violet-400 hover:text-violet-300"}`}
+              onClick={() => setCategoryFilter("update")}
+              data-testid="filter-update"
+            >
+              <Wrench className="w-3 h-3 mr-1" />
+              Updates ({updateCount})
             </Button>
             <Button
               variant={categoryFilter === "text" ? "default" : "ghost"}
@@ -629,6 +650,7 @@ function KindBadge({ kind }: { kind: ContentKind }) {
   const icons: Record<ContentKind, any> = {
     "new-video": Sparkles,
     "short": Scissors,
+    "meta-update": Wrench,
     "cross-post": Share2,
     "stream": Radio,
     "text": FileText,
@@ -651,6 +673,7 @@ function ContentKindIcon({ kind }: { kind: ContentKind }) {
   const icons: Record<ContentKind, any> = {
     "new-video": Sparkles,
     "short": Scissors,
+    "meta-update": Wrench,
     "cross-post": Share2,
     "stream": Radio,
     "text": FileText,
@@ -1150,7 +1173,7 @@ function DetailPanel({
     return acc;
   }, {} as Partial<Record<ContentKind, UploadEntry[]>>);
 
-  const kindOrder: ContentKind[] = ["new-video", "short", "stream", "cross-post", "text"];
+  const kindOrder: ContentKind[] = ["new-video", "short", "stream", "meta-update", "cross-post", "text"];
 
   return (
     <Card>
