@@ -321,7 +321,7 @@ async function runHealthChecks(): Promise<void> {
       }
     }
 
-    await heartbeatMod.recordHeartbeat("autopilotMonitor", "idle", Date.now() - startTime);
+    await heartbeatMod.recordHeartbeat("autopilotMonitor", "running", Date.now() - startTime);
   } catch (err) {
     console.error("[Autopilot] Health check cycle error:", err);
     const { recordHeartbeat } = await import("./engine-heartbeat");

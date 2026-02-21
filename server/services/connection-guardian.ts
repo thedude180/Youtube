@@ -310,7 +310,7 @@ async function runGuardianCycle(): Promise<void> {
       console.log(`[ConnectionGuardian] Cycle complete: tokens refreshed=${tokenResult.refreshed} verified=${tokenResult.verified} failed=${tokenResult.failed}, autopilot reactivated=${autopilotReactivated}, baselines=${baselines}, periodic snapshots=${periodic}`);
     }
 
-    await heartbeatMod.recordHeartbeat("connectionGuardian", "idle", Date.now() - startTime);
+    await heartbeatMod.recordHeartbeat("connectionGuardian", "running", Date.now() - startTime);
   } catch (err) {
     console.error("[ConnectionGuardian] Cycle error:", err);
     const { recordHeartbeat } = await import("./engine-heartbeat");
