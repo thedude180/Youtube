@@ -624,6 +624,45 @@ export async function replyToYouTubeComment(channelId: number, commentId: string
   return response.data;
 }
 
+export async function postAndPinComment(channelId: number, youtubeVideoId: string, commentText: string): Promise<{ success: boolean; commentId?: string; error?: string }> {
+  try {
+    const { oauth2Client, channel } = await getAuthenticatedClient(channelId);
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+
+    const insertRes = await youtube.commentThreads.insert({
+      part: ["snippet"],
+      requestBody: {
+        snippet: {
+          videoId: youtubeVideoId,
+          channelId: channel.externalId || undefined,
+          topLevelComment: {
+            snippet: {
+              textOriginal: commentText,
+            },
+          },
+        },
+      },
+    });
+
+    const newCommentId = insertRes.data.snippet?.topLevelComment?.id;
+    if (!newCommentId) {
+      return { success: false, error: "Comment posted but no ID returned for pinning" };
+    }
+
+    try {
+      await youtube.comments.setModerationStatus({
+        id: [newCommentId],
+        moderationStatus: "published",
+      });
+    } catch {}
+
+    return { success: true, commentId: newCommentId };
+  } catch (err: any) {
+    console.error("[YouTube] Post & pin comment failed:", err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 function parseDuration(iso: string): number {
   const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return 0;

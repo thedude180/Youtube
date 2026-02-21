@@ -161,6 +161,19 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
   if (!discordConfig || discordConfig.enabled !== false) {
     await generateDiscordAnnouncement(userId, video, creatorTone);
   }
+
+  const meta = video.metadata as any;
+  const youtubeVideoId = meta?.youtubeVideoId;
+  if (youtubeVideoId && video.platform === "youtube") {
+    const ytChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+    const ytChannel = ytChannels.find(c => c.accessToken);
+    if (ytChannel) {
+      autoPinComment(userId, ytChannel.id, youtubeVideoId, videoId).catch(err => {
+        logger.error("Auto-pin on new upload failed", { videoId, error: String(err) });
+      });
+    }
+  }
 }
 
 async function generateFullThrottleDistribution(
@@ -754,6 +767,10 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
       const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
       generateThumbnailForNewVideo(post.userId, streamVideo.id).catch(() => {});
 
+      autoPinComment(post.userId, ytChannel.id, uploadResult.youtubeId, streamVideo.id).catch(err => {
+        logger.error("Auto-pin comment failed", { postId: post.id, error: String(err) });
+      });
+
       return {
         success: true,
         postId: uploadResult.youtubeId,
@@ -876,6 +893,43 @@ export async function processScheduledPosts() {
   }
 
   await retryFailedPosts();
+}
+
+async function autoPinComment(userId: string, channelId: number, youtubeVideoId: string, videoId: number) {
+  try {
+    await new Promise(resolve => setTimeout(resolve, 30_000));
+
+    const { generatePinnedComment } = await import("./youtube-manager");
+    const result = await generatePinnedComment(userId, videoId);
+
+    if (!result?.comment) {
+      logger.warn("Auto-pin: AI generated empty comment, skipping", { videoId });
+      return;
+    }
+
+    const { postAndPinComment } = await import("./youtube");
+    const pinResult = await postAndPinComment(channelId, youtubeVideoId, result.comment);
+
+    if (pinResult.success) {
+      logger.info("Auto-pinned comment on video", {
+        userId, videoId, youtubeVideoId,
+        commentId: pinResult.commentId,
+        strategy: result.strategy,
+      });
+
+      await db.insert(notifications).values({
+        userId,
+        type: "autopilot",
+        title: "Pinned Comment Added",
+        message: `AI posted & pinned an engagement comment on your new video`,
+        severity: "info",
+      });
+    } else {
+      logger.warn("Auto-pin comment post failed", { videoId, error: pinResult.error });
+    }
+  } catch (err: any) {
+    logger.error("Auto-pin comment error", { userId, videoId, error: err.message });
+  }
 }
 
 async function retryFailedPosts() {

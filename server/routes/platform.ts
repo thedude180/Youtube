@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { eq, and } from "drizzle-orm";
-import { linkedChannels, streamDestinations, subscriptions } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { linkedChannels, streamDestinations, subscriptions, channels, videos } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
 import { requireAuth, getUserId, parseNumericId } from "./helpers";
@@ -796,8 +796,87 @@ export async function registerPlatformRoutes(app: Express) {
     if (!userId) return;
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
-    try { const result = await generatePinnedComment(userId, videoId); res.json(result); }
+    try {
+      const result = await generatePinnedComment(userId, videoId);
+      if (result?.comment && req.body?.postToYouTube) {
+        const video = await storage.getVideo(videoId);
+        const meta = video?.metadata as any;
+        const youtubeVideoId = meta?.youtubeVideoId;
+        if (youtubeVideoId) {
+          const ytChannels = await db.select().from(channels)
+            .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+          const ytChannel = ytChannels.find((c: any) => c.accessToken);
+          if (ytChannel) {
+            const { postAndPinComment } = await import("../youtube");
+            const pinResult = await postAndPinComment(ytChannel.id, youtubeVideoId, result.comment);
+            res.json({ ...result, posted: pinResult.success, commentId: pinResult.commentId, postError: pinResult.error });
+            return;
+          }
+        }
+      }
+      res.json(result);
+    }
     catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/youtube-manager/pin-all-videos", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const userVideos = await db.select().from(videos)
+        .where(and(eq(videos.userId, userId), eq(videos.platform, "youtube")))
+        .orderBy(desc(videos.createdAt));
+
+      const ytChannels = await db.select().from(channels)
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+      const ytChannel = ytChannels.find((c: any) => c.accessToken);
+
+      if (!ytChannel) {
+        res.json({ success: false, error: "No YouTube channel connected", processed: 0, total: userVideos.length });
+        return;
+      }
+
+      let processed = 0;
+      let pinned = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (const video of userVideos) {
+        const meta = video.metadata as any;
+        const youtubeVideoId = meta?.youtubeVideoId;
+        if (!youtubeVideoId) { skipped++; continue; }
+        if (meta?.pinnedCommentId) { skipped++; continue; }
+
+        try {
+          const result = await generatePinnedComment(userId, video.id);
+          if (!result?.comment) { skipped++; continue; }
+
+          const { postAndPinComment } = await import("../youtube");
+          const pinResult = await postAndPinComment(ytChannel.id, youtubeVideoId, result.comment);
+
+          if (pinResult.success) {
+            await db.update(videos).set({
+              metadata: { ...meta, pinnedCommentId: pinResult.commentId, pinnedCommentText: result.comment },
+            }).where(eq(videos.id, video.id));
+            pinned++;
+          } else {
+            failed++;
+          }
+          processed++;
+
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        } catch (err: any) {
+          console.error(`[PinAll] Failed for video ${video.id}:`, err.message);
+          failed++;
+          processed++;
+        }
+      }
+
+      res.json({ success: true, total: userVideos.length, processed, pinned, skipped, failed });
+    } catch (error: any) {
+      console.error("Error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
   });
 
   app.get("/api/youtube-manager/description-links", async (req, res) => {
