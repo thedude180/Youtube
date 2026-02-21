@@ -33,13 +33,13 @@ function isVideoPostable(video: any): boolean {
 }
 
 const LONG_FORM_MAX_MINUTES = 15;
-const SHORTS_PER_BATCH = 4;
+const SHORTS_PER_BATCH = 3;
 const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 30;
 const MAX_BATCHES_PER_RUN = 10;
-const CORE_YOUTUBE_PER_DAY = 15; // 3 long-form + 12 shorts — constant content flow is top priority
-const MAX_CROSS_POSTS_PER_DAY = 30;
-const MAX_SCHEDULED_PER_DAY = CORE_YOUTUBE_PER_DAY + MAX_CROSS_POSTS_PER_DAY; // 45 total
+const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 4 (1 long-form + 3 shorts per batch, audience-data driven)
+const MAX_CROSS_POSTS_PER_DAY = 20;
+const MAX_SCHEDULED_PER_DAY = CORE_YOUTUBE_PER_DAY + MAX_CROSS_POSTS_PER_DAY; // 24 total
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
@@ -589,7 +589,7 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
   try {
     const coreCount = await getDailyCoreYouTubeCount(userId);
     if (coreCount >= CORE_YOUTUBE_PER_DAY) {
-      logger.info("Daily core YouTube limit reached (1 longform + 4 shorts already scheduled), pausing", { userId, coreCount, limit: CORE_YOUTUBE_PER_DAY });
+      logger.info("Daily core YouTube limit reached (1 long-form + 3 shorts already scheduled), pausing", { userId, coreCount, limit: CORE_YOUTUBE_PER_DAY });
       return { didWork: false, exhausted: true };
     }
 

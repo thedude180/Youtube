@@ -243,7 +243,7 @@ export function getCurrentPriority(userId: string): {
   const descriptions: Record<PriorityMode, string> = {
     livestream: `Live stream "${state.streamTitle}" detected — streaming to YouTube/Twitch/Kick, text alerts firing on X/Discord`,
     "post-stream-harvest": `Harvesting content from "${state.streamTitle}" + creating new videos — clips & new content → YouTube/TikTok, announcements → X/Discord`,
-    "daily-content": "TOP PRIORITY: Constant content flow — new videos draining every usable minute from streams/VODs → YouTube/TikTok, announcements → X/Discord",
+    "daily-content": "TOP PRIORITY: Constant content flow — 1 long-form + 3 shorts per batch (audience-data driven), draining every usable minute → YouTube/TikTok, announcements → X/Discord",
     "vod-optimization": "Optimizing old videos — refreshing metadata on YouTube, resurfacing on X/Discord to drive new traffic",
     idle: "All systems on standby",
   };
