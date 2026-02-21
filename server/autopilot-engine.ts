@@ -941,6 +941,12 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
 
         const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
         generateThumbnailForNewVideo(post.userId, clipVideoId).catch(() => {});
+
+        import("./publish-verifier").then(({ verifyVideoUpload }) => {
+          verifyVideoUpload(clipVideoId, post.userId, uploadResult.youtubeId, "stream_clip_autopilot").catch(err => {
+            logger.warn("Stream clip upload verification deferred", { clipVideoId, error: String(err) });
+          });
+        });
       } catch (err) {
         logger.error("Failed to create clip video record", { postId: post.id, error: String(err) });
         const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");

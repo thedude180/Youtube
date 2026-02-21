@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { autopilotQueue, channels } from "@shared/schema";
-import { eq, and, gte, isNotNull, inArray } from "drizzle-orm";
+import { autopilotQueue, channels, videos } from "@shared/schema";
+import { eq, and, gte, isNotNull, inArray, desc, sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { storage } from "./storage";
 import { OAUTH_CONFIGS } from "./oauth-config";
@@ -429,4 +429,144 @@ export async function verifyPostImmediately(postId: number, userId: string, plat
   }
 
   return result;
+}
+
+export async function verifyVideoUpload(videoDbId: number, userId: string, youtubeId: string, source: string): Promise<VerificationResult> {
+  await new Promise(r => setTimeout(r, 10_000));
+
+  const result = await verifyYouTubePost(userId, youtubeId);
+  const video = await db.select().from(videos).where(eq(videos.id, videoDbId)).limit(1);
+  if (!video[0]) return result;
+
+  const meta = (video[0].metadata as any) || {};
+  const existingVerification = meta.uploadVerification || { attempts: 0 };
+
+  await db.update(videos)
+    .set({
+      metadata: {
+        ...meta,
+        uploadVerification: {
+          attempts: existingVerification.attempts + 1,
+          lastAttempt: new Date().toISOString(),
+          confirmed: result.confirmed,
+          platformStatus: result.platformStatus,
+          platformUrl: result.platformUrl || `https://youtube.com/watch?v=${youtubeId}`,
+          source,
+          error: result.error,
+        },
+      },
+    })
+    .where(eq(videos.id, videoDbId));
+
+  if (result.confirmed) {
+    logger.info("[Verifier] Video upload verified", { videoDbId, youtubeId, source, status: result.platformStatus });
+  } else {
+    logger.info("[Verifier] Video upload verification pending", { videoDbId, youtubeId, source, error: result.error });
+  }
+
+  return result;
+}
+
+export async function verifyAllRecentUploads() {
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+
+  const recentUploads = await db.select().from(videos)
+    .where(and(
+      eq(videos.status, "published"),
+      gte(videos.createdAt, sixHoursAgo),
+    ))
+    .orderBy(desc(videos.createdAt))
+    .limit(30);
+
+  if (recentUploads.length === 0) {
+    await verifyRecentPublishedPosts();
+    return;
+  }
+
+  let verified = 0;
+  let failed = 0;
+  let pending = 0;
+  let skipped = 0;
+
+  for (const video of recentUploads) {
+    const meta = (video.metadata as any) || {};
+    const platform = video.platform || "youtube";
+    const platformId = meta.youtubeId || meta.tiktokId || meta.platformId;
+    if (!platformId) continue;
+
+    const existing = meta.uploadVerification || {};
+    if (existing.confirmed === true) {
+      skipped++;
+      continue;
+    }
+    if ((existing.attempts || 0) >= 6) {
+      if (!existing.notified) {
+        try {
+          const channel = video.channelId ? await db.select().from(channels).where(eq(channels.id, video.channelId)).limit(1) : [];
+          const userId = channel[0]?.userId;
+          if (userId) {
+            const platformUrl = platform === "youtube" || platform === "youtubeshorts"
+              ? `https://youtube.com/watch?v=${platformId}` : "";
+            const { createNotification } = await import("./autopilot-engine");
+            await createNotification(userId, "autopilot",
+              `Upload verification failed`,
+              `Could not confirm "${video.title}" is live on ${platform} after multiple checks.${platformUrl ? ` Please verify manually: ${platformUrl}` : ""}`,
+              "warning");
+            await db.update(videos).set({
+              metadata: { ...meta, uploadVerification: { ...existing, notified: true } },
+            }).where(eq(videos.id, video.id));
+          }
+        } catch {}
+      }
+      failed++;
+      continue;
+    }
+
+    const timeSinceCreate = Date.now() - (video.createdAt?.getTime() || 0);
+    if (timeSinceCreate < 30_000) {
+      pending++;
+      continue;
+    }
+
+    const channel = video.channelId ? await db.select().from(channels).where(eq(channels.id, video.channelId)).limit(1) : [];
+    const userId = channel[0]?.userId;
+    if (!userId) continue;
+
+    const result = await verifyPost(userId, platform, platformId);
+
+    const platformUrl = result.platformUrl
+      || (platform === "youtube" || platform === "youtubeshorts" ? `https://youtube.com/watch?v=${platformId}` : undefined);
+
+    await db.update(videos)
+      .set({
+        metadata: {
+          ...meta,
+          uploadVerification: {
+            attempts: (existing.attempts || 0) + 1,
+            lastAttempt: new Date().toISOString(),
+            confirmed: result.confirmed,
+            platform,
+            platformStatus: result.platformStatus,
+            platformUrl,
+            source: existing.source || "unknown",
+            error: result.error,
+          },
+        },
+      })
+      .where(eq(videos.id, video.id));
+
+    if (result.confirmed) {
+      verified++;
+      logger.info("[Verifier] Upload confirmed in sweep", { videoId: video.id, platform, platformId, status: result.platformStatus });
+    } else if (result.error?.includes("rate limit")) {
+      pending++;
+      break;
+    } else {
+      pending++;
+    }
+  }
+
+  logger.info("[Verifier] Upload verification sweep complete", { verified, failed, pending, skipped, total: recentUploads.length });
+
+  await verifyRecentPublishedPosts();
 }

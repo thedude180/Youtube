@@ -600,8 +600,8 @@ export async function runContentVerificationSweep() {
         }
       }
 
-      const { verifyRecentPublishedPosts } = await import("./publish-verifier");
-      await verifyRecentPublishedPosts();
+      const { verifyAllRecentUploads } = await import("./publish-verifier");
+      await verifyAllRecentUploads();
 
       const recentPublished = await db.select().from(autopilotQueue)
         .where(and(

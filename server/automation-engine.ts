@@ -250,8 +250,8 @@ export async function initAutomationEngine() {
 
   cron.schedule("*/10 * * * *", async () => {
     await selfHealingCore("PublishVerification", async () => {
-      const { verifyRecentPublishedPosts } = await import("./publish-verifier");
-      await verifyRecentPublishedPosts();
+      const { verifyAllRecentUploads } = await import("./publish-verifier");
+      await verifyAllRecentUploads();
     });
   });
 

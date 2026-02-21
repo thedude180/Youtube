@@ -397,6 +397,12 @@ async function processJob(job: PushJob): Promise<boolean> {
           details: { youtubeId: uploadResult.youtubeId, videoDbId: job.videoDbId },
           riskLevel: "low",
         });
+
+        import("../publish-verifier").then(({ verifyVideoUpload }) => {
+          verifyVideoUpload(job.videoDbId, job.userId, uploadResult.youtubeId, "push_scheduler").catch(err => {
+            console.log(`[PushScheduler] Upload verification deferred: ${err.message}`);
+          });
+        });
       }
 
       return true;

@@ -262,6 +262,13 @@ export async function processClipForYouTubeShorts(
 
     if (result) {
       logger.info("YouTube Short uploaded", { clipId, youtubeId: result.youtubeId, title: result.title });
+
+      import("./publish-verifier").then(({ verifyVideoUpload }) => {
+        verifyVideoUpload(clip.sourceVideoId!, userId, result.youtubeId, "clip_shorts_upload").catch(err => {
+          logger.warn("Shorts upload verification deferred", { clipId, error: err.message });
+        });
+      });
+
       return { youtubeId: result.youtubeId, title: result.title };
     }
     return null;
