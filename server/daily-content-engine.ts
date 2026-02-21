@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { videos, streams, autopilotQueue, channels, notifications } from "@shared/schema";
-import { eq, and, desc, sql, gte, lte, isNotNull, ne } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, isNotNull, ne, inArray } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { generateHumanScheduledTime } from "./human-behavior-engine";
@@ -821,9 +821,14 @@ export async function bridgeVodsToStreams(userId: string): Promise<number> {
     .where(and(eq(streams.userId, userId), isNotNull(streams.vodVideoId)));
   const linkedVodIds = new Set(existingStreamVodIds.map(r => r.vodVideoId).filter(Boolean));
 
+  const userChannels = await db.select({ id: channels.id }).from(channels)
+    .where(eq(channels.userId, userId));
+  if (userChannels.length === 0) return 0;
+  const channelIds = userChannels.map(c => c.id);
+
   const longVods = await db.select().from(videos)
     .where(and(
-      eq(videos.userId, userId),
+      inArray(videos.channelId, channelIds),
       eq(videos.platform, "youtube"),
       eq(videos.type, "long"),
     ))
