@@ -155,6 +155,38 @@ async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
   }
 }
 
+async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast[]> {
+  const apiKey = process.env.RUMBLE_API_KEY;
+  if (!apiKey) return [];
+
+  const channelName = channelRow.channelName || channelRow.channelId;
+  if (!channelName) return [];
+
+  try {
+    const res = await fetch(`https://rumble.com/api/v0/channel/${encodeURIComponent(channelName)}/livestreams`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    const livestreams = Array.isArray(data.livestreams) ? data.livestreams : Array.isArray(data.data) ? data.data : data.items ? data.items : [];
+
+    return livestreams
+      .filter((ls: any) => ls.is_live || ls.status === "live" || ls.state === "live")
+      .map((ls: any) => ({
+        platform: "rumble",
+        broadcastId: String(ls.id || ls.video_id || Date.now()),
+        title: ls.title || "Rumble Stream",
+        description: ls.description || "Live on Rumble",
+        startedAt: ls.started_at || ls.created_at,
+        viewerCount: ls.viewer_count || ls.watching_now || 0,
+      }));
+  } catch (err) {
+    console.error(`[LiveDetection] Rumble check failed for channel ${channelRow.id}:`, err);
+    return [];
+  }
+}
+
 async function handleDetectedBroadcast(userId: string, channelId: number, broadcast: DetectedBroadcast) {
   const key = trackingKey(userId, broadcast.platform, channelId);
   const tracked = trackedBroadcasts.get(key);
@@ -177,7 +209,7 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     return;
   }
 
-  const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
+  const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord", "rumble"];
 
   const stream = await storage.createStream({
     userId,
@@ -309,6 +341,7 @@ export async function runMultiPlatformLiveDetection() {
       twitch: checkTwitchLive,
       kick: checkKickLive,
       tiktok: checkTikTokLive,
+      rumble: checkRumbleLive,
     };
 
     for (const ch of allChannelRows) {
