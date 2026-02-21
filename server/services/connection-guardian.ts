@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { channels } from "@shared/schema";
+import { channels, linkedChannels } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { eq, and, isNotNull, lt, isNull, desc } from "drizzle-orm";
 import { storage } from "../storage";
@@ -303,6 +303,69 @@ async function capturePeriodicSnapshots(): Promise<number> {
   return captured;
 }
 
+async function autoConnectRumble(): Promise<number> {
+  let connected = 0;
+  const apiKey = process.env.RUMBLE_API_KEY;
+  const streamKey = process.env.RUMBLE_STREAM_KEY;
+  const streamUrl = process.env.RUMBLE_STREAM_URL;
+
+  if (!apiKey && !streamKey) return 0;
+
+  try {
+    const allUsers = await db.select().from(users).limit(200);
+
+    for (const user of allUsers) {
+      const userChannels = await db.select().from(channels)
+        .where(eq(channels.userId, user.id));
+
+      const hasRumbleChannel = userChannels.some(c => c.platform === "rumble");
+      if (hasRumbleChannel) continue;
+
+      const hasAnyChannel = userChannels.length > 0;
+      if (!hasAnyChannel) continue;
+
+      const existingLinked = await db.select().from(linkedChannels)
+        .where(and(
+          eq(linkedChannels.userId, user.id),
+          eq(linkedChannels.platform, "rumble"),
+        ));
+
+      if (existingLinked.length > 0) continue;
+
+      await db.insert(linkedChannels).values({
+        userId: user.id,
+        platform: "rumble",
+        username: "Rumble Channel",
+        isConnected: true,
+        connectionType: "auto",
+        credentials: {
+          apiKey: "configured",
+          streamKey: streamKey ? "configured" : undefined,
+          streamUrl: streamUrl || "rtmp://live.rumble.com/live",
+        },
+      });
+
+      await storage.createChannel({
+        userId: user.id,
+        platform: "rumble",
+        channelName: "Rumble Channel",
+        channelId: `rumble-auto-${user.id}`,
+        accessToken: apiKey || streamKey || "",
+        refreshToken: null,
+        tokenExpiresAt: null,
+        settings: { preset: "normal", autoUpload: true, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+      });
+
+      connected++;
+      console.log(`[ConnectionGuardian] Auto-connected Rumble for user ${user.id}`);
+    }
+  } catch (err) {
+    console.error("[ConnectionGuardian] Rumble auto-connect error:", err);
+  }
+
+  return connected;
+}
+
 async function runGuardianCycle(): Promise<void> {
   const startTime = Date.now();
   try {
@@ -311,12 +374,13 @@ async function runGuardianCycle(): Promise<void> {
 
     const tokenResult = await ensureAllTokensFresh();
     const autopilotReactivated = await ensureAutopilotAlwaysOn();
+    const rumbleConnected = await autoConnectRumble();
     const baselines = await captureBaselineSnapshots();
     const periodic = await capturePeriodicSnapshots();
 
-    const activity = tokenResult.refreshed > 0 || autopilotReactivated > 0 || baselines > 0 || periodic > 0;
+    const activity = tokenResult.refreshed > 0 || autopilotReactivated > 0 || rumbleConnected > 0 || baselines > 0 || periodic > 0;
     if (activity) {
-      console.log(`[ConnectionGuardian] Cycle complete: tokens refreshed=${tokenResult.refreshed} verified=${tokenResult.verified} failed=${tokenResult.failed}, autopilot reactivated=${autopilotReactivated}, baselines=${baselines}, periodic snapshots=${periodic}`);
+      console.log(`[ConnectionGuardian] Cycle complete: tokens refreshed=${tokenResult.refreshed} verified=${tokenResult.verified} failed=${tokenResult.failed}, autopilot reactivated=${autopilotReactivated}, rumble auto-connected=${rumbleConnected}, baselines=${baselines}, periodic snapshots=${periodic}`);
     }
 
     await heartbeatMod.recordHeartbeat("connectionGuardian", "running", Date.now() - startTime);
