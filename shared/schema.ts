@@ -192,10 +192,10 @@ export const PLATFORM_INFO: Record<Platform, {
     maxBitrate: "8 Mbps",
     rtmpUrlTemplate: "rtmps://live-api-s.facebook.com:443/rtmp/",
     category: "social",
-    connectionType: "manual",
+    connectionType: "oauth",
     signupUrl: "https://www.facebook.com/pages/create",
     strategyDescription: "Massive social platform with video, Reels, Stories, and Live. Great for reaching older demographics and leveraging Facebook Groups for community building.",
-    setupSteps: ["Create a Facebook Page for your brand", "Go to Meta Business Suite", "Generate a Page Access Token", "Paste your credentials below"],
+    setupSteps: ["Create a Facebook Page for your brand", "Connect with your Facebook account (also enables Instagram)"],
   },
   instagram: {
     label: "Instagram",
@@ -204,10 +204,10 @@ export const PLATFORM_INFO: Record<Platform, {
     maxBitrate: "5 Mbps",
     rtmpUrlTemplate: "",
     category: "social",
-    connectionType: "manual",
+    connectionType: "oauth",
     signupUrl: "https://www.instagram.com/accounts/emailsignup/",
     strategyDescription: "Visual-first platform perfect for short-form Reels, Stories, and photo content. Strong discovery through Explore page and hashtags. Ideal for brand building.",
-    setupSteps: ["Switch to an Instagram Business or Creator account", "Connect via Meta Business Suite", "Generate an access token", "Paste your credentials below"],
+    setupSteps: ["Switch to an Instagram Business or Creator account", "Connect with your Facebook account (same login as Facebook)"],
   },
 };
 
