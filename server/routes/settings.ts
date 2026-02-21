@@ -9,6 +9,7 @@ import {
   runStyleScan,
   recordFeedback,
 } from "../creator-intelligence";
+import { sendDiscordWebhook } from "../services/notification-system";
 import {
   generateDailyBriefing, getHealthScore, processActionItems,
   updateAgentScorecard, generateGrowthPrediction, getContentDnaProfile,
@@ -105,6 +106,38 @@ export function registerSettingsRoutes(app: Express) {
       res.json(prefs);
     } catch (err) {
       res.status(500).json({ error: "Failed to update notification preferences" });
+    }
+  });
+
+  app.post("/api/notifications/test-discord-webhook", writeRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const prefs = await storage.getNotificationPreferences(userId);
+      const webhookUrl = prefs?.discordWebhookUrl || process.env.DISCORD_WEBHOOK_URL;
+      if (!webhookUrl) {
+        return res.status(400).json({
+          success: false,
+          error: "No Discord webhook URL configured. Add one in notification preferences or set the DISCORD_WEBHOOK_URL secret.",
+        });
+      }
+      const sent = await sendDiscordWebhook(
+        webhookUrl,
+        "CreatorOS Test Notification",
+        "Your Discord webhook is working! CreatorOS notifications will appear here.",
+        "info",
+        [
+          { name: "Status", value: "Connected", inline: true },
+          { name: "Platform", value: "CreatorOS", inline: true },
+        ],
+      );
+      if (sent) {
+        res.json({ success: true, message: "Test notification sent to Discord!" });
+      } else {
+        res.status(500).json({ success: false, error: "Discord webhook returned an error. Check the URL is valid." });
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to test Discord webhook" });
     }
   });
 

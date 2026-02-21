@@ -27,7 +27,14 @@ export async function getNotificationPreferences(userId: string) {
     .where(eq(notificationPreferences.userId, userId))
     .limit(1);
 
-  if (existing) return existing;
+  if (existing) {
+    if (!existing.discordWebhookUrl && process.env.DISCORD_WEBHOOK_URL) {
+      existing.discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    }
+    return existing;
+  }
+
+  const envWebhook = process.env.DISCORD_WEBHOOK_URL || null;
 
   const [created] = await db
     .insert(notificationPreferences)
@@ -36,6 +43,7 @@ export async function getNotificationPreferences(userId: string) {
       emailEnabled: true,
       pushEnabled: true,
       smsEnabled: false,
+      discordWebhookUrl: envWebhook,
       digestFrequency: "none",
       timezone: "UTC",
       categories: { ...DEFAULT_CATEGORIES },
