@@ -303,13 +303,14 @@ async function capturePeriodicSnapshots(): Promise<number> {
   return captured;
 }
 
-async function autoConnectRumble(): Promise<number> {
+async function autoConnectStreamingPlatform(
+  platformName: string,
+  envKeys: { apiKey?: string; clientId?: string; clientSecret?: string; streamKey?: string; streamUrl?: string },
+  defaultStreamUrl: string,
+): Promise<number> {
   let connected = 0;
-  const apiKey = process.env.RUMBLE_API_KEY;
-  const streamKey = process.env.RUMBLE_STREAM_KEY;
-  const streamUrl = process.env.RUMBLE_STREAM_URL;
-
-  if (!apiKey && !streamKey) return 0;
+  const hasCredentials = Object.values(envKeys).some(v => !!v);
+  if (!hasCredentials) return 0;
 
   try {
     const allUsers = await db.select().from(users).limit(200);
@@ -318,8 +319,8 @@ async function autoConnectRumble(): Promise<number> {
       const userChannels = await db.select().from(channels)
         .where(eq(channels.userId, user.id));
 
-      const hasRumbleChannel = userChannels.some(c => c.platform === "rumble");
-      if (hasRumbleChannel) continue;
+      const hasPlatformChannel = userChannels.some(c => c.platform === platformName);
+      if (hasPlatformChannel) continue;
 
       const hasAnyChannel = userChannels.length > 0;
       if (!hasAnyChannel) continue;
@@ -327,43 +328,69 @@ async function autoConnectRumble(): Promise<number> {
       const existingLinked = await db.select().from(linkedChannels)
         .where(and(
           eq(linkedChannels.userId, user.id),
-          eq(linkedChannels.platform, "rumble"),
+          eq(linkedChannels.platform, platformName),
         ));
 
       if (existingLinked.length > 0) continue;
 
+      const displayName = platformName.charAt(0).toUpperCase() + platformName.slice(1);
+
       await db.insert(linkedChannels).values({
         userId: user.id,
-        platform: "rumble",
-        username: "Rumble Channel",
+        platform: platformName,
+        username: `${displayName} Channel`,
         isConnected: true,
         connectionType: "auto",
         credentials: {
-          apiKey: "configured",
-          streamKey: streamKey ? "configured" : undefined,
-          streamUrl: streamUrl || "rtmp://live.rumble.com/live",
+          apiKey: envKeys.apiKey ? "configured" : undefined,
+          clientId: envKeys.clientId ? "configured" : undefined,
+          streamKey: envKeys.streamKey ? "configured" : undefined,
+          streamUrl: envKeys.streamUrl || defaultStreamUrl,
         },
       });
 
       await storage.createChannel({
         userId: user.id,
-        platform: "rumble",
-        channelName: "Rumble Channel",
-        channelId: `rumble-auto-${user.id}`,
-        accessToken: apiKey || streamKey || "",
+        platform: platformName,
+        channelName: `${displayName} Channel`,
+        channelId: `${platformName}-auto-${user.id}`,
+        accessToken: envKeys.apiKey || envKeys.clientId || envKeys.streamKey || "",
         refreshToken: null,
         tokenExpiresAt: null,
-        settings: { preset: "normal", autoUpload: true, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+        settings: { preset: "normal", autoUpload: false, minShortsPerDay: 0, maxEditsPerDay: 0, cooldownMinutes: 60 },
       });
 
       connected++;
-      console.log(`[ConnectionGuardian] Auto-connected Rumble for user ${user.id}`);
+      console.log(`[ConnectionGuardian] Auto-connected ${displayName} (AI-driven streaming) for user ${user.id}`);
     }
   } catch (err) {
-    console.error("[ConnectionGuardian] Rumble auto-connect error:", err);
+    console.error(`[ConnectionGuardian] ${platformName} auto-connect error:`, err);
   }
 
   return connected;
+}
+
+async function autoConnectStreamingPlatforms(): Promise<{ rumble: number; twitch: number; kick: number }> {
+  const rumble = await autoConnectStreamingPlatform("rumble", {
+    apiKey: process.env.RUMBLE_API_KEY,
+    streamKey: process.env.RUMBLE_STREAM_KEY,
+    streamUrl: process.env.RUMBLE_STREAM_URL,
+  }, "rtmp://live.rumble.com/live");
+
+  const twitch = await autoConnectStreamingPlatform("twitch", {
+    clientId: process.env.TWITCH_CLIENT_ID,
+    clientSecret: process.env.TWITCH_CLIENT_SECRET,
+    streamKey: process.env.TWITCH_STREAM_KEY,
+  }, "rtmp://live.twitch.tv/app");
+
+  const kick = await autoConnectStreamingPlatform("kick", {
+    clientId: process.env.KICK_CLIENT_ID,
+    clientSecret: process.env.KICK_CLIENT_SECRET,
+    streamKey: process.env.KICK_STREAM_KEY,
+    streamUrl: process.env.KICK_STREAM_URL,
+  }, "rtmp://live.kick.com/app");
+
+  return { rumble, twitch, kick };
 }
 
 async function runGuardianCycle(): Promise<void> {
@@ -374,13 +401,14 @@ async function runGuardianCycle(): Promise<void> {
 
     const tokenResult = await ensureAllTokensFresh();
     const autopilotReactivated = await ensureAutopilotAlwaysOn();
-    const rumbleConnected = await autoConnectRumble();
+    const streamingConnected = await autoConnectStreamingPlatforms();
+    const totalStreamingConnected = streamingConnected.rumble + streamingConnected.twitch + streamingConnected.kick;
     const baselines = await captureBaselineSnapshots();
     const periodic = await capturePeriodicSnapshots();
 
-    const activity = tokenResult.refreshed > 0 || autopilotReactivated > 0 || rumbleConnected > 0 || baselines > 0 || periodic > 0;
+    const activity = tokenResult.refreshed > 0 || autopilotReactivated > 0 || totalStreamingConnected > 0 || baselines > 0 || periodic > 0;
     if (activity) {
-      console.log(`[ConnectionGuardian] Cycle complete: tokens refreshed=${tokenResult.refreshed} verified=${tokenResult.verified} failed=${tokenResult.failed}, autopilot reactivated=${autopilotReactivated}, rumble auto-connected=${rumbleConnected}, baselines=${baselines}, periodic snapshots=${periodic}`);
+      console.log(`[ConnectionGuardian] Cycle complete: tokens refreshed=${tokenResult.refreshed} verified=${tokenResult.verified} failed=${tokenResult.failed}, autopilot reactivated=${autopilotReactivated}, streaming auto-connected: rumble=${streamingConnected.rumble} twitch=${streamingConnected.twitch} kick=${streamingConnected.kick}, baselines=${baselines}, periodic snapshots=${periodic}`);
     }
 
     await heartbeatMod.recordHeartbeat("connectionGuardian", "running", Date.now() - startTime);

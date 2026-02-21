@@ -196,7 +196,7 @@ async function verifyDiscordPost(userId: string, postId: string): Promise<Verifi
 }
 
 async function verifyStreamOnlyPlatformPost(platform: string): Promise<VerificationResult> {
-  return { confirmed: false, platformStatus: "not_applicable", error: `${platform} is a streaming-only platform — content posting is not supported` };
+  return { confirmed: false, platformStatus: "not_applicable", error: `${platform} is configured for AI-driven streaming only — content posting is not supported` };
 }
 
 export async function verifyPost(userId: string, platform: string, postId: string): Promise<VerificationResult> {

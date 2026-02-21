@@ -337,7 +337,7 @@ async function postToKick(_accessToken: string, _content: string, _channelData: 
     success: false,
     platform: "kick",
     skipped: true,
-    error: "Kick is a streaming-only platform. Content posting is not supported — use Kick for live streaming only.",
+    error: "Kick is configured for AI-driven streaming only. Content distribution is handled through other platforms.",
   };
 }
 
@@ -407,7 +407,7 @@ export async function publishToplatform(
     case "discord":
       return postToDiscord(accessToken, content, channel);
     case "twitch":
-      return { success: false, platform: "twitch", error: "Twitch is a streaming-only platform. Content posting is not supported — use Twitch for live streaming only." };
+      return { success: false, platform: "twitch", error: "Twitch is configured for AI-driven streaming only. Content distribution is handled through other platforms." };
     default:
       return { success: false, platform, error: `Publishing not yet supported for ${platform}` };
   }
