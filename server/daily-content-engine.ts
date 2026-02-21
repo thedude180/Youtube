@@ -26,6 +26,13 @@ interface ContentPlan {
     totalDurationEstimate: string;
     tags: string[];
     thumbnailConcept: string;
+    retentionBrief?: {
+      hookStrategy?: string;
+      reHookAt30s?: string;
+      curiosityLoops?: string[];
+      endScreenCTA?: string;
+    };
+    titleVariants?: string[];
   };
   shorts: Array<{
     title: string;
@@ -35,6 +42,7 @@ interface ContentPlan {
     hook: string;
     hashtags: string[];
     targetDuration: string;
+    tiktokCaption?: string;
   }>;
 }
 
@@ -171,7 +179,14 @@ Return ONLY valid JSON:
     "segments": [{"startMinute": number, "endMinute": number, "hook": "string - why this moment is compelling"}],
     "totalDurationEstimate": "string like 12:30",
     "tags": ["array of 15-25 SEO-optimized tags mixing broad and long-tail keywords"],
-    "thumbnailConcept": "detailed thumbnail concept: emotion, composition, colors, focal point, contrast technique"
+    "thumbnailConcept": "detailed thumbnail concept: emotion, composition, colors, focal point, contrast technique",
+    "retentionBrief": {
+      "hookStrategy": "exact first-3-second hook (what viewers see/hear to stop scrolling)",
+      "reHookAt30s": "pattern interrupt at 30s to prevent early drop-off",
+      "curiosityLoops": ["3 open questions/teases planted throughout to maintain watch time"],
+      "endScreenCTA": "specific call-to-action driving to next video or subscribe"
+    },
+    "titleVariants": ["2 alternative titles for A/B testing with different hook types"]
   },
   "shorts": [
     {
@@ -181,7 +196,8 @@ Return ONLY valid JSON:
       "endMinute": number,
       "hook": "what makes this moment impossible to scroll past",
       "hashtags": ["array of 5-8 hashtags mixing trending + niche"],
-      "targetDuration": "string like 0:34"
+      "targetDuration": "string like 0:34",
+      "tiktokCaption": "TikTok-optimized caption with hooks and trending hashtags"
     }
   ]
 }`
@@ -261,6 +277,9 @@ async function queueBatchContent(
         crossPlatformGroupId: groupId,
         crossLinkedPlatforms: allPlatforms,
         retentionBeatsApplied: true,
+        retentionBrief: plan.longForm.retentionBrief || null,
+        titleVariants: plan.longForm.titleVariants || [],
+        thumbnailConcept: plan.longForm.thumbnailConcept,
       },
     });
     longFormQueued = true;
@@ -293,6 +312,7 @@ async function queueBatchContent(
           batchNumber,
           crossPlatformGroupId: groupId,
           crossLinkedPlatforms: allPlatforms,
+          tiktokCaption: short.tiktokCaption || null,
         },
       });
       shortsQueued++;

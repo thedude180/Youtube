@@ -729,6 +729,18 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  app.get("/api/content-loop/status", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getLoopStatus } = await import("../content-loop");
+      res.json(getLoopStatus(userId));
+    } catch (err) {
+      console.error("[ContentLoop] Status error:", err);
+      res.status(500).json({ error: "Failed to get content loop status" });
+    }
+  });
+
   app.post("/api/content-loop/force-start", async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

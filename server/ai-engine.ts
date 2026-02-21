@@ -119,7 +119,26 @@ export async function generateVideoMetadata(video: {
     } catch { /* keyword engine not available */ }
   }
 
-  const prompt = `You are a ${platformName} SEO expert and content strategist. Analyze this video and provide optimization suggestions.
+  let retentionContext = "";
+  if (userId) {
+    try {
+      const { db } = await import("./db");
+      const { retentionBeats } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const beats = await db.select().from(retentionBeats).where(eq(retentionBeats.userId, userId)).orderBy(desc(retentionBeats.effectiveness)).limit(10);
+      if (beats.length > 0) {
+        retentionContext = `\n\nRETENTION SCIENCE (from top creators like MrBeast):
+${beats.map(b => `- ${b.beatType} at ${b.timingSeconds}s: "${b.description}" (${Math.round((b.effectiveness ?? 0) * 100)}% effective)`).join('\n')}
+Apply these proven retention patterns to ALL content. Every video must hook in first 3 seconds, re-hook at 30s, and maintain curiosity loops throughout.`;
+      }
+    } catch {}
+  }
+
+  const prompt = `You are a world-class ${platformName} content strategist combining the expertise of:
+- A top-tier YouTube SEO specialist (vidIQ/TubeBuddy level)
+- A retention science expert who studies MrBeast, The Fat Electrician, and top 0.1% creators
+- A professional copywriter specializing in hooks and curiosity gaps
+- A growth hacker who understands algorithmic content distribution
 
 Video Title: "${video.title}"
 Video Type: ${video.type}
@@ -128,17 +147,47 @@ Current Description: "${video.description || 'None provided'}"
 Current Tags: ${video.metadata?.tags?.join(', ') || 'None'}
 ${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
 ${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
-${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}
+${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}${retentionContext}
+
+RETENTION RULES (MANDATORY):
+- Title MUST create a curiosity gap or promise a specific outcome
+- First line of description MUST be a hook that makes viewers NEED to watch
+- Include pattern interrupts every 2-3 minutes in chapter structure
+- End with open loops that drive to next video or subscription
+
+SEO RULES (MANDATORY):
+- Primary keyword in first 60 characters of title
+- Front-load description with searchable keywords (first 150 chars appear in search)
+- Tags ordered by: exact match > phrase match > broad match > related
+- Include trending/seasonal keywords when relevant
 
 Provide your response as JSON with exactly these fields:
 {
-  "titleHooks": ["3 alternative title options that are click-worthy but not clickbait, optimized for ${platformName}${gamingCtx.gameName ? ` and referencing ${gamingCtx.gameName}` : ''}"],
-  "descriptionTemplate": "An optimized description with actual chapter timestamps written out (e.g., 0:00 Intro, 1:30 First Topic, 3:45 Main Discussion - never use placeholders like [timestamps] or [chapters]), relevant keywords, and a call-to-action. Include hashtags at the end. After the main description, add a cross-platform links section with these lines on separate lines: 'https://etgaming247.com' then 'Catch the live streams on Twitch & Kick' then 'Clips & highlights on TikTok' then 'Updates & hot takes on X' then 'Join the community on Discord'. At the very bottom add: 'Managed with CreatorOS'.${gamingCtx.gameName ? ` Must reference ${gamingCtx.gameName} and include game-specific keywords.` : ''}",
-  "thumbnailCritique": "Specific actionable advice for the thumbnail based on what works on ${platformName}${gamingCtx.isGaming ? ' for gaming content' : ''} - mention contrast, text size, facial expressions, color theory${gamingCtx.gameName ? `, and how to visually represent ${gamingCtx.gameName}` : ''}",
-  "seoRecommendations": ["5 specific SEO improvements for discoverability on ${platformName}${gamingCtx.gameName ? ` targeting ${gamingCtx.gameName} audience` : ''}"],
-  "complianceNotes": ["Any ${platformName} ToS concerns or best practices to follow"],
-  "suggestedTags": ["10 relevant tags ordered by importance${gamingCtx.gameName ? ` - must include ${gamingCtx.gameName} and related game terms` : ''}"],
-  "seoScore": 75${gamingCtx.gameName ? `,\n  "detectedGame": "${gamingCtx.gameName}"` : ''}
+  "titleHooks": ["3 title variants using different psychological hooks - one curiosity gap, one specific outcome promise, one pattern interrupt. Each must be under 70 characters, include primary keyword in first 60 chars. Optimized for ${platformName}${gamingCtx.gameName ? ` and referencing ${gamingCtx.gameName}` : ''}"],
+  "titleAnalysis": {
+    "bestTitle": "Which of the 3 titles would perform best and why (1 sentence)",
+    "hookType": "curiosity_gap | outcome_promise | pattern_interrupt | listicle | challenge",
+    "estimatedCTR": "estimated CTR range like 4-8%"
+  },
+  "descriptionTemplate": "An optimized description starting with a compelling hook sentence that makes viewers click. Then 2-3 keyword-rich sentences about the content. Then actual chapter timestamps (e.g., 0:00 Intro, 1:30 First Topic, 3:45 Main Discussion - NEVER use placeholders). Then a clear CTA. Include 3-5 relevant hashtags. After the main description, add on separate lines: 'https://etgaming247.com' then 'Catch the live streams on Twitch & Kick' then 'Clips & highlights on TikTok' then 'Updates & hot takes on X' then 'Join the community on Discord'. End with: 'Managed with CreatorOS'.${gamingCtx.gameName ? ` Must reference ${gamingCtx.gameName} with game-specific keywords.` : ''}",
+  "retentionBrief": {
+    "hookStrategy": "Specific first-3-second hook strategy for this video",
+    "reHookAt30s": "What to say/show at 30 seconds to prevent drop-off",
+    "curiosityLoops": ["3 curiosity loops to plant throughout the video that keep viewers watching"],
+    "pacingNotes": "Specific pacing advice for this content type",
+    "endScreenStrategy": "How to drive viewers to next video or subscription"
+  },
+  "thumbnailCritique": "Specific actionable advice: composition rule (rule of thirds, centered subject), text overlay (max 4 words, 80pt+ font), color theory (complementary colors, 3-color max), emotional expression, contrast ratio. ${gamingCtx.isGaming ? 'Gaming-specific: show recognizable game imagery, dramatic moment, reaction face.' : ''}${gamingCtx.gameName ? ` Visual reference to ${gamingCtx.gameName}.` : ''}",
+  "thumbnailVariants": ["3 thumbnail concepts described in detail - one reaction-based, one text-heavy, one cinematic/game-scene"],
+  "seoRecommendations": ["7 specific SEO improvements ranked by impact. Include keyword density targets, search volume insights, competitor gap analysis, and trend alignment for ${platformName}${gamingCtx.gameName ? ` targeting ${gamingCtx.gameName} audience` : ''}"],
+  "complianceNotes": ["Any ${platformName} ToS concerns or best practices"],
+  "suggestedTags": ["15 tags ordered by search volume and relevance. Mix of: head terms (1-2 words, high volume), long-tail (3-5 words, high intent), trending, and niche-specific${gamingCtx.gameName ? `. Must include ${gamingCtx.gameName} variations` : ''}"],
+  "seoScore": 75,
+  "contentBrief": {
+    "idealLength": "Recommended video length with reasoning",
+    "structureBeats": ["Ordered list of content beats/sections with timing for maximum retention"],
+    "keyMoments": ["3 key moments to timestamp for YouTube chapters and key moments in search"]
+  }${gamingCtx.gameName ? `,\n  "detectedGame": "${gamingCtx.gameName}"` : ''}
 }`;
 
   const response = await openai.chat.completions.create({

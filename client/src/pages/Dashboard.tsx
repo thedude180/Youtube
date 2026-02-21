@@ -34,6 +34,9 @@ import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
 import PriorityCommandCenter from "@/components/PriorityCommandCenter";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
+import LiveStatusBar from "@/components/LiveStatusBar";
+import NextBestAction from "@/components/NextBestAction";
+import PipelineStatus from "@/components/PipelineStatus";
 
 const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"));
 const LazyGrowthTrajectoryPredictor = lazy(() => import("@/components/GrowthTrajectoryPredictor"));
@@ -242,6 +245,16 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your command center overview</p>
         </div>
       </div>
+
+      <LiveStatusBar />
+
+      <SectionErrorBoundary fallbackTitle="Next action failed to load">
+        <NextBestAction />
+      </SectionErrorBoundary>
+
+      <SectionErrorBoundary fallbackTitle="Pipeline status failed to load">
+        <PipelineStatus />
+      </SectionErrorBoundary>
 
       {!user?.onboardingCompleted && (
         <SectionErrorBoundary fallbackTitle="Getting started failed to load">
