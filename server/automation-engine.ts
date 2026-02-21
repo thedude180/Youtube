@@ -163,7 +163,7 @@ const DEFAULT_CHAIN_TEMPLATES = [
   },
 ];
 
-const WEBHOOK_SOURCES = ["youtube", "stripe", "twitch", "tiktok", "instagram", "system"] as const;
+const WEBHOOK_SOURCES = ["youtube", "stripe", "twitch", "tiktok", "system"] as const;
 
 const RULE_TRIGGER_TYPES = [
   { id: "metric_threshold", label: "Metric Threshold", description: "When a metric crosses a threshold" },

@@ -16,8 +16,6 @@ export const PLATFORMS = [
   "x",
   "discord",
   "rumble",
-  "facebook",
-  "instagram",
 ] as const;
 export type Platform = typeof PLATFORMS[number];
 
@@ -70,18 +68,6 @@ export const PLATFORM_CAPABILITIES: Record<Platform, {
     primaryType: "video",
     maxVideoLength: null,
     description: "Free-speech video platform with monetization, video uploads and live streaming",
-  },
-  facebook: {
-    supports: ["video", "short_video", "text", "image", "live_stream"],
-    primaryType: "video",
-    maxVideoLength: null,
-    description: "Social media giant with Reels, Stories, Live, and long-form video support",
-  },
-  instagram: {
-    supports: ["short_video", "image", "live_stream"],
-    primaryType: "video",
-    maxVideoLength: 90,
-    description: "Visual-first platform with Reels, Stories, and photo posts",
   },
 };
 
@@ -184,30 +170,6 @@ export const PLATFORM_INFO: Record<Platform, {
     signupUrl: "https://rumble.com/register",
     strategyDescription: "Growing free-speech video platform. Upload long-form content and live stream to reach audiences seeking alternative platforms. Revenue share available.",
     setupSteps: ["Create an account at rumble.com", "Go to your Rumble Studio dashboard", "Find your API key or stream key in Settings", "Paste it below"],
-  },
-  facebook: {
-    label: "Facebook",
-    color: "#1877F2",
-    maxResolution: "1080p",
-    maxBitrate: "8 Mbps",
-    rtmpUrlTemplate: "rtmps://live-api-s.facebook.com:443/rtmp/",
-    category: "social",
-    connectionType: "oauth",
-    signupUrl: "https://www.facebook.com/pages/create",
-    strategyDescription: "Massive social platform with video, Reels, Stories, and Live. Great for reaching older demographics and leveraging Facebook Groups for community building.",
-    setupSteps: ["Create a Facebook Page for your brand", "Connect with your Facebook account (also enables Instagram)"],
-  },
-  instagram: {
-    label: "Instagram",
-    color: "#E4405F",
-    maxResolution: "1080p",
-    maxBitrate: "5 Mbps",
-    rtmpUrlTemplate: "",
-    category: "social",
-    connectionType: "oauth",
-    signupUrl: "https://www.instagram.com/accounts/emailsignup/",
-    strategyDescription: "Visual-first platform perfect for short-form Reels, Stories, and photo content. Strong discovery through Explore page and hashtags. Ideal for brand building.",
-    setupSteps: ["Switch to an Instagram Business or Creator account", "Connect with your Facebook account (same login as Facebook)"],
   },
 };
 

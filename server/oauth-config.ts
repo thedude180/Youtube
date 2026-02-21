@@ -107,32 +107,6 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     clientSecretEnv: "RUMBLE_CLIENT_SECRET",
     tokenAuthMethod: "body",
   },
-  facebook: {
-    platform: "facebook",
-    label: "Facebook",
-    authUrl: "https://www.facebook.com/v21.0/dialog/oauth",
-    tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
-    scopes: ["pages_manage_posts", "pages_read_engagement", "pages_show_list", "public_profile"],
-    clientIdEnv: "FACEBOOK_APP_ID",
-    clientSecretEnv: "FACEBOOK_APP_SECRET",
-    tokenAuthMethod: "body",
-    userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email",
-    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
-    parseUserId: (data) => ({ id: data.id, username: data.name, displayName: data.name }),
-  },
-  instagram: {
-    platform: "instagram",
-    label: "Instagram",
-    authUrl: "https://www.facebook.com/v21.0/dialog/oauth",
-    tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
-    scopes: ["instagram_basic", "instagram_content_publish", "instagram_manage_comments", "pages_show_list", "pages_read_engagement"],
-    clientIdEnv: "FACEBOOK_APP_ID",
-    clientSecretEnv: "FACEBOOK_APP_SECRET",
-    tokenAuthMethod: "body",
-    userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email",
-    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
-    parseUserId: (data) => ({ id: data.id, username: data.name, displayName: data.name }),
-  },
 };
 
 export function getOAuthRedirectUri(platform: string): string {

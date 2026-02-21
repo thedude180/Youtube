@@ -320,7 +320,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/automation-ops/rate-limits/:platform", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const allowedPlatforms = ["youtube", "twitch", "tiktok", "twitter", "instagram", "facebook", "discord", "kick", "rumble"];
+    const allowedPlatforms = ["youtube", "twitch", "tiktok", "twitter", "discord", "kick", "rumble"];
     const platform = String(req.params.platform).toLowerCase().trim();
     if (!platform || !allowedPlatforms.includes(platform)) return res.status(400).json({ error: "Invalid platform", allowed: allowedPlatforms });
     const status = getRateLimitStatus(platform);
