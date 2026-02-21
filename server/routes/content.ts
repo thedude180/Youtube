@@ -1426,8 +1426,18 @@ export function registerContentRoutes(app: Express) {
         });
       }
 
-      entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      res.json(entries);
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const cleaned = entries.filter((e) => {
+        const entryDate = new Date(e.date);
+        if (e.status === "uploaded") return false;
+        if (entryDate < todayStart) return false;
+        return true;
+      });
+
+      cleaned.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      res.json(cleaned);
     } catch (err: any) {
       console.error("[Calendar Uploads] Error:", err);
       res.status(500).json({ error: "Failed to load upload calendar" });

@@ -118,20 +118,20 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 export const EMPIRE_TIER_GATES: Record<string, { minTier: string; label: string }> = {
-  "empire-blueprint": { minTier: "starter", label: "Empire Blueprint Builder" },
-  "empire-blueprint-view": { minTier: "starter", label: "View Empire Blueprint" },
-  "empire-content-ideas": { minTier: "starter", label: "AI Content Ideas" },
-  "empire-expand-pillar": { minTier: "pro", label: "Deep Pillar Expansion" },
-  "empire-launch-sequence": { minTier: "pro", label: "14-Day Launch Sequence" },
-  "empire-create-video": { minTier: "pro", label: "AI Video Creation" },
-  "empire-create-video-pipeline": { minTier: "ultimate", label: "Video + Auto Pipeline" },
-  "empire-auto-launch": { minTier: "ultimate", label: "Auto-Launch Empire Content" },
-  "empire-video-list": { minTier: "starter", label: "Video Creation History" },
-  "empire-video-detail": { minTier: "starter", label: "Video Creation Details" },
-  "empire-full-launch": { minTier: "ultimate", label: "Full Empire Launcher" },
-  "youtube-research": { minTier: "pro", label: "YouTube Niche Research" },
-  "skill-progress": { minTier: "starter", label: "Skill Progression Tracking" },
-  "analyze-video": { minTier: "pro", label: "Video Performance Analysis" },
+  "empire-blueprint": { minTier: "free", label: "Empire Blueprint Builder" },
+  "empire-blueprint-view": { minTier: "free", label: "View Empire Blueprint" },
+  "empire-content-ideas": { minTier: "free", label: "AI Content Ideas" },
+  "empire-expand-pillar": { minTier: "free", label: "Deep Pillar Expansion" },
+  "empire-launch-sequence": { minTier: "free", label: "14-Day Launch Sequence" },
+  "empire-create-video": { minTier: "free", label: "AI Video Creation" },
+  "empire-create-video-pipeline": { minTier: "starter", label: "Video + Auto Pipeline" },
+  "empire-auto-launch": { minTier: "starter", label: "Auto-Launch Empire Content" },
+  "empire-video-list": { minTier: "free", label: "Video Creation History" },
+  "empire-video-detail": { minTier: "free", label: "Video Creation Details" },
+  "empire-full-launch": { minTier: "starter", label: "Full Empire Launcher" },
+  "youtube-research": { minTier: "free", label: "YouTube Niche Research" },
+  "skill-progress": { minTier: "free", label: "Skill Progression Tracking" },
+  "analyze-video": { minTier: "starter", label: "Video Performance Analysis" },
 };
 
 export const APP_TIER_GATES: Record<string, { minTier: string; label: string; category: string }> = {
