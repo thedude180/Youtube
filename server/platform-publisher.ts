@@ -376,7 +376,7 @@ export async function publishToplatform(
     case "discord":
       return postToDiscord(accessToken, content, channel);
     case "twitch":
-      return { success: false, platform: "twitch", skipped: true, error: "Twitch is configured for live streaming only — content posting disabled" };
+      return postToTwitch(accessToken, content, channel);
     default:
       return { success: false, platform, error: `Publishing not yet supported for ${platform}` };
   }
