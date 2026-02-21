@@ -41,6 +41,31 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  app.get("/api/autopilot/recent-activity", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const recent = await db.select({
+        id: autopilotQueue.id,
+        type: autopilotQueue.type,
+        targetPlatform: autopilotQueue.targetPlatform,
+        caption: autopilotQueue.caption,
+        status: autopilotQueue.status,
+        scheduledAt: autopilotQueue.scheduledAt,
+        createdAt: autopilotQueue.createdAt,
+        metadata: autopilotQueue.metadata,
+      })
+        .from(autopilotQueue)
+        .where(eq(autopilotQueue.userId, userId))
+        .orderBy(desc(autopilotQueue.createdAt))
+        .limit(20);
+      res.json(recent);
+    } catch (err) {
+      console.error("[Autopilot] Recent activity error:", err);
+      res.status(500).json({ error: "Failed to fetch recent activity" });
+    }
+  });
+
   app.get("/api/autopilot/activity", async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;

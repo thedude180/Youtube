@@ -7,12 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ExternalLink, CheckCircle2, FileText, Hash, Type,
-  Loader2, ArrowRight, Clock, Copy, Search,
+  Loader2, ArrowRight, Clock, Copy, Search, Zap,
+  Send, RefreshCw, Scissors,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+
+interface AutopilotEntry {
+  id: number;
+  type: string;
+  targetPlatform: string;
+  caption: string;
+  status: string;
+  scheduledAt: string | null;
+  createdAt: string;
+  metadata: any;
+}
 
 interface UpdateHistoryEntry {
   id: number;
@@ -257,6 +269,25 @@ function ChangeRow({ icon: Icon, label, oldValue, newValue, field }: {
   );
 }
 
+const TYPE_ICONS: Record<string, typeof Zap> = {
+  "auto-clip": Scissors,
+  "cross-promo": Send,
+  "content-recycle": RefreshCw,
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  "auto-clip": "AI Auto-Clip",
+  "cross-promo": "Cross-Platform Post",
+  "content-recycle": "Content Recycled",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  published: "bg-green-500/10 text-green-400 border-green-500/20",
+  failed: "bg-red-500/10 text-red-400 border-red-500/20",
+  scheduled: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+};
+
 function UpdatedVideosTab() {
   const pollInterval = useAdaptiveInterval(10000);
   const { data: updateHistory, isLoading: historyLoading } = useQuery<UpdateHistoryEntry[]>({
@@ -267,6 +298,11 @@ function UpdatedVideosTab() {
   const { data: processing, isLoading: procLoading } = useQuery<PipelineEntry[]>({
     queryKey: ["/api/videos/processing"],
     refetchInterval: pollInterval,
+    retry: 1,
+  });
+
+  const { data: autopilotActivity } = useQuery<AutopilotEntry[]>({
+    queryKey: ["/api/autopilot/recent-activity"],
     retry: 1,
   });
 
@@ -346,20 +382,59 @@ function UpdatedVideosTab() {
         <div className="flex items-center gap-2 mb-3">
           <CheckCircle2 className="h-4 w-4 text-green-500" />
           <h3 className="font-semibold text-sm">What Changed</h3>
-          <Badge variant="secondary" className="text-xs">{updatedVideos.length} video{updatedVideos.length !== 1 ? "s" : ""}</Badge>
+          <Badge variant="secondary" className="text-xs">
+            {updatedVideos.length > 0
+              ? `${updatedVideos.length} video${updatedVideos.length !== 1 ? "s" : ""}`
+              : `${safeArray(autopilotActivity).length} actions`}
+          </Badge>
         </div>
-        {updatedVideos.length === 0 ? (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">No video updates yet. When CreatorOS optimizes your videos, you'll see the original vs. AI-changed title, description, and tags here.</p>
-            </CardContent>
-          </Card>
-        ) : (
+        {updatedVideos.length > 0 ? (
           <div className="space-y-3">
             {(updatedVideos as [string, UpdateHistoryEntry[]][]).map(([videoId, entries]) => (
               <VideoUpdateCard key={videoId} videoId={videoId} entries={entries} />
             ))}
           </div>
+        ) : safeArray(autopilotActivity).length > 0 ? (
+          <div className="space-y-2">
+            {safeArray<AutopilotEntry>(autopilotActivity).map((entry) => {
+              const Icon = TYPE_ICONS[entry.type] || Zap;
+              const label = TYPE_LABELS[entry.type] || entry.type;
+              const statusStyle = STATUS_STYLES[entry.status] || "bg-muted text-muted-foreground";
+              return (
+                <Card key={entry.id} data-testid={`card-activity-${entry.id}`}>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate" data-testid={`text-activity-label-${entry.id}`}>
+                            {label}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-muted-foreground capitalize">{entry.targetPlatform}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {entry.createdAt ? formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true }) : ""}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${statusStyle}`}>
+                        {entry.status}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">No activity yet. When CreatorOS optimizes your videos or posts content, you'll see every change here.</p>
+            </CardContent>
+          </Card>
         )}
       </section>
     </div>
