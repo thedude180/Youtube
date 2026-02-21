@@ -1,11 +1,22 @@
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
-import { autopilotQueue } from "@shared/schema";
+import { autopilotQueue, channels } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 const openai = getOpenAIClient();
+
+export interface ChannelLinks {
+  youtube?: string;
+  twitch?: string;
+  kick?: string;
+  tiktok?: string;
+  x?: string;
+  discord?: string;
+  website?: string;
+  [key: string]: string | undefined;
+}
 
 interface VariationOptions {
   videoTitle: string;
@@ -19,96 +30,128 @@ interface VariationOptions {
   keywordContext?: string;
   trafficStrategyContext?: string;
   videoUrl?: string;
+  channelLinks?: ChannelLinks;
 }
 
 const CREATOR_WEBSITE = "https://etgaming247.com";
 
-const CROSSLINK_LINES: Record<string, string[]> = {
-  youtube: [
-    `\n\n${CREATOR_WEBSITE}`,
-    `\nCatch the live streams on Twitch & Kick`,
-    `\nClips & highlights on TikTok`,
-    `\nUpdates & hot takes on X`,
-    `\nJoin the community on Discord`,
-  ],
-  twitch: [
-    `\n${CREATOR_WEBSITE}`,
-    `\nFull videos & guides on YouTube`,
-    `\nClips dropping on TikTok`,
-    `\nJoin the Discord`,
-  ],
-  kick: [
-    `\n${CREATOR_WEBSITE}`,
-    `\nAlso live on Twitch`,
-    `\nFull content on YouTube`,
-    `\nJoin the Discord`,
-  ],
-  tiktok: [
-    `\n${CREATOR_WEBSITE}`,
-    `\nFull vid on YT`,
-    `\nLive on Twitch & Kick`,
-  ],
-  x: [
-    `\n${CREATOR_WEBSITE}`,
-    `\nFull content on YouTube`,
-    `\nLive streams on Twitch/Kick`,
-  ],
-  discord: [
-    `\n${CREATOR_WEBSITE}`,
-    `\nNew vid on YouTube`,
-    `\nStreaming on Twitch & Kick`,
-    `\nClips on TikTok`,
-  ],
-};
+function buildChannelUrl(platform: string, channelId: string, channelName: string): string {
+  const name = channelName?.trim();
+  const id = channelId?.trim();
+  if (!name && !id) return "";
+  switch (platform) {
+    case "youtube": return name ? `https://youtube.com/@${name}` : "";
+    case "twitch": return name ? `https://twitch.tv/${name}` : "";
+    case "kick": return name ? `https://kick.com/${name}` : "";
+    case "tiktok": return name ? `https://tiktok.com/@${name}` : "";
+    case "x": return name ? `https://x.com/${name}` : "";
+    case "discord": return id?.match(/^https?:\/\//) ? id : id ? `https://discord.gg/${id}` : "";
+    default: return "";
+  }
+}
 
-function appendCrosslinks(content: string, platform: string, contentType: string, videoUrl?: string): string {
-  const links = CROSSLINK_LINES[platform] || CROSSLINK_LINES.youtube;
+export async function getUserChannelLinks(userId: string): Promise<ChannelLinks> {
+  const userChannels = await db.select({
+    platform: channels.platform,
+    channelName: channels.channelName,
+    channelId: channels.channelId,
+    platformData: channels.platformData,
+  }).from(channels).where(eq(channels.userId, userId));
 
+  const links: ChannelLinks = { website: CREATOR_WEBSITE };
+
+  for (const ch of userChannels) {
+    const pd = ch.platformData as any;
+    const customUrl = pd?.customUrl || pd?.channelUrl || pd?.profileUrl || pd?.url;
+    if (customUrl) {
+      links[ch.platform] = customUrl;
+    } else {
+      const built = buildChannelUrl(ch.platform, ch.channelId, ch.channelName);
+      if (built) links[ch.platform] = built;
+    }
+  }
+
+  return links;
+}
+
+function appendCrosslinks(content: string, platform: string, contentType: string, videoUrl?: string, channelLinks?: ChannelLinks): string {
+  const links = channelLinks || { website: CREATOR_WEBSITE };
   const hasVideoLink = videoUrl && (contentType === "new-video" || contentType === "recycle" || contentType === "cross-promo" || contentType === "post-stream");
-  const videoCues = ["", "", ""];
-  const videoLine = hasVideoLink ? `\n\n${videoUrl}` : "";
+
+  const otherPlatforms = Object.entries(links)
+    .filter(([key, url]) => key !== platform && key !== "website" && url)
+    .map(([key, url]) => ({ platform: key, url: url! }));
 
   if (platform === "youtube") {
-    return content + links.join("");
+    const lines: string[] = [];
+    if (links.website) lines.push(`\n\n${links.website}`);
+    for (const p of otherPlatforms.slice(0, 4)) {
+      const label = getPlatformLabel(p.platform);
+      lines.push(`\n${label}: ${p.url}`);
+    }
+    return content + lines.join("");
   }
 
   if (platform === "x") {
     if (hasVideoLink) {
-      return content + videoLine;
+      return content + `\n\n${videoUrl}`;
     }
-    const short = [links[0]];
-    if (contentType === "go-live") {
-      short.push(links[Math.floor(Math.random() * (links.length - 1)) + 1]);
-    }
-    return content + short.join("");
+    const lines: string[] = [];
+    if (links.youtube) lines.push(`\n\n${links.youtube}`);
+    else if (links.website) lines.push(`\n\n${links.website}`);
+    return content + lines.join("");
   }
 
   if (platform === "tiktok") {
     if (hasVideoLink) {
-      return content + videoLine;
+      return content + `\n\n${videoUrl}`;
     }
-    const short = [links[0]];
-    if (contentType === "go-live") {
-      short.push(links[Math.floor(Math.random() * (links.length - 1)) + 1]);
-    }
-    return content + short.join("");
+    const lines: string[] = [];
+    if (links.youtube) lines.push(`\n\n${links.youtube}`);
+    return content + lines.join("");
   }
 
   if (platform === "discord") {
+    const lines: string[] = [];
     if (hasVideoLink) {
-      return content + videoLine;
+      lines.push(`\n\n${videoUrl}`);
     }
-    const pick = [links[0]];
-    if (contentType === "go-live") pick.push(links[2]);
-    return content + pick.join("");
+    for (const p of otherPlatforms.filter(p => p.platform !== "discord").slice(0, 3)) {
+      const label = getPlatformLabel(p.platform);
+      lines.push(`\n${label}: ${p.url}`);
+    }
+    if (links.website && !lines.some(l => l.includes(links.website!))) {
+      lines.push(`\n${links.website}`);
+    }
+    return content + lines.join("");
   }
 
   if (hasVideoLink) {
-    return content + videoLine;
+    const lines = [`\n\n${videoUrl}`];
+    for (const p of otherPlatforms.slice(0, 2)) {
+      lines.push(`\n${getPlatformLabel(p.platform)}: ${p.url}`);
+    }
+    return content + lines.join("");
   }
 
-  const pick = links.slice(0, Math.min(links.length, 3));
-  return content + pick.join("");
+  const lines: string[] = [];
+  for (const p of otherPlatforms.slice(0, 3)) {
+    lines.push(`\n${getPlatformLabel(p.platform)}: ${p.url}`);
+  }
+  if (links.website) lines.push(`\n${links.website}`);
+  return content + (lines.length > 0 ? "\n" + lines.join("") : "");
+}
+
+function getPlatformLabel(platform: string): string {
+  const labels: Record<string, string> = {
+    youtube: "YouTube",
+    twitch: "Twitch",
+    kick: "Kick",
+    tiktok: "TikTok",
+    x: "X",
+    discord: "Discord",
+  };
+  return labels[platform] || platform;
 }
 
 const PLATFORM_VOICE: Record<string, string> = {
@@ -206,7 +249,7 @@ export async function generateUniqueContent(options: VariationOptions): Promise<
   stealthScore: number;
   fingerprint: string;
 }> {
-  const { videoTitle, videoDescription, videoType, platform, contentType, creatorTone, userId, keywordContext, trafficStrategyContext, videoUrl } = options;
+  const { videoTitle, videoDescription, videoType, platform, contentType, creatorTone, userId, keywordContext, trafficStrategyContext, videoUrl, channelLinks } = options;
 
   const recentPosts = await getRecentPostsForPlatform(userId, platform, 20);
   const recentTexts = recentPosts.map(p => p.content);
@@ -300,7 +343,7 @@ ${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO N
     processed = processed.replace(/https?:\/\/(?:youtu\.be|(?:www\.)?youtube\.com)\S*/gi, "").replace(/\s{2,}/g, " ").trim();
   }
 
-  processed = appendCrosslinks(processed, platform, contentType, videoUrl);
+  processed = appendCrosslinks(processed, platform, contentType, videoUrl, channelLinks);
 
   const uniquenessScore = calculateUniqueness(processed, recentTexts);
   const stealthScore = calculateStealthScore(processed, platform);

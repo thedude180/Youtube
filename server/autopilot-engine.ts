@@ -21,6 +21,8 @@ import {
   generateUniqueContent,
   checkContentSafety,
   getStealthReport,
+  getUserChannelLinks,
+  type ChannelLinks,
 } from "./content-variation-engine";
 import { getKeywordContext } from "./services/keyword-learning-engine";
 import { trafficStrategies } from "@shared/schema";
@@ -239,9 +241,10 @@ async function generateFullThrottleDistribution(
     filtered: supportedPlatforms.length - capabilityFilteredPlatforms.length,
   });
 
-  const [kwContext, tsContext] = await Promise.all([
+  const [kwContext, tsContext, channelLinks] = await Promise.all([
     getKeywordContext(userId).catch(() => ""),
     getTrafficStrategyContext(userId),
+    getUserChannelLinks(userId),
   ]);
 
   const scheduleType = contentType === "cross-promo" ? "engagement" : contentType === "go-live" ? "new-video" : contentType === "post-stream" ? "new-video" : contentType;
@@ -293,6 +296,7 @@ async function generateFullThrottleDistribution(
       keywordContext: kwContext,
       trafficStrategyContext: tsContext,
       videoUrl,
+      channelLinks,
     });
 
     if (!result.content) continue;
@@ -312,6 +316,7 @@ async function generateFullThrottleDistribution(
         keywordContext: kwContext,
         trafficStrategyContext: tsContext,
         videoUrl,
+        channelLinks,
       });
 
       if (!retry.content) continue;
@@ -377,6 +382,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
   }
 
   const videoUrl = buildVideoUrl(video);
+  const channelLinks = await getUserChannelLinks(userId);
 
   const result = await generateUniqueContent({
     videoTitle: video.title,
@@ -387,6 +393,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
     creatorTone,
     userId,
     videoUrl,
+    channelLinks,
   });
 
   if (!result.content) return;
@@ -444,6 +451,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
 
   const discordConfig = await getAutopilotConfig(userId, "discord-announce");
   if (goLiveConnected.has("discord") && (!discordConfig || discordConfig.enabled !== false)) {
+    const goLiveChannelLinks = await getUserChannelLinks(userId);
     const result = await generateUniqueContent({
       videoTitle: streamTitle,
       videoDescription: streamDescription || "",
@@ -452,6 +460,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
       contentType: "go-live",
       creatorTone,
       userId,
+      channelLinks: goLiveChannelLinks,
     });
 
     if (result.content) {
