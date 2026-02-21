@@ -35,7 +35,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "trending-heavy",
     commentResponseTone: "casual",
-    crossPostPlatforms: ["twitch", "tiktok", "discord"],
+    crossPostPlatforms: ["tiktok", "discord"],
     contentCadence: "daily",
   },
   tech: {
@@ -683,7 +683,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "game-team-tagged",
     commentResponseTone: "competitive-analytical",
-    crossPostPlatforms: ["twitch", "x", "discord"],
+    crossPostPlatforms: ["x", "discord"],
     contentCadence: "daily",
   },
   chess: {

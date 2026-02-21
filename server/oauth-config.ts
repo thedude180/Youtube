@@ -25,7 +25,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     label: "Twitch",
     authUrl: "https://id.twitch.tv/oauth2/authorize",
     tokenUrl: "https://id.twitch.tv/oauth2/token",
-    scopes: ["user:read:email", "channel:read:stream_key", "channel:manage:broadcast", "chat:read", "chat:edit", "analytics:read:extensions", "bits:read", "channel:read:subscriptions", "moderation:read", "channel:read:editors", "clips:edit", "channel:manage:schedule"],
+    scopes: ["user:read:email", "channel:read:stream_key", "channel:manage:broadcast", "channel:manage:schedule"],
     clientIdEnv: "TWITCH_CLIENT_ID",
     clientSecretEnv: "TWITCH_CLIENT_SECRET",
     tokenAuthMethod: "body",

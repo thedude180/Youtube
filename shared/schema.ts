@@ -33,10 +33,10 @@ export const PLATFORM_CAPABILITIES: Record<Platform, {
     description: "Full video uploads, Shorts, live streaming, community posts",
   },
   twitch: {
-    supports: ["live_stream", "text"],
-    primaryType: "text",
+    supports: ["live_stream"],
+    primaryType: "video",
     maxVideoLength: null,
-    description: "Live streaming primary, chat announcements for text",
+    description: "Live streaming only — no content posting, stream detection and monitoring",
   },
   kick: {
     supports: ["live_stream"],
@@ -101,7 +101,7 @@ export const PLATFORM_INFO: Record<Platform, {
     category: "streaming",
     connectionType: "manual",
     signupUrl: "https://www.twitch.tv/signup",
-    strategyDescription: "The go-to platform for live gaming content. Strong community features, subscription model, and real-time engagement. Critical for building a loyal live audience.",
+    strategyDescription: "Live streaming only — the go-to platform for live gaming content. Used exclusively for broadcasting, stream detection, and live audience engagement. No content posting or cross-platform distribution.",
     setupSteps: ["Go to your Twitch Dashboard", "Click Settings then Stream", "Copy your Primary Stream Key", "Paste it below"],
   },
   kick: {
