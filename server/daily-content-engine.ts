@@ -16,7 +16,9 @@ const SHORTS_PER_BATCH = 3;
 const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 20;
 const MAX_BATCHES_PER_RUN = 3;
-const CROSS_PLATFORMS = ["tiktok", "x", "discord"];
+const VIDEO_PLATFORMS = ["tiktok"];
+const TEXT_PLATFORMS = ["x", "discord"];
+const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
 
 interface ContentPlan {
   longForm: {
@@ -59,14 +61,25 @@ async function getUserIdsWithYouTube(): Promise<string[]> {
   return rows.map(r => r.userId).filter((id): id is string => !!id);
 }
 
-async function getUserConnectedPlatforms(userId: string): Promise<string[]> {
+interface ConnectedPlatforms {
+  all: string[];
+  video: string[];
+  text: string[];
+}
+
+async function getUserConnectedPlatforms(userId: string): Promise<ConnectedPlatforms> {
   const userChannels = await db
     .select({ platform: channels.platform, accessToken: channels.accessToken })
     .from(channels)
     .where(eq(channels.userId, userId));
-  return userChannels
+  const connected = userChannels
     .filter(c => c.accessToken && CROSS_PLATFORMS.includes(c.platform))
     .map(c => c.platform);
+  return {
+    all: connected,
+    video: connected.filter(p => VIDEO_PLATFORMS.includes(p)),
+    text: connected.filter(p => TEXT_PLATFORMS.includes(p)),
+  };
 }
 
 interface StreamWithRemaining {
@@ -240,7 +253,7 @@ async function queueBatchContent(
   plan: ContentPlan,
   stream: StreamWithRemaining,
   batchNumber: number,
-  connectedPlatforms: string[],
+  connectedPlatforms: ConnectedPlatforms,
 ): Promise<{ longFormQueued: boolean; shortsQueued: number; crossPostsQueued: number }> {
   let longFormQueued = false;
   let shortsQueued = 0;
@@ -254,7 +267,7 @@ async function queueBatchContent(
     urgency: "normal",
   });
 
-  const allPlatforms = ["youtube", ...connectedPlatforms];
+  const allPlatforms = ["youtube", ...connectedPlatforms.all];
 
   try {
     await db.insert(autopilotQueue).values({
@@ -268,6 +281,7 @@ async function queueBatchContent(
       scheduledAt: longFormTime,
       metadata: {
         contentType: "long-form-compilation",
+        contentCategory: "video",
         style: "highlight-reel",
         aiModel: "gpt-4o-mini",
         sourceStreamId: stream.stream.id,
@@ -303,6 +317,7 @@ async function queueBatchContent(
         scheduledAt: shortTime,
         metadata: {
           contentType: "youtube-short",
+          contentCategory: "video",
           style: "short-clip",
           aiModel: "gpt-4o-mini",
           sourceStreamId: stream.stream.id,
@@ -321,59 +336,27 @@ async function queueBatchContent(
     }
   }
 
-  for (const platform of connectedPlatforms) {
-    if (platform === "tiktok") {
-      const longFormCrossTime = new Date(longFormTime.getTime() + 30 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
-      try {
-        await db.insert(autopilotQueue).values({
-          userId,
-          sourceVideoId: null,
-          type: "cross-post",
-          targetPlatform: platform,
-          content: `${plan.longForm.title}\n\n${plan.longForm.description}\n\n${plan.longForm.tags.slice(0, 5).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ")} #gaming #fyp`,
-          caption: plan.longForm.title,
-          status: "scheduled",
-          scheduledAt: longFormCrossTime,
-          metadata: {
-            contentType: "cross-platform-long-form",
-            style: "highlight-reel",
-            aiModel: "gpt-4o-mini",
-            sourceStreamId: stream.stream.id,
-            segmentStartMin: stream.nextSegmentStart,
-            segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
-            batchNumber,
-            crossPlatformGroupId: groupId,
-            crossLinkedPlatforms: allPlatforms,
-            retentionBeatsApplied: true,
-          },
-        });
-        crossPostsQueued++;
-      } catch (err: any) {
-        logger.error("Failed to queue long-form cross-post", { platform, error: err.message });
-      }
-    }
-
+  for (const platform of connectedPlatforms.video) {
     for (let i = 0; i < plan.shorts.length; i++) {
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 2) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
       const platformCaption = platform === "tiktok"
         ? `${short.title} ${short.hashtags.map(h => `#${h.replace('#', '')}`).join(" ")} #gaming #fyp`
-        : platform === "x"
-          ? `${short.hook}\n\n${short.hashtags.slice(0, 3).join(" ")}\n\nFull video on YouTube`
-          : `${short.title} - check the full stream on YouTube`;
+        : short.title;
 
       try {
         await db.insert(autopilotQueue).values({
           userId,
           sourceVideoId: null,
-          type: "cross-post",
+          type: "auto-clip",
           targetPlatform: platform,
-          content: platformCaption,
+          content: `${short.title}\n\n${short.description}\n\n${short.hashtags.join(" ")}`,
           caption: short.title,
           status: "scheduled",
           scheduledAt: crossTime,
           metadata: {
-            contentType: "cross-platform-short",
+            contentType: "video-clip",
+            contentCategory: "video",
             style: "short-clip",
             aiModel: "gpt-4o-mini",
             sourceStreamId: stream.stream.id,
@@ -381,13 +364,80 @@ async function queueBatchContent(
             segmentEndMin: short.endMinute,
             batchNumber,
             crossPlatformGroupId: groupId,
-            crossLinkedPlatforms: allPlatforms,
+            tiktokCaption: short.tiktokCaption || platformCaption,
             retentionBeatsApplied: true,
           },
         });
         crossPostsQueued++;
       } catch (err: any) {
-        logger.error("Failed to queue cross-post", { platform, error: err.message });
+        logger.error("Failed to queue video cross-post", { platform, error: err.message });
+      }
+    }
+  }
+
+  for (const platform of connectedPlatforms.text) {
+    const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
+    const longFormAnnouncement = platform === "x"
+      ? `🎬 NEW VIDEO: ${plan.longForm.title}\n\n${plan.longForm.description.substring(0, 180)}\n\nWatch now on YouTube!\n${plan.longForm.tags.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ")}`
+      : `🎬 **NEW VIDEO** 🎬\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 300)}\n\n▶️ Watch now on YouTube!`;
+
+    try {
+      await db.insert(autopilotQueue).values({
+        userId,
+        sourceVideoId: null,
+        type: "cross-post",
+        targetPlatform: platform,
+        content: longFormAnnouncement,
+        caption: `New: ${plan.longForm.title}`,
+        status: "scheduled",
+        scheduledAt: longFormAnnouncementTime,
+        metadata: {
+          contentType: "text-announcement",
+          contentCategory: "text",
+          style: "announcement",
+          aiModel: "gpt-4o-mini",
+          sourceStreamId: stream.stream.id,
+          batchNumber,
+          crossPlatformGroupId: groupId,
+        },
+      });
+      crossPostsQueued++;
+    } catch (err: any) {
+      logger.error("Failed to queue text announcement", { platform, error: err.message });
+    }
+
+    for (let i = 0; i < plan.shorts.length; i++) {
+      const short = plan.shorts[i];
+      const crossTime = new Date(longFormTime.getTime() + (i + 3) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
+      const textContent = platform === "x"
+        ? `${short.hook}\n\n${short.hashtags.slice(0, 3).join(" ")}\n\n▶️ Full video on YouTube`
+        : `🔥 ${short.title}\n\n${short.hook}\n\nCheck it out on YouTube!`;
+
+      try {
+        await db.insert(autopilotQueue).values({
+          userId,
+          sourceVideoId: null,
+          type: "cross-post",
+          targetPlatform: platform,
+          content: textContent,
+          caption: short.title,
+          status: "scheduled",
+          scheduledAt: crossTime,
+          metadata: {
+            contentType: "text-teaser",
+            contentCategory: "text",
+            style: "teaser",
+            aiModel: "gpt-4o-mini",
+            sourceStreamId: stream.stream.id,
+            segmentStartMin: short.startMinute,
+            segmentEndMin: short.endMinute,
+            batchNumber,
+            crossPlatformGroupId: groupId,
+          },
+        });
+        crossPostsQueued++;
+      } catch (err: any) {
+        logger.error("Failed to queue text cross-post", { platform, error: err.message });
       }
     }
   }

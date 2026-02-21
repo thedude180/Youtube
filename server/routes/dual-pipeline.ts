@@ -12,6 +12,35 @@ import {
 import { getOpenAIClient } from "../lib/openai";
 import { getRetentionBeatsPromptContext } from "../retention-beats-engine";
 
+const PLATFORM_LIMITS = {
+  youtube: { dailyQuotaUnits: 10000, updateCostUnits: 50, maxUpdatesPerDay: 180, maxConcurrentPipelines: 3 },
+  tiktok: { maxUploadsPerDay: 10, maxConcurrentUploads: 1 },
+  x: { maxPostsPerDay: 50 },
+  discord: { maxPostsPerHour: 30 },
+};
+
+const platformUsage = new Map<string, { date: string; count: number }>();
+
+export function checkPlatformLimit(platform: string, limitKey: string): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  const key = `${platform}:${limitKey}`;
+  const usage = platformUsage.get(key);
+  if (!usage || usage.date !== today) {
+    platformUsage.set(key, { date: today, count: 1 });
+    return true;
+  }
+  const limits: Record<string, number> = {
+    'youtube:updates': PLATFORM_LIMITS.youtube.maxUpdatesPerDay,
+    'tiktok:uploads': PLATFORM_LIMITS.tiktok.maxUploadsPerDay,
+    'x:posts': PLATFORM_LIMITS.x.maxPostsPerDay,
+    'discord:posts': PLATFORM_LIMITS.discord.maxPostsPerHour,
+  };
+  const max = limits[key] || 100;
+  if (usage.count >= max) return false;
+  usage.count++;
+  return true;
+}
+
 function getOpenAI() {
   return getOpenAIClient();
 }
@@ -111,7 +140,18 @@ async function processWaitingVodPipelines() {
       lte(streamPipelines.scheduledStartAt, now)
     ));
 
+  const currentlyProcessing = await db.select({ count: sql<number>`count(*)::int` }).from(streamPipelines)
+    .where(and(eq(streamPipelines.pipelineType, "vod"), eq(streamPipelines.status, "processing")));
+  const activeCount = currentlyProcessing[0]?.count || 0;
+  if (activeCount >= PLATFORM_LIMITS.youtube.maxConcurrentPipelines) {
+    if (waiting.length > 0) console.log(`[DualPipeline] ${activeCount} VOD pipelines already processing (limit: ${PLATFORM_LIMITS.youtube.maxConcurrentPipelines}), waiting...`);
+    return;
+  }
+  const slotsAvailable = PLATFORM_LIMITS.youtube.maxConcurrentPipelines - activeCount;
+
+  let started = 0;
   for (const pipeline of waiting) {
+    if (started >= slotsAvailable) break;
     if (pipeline.sourcePipelineId) {
       const [srcPipeline] = await db.select().from(streamPipelines)
         .where(eq(streamPipelines.id, pipeline.sourcePipelineId));
@@ -134,10 +174,12 @@ async function processWaitingVodPipelines() {
       currentResults, completedSteps,
       pipeline.sourceDuration, pipeline.userId
     ).catch(err => console.error(`[DualPipeline] Auto VOD pipeline ${pipeline.id} failed:`, err));
+
+    started++;
   }
 
-  if (waiting.length > 0) {
-    console.log(`[DualPipeline] Started ${waiting.length} waiting VOD pipeline(s)`);
+  if (started > 0) {
+    console.log(`[DualPipeline] Started ${started} waiting VOD pipeline(s) (${slotsAvailable} slots were available)`);
   }
 }
 
@@ -171,12 +213,56 @@ async function processQueuedPipelines() {
   }
 }
 
+async function autoSpawnMissingVodPipelines() {
+  try {
+    const completedLivePipelines = await db.select().from(streamPipelines)
+      .where(and(
+        eq(streamPipelines.pipelineType, "live"),
+        eq(streamPipelines.status, "completed"),
+      ))
+      .orderBy(desc(streamPipelines.completedAt))
+      .limit(20);
+
+    for (const livePipeline of completedLivePipelines) {
+      if (!livePipeline.userId) continue;
+      
+      const existingVod = await db.select({ id: streamPipelines.id }).from(streamPipelines)
+        .where(and(
+          eq(streamPipelines.pipelineType, "vod"),
+          eq(streamPipelines.sourcePipelineId, livePipeline.id),
+        ))
+        .limit(1);
+      
+      if (existingVod.length > 0) continue;
+      
+      if (!checkPlatformLimit("youtube", "updates")) {
+        console.log(`[DualPipeline] YouTube daily limit reached, deferring VOD spawn`);
+        break;
+      }
+      
+      console.log(`[DualPipeline] Auto-spawning missing VOD pipeline for completed live ${livePipeline.id}: "${livePipeline.sourceTitle}"`);
+      await spawnVodPipelineAfterPublish(
+        livePipeline.id,
+        livePipeline.userId,
+        livePipeline.sourceTitle,
+        livePipeline.sourceDuration,
+        "live-stream"
+      ).catch(err => console.error(`[DualPipeline] Auto-spawn VOD failed:`, err));
+    }
+  } catch (err) {
+    console.error("[DualPipeline] Auto-spawn VOD check error:", err);
+  }
+}
+
 setInterval(() => {
   processWaitingVodPipelines().catch(err =>
     console.error("[DualPipeline] VOD waiting check error:", err)
   );
   processQueuedPipelines().catch(err =>
     console.error("[DualPipeline] Queued pipeline check error:", err)
+  );
+  autoSpawnMissingVodPipelines().catch(err =>
+    console.error("[DualPipeline] Auto-spawn VOD check error:", err)
   );
 }, 60000);
 

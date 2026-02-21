@@ -1271,16 +1271,33 @@ export function registerContentRoutes(app: Express) {
           .limit(200),
       ]);
 
+      const VIDEO_CONTENT_TYPES = new Set(["video", "short", "stream", "auto-clip", "clip"]);
+      const TEXT_CONTENT_TYPES = new Set(["post", "cross-post", "campaign", "community"]);
+      const VIDEO_PLATFORMS = new Set(["youtube", "tiktok", "kick", "twitch"]);
+      const TEXT_ONLY_PLATFORMS = new Set(["x", "discord"]);
+
+      function resolveContentCategory(contentType: string, platform: string, metadata?: any): "video" | "text" {
+        if (metadata?.contentCategory) return metadata.contentCategory;
+        if (TEXT_ONLY_PLATFORMS.has(platform)) return "text";
+        if (VIDEO_CONTENT_TYPES.has(contentType)) return "video";
+        if (TEXT_CONTENT_TYPES.has(contentType)) return "text";
+        if (VIDEO_PLATFORMS.has(platform)) return "video";
+        return "text";
+      }
+
       for (const vid of userVideos) {
         const date = vid.scheduledTime || vid.publishedAt;
         if (!date) continue;
         seenVideoIds.add(vid.id);
+        const ct = vid.type || "video";
+        const plat = vid.platform || "youtube";
         entries.push({
           id: `vid-${vid.id}`,
           title: vid.title,
           date,
-          platform: vid.platform || "youtube",
-          contentType: vid.type || "video",
+          platform: plat,
+          contentType: ct,
+          contentCategory: resolveContentCategory(ct, plat),
           status: (vid.status === "published" || vid.status === "public") ? "uploaded" : "scheduled",
         });
       }
@@ -1288,12 +1305,15 @@ export function registerContentRoutes(app: Express) {
       for (const item of schedItems) {
         if (!item.scheduledAt) continue;
         if (item.videoId && seenVideoIds.has(item.videoId)) continue;
+        const ct = item.type || "video";
+        const plat = item.platform || "youtube";
         entries.push({
           id: `sched-${item.id}`,
           title: item.title,
           date: item.scheduledAt,
-          platform: item.platform || "youtube",
-          contentType: item.type || "video",
+          platform: plat,
+          contentType: ct,
+          contentCategory: resolveContentCategory(ct, plat),
           status: item.status === "completed" ? "uploaded" : "scheduled",
           canDelete: true,
           rawId: item.id,
@@ -1311,6 +1331,7 @@ export function registerContentRoutes(app: Express) {
           date,
           platform: "youtube",
           contentType: "video",
+          contentCategory: "video" as const,
           status: p.status === "completed" ? "uploaded" : "scheduled",
         });
       }
@@ -1318,12 +1339,14 @@ export function registerContentRoutes(app: Express) {
       for (const p of livePipes) {
         const date = p.scheduledStartAt || p.startedAt;
         if (!date) continue;
+        const ct = p.pipelineType === "live" ? "stream" : "video";
         entries.push({
           id: `live-${p.id}`,
           title: p.sourceTitle,
           date,
           platform: "youtube",
-          contentType: p.pipelineType === "live" ? "stream" : "video",
+          contentType: ct,
+          contentCategory: "video" as const,
           status: p.status === "completed" ? "uploaded" : "scheduled",
         });
       }
@@ -1331,24 +1354,30 @@ export function registerContentRoutes(app: Express) {
       for (const item of autopilotItems) {
         const date = item.scheduledAt;
         if (!date) continue;
+        const ct = item.type || "post";
+        const plat = item.targetPlatform || "youtube";
+        const meta = item.metadata as any;
         entries.push({
           id: `ap-${item.id}`,
           title: item.caption || item.content?.slice(0, 60) || "Autopilot Post",
           date,
-          platform: item.targetPlatform || "youtube",
-          contentType: item.type || "post",
+          platform: plat,
+          contentType: ct,
+          contentCategory: resolveContentCategory(ct, plat, meta),
           status: item.status === "published" ? "uploaded" : "scheduled",
         });
       }
 
       for (const post of communityItems) {
         if (!post.scheduledAt) continue;
+        const plat = post.platform || "youtube";
         entries.push({
           id: `cp-${post.id}`,
           title: post.content?.slice(0, 60) || "Community Post",
           date: post.scheduledAt,
-          platform: post.platform || "youtube",
+          platform: plat,
           contentType: "post",
+          contentCategory: "text" as const,
           status: post.status === "published" ? "uploaded" : "scheduled",
         });
       }
@@ -1363,6 +1392,7 @@ export function registerContentRoutes(app: Express) {
           date,
           platform: uq.platform || "youtube",
           contentType: "video",
+          contentCategory: "video" as const,
           status: uq.status === "uploaded" ? "uploaded" : "scheduled",
         });
       }
@@ -1371,12 +1401,14 @@ export function registerContentRoutes(app: Express) {
         const date = s.startedAt || s.createdAt;
         if (!date) continue;
         if (s.status === "planned" && !s.startedAt) continue;
+        const plat = (s.platforms as string[])?.[0] || "youtube";
         entries.push({
           id: `stream-${s.id}`,
           title: s.title,
           date,
-          platform: (s.platforms as string[])?.[0] || "youtube",
+          platform: plat,
           contentType: "stream",
+          contentCategory: "video" as const,
           status: s.status === "ended" || s.status === "completed" ? "uploaded" : "scheduled",
         });
       }
@@ -1389,6 +1421,7 @@ export function registerContentRoutes(app: Express) {
           date: c.scheduledAt,
           platform: c.platform || "youtube",
           contentType: "campaign",
+          contentCategory: "text" as const,
           status: c.status === "executed" ? "uploaded" : "scheduled",
         });
       }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type FormEvent } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Calendar as CalendarIcon,
   ChevronLeft, ChevronRight, Video, Radio, Upload, Clock,
+  MessageSquare, FileText, Filter,
 } from "lucide-react";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type ViewMode = "day" | "week" | "month" | "year";
+type CategoryFilter = "all" | "video" | "text";
 
 interface UploadEntry {
   id: string;
@@ -42,10 +44,16 @@ interface UploadEntry {
   time: string;
   platform: string;
   contentType: string;
+  contentCategory: "video" | "text";
   status: string;
   canDelete?: boolean;
   rawId?: number;
 }
+
+const CATEGORY_COLORS = {
+  video: { bg: "bg-purple-500/10", text: "text-purple-300", border: "border-purple-500/30", dot: "bg-purple-400" },
+  text: { bg: "bg-amber-500/10", text: "text-amber-300", border: "border-amber-500/30", dot: "bg-amber-400" },
+};
 
 function CalendarTab() {
   const { toast } = useToast();
@@ -56,6 +64,7 @@ function CalendarTab() {
   const [formType, setFormType] = useState("video");
   const [formPlatform, setFormPlatform] = useState("youtube");
   const [detailDate, setDetailDate] = useState<Date | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
   const { data: calendarData, isLoading, error: calendarError } =
     useQuery<any[]>({ queryKey: ["/api/calendar/uploads"], refetchInterval: 30_000, staleTime: 20_000 });
@@ -74,6 +83,7 @@ function CalendarTab() {
           time: format(d, "h:mm a"),
           platform: item.platform || "youtube",
           contentType: item.contentType || "video",
+          contentCategory: item.contentCategory || "video",
           status: item.status || "scheduled",
           canDelete: item.canDelete || false,
           rawId: item.rawId,
@@ -82,8 +92,13 @@ function CalendarTab() {
       .filter(Boolean) as UploadEntry[];
   }, [calendarData]);
 
+  const filteredUploads = useMemo(() => {
+    if (categoryFilter === "all") return uploads;
+    return uploads.filter((e) => e.contentCategory === categoryFilter);
+  }, [uploads, categoryFilter]);
+
   const getEntriesForDate = (date: Date) =>
-    uploads.filter((e) => isSameDay(e.date, date));
+    filteredUploads.filter((e) => isSameDay(e.date, date));
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -120,7 +135,7 @@ function CalendarTab() {
 
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreate = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     createMutation.mutate({
@@ -189,8 +204,10 @@ function CalendarTab() {
       />
     );
 
-  const scheduledCount = uploads.filter((e) => e.status === "scheduled").length;
-  const uploadedCount = uploads.filter((e) => e.status === "uploaded").length;
+  const videoCount = uploads.filter((e) => e.contentCategory === "video").length;
+  const textCount = uploads.filter((e) => e.contentCategory === "text").length;
+  const scheduledCount = filteredUploads.filter((e) => e.status === "scheduled").length;
+  const uploadedCount = filteredUploads.filter((e) => e.status === "uploaded").length;
 
   return (
     <div className="space-y-4">
@@ -209,6 +226,40 @@ function CalendarTab() {
               </Button>
             ))}
           </div>
+
+          <div className="flex items-center gap-1 border rounded-md p-0.5" data-testid="filter-content-category">
+            <Button
+              variant={categoryFilter === "all" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setCategoryFilter("all")}
+              data-testid="filter-all"
+            >
+              <Filter className="w-3 h-3 mr-1" />
+              All
+            </Button>
+            <Button
+              variant={categoryFilter === "video" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setCategoryFilter("video")}
+              data-testid="filter-video"
+            >
+              <Video className="w-3 h-3 mr-1" />
+              Video ({videoCount})
+            </Button>
+            <Button
+              variant={categoryFilter === "text" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setCategoryFilter("text")}
+              data-testid="filter-text"
+            >
+              <MessageSquare className="w-3 h-3 mr-1" />
+              Text ({textCount})
+            </Button>
+          </div>
+
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3 text-blue-400" />
@@ -427,6 +478,17 @@ function CalendarTab() {
         </div>
       </div>
 
+      <div className="flex items-center gap-4 text-xs text-muted-foreground border-b border-border/50 pb-2">
+        <span className="flex items-center gap-1.5">
+          <span className={`w-2.5 h-2.5 rounded-full ${CATEGORY_COLORS.video.dot}`} />
+          Video content (YouTube, TikTok)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className={`w-2.5 h-2.5 rounded-full ${CATEGORY_COLORS.text.dot}`} />
+          Text posts (X, Discord)
+        </span>
+      </div>
+
       {viewMode === "day" && (
         <DayView
           date={currentDate}
@@ -437,7 +499,7 @@ function CalendarTab() {
       {viewMode === "week" && (
         <WeekView
           date={currentDate}
-          entries={uploads}
+          entries={filteredUploads}
           selectedDate={selectedDate}
           onSelectDate={(d) => {
             setSelectedDate(d);
@@ -452,7 +514,7 @@ function CalendarTab() {
       {viewMode === "month" && (
         <MonthView
           date={currentDate}
-          entries={uploads}
+          entries={filteredUploads}
           selectedDate={selectedDate}
           onSelectDate={(d) => {
             setSelectedDate(d);
@@ -470,7 +532,7 @@ function CalendarTab() {
       {viewMode === "year" && (
         <YearView
           date={currentDate}
-          entries={uploads}
+          entries={filteredUploads}
           onMonthClick={(m) => {
             const d = new Date(currentDate);
             d.setMonth(m);
@@ -513,11 +575,32 @@ function UploadStatusBadge({ status }: { status: string }) {
   );
 }
 
-function ContentIcon({ contentType }: { contentType: string }) {
+function CategoryBadge({ category }: { category: "video" | "text" }) {
+  const colors = CATEGORY_COLORS[category];
+  return (
+    <Badge
+      variant="secondary"
+      className={`text-[10px] no-default-hover-elevate no-default-active-elevate ${colors.bg} ${colors.text} border ${colors.border}`}
+      data-testid={`badge-category-${category}`}
+    >
+      {category === "video" ? (
+        <Video className="w-2.5 h-2.5 mr-0.5" />
+      ) : (
+        <FileText className="w-2.5 h-2.5 mr-0.5" />
+      )}
+      {category === "video" ? "Video" : "Text"}
+    </Badge>
+  );
+}
+
+function ContentIcon({ contentType, contentCategory }: { contentType: string; contentCategory: "video" | "text" }) {
   if (contentType === "stream") {
     return <Radio className="w-3.5 h-3.5 shrink-0 text-red-400" />;
   }
-  return <Video className="w-3.5 h-3.5 shrink-0 text-red-400" />;
+  if (contentCategory === "text") {
+    return <MessageSquare className="w-3.5 h-3.5 shrink-0 text-amber-400" />;
+  }
+  return <Video className="w-3.5 h-3.5 shrink-0 text-purple-400" />;
 }
 
 function DayView({
@@ -600,9 +683,10 @@ function UploadRow({
   entry: UploadEntry;
   onDelete: (id: number) => void;
 }) {
+  const catColors = CATEGORY_COLORS[entry.contentCategory];
   return (
     <div
-      className={`flex items-center justify-between gap-3 p-2 rounded bg-secondary/30 mb-1 ${entry.rawId ? "cursor-grab active:cursor-grabbing" : ""}`}
+      className={`flex items-center justify-between gap-3 p-2 rounded mb-1 border ${catColors.bg} ${catColors.border} ${entry.rawId ? "cursor-grab active:cursor-grabbing" : ""}`}
       draggable={!!entry.rawId}
       onDragStart={(e) => {
         if (entry.rawId) {
@@ -614,7 +698,7 @@ function UploadRow({
       data-testid={`entry-${entry.id}`}
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <ContentIcon contentType={entry.contentType} />
+        <ContentIcon contentType={entry.contentType} contentCategory={entry.contentCategory} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate" data-testid={`text-title-${entry.id}`}>
             {entry.title}
@@ -624,6 +708,7 @@ function UploadRow({
               {entry.time}
             </span>
             <PlatformBadge platform={entry.platform} className="text-xs" />
+            <CategoryBadge category={entry.contentCategory} />
             <UploadStatusBadge status={entry.status} />
           </div>
         </div>
@@ -691,6 +776,8 @@ function WeekView({
         const dayEntries = entries.filter((e) => isSameDay(e.date, day));
         const today = isToday(day);
         const selected = isSameDay(day, selectedDate);
+        const videoCount = dayEntries.filter(e => e.contentCategory === "video").length;
+        const textCount = dayEntries.filter(e => e.contentCategory === "text").length;
         return (
           <div
             key={day.toISOString()}
@@ -721,21 +808,34 @@ function WeekView({
                 {format(day, "d")}
               </span>
             </div>
+            {dayEntries.length > 0 && (
+              <div className="flex items-center gap-1.5 mb-1.5">
+                {videoCount > 0 && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-purple-300">
+                    <Video className="w-2.5 h-2.5" />{videoCount}
+                  </span>
+                )}
+                {textCount > 0 && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-amber-300">
+                    <MessageSquare className="w-2.5 h-2.5" />{textCount}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="space-y-1">
-              {dayEntries.slice(0, 3).map((entry) => (
-                <div
-                  key={entry.id}
-                  className={`text-xs p-1 rounded truncate flex items-center gap-1 ${
-                    entry.status === "uploaded"
-                      ? "bg-emerald-500/10 text-emerald-300"
-                      : "bg-blue-500/10 text-blue-300"
-                  }`}
-                  data-testid={`week-entry-${entry.id}`}
-                >
-                  <ContentIcon contentType={entry.contentType} />
-                  <span className="truncate">{entry.title}</span>
-                </div>
-              ))}
+              {dayEntries.slice(0, 3).map((entry) => {
+                const catColors = CATEGORY_COLORS[entry.contentCategory];
+                return (
+                  <div
+                    key={entry.id}
+                    className={`text-xs p-1 rounded truncate flex items-center gap-1 border ${catColors.bg} ${catColors.text} ${catColors.border}`}
+                    data-testid={`week-entry-${entry.id}`}
+                  >
+                    <ContentIcon contentType={entry.contentType} contentCategory={entry.contentCategory} />
+                    <span className="truncate">{entry.title}</span>
+                  </div>
+                );
+              })}
               {dayEntries.length > 3 && (
                 <span className="text-xs text-muted-foreground">
                   +{dayEntries.length - 3} more
@@ -794,6 +894,8 @@ function MonthView({
           const inMonth = isSameMonth(day, date);
           const today = isToday(day);
           const selected = isSameDay(day, selectedDate);
+          const videoCount = dayEntries.filter(e => e.contentCategory === "video").length;
+          const textCount = dayEntries.filter(e => e.contentCategory === "text").length;
 
           return (
             <div
@@ -814,7 +916,14 @@ function MonthView({
               onDrop={(e) => { e.preventDefault(); const entryId = e.dataTransfer.getData("entryId"); if (entryId) { rescheduleMutation.mutate({ id: Number(entryId), newDate: day.toISOString() }); } setDragOverDate(null); }}
               data-testid={`month-day-${format(day, "yyyy-MM-dd")}`}
             >
-              <div className="flex items-center justify-end mb-1">
+              <div className="flex items-center justify-between mb-1">
+                {inMonth && dayEntries.length > 0 && (
+                  <div className="flex items-center gap-0.5">
+                    {videoCount > 0 && <span className={`w-1.5 h-1.5 rounded-full ${CATEGORY_COLORS.video.dot}`} />}
+                    {textCount > 0 && <span className={`w-1.5 h-1.5 rounded-full ${CATEGORY_COLORS.text.dot}`} />}
+                  </div>
+                )}
+                {(!inMonth || dayEntries.length === 0) && <span />}
                 <span
                   className={`text-xs ${
                     today
@@ -828,18 +937,17 @@ function MonthView({
                 </span>
               </div>
               <div className="space-y-0.5">
-                {dayEntries.slice(0, 2).map((entry) => (
-                  <div
-                    key={entry.id}
-                    className={`text-[10px] leading-tight px-1 py-0.5 rounded truncate ${
-                      entry.status === "uploaded"
-                        ? "bg-emerald-500/10 text-emerald-300"
-                        : "bg-blue-500/10 text-blue-300"
-                    }`}
-                  >
-                    {entry.title}
-                  </div>
-                ))}
+                {dayEntries.slice(0, 2).map((entry) => {
+                  const catColors = CATEGORY_COLORS[entry.contentCategory];
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`text-[10px] leading-tight px-1 py-0.5 rounded truncate border ${catColors.bg} ${catColors.text} ${catColors.border}`}
+                    >
+                      {entry.title}
+                    </div>
+                  );
+                })}
                 {dayEntries.length > 2 && (
                   <span className="text-[10px] text-muted-foreground pl-1">
                     +{dayEntries.length - 2}
@@ -873,8 +981,8 @@ function YearView({
         const monthEntries = entries.filter(
           (e) => e.date.getMonth() === month && e.date.getFullYear() === year,
         );
-        const scheduledCount = monthEntries.filter((e) => e.status === "scheduled").length;
-        const uploadedCount = monthEntries.filter((e) => e.status === "uploaded").length;
+        const videoCount = monthEntries.filter(e => e.contentCategory === "video").length;
+        const textCount = monthEntries.filter(e => e.contentCategory === "text").length;
         const isCurrentMonth =
           today.getMonth() === month && today.getFullYear() === year;
 
@@ -904,19 +1012,19 @@ function YearView({
               />
 
               <div className="flex items-center gap-3 mt-3">
-                {scheduledCount > 0 && (
-                  <span className="text-xs flex items-center gap-1 text-blue-400">
-                    <Clock className="w-3 h-3" />
-                    {scheduledCount}
+                {videoCount > 0 && (
+                  <span className="text-xs flex items-center gap-1 text-purple-400">
+                    <Video className="w-3 h-3" />
+                    {videoCount}
                   </span>
                 )}
-                {uploadedCount > 0 && (
-                  <span className="text-xs flex items-center gap-1 text-emerald-400">
-                    <Upload className="w-3 h-3" />
-                    {uploadedCount}
+                {textCount > 0 && (
+                  <span className="text-xs flex items-center gap-1 text-amber-400">
+                    <MessageSquare className="w-3 h-3" />
+                    {textCount}
                   </span>
                 )}
-                {scheduledCount === 0 && uploadedCount === 0 && (
+                {videoCount === 0 && textCount === 0 && (
                   <span className="text-xs text-muted-foreground">
                     No uploads
                   </span>
@@ -949,7 +1057,9 @@ function MiniMonthGrid({
     <div className="grid grid-cols-7 gap-px">
       {allDays.slice(0, 42).map((day) => {
         const inMonth = day.getMonth() === month;
-        const hasEntries = entries.some((e) => isSameDay(e.date, day));
+        const dayEntries = entries.filter((e) => isSameDay(e.date, day));
+        const hasVideo = dayEntries.some(e => e.contentCategory === "video");
+        const hasText = dayEntries.some(e => e.contentCategory === "text");
         const today = isToday(day);
         return (
           <div
@@ -959,9 +1069,13 @@ function MiniMonthGrid({
                 ? "opacity-0"
                 : today
                   ? "bg-primary text-primary-foreground font-bold"
-                  : hasEntries
-                    ? "bg-blue-500/20 text-blue-300 font-medium"
-                    : "text-muted-foreground"
+                  : hasVideo && hasText
+                    ? "bg-gradient-to-br from-purple-500/20 to-amber-500/20 text-purple-200 font-medium"
+                    : hasVideo
+                      ? "bg-purple-500/20 text-purple-300 font-medium"
+                      : hasText
+                        ? "bg-amber-500/20 text-amber-300 font-medium"
+                        : "text-muted-foreground"
             }`}
           >
             {inMonth ? format(day, "d") : ""}
@@ -983,6 +1097,9 @@ function DetailPanel({
   onDelete: (id: number) => void;
   onClose: () => void;
 }) {
+  const videoEntries = entries.filter(e => e.contentCategory === "video");
+  const textEntries = entries.filter(e => e.contentCategory === "text");
+
   return (
     <Card>
       <CardContent className="p-4">
@@ -1005,10 +1122,33 @@ function DetailPanel({
             <p className="text-sm text-muted-foreground">No uploads scheduled</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {entries.map((entry) => (
-              <UploadRow key={entry.id} entry={entry} onDelete={onDelete} />
-            ))}
+          <div className="space-y-4">
+            {videoEntries.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Video className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="text-xs font-medium text-purple-300">Video Content ({videoEntries.length})</span>
+                </div>
+                <div className="space-y-2 pl-1">
+                  {videoEntries.map((entry) => (
+                    <UploadRow key={entry.id} entry={entry} onDelete={onDelete} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {textEntries.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs font-medium text-amber-300">Text Posts ({textEntries.length})</span>
+                </div>
+                <div className="space-y-2 pl-1">
+                  {textEntries.map((entry) => (
+                    <UploadRow key={entry.id} entry={entry} onDelete={onDelete} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
