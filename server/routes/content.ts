@@ -78,8 +78,16 @@ export function registerContentRoutes(app: Express) {
   app.get(api.channels.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const channels = await storage.getChannelsByUser(userId);
-    res.json(channels);
+    const userChannels = await storage.getChannelsByUser(userId);
+    const enriched = userChannels.map(ch => {
+      const pd = (ch.platformData || {}) as any;
+      return {
+        ...ch,
+        connectionStatus: pd._connectionStatus || "healthy",
+        lastVerifiedAt: pd._lastVerifiedAt || null,
+      };
+    });
+    res.json(enriched);
   }));
 
   app.post(api.channels.create.path, asyncHandler(async (req, res) => {

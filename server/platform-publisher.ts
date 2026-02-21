@@ -79,8 +79,10 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
 
       if (res.status === 400 || res.status === 401) {
         console.error(`[Publisher] Token for ${channel.platform} channel ${channel.id} is invalid/revoked. User needs to reconnect.`);
+        const existingPd = (channel as any).platformData || {};
         await storage.updateChannel(channel.id, {
           tokenExpiresAt: new Date(0),
+          platformData: { ...existingPd, _connectionStatus: "expired", _lastVerifiedAt: Date.now() },
         });
 
         try {

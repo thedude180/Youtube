@@ -1186,6 +1186,7 @@ export async function registerPlatformRoutes(app: Express) {
         : null;
 
       if (existing) {
+        const mergedPd = { ...((existing.platformData as any) || {}), ...platformDataObj, lastFetchedAt: new Date().toISOString(), _connectionStatus: "healthy", _lastVerifiedAt: Date.now(), _reconnectFailures: 0 };
         await storage.updateChannel(existing.id, {
           accessToken,
           refreshToken,
@@ -1197,7 +1198,7 @@ export async function registerPlatformRoutes(app: Express) {
           subscriberCount: fetchedFollowerCount ?? existing.subscriberCount ?? null,
           videoCount: fetchedVideoCount ?? existing.videoCount ?? null,
           lastSyncAt: new Date(),
-          platformData: { ...((existing.platformData as any) || {}), ...platformDataObj, lastFetchedAt: new Date().toISOString() },
+          platformData: mergedPd,
         });
       } else {
         await storage.createChannel({
@@ -1212,7 +1213,7 @@ export async function registerPlatformRoutes(app: Express) {
           rtmpUrl: rtmpUrl || null,
           subscriberCount: fetchedFollowerCount ?? null,
           videoCount: fetchedVideoCount ?? null,
-          platformData: { ...platformDataObj, lastFetchedAt: new Date().toISOString() },
+          platformData: { ...platformDataObj, lastFetchedAt: new Date().toISOString(), _connectionStatus: "healthy", _lastVerifiedAt: Date.now() },
           settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
         });
       }

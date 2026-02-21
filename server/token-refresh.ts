@@ -121,6 +121,11 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
   }
 }
 
+export async function refreshSingleChannel(ch: { platform: string; refreshToken: string | null }): Promise<RefreshResult> {
+  if (!ch.refreshToken) return { success: false, error: "No refresh token" };
+  return refreshToken(ch.platform as Platform, ch.refreshToken);
+}
+
 export async function refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
   const bufferMs = 2 * 60 * 60 * 1000;
   const threshold = new Date(Date.now() + bufferMs);

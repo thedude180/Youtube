@@ -100,10 +100,15 @@ function getPlatformsForContentType(contentType: string, connectedPlatforms: Set
 }
 
 async function getUserConnectedPlatforms(userId: string): Promise<Set<string>> {
-  const userChannels = await db.select({ platform: channels.platform, accessToken: channels.accessToken })
+  const userChannels = await db.select({ platform: channels.platform, accessToken: channels.accessToken, platformData: channels.platformData })
     .from(channels)
     .where(eq(channels.userId, userId));
-  return new Set(userChannels.filter(c => c.accessToken).map(c => c.platform));
+  return new Set(userChannels.filter(c => {
+    if (!c.accessToken) return false;
+    const pd = (c.platformData || {}) as any;
+    if (pd._connectionStatus === "expired") return false;
+    return true;
+  }).map(c => c.platform));
 }
 
 async function getAutopilotConfig(userId: string, feature: AutopilotFeature) {

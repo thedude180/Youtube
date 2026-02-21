@@ -8,42 +8,136 @@ let guardianInterval: ReturnType<typeof setInterval> | null = null;
 const GUARDIAN_CYCLE_MS = 3 * 60 * 1000;
 const TOKEN_PREEMPTIVE_BUFFER_MS = 2 * 60 * 60 * 1000;
 
+async function verifyConnectionAlive(platform: string, accessToken: string): Promise<boolean> {
+  try {
+    let testUrl: string | null = null;
+    const headers: Record<string, string> = {};
+
+    switch (platform) {
+      case "youtube":
+        testUrl = "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true";
+        headers["Authorization"] = `Bearer ${accessToken}`;
+        break;
+      case "twitch":
+        testUrl = "https://api.twitch.tv/helix/users";
+        headers["Authorization"] = `Bearer ${accessToken}`;
+        headers["Client-Id"] = process.env.TWITCH_CLIENT_ID || "";
+        break;
+      case "kick":
+        testUrl = "https://api.kick.com/public/v1/users";
+        headers["Authorization"] = `Bearer ${accessToken}`;
+        break;
+      case "tiktok":
+        testUrl = "https://open.tiktokapis.com/v2/user/info/?fields=open_id";
+        headers["Authorization"] = `Bearer ${accessToken}`;
+        break;
+      case "discord":
+        testUrl = "https://discord.com/api/v10/users/@me";
+        headers["Authorization"] = `Bearer ${accessToken}`;
+        break;
+      case "x":
+        testUrl = "https://api.twitter.com/2/users/me";
+        headers["Authorization"] = `Bearer ${accessToken}`;
+        break;
+      default:
+        return true;
+    }
+
+    if (!testUrl) return true;
+
+    const res = await fetch(testUrl, { method: "GET", headers, signal: AbortSignal.timeout(10000) });
+    return res.ok || res.status === 429;
+  } catch {
+    return false;
+  }
+}
+
+async function tryRefreshSingleToken(ch: typeof channels.$inferSelect): Promise<boolean> {
+  if (!ch.refreshToken) return false;
+  try {
+    const { refreshSingleChannel } = await import("../token-refresh");
+    const result = await refreshSingleChannel(ch);
+    if (result.success && result.accessToken) {
+      await db.update(channels).set({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken || ch.refreshToken,
+        tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
+        platformData: { ...(ch.platformData || {}), _connectionStatus: "healthy", _lastVerifiedAt: Date.now(), _reconnectFailures: 0 },
+      }).where(eq(channels.id, ch.id));
+      console.log(`[ConnectionGuardian] Auto-refreshed ${ch.platform} token for ${ch.channelName}`);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error(`[ConnectionGuardian] Refresh attempt failed for ${ch.platform}:`, err);
+    return false;
+  }
+}
+
+const FULL_VERIFY_INTERVAL_MS = 15 * 60 * 1000;
+let lastFullVerify = 0;
+
 async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: number; failed: number }> {
   let refreshed = 0;
   let verified = 0;
   let failed = 0;
 
   try {
-    const threshold = new Date(Date.now() + TOKEN_PREEMPTIVE_BUFFER_MS);
-
     const { refreshExpiringTokens } = await import("../token-refresh");
     const result = await refreshExpiringTokens();
     refreshed = result.refreshed;
     failed = result.failed;
 
-    const allConnected = await db.select().from(channels)
-      .where(isNotNull(channels.accessToken));
+    const now = Date.now();
+    const shouldFullVerify = now - lastFullVerify >= FULL_VERIFY_INTERVAL_MS;
 
-    const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+    if (shouldFullVerify) {
+      lastFullVerify = now;
 
-    for (const ch of allConnected) {
-      if (!ch.tokenExpiresAt) {
-        const channelAge = ch.createdAt ? Date.now() - new Date(ch.createdAt).getTime() : Infinity;
-        if (channelAge > TOKEN_MAX_AGE_MS && ch.refreshToken) {
-          try {
-            const singleResult = await refreshExpiringTokens();
-            if (singleResult.refreshed > 0) refreshed++;
-            else failed++;
-          } catch { failed++; }
-        } else {
-          verified++;
+      const allConnected = await db.select().from(channels)
+        .where(isNotNull(channels.accessToken));
+
+      for (const ch of allConnected) {
+        if (!ch.accessToken) { verified++; continue; }
+
+        const pd = (ch.platformData || {}) as any;
+        const lastCheck = pd._lastVerifiedAt || 0;
+        if (now - lastCheck < FULL_VERIFY_INTERVAL_MS) {
+          if (pd._connectionStatus === "healthy") verified++;
+          else failed++;
+          continue;
         }
-        continue;
-      }
 
-      const expiresAt = new Date(ch.tokenExpiresAt);
-      if (expiresAt.getTime() > Date.now() + TOKEN_PREEMPTIVE_BUFFER_MS) {
-        verified++;
+        const alive = await verifyConnectionAlive(ch.platform, ch.accessToken);
+
+        if (alive) {
+          await db.update(channels).set({
+            platformData: { ...(ch.platformData || {}), _connectionStatus: "healthy", _lastVerifiedAt: now, _reconnectFailures: 0 },
+          }).where(eq(channels.id, ch.id));
+          verified++;
+        } else {
+          console.log(`[ConnectionGuardian] ${ch.platform} connection dead for ${ch.channelName}, attempting auto-refresh...`);
+          const refreshOk = await tryRefreshSingleToken(ch);
+          if (refreshOk) {
+            refreshed++;
+          } else {
+            const failures = ((pd._reconnectFailures || 0) as number) + 1;
+            await db.update(channels).set({
+              platformData: { ...(ch.platformData || {}), _connectionStatus: "expired", _lastVerifiedAt: now, _reconnectFailures: failures },
+            }).where(eq(channels.id, ch.id));
+            failed++;
+            console.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token expired/revoked, needs manual reconnect (failure #${failures})`);
+
+            if (failures === 2 && ch.userId) {
+              try {
+                const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
+                await proactiveTokenHealthCheck();
+              } catch {}
+            }
+          }
+        }
+
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
   } catch (err) {
