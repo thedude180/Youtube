@@ -20,10 +20,10 @@ interface UserLoopState {
 const userLoops = new Map<string, UserLoopState>();
 const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-const MIN_DELAY_MS = 30_000;
-const MAX_DELAY_MS = 10 * 60_000;
-const IDLE_CHECK_MS = 15 * 60_000;
-const POST_BATCH_DELAY_MS = 60_000;
+const MIN_DELAY_MS = 15_000;
+const MAX_DELAY_MS = 5 * 60_000;
+const IDLE_CHECK_MS = 5 * 60_000;
+const POST_BATCH_DELAY_MS = 30_000;
 
 function getState(userId: string): UserLoopState {
   if (!userLoops.has(userId)) {
@@ -351,8 +351,8 @@ async function runLoopIteration(userId: string) {
     }
 
     const backoff = Math.min(
-      IDLE_CHECK_MS * Math.pow(1.5, Math.min(state.consecutiveNoWork - 1, 5)),
-      MAX_DELAY_MS * 3
+      IDLE_CHECK_MS * Math.pow(1.3, Math.min(state.consecutiveNoWork - 1, 4)),
+      MAX_DELAY_MS
     );
     state.backoffMs = backoff;
 

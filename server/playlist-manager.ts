@@ -30,6 +30,7 @@ async function detectGameFromVideo(video: any): Promise<string> {
   const gamePatterns: Record<string, string[]> = {
     "fortnite": ["fortnite"],
     "call of duty": ["call of duty", "cod", "warzone", "modern warfare", "black ops"],
+    "battlefield": ["battlefield", "bf6", "bf 6", "bf2042", "bf 2042"],
     "minecraft": ["minecraft"],
     "gta v": ["gta", "grand theft auto"],
     "apex legends": ["apex legends", "apex"],
@@ -53,6 +54,27 @@ async function detectGameFromVideo(video: any): Promise<string> {
     "rust": ["rust game", "rust pvp"],
     "ark": ["ark survival"],
     "counter-strike": ["counter-strike", "cs2", "csgo", "cs:go"],
+    "halo": ["halo infinite", "halo"],
+    "starfield": ["starfield"],
+    "diablo": ["diablo"],
+    "cyberpunk 2077": ["cyberpunk", "cyberpunk 2077"],
+    "spider-man": ["spider-man", "spiderman"],
+    "god of war": ["god of war", "ragnarok"],
+    "final fantasy": ["final fantasy", "ffxiv", "ff16", "ff7"],
+    "pokemon": ["pokemon", "pokémon"],
+    "zelda": ["zelda", "tears of the kingdom", "breath of the wild"],
+    "resident evil": ["resident evil", "re4"],
+    "the witcher": ["witcher"],
+    "horizon": ["horizon forbidden", "horizon zero"],
+    "monster hunter": ["monster hunter"],
+    "street fighter": ["street fighter", "sf6"],
+    "mortal kombat": ["mortal kombat"],
+    "world of warcraft": ["world of warcraft", "wow"],
+    "fall guys": ["fall guys"],
+    "among us": ["among us"],
+    "satisfactory": ["satisfactory"],
+    "no man's sky": ["no man's sky"],
+    "sea of thieves": ["sea of thieves"],
   };
 
   for (const [game, patterns] of Object.entries(gamePatterns)) {
@@ -61,7 +83,26 @@ async function detectGameFromVideo(video: any): Promise<string> {
 
   if (meta.contentCategory) return meta.contentCategory.toLowerCase();
 
-  return "general";
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a content classifier. Given a video title, description, and tags, identify the primary topic/game/subject in 1-3 words. Return ONLY the topic name in lowercase. Examples: "battlefield 6", "cooking", "tech reviews", "fitness workout", "music production". If truly unidentifiable, return "general".`,
+        },
+        {
+          role: "user",
+          content: `Title: ${video.title || "unknown"}\nDescription: ${(video.description || "").substring(0, 200)}\nTags: ${tags.slice(0, 10).join(", ")}`,
+        },
+      ],
+      max_completion_tokens: 30,
+    });
+    const detected = response.choices[0]?.message?.content?.trim().toLowerCase() || "general";
+    return detected.length > 0 && detected.length < 50 ? detected : "general";
+  } catch {
+    return "general";
+  }
 }
 
 function generatePlaylistTitle(gameName: string, type: PlaylistType): string {
@@ -472,6 +513,82 @@ function parseDuration(duration: string): number {
   return (parseInt(match[1] || "0") * 3600) +
     (parseInt(match[2] || "0") * 60) +
     parseInt(match[3] || "0");
+}
+
+export async function assignSingleVideoToPlaylist(userId: string, videoId: number, channelId: number): Promise<boolean> {
+  try {
+    const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+    if (!video) return false;
+
+    const meta = (video.metadata as any) || {};
+    if (meta.playlistAssigned) return true;
+
+    const youtubeId = meta.youtubeId;
+    if (!youtubeId) return false;
+
+    let gameName = meta.detectedGame;
+    if (!gameName) {
+      gameName = await detectGameFromVideo(video);
+      await db.update(videos).set({
+        metadata: { ...meta, detectedGame: gameName },
+      }).where(eq(videos.id, videoId));
+    }
+
+    const isShort = video.type === "short" || video.type === "shorts" ||
+      (meta.duration && parseDuration(meta.duration) <= 60);
+    const playlistType: PlaylistType = isShort ? "shorts" : "longform";
+
+    const mapping = await getOrCreateGamePlaylist(userId, gameName, playlistType, channelId);
+
+    if (await isVideoInPlaylist(mapping.playlistId, videoId)) {
+      await db.update(videos).set({
+        metadata: { ...meta, detectedGame: gameName, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
+      }).where(eq(videos.id, videoId));
+      return true;
+    }
+
+    if (mapping.youtubePlaylistId) {
+      await addVideoToYouTubePlaylist(channelId, mapping.youtubePlaylistId, youtubeId);
+    }
+
+    const currentItems = await db.select({ count: sql<number>`count(*)::int` })
+      .from(playlistItems)
+      .where(eq(playlistItems.playlistId, mapping.playlistId));
+    const position = (currentItems[0]?.count || 0);
+
+    try {
+      await db.insert(playlistItems).values({
+        playlistId: mapping.playlistId,
+        videoId,
+        position,
+        addedAt: new Date(),
+      });
+    } catch (insertErr: any) {
+      if (insertErr.code === "23505") {
+        logger.info("Playlist item already exists (concurrent insert), skipping", { playlistId: mapping.playlistId, videoId });
+      } else {
+        throw insertErr;
+      }
+    }
+
+    await db.update(managedPlaylists).set({
+      videoCount: sql`${managedPlaylists.videoCount} + 1`,
+      lastUpdatedAt: new Date(),
+    }).where(eq(managedPlaylists.id, mapping.playlistId));
+
+    await db.update(videos).set({
+      metadata: { ...meta, detectedGame: gameName, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
+    }).where(eq(videos.id, videoId));
+
+    logger.info("Assigned new clip to playlist", {
+      videoId, game: gameName, type: playlistType, playlistId: mapping.playlistId
+    });
+
+    return true;
+  } catch (err) {
+    logger.error("Single video playlist assignment failed", { videoId, error: String(err) });
+    return false;
+  }
 }
 
 export async function runPlaylistOrganizationForAllUsers(): Promise<number> {

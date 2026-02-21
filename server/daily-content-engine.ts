@@ -13,10 +13,10 @@ const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
 
 const LONG_FORM_MAX_MINUTES = 15;
-const SHORTS_PER_BATCH = 3;
+const SHORTS_PER_BATCH = 4;
 const LONG_FORM_PER_BATCH = 1;
-const MINUTES_PER_BATCH = 20;
-const MAX_BATCHES_PER_RUN = 3;
+const MINUTES_PER_BATCH = 30;
+const MAX_BATCHES_PER_RUN = 5;
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
@@ -311,7 +311,7 @@ async function queueBatchContent(
 
   for (let i = 0; i < plan.shorts.length; i++) {
     const short = plan.shorts[i];
-    const shortTime = new Date(longFormTime.getTime() + (i + 1) * 90 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
+    const shortTime = new Date(longFormTime.getTime() + (i + 1) * 60 * 60 * 1000 + Math.random() * 20 * 60 * 1000);
 
     try {
       await db.insert(autopilotQueue).values({
