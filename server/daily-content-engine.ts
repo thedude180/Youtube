@@ -12,6 +12,32 @@ import { detectGamingContext, buildGamingPromptSection, detectContentContext, bu
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
 
+function isVideoPostable(video: any): boolean {
+  const meta = (video.metadata as any) || {};
+  const privacy = meta.privacyStatus || "";
+
+  if (privacy === "public") return true;
+
+  if (privacy === "private" && meta.publishAt) {
+    const scheduledTime = new Date(meta.publishAt);
+    if (scheduledTime.getTime() > Date.now()) {
+      return true;
+    }
+  }
+
+  if (privacy === "private" || privacy === "unlisted") {
+    logger.info("Skipping non-public video for content extraction", { videoId: video.id, title: video.title, privacyStatus: privacy });
+    return false;
+  }
+
+  if (!privacy) {
+    logger.info("Video missing privacy status, allowing by default", { videoId: video.id, title: video.title });
+    return true;
+  }
+
+  return true;
+}
+
 const LONG_FORM_MAX_MINUTES = 15;
 const SHORTS_PER_BATCH = 4;
 const LONG_FORM_PER_BATCH = 1;
@@ -856,6 +882,7 @@ export async function bridgeVodsToStreams(userId: string): Promise<number> {
 
   for (const vod of longVods) {
     if (linkedVodIds.has(vod.id)) continue;
+    if (!isVideoPostable(vod)) continue;
 
     const meta = (vod.metadata as any) || {};
     const durationStr = meta.duration || meta.contentDetails?.duration || "";

@@ -8,6 +8,32 @@ import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 
 const logger = createLogger("autopilot");
+
+function isVideoPostable(video: any): boolean {
+  const meta = (video.metadata as any) || {};
+  const privacy = meta.privacyStatus || "";
+
+  if (privacy === "public") return true;
+
+  if (privacy === "private" && meta.publishAt) {
+    const scheduledTime = new Date(meta.publishAt);
+    if (scheduledTime.getTime() > Date.now()) {
+      return true;
+    }
+  }
+
+  if (privacy === "private" || privacy === "unlisted") {
+    logger.info("Skipping non-public video", { videoId: video.id, title: video.title, privacyStatus: privacy });
+    return false;
+  }
+
+  if (!privacy) {
+    logger.info("Video missing privacy status, allowing by default", { videoId: video.id, title: video.title });
+    return true;
+  }
+
+  return true;
+}
 import {
   getAudienceDrivenTime,
   getAudienceDrivenStaggeredSchedule,
@@ -167,6 +193,8 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
 
   const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) return;
+
+  if (!isVideoPostable(video)) return;
 
   const creatorTone = await getCreatorTone(userId);
 
@@ -678,13 +706,16 @@ export async function processContentRecycling(userId: string) {
 
   if (oldVideos.length === 0) return;
 
+  const postableVideos = oldVideos.filter(isVideoPostable);
+  if (postableVideos.length === 0) return;
+
   const creatorTone = await getCreatorTone(userId);
   const configPlatforms = (config?.settings as any)?.platforms;
   const platforms = configPlatforms
     ? configPlatforms.filter((p: string) => ALL_DISTRIBUTION_PLATFORMS.includes(p))
     : ALL_DISTRIBUTION_PLATFORMS;
 
-  const video = oldVideos[Math.floor(Math.random() * oldVideos.length)];
+  const video = postableVideos[Math.floor(Math.random() * postableVideos.length)];
 
   const alreadyRecycled = await db.select().from(autopilotQueue)
     .where(and(
@@ -725,7 +756,7 @@ export async function processCrossPromotion(userId: string) {
   if (!bestPost.sourceVideoId) return;
 
   const [video] = await db.select().from(videos).where(eq(videos.id, bestPost.sourceVideoId));
-  if (!video) return;
+  if (!video || !isVideoPostable(video)) return;
 
   const otherPlatforms = ALL_DISTRIBUTION_PLATFORMS.filter(p => p !== bestPost.targetPlatform && connectedPlatforms.has(p));
   const crossPlatform = otherPlatforms[Math.floor(Math.random() * otherPlatforms.length)];
