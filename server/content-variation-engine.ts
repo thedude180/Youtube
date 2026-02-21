@@ -18,6 +18,7 @@ interface VariationOptions {
   existingPosts?: string[];
   keywordContext?: string;
   trafficStrategyContext?: string;
+  videoUrl?: string;
 }
 
 const CREATOR_WEBSITE = "https://etgaming247.com";
@@ -60,26 +61,50 @@ const CROSSLINK_LINES: Record<string, string[]> = {
   ],
 };
 
-function appendCrosslinks(content: string, platform: string, contentType: string): string {
+function appendCrosslinks(content: string, platform: string, contentType: string, videoUrl?: string): string {
   const links = CROSSLINK_LINES[platform] || CROSSLINK_LINES.youtube;
 
-  if (platform === "tiktok" || platform === "x") {
+  const hasVideoLink = videoUrl && (contentType === "new-video" || contentType === "recycle" || contentType === "cross-promo" || contentType === "post-stream");
+  const videoCues = ["", "", ""];
+  const videoLine = hasVideoLink ? `\n\n${videoUrl}` : "";
+
+  if (platform === "youtube") {
+    return content + links.join("");
+  }
+
+  if (platform === "x") {
+    if (hasVideoLink) {
+      return content + videoLine;
+    }
     const short = [links[0]];
-    if (contentType === "go-live" || contentType === "new-video") {
+    if (contentType === "go-live") {
+      short.push(links[Math.floor(Math.random() * (links.length - 1)) + 1]);
+    }
+    return content + short.join("");
+  }
+
+  if (platform === "tiktok") {
+    if (hasVideoLink) {
+      return content + videoLine;
+    }
+    const short = [links[0]];
+    if (contentType === "go-live") {
       short.push(links[Math.floor(Math.random() * (links.length - 1)) + 1]);
     }
     return content + short.join("");
   }
 
   if (platform === "discord") {
+    if (hasVideoLink) {
+      return content + videoLine;
+    }
     const pick = [links[0]];
-    if (contentType === "new-video") pick.push(links[1]);
     if (contentType === "go-live") pick.push(links[2]);
     return content + pick.join("");
   }
 
-  if (platform === "youtube") {
-    return content + links.join("");
+  if (hasVideoLink) {
+    return content + videoLine;
   }
 
   const pick = links.slice(0, Math.min(links.length, 3));
@@ -143,7 +168,7 @@ const PLATFORM_VOICE: Record<string, string> = {
 };
 
 const BANNED_AI_PHRASES = [
-  "check out", "don't miss", "link in bio", "smash that like",
+  "don't miss", "link in bio", "smash that like",
   "hit subscribe", "ring the bell", "in this video",
   "today we're going to", "without further ado", "let's dive in",
   "in today's", "it's worth noting", "furthermore", "leverage",
@@ -181,7 +206,7 @@ export async function generateUniqueContent(options: VariationOptions): Promise<
   stealthScore: number;
   fingerprint: string;
 }> {
-  const { videoTitle, videoDescription, videoType, platform, contentType, creatorTone, userId, keywordContext, trafficStrategyContext } = options;
+  const { videoTitle, videoDescription, videoType, platform, contentType, creatorTone, userId, keywordContext, trafficStrategyContext, videoUrl } = options;
 
   const recentPosts = await getRecentPostsForPlatform(userId, platform, 20);
   const recentTexts = recentPosts.map(p => p.content);
@@ -222,8 +247,8 @@ ${retentionContext ? `\nAPPLY RETENTION SCIENCE TO THIS POST:
 
 CRITICAL ANTI-DETECTION RULES:
 - You ARE the creator. First person only. Never third person.
-- NO marketing language whatsoever
-- NO call-to-action phrasing (no "check out", "go watch", "link in bio")
+- NO corporate marketing language (no "check out our latest", "don't miss this opportunity")
+- Casual viewer-directing is fine ("linked it below", "go watch", "it's right there") — sound like a friend sharing, not a brand promoting
 - Vary your sentence structure from post to post
 - Mix capitalization naturally (don't be perfectly consistent)
 - Use contractions always (don't, can't, won't, it's)
@@ -231,6 +256,20 @@ CRITICAL ANTI-DETECTION RULES:
 - Reference the content indirectly sometimes, not always by exact title
 - Sound like you just typed this in 10 seconds without thinking too hard
 - NEVER use any of these phrases: ${BANNED_AI_PHRASES.slice(0, 10).join(", ")}
+
+VIDEO LINK STRATEGY:${videoUrl ? `
+- The video link is: ${videoUrl}
+- DO NOT put the URL in the post body — it will be appended automatically after your text.
+- Instead, structure your post to BUILD CURIOSITY so people WANT to click the link below.
+- Use one of these natural approaches (pick one, vary across posts):
+  • Tease the best moment: "the ending of this one is insane" / "wait for the last 30 seconds"
+  • Share a reaction: "I still can't believe this actually happened" / "this might be my best one yet"
+  • Ask a question the video answers: "how many of you would've survived this?" / "bet you can't guess what happens next"
+  • Drop a bold claim: "this is why I switched to..." / "proof that [topic] actually works"
+  • Create FOMO: "everyone's been asking about this" / "finally dropped this"
+- The post should make people NEED to watch — the link appears right after your words` : `
+- No specific video link available — write a general post about this content
+- Direct people to find it on YouTube or the relevant platform naturally`}
 
 ${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO NOT repeat similar wording or structure):\n${recentTexts.slice(0, 5).map((t, i) => `${i + 1}. "${t}"`).join("\n")}` : ""}${keywordContext ? `\n\n${keywordContext}` : ""}${trafficStrategyContext ? `\n\n${trafficStrategyContext}` : ""}`;
 
@@ -257,7 +296,11 @@ ${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO N
 
   processed = processed.replace(/^["']|["']$/g, "").trim();
 
-  processed = appendCrosslinks(processed, platform, contentType);
+  if (videoUrl) {
+    processed = processed.replace(/https?:\/\/(?:youtu\.be|(?:www\.)?youtube\.com)\S*/gi, "").replace(/\s{2,}/g, " ").trim();
+  }
+
+  processed = appendCrosslinks(processed, platform, contentType, videoUrl);
 
   const uniquenessScore = calculateUniqueness(processed, recentTexts);
   const stealthScore = calculateStealthScore(processed, platform);
@@ -280,20 +323,24 @@ function buildPromptForType(
 ${description ? `It's about: ${description}` : ""}
 Write a ${platform} post about it using the "${angle}" angle.
 Sound like you literally just finished editing and are excited/relieved/proud.
-Output ONLY the post text. No quotes around it.`;
+Your goal: make people curious enough to click the video link that will appear right below your post.
+Tease, hint, or react — but don't summarize the whole video. Leave something for them to discover.
+Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     case "recycle":
       return `You have an older video called "${title}" that you want more people to see.
 ${description ? `It covers: ${description}` : ""}
 Write a ${platform} post that makes this feel relevant RIGHT NOW using the "${angle}" angle.
 Do NOT mention it's an old video. Frame it as if you're just thinking about this topic.
-Output ONLY the post text. No quotes around it.`;
+Your goal: spark curiosity so people click the video link that will appear right below your post.
+Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     case "cross-promo":
       return `Your content "${title}" is doing well and you want to drive more engagement.
 Write a ${platform} post that references this content from the "${angle}" angle.
 Don't be salesy. Sound like you're genuinely continuing a conversation about this topic.
-Output ONLY the post text. No quotes around it.`;
+Your goal: make people want to watch the video — the link will appear right below your post.
+Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     case "engagement":
       return `Write a ${platform} post related to the topic of "${title}" that drives engagement.
@@ -315,7 +362,8 @@ ${description ? `The stream covered: ${description}` : ""}
 Write a ${platform} post about highlights or moments from the stream using the "${angle}" angle.
 Sound like you're decompressing after streaming - tired but satisfied energy.
 Reference specific-sounding moments even if vague ("that clutch play", "the ending though").
-Output ONLY the post text. No quotes around it.`;
+Your goal: make people who missed the stream want to watch the VOD — the link will appear below.
+Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     default:
       return `Write a natural ${platform} post about "${title}". Output ONLY the post text.`;

@@ -25,6 +25,17 @@ import {
 import { getKeywordContext } from "./services/keyword-learning-engine";
 import { trafficStrategies } from "@shared/schema";
 
+function buildVideoUrl(video: any): string | undefined {
+  const meta = video?.metadata as any;
+  const youtubeId = meta?.youtubeId || meta?.youtubeVideoId || meta?.externalId;
+  if (youtubeId) return `https://youtu.be/${youtubeId}`;
+  if (meta?.shortLink) return meta.shortLink;
+  if (meta?.externalUrl) return meta.externalUrl;
+  if (meta?.url) return meta.url;
+  if (video?.filePath && /youtube\.com|youtu\.be/.test(video.filePath)) return video.filePath;
+  return undefined;
+}
+
 async function getTrafficStrategyContext(userId: string): Promise<string> {
   try {
     const activeStrategies = await db.select().from(trafficStrategies)
@@ -269,6 +280,8 @@ async function generateFullThrottleDistribution(
       ? (contentType === "new-video" ? "auto-clip" : contentType === "recycle" ? "content-recycle" : contentType === "go-live" ? "go-live" : contentType === "post-stream" ? "post-stream" : "cross-promo")
       : (contentType === "go-live" ? "go-live" : "cross-promo");
 
+    const videoUrl = buildVideoUrl(video);
+
     const result = await generateUniqueContent({
       videoTitle: video.title,
       videoDescription: video.description || "",
@@ -279,6 +292,7 @@ async function generateFullThrottleDistribution(
       userId,
       keywordContext: kwContext,
       trafficStrategyContext: tsContext,
+      videoUrl,
     });
 
     if (!result.content) continue;
@@ -297,6 +311,7 @@ async function generateFullThrottleDistribution(
         userId,
         keywordContext: kwContext,
         trafficStrategyContext: tsContext,
+        videoUrl,
       });
 
       if (!retry.content) continue;
@@ -361,6 +376,8 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
     return;
   }
 
+  const videoUrl = buildVideoUrl(video);
+
   const result = await generateUniqueContent({
     videoTitle: video.title,
     videoDescription: video.description || "",
@@ -369,6 +386,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
     contentType: "new-video",
     creatorTone,
     userId,
+    videoUrl,
   });
 
   if (!result.content) return;
