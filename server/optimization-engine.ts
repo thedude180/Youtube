@@ -1182,7 +1182,7 @@ Respond as JSON:
       "topic": "Topic name",
       "trendScore": 85,
       "velocity": "rising|stable|declining",
-      "category": "tech|gaming|lifestyle|education|entertainment",
+      "category": "tech|gaming|cooking|fitness|beauty|lifestyle|education|entertainment|music|travel|finance|crafts|comedy|vlogging|science|art",
       "relatedKeywords": ["keyword1", "keyword2", "keyword3"]
     }
   ]

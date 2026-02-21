@@ -11,7 +11,7 @@ import {
 
 import { getOpenAIClient } from "../lib/openai";
 import { getRetentionBeatsPromptContext } from "../retention-beats-engine";
-import { detectGamingContext, buildGamingPromptSection } from "../ai-engine";
+import { detectGamingContext, buildGamingPromptSection, getNicheLabel, ContentContext } from "../ai-engine";
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "../creator-intelligence";
 
 const PLATFORM_LIMITS = {
@@ -51,13 +51,14 @@ function buildContentContext(sourceTitle: string, existingResults: Record<string
   const detectResult = existingResults["detect"] || {};
   const analyzeResult = existingResults["analyze"] || {};
 
-  const gamingCtx = detectGamingContext(
+  const contentCtx = detectGamingContext(
     sourceTitle,
     analyzeResult.summary || null,
     detectResult.category || analyzeResult.category || null,
-    { gameName: detectResult.gameName || analyzeResult.gameName || null }
+    { gameName: detectResult.gameName || analyzeResult.gameName || null, contentNiche: detectResult.contentNiche || analyzeResult.contentNiche || null }
   );
-  const gamingSection = buildGamingPromptSection(gamingCtx);
+  const contentSection = buildGamingPromptSection(contentCtx);
+  const nicheLabel = getNicheLabel(contentCtx);
 
   let contentProfile = "";
   const category = detectResult.category || analyzeResult.category || "";
@@ -68,7 +69,7 @@ function buildContentContext(sourceTitle: string, existingResults: Record<string
   if (category || summary || keyMoments.length > 0) {
     contentProfile += "\n\nCONTENT PROFILE (adapt ALL outputs to this specific content):";
     if (category) contentProfile += `\n- Content category: ${category}`;
-    if (gamingCtx.gameName) contentProfile += `\n- Game being played: ${gamingCtx.gameName}`;
+    if (contentCtx.topicName) contentProfile += `\n- Topic/subject: ${contentCtx.topicName}`;
     if (summary) contentProfile += `\n- Content summary: ${summary}`;
     if (keyMoments.length > 0) {
       const topMoments = keyMoments.slice(0, 5).map((m: any) =>
@@ -79,10 +80,10 @@ function buildContentContext(sourceTitle: string, existingResults: Record<string
     if (segments.length > 0) {
       contentProfile += `\n- Content segments: ${segments.slice(0, 5).map((s: any) => s.name || s.description || s.type || "segment").join(", ")}`;
     }
-    contentProfile += "\n- CRITICAL: Every title, description, tag, thumbnail, hook, clip, and cross-post MUST be specifically about THIS content — not generic gaming advice. Reference the actual game, moments, and events that happened.";
+    contentProfile += `\n- CRITICAL: Every title, description, tag, thumbnail, hook, clip, and cross-post MUST be specifically about THIS content — not generic ${nicheLabel} advice. Reference the actual ${contentCtx.niche !== 'general' ? contentCtx.niche + '-specific' : ''} moments and events that happened.`;
   }
 
-  return gamingSection + contentProfile;
+  return contentSection + contentProfile;
 }
 
 async function getCreatorContext(userId: string | null | undefined): Promise<string> {
@@ -343,8 +344,8 @@ async function runStreamPipelineStep(
 
   const prompts: Record<string, string> = {
     detect: isVod
-      ? `A VOD replay of the live stream "${originalLiveTitle}" (${durStr}) detected. This content was pulled from a completed live stream. Confirm detection, extract metadata, and note the original live stream reference. CRITICAL: Analyze the title to identify the specific game being played and content type. Return JSON: { detected: true, sourceType: "vod", isReplayOfLive: true, originalLiveTitle: "${originalLiveTitle}", title: string, estimatedDuration: number, platform: string, category: string, gameName: string or null, contentType: string (e.g. "gameplay", "tutorial", "challenge", "compilation", "review"), contentTheme: string }`
-      : `A ${typeLabel} titled "${sourceTitle}" (${durStr}) detected. Confirm detection, extract metadata. CRITICAL: Analyze the title to identify the specific game being played and content type. Return JSON: { detected: true, sourceType: "${pipelineType}", title: string, estimatedDuration: number, platform: string, category: string, gameName: string or null, contentType: string (e.g. "gameplay", "tutorial", "challenge", "compilation", "review"), contentTheme: string }`,
+      ? `A VOD replay of the live stream "${originalLiveTitle}" (${durStr}) detected. This content was pulled from a completed live stream. Confirm detection, extract metadata, and note the original live stream reference. CRITICAL: Analyze the title to identify the specific topic/subject being covered and content type. Return JSON: { detected: true, sourceType: "vod", isReplayOfLive: true, originalLiveTitle: "${originalLiveTitle}", title: string, estimatedDuration: number, platform: string, category: string, topicName: string or null, contentNiche: string, contentType: string (e.g. "gameplay", "tutorial", "challenge", "compilation", "review"), contentTheme: string }`
+      : `A ${typeLabel} titled "${sourceTitle}" (${durStr}) detected. Confirm detection, extract metadata. CRITICAL: Analyze the title to identify the specific topic/subject being covered and content type. Return JSON: { detected: true, sourceType: "${pipelineType}", title: string, estimatedDuration: number, platform: string, category: string, topicName: string or null, contentNiche: string, contentType: string (e.g. "gameplay", "tutorial", "challenge", "compilation", "review"), contentTheme: string }`,
     live_seo_boost: `Live stream "${sourceTitle}" just started. Context: ${ctx("detect")}. Optimize the live stream for discovery RIGHT NOW across YouTube, Kick, TikTok, X, Discord (Twitch is live-stream-only — do not generate content posts for Twitch). Generate SEO-optimized title rewrites, descriptions, and keyword strategies for each platform so viewers searching for this game/topic find the stream immediately. Return JSON: { platforms: array of {platform: string, optimizedTitle: string, liveDescription: string, topKeywords: array, searchTermsToTarget: array, categoryTags: array}, overallDiscoverabilityScore: number, urgentActions: array, trendingSearchTerms: array }`,
     live_thumbnail: `Live stream "${sourceTitle}" is active. Context: ${ctx("detect")}, ${ctx("live_seo_boost")}. Generate thumbnail concepts optimized for LIVE discovery on YouTube, Twitch, Kick, TikTok. Include "LIVE" badge placement, face-cam frame suggestions, game overlay text, and attention-grabbing colors. Thumbnails should make scrollers stop and click. Return JSON: { thumbnails: array of {platform: string, concept: string, textOverlay: string, liveBadgePlacement: string, colorScheme: array, emotionTarget: string, ctrEstimate: number}, pushPlan: array of {platform: string, method: string, timing: string}, midStreamUpdateStrategy: string }`,
     live_announce: `Live stream "${sourceTitle}" just went live. Context: ${ctx("detect")}, ${ctx("live_seo_boost")}. Generate unique "I'm live!" announcements for 5 platforms (YouTube Community, Kick, TikTok, X post, Discord). Do NOT generate Twitch posts — Twitch is used for live streaming only, not content posting. Each must match platform voice — casual for Discord, hype for TikTok, professional for YouTube, thread-style for X. Include links, hashtags, and engagement hooks. Return JSON: { announcements: array of {platform: string, message: string, hashtags: array, callToAction: string, tone: string, postType: string}, postingOrder: array of {platform: string, delaySeconds: number, reason: string}, crossPromotionLinks: object }`,
@@ -352,7 +353,7 @@ async function runStreamPipelineStep(
     ingest: isVod
       ? `Ingesting VOD replay of live stream "${originalLiveTitle}" (${durStr}). This is a replay pulled from a completed live stream. Extract format, resolution, audio tracks, chapters, and note original live stream reference. Return JSON: { ingested: true, format: string, resolution: string, audioTracks: number, chapters: array, fileSize: string, isReplayOfLive: true, originalLiveTitle: "${originalLiveTitle}" }`
       : `Ingesting ${typeLabel} "${sourceTitle}" (${durStr}). Extract format, resolution, audio tracks, chapters. Return JSON: { ingested: true, format: string, resolution: string, audioTracks: number, chapters: array, fileSize: string }`,
-    analyze: `Deeply analyze the actual content of ${typeLabel} "${sourceTitle}" (${durStr}). Context: ${ctx("detect")}. CRITICAL: Identify what SPECIFICALLY happens in this content — the game being played, specific in-game events, kills, wins, fails, funny moments, emotional peaks, and story arcs. Do NOT give generic analysis. Return JSON: { keyMoments: array of {timestamp: number, description: string, score: number, momentType: string}, segments: array of {name: string, description: string, startTime: number, endTime: number}, highlights: array, category: string, gameName: string or null, gameSpecificDetails: { characters: array, maps: array, weapons: array, achievements: array }, engagementPeaks: array, summary: string, contentMood: string, targetAudience: string, uniqueSellingPoints: array }`,
+    analyze: `Deeply analyze the actual content of ${typeLabel} "${sourceTitle}" (${durStr}). Context: ${ctx("detect")}. CRITICAL: Identify what SPECIFICALLY happens in this content — the specific topic, key events, standout moments, emotional peaks, and story arcs. Do NOT give generic analysis. Return JSON: { keyMoments: array of {timestamp: number, description: string, score: number, momentType: string}, segments: array of {name: string, description: string, startTime: number, endTime: number}, highlights: array, category: string, topicName: string or null, contentNiche: string, nicheSpecificDetails: { subjects: array, elements: array, techniques: array, achievements: array }, engagementPeaks: array, summary: string, contentMood: string, targetAudience: string, uniqueSellingPoints: array }`,
     chat_sentiment: `Analyze chat sentiment during ${typeLabel} "${sourceTitle}". Context: ${ctx("analyze")}. Score mood over time, toxicity levels, hype moments, emote patterns. Return JSON: { overallMood: string, moodScore: number, toxicityLevel: number, hypeMoments: array of {timestamp: number, intensity: number, trigger: string}, topEmotes: array, chatVelocityPeaks: array, recommendations: array }`,
     highlights: `Extract top highlights from ${typeLabel} "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}. Identify kills, clutches, funny moments, epic plays. Return JSON: { highlights: array of {timestamp: number, endTime: number, type: string, description: string, viralScore: number, suggestedCaption: string}, totalHighlights: number, topMoment: object }`,
     trend_detect: `Detect trending topics matching "${sourceTitle}". Context: ${ctx("analyze")}. Find trending games, hashtags, topics, challenges. Return JSON: { trendingTopics: array of {topic: string, volume: number, relevance: number, platform: string}, trendScore: number, recommendations: array, risingTrends: array }`,
@@ -372,7 +373,7 @@ async function runStreamPipelineStep(
       ? `Write SEO-optimized description for VOD replay of live stream "${originalLiveTitle}".${replayContext} Context: ${ctx("analyze")}. MUST include: (1) First line clearly stating this is a replay/highlight from a live stream, (2) Link placeholder "[LINK TO ORIGINAL LIVE STREAM]" in the first 3 lines, (3) "Watch the original live stream" CTA, (4) Timestamps of best moments, (5) Keywords including "stream replay", "live highlight", "full stream". Return JSON: { description: string, keywords: array, seoScore: number, originalStreamLink: "[LINK TO ORIGINAL LIVE STREAM]", replayIndicators: array }`
       : `Write SEO-optimized description for "${sourceTitle}". Context: ${ctx("analyze")}. Compelling first 2 lines, timestamps, keywords, CTA. Return JSON: { description: string, keywords: array, seoScore: number }`,
     tags: isVod
-      ? `Generate optimized tags for VOD replay of live stream "${originalLiveTitle}".${replayContext} Context: ${ctx("analyze")}. Tags MUST include replay/live-specific terms: "stream replay", "live highlight", "full stream", "live gaming", "${originalLiveTitle} replay". 15 YouTube tags, 5 hashtags, trending suggestions. Return JSON: { tags: array, hashtags: array, trendingTags: array, replayTags: array }`
+      ? `Generate optimized tags for VOD replay of live stream "${originalLiveTitle}".${replayContext} Context: ${ctx("analyze")}. Tags MUST include replay/live-specific terms: "stream replay", "live highlight", "full stream", "live", "${originalLiveTitle} replay". 15 YouTube tags, 5 hashtags, trending suggestions. Return JSON: { tags: array, hashtags: array, trendingTags: array, replayTags: array }`
       : `Generate optimized tags for "${sourceTitle}". Context: ${ctx("analyze")}. 15 YouTube tags, 5 hashtags, trending suggestions. Return JSON: { tags: array, hashtags: array, trendingTags: array }`,
     hashtag_strat: `Cross-platform hashtag strategy for "${sourceTitle}". Context: ${ctx("tags")}. Platform-specific hashtag sets, volume, competition. Return JSON: { platforms: object with youtube/tiktok/x/instagram keys each having hashtags array, volumeScores: object, competitionLevels: object, recommendations: array }`,
     caption_gen: `Generate captions & subtitles plan for "${sourceTitle}". Context: ${ctx("analyze")}. Key quotes, subtitle timing, accessibility notes. Return JSON: { captions: array of {timestamp: number, text: string, speaker: string}, keyQuotes: array, accessibilityNotes: array, languages: array }`,
@@ -510,7 +511,8 @@ async function executeStreamPipelineInBackground(
 
       if (step === "cut_vods" && userId) {
         try {
-          const cutResult = await generateVodCutsInternal(userId, pipelineId, sourceTitle, sourceDuration || 0, "gaming");
+          const contentCtx = detectGamingContext(sourceTitle, null, null, {});
+          const cutResult = await generateVodCutsInternal(userId, pipelineId, sourceTitle, sourceDuration || 0, contentCtx.niche || "general");
           currentResults[step] = cutResult;
         } catch (cutErr: any) {
           console.error(`[DualPipeline] VOD cutting failed, using AI fallback:`, cutErr.message);
@@ -893,7 +895,8 @@ export function registerDualPipelineRoutes(app: Express) {
     try {
       let result;
       if (targetStep === "cut_vods") {
-        result = await generateVodCutsInternal(userId, id, pipeline.sourceTitle, pipeline.sourceDuration || 0, "gaming");
+        const pipelineContentCtx = detectGamingContext(pipeline.sourceTitle, null, null, {});
+        result = await generateVodCutsInternal(userId, id, pipeline.sourceTitle, pipeline.sourceDuration || 0, pipelineContentCtx.niche || "general");
       } else {
         result = await runStreamPipelineStep(targetStep, pipeline.sourceTitle, pipeline.pipelineType, currentResults, pipeline.sourceDuration, userId);
       }
@@ -1002,7 +1005,8 @@ export function registerDualPipelineRoutes(app: Express) {
     }
 
     const pipelineId = streamPipelineId || 0;
-    const category = contentCategory || "gaming";
+    const reqContentCtx = detectGamingContext(sourceTitle, null, null, {});
+    const category = contentCategory || reqContentCtx.niche || "general";
 
     const result = await generateVodCutsInternal(userId, pipelineId, sourceTitle, sourceDuration, category);
     res.json(result);
@@ -1196,7 +1200,7 @@ export function registerDualPipelineRoutes(app: Express) {
       lengthsToTest,
       completedLengths: [],
       results: [],
-      contentCategory: contentCategory || "gaming",
+      contentCategory: contentCategory || "general",
       platform: platform || "youtube",
     }).returning();
 
@@ -1317,7 +1321,7 @@ Return JSON: {
         .returning();
 
       if (analysis.winningLength && analysis.confidence > 0.5) {
-        const category = experiment.contentCategory || "gaming";
+        const category = experiment.contentCategory || "general";
         const [existingPref] = await tx.select().from(audienceLengthPreferences)
           .where(and(
             eq(audienceLengthPreferences.userId, userId),

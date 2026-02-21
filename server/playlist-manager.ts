@@ -61,7 +61,7 @@ async function detectGameFromVideo(video: any): Promise<string> {
 
   if (meta.contentCategory) return meta.contentCategory.toLowerCase();
 
-  return "general gaming";
+  return "general";
 }
 
 function generatePlaylistTitle(gameName: string, type: PlaylistType): string {
@@ -82,7 +82,7 @@ function generatePlaylistDescription(gameName: string, type: PlaylistType): stri
     .join(" ");
 
   return type === "longform"
-    ? `All full-length ${formattedGame} videos, gameplay sessions, and content. New videos added automatically.`
+    ? `All full-length ${formattedGame} videos, sessions, and content. New videos added automatically.`
     : `${formattedGame} shorts, highlights, best moments, and clips. Updated automatically with new content.`;
 }
 
@@ -200,9 +200,9 @@ async function generatePlaylistThumbnailPrompt(playlistTitle: string): Promise<s
       messages: [
         {
           role: "system",
-          content: `You are the world's best YouTube visual brand designer — you create playlist cover art that makes channels look like premium, professional gaming brands worth subscribing to. You combine:
+          content: `You are the world's best YouTube visual brand designer — you create playlist cover art that makes channels look like premium, professional brands worth subscribing to. You combine:
 
-🎨 AAA GAME ART DIRECTOR: You design covers that rival professional game box art — cinematic composition, dramatic lighting, rich color palettes, and iconic character/scene positioning.
+🎨 ELITE ART DIRECTOR: You design covers with cinematic composition, dramatic lighting, rich color palettes, and iconic scene positioning.
 
 📊 BRAND STRATEGIST: Your playlist thumbnails create visual cohesion across a channel, making it look organized, professional, and worth binging. Each playlist cover is instantly recognizable as part of a unified brand.
 
@@ -210,7 +210,7 @@ async function generatePlaylistThumbnailPrompt(playlistTitle: string): Promise<s
 
 RULES:
 - Create CINEMATIC quality — dramatic lighting, rich shadows, depth of field
-- Use the game's iconic visual elements, color palette, and atmosphere
+- Use the topic's iconic visual elements, color palette, and atmosphere
 - Design for premium brand perception — this should look like a Netflix category banner
 - Colors must be bold and saturated to stand out in YouTube's sidebar
 - Include visual depth (foreground/midground/background layers)
@@ -421,7 +421,7 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
         userId,
         type: "autopilot",
         title: "Playlists Organized",
-        message: `Organized ${assigned} video(s) into game-specific playlists${playlistsCreated > 0 ? ` (${playlistsCreated} new playlist(s) created)` : ""}.`,
+        message: `Organized ${assigned} video(s) into topic-specific playlists${playlistsCreated > 0 ? ` (${playlistsCreated} new playlist(s) created)` : ""}.`,
         severity: "info",
       });
       sendSSEEvent(userId, "notification", { type: "new" });

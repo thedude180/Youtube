@@ -227,7 +227,7 @@ export async function processClipForYouTubeShorts(
     const result = await uploadVideoToYouTube(ytChannel.id, {
       title: shortsTitle,
       description: clip.description || `${video.title} highlight clip`,
-      tags: ["shorts", "gaming", "highlights", "clips"],
+      tags: ["shorts", "highlights", "clips", "viral"],
       categoryId: "20",
       privacyStatus: "public",
       videoFilePath: clipPath,

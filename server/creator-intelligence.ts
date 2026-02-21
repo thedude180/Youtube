@@ -32,7 +32,7 @@ Provide your analysis as JSON with exactly these fields:
   "tone": "description of writing tone (e.g. casual, formal, energetic, sarcastic, hype-driven)",
   "commonPhrases": ["list of recurring phrases or expressions the creator uses"],
   "sentenceStructure": "description of sentence patterns (e.g. short punchy, long descriptive, question-heavy)",
-  "vocabularyLevel": "description of vocabulary (e.g. simple/casual, technical, gaming slang, internet culture)",
+  "vocabularyLevel": "description of vocabulary (e.g. simple/casual, technical, niche slang, internet culture)",
   "emojiUsage": "description of emoji usage patterns (e.g. heavy, minimal, none, specific emojis used)",
   "capitalizationStyle": "description of capitalization habits (e.g. all caps for emphasis, standard, lowercase aesthetic)",
   "hookPatterns": ["list of hook patterns used (e.g. question-based, challenge-based, curiosity gap, shock value)"]

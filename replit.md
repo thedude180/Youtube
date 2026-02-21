@@ -1,7 +1,7 @@
 # CreatorOS - YouTube Team In A Box
 
 ## Overview
-CreatorOS is a multi-platform content management and live streaming platform that provides AI-powered insights, compliance checks, growth strategies, and content optimization across major platforms like YouTube, Twitch, Kick, TikTok, X, and Discord. Its core purpose is to offer near-100% automated end-to-end business management, functioning as a "YouTube Team In A Box" to autonomously manage a creator's online presence, foster growth, and maximize revenue.
+CreatorOS is a multi-platform content management and live streaming platform that provides AI-powered insights, compliance checks, growth strategies, and content optimization across major platforms like YouTube, Twitch, Kick, TikTok, X, and Discord. Its core purpose is to offer near-100% automated end-to-end business management, functioning as a "YouTube Team In A Box" to autonomously manage a creator's online presence, foster growth, and maximize revenue. The platform is **niche-agnostic** — it automatically detects and adapts to any content niche (gaming, cooking, tech, fitness, music, comedy, education, beauty, travel, finance, crafts, automotive, sports, science, art, photography, pets, ASMR, reaction, vlogging, and more).
 
 ## User Preferences
 - Dark mode design with deep purple/blue tones

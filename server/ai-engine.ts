@@ -3,86 +3,237 @@ import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } f
 
 const openai = getOpenAIClient();
 
-export function detectGamingContext(title: string, description?: string | null, category?: string | null, metadata?: any): {
+export type ContentNiche = 'gaming' | 'cooking' | 'tech' | 'fitness' | 'music' | 'comedy' | 'education' | 'vlogging' | 'beauty' | 'travel' | 'finance' | 'crafts' | 'automotive' | 'sports' | 'news' | 'science' | 'art' | 'photography' | 'pets' | 'asmr' | 'reaction' | 'general';
+
+export interface ContentContext {
+  niche: ContentNiche;
+  subNiche: string | null;
   isGaming: boolean;
   gameName: string | null;
+  topicName: string | null;
   brandKeywords: string[];
-} {
+  nicheTerminology: string[];
+  audienceType: string;
+  contentStyle: string;
+}
+
+const NICHE_SIGNALS: Record<ContentNiche, string[]> = {
+  gaming: ['gameplay', 'playthrough', 'walkthrough', 'speedrun', "let's play", 'gaming', 'ranked', 'competitive', 'multiplayer', 'co-op', 'boss fight', 'raid', 'pvp', 'pve', 'esports', 'tournament', 'highlights', 'montage', 'clutch', 'victory royale', 'battle royale', 'fps', 'mmorpg', 'rpg'],
+  cooking: ['recipe', 'cooking', 'baking', 'meal prep', 'kitchen', 'ingredient', 'chef', 'food', 'cuisine', 'dinner', 'lunch', 'breakfast', 'dessert', 'restaurant', 'mukbang', 'food review', 'taste test'],
+  tech: ['review', 'unboxing', 'tech', 'gadget', 'smartphone', 'laptop', 'iphone', 'android', 'software', 'hardware', 'setup', 'programming', 'coding', 'developer', 'ai', 'machine learning', 'apple', 'samsung', 'pc build'],
+  fitness: ['workout', 'fitness', 'gym', 'exercise', 'training', 'muscle', 'bodybuilding', 'cardio', 'yoga', 'crossfit', 'hiit', 'gains', 'protein', 'diet', 'weight loss', 'transformation', 'calisthenics'],
+  music: ['music', 'song', 'guitar', 'piano', 'drums', 'singing', 'vocal', 'cover', 'remix', 'beat', 'producer', 'album', 'concert', 'freestyle', 'rap', 'hip hop', 'rock', 'pop', 'jazz', 'electronic'],
+  comedy: ['comedy', 'funny', 'skit', 'prank', 'joke', 'standup', 'stand-up', 'parody', 'satire', 'humor', 'roast', 'meme', 'blooper'],
+  education: ['tutorial', 'how to', 'learn', 'course', 'lesson', 'explain', 'education', 'study', 'lecture', 'class', 'teacher', 'student', 'academic', 'guide', 'tips and tricks'],
+  vlogging: ['vlog', 'day in my life', 'daily vlog', 'grwm', 'get ready with me', 'routine', 'storytime', 'life update', 'moving', 'apartment tour', 'room tour'],
+  beauty: ['makeup', 'skincare', 'beauty', 'cosmetics', 'tutorial', 'haul', 'foundation', 'lipstick', 'hair', 'nails', 'fashion', 'outfit', 'style', 'grwm'],
+  travel: ['travel', 'vacation', 'trip', 'flight', 'hotel', 'destination', 'backpacking', 'adventure', 'explore', 'country', 'city guide', 'travel vlog'],
+  finance: ['investing', 'stock', 'crypto', 'money', 'finance', 'budget', 'passive income', 'real estate', 'trading', 'retirement', 'wealth', 'side hustle', 'entrepreneur'],
+  crafts: ['diy', 'craft', 'handmade', 'woodworking', 'sewing', 'knitting', 'crochet', 'pottery', 'resin', 'painting', 'renovation', 'home improvement'],
+  automotive: ['car', 'automotive', 'vehicle', 'engine', 'horsepower', 'drift', 'race', 'modification', 'detailing', 'mechanic', 'motorcycle', 'truck', 'supercar'],
+  sports: ['nfl', 'nba', 'soccer', 'football', 'basketball', 'baseball', 'tennis', 'golf', 'mma', 'ufc', 'boxing', 'wrestling', 'highlights', 'analysis', 'draft'],
+  news: ['news', 'breaking', 'update', 'report', 'analysis', 'politics', 'current events', 'commentary', 'opinion', 'debate'],
+  science: ['science', 'experiment', 'physics', 'chemistry', 'biology', 'space', 'nasa', 'astronomy', 'research', 'discovery', 'evolution'],
+  art: ['art', 'drawing', 'illustration', 'digital art', 'animation', 'sketch', 'painting', 'watercolor', 'procreate', 'photoshop', 'design', 'graphic design'],
+  photography: ['photography', 'photo', 'camera', 'lens', 'lightroom', 'portrait', 'landscape', 'street photography', 'editing', 'composition'],
+  pets: ['dog', 'cat', 'puppy', 'kitten', 'pet', 'animal', 'rescue', 'vet', 'training', 'aquarium', 'fish', 'reptile', 'bird'],
+  asmr: ['asmr', 'triggers', 'tingles', 'relaxing', 'sleep', 'whispering', 'tapping', 'scratching', 'roleplay asmr'],
+  reaction: ['reaction', 'reacting', 'react', 'first time watching', 'responding to', 'commentary'],
+  general: [],
+};
+
+const NICHE_CONFIG: Record<ContentNiche, { audienceType: string; contentStyle: string; terminology: string[]; thumbnailStyle: string; seoFocus: string }> = {
+  gaming: { audienceType: 'gamers and gaming enthusiasts', contentStyle: 'high-energy, competitive, entertainment-focused', terminology: ['clutch', 'meta', 'nerf', 'buff', 'GG', 'carry', 'sweaty', 'cracked', 'goated'], thumbnailStyle: 'high-energy compositions, in-game action shots, bold contrasting colors, dramatic moments or reactions', seoFocus: 'game-specific long-tail keywords, game version/season info, trending community topics, gaming hashtags' },
+  cooking: { audienceType: 'home cooks and food enthusiasts', contentStyle: 'warm, inviting, step-by-step instructional', terminology: ['al dente', 'sear', 'fold', 'rest', 'season to taste', 'mise en place'], thumbnailStyle: 'appetizing close-up food shots, vibrant colors, steam/texture visible, clean bright lighting', seoFocus: 'recipe name keywords, ingredient lists, cuisine type, dietary preferences (vegan, keto, etc.), cooking method' },
+  tech: { audienceType: 'tech enthusiasts and early adopters', contentStyle: 'informative, analytical, product-focused', terminology: ['specs', 'benchmark', 'upgrade', 'ecosystem', 'teardown', 'hands-on'], thumbnailStyle: 'clean product shots, comparison layouts, spec callouts, before/after, tech-blue color schemes', seoFocus: 'product name + review/unboxing, vs comparisons, year-specific keywords, spec-based searches' },
+  fitness: { audienceType: 'fitness enthusiasts and people seeking transformation', contentStyle: 'motivational, instructional, results-driven', terminology: ['reps', 'sets', 'PR', 'gains', 'bulk', 'cut', 'macros', 'form check'], thumbnailStyle: 'before/after transformations, action poses, bold text overlays, motivational imagery', seoFocus: 'exercise name, muscle group, routine type, transformation keywords, beginner/advanced level' },
+  music: { audienceType: 'music lovers, musicians, and aspiring artists', contentStyle: 'creative, expressive, performance-oriented', terminology: ['riff', 'chord', 'tempo', 'key', 'verse', 'chorus', 'bridge', 'drop'], thumbnailStyle: 'performance shots, instrument close-ups, waveform visuals, concert lighting aesthetic', seoFocus: 'song name, artist, genre, instrument, tutorial/cover/original, music theory terms' },
+  comedy: { audienceType: 'entertainment seekers looking for laughs', contentStyle: 'humorous, relatable, personality-driven', terminology: ['bit', 'punchline', 'callback', 'deadpan', 'improv'], thumbnailStyle: 'exaggerated facial expressions, funny freeze-frames, meme-style text, bright colors', seoFocus: 'comedy + topic, funny + situation, relatable content keywords, trending meme references' },
+  education: { audienceType: 'learners, students, and curious minds', contentStyle: 'clear, structured, authoritative yet accessible', terminology: ['explained', 'breakdown', 'step-by-step', 'beginner-friendly', 'deep dive'], thumbnailStyle: 'clean diagrams, whiteboard style, numbered steps, professional yet approachable', seoFocus: 'how to, tutorial, explained, beginner guide, topic + for beginners, step by step' },
+  vlogging: { audienceType: 'lifestyle content consumers seeking connection', contentStyle: 'personal, authentic, diary-like storytelling', terminology: ['grwm', 'ootd', 'haul', 'storytime', 'life update'], thumbnailStyle: 'candid personal shots, lifestyle aesthetic, warm tones, relatable expressions', seoFocus: 'day in my life, routine, storytime, life update, personal experience keywords' },
+  beauty: { audienceType: 'beauty enthusiasts and fashion followers', contentStyle: 'aspirational, tutorial-based, trend-focused', terminology: ['glam', 'beat face', 'swatch', 'holy grail', 'dupe', 'shade match'], thumbnailStyle: 'glamorous close-ups, before/after, product flat lays, clean aesthetic, pastel or bold accents', seoFocus: 'product name + review, tutorial type, skin type, trend name, dupe/alternative keywords' },
+  travel: { audienceType: 'travelers and adventure seekers', contentStyle: 'cinematic, inspirational, informative', terminology: ['itinerary', 'hidden gem', 'must-visit', 'budget travel', 'off the beaten path'], thumbnailStyle: 'stunning landscape/cityscape shots, vibrant colors, wanderlust-inducing imagery, location text overlay', seoFocus: 'destination name, travel guide, things to do in, budget tips, best time to visit' },
+  finance: { audienceType: 'investors, entrepreneurs, and financially curious', contentStyle: 'authoritative, data-driven, actionable', terminology: ['ROI', 'compound interest', 'portfolio', 'bull/bear market', 'diversify', 'passive income'], thumbnailStyle: 'charts/graphs, money imagery, professional headshots, green/gold accents, numbers callouts', seoFocus: 'stock name, investing strategy, money tips, passive income, financial literacy terms' },
+  crafts: { audienceType: 'DIY enthusiasts and makers', contentStyle: 'hands-on, process-focused, satisfying', terminology: ['DIY', 'handmade', 'upcycle', 'project', 'makeover', 'transformation'], thumbnailStyle: 'before/after transformations, process shots, satisfying results, warm workshop lighting', seoFocus: 'DIY + project type, how to make, home improvement, craft type, material name' },
+  automotive: { audienceType: 'car enthusiasts and gearheads', contentStyle: 'passionate, detailed, performance-focused', terminology: ['horsepower', 'torque', 'mod', 'build', 'dyno', 'exhaust note', 'spec'], thumbnailStyle: 'dramatic car angles, action shots, before/after mods, spec callouts, motorsport aesthetic', seoFocus: 'car make/model, modification type, vs comparison, review, build progress' },
+  sports: { audienceType: 'sports fans and analysts', contentStyle: 'analytical, passionate, highlight-driven', terminology: ['highlights', 'breakdown', 'analysis', 'draft pick', 'trade', 'clutch moment'], thumbnailStyle: 'action shots, player close-ups, score graphics, team colors, dramatic moments', seoFocus: 'team/player name, game highlights, analysis, predictions, season/week specific' },
+  news: { audienceType: 'informed citizens and news followers', contentStyle: 'timely, factual, commentary-driven', terminology: ['breaking', 'developing', 'analysis', 'report', 'exclusive'], thumbnailStyle: 'newsroom aesthetic, text-heavy headlines, urgent red accents, professional headshots', seoFocus: 'topic + today/2026, breaking news, latest update, analysis, explained' },
+  science: { audienceType: 'science enthusiasts and curious learners', contentStyle: 'fascinating, educational, evidence-based', terminology: ['hypothesis', 'experiment', 'data', 'peer-reviewed', 'breakthrough'], thumbnailStyle: 'stunning visuals (space, microscopy), clean infographics, "mind-blown" expressions, wonder-inducing', seoFocus: 'topic + explained, how does X work, science behind, new discovery, experiment' },
+  art: { audienceType: 'artists and creative community', contentStyle: 'creative, process-focused, inspirational', terminology: ['composition', 'palette', 'technique', 'commission', 'timelapse', 'WIP'], thumbnailStyle: 'finished artwork showcase, process comparison, vibrant colors, artist at work', seoFocus: 'art style, medium (digital/traditional), character/subject, speedpaint, tutorial' },
+  photography: { audienceType: 'photographers and visual storytellers', contentStyle: 'visual, technical, gear-focused', terminology: ['aperture', 'ISO', 'focal length', 'golden hour', 'bokeh', 'composition'], thumbnailStyle: 'stunning photo examples, before/after edits, gear shots, technical overlays', seoFocus: 'camera/lens model, photography type, editing technique, tips for beginners' },
+  pets: { audienceType: 'pet owners and animal lovers', contentStyle: 'heartwarming, cute, informative', terminology: ['rescue', 'adoption', 'training', 'breed', 'vet visit', 'zoomies'], thumbnailStyle: 'adorable animal close-ups, funny pet expressions, heartwarming moments, bright cheerful colors', seoFocus: 'pet breed/species, training tips, pet care, funny animals, rescue stories' },
+  asmr: { audienceType: 'relaxation and sleep seekers', contentStyle: 'calming, intimate, sensory-focused', terminology: ['triggers', 'tingles', 'tapping', 'whispering', 'no talking', 'sleep'], thumbnailStyle: 'close-up trigger objects, soft lighting, pastel colors, cozy aesthetic, ear-to-ear imagery', seoFocus: 'ASMR + trigger type, sleep ASMR, relaxing, no talking, specific trigger keywords' },
+  reaction: { audienceType: 'entertainment seekers who enjoy shared experiences', contentStyle: 'expressive, conversational, personality-driven', terminology: ['first time', 'reacting to', 'commentary', 'breakdown', 'my thoughts'], thumbnailStyle: 'split-screen with source material, exaggerated expressions, colorful borders, reaction faces', seoFocus: 'reaction + source content name, first time watching, responding to, commentary on' },
+  general: { audienceType: 'general audience', contentStyle: 'versatile and engaging', terminology: [], thumbnailStyle: 'clear subject focus, readable text, high contrast, professional composition', seoFocus: 'topic-specific keywords, trending terms, how-to and guide keywords' },
+};
+
+const KNOWN_GAMES: Record<string, string[]> = {
+  'Fortnite': ['fortnite', 'battle royale fortnite', 'fortnite chapter'],
+  'Call of Duty': ['call of duty', 'cod', 'warzone', 'modern warfare', 'black ops'],
+  'Minecraft': ['minecraft', 'mc server', 'survival minecraft'],
+  'Apex Legends': ['apex legends', 'apex'],
+  'Valorant': ['valorant', 'valo'],
+  'League of Legends': ['league of legends', 'lol ranked', 'league'],
+  'GTA V': ['gta', 'gta v', 'gta 5', 'gta online', 'grand theft auto'],
+  'Elden Ring': ['elden ring', 'lands between'],
+  "Baldur's Gate 3": ["baldur's gate", 'bg3'],
+  'Helldivers 2': ['helldivers', 'helldivers 2'],
+  'Counter-Strike 2': ['counter-strike', 'cs2', 'csgo', 'cs:go'],
+  'Overwatch 2': ['overwatch', 'ow2'],
+  'Rocket League': ['rocket league'],
+  'Destiny 2': ['destiny 2', 'destiny'],
+  'FIFA': ['fifa', 'ea fc', 'ea sports fc'],
+  'NBA 2K': ['nba 2k', '2k25', '2k24'],
+  'Madden': ['madden'],
+  'Spider-Man 2': ['spider-man', 'spiderman'],
+  'God of War': ['god of war', 'ragnarok'],
+  'Zelda': ['zelda', 'tears of the kingdom', 'breath of the wild', 'totk', 'botw'],
+  'Palworld': ['palworld'],
+  'Roblox': ['roblox'],
+  'Diablo IV': ['diablo', 'diablo iv', 'diablo 4'],
+  'Final Fantasy': ['final fantasy', 'ffxiv', 'ff14', 'ff7'],
+  'Pokemon': ['pokemon', 'pokémon'],
+};
+
+export function detectContentContext(title: string, description?: string | null, category?: string | null, metadata?: any): ContentContext {
   const text = `${title} ${description || ''} ${category || ''}`.toLowerCase();
-  const explicitGame = metadata?.gameName;
-  if (explicitGame) {
-    return { isGaming: true, gameName: explicitGame, brandKeywords: metadata?.brandKeywords || [] };
-  }
+  const brandKeywords: string[] = metadata?.brandKeywords || [];
 
-  const gamingSignals = [
-    'gameplay', 'playthrough', 'walkthrough', 'speedrun', 'let\'s play',
-    'gaming', 'stream', 'live stream', 'ranked', 'competitive', 'multiplayer',
-    'co-op', 'boss fight', 'raid', 'pvp', 'pve', 'esports', 'tournament',
-    'highlights', 'montage', 'clutch', 'win', 'victory royale', 'battle royale',
-  ];
-  const isGaming = category?.toLowerCase() === 'gaming' ||
-    gamingSignals.some(s => text.includes(s));
-
-  const knownGames: Record<string, string[]> = {
-    'Fortnite': ['fortnite', 'battle royale fortnite', 'fortnite chapter'],
-    'Call of Duty': ['call of duty', 'cod', 'warzone', 'modern warfare', 'black ops'],
-    'Minecraft': ['minecraft', 'mc server', 'survival minecraft'],
-    'Apex Legends': ['apex legends', 'apex'],
-    'Valorant': ['valorant', 'valo'],
-    'League of Legends': ['league of legends', 'lol ranked', 'league'],
-    'GTA V': ['gta', 'gta v', 'gta 5', 'gta online', 'grand theft auto'],
-    'Elden Ring': ['elden ring', 'lands between'],
-    'Baldur\'s Gate 3': ['baldur\'s gate', 'bg3'],
-    'Helldivers 2': ['helldivers', 'helldivers 2'],
-    'Counter-Strike 2': ['counter-strike', 'cs2', 'csgo', 'cs:go'],
-    'Overwatch 2': ['overwatch', 'ow2'],
-    'Rocket League': ['rocket league'],
-    'Destiny 2': ['destiny 2', 'destiny'],
-    'FIFA': ['fifa', 'ea fc', 'ea sports fc'],
-    'NBA 2K': ['nba 2k', '2k25', '2k24'],
-    'Madden': ['madden'],
-    'Spider-Man 2': ['spider-man', 'spiderman'],
-    'God of War': ['god of war', 'ragnarok'],
-    'Zelda': ['zelda', 'tears of the kingdom', 'breath of the wild', 'totk', 'botw'],
-    'Palworld': ['palworld'],
-    'Roblox': ['roblox'],
-    'Diablo IV': ['diablo', 'diablo iv', 'diablo 4'],
-    'Final Fantasy': ['final fantasy', 'ffxiv', 'ff14', 'ff7'],
-    'Pokemon': ['pokemon', 'pokémon'],
-  };
-
-  let detectedGame: string | null = null;
-  for (const [game, patterns] of Object.entries(knownGames)) {
-    if (patterns.some(p => text.includes(p))) {
-      detectedGame = game;
-      break;
+  if (metadata?.contentNiche) {
+    const niche = metadata.contentNiche as ContentNiche;
+    const config = NICHE_CONFIG[niche] || NICHE_CONFIG.general;
+    let gameName: string | null = null;
+    if (niche === 'gaming') {
+      gameName = metadata?.gameName || detectGameName(text);
     }
+    return {
+      niche,
+      subNiche: metadata?.subNiche || null,
+      isGaming: niche === 'gaming',
+      gameName,
+      topicName: metadata?.topicName || gameName || null,
+      brandKeywords,
+      nicheTerminology: config.terminology,
+      audienceType: config.audienceType,
+      contentStyle: config.contentStyle,
+    };
   }
+
+  const nicheScores: { niche: ContentNiche; score: number }[] = [];
+  for (const [niche, signals] of Object.entries(NICHE_SIGNALS)) {
+    if (niche === 'general') continue;
+    const score = signals.filter(s => text.includes(s)).length;
+    if (score > 0) nicheScores.push({ niche: niche as ContentNiche, score });
+  }
+  nicheScores.sort((a, b) => b.score - a.score);
+
+  if (category) {
+    const catLower = category.toLowerCase();
+    for (const niche of Object.keys(NICHE_SIGNALS) as ContentNiche[]) {
+      if (catLower === niche || catLower.includes(niche)) {
+        const existing = nicheScores.find(n => n.niche === niche);
+        if (existing) existing.score += 5;
+        else nicheScores.push({ niche, score: 5 });
+      }
+    }
+    nicheScores.sort((a, b) => b.score - a.score);
+  }
+
+  const detectedNiche: ContentNiche = nicheScores.length > 0 ? nicheScores[0].niche : 'general';
+  const config = NICHE_CONFIG[detectedNiche] || NICHE_CONFIG.general;
+
+  let gameName: string | null = null;
+  if (detectedNiche === 'gaming') {
+    gameName = metadata?.gameName || detectGameName(text);
+  }
+
+  const topicName = gameName || extractTopicName(text, detectedNiche);
 
   return {
-    isGaming: isGaming || !!detectedGame,
-    gameName: detectedGame,
-    brandKeywords: metadata?.brandKeywords || [],
+    niche: detectedNiche,
+    subNiche: nicheScores.length > 1 ? nicheScores[1].niche : null,
+    isGaming: detectedNiche === 'gaming',
+    gameName,
+    topicName,
+    brandKeywords,
+    nicheTerminology: config.terminology,
+    audienceType: config.audienceType,
+    contentStyle: config.contentStyle,
   };
 }
 
-export function buildGamingPromptSection(ctx: { isGaming: boolean; gameName: string | null; brandKeywords: string[] }): string {
-  if (!ctx.isGaming) return '';
-  let section = '\n\nGAMING CONTENT REQUIREMENTS (CRITICAL):';
-  if (ctx.gameName) {
-    section += `\n- This content features the game "${ctx.gameName}". ALL SEO, tags, titles, descriptions, and thumbnails MUST reference "${ctx.gameName}" by name.`;
-    section += `\n- Use game-specific terminology, characters, maps, weapons, mechanics, and community lingo for "${ctx.gameName}".`;
-    section += `\n- Tags MUST include the game name and related search terms players actually search for.`;
-    section += `\n- Thumbnail should visually reference "${ctx.gameName}" - include recognizable game art style, color palette, characters, or iconic UI elements.`;
-  } else {
-    section += '\n- This appears to be gaming content. Ensure SEO and thumbnails reflect gaming aesthetics and terminology.';
+function detectGameName(text: string): string | null {
+  for (const [game, patterns] of Object.entries(KNOWN_GAMES)) {
+    if (patterns.some(p => text.includes(p))) return game;
   }
+  return null;
+}
+
+function extractTopicName(text: string, niche: ContentNiche): string | null {
+  const topicPatterns: Partial<Record<ContentNiche, Record<string, string[]>>> = {
+    cooking: { 'pasta': ['pasta', 'spaghetti', 'penne', 'fettuccine'], 'baking': ['cake', 'cookies', 'bread', 'pastry'], 'grilling': ['grill', 'bbq', 'barbecue', 'smoke'] },
+    tech: { 'iPhone': ['iphone'], 'Android': ['android', 'pixel', 'galaxy'], 'PC': ['pc build', 'custom pc'], 'AI': ['ai', 'chatgpt', 'artificial intelligence'] },
+    fitness: { 'Weightlifting': ['bench press', 'squat', 'deadlift'], 'Running': ['marathon', 'running', 'jogging'], 'Yoga': ['yoga', 'flexibility'] },
+  };
+
+  const patterns = topicPatterns[niche];
+  if (!patterns) return null;
+  for (const [topic, signals] of Object.entries(patterns)) {
+    if (signals.some(s => text.includes(s))) return topic;
+  }
+  return null;
+}
+
+export function detectGamingContext(title: string, description?: string | null, category?: string | null, metadata?: any): ContentContext {
+  return detectContentContext(title, description, category, metadata);
+}
+
+export function buildContentPromptSection(ctx: ContentContext): string {
+  const config = NICHE_CONFIG[ctx.niche] || NICHE_CONFIG.general;
+  let section = '';
+
+  if (ctx.niche !== 'general') {
+    section += `\n\nCONTENT NICHE: ${ctx.niche.toUpperCase()} (CRITICAL):`;
+    section += `\n- Target audience: ${config.audienceType}`;
+    section += `\n- Content style: ${config.contentStyle}`;
+
+    if (ctx.topicName) {
+      section += `\n- Specific topic/subject: "${ctx.topicName}". ALL SEO, tags, titles, descriptions, and thumbnails MUST reference "${ctx.topicName}" by name.`;
+      section += `\n- Use niche-specific terminology and community language relevant to "${ctx.topicName}".`;
+    }
+
+    if (ctx.isGaming && ctx.gameName) {
+      section += `\n- This content features the game "${ctx.gameName}". Use game-specific terminology, characters, maps, weapons, mechanics, and community lingo.`;
+      section += `\n- Tags MUST include the game name and related search terms players actually search for.`;
+    }
+
+    section += `\n- Thumbnail style: ${config.thumbnailStyle}`;
+    section += `\n- SEO focus: ${config.seoFocus}`;
+
+    if (config.terminology.length > 0) {
+      section += `\n- Use niche terminology naturally: ${config.terminology.slice(0, 5).join(', ')}`;
+    }
+  }
+
   if (ctx.brandKeywords.length > 0) {
-    section += `\n\nBRAND ALIGNMENT: The creator's brand keywords are: ${ctx.brandKeywords.join(', ')}. All output must align with this brand identity - maintain consistent voice, visual style, and messaging.`;
+    section += `\n\nBRAND ALIGNMENT: The creator's brand keywords are: ${ctx.brandKeywords.join(', ')}. All output must align with this brand identity.`;
   }
-  section += '\n- Gaming thumbnails should: use high-energy compositions, include in-game action shots or recognizable game imagery, use bold contrasting colors, feature dramatic moments or reactions.';
-  section += '\n- Gaming SEO should: target game-specific long-tail keywords, include game version/season/update info, reference trending community topics, use gaming community hashtags.';
+
   return section;
+}
+
+export function buildGamingPromptSection(ctx: ContentContext): string {
+  return buildContentPromptSection(ctx);
+}
+
+export function getNicheLabel(ctx: ContentContext): string {
+  if (ctx.isGaming) return ctx.gameName ? `${ctx.gameName} gaming` : 'gaming';
+  if (ctx.topicName) return `${ctx.topicName} ${ctx.niche}`;
+  return ctx.niche;
+}
+
+export function getNicheAudienceLabel(ctx: ContentContext): string {
+  return NICHE_CONFIG[ctx.niche]?.audienceType || 'general audience';
 }
 
 async function getCreatorContext(userId?: string): Promise<string> {
@@ -107,8 +258,9 @@ export async function generateVideoMetadata(video: {
   platform?: string;
 }, userId?: string) {
   const platformName = video.platform || 'youtube';
-  const gamingCtx = detectGamingContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
-  const gamingSection = buildGamingPromptSection(gamingCtx);
+  const contentCtx = detectContentContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
+  const contentSection = buildContentPromptSection(contentCtx);
+  const nicheLabel = getNicheLabel(contentCtx);
   const creatorContext = await getCreatorContext(userId);
 
   let learnedKeywordCtx = "";
@@ -145,11 +297,12 @@ Apply these proven retention patterns to ALL content. Every video must hook in f
 Video Title: "${video.title}"
 Video Type: ${video.type}
 Platform: ${platformName}
+Content Niche: ${nicheLabel}
 Current Description: "${video.description || 'None provided'}"
 Current Tags: ${video.metadata?.tags?.join(', ') || 'None'}
-${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
-${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
-${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}${retentionContext}
+${contentCtx.topicName ? `Topic/Subject: "${contentCtx.topicName}"` : ''}
+${contentCtx.niche !== 'general' ? `Content Category: ${contentCtx.niche}` : ''}
+${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}${retentionContext}
 
 RETENTION RULES (MANDATORY):
 - Title MUST create a curiosity gap or promise a specific outcome
@@ -165,31 +318,31 @@ SEO RULES (MANDATORY):
 
 Provide your response as JSON with exactly these fields:
 {
-  "titleHooks": ["3 title variants using different psychological hooks - one curiosity gap, one specific outcome promise, one pattern interrupt. Each must be under 70 characters, include primary keyword in first 60 chars. Optimized for ${platformName}${gamingCtx.gameName ? ` and referencing ${gamingCtx.gameName}` : ''}"],
+  "titleHooks": ["3 title variants using different psychological hooks - one curiosity gap, one specific outcome promise, one pattern interrupt. Each must be under 70 characters, include primary keyword in first 60 chars. Optimized for ${platformName} ${nicheLabel} content${contentCtx.topicName ? ` and referencing ${contentCtx.topicName}` : ''}"],
   "titleAnalysis": {
     "bestTitle": "Which of the 3 titles would perform best and why (1 sentence)",
     "hookType": "curiosity_gap | outcome_promise | pattern_interrupt | listicle | challenge",
     "estimatedCTR": "estimated CTR range like 4-8%"
   },
-  "descriptionTemplate": "An optimized description starting with a compelling hook sentence that makes viewers click. Then 2-3 keyword-rich sentences about the content. Then actual chapter timestamps (e.g., 0:00 Intro, 1:30 First Topic, 3:45 Main Discussion - NEVER use placeholders). Then a clear CTA. Include 3-5 relevant hashtags. After the main description, add on separate lines: 'https://etgaming247.com' then 'Catch the live streams on Twitch & Kick' then 'Clips & highlights on TikTok' then 'Updates & hot takes on X' then 'Join the community on Discord'. End with: 'Managed with CreatorOS'.${gamingCtx.gameName ? ` Must reference ${gamingCtx.gameName} with game-specific keywords.` : ''}",
+  "descriptionTemplate": "An optimized description starting with a compelling hook sentence that makes viewers click. Then 2-3 keyword-rich sentences about the content. Then actual chapter timestamps (e.g., 0:00 Intro, 1:30 First Topic, 3:45 Main Discussion - NEVER use placeholders). Then a clear CTA. Include 3-5 relevant hashtags. After the main description, add on separate lines: 'https://etgaming247.com' then 'Catch the live streams on Twitch & Kick' then 'Clips & highlights on TikTok' then 'Updates & hot takes on X' then 'Join the community on Discord'. End with: 'Managed with CreatorOS'.${contentCtx.topicName ? ` Must reference ${contentCtx.topicName} with niche-specific keywords.` : ''}",
   "retentionBrief": {
     "hookStrategy": "Specific first-3-second hook strategy for this video",
     "reHookAt30s": "What to say/show at 30 seconds to prevent drop-off",
     "curiosityLoops": ["3 curiosity loops to plant throughout the video that keep viewers watching"],
-    "pacingNotes": "Specific pacing advice for this content type",
+    "pacingNotes": "Specific pacing advice for this ${nicheLabel} content type",
     "endScreenStrategy": "How to drive viewers to next video or subscription"
   },
-  "thumbnailCritique": "Specific actionable advice: composition rule (rule of thirds, centered subject), text overlay (max 4 words, 80pt+ font), color theory (complementary colors, 3-color max), emotional expression, contrast ratio. ${gamingCtx.isGaming ? 'Gaming-specific: show recognizable game imagery, dramatic moment, reaction face.' : ''}${gamingCtx.gameName ? ` Visual reference to ${gamingCtx.gameName}.` : ''}",
-  "thumbnailVariants": ["3 thumbnail concepts described in detail - one reaction-based, one text-heavy, one cinematic/game-scene"],
-  "seoRecommendations": ["7 specific SEO improvements ranked by impact. Include keyword density targets, search volume insights, competitor gap analysis, and trend alignment for ${platformName}${gamingCtx.gameName ? ` targeting ${gamingCtx.gameName} audience` : ''}"],
+  "thumbnailCritique": "Specific actionable advice: composition rule (rule of thirds, centered subject), text overlay (max 4 words, 80pt+ font), color theory (complementary colors, 3-color max), emotional expression, contrast ratio. ${contentCtx.topicName ? `Visual reference to ${contentCtx.topicName}.` : `Optimized for ${nicheLabel} content.`}",
+  "thumbnailVariants": ["3 thumbnail concepts described in detail, each tailored to ${nicheLabel} audience expectations"],
+  "seoRecommendations": ["7 specific SEO improvements ranked by impact. Include keyword density targets, search volume insights, competitor gap analysis, and trend alignment for ${platformName} ${nicheLabel} content${contentCtx.topicName ? ` targeting ${contentCtx.topicName} audience` : ''}"],
   "complianceNotes": ["Any ${platformName} ToS concerns or best practices"],
-  "suggestedTags": ["15 tags ordered by search volume and relevance. Mix of: head terms (1-2 words, high volume), long-tail (3-5 words, high intent), trending, and niche-specific${gamingCtx.gameName ? `. Must include ${gamingCtx.gameName} variations` : ''}"],
+  "suggestedTags": ["15 tags ordered by search volume and relevance. Mix of: head terms (1-2 words, high volume), long-tail (3-5 words, high intent), trending, and niche-specific for ${nicheLabel}${contentCtx.topicName ? `. Must include ${contentCtx.topicName} variations` : ''}"],
   "seoScore": 75,
   "contentBrief": {
-    "idealLength": "Recommended video length with reasoning",
+    "idealLength": "Recommended video length with reasoning for ${nicheLabel} content",
     "structureBeats": ["Ordered list of content beats/sections with timing for maximum retention"],
     "keyMoments": ["3 key moments to timestamp for YouTube chapters and key moments in search"]
-  }${gamingCtx.gameName ? `,\n  "detectedGame": "${gamingCtx.gameName}"` : ''}
+  }${contentCtx.topicName ? `,\n  "detectedTopic": "${contentCtx.topicName}"` : ''}${contentCtx.niche !== 'general' ? `,\n  "contentNiche": "${contentCtx.niche}"` : ''}
 }`;
 
   const response = await openai.chat.completions.create({
@@ -404,35 +557,36 @@ export async function generateStreamSeo(streamData: {
   brandKeywords?: string[];
 }, userId?: string) {
   const platformList = streamData.platforms.join(', ');
-  const gamingCtx = detectGamingContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
-  const gamingSection = buildGamingPromptSection(gamingCtx);
+  const contentCtx = detectContentContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
+  const nicheLabel = getNicheLabel(contentCtx);
+  const contentSection = buildContentPromptSection(contentCtx);
   const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a live streaming SEO expert. Optimize this stream for maximum discoverability across multiple platforms.
 
 Stream Title: "${streamData.title}"
 Description: "${streamData.description || 'Not provided'}"
-Category: "${streamData.category || 'Gaming'}"
+Category: "${streamData.category || contentCtx.niche}"
 Target Platforms: ${platformList}
-${gamingCtx.gameName ? `Game Being Played: "${gamingCtx.gameName}"` : ''}
-${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
+${contentCtx.topicName ? `Topic/Subject: "${contentCtx.topicName}"` : ''}
+${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Provide your response as JSON:
 {
-  "optimizedTitle": "An optimized stream title that works across all platforms - attention-grabbing, clear, with relevant keywords${gamingCtx.gameName ? `. MUST include ${gamingCtx.gameName} in the title` : ''}",
-  "optimizedDescription": "A compelling description with keywords, call-to-action, schedule info placeholder, and social links placeholder${gamingCtx.gameName ? `. Must reference ${gamingCtx.gameName} and include game-specific details` : ''}",
-  "tags": ["15 relevant tags for discoverability${gamingCtx.gameName ? ` - must include ${gamingCtx.gameName} and game-specific terms` : ''}"],
-  "thumbnailPrompt": "A detailed description for generating an eye-catching stream thumbnail${gamingCtx.gameName ? ` featuring ${gamingCtx.gameName} game elements, characters, or environments` : ''} - include colors, composition, text overlay suggestions, and mood${gamingCtx.isGaming ? '. Use high-energy gaming aesthetic with the game\'s visual identity' : ''}",
+  "optimizedTitle": "An optimized stream title that works across all platforms - attention-grabbing, clear, with relevant keywords${contentCtx.topicName ? `. MUST include ${contentCtx.topicName} in the title` : ''}",
+  "optimizedDescription": "A compelling description with keywords, call-to-action, schedule info placeholder, and social links placeholder${contentCtx.topicName ? `. Must reference ${contentCtx.topicName} and include niche-specific details` : ''}",
+  "tags": ["15 relevant tags for discoverability${contentCtx.topicName ? ` - must include ${contentCtx.topicName} and related ${contentCtx.niche} terms` : ''}"],
+  "thumbnailPrompt": "A detailed description for generating an eye-catching stream thumbnail${contentCtx.topicName ? ` featuring ${contentCtx.topicName} visual elements and themes` : ''} - include colors, composition, text overlay suggestions, and mood${contentCtx.niche !== 'general' ? `. Use ${nicheLabel}-appropriate aesthetic and visual identity` : ''}",
   "platformSpecific": {
-${streamData.platforms.map(p => `    "${p}": { "title": "Platform-optimized title for ${p}${gamingCtx.gameName ? ` featuring ${gamingCtx.gameName}` : ''}", "description": "Platform-specific description for ${p}", "tags": ["5 platform-specific tags${gamingCtx.gameName ? ` related to ${gamingCtx.gameName}` : ''}"] }`).join(',\n')}
+${streamData.platforms.map(p => `    "${p}": { "title": "Platform-optimized title for ${p}${contentCtx.topicName ? ` featuring ${contentCtx.topicName}` : ''}", "description": "Platform-specific description for ${p}", "tags": ["5 platform-specific tags${contentCtx.topicName ? ` related to ${contentCtx.topicName}` : ''}"] }`).join(',\n')}
   }
 }
 
 Focus on:
-- Click-worthy but honest titles${gamingCtx.gameName ? ` that reference ${gamingCtx.gameName}` : ''}
+- Click-worthy but honest titles${contentCtx.topicName ? ` that reference ${contentCtx.topicName}` : ''}
 - Platform-specific SEO best practices
-- Keywords that drive live viewership${gamingCtx.isGaming ? ' in the gaming category' : ''}
-- Urgency/FOMO elements for live content${gamingCtx.gameName ? `\n- Game-specific trending topics and community terms for ${gamingCtx.gameName}` : ''}`;
+- Keywords that drive live viewership${contentCtx.niche !== 'general' ? ` in the ${contentCtx.niche} category` : ''}
+- Urgency/FOMO elements for live content${contentCtx.topicName ? `\n- Trending topics and community terms for ${contentCtx.topicName}` : ''}`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-5-mini",
@@ -456,31 +610,32 @@ export async function postStreamOptimize(streamData: {
   gameName?: string | null;
   brandKeywords?: string[];
 }, userId?: string) {
-  const gamingCtx = detectGamingContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
-  const gamingSection = buildGamingPromptSection(gamingCtx);
+  const contentCtx = detectContentContext(streamData.title, streamData.description, streamData.category, { gameName: streamData.gameName, brandKeywords: streamData.brandKeywords });
+  const nicheLabel = getNicheLabel(contentCtx);
+  const contentSection = buildContentPromptSection(contentCtx);
   const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a VOD optimization expert. This live stream just ended and needs to be optimized for on-demand viewing.
 
 Original Stream Title: "${streamData.title}"
 Stream Description: "${streamData.description || 'Not provided'}"
-Category: "${streamData.category || 'Gaming'}"
+Category: "${streamData.category || contentCtx.niche}"
 Platforms: ${streamData.platforms.join(', ')}
 Duration: ${streamData.duration ? `${Math.round(streamData.duration / 60)} minutes` : 'Unknown'}
 ${streamData.stats ? `Stats: Peak viewers: ${streamData.stats.peakViewers || 'N/A'}, Avg viewers: ${streamData.stats.avgViewers || 'N/A'}` : ''}
-${gamingCtx.gameName ? `Game Played: "${gamingCtx.gameName}"` : ''}
-${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
+${contentCtx.topicName ? `Topic/Subject: "${contentCtx.topicName}"` : ''}
+${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Rewrite and optimize for VOD performance as JSON:
 {
-  "vodTitle": "An optimized title for the VOD version - should be search-friendly and compelling for on-demand viewers${gamingCtx.gameName ? `. MUST include ${gamingCtx.gameName} in the title` : ''}",
-  "vodDescription": "A full description with actual chapter timestamps written out based on stream content (e.g., 0:00 Stream Start, 5:30 First Game, 15:00 Highlights - never use placeholders), keywords, engagement hooks, and calls to action${gamingCtx.gameName ? `. Must reference ${gamingCtx.gameName} with game-specific keywords` : ''}",
-  "tags": ["15 tags optimized for VOD search${gamingCtx.gameName ? ` - must include ${gamingCtx.gameName} and related game terms` : ''}"],
-  "thumbnailPrompt": "A detailed prompt for generating a click-worthy VOD thumbnail different from the live thumbnail${gamingCtx.gameName ? ` featuring ${gamingCtx.gameName} game visuals, characters, or epic moments from gameplay` : ''} - include composition, text overlay, colors, and emotional hooks${gamingCtx.isGaming ? '. Match the game\'s visual identity and color palette' : ''}",
+  "vodTitle": "An optimized title for the VOD version - should be search-friendly and compelling for on-demand viewers${contentCtx.topicName ? `. MUST include ${contentCtx.topicName} in the title` : ''}",
+  "vodDescription": "A full description with actual chapter timestamps written out based on stream content (e.g., 0:00 Stream Start, 5:30 First Game, 15:00 Highlights - never use placeholders), keywords, engagement hooks, and calls to action${contentCtx.topicName ? `. Must reference ${contentCtx.topicName} with niche-specific keywords` : ''}",
+  "tags": ["15 tags optimized for VOD search${contentCtx.topicName ? ` - must include ${contentCtx.topicName} and related ${contentCtx.niche} terms` : ''}"],
+  "thumbnailPrompt": "A detailed prompt for generating a click-worthy VOD thumbnail different from the live thumbnail${contentCtx.topicName ? ` featuring ${contentCtx.topicName} visuals, themes, or standout moments` : ''} - include composition, text overlay, colors, and emotional hooks${contentCtx.niche !== 'general' ? `. Match the ${nicheLabel} visual identity and color palette` : ''}",
   "seoScore": 80,
-  "recommendations": ["5 specific things to do with this VOD to maximize views${gamingCtx.gameName ? ` in the ${gamingCtx.gameName} community` : ''}"],
+  "recommendations": ["5 specific things to do with this VOD to maximize views${contentCtx.topicName ? ` in the ${contentCtx.topicName} community` : ''}"],
   "platformSpecific": {
-${streamData.platforms.map(p => `    "${p}": { "title": "VOD title for ${p}${gamingCtx.gameName ? ` referencing ${gamingCtx.gameName}` : ''}", "description": "VOD description for ${p}", "tags": ["5 tags for ${p}${gamingCtx.gameName ? ` including ${gamingCtx.gameName}` : ''}"] }`).join(',\n')}
+${streamData.platforms.map(p => `    "${p}": { "title": "VOD title for ${p}${contentCtx.topicName ? ` referencing ${contentCtx.topicName}` : ''}", "description": "VOD description for ${p}", "tags": ["5 tags for ${p}${contentCtx.topicName ? ` including ${contentCtx.topicName}` : ''}"] }`).join(',\n')}
   }
 }`;
 
@@ -505,8 +660,9 @@ export async function generateThumbnailPrompt(data: {
   category?: string | null;
   brandKeywords?: string[];
 }, userId?: string) {
-  const gamingCtx = detectGamingContext(data.title, data.description, data.category, { gameName: data.gameName, brandKeywords: data.brandKeywords });
-  const gamingSection = buildGamingPromptSection(gamingCtx);
+  const contentCtx = detectContentContext(data.title, data.description, data.category, { gameName: data.gameName, brandKeywords: data.brandKeywords });
+  const nicheLabel = getNicheLabel(contentCtx);
+  const contentSection = buildContentPromptSection(contentCtx);
   const creatorContext = await getCreatorContext(userId);
 
   const prompt = `You are a thumbnail design expert for ${data.platform || 'YouTube'}. Create a detailed image generation prompt for a high-performing thumbnail.
@@ -515,16 +671,16 @@ Content Title: "${data.title}"
 Description: "${data.description || 'Not provided'}"
 Content Type: ${data.type || 'video'}
 Platform: ${data.platform || 'youtube'}
-${gamingCtx.gameName ? `Game: "${gamingCtx.gameName}"` : ''}
-${gamingCtx.isGaming ? `Content Category: Gaming` : ''}
-${gamingSection}${creatorContext ? `\n\n${creatorContext}` : ''}
+${contentCtx.topicName ? `Topic/Subject: "${contentCtx.topicName}"` : ''}
+${contentCtx.niche !== 'general' ? `Content Category: ${contentCtx.niche}` : ''}
+${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Create a detailed, photorealistic image generation prompt as JSON:
 {
-  "prompt": "A detailed, specific image generation prompt that will create a professional, click-worthy thumbnail.${gamingCtx.gameName ? ` The thumbnail MUST visually reference ${gamingCtx.gameName} - use recognizable game characters, environments, weapons, or visual motifs from the game. The color palette should match ${gamingCtx.gameName}'s aesthetic.` : ''} Include: specific visual composition, color scheme (high contrast), text overlay suggestions (as visual elements), emotional hooks, facial expressions if applicable, background style, lighting, and any platform-specific sizing considerations.${gamingCtx.isGaming ? ' For gaming content: feature dramatic in-game action, use high-energy compositions, show epic moments, victories, or intense gameplay scenes.' : ''} The prompt should produce a thumbnail that stands out in a crowded feed.",
-  "style": "The overall visual style${gamingCtx.isGaming ? ' (should match the game\'s aesthetic - e.g., dark/gritty for horror games, colorful for casual games, tactical for FPS games)' : ' (e.g., cinematic, bold, minimalist, energetic)'}",
-  "dominantColors": ["3 hex color codes that should dominate the thumbnail${gamingCtx.gameName ? ` - should align with ${gamingCtx.gameName}'s brand colors` : ''}"],
-  "textOverlay": "Suggested text to overlay on the thumbnail (keep it to 3-5 words maximum${gamingCtx.gameName ? ` - reference ${gamingCtx.gameName} or game-specific terms` : ''})"
+  "prompt": "A detailed, specific image generation prompt that will create a professional, click-worthy thumbnail.${contentCtx.topicName ? ` The thumbnail MUST visually reference ${contentCtx.topicName} - use recognizable visual elements, themes, and motifs associated with ${contentCtx.topicName}. The color palette should match the ${nicheLabel} aesthetic.` : ''} Include: specific visual composition, color scheme (high contrast), text overlay suggestions (as visual elements), emotional hooks, facial expressions if applicable, background style, lighting, and any platform-specific sizing considerations.${contentCtx.niche !== 'general' ? ` For ${contentCtx.niche} content: use ${contentCtx.contentStyle} compositions that resonate with ${contentCtx.audienceType}.` : ''} The prompt should produce a thumbnail that stands out in a crowded feed.",
+  "style": "The overall visual style${contentCtx.niche !== 'general' ? ` (should match the ${nicheLabel} aesthetic and visual conventions of ${contentCtx.niche} content)` : ' (e.g., cinematic, bold, minimalist, energetic)'}",
+  "dominantColors": ["3 hex color codes that should dominate the thumbnail${contentCtx.topicName ? ` - should align with ${contentCtx.topicName}'s visual identity` : ''}"],
+  "textOverlay": "Suggested text to overlay on the thumbnail (keep it to 3-5 words maximum${contentCtx.topicName ? ` - reference ${contentCtx.topicName} or niche-specific terms` : ''})"
 }`;
 
   const response = await openai.chat.completions.create({
@@ -562,26 +718,27 @@ export async function runAgentTask(agentId: string, context: {
   brandKeywords?: string[];
 }, userId?: string) {
   const role = AGENT_ROLES[agentId] || "AI assistant";
-  const gamingCtx = detectGamingContext(
+  const contentCtx = detectContentContext(
     context.recentTitles.join(' '),
     null,
     context.contentCategory,
     { gameName: context.gameName, brandKeywords: context.brandKeywords }
   );
+  const nicheLabel = getNicheLabel(contentCtx);
 
-  let gamingInstructions = '';
-  if (gamingCtx.isGaming) {
-    gamingInstructions = `\n\nIMPORTANT - GAMING CONTENT CONTEXT:`;
-    if (gamingCtx.gameName) {
-      gamingInstructions += `\n- The channel primarily features "${gamingCtx.gameName}" content.`;
-      gamingInstructions += `\n- All recommendations, titles, tags, thumbnails, and strategies MUST be tailored to "${gamingCtx.gameName}" and its community.`;
-      gamingInstructions += `\n- Use game-specific terminology, meta strategies, character/weapon names, and community trends for "${gamingCtx.gameName}".`;
+  let nicheInstructions = '';
+  if (contentCtx.niche !== 'general') {
+    nicheInstructions = `\n\nIMPORTANT - ${contentCtx.niche.toUpperCase()} CONTENT CONTEXT:`;
+    if (contentCtx.topicName) {
+      nicheInstructions += `\n- The channel primarily features "${contentCtx.topicName}" content.`;
+      nicheInstructions += `\n- All recommendations, titles, tags, thumbnails, and strategies MUST be tailored to "${contentCtx.topicName}" and its community.`;
+      nicheInstructions += `\n- Use niche-specific terminology, trends, and community language relevant to "${contentCtx.topicName}".`;
     }
-    if (gamingCtx.brandKeywords.length > 0) {
-      gamingInstructions += `\n- Creator's brand identity: ${gamingCtx.brandKeywords.join(', ')}. Ensure all output aligns with this brand voice.`;
+    if (contentCtx.brandKeywords.length > 0) {
+      nicheInstructions += `\n- Creator's brand identity: ${contentCtx.brandKeywords.join(', ')}. Ensure all output aligns with this brand voice.`;
     }
-    gamingInstructions += `\n- Gaming thumbnails should feature in-game visuals, dramatic moments, and the game's color palette.`;
-    gamingInstructions += `\n- Gaming SEO should target game-specific keywords that the community actually searches for.`;
+    nicheInstructions += `\n- Thumbnails should feature ${nicheLabel}-appropriate visuals, standout moments, and niche-relevant color palettes.`;
+    nicheInstructions += `\n- SEO should target ${contentCtx.niche}-specific keywords that the ${contentCtx.audienceType} actually search for.`;
   }
 
   const creatorContext = await getCreatorContext(userId);
@@ -589,19 +746,19 @@ export async function runAgentTask(agentId: string, context: {
   const prompt = `You are a ${role} working autonomously for the YouTube channel "${context.channelName}".
 
 Channel has ${context.videoCount} videos. Recent titles: ${context.recentTitles.join(', ') || 'None'}
-${gamingCtx.gameName ? `Primary Game: "${gamingCtx.gameName}"` : ''}
-${gamingCtx.isGaming ? 'Content Category: Gaming' : ''}${gamingInstructions}${creatorContext ? `\n\n${creatorContext}` : ''}
+${contentCtx.topicName ? `Primary Topic: "${contentCtx.topicName}"` : ''}
+${contentCtx.niche !== 'general' ? `Content Category: ${contentCtx.niche}` : ''}${nicheInstructions}${creatorContext ? `\n\n${creatorContext}` : ''}
 
 Perform your most important task right now. Respond as JSON:
 {
   "action": "What you did (e.g., 'Optimized 3 video titles for CTR')",
   "target": "What you worked on (e.g., 'Recent video SEO')",
-  "description": "Detailed description of what you accomplished and why${gamingCtx.gameName ? ` - must reference ${gamingCtx.gameName} specifics` : ''}",
+  "description": "Detailed description of what you accomplished and why${contentCtx.topicName ? ` - must reference ${contentCtx.topicName} specifics` : ''}",
   "impact": "Expected impact (e.g., '+15% CTR improvement expected')",
-  "recommendations": ["3 specific follow-up recommendations${gamingCtx.gameName ? ` tailored to ${gamingCtx.gameName} content` : ''}"]
+  "recommendations": ["3 specific follow-up recommendations${contentCtx.topicName ? ` tailored to ${contentCtx.topicName} content` : ''}"]
 }
 
-Be specific, actionable, and reference actual content from this channel.${gamingCtx.gameName ? ` All output must be relevant to ${gamingCtx.gameName} and its gaming community.` : ''}`;
+Be specific, actionable, and reference actual content from this channel.${contentCtx.topicName ? ` All output must be relevant to ${contentCtx.topicName} and its ${contentCtx.audienceType}.` : ''}`;
 
   const agentResponse = await openai.chat.completions.create({
     model: "gpt-5-mini",
@@ -7853,7 +8010,7 @@ Respond as JSON: { "roi": [{"investment": "investment description", "return": "r
 }
 
 export async function aiGamingNicheOptimizer(data: { games?: string[] }, userId?: string) {
-  const p = `Optimize a gaming content creator's niche strategy.
+  const p = `Optimize a content creator's niche strategy.
 ${data.games ? `Games covered: ${data.games.join(", ")}` : ""}
 Respond as JSON: { "optimization": [{"game": "game title", "opportunity": "content opportunity", "strategy": "recommended strategy"}], "trending": "trending games to consider", "schedule": "optimal upload schedule" }`;
   const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
@@ -10043,9 +10200,9 @@ Respond as JSON: { "guide": [{"festival": "festival name", "content": "content i
 }
 
 export async function aiGamingEventPlanner(data: { events?: string[] }, userId?: string) {
-  const p = `Plan gaming event content coverage.
+  const p = `Plan event content coverage.
 ${data.events ? `Events: ${data.events.join(", ")}` : ""}
-Respond as JSON: { "plan": [{"event": "gaming event", "coverage": "coverage plan", "content": "content types"}], "streaming": "streaming setup" }`;
+Respond as JSON: { "plan": [{"event": "event", "coverage": "coverage plan", "content": "content types"}], "streaming": "streaming setup" }`;
   const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4096 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
@@ -10308,7 +10465,7 @@ export async function aiLocalizationAdvisor(data: { niche?: string; currentLangu
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are the world's #1 global content expansion strategist — combining McKinsey-level market analysis, elite localization intelligence from top media conglomerates, and creator economy growth expertise. You identify language markets with Fortune 500 precision.${creatorCtx}` }, { role: "user", content: `Advise on language expansion for a ${data.niche || "tech/gaming"} creator. Currently available in: ${JSON.stringify(data.currentLanguages || ["en"])}. Audience data: ${JSON.stringify(data.audienceData || {})}. Provide: 1) Top 5 languages to expand to with ROI estimates 2) Market size per language 3) Competition analysis per region 4) Content adaptation requirements 5) Monetization potential per market. Return JSON with keys: recommendedLanguages, marketAnalysis, competitionData, adaptationRequirements, monetizationPotential.` }],
+    messages: [{ role: "system", content: `You are the world's #1 global content expansion strategist — combining McKinsey-level market analysis, elite localization intelligence from top media conglomerates, and creator economy growth expertise. You identify language markets with Fortune 500 precision.${creatorCtx}` }, { role: "user", content: `Advise on language expansion for a ${data.niche || "content creation"} creator. Currently available in: ${JSON.stringify(data.currentLanguages || ["en"])}. Audience data: ${JSON.stringify(data.audienceData || {})}. Provide: 1) Top 5 languages to expand to with ROI estimates 2) Market size per language 3) Competition analysis per region 4) Content adaptation requirements 5) Monetization potential per market. Return JSON with keys: recommendedLanguages, marketAnalysis, competitionData, adaptationRequirements, monetizationPotential.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10358,7 +10515,7 @@ export async function aiMultiLangHashtags(data: { topic?: string; targetLanguage
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are the world's best multilingual hashtag strategist — combining elite social media trend intelligence, regional keyword mastery across 50+ markets, and platform-specific algorithm expertise that drives maximum discoverability in every language.${creatorCtx}` }, { role: "user", content: `Generate trending hashtags for "${data.topic || "gaming"}" in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Platform: ${data.platform || "YouTube"}. Per language provide: 15 trending hashtags, estimated reach, competition level, optimal posting time. Return JSON with key "hashtags" containing object per language.` }],
+    messages: [{ role: "system", content: `You are the world's best multilingual hashtag strategist — combining elite social media trend intelligence, regional keyword mastery across 50+ markets, and platform-specific algorithm expertise that drives maximum discoverability in every language.${creatorCtx}` }, { role: "user", content: `Generate trending hashtags for "${data.topic || "content"}" in these languages: ${JSON.stringify(data.targetLanguages || ["es","fr","de","ja","pt"])}. Platform: ${data.platform || "YouTube"}. Per language provide: 15 trending hashtags, estimated reach, competition level, optimal posting time. Return JSON with key "hashtags" containing object per language.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");
@@ -10388,7 +10545,7 @@ export async function aiRegionalTrendScanner(data: { language?: string; niche?: 
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are the world's #1 regional trend intelligence analyst — combining elite market research from top media agencies, real-time cultural pulse monitoring, and local content trend expertise that identifies viral opportunities before competitors.${creatorCtx}` }, { role: "user", content: `Scan regional trends for ${data.language || "Spanish"}-speaking ${data.region || "global"} market in the ${data.niche || "gaming"} niche. Find: 1) Top 10 trending topics this week 2) Emerging content formats 3) Viral content patterns 4) Regional events and holidays 5) Local competitor strategies. Return JSON with keys: trendingTopics, emergingFormats, viralPatterns, upcomingEvents, competitorStrategies, contentIdeas.` }],
+    messages: [{ role: "system", content: `You are the world's #1 regional trend intelligence analyst — combining elite market research from top media agencies, real-time cultural pulse monitoring, and local content trend expertise that identifies viral opportunities before competitors.${creatorCtx}` }, { role: "user", content: `Scan regional trends for ${data.language || "Spanish"}-speaking ${data.region || "global"} market in the ${data.niche || "content creation"} niche. Find: 1) Top 10 trending topics this week 2) Emerging content formats 3) Viral content patterns 4) Regional events and holidays 5) Local competitor strategies. Return JSON with keys: trendingTopics, emergingFormats, viralPatterns, upcomingEvents, competitorStrategies, contentIdeas.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");

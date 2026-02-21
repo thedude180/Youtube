@@ -101,7 +101,7 @@ const PLATFORM_VOICE: Record<string, string> = {
 - Under 280 chars, make every word count
 - Use rhetorical questions, hot takes, or observations
 - 1-2 hashtags max, or none
-- Thread hooks work great for gaming content
+- Thread hooks work great for content
 - React to your own content like you're a viewer
 - Sound like you're tweeting from your couch
 - STREAM ANNOUNCEMENTS: Hype up upcoming/active livestreams with urgency ("LIVE NOW", "Going live in 10")

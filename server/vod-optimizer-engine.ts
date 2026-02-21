@@ -6,7 +6,7 @@ import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunVodOptimization } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
-import { detectGamingContext, buildGamingPromptSection } from "./ai-engine";
+import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel } from "./ai-engine";
 
 const logger = createLogger("vod-optimizer");
 const openai = getOpenAIClient();
@@ -61,17 +61,17 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
 
   const vodList = vods.map((v, i) => {
     const meta = v.metadata as any;
-    const gamingCtx = detectGamingContext(v.title, v.description, meta?.contentCategory, meta);
-    const gameLabel = gamingCtx.gameName ? ` | Game: ${gamingCtx.gameName}` : "";
-    return `${i + 1}. Title: "${v.title}" | Views: ${v.viewCount || 0} | Likes: ${v.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(v.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}${gameLabel}`;
+    const contentCtx = detectContentContext(v.title, v.description, meta?.contentCategory, meta);
+    const topicLabel = contentCtx.topicName ? ` | Topic: ${contentCtx.topicName}` : "";
+    return `${i + 1}. Title: "${v.title}" | Views: ${v.viewCount || 0} | Likes: ${v.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(v.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}${topicLabel}`;
   }).join("\n");
 
-  const gameNames = [...new Set(vods.map(v => {
+  const topicNames = [...new Set(vods.map(v => {
     const meta = v.metadata as any;
-    return detectGamingContext(v.title, v.description, meta?.contentCategory, meta).gameName;
+    return detectContentContext(v.title, v.description, meta?.contentCategory, meta).topicName;
   }).filter(Boolean))];
-  const gameSpecificSection = gameNames.length > 0
-    ? `\n\nGAME-SPECIFIC OPTIMIZATION (CRITICAL):\nThese videos feature: ${gameNames.join(", ")}. Every title, description, tag, and thumbnail MUST reference the specific game by name. Use game-specific terminology, characters, maps, weapons, and community lingo. Tags MUST include game names and related search terms players actually search for. Do NOT give generic gaming advice — optimize for the SPECIFIC game in each video.`
+  const nicheSpecificSection = topicNames.length > 0
+    ? `\n\nNICHE-SPECIFIC OPTIMIZATION (CRITICAL):\nThese videos cover: ${topicNames.join(", ")}. Every title, description, tag, and thumbnail MUST reference the specific topic/subject. Use niche-specific terminology and community language. Tags MUST include topic names and related search terms viewers actually search for. Do NOT give generic advice — optimize for the SPECIFIC topic in each video.`
     : "";
 
   const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
@@ -82,23 +82,23 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
       messages: [
         {
           role: "system",
-          content: `You are a team of world-class experts collaborating to resurrect underperforming gaming content and make the YouTube algorithm push it to millions:
+          content: `You are a team of world-class experts collaborating to resurrect underperforming content and make the YouTube algorithm push it to millions:
 
-🎯 WORLD'S BEST SEO EXPERT: You reverse-engineer YouTube's ranking algorithm. You know exactly which keywords are surging, how search intent works for gaming queries, and how to structure metadata so YouTube's crawler treats this as fresh, relevant content. You exploit keyword gaps competitors miss.
+🎯 WORLD'S BEST SEO EXPERT: You reverse-engineer YouTube's ranking algorithm. You know exactly which keywords are surging, how search intent works for content queries, and how to structure metadata so YouTube's crawler treats this as fresh, relevant content. You exploit keyword gaps competitors miss.
 
 📝 WORLD'S BEST DIRECT-RESPONSE COPYWRITER: You write titles with 15%+ CTR. You use proven formulas — curiosity gaps, power words, emotional triggers, number hooks, before/after framing. Every word in the title and first 2 lines of the description is engineered to convert impressions into clicks.
 
 📊 WORLD'S BEST GROWTH HACKER: You know why the algorithm surfaces some old videos and buries others. You engineer "second life" metadata that makes YouTube's recommendation engine think this is a brand new trending video. You exploit browse features, suggested video placement, and search ranking signals.
 
-🧠 WORLD'S BEST AUDIENCE PSYCHOLOGIST: You understand the gaming audience's decision-making in the 0.5 seconds they decide to click or scroll. You weaponize FOMO, social proof, pattern interrupts, and dopamine triggers in every metadata element.
+🧠 WORLD'S BEST AUDIENCE PSYCHOLOGIST: You understand the target audience's decision-making in the 0.5 seconds they decide to click or scroll. You weaponize FOMO, social proof, pattern interrupts, and dopamine triggers in every metadata element.
 
 🎨 WORLD'S BEST THUMBNAIL STRATEGIST: You design thumbnail concepts that achieve 8%+ CTR. You understand visual hierarchy, color psychology, facial expressions, contrast, and the "stop the scroll" principle that makes viewers physically unable to not click.
-${retentionContext}${gameSpecificSection}
+${retentionContext}${nicheSpecificSection}
 
 OPTIMIZATION STRATEGY:
 - Titles: Front-load the primary keyword. Use power words (INSANE, IMPOSSIBLE, NEVER). Create a curiosity gap or emotional hook. Max 60 chars. Make it feel like a video uploaded TODAY about a trending topic.
 - Descriptions: First 2 lines must contain the primary keyword and a compelling hook (this is what shows in search). Add retention-beat-timed timestamps. Include 3-5 long-tail keyword phrases naturally woven in. End with subscribe CTA + social links. Add relevant hashtags.
-- Tags: 15-25 tags. Mix exact-match keywords, long-tail variations, competitor video keywords, trending search terms, and broad gaming tags. Put highest-value tags first.
+- Tags: 15-25 tags. Mix exact-match keywords, long-tail variations, competitor video keywords, trending search terms, and broad niche tags. Put highest-value tags first.
 - Thumbnail: Describe a concept with specific emotion, composition, color scheme, focal point, and contrast technique that would achieve 8%+ CTR.
 - Strategy: Explain exactly which algorithm signals this optimization exploits and why it will trigger YouTube to resurface this video.
 
@@ -115,7 +115,7 @@ Return ONLY valid JSON array matching this structure:
         },
         {
           role: "user",
-          content: `Optimize these underperforming VODs for maximum new viewership:\n\n${vodList}\n\nCRITICAL: Each optimization MUST be tailored to the SPECIFIC content of that video. Reference the actual game, events, and moments in the video. Do NOT give generic titles like "INSANE GAMEPLAY" — instead reference what specifically happened (e.g. "1v5 CLUTCH ACE in Valorant" or "Impossible GTA Heist Gone Wrong"). Make each title irresistible and content-specific. Use current YouTube trends relevant to each video's specific game/topic. Every optimization should feel like a fresh upload to the algorithm.`
+          content: `Optimize these underperforming VODs for maximum new viewership:\n\n${vodList}\n\nCRITICAL: Each optimization MUST be tailored to the SPECIFIC content of that video. Reference the actual topic, events, and moments in the video. Do NOT give generic titles like "INSANE CONTENT" — instead reference what specifically happened. Make each title irresistible and content-specific. Use current YouTube trends relevant to each video's niche. Every optimization should feel like a fresh upload to the algorithm.`
         }
       ],
       temperature: 0.8,

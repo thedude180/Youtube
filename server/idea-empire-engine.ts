@@ -83,7 +83,7 @@ Your job is to turn this raw idea into a refined, profitable content niche with 
 Respond with JSON containing these exact fields:
 {
   "niche": {
-    "primary": "The main refined niche (e.g., 'Competitive FPS Gaming' instead of just 'gaming')",
+    "primary": "The main refined niche (e.g., 'Specific sub-niche relevant to the creator's content')",
     "subNiches": ["5 specific sub-niches they can create content around"],
     "targetAudience": "Detailed description of the ideal viewer (age range, interests, pain points, where they hang out online)",
     "marketSize": "Estimated audience size and growth trend",
@@ -964,7 +964,7 @@ function humanizeGeneratedContent(content: any): any {
       }
     }
     if (Math.random() < 0.2) {
-      const casualTags = ["bruh", "no way", "insane gameplay", "you won't believe this", "actual pain", "lets gooo", "gaming moment"];
+      const casualTags = ["bruh", "no way", "you won't believe this", "actual pain", "lets gooo", "viral moment", "this is wild"];
       cleaned.push(casualTags[Math.floor(Math.random() * casualTags.length)]);
     }
     return cleaned;
@@ -1052,7 +1052,7 @@ export async function createVideoFromIdea(userId: string, contentIdea: {
   const brandContext = blueprint ? `
 Brand Personality: ${blueprint.brandIdentity?.personality || "Energetic and helpful"}
 Content Tone: ${blueprint.brandIdentity?.contentTone || "Casual yet authoritative"}
-Niche: ${JSON.stringify(blueprint.niche?.primary || "gaming")}
+Niche: ${JSON.stringify(blueprint.niche?.primary || "general")}
 Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "Bold and eye-catching")}` : "";
 
   let creatorStyleContext = "";

@@ -1388,8 +1388,8 @@ export function registerUpgradeRoutes(app: Express) {
     if (!userId) return;
     try {
       const rng = seedRandom(req.params.userId + "rankings");
-      const keywords = ["gaming tutorial", "best settings", "pro tips", "beginner guide", "gameplay highlights",
-        "stream setup", "channel growth", "content creation", "editing tips", "thumbnail design"];
+      const keywords = ["tutorial", "best settings", "pro tips", "beginner guide", "highlights",
+        "tips", "tricks", "content creation", "editing tips", "thumbnail design"];
       const rankings = keywords.map(kw => ({
         keyword: kw,
         position: seededInt(rng, 1, 100),
@@ -1572,7 +1572,7 @@ export function registerUpgradeRoutes(app: Express) {
       const { streamCategory, viewerCount, time } = req.body;
       const result = await callAI(
         "You are a raid strategy expert for streamers. Generate a strategic raid plan. Return JSON with: raidTargets (array of {streamer, reason, timing, expectedImpact}), raidMessage (string), communityBenefits (array), networkingTips (array), bestTimeToRaid (string).",
-        `Stream category: ${streamCategory || "gaming"}. Current viewers: ${viewerCount || "unknown"}. Time: ${time || "end of stream"}.`
+        `Stream category: ${streamCategory || "general"}. Current viewers: ${viewerCount || "unknown"}. Time: ${time || "end of stream"}.`
       );
       res.json(result);
     } catch (error: any) {

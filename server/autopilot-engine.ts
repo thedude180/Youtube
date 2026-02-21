@@ -761,7 +761,7 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title,
       description: post.content || "",
-      tags: isShort ? ["shorts", "gaming", "highlights"] : ["gaming", "highlights", "stream"],
+      tags: isShort ? ["shorts", "highlights", "clips"] : ["highlights", "stream", "content"],
       categoryId: "20",
       privacyStatus: "public",
       videoFilePath: clipPath,

@@ -264,7 +264,7 @@ TikTok-specific optimization (for clips targeting tiktok):
 - Keep clips 15-60 seconds (sweet spot: 21-34 seconds for algorithm boost)
 - Front-load the hook in the first 1-3 seconds
 - Title should use TikTok trending formats: "POV:", "Wait for it...", "This is why...", "No one talks about..."
-- Use 3-5 hashtags mixing trending (#fyp #viral #gaming) with niche-specific tags
+- Use 3-5 hashtags mixing trending (#fyp #viral) with niche-specific tags
 - Description should be ultra-casual, lowercase aesthetic when it fits
 - Optimize for vertical 9:16 format
 - Prioritize moments with strong visual movement or reactions`;

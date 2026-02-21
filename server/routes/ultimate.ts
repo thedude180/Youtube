@@ -260,7 +260,7 @@ export function registerUltimateRoutes(app: Express) {
     const suggestion = await generateLiveSuggestion(userId, streamId || 0, {
       viewerCount: viewerCount || 0,
       chatSentiment: chatSentiment || "neutral",
-      currentTopic: currentTopic || "gaming",
+      currentTopic: currentTopic || "general",
       streamDuration: streamDuration || 0,
     });
     res.json(suggestion);

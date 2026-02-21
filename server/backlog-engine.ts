@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { generateVideoMetadata, runAgentTask, generateCommunityPost, detectGamingContext } from "./ai-engine";
+import { generateVideoMetadata, runAgentTask, generateCommunityPost, detectContentContext } from "./ai-engine";
 import { AI_AGENTS } from "@shared/schema";
 
 type ProcessingState = "idle" | "processing" | "paused" | "stream_active";
@@ -197,7 +197,7 @@ async function processBacklogAsync(
         platform: video.platform || undefined,
       });
 
-      const gamingCtx = detectGamingContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
+      const contentCtx = detectContentContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
       const newMetadata = {
         ...video.metadata,
         duration: video.metadata?.duration,
@@ -213,9 +213,9 @@ async function processBacklogAsync(
         tags: suggestions.suggestedTags || video.metadata?.tags || [],
         aiOptimized: true,
         aiOptimizedAt: new Date().toISOString(),
-        gameName: video.metadata?.gameName || gamingCtx.gameName || null,
-        contentCategory: video.metadata?.contentCategory || (gamingCtx.isGaming ? "gaming" : null),
-        brandKeywords: video.metadata?.brandKeywords?.length ? video.metadata.brandKeywords : gamingCtx.brandKeywords,
+        gameName: video.metadata?.gameName || contentCtx.topicName || null,
+        contentCategory: video.metadata?.contentCategory || (contentCtx.niche !== 'general' ? contentCtx.niche : null),
+        brandKeywords: video.metadata?.brandKeywords?.length ? video.metadata.brandKeywords : contentCtx.brandKeywords,
       };
 
       chainResult.steps[0].status = "completed";

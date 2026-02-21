@@ -378,7 +378,7 @@ export async function generateGrowthRecommendations(userId: string) {
   const prompt = `You are a creator growth strategist. Analyze this creator's current status across all platforms and provide actionable recommendations to qualify for and maximize earnings from each platform's creator programs.
 
 CREATOR INFO:
-${creatorCtx || "New gaming creator"}
+${creatorCtx || "New creator"}
 
 CONNECTED CHANNELS:
 ${JSON.stringify(channelInfo, null, 2)}
@@ -806,7 +806,7 @@ Respond as JSON:
   "steps": ["Step 1: Go to ${applicationUrl}", "Step 2: ...", "Step 3: ..."],
   "tips": ["Tip for getting approved faster", "What reviewers look for"],
   "estimatedTime": "e.g. 5 minutes",
-  "whatToSay": "If there is a free-text field in the application, this is what to write (gaming content creator focused on...)"
+  "whatToSay": "If there is a free-text field in the application, this is what to write (content creator focused on...)"
 }`;
 
   try {
@@ -835,7 +835,7 @@ Respond as JSON:
         "Having consistent upload schedule helps approval",
       ],
       estimatedTime: "5-10 minutes",
-      whatToSay: "I'm a gaming content creator producing original gameplay, tutorials, and entertainment content.",
+      whatToSay: "I'm a content creator producing original, high-quality entertainment and educational content.",
     };
   }
 }

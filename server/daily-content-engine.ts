@@ -7,7 +7,7 @@ import { generateHumanScheduledTime } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunDailyContent } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
-import { detectGamingContext, buildGamingPromptSection } from "./ai-engine";
+import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel, ContentContext } from "./ai-engine";
 
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
@@ -155,7 +155,7 @@ async function generateBatchPlan(
       messages: [
         {
           role: "system",
-          content: `You are a team of world-class experts working together to create the most optimized YouTube gaming content possible:
+          content: `You are a team of world-class experts working together to create the most optimized YouTube content possible:
 
 🎯 WORLD'S BEST SEO EXPERT: You reverse-engineer the YouTube algorithm. You know exactly which keywords rank, how to structure descriptions for maximum discoverability, and how to exploit search intent. Every tag is researched, every keyword is placed with surgical precision.
 
@@ -163,22 +163,22 @@ async function generateBatchPlan(
 
 📊 WORLD'S BEST GROWTH HACKER: You understand viral mechanics — why some videos get 10M views and others get 100. You engineer shareability, re-watchability, and algorithmic favor into every piece of content.
 
-🧠 WORLD'S BEST AUDIENCE PSYCHOLOGIST: You know exactly what makes gamers click, watch, and subscribe. You use proven psychological triggers — FOMO, curiosity gaps, pattern interrupts, emotional peaks — to maximize retention and engagement.
+🧠 WORLD'S BEST AUDIENCE PSYCHOLOGIST: You know exactly what makes viewers click, watch, and subscribe. You use proven psychological triggers — FOMO, curiosity gaps, pattern interrupts, emotional peaks — to maximize retention and engagement.
 
-🎬 WORLD'S BEST CONTENT EDITOR: You identify the most compelling moments in raw footage — the clutch plays, hilarious fails, emotional reactions, and "did that just happen?" moments that viewers share with friends.
+🎬 WORLD'S BEST CONTENT EDITOR: You identify the most compelling moments in raw footage — the standout moments, hilarious fails, emotional reactions, and "did that just happen?" moments that viewers share with friends.
 
 STREAM INFO:
 - Title: "${stream.stream.title}"
 - Total Duration: ${stream.totalMinutes} minutes
 - Current Segment: ${segStart} min to ${segEnd} min (${availableMinutes} min available)
 - Batch #${batchNumber} from this stream
-${buildGamingPromptSection(detectGamingContext(stream.stream.title, null, (stream.stream as any).category || null, { gameName: (stream.stream as any).gameName || null }))}
+${buildContentPromptSection(detectContentContext(stream.stream.title, null, (stream.stream as any).category || null, { gameName: (stream.stream as any).gameName || null }))}
 ${retentionContext}
 
 CONTENT-ADAPTIVE REQUIREMENTS:
-- ALL content MUST be specifically about what happened in "${stream.stream.title}" — reference the actual game, specific moments, plays, and events.
-- Do NOT create generic gaming content. Every title, description, hook, and caption must relate to the SPECIFIC content of this stream segment.
-- Use game-specific terminology, character names, map names, and community lingo relevant to this stream.
+- ALL content MUST be specifically about what happened in "${stream.stream.title}" — reference the actual topic, specific moments, and events.
+- Do NOT create generic content. Every title, description, hook, and caption must relate to the SPECIFIC content of this stream segment.
+- Use niche-specific terminology and community language relevant to this stream.
 
 RULES:
 - Long-form MUST NOT exceed ${LONG_FORM_MAX_MINUTES} minutes. Use segments from ${segStart}-${segEnd} minutes.
@@ -186,7 +186,7 @@ RULES:
 - All timestamps MUST be within the ${segStart}-${segEnd} minute range
 - Titles: Use power words, numbers, emotional triggers, curiosity gaps. Under 60 chars. Front-load keywords. Examples: "I Can't Believe This Actually Worked..." or "This 1v4 Clutch Changed Everything"
 - Descriptions: First 2 lines are CRITICAL (shown in search). Include primary keyword in first sentence. Add timestamps at retention beat markers. End with strong CTA (subscribe, comment, share). Include 3-5 related keyword phrases naturally. Add links section and social proof.
-- Tags: 15-25 tags mixing broad ("gaming", "gameplay") with specific long-tail keywords. Include game name variations, trending terms, and competitor video tags.
+- Tags: 15-25 tags mixing broad niche keywords with specific long-tail keywords. Include topic/subject variations, trending terms, and competitor video tags.
 - Shorts: Hook in first 0.5 seconds. Title must work as both a YouTube Short title AND TikTok caption. Hashtags must include trending + niche-specific tags.
 - Each batch must feel like a FRESH standalone video
 - CRITICAL: Structure every piece using retention beats. Hook must grab in first 3 seconds. Include pattern interrupts every 30-60 seconds in long-form.
@@ -348,7 +348,7 @@ async function queueBatchContent(
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 2) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
       const platformCaption = platform === "tiktok"
-        ? `${short.title} ${short.hashtags.map(h => `#${h.replace('#', '')}`).join(" ")} #gaming #fyp`
+        ? `${short.title} ${short.hashtags.map(h => `#${h.replace('#', '')}`).join(" ")} #fyp`
         : short.title;
 
       try {

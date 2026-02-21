@@ -248,6 +248,8 @@ export const channels = pgTable("channels", {
     maxEditsPerDay: number;
     cooldownMinutes: number;
   }>().default({ preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 }),
+  contentNiche: text("content_niche"),
+  nicheConfidence: integer("niche_confidence"),
   subscriberCount: integer("subscriber_count"),
   videoCount: integer("video_count"),
   viewCount: integer("view_count"),

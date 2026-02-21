@@ -251,7 +251,7 @@ ${provenKeywords.map(k => `- "${k.keyword}" (score: ${k.score}, category: ${k.ca
 
 Rules:
 - ONLY select keywords that are genuinely related to this video's subject matter
-- A gaming keyword should NOT be added to a cooking video, even if it scores 100
+- A keyword from one niche should NOT be added to an unrelated video, even if it scores 100
 - Broad channel-identity keywords (like the creator's name or channel brand) are always relevant
 - Topic-specific keywords are only relevant if the video covers that topic
 - When in doubt, leave it out — irrelevant keywords hurt CTR and watch time

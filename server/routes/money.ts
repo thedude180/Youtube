@@ -979,7 +979,7 @@ export function registerMoneyRoutes(app: Express) {
         },
         kick: {
           methods: ["Subscriptions", "Tips", "Creator Fund"],
-          audienceHook: "Kick's growing audience tends to be younger and very engaged with gaming content.",
+          audienceHook: "Kick's growing audience tends to be younger and very engaged with content.",
           steps: ["Apply for Kick monetization", "Promote subscription benefits", "Set up tip alerts", "Cross-promote from other platforms"],
         },
         tiktok: {
@@ -1061,11 +1061,11 @@ export function registerMoneyRoutes(app: Express) {
         opportunities.push({
           type: "sponsorship",
           title: "Attract Brand Sponsorships",
-          description: `With ${videos.length} videos${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views` : ""}, your channel is attractive to brands looking for gaming creator partnerships.`,
+          description: `With ${videos.length} videos${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views` : ""}, your channel is attractive to brands looking for creator partnerships.`,
           estimatedImpact: "$200-5,000 per deal",
           priority: "high",
           channelContext: `${videos.length} published videos demonstrate consistency, which brands value highly. ${totalSubs > 100 ? `Your ${totalSubs.toLocaleString()} subscribers represent a targetable audience for advertisers.` : "Even growing channels can land niche sponsorships."}`,
-          audienceRelevance: "Gaming audiences are among the most valuable for tech, peripherals, energy drinks, and subscription services. Brands pay premiums for authentic creator endorsements over traditional ads.",
+          audienceRelevance: "Engaged audiences are among the most valuable for brands in your niche. Brands pay premiums for authentic creator endorsements over traditional ads.",
           steps: ["Build a media kit with your channel stats and audience demographics", "Join creator marketplaces (e.g., Grin, AspireIQ, or direct outreach)", "Start with smaller brands to build sponsorship experience", "Use CreatorOS Sponsor Rates calculator to set fair pricing", "Negotiate long-term deals for better rates"],
         });
       }
@@ -1075,14 +1075,14 @@ export function registerMoneyRoutes(app: Express) {
         opportunities.push({
           type: "affiliate",
           title: "Start Affiliate Marketing",
-          description: "Add affiliate links to your gaming gear, software, and recommended products. Earn commission on every purchase your audience makes through your links.",
+          description: "Add affiliate links to your gear, software, and tools you recommend. Earn commission on every purchase your audience makes through your links.",
           estimatedImpact: "$50-1,000/mo passive",
           priority: "medium",
           channelContext: totalVideos > 0
             ? `Your ${totalVideos} video${totalVideos !== 1 ? "s" : ""} are perfect vehicles for affiliate links in descriptions. Gear reviews, tutorials, and setup tours naturally include product recommendations.`
             : "Every video you publish is an opportunity to include affiliate links in the description. Start building passive income from day one.",
-          audienceRelevance: "Your gaming audience actively researches gear, software, and peripherals. When a trusted creator recommends a product, conversion rates are 3-5x higher than banner ads.",
-          steps: ["Sign up for Amazon Associates, gaming peripheral programs (Razer, SteelSeries, etc.)", "Add affiliate links to all video descriptions", "Create dedicated gear/setup videos that naturally feature products", "Track which products convert best and double down", "Use CreatorOS to auto-insert affiliate links in cross-posted content"],
+          audienceRelevance: "Your audience actively researches gear, software, and tools you recommend. When a trusted creator recommends a product, conversion rates are 3-5x higher than banner ads.",
+          steps: ["Sign up for Amazon Associates and relevant affiliate programs in your niche", "Add affiliate links to all video descriptions", "Create dedicated gear/setup videos that naturally feature products", "Track which products convert best and double down", "Use CreatorOS to auto-insert affiliate links in cross-posted content"],
         });
       }
 

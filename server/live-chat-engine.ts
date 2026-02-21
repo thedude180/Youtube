@@ -14,18 +14,18 @@ const openai = getOpenAIClient();
 
 const PLATFORM_CHAT_STYLE: Record<string, string> = {
   youtube: `YouTube Live Chat style:
-- Casual gaming energy, sometimes use emote-like words
+- Casual energy, sometimes use emote-like words
 - Short responses, 1-2 sentences max
 - Reference the stream context naturally
 - Use viewer's name sometimes
-- React to game moments when relevant`,
+- React to stream moments when relevant`,
 
   twitch: `Twitch Chat style:
 - Very casual, meme-aware, emote-heavy culture
 - Keep it short - Twitch chat moves FAST
 - Use Twitch slang naturally (W, L, Pog, etc)
 - Reference subs/bits if mentioned
-- Sound like you're glancing at chat between gameplay`,
+- Sound like you're glancing at chat between content`,
 
   kick: `Kick Chat style:
 - Similar energy to Twitch but slightly more raw
@@ -175,8 +175,8 @@ CRITICAL RULES:
 - If they asked a question, give a quick real answer
 - If they're hyped, match the hype briefly
 - If donation/sub, quick genuine thank you
-- Use gaming shorthand naturally (gg, lol, ngl, fr)
-- Occasional typos are fine - you're mid-game
+- Use internet shorthand naturally (lol, ngl, fr, bruh)
+- Occasional typos are fine - you're mid-stream
 - NEVER sound like a bot or brand account
 - Vary your response style - don't always start the same way`;
 

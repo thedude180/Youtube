@@ -252,7 +252,7 @@ VIDEO TO OPTIMIZE:
 - Title: "${videoTitle}"
 - Description: "${videoDescription?.substring(0, 500) || "No description"}"
 - Duration: ${durationStr}
-- Niche: ${niche || "gaming/entertainment"}
+- Niche: ${niche || "content creation"}
 
 LEARNED RETENTION BEATS (from studying top creators):
 ${JSON.stringify(beatsContext, null, 2)}
