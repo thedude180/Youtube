@@ -40,7 +40,7 @@ const MAX_BATCHES_PER_RUN = 5;
 const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 5 (1 longform + 4 shorts)
 const MAX_CROSS_POSTS_PER_DAY = 20;
 const MAX_SCHEDULED_PER_DAY = CORE_YOUTUBE_PER_DAY + MAX_CROSS_POSTS_PER_DAY; // 25 total
-const VIDEO_PLATFORMS = ["tiktok", "rumble"];
+const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord", "twitch"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
 

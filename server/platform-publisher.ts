@@ -341,61 +341,6 @@ async function postToKick(_accessToken: string, _content: string, _channelData: 
   };
 }
 
-async function postToRumble(
-  userId: string,
-  content: string,
-  metadata?: any,
-): Promise<PublishResult> {
-  const apiKey = process.env.RUMBLE_API_KEY;
-  if (!apiKey) {
-    return { success: false, platform: "rumble", error: "Rumble API key not configured" };
-  }
-
-  try {
-    const title = metadata?.title || content.slice(0, 100);
-    const description = metadata?.description || content;
-    const tags = metadata?.tags || [];
-
-    const payload: any = {
-      title,
-      description,
-      tags: tags.join(","),
-    };
-
-    if (metadata?.videoUrl) {
-      payload.video_url = metadata.videoUrl;
-    }
-
-    const res = await withRetry(async () => {
-      const r = await fetch("https://rumble.com/api/v0/media/upload", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(30000),
-      });
-      return r;
-    }, { maxRetries: 2, baseDelayMs: 2000, operationName: "rumble-publish" });
-
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        success: true,
-        platform: "rumble",
-        postId: data.id || data.video_id || String(Date.now()),
-        postUrl: data.url || data.video_url || `https://rumble.com/v${data.id || ""}`,
-      };
-    }
-
-    const errorText = await res.text().catch(() => "Unknown error");
-    return { success: false, platform: "rumble", error: `Rumble API error ${res.status}: ${errorText}` };
-  } catch (err: any) {
-    return { success: false, platform: "rumble", error: `Rumble publish failed: ${err.message}` };
-  }
-}
-
 export async function publishToplatform(
   userId: string,
   platform: string,
@@ -427,7 +372,12 @@ export async function publishToplatform(
   }
 
   if (platform === "rumble") {
-    return postToRumble(userId, content, metadata);
+    return {
+      success: false,
+      platform: "rumble",
+      skipped: true,
+      error: "Rumble is configured for AI-driven streaming only. Content distribution is handled through other platforms.",
+    };
   }
 
   const userChannels = await db.select().from(channels)
