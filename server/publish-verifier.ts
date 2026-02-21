@@ -195,8 +195,8 @@ async function verifyDiscordPost(userId: string, postId: string): Promise<Verifi
   return { confirmed: false, platformStatus: "unverifiable", error: "Discord webhooks do not support read-back verification — marked as delivered based on 2xx response" };
 }
 
-async function verifyTwitchPost(userId: string, postId: string): Promise<VerificationResult> {
-  return { confirmed: false, platformStatus: "not_applicable", error: "Twitch is a streaming-only platform — content posting is not supported" };
+async function verifyStreamOnlyPlatformPost(platform: string): Promise<VerificationResult> {
+  return { confirmed: false, platformStatus: "not_applicable", error: `${platform} is a streaming-only platform — content posting is not supported` };
 }
 
 export async function verifyPost(userId: string, platform: string, postId: string): Promise<VerificationResult> {
@@ -211,7 +211,11 @@ export async function verifyPost(userId: string, platform: string, postId: strin
     case "discord":
       return verifyDiscordPost(userId, postId);
     case "twitch":
-      return verifyTwitchPost(userId, postId);
+      return verifyStreamOnlyPlatformPost("Twitch");
+    case "kick":
+      return verifyStreamOnlyPlatformPost("Kick");
+    case "rumble":
+      return verifyStreamOnlyPlatformPost("Rumble");
     default:
       return { confirmed: false, error: `Verification not supported for ${platform}` };
   }

@@ -337,7 +337,7 @@ async function postToKick(_accessToken: string, _content: string, _channelData: 
     success: false,
     platform: "kick",
     skipped: true,
-    error: "Kick does not currently offer a public content posting API. Your Kick account is connected for stream key access and live detection. Content announcements can be cross-posted via Discord or X instead.",
+    error: "Kick is a streaming-only platform. Content posting is not supported — use Kick for live streaming only.",
   };
 }
 
