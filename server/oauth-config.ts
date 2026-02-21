@@ -97,16 +97,6 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
       profileUrl: `https://kick.com/${data.data?.[0]?.slug || data.data?.slug || data.slug || ""}`,
     }),
   },
-  rumble: {
-    platform: "rumble",
-    label: "Rumble",
-    authUrl: "https://rumble.com/oauth/authorize",
-    tokenUrl: "https://rumble.com/oauth/token",
-    scopes: ["read", "upload"],
-    clientIdEnv: "RUMBLE_CLIENT_ID",
-    clientSecretEnv: "RUMBLE_CLIENT_SECRET",
-    tokenAuthMethod: "body",
-  },
 };
 
 export function getOAuthRedirectUri(platform: string): string {

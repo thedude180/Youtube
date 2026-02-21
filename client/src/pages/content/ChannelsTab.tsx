@@ -39,12 +39,10 @@ type CategoryFilter = typeof CATEGORIES[number]["key"];
 const CONTENT_CRED_LABELS: Record<string, { label: string; placeholder: string; secondaryLabel?: string; secondaryPlaceholder?: string }> = {
   twitch: { label: "Stream Key", placeholder: "live_xxxxxxxxxxxx" },
   kick: { label: "Stream Key", placeholder: "sk_live_xxxxxxxxxxxx" },
-  facebook: { label: "Stream Key", placeholder: "FB-xxxxxxxxxxxx" },
   tiktok: { label: "Stream Key", placeholder: "Your TikTok stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://push.tiktok.com/live" },
   x: { label: "Stream Key", placeholder: "Your X stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://va.pscp.tv:80/x" },
   rumble: { label: "Stream Key", placeholder: "Your Rumble stream key" },
   linkedin: { label: "Stream Key", placeholder: "Your LinkedIn stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://live.linkedin.com/live" },
-  instagram: { label: "Stream Key", placeholder: "Your Instagram stream key" },
   discord: { label: "Server Invite Link", placeholder: "https://discord.gg/xxxxxxx" },
   snapchat: { label: "Snapchat Username", placeholder: "@yourusername" },
   pinterest: { label: "Pinterest Profile URL", placeholder: "https://pinterest.com/yourbrand" },
