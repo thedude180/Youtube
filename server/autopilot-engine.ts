@@ -793,13 +793,29 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
 
     const { uploadVideoToYouTube } = await import("./youtube");
     const { isMonetizationUnlocked } = await import("./services/monetization-check");
-    const title = isShort ? `${(post.caption || "Clip").substring(0, 90)} #Shorts` : (post.caption || "Stream Highlight").substring(0, 100);
+    const { copyrightCheckAndFix } = await import("./services/copyright-check");
+    let title = isShort ? `${(post.caption || "Clip").substring(0, 90)} #Shorts` : (post.caption || "Stream Highlight").substring(0, 100);
+    let description = post.content || "";
+
+    const clipCopyright = await copyrightCheckAndFix(description, title, "youtube", meta);
+    if (!clipCopyright.approved) {
+      logger.warn("Copyright check blocked stream clip", { postId: post.id, issues: clipCopyright.issues.map(i => i.description) });
+      await createNotification(post.userId, "compliance", "Stream clip blocked by copyright check",
+        `A clip from "${stream.title || "stream"}" was blocked before upload: ${clipCopyright.issues[0]?.description || "Copyright risk detected"}`, "warning");
+      return { success: false, error: `Copyright check blocked: ${clipCopyright.issues[0]?.description || "Risk detected"}` };
+    }
+    if (clipCopyright.wasRewritten) {
+      title = (clipCopyright.caption || title).substring(0, isShort ? 90 : 100);
+      if (isShort && !title.includes("#Shorts")) title += " #Shorts";
+      description = clipCopyright.content || description;
+      logger.info("Copyright check auto-fixed clip content", { postId: post.id });
+    }
 
     const monetizationEnabled = await isMonetizationUnlocked(post.userId, "youtube");
 
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title,
-      description: post.content || "",
+      description,
       tags: meta.tags || (isShort ? ["shorts", "highlights", "clips", "gaming"] : ["highlights", "stream", "gameplay", "gaming"]),
       categoryId: "20",
       privacyStatus: "public",
@@ -914,11 +930,72 @@ export async function processScheduledPosts() {
         continue;
       }
 
+      const meta = (post.metadata as any) || {};
+
+      const { copyrightCheckAndFix } = await import("./services/copyright-check");
+      const copyrightResult = await copyrightCheckAndFix(
+        post.content || "",
+        post.caption,
+        post.targetPlatform,
+        meta,
+      );
+
+      if (!copyrightResult.approved) {
+        logger.warn("Copyright check BLOCKED post", {
+          postId: post.id,
+          platform: post.targetPlatform,
+          riskLevel: copyrightResult.riskLevel,
+          issues: copyrightResult.issues.map(i => i.description),
+        });
+        await db.update(autopilotQueue)
+          .set({
+            status: "failed",
+            errorMessage: `Copyright check blocked: ${copyrightResult.issues.map(i => i.description).join("; ")}`,
+            metadata: {
+              ...meta,
+              copyrightCheck: {
+                riskLevel: copyrightResult.riskLevel,
+                issues: copyrightResult.issues,
+                blockedAt: new Date().toISOString(),
+              },
+            },
+          })
+          .where(eq(autopilotQueue.id, post.id));
+        await createNotification(post.userId, "compliance", "Content blocked by copyright check",
+          `A post to ${post.targetPlatform} was blocked to protect your account: ${copyrightResult.issues[0]?.description || "Copyright risk detected"}`, "warning");
+        continue;
+      }
+
+      let publishContent = copyrightResult.content;
+      let publishCaption = copyrightResult.caption;
+
+      if (copyrightResult.wasRewritten) {
+        logger.info("Copyright check auto-fixed content before publish", {
+          postId: post.id,
+          platform: post.targetPlatform,
+          riskLevel: copyrightResult.riskLevel,
+        });
+        await db.update(autopilotQueue)
+          .set({
+            content: publishContent,
+            caption: publishCaption,
+            metadata: {
+              ...meta,
+              copyrightCheck: {
+                riskLevel: copyrightResult.riskLevel,
+                wasRewritten: true,
+                issueCount: copyrightResult.issues.length,
+                checkedAt: new Date().toISOString(),
+              },
+            },
+          })
+          .where(eq(autopilotQueue.id, post.id));
+      }
+
       await db.update(autopilotQueue)
         .set({ status: "publishing" as any })
         .where(eq(autopilotQueue.id, post.id));
 
-      const meta = (post.metadata as any) || {};
       let result: any;
 
       if (post.type === "auto-clip" && post.targetPlatform === "youtube" && meta.sourceStreamId && meta.segmentStartMin != null) {
@@ -927,7 +1004,7 @@ export async function processScheduledPosts() {
         result = await publishToplatform(
           post.userId,
           post.targetPlatform,
-          post.content || "",
+          publishContent || "",
           {
             ...meta,
             sourceVideoId: post.sourceVideoId,
