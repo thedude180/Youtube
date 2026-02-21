@@ -42,7 +42,6 @@ const LazyGrowthImpactChart = lazy(() => import("@/components/GrowthImpactChart"
 const LazyGrowthTrajectoryPredictor = lazy(() => import("@/components/GrowthTrajectoryPredictor"));
 const LazyChannelGrowthTimeline = lazy(() => import("@/components/ChannelGrowthTimeline"));
 const LazyActivityFeedSection = lazy(() => import("./dashboard/ActivityFeedSection"));
-const LazyPlatformHealthCards = lazy(() => import("@/components/PlatformHealthCards"));
 const LazyMissionControl = lazy(() => import("./dashboard/MissionControl"));
 const LazyAIProofOfWork = lazy(() => import("./dashboard/AIProofOfWork"));
 const LazyCompetitorBenchmark = lazy(() => import("./dashboard/CompetitorBenchmark"));
@@ -312,12 +311,6 @@ export default function Dashboard() {
 
       <SectionErrorBoundary fallbackTitle="Priority center failed to load">
         <PriorityCommandCenter />
-      </SectionErrorBoundary>
-
-      <SectionErrorBoundary fallbackTitle="Platform status failed to load">
-        <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
-          <LazyPlatformHealthCards />
-        </Suspense>
       </SectionErrorBoundary>
 
       <section role="region" aria-label="Key metrics">
