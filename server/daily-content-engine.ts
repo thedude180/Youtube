@@ -36,12 +36,14 @@ const SHORTS_PER_BATCH = 4;
 const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 30;
 const MAX_BATCHES_PER_RUN = 5;
-const MAX_SCHEDULED_PER_DAY = 25;
+const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 5 (1 longform + 4 shorts)
+const MAX_CROSS_POSTS_PER_DAY = 20;
+const MAX_SCHEDULED_PER_DAY = CORE_YOUTUBE_PER_DAY + MAX_CROSS_POSTS_PER_DAY; // 25 total
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord", "twitch"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
 
-async function getDailyScheduledCount(userId: string): Promise<number> {
+async function getDailyCoreYouTubeCount(userId: string): Promise<number> {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
@@ -53,10 +55,36 @@ async function getDailyScheduledCount(userId: string): Promise<number> {
     .where(and(
       eq(autopilotQueue.userId, userId),
       eq(autopilotQueue.status, "scheduled"),
+      eq(autopilotQueue.targetPlatform, "youtube"),
       gte(autopilotQueue.scheduledAt, todayStart),
       lte(autopilotQueue.scheduledAt, todayEnd),
     ));
   return result?.count || 0;
+}
+
+async function getDailyCrossPostCount(userId: string): Promise<number> {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.status, "scheduled"),
+      sql`${autopilotQueue.targetPlatform} != 'youtube'`,
+      gte(autopilotQueue.scheduledAt, todayStart),
+      lte(autopilotQueue.scheduledAt, todayEnd),
+    ));
+  return result?.count || 0;
+}
+
+async function getDailyScheduledCount(userId: string): Promise<number> {
+  const core = await getDailyCoreYouTubeCount(userId);
+  const cross = await getDailyCrossPostCount(userId);
+  return core + cross;
 }
 
 interface ContentPlan {
@@ -383,8 +411,12 @@ async function queueBatchContent(
     }
   }
 
+  const crossPostBudget = MAX_CROSS_POSTS_PER_DAY - await getDailyCrossPostCount(userId);
+
   for (const platform of connectedPlatforms.video) {
+    if (crossPostsQueued >= crossPostBudget) break;
     for (let i = 0; i < plan.shorts.length; i++) {
+      if (crossPostsQueued >= crossPostBudget) break;
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 2) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
       const platformCaption = platform === "tiktok"
@@ -423,6 +455,7 @@ async function queueBatchContent(
   }
 
   for (const platform of connectedPlatforms.text) {
+    if (crossPostsQueued >= crossPostBudget) break;
     const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
     const topTags = plan.longForm.tags.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ");
     let longFormAnnouncement: string;
@@ -559,9 +592,9 @@ async function getLiveStreamAsExhaustCandidate(userId: string): Promise<StreamWi
 
 export async function runSingleBatchForUser(userId: string): Promise<{ didWork: boolean; exhausted: boolean }> {
   try {
-    const dailyCount = await getDailyScheduledCount(userId);
-    if (dailyCount >= MAX_SCHEDULED_PER_DAY) {
-      logger.info("Daily scheduled limit reached, pausing until tomorrow", { userId, dailyCount, limit: MAX_SCHEDULED_PER_DAY });
+    const coreCount = await getDailyCoreYouTubeCount(userId);
+    if (coreCount >= CORE_YOUTUBE_PER_DAY) {
+      logger.info("Daily core YouTube limit reached (1 longform + 4 shorts already scheduled), pausing", { userId, coreCount, limit: CORE_YOUTUBE_PER_DAY });
       return { didWork: false, exhausted: true };
     }
 
@@ -652,9 +685,9 @@ export async function runDailyContentGeneration(): Promise<void> {
 
   for (const userId of userIds) {
     try {
-      const dailyCount = await getDailyScheduledCount(userId);
-      if (dailyCount >= MAX_SCHEDULED_PER_DAY) {
-        logger.info("Daily scheduled limit reached, skipping user", { userId, dailyCount, limit: MAX_SCHEDULED_PER_DAY });
+      const coreCount = await getDailyCoreYouTubeCount(userId);
+      if (coreCount >= CORE_YOUTUBE_PER_DAY) {
+        logger.info("Daily core YouTube limit reached, skipping user", { userId, coreCount, limit: CORE_YOUTUBE_PER_DAY });
         continue;
       }
 

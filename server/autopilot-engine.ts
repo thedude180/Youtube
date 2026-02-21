@@ -216,7 +216,7 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
   }
 }
 
-const MAX_SCHEDULED_PER_DAY = 25;
+const MAX_CROSS_POSTS_PER_DAY = 20;
 
 async function getAutopilotDailyCount(userId: string): Promise<number> {
   const todayStart = new Date();
@@ -230,6 +230,7 @@ async function getAutopilotDailyCount(userId: string): Promise<number> {
     .where(and(
       eq(autopilotQueue.userId, userId),
       eq(autopilotQueue.status, "scheduled"),
+      sql`${autopilotQueue.targetPlatform} != 'youtube'`,
       gte(autopilotQueue.scheduledAt, todayStart),
       lte(autopilotQueue.scheduledAt, todayEnd),
     ));
@@ -244,8 +245,8 @@ async function generateFullThrottleDistribution(
   contentType: "new-video" | "recycle" | "cross-promo" | "go-live" | "post-stream",
 ) {
   const dailyCount = await getAutopilotDailyCount(userId);
-  if (dailyCount >= MAX_SCHEDULED_PER_DAY) {
-    logger.info("Daily scheduled limit reached, skipping distribution", { userId, dailyCount, limit: MAX_SCHEDULED_PER_DAY, contentType });
+  if (dailyCount >= MAX_CROSS_POSTS_PER_DAY) {
+    logger.info("Daily cross-post limit reached, skipping distribution", { userId, dailyCount, limit: MAX_CROSS_POSTS_PER_DAY, contentType });
     return;
   }
 
