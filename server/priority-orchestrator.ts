@@ -204,22 +204,22 @@ export function getCurrentPriority(userId: string): {
     },
     {
       rank: 1,
+      name: "New Content Creation",
+      status: isLive
+        ? "Paused (livestream priority)"
+        : "ACTIVE — Constant content flow: new videos → YouTube/TikTok, announcements → X/Discord",
+      active: !isLive,
+    },
+    {
+      rank: 2,
       name: "Post-Stream Harvest",
       status: isHarvesting ? `ACTIVE — Extracting clips & content from "${state.streamTitle}" — videos → YouTube/TikTok, text → X/Discord` : "Standby (auto-activates after stream ends)",
       active: isHarvesting,
     },
     {
-      rank: 2,
+      rank: 3,
       name: "Top YouTuber Growth",
       status: isLive || isHarvesting ? "Paused (livestream/harvest priority)" : "Active — Algorithmic optimization running",
-      active: !isLive && !isHarvesting,
-    },
-    {
-      rank: 3,
-      name: "Daily Content Upload",
-      status: isLive || isHarvesting
-        ? isHarvesting ? "Paused (harvesting stream content)" : "Paused (livestream priority)"
-        : "Active — 1 long-form + 3 shorts daily, videos → YouTube/TikTok, text → X/Discord",
       active: !isLive && !isHarvesting,
     },
     {
@@ -242,8 +242,8 @@ export function getCurrentPriority(userId: string): {
 
   const descriptions: Record<PriorityMode, string> = {
     livestream: `Live stream "${state.streamTitle}" detected — streaming to YouTube/Twitch/Kick, text alerts firing on X/Discord`,
-    "post-stream-harvest": `Harvesting content from "${state.streamTitle}" — video clips → YouTube/TikTok, text announcements → X/Discord`,
-    "daily-content": "Creating daily content — videos uploaded to YouTube/TikTok, optimized text posts to X/Discord, driving traffic across all platforms",
+    "post-stream-harvest": `Harvesting content from "${state.streamTitle}" + creating new videos — clips & new content → YouTube/TikTok, announcements → X/Discord`,
+    "daily-content": "TOP PRIORITY: Constant content flow — new videos draining every usable minute from streams/VODs → YouTube/TikTok, announcements → X/Discord",
     "vod-optimization": "Optimizing old videos — refreshing metadata on YouTube, resurfacing on X/Discord to drive new traffic",
     idle: "All systems on standby",
   };
@@ -258,7 +258,7 @@ export function getCurrentPriority(userId: string): {
 
 export function shouldRunDailyContent(userId: string): boolean {
   const state = getUserPriorityStateSync(userId);
-  return state.mode !== "livestream" && state.mode !== "post-stream-harvest";
+  return state.mode !== "livestream";
 }
 
 export function shouldRunVodOptimization(userId: string): boolean {
