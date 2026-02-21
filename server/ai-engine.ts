@@ -66,7 +66,7 @@ export function detectGamingContext(title: string, description?: string | null, 
   };
 }
 
-function buildGamingPromptSection(ctx: { isGaming: boolean; gameName: string | null; brandKeywords: string[] }): string {
+export function buildGamingPromptSection(ctx: { isGaming: boolean; gameName: string | null; brandKeywords: string[] }): string {
   if (!ctx.isGaming) return '';
   let section = '\n\nGAMING CONTENT REQUIREMENTS (CRITICAL):';
   if (ctx.gameName) {

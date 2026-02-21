@@ -11,6 +11,8 @@ import {
 
 import { getOpenAIClient } from "../lib/openai";
 import { getRetentionBeatsPromptContext } from "../retention-beats-engine";
+import { detectGamingContext, buildGamingPromptSection } from "../ai-engine";
+import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "../creator-intelligence";
 
 const PLATFORM_LIMITS = {
   youtube: { dailyQuotaUnits: 10000, updateCostUnits: 50, maxUpdatesPerDay: 180, maxConcurrentPipelines: 3 },
@@ -43,6 +45,60 @@ export function checkPlatformLimit(platform: string, limitKey: string): boolean 
 
 function getOpenAI() {
   return getOpenAIClient();
+}
+
+function buildContentContext(sourceTitle: string, existingResults: Record<string, any>): string {
+  const detectResult = existingResults["detect"] || {};
+  const analyzeResult = existingResults["analyze"] || {};
+
+  const gamingCtx = detectGamingContext(
+    sourceTitle,
+    analyzeResult.summary || null,
+    detectResult.category || analyzeResult.category || null,
+    { gameName: detectResult.gameName || analyzeResult.gameName || null }
+  );
+  const gamingSection = buildGamingPromptSection(gamingCtx);
+
+  let contentProfile = "";
+  const category = detectResult.category || analyzeResult.category || "";
+  const summary = analyzeResult.summary || "";
+  const keyMoments = analyzeResult.keyMoments || analyzeResult.highlights || [];
+  const segments = analyzeResult.segments || [];
+
+  if (category || summary || keyMoments.length > 0) {
+    contentProfile += "\n\nCONTENT PROFILE (adapt ALL outputs to this specific content):";
+    if (category) contentProfile += `\n- Content category: ${category}`;
+    if (gamingCtx.gameName) contentProfile += `\n- Game being played: ${gamingCtx.gameName}`;
+    if (summary) contentProfile += `\n- Content summary: ${summary}`;
+    if (keyMoments.length > 0) {
+      const topMoments = keyMoments.slice(0, 5).map((m: any) =>
+        `[${m.timestamp || "?"}s] ${m.description || m.type || "moment"} (score: ${m.score || m.viralScore || "N/A"})`
+      ).join("; ");
+      contentProfile += `\n- Key moments: ${topMoments}`;
+    }
+    if (segments.length > 0) {
+      contentProfile += `\n- Content segments: ${segments.slice(0, 5).map((s: any) => s.name || s.description || s.type || "segment").join(", ")}`;
+    }
+    contentProfile += "\n- CRITICAL: Every title, description, tag, thumbnail, hook, clip, and cross-post MUST be specifically about THIS content — not generic gaming advice. Reference the actual game, moments, and events that happened.";
+  }
+
+  return gamingSection + contentProfile;
+}
+
+async function getCreatorContext(userId: string | null | undefined): Promise<string> {
+  if (!userId) return "";
+  try {
+    const [style, learning, humanization] = await Promise.all([
+      getCreatorStyleContext(userId).catch(() => ""),
+      getLearningContext(userId).catch(() => ""),
+      buildHumanizationPrompt(userId).catch(() => ""),
+    ]);
+    const parts = [style, learning, humanization].filter(Boolean);
+    if (parts.length === 0) return "";
+    return "\n\nCREATOR VOICE & STYLE (match this creator's unique voice):\n" + parts.join("\n");
+  } catch {
+    return "";
+  }
 }
 
 function getStepsForType(pipelineType: string) {
@@ -287,8 +343,8 @@ async function runStreamPipelineStep(
 
   const prompts: Record<string, string> = {
     detect: isVod
-      ? `A VOD replay of the live stream "${originalLiveTitle}" (${durStr}) detected. This content was pulled from a completed live stream. Confirm detection, extract metadata, and note the original live stream reference. Return JSON: { detected: true, sourceType: "vod", isReplayOfLive: true, originalLiveTitle: "${originalLiveTitle}", title: string, estimatedDuration: number, platform: string, category: string }`
-      : `A ${typeLabel} titled "${sourceTitle}" (${durStr}) detected. Confirm detection, extract metadata. Return JSON: { detected: true, sourceType: "${pipelineType}", title: string, estimatedDuration: number, platform: string, category: string }`,
+      ? `A VOD replay of the live stream "${originalLiveTitle}" (${durStr}) detected. This content was pulled from a completed live stream. Confirm detection, extract metadata, and note the original live stream reference. CRITICAL: Analyze the title to identify the specific game being played and content type. Return JSON: { detected: true, sourceType: "vod", isReplayOfLive: true, originalLiveTitle: "${originalLiveTitle}", title: string, estimatedDuration: number, platform: string, category: string, gameName: string or null, contentType: string (e.g. "gameplay", "tutorial", "challenge", "compilation", "review"), contentTheme: string }`
+      : `A ${typeLabel} titled "${sourceTitle}" (${durStr}) detected. Confirm detection, extract metadata. CRITICAL: Analyze the title to identify the specific game being played and content type. Return JSON: { detected: true, sourceType: "${pipelineType}", title: string, estimatedDuration: number, platform: string, category: string, gameName: string or null, contentType: string (e.g. "gameplay", "tutorial", "challenge", "compilation", "review"), contentTheme: string }`,
     live_seo_boost: `Live stream "${sourceTitle}" just started. Context: ${ctx("detect")}. Optimize the live stream for discovery RIGHT NOW across YouTube, Kick, TikTok, X, Discord (Twitch is live-stream-only — do not generate content posts for Twitch). Generate SEO-optimized title rewrites, descriptions, and keyword strategies for each platform so viewers searching for this game/topic find the stream immediately. Return JSON: { platforms: array of {platform: string, optimizedTitle: string, liveDescription: string, topKeywords: array, searchTermsToTarget: array, categoryTags: array}, overallDiscoverabilityScore: number, urgentActions: array, trendingSearchTerms: array }`,
     live_thumbnail: `Live stream "${sourceTitle}" is active. Context: ${ctx("detect")}, ${ctx("live_seo_boost")}. Generate thumbnail concepts optimized for LIVE discovery on YouTube, Twitch, Kick, TikTok. Include "LIVE" badge placement, face-cam frame suggestions, game overlay text, and attention-grabbing colors. Thumbnails should make scrollers stop and click. Return JSON: { thumbnails: array of {platform: string, concept: string, textOverlay: string, liveBadgePlacement: string, colorScheme: array, emotionTarget: string, ctrEstimate: number}, pushPlan: array of {platform: string, method: string, timing: string}, midStreamUpdateStrategy: string }`,
     live_announce: `Live stream "${sourceTitle}" just went live. Context: ${ctx("detect")}, ${ctx("live_seo_boost")}. Generate unique "I'm live!" announcements for 5 platforms (YouTube Community, Kick, TikTok, X post, Discord). Do NOT generate Twitch posts — Twitch is used for live streaming only, not content posting. Each must match platform voice — casual for Discord, hype for TikTok, professional for YouTube, thread-style for X. Include links, hashtags, and engagement hooks. Return JSON: { announcements: array of {platform: string, message: string, hashtags: array, callToAction: string, tone: string, postType: string}, postingOrder: array of {platform: string, delaySeconds: number, reason: string}, crossPromotionLinks: object }`,
@@ -296,7 +352,7 @@ async function runStreamPipelineStep(
     ingest: isVod
       ? `Ingesting VOD replay of live stream "${originalLiveTitle}" (${durStr}). This is a replay pulled from a completed live stream. Extract format, resolution, audio tracks, chapters, and note original live stream reference. Return JSON: { ingested: true, format: string, resolution: string, audioTracks: number, chapters: array, fileSize: string, isReplayOfLive: true, originalLiveTitle: "${originalLiveTitle}" }`
       : `Ingesting ${typeLabel} "${sourceTitle}" (${durStr}). Extract format, resolution, audio tracks, chapters. Return JSON: { ingested: true, format: string, resolution: string, audioTracks: number, chapters: array, fileSize: string }`,
-    analyze: `Analyze ${typeLabel} "${sourceTitle}" (${durStr}). Context: ${ctx("detect")}. Key moments, segments, clip opportunities, engagement peaks. Return JSON: { keyMoments: array of {timestamp: number, description: string, score: number}, segments: array, highlights: array, category: string, engagementPeaks: array, summary: string }`,
+    analyze: `Deeply analyze the actual content of ${typeLabel} "${sourceTitle}" (${durStr}). Context: ${ctx("detect")}. CRITICAL: Identify what SPECIFICALLY happens in this content — the game being played, specific in-game events, kills, wins, fails, funny moments, emotional peaks, and story arcs. Do NOT give generic analysis. Return JSON: { keyMoments: array of {timestamp: number, description: string, score: number, momentType: string}, segments: array of {name: string, description: string, startTime: number, endTime: number}, highlights: array, category: string, gameName: string or null, gameSpecificDetails: { characters: array, maps: array, weapons: array, achievements: array }, engagementPeaks: array, summary: string, contentMood: string, targetAudience: string, uniqueSellingPoints: array }`,
     chat_sentiment: `Analyze chat sentiment during ${typeLabel} "${sourceTitle}". Context: ${ctx("analyze")}. Score mood over time, toxicity levels, hype moments, emote patterns. Return JSON: { overallMood: string, moodScore: number, toxicityLevel: number, hypeMoments: array of {timestamp: number, intensity: number, trigger: string}, topEmotes: array, chatVelocityPeaks: array, recommendations: array }`,
     highlights: `Extract top highlights from ${typeLabel} "${sourceTitle}" (${durStr}). Context: ${ctx("analyze")}. Identify kills, clutches, funny moments, epic plays. Return JSON: { highlights: array of {timestamp: number, endTime: number, type: string, description: string, viralScore: number, suggestedCaption: string}, totalHighlights: number, topMoment: object }`,
     trend_detect: `Detect trending topics matching "${sourceTitle}". Context: ${ctx("analyze")}. Find trending games, hashtags, topics, challenges. Return JSON: { trendingTopics: array of {topic: string, volume: number, relevance: number, platform: string}, trendScore: number, recommendations: array, risingTrends: array }`,
@@ -396,9 +452,14 @@ Return JSON: { beatsApplied: array of {beatType: string, beatName: string, times
     ? " You have been given REAL retention beat data learned from studying top creators like MrBeast and The Fat Electrician. Use these specific patterns — do NOT make up generic advice. Every recommendation must reference a specific beat from the data provided."
     : "";
 
-  const systemMsg = pipelineType === "live"
-    ? `You are a gaming livestream content expert. Analyze live streams and generate optimized content.${retentionSystemBoost} Always respond with valid JSON only, no markdown.`
-    : `You are a VOD content optimization expert specializing in live stream replays and highlights. This VOD was pulled from a completed live stream. All content (titles, descriptions, tags, thumbnails, announcements) MUST clearly indicate this is a replay/highlight of a live stream and reference the original.${retentionSystemBoost} Always respond with valid JSON only, no markdown.`;
+  const contentCtx = buildContentContext(sourceTitle, existingResults);
+  const creatorCtx = await getCreatorContext(userId);
+
+  const baseRole = pipelineType === "live"
+    ? `You are a content optimization expert analyzing a LIVE stream. Analyze live streams and generate optimized content that is specifically tailored to what is being streamed.`
+    : `You are a VOD content optimization expert specializing in live stream replays and highlights. This VOD was pulled from a completed live stream. All content (titles, descriptions, tags, thumbnails, announcements) MUST clearly indicate this is a replay/highlight of a live stream and reference the original.`;
+
+  const systemMsg = `${baseRole}${retentionSystemBoost}${contentCtx}${creatorCtx}\n\nCRITICAL: Adapt ALL outputs to the SPECIFIC content of this video. Do not give generic advice — every recommendation must reference what actually happened in this content. Always respond with valid JSON only, no markdown.`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",

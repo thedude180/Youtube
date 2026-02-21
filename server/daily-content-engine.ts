@@ -7,6 +7,7 @@ import { generateHumanScheduledTime } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunDailyContent } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
+import { detectGamingContext, buildGamingPromptSection } from "./ai-engine";
 
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
@@ -171,7 +172,13 @@ STREAM INFO:
 - Total Duration: ${stream.totalMinutes} minutes
 - Current Segment: ${segStart} min to ${segEnd} min (${availableMinutes} min available)
 - Batch #${batchNumber} from this stream
+${buildGamingPromptSection(detectGamingContext(stream.stream.title, null, (stream.stream as any).category || null, { gameName: (stream.stream as any).gameName || null }))}
 ${retentionContext}
+
+CONTENT-ADAPTIVE REQUIREMENTS:
+- ALL content MUST be specifically about what happened in "${stream.stream.title}" — reference the actual game, specific moments, plays, and events.
+- Do NOT create generic gaming content. Every title, description, hook, and caption must relate to the SPECIFIC content of this stream segment.
+- Use game-specific terminology, character names, map names, and community lingo relevant to this stream.
 
 RULES:
 - Long-form MUST NOT exceed ${LONG_FORM_MAX_MINUTES} minutes. Use segments from ${segStart}-${segEnd} minutes.

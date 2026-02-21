@@ -6,6 +6,7 @@ import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunVodOptimization } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
+import { detectGamingContext, buildGamingPromptSection } from "./ai-engine";
 
 const logger = createLogger("vod-optimizer");
 const openai = getOpenAIClient();
@@ -60,8 +61,18 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
 
   const vodList = vods.map((v, i) => {
     const meta = v.metadata as any;
-    return `${i + 1}. Title: "${v.title}" | Views: ${v.viewCount || 0} | Likes: ${v.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(v.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}`;
+    const gamingCtx = detectGamingContext(v.title, v.description, meta?.contentCategory, meta);
+    const gameLabel = gamingCtx.gameName ? ` | Game: ${gamingCtx.gameName}` : "";
+    return `${i + 1}. Title: "${v.title}" | Views: ${v.viewCount || 0} | Likes: ${v.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(v.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}${gameLabel}`;
   }).join("\n");
+
+  const gameNames = [...new Set(vods.map(v => {
+    const meta = v.metadata as any;
+    return detectGamingContext(v.title, v.description, meta?.contentCategory, meta).gameName;
+  }).filter(Boolean))];
+  const gameSpecificSection = gameNames.length > 0
+    ? `\n\nGAME-SPECIFIC OPTIMIZATION (CRITICAL):\nThese videos feature: ${gameNames.join(", ")}. Every title, description, tag, and thumbnail MUST reference the specific game by name. Use game-specific terminology, characters, maps, weapons, and community lingo. Tags MUST include game names and related search terms players actually search for. Do NOT give generic gaming advice — optimize for the SPECIFIC game in each video.`
+    : "";
 
   const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
 
@@ -82,7 +93,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
 🧠 WORLD'S BEST AUDIENCE PSYCHOLOGIST: You understand the gaming audience's decision-making in the 0.5 seconds they decide to click or scroll. You weaponize FOMO, social proof, pattern interrupts, and dopamine triggers in every metadata element.
 
 🎨 WORLD'S BEST THUMBNAIL STRATEGIST: You design thumbnail concepts that achieve 8%+ CTR. You understand visual hierarchy, color psychology, facial expressions, contrast, and the "stop the scroll" principle that makes viewers physically unable to not click.
-${retentionContext}
+${retentionContext}${gameSpecificSection}
 
 OPTIMIZATION STRATEGY:
 - Titles: Front-load the primary keyword. Use power words (INSANE, IMPOSSIBLE, NEVER). Create a curiosity gap or emotional hook. Max 60 chars. Make it feel like a video uploaded TODAY about a trending topic.
@@ -104,7 +115,7 @@ Return ONLY valid JSON array matching this structure:
         },
         {
           role: "user",
-          content: `Optimize these underperforming gaming VODs for maximum new viewership:\n\n${vodList}\n\nMake each title irresistible. Use current YouTube gaming trends. Every optimization should feel like a fresh upload to the algorithm.`
+          content: `Optimize these underperforming VODs for maximum new viewership:\n\n${vodList}\n\nCRITICAL: Each optimization MUST be tailored to the SPECIFIC content of that video. Reference the actual game, events, and moments in the video. Do NOT give generic titles like "INSANE GAMEPLAY" — instead reference what specifically happened (e.g. "1v5 CLUTCH ACE in Valorant" or "Impossible GTA Heist Gone Wrong"). Make each title irresistible and content-specific. Use current YouTube trends relevant to each video's specific game/topic. Every optimization should feel like a fresh upload to the algorithm.`
         }
       ],
       temperature: 0.8,
