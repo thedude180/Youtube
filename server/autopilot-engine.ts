@@ -747,15 +747,26 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
     if (!stream) return { success: false, error: "Source stream not found" };
 
-    const streamVideos = await db.select().from(videos)
-      .where(eq(videos.userId, post.userId))
-      .orderBy(desc(videos.createdAt))
-      .limit(50);
+    let streamVideo: any = null;
 
-    const streamVideo = streamVideos.find(v => {
-      const vm = (v.metadata as any) || {};
-      return vm.youtubeId && (vm.sourceStreamId === streamId || v.title?.toLowerCase().includes(stream.title?.toLowerCase()?.substring(0, 20) || ""));
-    });
+    if (stream.vodVideoId) {
+      const [vodVideo] = await db.select().from(videos).where(eq(videos.id, stream.vodVideoId));
+      if (vodVideo && (vodVideo.metadata as any)?.youtubeId) {
+        streamVideo = vodVideo;
+      }
+    }
+
+    if (!streamVideo) {
+      const streamVideos = await db.select().from(videos)
+        .where(eq(videos.userId, post.userId))
+        .orderBy(desc(videos.createdAt))
+        .limit(50);
+
+      streamVideo = streamVideos.find(v => {
+        const vm = (v.metadata as any) || {};
+        return vm.youtubeId && (vm.sourceStreamId === streamId || v.title?.toLowerCase().includes(stream.title?.toLowerCase()?.substring(0, 20) || ""));
+      });
+    }
 
     if (!streamVideo) {
       logger.info("No source video with YouTube ID found for stream clip, falling back to text publish", { streamId, postId: post.id });
@@ -788,7 +799,7 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title,
       description: post.content || "",
-      tags: isShort ? ["shorts", "highlights", "clips"] : ["highlights", "stream", "content"],
+      tags: meta.tags || (isShort ? ["shorts", "highlights", "clips", "gaming"] : ["highlights", "stream", "gameplay", "gaming"]),
       categoryId: "20",
       privacyStatus: "public",
       videoFilePath: clipPath,

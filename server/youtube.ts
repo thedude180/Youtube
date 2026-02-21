@@ -577,6 +577,15 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
   await storage.updateChannel(channelId, { lastSyncAt: new Date() });
   if (newVideos.length > 0) {
     console.log(`[YouTube] Synced ${newVideos.length} new video(s) for channel ${channelId}`);
+    try {
+      const { bridgeVodsToStreams } = await import("./daily-content-engine");
+      const bridged = await bridgeVodsToStreams(userId);
+      if (bridged > 0) {
+        console.log(`[YouTube] Auto-bridged ${bridged} VODs to stream records for content extraction`);
+      }
+    } catch (err) {
+      console.error("[YouTube] VOD bridge after sync failed:", err);
+    }
   }
   return { synced, newVideos };
 }

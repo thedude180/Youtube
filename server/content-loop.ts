@@ -101,6 +101,16 @@ export async function bootContentLoops() {
     for (const row of userRows) {
       if (!row.userId) continue;
 
+      try {
+        const { bridgeVodsToStreams } = await import("./daily-content-engine");
+        const bridged = await bridgeVodsToStreams(row.userId);
+        if (bridged > 0) {
+          logger.info("Boot: bridged VODs to streams", { userId: row.userId, count: bridged });
+        }
+      } catch (err) {
+        logger.error("Boot: VOD bridge failed", { userId: row.userId, error: String(err) });
+      }
+
       const liveStreams = await db.select().from(streams)
         .where(and(eq(streams.userId, row.userId), eq(streams.status, "live")))
         .limit(1);
@@ -203,6 +213,15 @@ async function runLoopIteration(userId: string) {
   state.lastRunAt = Date.now();
 
   if (state.phase === "stream-exhaust" || state.phase === "idle") {
+    if (state.phase === "idle") {
+      try {
+        const { bridgeVodsToStreams } = await import("./daily-content-engine");
+        const bridged = await bridgeVodsToStreams(userId);
+        if (bridged > 0) {
+          logger.info("Idle check: bridged new VODs to streams", { userId, count: bridged });
+        }
+      } catch {}
+    }
     const hasStreamContent = await checkAnyWorkRemaining(userId);
 
     if (hasStreamContent) {

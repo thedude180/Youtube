@@ -297,6 +297,7 @@ async function queueBatchContent(
         batchNumber,
         crossPlatformGroupId: groupId,
         crossLinkedPlatforms: allPlatforms,
+        tags: plan.longForm.tags || [],
         retentionBeatsApplied: true,
         retentionBrief: plan.longForm.retentionBrief || null,
         titleVariants: plan.longForm.titleVariants || [],
@@ -330,6 +331,7 @@ async function queueBatchContent(
           sourceStreamId: stream.stream.id,
           segmentStartMin: short.startMinute,
           segmentEndMin: short.endMinute,
+          tags: short.hashtags?.map((h: string) => h.replace(/^#/, "")) || [],
           retentionBeatsApplied: true,
           batchNumber,
           crossPlatformGroupId: groupId,
@@ -789,4 +791,80 @@ export async function getDailyContentStatus(userId: string): Promise<{
     todayItems: todayCount?.count || 0,
     streamExhaust,
   };
+}
+
+function parseIsoDuration(iso: string): number {
+  const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  const hours = parseInt(match[1] || "0", 10);
+  const minutes = parseInt(match[2] || "0", 10);
+  const seconds = parseInt(match[3] || "0", 10);
+  return hours * 60 + minutes + Math.ceil(seconds / 60);
+}
+
+export async function bridgeVodsToStreams(userId: string): Promise<number> {
+  const existingStreamVodIds = await db
+    .select({ vodVideoId: streams.vodVideoId })
+    .from(streams)
+    .where(and(eq(streams.userId, userId), isNotNull(streams.vodVideoId)));
+  const linkedVodIds = new Set(existingStreamVodIds.map(r => r.vodVideoId).filter(Boolean));
+
+  const longVods = await db.select().from(videos)
+    .where(and(
+      eq(videos.userId, userId),
+      eq(videos.platform, "youtube"),
+      eq(videos.type, "long"),
+    ))
+    .orderBy(desc(videos.createdAt));
+
+  const MIN_STREAM_MINUTES = 20;
+  let created = 0;
+
+  for (const vod of longVods) {
+    if (linkedVodIds.has(vod.id)) continue;
+
+    const meta = (vod.metadata as any) || {};
+    const durationStr = meta.duration || meta.contentDetails?.duration || "";
+    const totalMinutes = parseIsoDuration(durationStr);
+
+    if (totalMinutes < MIN_STREAM_MINUTES) continue;
+
+    const publishedAt = meta.publishedAt ? new Date(meta.publishedAt) : vod.createdAt;
+    const endedAt = new Date(publishedAt!.getTime() + totalMinutes * 60 * 1000);
+
+    try {
+      await db.insert(streams).values({
+        userId,
+        title: vod.title,
+        description: vod.description || "",
+        category: meta.categoryId || null,
+        status: "ended",
+        thumbnailUrl: vod.thumbnailUrl || meta.thumbnails?.high?.url || null,
+        platforms: ["youtube"],
+        startedAt: publishedAt,
+        endedAt,
+        detectedSource: "vod-bridge",
+        isAutoDetected: true,
+        vodVideoId: vod.id,
+        contentMinutesExtracted: 0,
+        contentFullyExhausted: false,
+      });
+      created++;
+      linkedVodIds.add(vod.id);
+      logger.info("VOD bridged to stream record", {
+        userId,
+        videoId: vod.id,
+        title: vod.title,
+        totalMinutes,
+      });
+    } catch (err: any) {
+      logger.error("Failed to bridge VOD to stream", { videoId: vod.id, error: err.message });
+    }
+  }
+
+  if (created > 0) {
+    logger.info("VOD-to-Stream bridge complete", { userId, newStreams: created });
+  }
+
+  return created;
 }
