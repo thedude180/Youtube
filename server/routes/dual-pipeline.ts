@@ -398,7 +398,9 @@ async function executeStreamPipelineInBackground(
             title: `Pipeline error: "${sourceTitle}"`,
             message: `Step "${step}" failed during processing. The self-healing system will attempt to recover automatically. Error: ${stepErr.message?.slice(0, 200)}`,
           });
-        } catch {}
+        } catch (notifErr) {
+          console.error(`[DualPipeline] Failed to create error notification for pipeline ${pipelineId}:`, notifErr);
+        }
       }
       return;
     }

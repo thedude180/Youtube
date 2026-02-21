@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/PageState";
 import {
   Gift, BarChart3, Trophy, Star, Shield, Plus, Loader2, Users,
   Crown, Award, Medal, Target, MessageSquare, Calendar,
@@ -214,7 +215,7 @@ function GiveawaysTab() {
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
       ) : error ? (
-        <p className="text-xs text-muted-foreground" data-testid="error-giveaways">Failed to load giveaways</p>
+        <ErrorState message="Failed to load giveaways" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/community/giveaways"] })} />
       ) : !data?.length ? (
         <EmptyState
           icon={Users}
@@ -371,7 +372,7 @@ function PollsTab() {
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
       ) : error ? (
-        <p className="text-xs text-muted-foreground" data-testid="error-polls">Failed to load polls</p>
+        <ErrorState message="Failed to load polls" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/community/polls"] })} />
       ) : !data?.length ? (
         <EmptyState
           icon={Users}
@@ -531,7 +532,7 @@ function ChallengesTab() {
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
       ) : error ? (
-        <p className="text-xs text-muted-foreground" data-testid="error-challenges">Failed to load challenges</p>
+        <ErrorState message="Failed to load challenges" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/community/challenges"] })} />
       ) : !data?.length ? (
         <EmptyState
           icon={Users}
@@ -645,7 +646,7 @@ function LoyaltyTab() {
           {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
         </div>
       ) : error ? (
-        <p className="text-xs text-muted-foreground" data-testid="error-loyalty">Failed to load leaderboard</p>
+        <ErrorState message="Failed to load leaderboard" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/community/loyalty"] })} />
       ) : !data?.length ? (
         <Card data-testid="empty-loyalty">
           <CardContent className="p-4 text-center">
@@ -813,7 +814,7 @@ function ModerationTab() {
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
       ) : error ? (
-        <p className="text-xs text-muted-foreground" data-testid="error-moderation">Failed to load moderation log</p>
+        <ErrorState message="Failed to load moderation log" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/community/moderation"] })} />
       ) : !filtered?.length ? (
         <Card data-testid="empty-moderation">
           <CardContent className="p-4 text-center">

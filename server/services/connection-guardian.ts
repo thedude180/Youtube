@@ -132,7 +132,9 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
               try {
                 const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
                 await proactiveTokenHealthCheck();
-              } catch {}
+              } catch (reconnectErr) {
+                console.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, reconnectErr);
+              }
             }
           }
         }

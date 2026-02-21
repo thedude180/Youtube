@@ -25,6 +25,7 @@ import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
+import { closeAllConnections } from "./routes/events";
 
 const logger = createLogger("express");
 
@@ -227,13 +228,15 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 const globalRateLimitMap = new Map<string, { count: number; windowStart: number }>();
 const GLOBAL_RATE_LIMIT = 300;
 const GLOBAL_RATE_WINDOW = 60_000;
+const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
 
-setInterval(() => {
+const globalRateLimitInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of Array.from(globalRateLimitMap)) {
     if (now - entry.windowStart > GLOBAL_RATE_WINDOW) globalRateLimitMap.delete(key);
   }
 }, 30_000);
+backgroundIntervals.push(globalRateLimitInterval);
 
 app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
   if (req.path === "/health" || req.path === "/stripe/webhook") return next();
@@ -248,7 +251,9 @@ app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
         lockedUntil: lockStatus.lockedUntil?.toISOString(),
       });
     }
-  } catch {}
+  } catch (err) {
+    console.error("[Express] Account lock check failed:", err);
+  }
 
   const adaptiveLimit = await getAdaptiveRateLimit(ip);
   const now = Date.now();
@@ -268,7 +273,7 @@ app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
     return res.status(429).json({ error: "rate_limited", message: "Too many requests. Please slow down." });
   }
 
-  try { analyzeRequestPattern(ip, req.path, req.method); } catch {}
+  try { analyzeRequestPattern(ip, req.path, req.method); } catch (err) { console.error("[Express] Request pattern analysis failed:", err); }
 
   next();
 });
@@ -300,12 +305,13 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 
 const csrfTokens = new Map<string, { token: string; expires: number }>();
 
-setInterval(() => {
+const csrfCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of Array.from(csrfTokens)) {
     if (now > entry.expires) csrfTokens.delete(key);
   }
 }, 60_000);
+backgroundIntervals.push(csrfCleanupInterval);
 
 const CSRF_MAX_SIZE = 10000;
 
@@ -488,8 +494,6 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     await setupVite(httpServer, app);
   }
 
-  const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
-
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {
@@ -530,10 +534,28 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     },
   );
 
-  const shutdown = (signal: string) => {
-    log(`${signal} received, shutting down gracefully...`);
+  let isShuttingDown = false;
 
-    for (const interval of backgroundIntervals) clearInterval(interval);
+  function shutdown(signal: string) {
+    if (isShuttingDown) {
+      log(`[Server] ${signal} received again during shutdown, forcing exit...`);
+      process.exit(1);
+    }
+
+    isShuttingDown = true;
+    log(`[Server] ${signal} received, starting graceful shutdown...`);
+
+    // Stop accepting new connections
+    httpServer.close(() => {
+      log("[Server] HTTP server closed, no new connections accepted");
+    });
+
+    // Stop all background intervals and engines
+    log("[Server] Stopping background timers and engines...");
+    for (const interval of backgroundIntervals) {
+      clearInterval(interval);
+    }
+
     stopAutopilotMonitor();
     stopConnectionGuardian();
     stopFortressCleanup();
@@ -541,15 +563,44 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     stopAutoFixCleanup();
     stopSettingsCleanup();
     stopTierCleanup();
+    log("[Server] Background engines stopped");
 
-    httpServer.close(() => {
-      pool.end().then(() => {
-        log("Database pool closed");
-        process.exit(0);
-      }).catch(() => process.exit(1));
+    // Close all SSE connections
+    log("[Server] Closing all SSE connections...");
+    try {
+      closeAllConnections();
+    } catch (err) {
+      logger.error("[Server] Error closing SSE connections", { error: String(err) });
+    }
+
+    // Wait for in-flight requests to complete, then close database
+    const shutdownTimeoutMs = 5000;
+    const shutdownTimer = setTimeout(async () => {
+      log(`[Server] Shutdown timeout (${shutdownTimeoutMs}ms) reached, closing database...`);
+      try {
+        await pool.end();
+        log("[Server] Database pool closed");
+      } catch (err) {
+        logger.error("[Server] Error closing database pool", { error: String(err) });
+      }
+      log("[Server] Graceful shutdown complete");
+      process.exit(0);
+    }, shutdownTimeoutMs);
+
+    // Also handle immediate exit if server closes quickly
+    httpServer.on("close", async () => {
+      clearTimeout(shutdownTimer);
+      try {
+        await pool.end();
+        log("[Server] Database pool closed");
+      } catch (err) {
+        logger.error("[Server] Error closing database pool", { error: String(err) });
+      }
+      log("[Server] Graceful shutdown complete");
+      process.exit(0);
     });
-    setTimeout(() => { process.exit(1); }, 10000);
-  };
+  }
+
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 

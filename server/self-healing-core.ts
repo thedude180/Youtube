@@ -133,7 +133,9 @@ async function recordFailure(sub: SubsystemHealth, error: Error): Promise<void> 
         message: `${sub.consecutiveFailures} consecutive failures. Last error: ${error.message.substring(0, 200)}. Self-healing active.`,
         severity: "critical",
       });
-    } catch {}
+    } catch (notifErr) {
+      console.error(`[SelfHealing] Failed to create critical failure notification for "${sub.name}":`, notifErr);
+    }
   }
 }
 

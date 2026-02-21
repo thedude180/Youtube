@@ -55,6 +55,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
                 results.reconnectEmail = "deferred to health check";
               }
             } catch (e) {
+              console.error(`[PostLoginInit] Token refresh failed for ${userId}:`, e);
               results.tokenRefresh = "error";
             }
             break;
@@ -72,9 +73,9 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       try {
         const { processCommentResponses, processContentRecycling, processCrossPromotion } = await import("../autopilot-engine");
         setTimeout(async () => {
-          try { await processCommentResponses(userId); } catch (e) { }
-          try { await processContentRecycling(userId); } catch (e) { }
-          try { await processCrossPromotion(userId); } catch (e) { }
+          try { await processCommentResponses(userId); } catch (e) { console.error(`[PostLoginInit] Comment responses failed for ${userId}:`, e); }
+          try { await processContentRecycling(userId); } catch (e) { console.error(`[PostLoginInit] Content recycling failed for ${userId}:`, e); }
+          try { await processCrossPromotion(userId); } catch (e) { console.error(`[PostLoginInit] Cross promotion failed for ${userId}:`, e); }
         }, 5000);
         results.autopilot = "activated";
       } catch (err) {
@@ -88,7 +89,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
     try {
       const { runMultiPlatformLiveDetection } = await import("./live-detection");
       setTimeout(async () => {
-        try { await runMultiPlatformLiveDetection(); } catch (e) { }
+        try { await runMultiPlatformLiveDetection(); } catch (e) { console.error(`[PostLoginInit] Live detection failed for ${userId}:`, e); }
       }, 3000);
       results.liveDetection = "triggered";
     } catch (err) {
@@ -99,7 +100,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
     try {
       const { evaluateRules } = await import("../automation-engine");
       setTimeout(async () => {
-        try { await evaluateRules(userId, "user_login", { userId, timestamp: new Date().toISOString() }); } catch (e) { }
+        try { await evaluateRules(userId, "user_login", { userId, timestamp: new Date().toISOString() }); } catch (e) { console.error(`[PostLoginInit] Automation rules evaluation failed for ${userId}:`, e); }
       }, 2000);
       results.automationRules = "evaluated";
     } catch (err) {

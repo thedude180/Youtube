@@ -3,6 +3,7 @@ import { channels, contentClips, autopilotQueue } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { storage } from "./storage";
 import { createLogger } from "./lib/logger";
+import { withRetry } from "./services/api-retry";
 
 const logger = createLogger("tiktok-publisher");
 import { processClipForTikTok, cleanupClipFile } from "./clip-video-processor";
@@ -175,24 +176,31 @@ async function uploadVideoChunks(
     const chunk = fs.readFileSync(filePath).subarray(start, end);
 
     try {
-      const res = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "video/mp4",
-          "Content-Range": `bytes ${start}-${end - 1}/${fileSize}`,
-          "Content-Length": String(chunk.length),
-        },
-        body: chunk,
-      });
+      await withRetry(async () => {
+        const res = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "video/mp4",
+            "Content-Range": `bytes ${start}-${end - 1}/${fileSize}`,
+            "Content-Length": String(chunk.length),
+          },
+          body: chunk,
+        });
 
-      if (!res.ok && res.status !== 201 && res.status !== 206) {
-        const errText = await res.text().catch(() => "");
-        return { success: false, error: `Chunk ${i + 1}/${totalChunks} upload failed (${res.status}): ${errText.substring(0, 200)}` };
-      }
+        if (!res.ok && res.status !== 201 && res.status !== 206) {
+          const errText = await res.text().catch(() => "");
+          const err: any = new Error(`Chunk ${i + 1}/${totalChunks} upload failed (${res.status}): ${errText.substring(0, 200)}`);
+          err.status = res.status;
+          throw err;
+        }
+      }, `TikTok chunk ${i + 1}/${totalChunks}`, {
+        maxRetries: 3,
+        retryOn: (error) => error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT',
+      });
 
       logger.info("TikTok chunk uploaded", { chunk: i + 1, total: totalChunks, bytes: chunk.length });
     } catch (err: any) {
-      return { success: false, error: `Chunk ${i + 1} upload error: ${err.message}` };
+      return { success: false, error: err.message || `Chunk ${i + 1} upload error` };
     }
   }
 

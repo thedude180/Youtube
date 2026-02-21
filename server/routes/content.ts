@@ -34,8 +34,11 @@ import {
 
 export function registerContentRoutes(app: Express) {
   const contentRateLimit = rateLimitEndpoint(10, 60000);
+  const writeRateLimit = rateLimitEndpoint(30, 60000);
+  const deleteRateLimit = rateLimitEndpoint(10, 60000);
+  const bulkRateLimit = rateLimitEndpoint(5, 60000);
 
-  app.post("/api/auto-connect-youtube", asyncHandler(async (req, res) => {
+  app.post("/api/auto-connect-youtube", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const email = (req.user as any)?.claims?.email;
@@ -90,7 +93,7 @@ export function registerContentRoutes(app: Express) {
     res.json(enriched);
   }));
 
-  app.post(api.channels.create.path, asyncHandler(async (req, res) => {
+  app.post(api.channels.create.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -113,7 +116,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.put(api.channels.update.path, asyncHandler(async (req, res) => {
+  app.put(api.channels.update.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -139,7 +142,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.delete("/api/channels/:id", asyncHandler(async (req, res) => {
+  app.delete("/api/channels/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -331,7 +334,7 @@ export function registerContentRoutes(app: Express) {
     res.json(video);
   }));
 
-  app.put(api.videos.update.path, asyncHandler(async (req, res) => {
+  app.put(api.videos.update.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const vidId = parseNumericId(req.params.id as string, res, "video ID");
@@ -372,7 +375,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.delete(api.videos.delete.path, asyncHandler(async (req, res) => {
+  app.delete(api.videos.delete.path, deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const delId = parseNumericId(req.params.id as string, res, "video ID");
@@ -447,7 +450,7 @@ export function registerContentRoutes(app: Express) {
     res.json(jobs);
   }));
 
-  app.post(api.jobs.create.path, asyncHandler(async (req, res) => {
+  app.post(api.jobs.create.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -702,7 +705,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.put(api.strategies.updateStatus.path, asyncHandler(async (req, res) => {
+  app.put(api.strategies.updateStatus.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -755,7 +758,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post(api.backlog.optimize.path, asyncHandler(async (req, res) => {
+  app.post(api.backlog.optimize.path, bulkRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -869,7 +872,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post(api.backlog.autoStart.path, asyncHandler(async (req, res) => {
+  app.post(api.backlog.autoStart.path, bulkRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -911,14 +914,14 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post(api.backlog.pause.path, asyncHandler(async (req, res) => {
+  app.post(api.backlog.pause.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const success = await pauseBacklog(userId);
     res.json({ success });
   }));
 
-  app.post(api.backlog.resume.path, asyncHandler(async (req, res) => {
+  app.post(api.backlog.resume.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const success = await resumeBacklog(userId);
@@ -932,7 +935,7 @@ export function registerContentRoutes(app: Express) {
     res.json(scores);
   }));
 
-  app.post(api.backlog.bulkOptimize.path, asyncHandler(async (req, res) => {
+  app.post(api.backlog.bulkOptimize.path, bulkRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -960,7 +963,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post(api.backlog.autoSchedule.path, asyncHandler(async (req, res) => {
+  app.post(api.backlog.autoSchedule.path, bulkRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1055,26 +1058,52 @@ export function registerContentRoutes(app: Express) {
   app.post("/api/content-ideas", contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const schema = z.object({
+      title: z.string().min(1).max(500),
+      description: z.string().max(5000).optional(),
+      category: z.string().max(200).optional(),
+      status: z.string().max(50).optional(),
+      platform: z.string().max(50).optional(),
+      tags: z.array(z.string().max(100)).optional(),
+      metadata: z.record(z.unknown()).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const idea = await storage.createContentIdea({ ...req.body, userId });
+      const idea = await storage.createContentIdea({ ...parsed.data, userId });
       res.status(201).json(idea);
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
 
-  app.put("/api/content-ideas/:id", asyncHandler(async (req, res) => {
+  app.put("/api/content-ideas/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
+    const schema = z.object({
+      title: z.string().min(1).max(500).optional(),
+      description: z.string().max(5000).optional(),
+      category: z.string().max(200).optional(),
+      status: z.string().max(50).optional(),
+      platform: z.string().max(50).optional(),
+      tags: z.array(z.string().max(100)).optional(),
+      metadata: z.record(z.unknown()).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const idea = await storage.updateContentIdea(id, req.body);
+    const idea = await storage.updateContentIdea(id, parsed.data);
     res.json(idea);
   }));
 
-  app.delete("/api/content-ideas/:id", asyncHandler(async (req, res) => {
+  app.delete("/api/content-ideas/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -1106,8 +1135,22 @@ export function registerContentRoutes(app: Express) {
   app.post("/api/content-clips", contentRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const schema = z.object({
+      sourceVideoId: z.number().optional(),
+      title: z.string().min(1).max(500),
+      description: z.string().max(5000).optional(),
+      platform: z.string().max(50).optional(),
+      startTime: z.number().optional(),
+      endTime: z.number().optional(),
+      status: z.string().max(50).optional(),
+      metadata: z.record(z.unknown()).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const clip = await storage.createContentClip({ ...req.body, userId });
+      const clip = await storage.createContentClip({ ...parsed.data, userId });
       res.status(201).json(clip);
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
@@ -1121,11 +1164,24 @@ export function registerContentRoutes(app: Express) {
     res.json(leads);
   }));
 
-  app.post("/api/collaboration-leads", asyncHandler(async (req, res) => {
+  app.post("/api/collaboration-leads", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const schema = z.object({
+      name: z.string().min(1).max(500),
+      platform: z.string().max(50).optional(),
+      channelUrl: z.string().max(2000).optional(),
+      email: z.string().max(500).optional(),
+      status: z.string().max(50).optional(),
+      notes: z.string().max(5000).optional(),
+      metadata: z.record(z.unknown()).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const lead = await storage.createCollaborationLead({ ...req.body, userId });
+      const lead = await storage.createCollaborationLead({ ...parsed.data, userId });
       res.status(201).json(lead);
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
@@ -1399,7 +1455,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/calendar/schedule-pipelines", asyncHandler(async (req, res) => {
+  app.post("/api/calendar/schedule-pipelines", bulkRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1564,7 +1620,7 @@ export function registerContentRoutes(app: Express) {
     });
   }));
 
-  app.post("/api/content/bulk-update", asyncHandler(async (req: any, res) => {
+  app.post("/api/content/bulk-update", bulkRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1599,7 +1655,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/content/bulk-optimize", asyncHandler(async (req: any, res) => {
+  app.post("/api/content/bulk-optimize", bulkRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1620,7 +1676,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/content/create-approval", asyncHandler(async (req: any, res) => {
+  app.post("/api/content/create-approval", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1633,7 +1689,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ab-tests/create", asyncHandler(async (req: any, res) => {
+  app.post("/api/ab-tests/create", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -1647,7 +1703,7 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ab-tests/:id/resolve", asyncHandler(async (req: any, res) => {
+  app.post("/api/ab-tests/:id/resolve", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {

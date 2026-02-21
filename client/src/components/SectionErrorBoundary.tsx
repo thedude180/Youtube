@@ -1,7 +1,8 @@
 import { Component, type ReactNode } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { queryClient } from "@/lib/queryClient";
 
 interface Props {
   children: ReactNode;
@@ -23,6 +24,16 @@ export class SectionErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  handleRetry = () => {
+    queryClient.invalidateQueries();
+    this.setState({ hasError: false, error: undefined });
+  };
+
+  handleGoHome = () => {
+    queryClient.invalidateQueries();
+    window.location.href = "/";
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -32,15 +43,26 @@ export class SectionErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-muted-foreground">
               {this.props.fallbackTitle || "This section encountered an error"}
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => this.setState({ hasError: false, error: undefined })}
-              data-testid="button-section-retry"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Retry
-            </Button>
+            <div className="flex gap-2 mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={this.handleRetry}
+                data-testid="button-section-retry"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={this.handleGoHome}
+                data-testid="button-section-go-home"
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Go Home
+              </Button>
+            </div>
           </CardContent>
         </Card>
       );

@@ -125,7 +125,9 @@ export async function registerRoutes(
           resetAt: new Date(entry.reset).toISOString(),
         });
       }
-    } catch {}
+    } catch (err) {
+      console.error("[Routes] AI daily usage check failed:", err);
+    }
 
     next();
   });

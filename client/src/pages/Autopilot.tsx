@@ -15,6 +15,7 @@ import { PlatformBadge } from "@/components/PlatformIcon";
 import { formatDistanceToNow } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
 import { LiveTimestamp } from "@/components/LiveTimestamp";
+import { ErrorState } from "@/components/PageState";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { StealthRing } from "@/components/StealthRing";
 import { CountdownTimer } from "@/components/CountdownTimer";
@@ -804,7 +805,24 @@ export default function Autopilot() {
         </TabsContent>
 
         <TabsContent value="queue" className="space-y-3 mt-4">
-          {queue.length > 0 && (
+          {queueQuery.isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}
+            </div>
+          ) : queueQuery.error ? (
+            <ErrorState message="Failed to load queue" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] })} />
+          ) : queue.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <CalendarClock className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                <p className="font-medium">No posts in queue</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Upload a video to YouTube and everything fires automatically across all platforms
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
             <div className="flex items-center justify-between gap-2 flex-wrap" data-testid="container-queue-actions">
               <div className="flex items-center gap-2">
                 <Button
@@ -843,18 +861,7 @@ export default function Autopilot() {
                 Export CSV
               </Button>
             </div>
-          )}
-          {queue.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <CalendarClock className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                <p className="font-medium">No posts in queue</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Upload a video to YouTube and everything fires automatically across all platforms
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
+            {
             queue.map((item) => (
               <Card key={item.id} data-testid={`card-queue-${item.id}`} className={selectedQueueIds.has(item.id) ? "ring-1 ring-primary" : ""}>
                 <CardContent className="p-4">
@@ -1014,12 +1021,19 @@ export default function Autopilot() {
                   </div>
                 </CardContent>
               </Card>
-            ))
+            ))}
+            </>
           )}
         </TabsContent>
 
         <TabsContent value="comments" className="space-y-3 mt-4">
-          {comments.length === 0 ? (
+          {commentsQuery.isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}
+            </div>
+          ) : commentsQuery.error ? (
+            <ErrorState message="Failed to load comments" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/autopilot/comments"] })} />
+          ) : comments.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />

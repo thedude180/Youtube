@@ -4,9 +4,13 @@ import { ADMIN_EMAIL, users, channels, videos } from "@shared/schema";
 import { storage } from "../storage";
 import { db, pool } from "../db";
 import { desc, sql } from "drizzle-orm";
-import { requireAuth, requireAdmin, parseNumericId } from "./helpers";
+import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint } from "./helpers";
 
 export function registerAdminRoutes(app: Express) {
+  const writeRateLimit = rateLimitEndpoint(30, 60000);
+  const deleteRateLimit = rateLimitEndpoint(10, 60000);
+  const adminRateLimit = rateLimitEndpoint(20, 60000);
+
   app.get("/api/user/profile", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -23,7 +27,7 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/user/profile", async (req, res) => {
+  app.patch("/api/user/profile", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -76,7 +80,7 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  app.post("/api/user/init-systems", async (req, res) => {
+  app.post("/api/user/init-systems", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -100,7 +104,7 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  app.post("/api/admin/access-codes", async (req, res) => {
+  app.post("/api/admin/access-codes", adminRateLimit, async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
     try {
@@ -125,7 +129,7 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/admin/access-codes/:id", async (req, res) => {
+  app.delete("/api/admin/access-codes/:id", deleteRateLimit, async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -138,7 +142,7 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  app.post("/api/redeem-code", async (req, res) => {
+  app.post("/api/redeem-code", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -165,7 +169,7 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/admin/users/:userId/tier", async (req, res) => {
+  app.patch("/api/admin/users/:userId/tier", adminRateLimit, async (req, res) => {
     const adminId = requireAdmin(req, res);
     if (!adminId) return;
     try {

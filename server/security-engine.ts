@@ -146,7 +146,9 @@ export async function trackSecurityEvent(event: {
             timestamp: new Date().toISOString(),
           });
         }
-      } catch {}
+      } catch (sseErr) {
+        console.error("[Security Engine] Failed to send SSE security alert:", sseErr);
+      }
     }
   } catch (error) {
     console.error("[Security Engine] Failed to track event:", error);

@@ -311,6 +311,7 @@ export const videos = pgTable("videos", {
   channelIdIdx: index("videos_channel_id_idx").on(table.channelId),
   videos_status_idx: index("videos_status_idx").on(table.status),
   videos_status_scheduled_idx: index("videos_status_scheduled_idx").on(table.status, table.scheduledTime),
+  videos_channelId_status_idx: index("videos_channelId_status_idx").on(table.channelId, table.status),
 }));
 
 export const streamDestinations = pgTable("stream_destinations", {
@@ -2261,6 +2262,7 @@ export const autopilotQueue = pgTable("autopilot_queue", {
 }, (table) => ({
   userIdIdx: index("autopilot_queue_user_id_idx").on(table.userId),
   statusIdx: index("autopilot_queue_status_idx").on(table.status),
+  autopilot_queue_status_scheduledAt_idx: index("autopilot_queue_status_scheduledAt_idx").on(table.status, table.scheduledAt),
 }));
 
 export const commentResponses = pgTable("comment_responses", {
@@ -2450,6 +2452,7 @@ export const contentPipeline = pgTable("content_pipeline", {
 }, (table) => ({
   userIdIdx: index("content_pipeline_user_id_idx").on(table.userId),
   statusIdx: index("content_pipeline_status_idx").on(table.status),
+  content_pipeline_userId_currentStep_idx: index("content_pipeline_userId_currentStep_idx").on(table.userId, table.currentStep),
 }));
 
 export const insertContentPipelineSchema = createInsertSchema(contentPipeline).omit({ id: true, createdAt: true });

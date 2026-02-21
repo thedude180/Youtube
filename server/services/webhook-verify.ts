@@ -77,5 +77,7 @@ export async function logWebhookFailure(platform: string, ip: string, error: str
       details: { platform, error },
       blocked: false,
     });
-  } catch {}
+  } catch (err) {
+    console.error(`[WebhookVerify] Failed to log webhook failure for ${platform}:`, err);
+  }
 }

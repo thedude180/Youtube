@@ -327,7 +327,9 @@ async function runLoopIteration(userId: string) {
       if (priorityState.mode === "post-stream-harvest") {
         resumeNormalPriorities(userId);
       }
-    } catch {}
+    } catch (err) {
+      logger.error("Failed to resume normal priorities", { userId, error: String(err) });
+    }
 
     const backoff = Math.min(
       IDLE_CHECK_MS * Math.pow(1.5, Math.min(state.consecutiveNoWork - 1, 5)),

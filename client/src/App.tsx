@@ -2,6 +2,7 @@ import { Switch, Route, Redirect, useLocation } from "wouter";
 import { Component, Suspense, useEffect, useState, useCallback } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -86,25 +87,25 @@ function Router() {
   useRouteMetaSync();
   return (
     <Switch>
-      <Route path="/">{() => <PageErrorBoundary><Dashboard /></PageErrorBoundary>}</Route>
-      <Route path="/content">{() => <PageErrorBoundary><Content /></PageErrorBoundary>}</Route>
-      <Route path="/content/:tab">{() => <PageErrorBoundary><Content /></PageErrorBoundary>}</Route>
-      <Route path="/settings">{() => <PageErrorBoundary><Settings /></PageErrorBoundary>}</Route>
-      <Route path="/settings/:tab">{() => <PageErrorBoundary><Settings /></PageErrorBoundary>}</Route>
-      <Route path="/stream">{() => <PageErrorBoundary><StreamCenter /></PageErrorBoundary>}</Route>
-      <Route path="/money">{() => <PageErrorBoundary><Money /></PageErrorBoundary>}</Route>
-      <Route path="/money/:tab">{() => <PageErrorBoundary><Money /></PageErrorBoundary>}</Route>
-      <Route path="/autopilot">{() => <PageErrorBoundary><Autopilot /></PageErrorBoundary>}</Route>
+      <Route path="/">{() => <SectionErrorBoundary fallbackTitle="Dashboard failed to load"><Dashboard /></SectionErrorBoundary>}</Route>
+      <Route path="/content">{() => <SectionErrorBoundary fallbackTitle="Content failed to load"><Content /></SectionErrorBoundary>}</Route>
+      <Route path="/content/:tab">{() => <SectionErrorBoundary fallbackTitle="Content failed to load"><Content /></SectionErrorBoundary>}</Route>
+      <Route path="/settings">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
+      <Route path="/settings/:tab">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
+      <Route path="/stream">{() => <SectionErrorBoundary fallbackTitle="Stream Center failed to load"><StreamCenter /></SectionErrorBoundary>}</Route>
+      <Route path="/money">{() => <SectionErrorBoundary fallbackTitle="Money failed to load"><Money /></SectionErrorBoundary>}</Route>
+      <Route path="/money/:tab">{() => <SectionErrorBoundary fallbackTitle="Money failed to load"><Money /></SectionErrorBoundary>}</Route>
+      <Route path="/autopilot">{() => <SectionErrorBoundary fallbackTitle="Autopilot failed to load"><Autopilot /></SectionErrorBoundary>}</Route>
       <Route path="/pipeline">{() => <Redirect to="/autopilot" />}</Route>
-      <Route path="/access-codes">{() => <PageErrorBoundary><AccessCodes /></PageErrorBoundary>}</Route>
-      <Route path="/community">{() => <PageErrorBoundary><Community /></PageErrorBoundary>}</Route>
-      <Route path="/notifications">{() => <PageErrorBoundary><Notifications /></PageErrorBoundary>}</Route>
-      <Route path="/pricing">{() => <PageErrorBoundary><Pricing /></PageErrorBoundary>}</Route>
-      <Route path="/privacy">{() => <PageErrorBoundary><PrivacyPolicy /></PageErrorBoundary>}</Route>
-      <Route path="/terms">{() => <PageErrorBoundary><TermsOfService /></PageErrorBoundary>}</Route>
-      <Route path="/data-disclosure">{() => <PageErrorBoundary><DataDisclosure /></PageErrorBoundary>}</Route>
-      <Route path="/status">{() => <PageErrorBoundary><SystemStatus /></PageErrorBoundary>}</Route>
-      <Route path="/changelog">{() => <PageErrorBoundary><ChangelogPage /></PageErrorBoundary>}</Route>
+      <Route path="/access-codes">{() => <SectionErrorBoundary fallbackTitle="Access Codes failed to load"><AccessCodes /></SectionErrorBoundary>}</Route>
+      <Route path="/community">{() => <SectionErrorBoundary fallbackTitle="Community failed to load"><Community /></SectionErrorBoundary>}</Route>
+      <Route path="/notifications">{() => <SectionErrorBoundary fallbackTitle="Notifications failed to load"><Notifications /></SectionErrorBoundary>}</Route>
+      <Route path="/pricing">{() => <SectionErrorBoundary fallbackTitle="Pricing failed to load"><Pricing /></SectionErrorBoundary>}</Route>
+      <Route path="/privacy">{() => <SectionErrorBoundary fallbackTitle="Privacy Policy failed to load"><PrivacyPolicy /></SectionErrorBoundary>}</Route>
+      <Route path="/terms">{() => <SectionErrorBoundary fallbackTitle="Terms of Service failed to load"><TermsOfService /></SectionErrorBoundary>}</Route>
+      <Route path="/data-disclosure">{() => <SectionErrorBoundary fallbackTitle="Data Disclosure failed to load"><DataDisclosure /></SectionErrorBoundary>}</Route>
+      <Route path="/status">{() => <SectionErrorBoundary fallbackTitle="System Status failed to load"><SystemStatus /></SectionErrorBoundary>}</Route>
+      <Route path="/changelog">{() => <SectionErrorBoundary fallbackTitle="Changelog failed to load"><ChangelogPage /></SectionErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>
@@ -657,97 +658,6 @@ function AppContent() {
   }
 
   return <AuthenticatedApp />;
-}
-
-
-class PageErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("PageErrorBoundary caught:", error, info);
-    if (isChunkError(error)) {
-      const key = "page_eb_chunk_reload_ts";
-      const last = sessionStorage.getItem(key);
-      const now = Date.now();
-      if (!last || now - Number(last) > 15000) {
-        sessionStorage.setItem(key, String(now));
-        window.location.reload();
-        return;
-      }
-      sessionStorage.removeItem(key);
-    }
-  }
-
-  handleRecover = () => {
-    queryClient.invalidateQueries();
-    this.setState({ hasError: false, error: null });
-  };
-
-  render() {
-    if (this.state.hasError) {
-      const chunkErr = isChunkError(this.state.error);
-      return (
-        <div className="flex items-center justify-center p-8" data-testid="page-error-boundary">
-          <div className="max-w-sm w-full space-y-4 text-center">
-            <div className="h-10 w-10 rounded-md bg-destructive/10 flex items-center justify-center mx-auto">
-              <Zap className="h-5 w-5 text-destructive" />
-            </div>
-            <h2 className="text-lg font-bold">
-              {chunkErr ? "Update Available" : "This page hit an error"}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {chunkErr
-                ? "A new version is available. Please reload to get the latest update."
-                : "Something went wrong loading this page. Try recovering or navigate to another page."}
-            </p>
-            {this.state.error && !chunkErr && (
-              <p className="text-xs text-muted-foreground/60 font-mono break-all max-h-12 overflow-hidden">
-                {this.state.error.message}
-              </p>
-            )}
-            <div className="flex items-center justify-center gap-3 flex-wrap">
-              {chunkErr ? (
-                <Button
-                  data-testid="button-page-reload"
-                  onClick={() => {
-                    sessionStorage.removeItem("page_eb_chunk_reload_ts");
-                    sessionStorage.removeItem("chunk_reload_ts");
-                    window.location.reload();
-                  }}
-                >
-                  Reload Page
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    data-testid="button-page-recover"
-                    variant="outline"
-                    onClick={this.handleRecover}
-                  >
-                    Try Again
-                  </Button>
-                  <Button
-                    data-testid="button-page-home"
-                    onClick={() => { this.handleRecover(); window.location.href = "/"; }}
-                  >
-                    Go Home
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }
 
 offlineEngine.start();

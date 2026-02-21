@@ -681,7 +681,9 @@ export async function postAndPinComment(channelId: number, youtubeVideoId: strin
         id: [newCommentId],
         moderationStatus: "published",
       });
-    } catch {}
+    } catch (moderationErr) {
+      console.error("[YouTube] Failed to set comment moderation status:", moderationErr);
+    }
 
     return { success: true, commentId: newCommentId };
   } catch (err: any) {

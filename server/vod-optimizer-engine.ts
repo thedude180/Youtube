@@ -189,7 +189,9 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
             },
           }).where(eq(videos.id, opt.videoId));
         }
-      } catch {}
+      } catch (err) {
+        logger.error("Failed to flag video for thumbnail refresh", { videoId: opt.videoId, error: String(err) });
+      }
 
       queued++;
       logger.info("Queued VOD optimization + thumbnail refresh", {

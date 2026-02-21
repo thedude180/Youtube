@@ -241,7 +241,9 @@ const systemChecks: SystemCheck[] = [
             await processCommentResponses(userId).catch(() => {});
             await processContentRecycling(userId).catch(() => {});
             logAutoFix(userId, "autopilot_features", "Triggered content recycling due to publishing gap");
-          } catch (e) {}
+          } catch (e) {
+            console.error(`[Autopilot] Content recycling trigger failed for user ${userId}:`, e);
+          }
 
           return {
             ok: true,

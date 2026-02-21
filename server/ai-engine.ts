@@ -131,7 +131,9 @@ export async function generateVideoMetadata(video: {
 ${beats.map(b => `- ${b.beatType} at ${b.timingSeconds}s: "${b.description}" (${Math.round((b.effectiveness ?? 0) * 100)}% effective)`).join('\n')}
 Apply these proven retention patterns to ALL content. Every video must hook in first 3 seconds, re-hook at 30s, and maintain curiosity loops throughout.`;
       }
-    } catch {}
+    } catch (err) {
+      console.error("[AIEngine] Failed to load retention beats context:", err);
+    }
   }
 
   const prompt = `You are a world-class ${platformName} content strategist combining the expertise of:
@@ -652,7 +654,9 @@ Create an engaging community post as JSON:
       parsed.content = guardrailed.content;
       parsed.stealthScore = guardrailed.stealthScore;
       parsed.safetyGrade = guardrailed.safetyGrade;
-    } catch {}
+    } catch (err) {
+      console.error("[AIEngine] Failed to apply stealth guardrails to community post:", err);
+    }
   }
 
   return parsed;

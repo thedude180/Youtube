@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { z } from "zod";
 import { db } from "../db";
 import { autopilotQueue, commentResponses, autopilotConfig, channels, videos } from "@shared/schema";
 import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
@@ -194,11 +195,17 @@ export function registerAutopilotRoutes(app: Express) {
   app.post("/api/autopilot/config", async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
+    const schema = z.object({
+      feature: z.enum(["auto-clip", "smart-schedule", "comment-responder", "discord-announce", "content-recycler", "cross-promo", "stealth-mode"]),
+      enabled: z.boolean().optional(),
+      settings: z.record(z.unknown()).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const { feature, enabled, settings } = req.body;
-      const validFeatures = ["auto-clip", "smart-schedule", "comment-responder", "discord-announce", "content-recycler", "cross-promo", "stealth-mode"];
-      if (!feature || !validFeatures.includes(feature)) return res.status(400).json({ error: "Invalid feature" });
-      if (typeof enabled !== "boolean" && enabled !== undefined) return res.status(400).json({ error: "enabled must be boolean" });
+      const { feature, enabled, settings } = parsed.data;
       const config = await updateAutopilotFeatureConfig(userId, feature, enabled ?? true, settings);
       res.json(config);
     } catch (err) {
@@ -210,9 +217,15 @@ export function registerAutopilotRoutes(app: Express) {
   app.post("/api/autopilot/trigger/clip", async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Auto-Clip & Post");
     if (!userId) return;
+    const schema = z.object({
+      videoId: z.number({ required_error: "videoId is required" }),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const { videoId } = req.body;
-      if (!videoId) return res.status(400).json({ error: "videoId is required" });
+      const { videoId } = parsed.data;
       await processNewVideoUpload(userId, videoId);
       res.json({ success: true, message: "Auto-clip pipeline triggered" });
     } catch (err) {
@@ -259,14 +272,18 @@ export function registerAutopilotRoutes(app: Express) {
   app.post("/api/autopilot/queue/bulk-delete", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const schema = z.object({
+      ids: z.array(z.number()).min(1, "ids array required"),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const { ids } = req.body;
-      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids array required" });
-      const numericIds = ids.map(Number).filter(n => !isNaN(n));
-      if (numericIds.length === 0) return res.status(400).json({ error: "No valid ids" });
+      const { ids } = parsed.data;
       await db.delete(autopilotQueue)
-        .where(and(inArray(autopilotQueue.id, numericIds), eq(autopilotQueue.userId, userId)));
-      res.json({ success: true, deleted: numericIds.length });
+        .where(and(inArray(autopilotQueue.id, ids), eq(autopilotQueue.userId, userId)));
+      res.json({ success: true, deleted: ids.length });
     } catch (err) {
       res.status(500).json({ error: "Failed to bulk delete" });
     }
@@ -275,15 +292,20 @@ export function registerAutopilotRoutes(app: Express) {
   app.post("/api/autopilot/queue/bulk-reschedule", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const schema = z.object({
+      ids: z.array(z.number()).min(1, "ids array required"),
+      scheduledAt: z.string().min(1, "scheduledAt required"),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const { ids, scheduledAt } = req.body;
-      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids array required" });
-      if (!scheduledAt) return res.status(400).json({ error: "scheduledAt required" });
-      const numericIds = ids.map(Number).filter(n => !isNaN(n));
+      const { ids, scheduledAt } = parsed.data;
       await db.update(autopilotQueue)
         .set({ scheduledAt: new Date(scheduledAt), status: "scheduled" })
-        .where(and(inArray(autopilotQueue.id, numericIds), eq(autopilotQueue.userId, userId)));
-      res.json({ success: true, rescheduled: numericIds.length });
+        .where(and(inArray(autopilotQueue.id, ids), eq(autopilotQueue.userId, userId)));
+      res.json({ success: true, rescheduled: ids.length });
     } catch (err) {
       res.status(500).json({ error: "Failed to bulk reschedule" });
     }
@@ -591,8 +613,15 @@ export function registerAutopilotRoutes(app: Express) {
   app.post("/api/autopilot/activate", async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Autopilot Dashboard");
     if (!userId) return;
+    const schema = z.object({
+      reseed: z.boolean().optional().default(false),
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const reseed = req.body?.reseed === true;
+      const reseed = parsed.data.reseed;
 
       const [existingScheduled] = await db
         .select({ count: sql<number>`count(*)::int` })

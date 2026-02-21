@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
 import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, abTestResults } from "@shared/schema";
-import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler } from "./helpers";
+import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler, rateLimitEndpoint } from "./helpers";
 import {
   runStyleScan,
   recordFeedback,
@@ -21,6 +21,10 @@ import {
 } from "../growth-programs-engine";
 
 export function registerSettingsRoutes(app: Express) {
+  const writeRateLimit = rateLimitEndpoint(30, 60000);
+  const deleteRateLimit = rateLimitEndpoint(10, 60000);
+  const bulkRateLimit = rateLimitEndpoint(5, 60000);
+
   app.get("/api/notifications", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -35,7 +39,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json({ count });
   });
 
-  app.post("/api/notifications/:id/read", async (req, res) => {
+  app.post("/api/notifications/:id/read", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -44,14 +48,14 @@ export function registerSettingsRoutes(app: Express) {
     res.json({ success: true });
   });
 
-  app.post("/api/notifications/read-all", async (req, res) => {
+  app.post("/api/notifications/read-all", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.markAllRead(userId);
     res.json({ success: true });
   });
 
-  app.post("/api/notifications/mark-all-read", async (req, res) => {
+  app.post("/api/notifications/mark-all-read", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.markAllRead(userId);
@@ -79,18 +83,32 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.put("/api/notifications/preferences", async (req, res) => {
+  app.put("/api/notifications/preferences", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const schema = z.object({
+      emailEnabled: z.boolean().optional(),
+      pushEnabled: z.boolean().optional(),
+      discordWebhookUrl: z.string().max(2000).nullable().optional(),
+      quietHoursStart: z.string().max(10).nullable().optional(),
+      quietHoursEnd: z.string().max(10).nullable().optional(),
+      timezone: z.string().max(100).optional(),
+      digestFrequency: z.string().max(50).optional(),
+      categories: z.record(z.unknown()).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const prefs = await storage.upsertNotificationPreferences(userId, req.body);
+      const prefs = await storage.upsertNotificationPreferences(userId, parsed.data);
       res.json(prefs);
     } catch (err) {
       res.status(500).json({ error: "Failed to update notification preferences" });
     }
   });
 
-  app.post("/api/style-scan/:channelId", async (req, res) => {
+  app.post("/api/style-scan/:channelId", writeRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Style Scanner");
     if (!userId) return;
     try {
@@ -134,7 +152,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json(assets);
   });
 
-  app.post("/api/brand-assets", async (req, res) => {
+  app.post("/api/brand-assets", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -152,7 +170,7 @@ export function registerSettingsRoutes(app: Express) {
     res.status(201).json(asset);
   });
 
-  app.put("/api/brand-assets/:id", async (req, res) => {
+  app.put("/api/brand-assets/:id", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -172,7 +190,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json(asset);
   });
 
-  app.delete("/api/brand-assets/:id", async (req, res) => {
+  app.delete("/api/brand-assets/:id", deleteRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -190,7 +208,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json(competitors);
   });
 
-  app.post("/api/competitors", async (req, res) => {
+  app.post("/api/competitors", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -208,7 +226,7 @@ export function registerSettingsRoutes(app: Express) {
     res.status(201).json(competitor);
   });
 
-  app.put("/api/competitors/:id", async (req, res) => {
+  app.put("/api/competitors/:id", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -228,7 +246,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json(competitor);
   });
 
-  app.delete("/api/competitors/:id", async (req, res) => {
+  app.delete("/api/competitors/:id", deleteRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -246,7 +264,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json(milestones);
   });
 
-  app.post("/api/knowledge", async (req, res) => {
+  app.post("/api/knowledge", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -264,7 +282,7 @@ export function registerSettingsRoutes(app: Express) {
     res.status(201).json(milestone);
   });
 
-  app.put("/api/knowledge/:id", async (req, res) => {
+  app.put("/api/knowledge/:id", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -320,7 +338,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/learning/agent-scorecard", async (req, res) => {
+  app.post("/api/learning/agent-scorecard", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -383,7 +401,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/learning/youtube-research", async (req, res) => {
+  app.post("/api/learning/youtube-research", writeRateLimit, async (req, res) => {
     const gate = EMPIRE_TIER_GATES["youtube-research"];
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
@@ -401,7 +419,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/learning/analyze-video", async (req, res) => {
+  app.post("/api/learning/analyze-video", writeRateLimit, async (req, res) => {
     const gate = EMPIRE_TIER_GATES["analyze-video"];
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
@@ -432,7 +450,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/growth-programs/recommendations", async (req, res) => {
+  app.post("/api/growth-programs/recommendations", writeRateLimit, async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Growth Programs");
     if (!userId) return;
     try {
@@ -444,7 +462,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.put("/api/growth-programs/:id/metrics", async (req, res) => {
+  app.put("/api/growth-programs/:id/metrics", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -467,7 +485,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/growth-programs/:id/auto-apply", async (req, res) => {
+  app.post("/api/growth-programs/:id/auto-apply", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({ enabled: z.boolean() });
@@ -485,7 +503,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/growth-programs/:id/application-status", async (req, res) => {
+  app.post("/api/growth-programs/:id/application-status", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -505,7 +523,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/growth-programs/:id/generate-guide", async (req, res) => {
+  app.post("/api/growth-programs/:id/generate-guide", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -531,7 +549,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/growth-programs/enable-all-auto-apply", async (req, res) => {
+  app.post("/api/growth-programs/enable-all-auto-apply", bulkRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -546,7 +564,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/growth-programs/:id/activate-monetization", async (req, res) => {
+  app.post("/api/growth-programs/:id/activate-monetization", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -616,7 +634,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/settings/request-deletion", async (req, res) => {
+  app.post("/api/settings/request-deletion", deleteRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -655,7 +673,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/business-details", async (req, res) => {
+  app.post("/api/business-details", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -682,7 +700,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.put("/api/business-details/steps", async (req, res) => {
+  app.put("/api/business-details/steps", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -710,7 +728,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/wellness", async (req, res) => {
+  app.post("/api/wellness", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -792,7 +810,7 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/onboarding/checklist/:stepId/complete", async (req, res) => {
+  app.post("/api/onboarding/checklist/:stepId/complete", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const { stepId } = req.params;
@@ -885,14 +903,14 @@ export function registerSettingsRoutes(app: Express) {
     res.json(approvals);
   }));
 
-  app.post("/api/content/approvals/:id/approve", asyncHandler(async (req: any, res) => {
+  app.post("/api/content/approvals/:id/approve", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await db.update(contentApprovals).set({ status: "approved", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id)), eq(contentApprovals.userId, userId)));
     res.json({ success: true });
   }));
 
-  app.post("/api/content/approvals/:id/reject", asyncHandler(async (req: any, res) => {
+  app.post("/api/content/approvals/:id/reject", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await db.update(contentApprovals).set({ status: "rejected", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id)), eq(contentApprovals.userId, userId)));
@@ -906,11 +924,18 @@ export function registerSettingsRoutes(app: Express) {
     res.json(tests);
   }));
 
-  app.post("/api/account/delete", asyncHandler(async (req: any, res) => {
+  app.post("/api/account/delete", deleteRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const schema = z.object({
+      confirmation: z.string().min(1).max(100),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
     try {
-      const { confirmation } = req.body;
+      const { confirmation } = parsed.data;
       if (confirmation !== "DELETE MY ACCOUNT") {
         return res.status(400).json({ error: "Please type 'DELETE MY ACCOUNT' to confirm" });
       }

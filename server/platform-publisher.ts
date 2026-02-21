@@ -3,6 +3,7 @@ import { channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { OAUTH_CONFIGS } from "./oauth-config";
 import { storage } from "./storage";
+import { withRetry } from "./services/api-retry";
 
 export interface PublishResult {
   success: boolean;
@@ -130,39 +131,37 @@ async function postToX(accessToken: string, content: string): Promise<PublishRes
   try {
     const tweetText = content.length > 280 ? content.substring(0, 277) + "..." : content;
 
-    const res = await fetch("https://api.twitter.com/2/tweets", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text: tweetText }),
+    const data = await withRetry(async () => {
+      const res = await fetch("https://api.twitter.com/2/tweets", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: tweetText }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.text();
+        console.error(`[Publisher:X] Post failed (${res.status}):`, errData);
+
+        if (res.status === 401 || res.status === 403) {
+          const nonRetryable: any = new Error(`X authentication expired. Please reconnect your X account in Settings > Channels to restore posting.`);
+          nonRetryable.status = res.status;
+          nonRetryable.nonRetryable = true;
+          throw nonRetryable;
+        }
+
+        const err: any = new Error(`X API error ${res.status}: ${errData.substring(0, 200)}`);
+        err.status = res.status;
+        throw err;
+      }
+
+      return await res.json() as any;
+    }, "X post", {
+      maxRetries: 3,
+      retryOn: (error) => !error.nonRetryable && (error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT'),
     });
-
-    if (!res.ok) {
-      const errData = await res.text();
-      console.error(`[Publisher:X] Post failed (${res.status}):`, errData);
-
-      if (res.status === 401 || res.status === 403) {
-        return {
-          success: false,
-          platform: "x",
-          error: `X authentication expired. Please reconnect your X account in Settings > Channels to restore posting.`,
-        };
-      }
-
-      if (res.status === 429) {
-        return {
-          success: false,
-          platform: "x",
-          error: `X rate limit reached. Post will be retried automatically in 15 minutes.`,
-        };
-      }
-
-      return { success: false, platform: "x", error: `X API error ${res.status}: ${errData.substring(0, 200)}` };
-    }
-
-    const data = await res.json() as any;
     const tweetId = data.data?.id;
     if (!tweetId) {
       return { success: false, platform: "x", error: "X API returned no tweet ID" };
@@ -192,33 +191,31 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
       };
     }
 
-    const res = await fetch(discordWebhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: content.substring(0, 2000) }),
+    await withRetry(async () => {
+      const res = await fetch(discordWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: content.substring(0, 2000) }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+
+        if (res.status === 404) {
+          const nonRetryable: any = new Error("Discord webhook not found. The webhook may have been deleted. Please create a new webhook in your Discord server and update it in Settings > Channels > Discord.");
+          nonRetryable.status = res.status;
+          nonRetryable.nonRetryable = true;
+          throw nonRetryable;
+        }
+
+        const err: any = new Error(`Discord webhook failed (${res.status}): ${errText.substring(0, 200)}`);
+        err.status = res.status;
+        throw err;
+      }
+    }, "Discord post", {
+      maxRetries: 3,
+      retryOn: (error) => !error.nonRetryable && (error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT'),
     });
-
-    if (!res.ok) {
-      const errText = await res.text();
-
-      if (res.status === 404) {
-        return {
-          success: false,
-          platform: "discord",
-          error: "Discord webhook not found. The webhook may have been deleted. Please create a new webhook in your Discord server and update it in Settings > Channels > Discord.",
-        };
-      }
-
-      if (res.status === 429) {
-        return {
-          success: false,
-          platform: "discord",
-          error: "Discord rate limit reached. Post will be retried automatically.",
-        };
-      }
-
-      return { success: false, platform: "discord", error: `Discord webhook failed (${res.status}): ${errText.substring(0, 200)}` };
-    }
 
     return { success: true, platform: "discord", postId: `webhook_${Date.now()}` };
   } catch (err: any) {
@@ -240,16 +237,33 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
       "Content-Type": "application/json",
     };
 
-    const chatRes = await fetch(`https://api.twitch.tv/helix/chat/announcements?broadcaster_id=${broadcasterId}&moderator_id=${broadcasterId}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        message: content.substring(0, 500),
-        color: "primary",
-      }),
-    });
+    const chatResult = await withRetry(async () => {
+      const chatRes = await fetch(`https://api.twitch.tv/helix/chat/announcements?broadcaster_id=${broadcasterId}&moderator_id=${broadcasterId}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message: content.substring(0, 500),
+          color: "primary",
+        }),
+      });
 
-    if (chatRes.ok || chatRes.status === 204) {
+      if (chatRes.ok || chatRes.status === 204) {
+        return { ok: true } as const;
+      }
+
+      const errText = await chatRes.text();
+      const err: any = new Error(`Chat announcement failed (${chatRes.status}): ${errText.substring(0, 200)}`);
+      err.status = chatRes.status;
+      if (chatRes.status === 401 || chatRes.status === 403 || chatRes.status === 404) {
+        err.nonRetryable = true;
+      }
+      throw err;
+    }, "Twitch announcement", {
+      maxRetries: 2,
+      retryOn: (error) => !error.nonRetryable && (error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT'),
+    }).catch((e) => ({ ok: false, error: e } as const));
+
+    if (chatResult.ok) {
       return {
         success: true,
         platform: "twitch",
@@ -258,17 +272,30 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
       };
     }
 
-    const errText = await chatRes.text();
-    console.error(`[Publisher:Twitch] Chat announcement failed (${chatRes.status}):`, errText);
+    console.error(`[Publisher:Twitch] Chat announcement failed:`, chatResult.error.message);
 
     const titleContent = content.substring(0, 140);
-    const titleRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${broadcasterId}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ title: titleContent }),
-    });
+    const titleResult = await withRetry(async () => {
+      const titleRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${broadcasterId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ title: titleContent }),
+      });
 
-    if (titleRes.ok || titleRes.status === 204) {
+      if (titleRes.ok || titleRes.status === 204) {
+        return { ok: true } as const;
+      }
+
+      const titleErr = await titleRes.text();
+      const err: any = new Error(`Title update failed (${titleRes.status}): ${titleErr.substring(0, 200)}`);
+      err.status = titleRes.status;
+      throw err;
+    }, "Twitch title update", {
+      maxRetries: 2,
+      retryOn: (error) => error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT',
+    }).catch((e) => ({ ok: false, error: e } as const));
+
+    if (titleResult.ok) {
       return {
         success: true,
         platform: "twitch",
@@ -277,8 +304,7 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
       };
     }
 
-    const titleErr = await titleRes.text();
-    return { success: false, platform: "twitch", error: `Twitch posting failed: announcement (${chatRes.status}), title update (${titleRes.status}): ${titleErr.substring(0, 200)}` };
+    return { success: false, platform: "twitch", error: `Twitch posting failed: ${chatResult.error.message}, ${titleResult.error.message}` };
   } catch (err: any) {
     return { success: false, platform: "twitch", error: err.message };
   }
