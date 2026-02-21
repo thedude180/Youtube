@@ -203,12 +203,14 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
 
     const { setLivestreamPriority } = await import("../priority-orchestrator");
     const { onLivestreamDetected } = await import("../content-loop");
+    const { onStreamDetected } = await import("../trend-rider-engine");
     setLivestreamPriority(userId, stream.id, broadcast.title);
     onLivestreamDetected(userId, stream.id);
     pauseForLive(userId, stream.id);
     pivotToStream(userId, stream.id).catch(() => {});
     processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(() => {});
     createPipelineForStream(userId, broadcast.title, "live").catch(() => {});
+    onStreamDetected(userId, stream).catch(() => {});
   } catch (err) {
     console.error(`[LiveDetection] Pipeline trigger error for ${broadcast.platform}:`, err);
   }

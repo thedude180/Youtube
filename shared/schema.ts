@@ -4418,3 +4418,33 @@ export const insertContentApprovalSchema = createInsertSchema(contentApprovals).
 export type ContentApproval = typeof contentApprovals.$inferSelect;
 export const insertAbTestResultSchema = createInsertSchema(abTestResults).omit({ id: true });
 export type AbTestResult = typeof abTestResults.$inferSelect;
+
+export const trendOverrides = pgTable("trend_overrides", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  topic: text("topic").notNull(),
+  niche: text("niche"),
+  status: text("status").notNull().default("active"),
+  priority: real("priority").notNull().default(1.0),
+  originalTopic: text("original_topic"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  peakAt: timestamp("peak_at"),
+  cooldownAt: timestamp("cooldown_at"),
+  endedAt: timestamp("ended_at"),
+  sourceStreamId: integer("source_stream_id"),
+  trendScore: real("trend_score").default(1.0),
+  contentMix: real("content_mix").default(1.0),
+  metadata: jsonb("metadata").$type<{
+    detectionSource?: string;
+    trendSignals?: string[];
+    originalSchedule?: { topic: string; streamIds: number[] };
+    totalContentCreated?: number;
+    performanceVsBaseline?: number;
+  }>(),
+}, (table) => [
+  index("trend_override_user_idx").on(table.userId),
+  index("trend_override_status_idx").on(table.status),
+]);
+
+export const insertTrendOverrideSchema = createInsertSchema(trendOverrides).omit({ id: true });
+export type TrendOverride = typeof trendOverrides.$inferSelect;

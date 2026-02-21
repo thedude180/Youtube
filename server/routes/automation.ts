@@ -632,6 +632,18 @@ export async function registerAutomationRoutes(app: Express) {
     }
   });
 
+  app.get("/api/automation/trend-status", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const { getTrendStatus } = await import("../trend-rider-engine");
+      const status = await getTrendStatus(userId);
+      res.json(status);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to get trend status" });
+    }
+  });
+
   initAutomationEngine().catch(console.error);
 
   const { initWeeklyReportEngine } = await import("../weekly-report-engine");

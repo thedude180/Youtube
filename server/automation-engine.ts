@@ -282,6 +282,9 @@ export async function initAutomationEngine() {
       const { bootContentLoops } = await import("./content-loop");
       await bootContentLoops();
       console.log("[AutomationEngine] Content Loop booted — continuous extraction active");
+      const { startTrendRiderEngine } = await import("./trend-rider-engine");
+      startTrendRiderEngine();
+      console.log("[AutomationEngine] Trend Rider Engine booted — auto-detects trending topics");
     }, { maxRetries: 3 });
   }, 5_000);
 

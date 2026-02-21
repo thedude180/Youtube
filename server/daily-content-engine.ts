@@ -8,6 +8,7 @@ import { sendSSEEvent } from "./routes/events";
 import { shouldRunDailyContent } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel, ContentContext } from "./ai-engine";
+import { getActiveTrendOverride, getCooldownTrendOverrides, selectStreamByTrend, onStreamDetected } from "./trend-rider-engine";
 
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
@@ -602,13 +603,17 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
     const liveCandidate = await getLiveStreamAsExhaustCandidate(userId);
     const endedStreams = await getStreamsWithRemainingContent(userId);
 
-    const streamsWithContent: StreamWithRemaining[] = [];
+    let streamsWithContent: StreamWithRemaining[] = [];
     if (liveCandidate) streamsWithContent.push(liveCandidate);
     streamsWithContent.push(...endedStreams);
 
     if (streamsWithContent.length === 0) {
       return { didWork: false, exhausted: true };
     }
+
+    const activeTrend = await getActiveTrendOverride(userId);
+    const cooldownTrends = await getCooldownTrendOverrides(userId);
+    streamsWithContent = selectStreamByTrend(streamsWithContent, activeTrend, cooldownTrends) as StreamWithRemaining[];
 
     const streamData = streamsWithContent[0];
 
@@ -707,7 +712,7 @@ export async function runDailyContentGeneration(): Promise<void> {
         ? await getStreamsWithRemainingContent(userId)
         : [];
 
-      const streamsWithContent: StreamWithRemaining[] = [];
+      let streamsWithContent: StreamWithRemaining[] = [];
       if (liveCandidate) streamsWithContent.push(liveCandidate);
       streamsWithContent.push(...endedStreams);
 
@@ -715,6 +720,10 @@ export async function runDailyContentGeneration(): Promise<void> {
         logger.info("No streams with remaining content to exhaust", { userId });
         continue;
       }
+
+      const activeTrend = await getActiveTrendOverride(userId);
+      const cooldownTrends = await getCooldownTrendOverrides(userId);
+      streamsWithContent = selectStreamByTrend(streamsWithContent, activeTrend, cooldownTrends) as StreamWithRemaining[];
 
       let totalBatchesThisRun = 0;
 
@@ -975,6 +984,17 @@ export async function bridgeVodsToStreams(userId: string): Promise<number> {
         title: vod.title,
         totalMinutes,
       });
+
+      try {
+        const [newStream] = await db.select().from(streams)
+          .where(and(eq(streams.userId, userId), eq(streams.vodVideoId, vod.id)))
+          .limit(1);
+        if (newStream) {
+          onStreamDetected(userId, newStream).catch(err =>
+            logger.error("Trend detection on bridged VOD failed", { error: String(err) })
+          );
+        }
+      } catch {}
     } catch (err: any) {
       logger.error("Failed to bridge VOD to stream", { videoId: vod.id, error: err.message });
     }
