@@ -46,7 +46,16 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
     if (!testUrl) return true;
 
     const res = await fetch(testUrl, { method: "GET", headers, signal: AbortSignal.timeout(10000) });
-    return res.ok || res.status === 429;
+    if (res.ok || res.status === 429) return true;
+    if (res.status === 403) {
+      try {
+        const body = await res.text();
+        if (body.includes("quota") || body.includes("rateLimitExceeded") || body.includes("dailyLimitExceeded")) {
+          return true;
+        }
+      } catch {}
+    }
+    return false;
   } catch {
     return false;
   }
