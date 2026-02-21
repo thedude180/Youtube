@@ -19,7 +19,7 @@ import { useLoginSync } from "@/hooks/use-login-sync";
 import { AdaptiveProvider } from "@/hooks/use-adaptive";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon, Maximize, Minimize } from "lucide-react";
+import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon, Maximize, Minimize, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
@@ -142,6 +142,20 @@ function Router() {
       <Route path="/you">{() => <Redirect to="/settings" />}</Route>
       <Route component={NotFound} />
     </Switch>
+  );
+}
+
+function HeaderClock() {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-muted-foreground font-mono tabular-nums" data-testid="text-header-clock">
+      <Clock className="h-3 w-3" />
+      {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+    </span>
   );
 }
 
@@ -512,6 +526,7 @@ function AuthenticatedApp() {
                 </TooltipTrigger>
                 <TooltipContent>{isFocusMode ? "Exit Focus Mode (Ctrl+Shift+F)" : "Focus Mode (Ctrl+Shift+F)"}</TooltipContent>
               </Tooltip>
+              {!isFocusMode && <HeaderClock />}
               {!isFocusMode && <span className="hidden sm:inline-flex"><AdvancedToggle /></span>}
               {!isFocusMode && <span className="hidden sm:inline-flex"><ThemeToggle /></span>}
               {!isFocusMode && <NotificationBell />}
