@@ -79,7 +79,33 @@ function GeneralTab() {
   const { toast } = useToast();
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const { data: presetData } = useQuery<{ preset: "safe" | "normal" | "aggressive" }>({
+    queryKey: ["/api/settings/preset"],
+    staleTime: 30_000,
+  });
   const [activePreset, setActivePreset] = useState<"safe" | "normal" | "aggressive">("normal");
+
+  useEffect(() => {
+    if (presetData?.preset) setActivePreset(presetData.preset);
+  }, [presetData]);
+
+  const presetMutation = useMutation({
+    mutationFn: async (preset: "safe" | "normal" | "aggressive") => {
+      await apiRequest("POST", "/api/settings/preset", { preset });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/preset"] });
+      toast({ title: "Preset saved" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save preset", variant: "destructive" });
+    },
+  });
+
+  const handlePresetChange = useCallback((type: "safe" | "normal" | "aggressive") => {
+    setActivePreset(type);
+    presetMutation.mutate(type);
+  }, [presetMutation]);
 
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
     const stored = localStorage.getItem("humanReviewMode");
@@ -165,7 +191,7 @@ function GeneralTab() {
             <Card
               key={type}
               data-testid={`card-risk-${type}`}
-              onClick={() => setActivePreset(type)}
+              onClick={() => handlePresetChange(type)}
               className={cn(
                 "cursor-pointer",
                 activePreset === type ? "border-primary" : "hover-elevate"

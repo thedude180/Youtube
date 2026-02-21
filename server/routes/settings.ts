@@ -624,6 +624,37 @@ export function registerSettingsRoutes(app: Express) {
     }
   });
 
+  app.get("/api/settings/preset", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId)).limit(1);
+      const preset = (userChannels[0]?.settings as any)?.preset || "normal";
+      res.json({ preset });
+    } catch {
+      res.json({ preset: "normal" });
+    }
+  });
+
+  app.post("/api/settings/preset", writeRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { preset } = z.object({ preset: z.enum(["safe", "normal", "aggressive"]) }).parse(req.body);
+      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+      for (const ch of userChannels) {
+        const currentSettings = (ch.settings as any) || { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 };
+        await db.update(channels).set({
+          settings: { ...currentSettings, preset },
+        }).where(eq(channels.id, ch.id));
+      }
+      res.json({ success: true, preset });
+    } catch (err: any) {
+      if (err?.issues) return res.status(400).json({ error: "Invalid preset value" });
+      res.status(500).json({ error: "Failed to save preset" });
+    }
+  });
+
   const exportRateLimit = new Map<string, number>();
 
   app.post("/api/settings/export-data", async (req, res) => {
