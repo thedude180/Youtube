@@ -100,7 +100,7 @@ async function getStreamsWithRemainingContent(userId: string): Promise<StreamWit
       eq(streams.contentFullyExhausted, false),
     ))
     .orderBy(desc(streams.startedAt))
-    .limit(20);
+    .limit(100);
 
   const results: StreamWithRemaining[] = [];
   for (const stream of endedStreams) {
@@ -112,7 +112,7 @@ async function getStreamsWithRemainingContent(userId: string): Promise<StreamWit
 
     const extractedMinutes = stream.contentMinutesExtracted || 0;
     const remainingMinutes = totalMinutes - extractedMinutes;
-    if (remainingMinutes < 3) {
+    if (remainingMinutes < 1) {
       await db.update(streams)
         .set({ contentFullyExhausted: true })
         .where(eq(streams.id, stream.id));
@@ -451,16 +451,18 @@ async function queueBatchContent(
     }
   }
 
+  const batchEnd = stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH);
   const allSegments = [
     ...plan.longForm.segments.map(s => ({ start: s.startMinute, end: s.endMinute })),
     ...plan.shorts.map(s => ({ start: s.startMinute, end: s.endMinute })),
   ];
   const maxEndMinute = allSegments.length > 0
-    ? Math.max(...allSegments.map(s => s.end))
-    : stream.nextSegmentStart + MINUTES_PER_BATCH;
-  const minutesConsumed = Math.max(0, maxEndMinute - stream.nextSegmentStart);
-  const newTotal = (stream.extractedMinutes || 0) + minutesConsumed;
-  const fullyExhausted = newTotal >= stream.totalMinutes - 2;
+    ? Math.max(batchEnd, ...allSegments.map(s => s.end))
+    : batchEnd;
+  const minutesConsumed = Math.max(MINUTES_PER_BATCH, maxEndMinute - stream.nextSegmentStart);
+  const clampedConsumed = Math.min(minutesConsumed, stream.remainingMinutes);
+  const newTotal = (stream.extractedMinutes || 0) + clampedConsumed;
+  const fullyExhausted = newTotal >= stream.totalMinutes - 1;
 
   await db.update(streams)
     .set({
@@ -535,6 +537,16 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
 
     const plan = await generateBatchPlan(streamData, batchNumber, userId);
     if (!plan) {
+      if (streamsWithContent.length > 1) {
+        const consumed = Math.min(streamData.remainingMinutes, MINUTES_PER_BATCH);
+        const newTotal = (streamData.extractedMinutes || 0) + consumed;
+        await db.update(streams).set({
+          contentMinutesExtracted: newTotal,
+          contentFullyExhausted: newTotal >= streamData.totalMinutes - 1,
+        }).where(eq(streams.id, streamData.stream.id));
+        logger.info("Plan generation failed, advancing stream and will retry next stream", { streamId: streamData.stream.id });
+        return { didWork: false, exhausted: false };
+      }
       return { didWork: false, exhausted: false };
     }
 
@@ -548,18 +560,18 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
       crossPosts: result.crossPostsQueued,
     });
 
+    const remainingAfter = Math.max(0, streamData.remainingMinutes - Math.min(streamData.remainingMinutes, MINUTES_PER_BATCH));
     await notify(
       userId,
       `Content Batch #${batchNumber} from "${streamData.stream.title}"`,
-      `Queued ${ytCount} YouTube pieces + ${result.crossPostsQueued} cross-platform posts. ${Math.round(streamData.remainingMinutes - MINUTES_PER_BATCH)} min remaining.`,
+      `Queued ${ytCount} YouTube pieces + ${result.crossPostsQueued} cross-platform posts. ${Math.round(remainingAfter)} min remaining.`,
       "info",
     );
 
     sendSSEEvent(userId, "content-update", { source: "content-loop", batches: 1 });
     sendSSEEvent(userId, "autopilot-update", { source: "content-loop" });
 
-    const remainingAfter = streamData.remainingMinutes - MINUTES_PER_BATCH;
-    const allExhausted = remainingAfter < 3 && endedStreams.length <= 1 && !liveCandidate;
+    const allExhausted = remainingAfter < 1 && streamsWithContent.length <= 1;
 
     return { didWork: true, exhausted: allExhausted };
   } catch (err: any) {
@@ -700,7 +712,7 @@ export async function getStreamExhaustStatus(userId: string): Promise<{
       isNotNull(streams.startedAt),
     ))
     .orderBy(desc(streams.startedAt))
-    .limit(20);
+    .limit(100);
 
   let totalRemaining = 0;
   let totalExtracted = 0;
@@ -720,7 +732,7 @@ export async function getStreamExhaustStatus(userId: string): Promise<{
     totalStreamMinutes += total;
     totalExtracted += extracted;
     totalRemaining += remaining;
-    if (!exhausted && remaining > 2) activeCount++;
+    if (!exhausted && remaining >= 1) activeCount++;
 
     streamList.push({
       id: stream.id,

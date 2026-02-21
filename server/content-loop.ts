@@ -163,11 +163,28 @@ async function checkVodWorkRemaining(userId: string): Promise<boolean> {
   return count > 0;
 }
 
+const MAX_BATCHES_PER_CYCLE = 3;
+
 async function runStreamExhaustBatch(userId: string): Promise<{ didWork: boolean; exhausted: boolean }> {
   try {
     const { runSingleBatchForUser } = await import("./daily-content-engine");
-    const result = await runSingleBatchForUser(userId);
-    return result;
+    let anyWork = false;
+    let lastExhausted = false;
+
+    for (let i = 0; i < MAX_BATCHES_PER_CYCLE; i++) {
+      const result = await runSingleBatchForUser(userId);
+      if (result.didWork) {
+        anyWork = true;
+        lastExhausted = result.exhausted;
+        if (result.exhausted) break;
+        await new Promise(r => setTimeout(r, 2_000));
+      } else {
+        lastExhausted = result.exhausted;
+        break;
+      }
+    }
+
+    return { didWork: anyWork, exhausted: lastExhausted };
   } catch (err) {
     logger.error("Stream exhaust batch failed", { userId, error: String(err) });
     return { didWork: false, exhausted: false };
