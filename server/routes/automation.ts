@@ -499,8 +499,11 @@ export async function registerAutomationRoutes(app: Express) {
 
   app.post("/api/automation/webhooks/:source", async (req: any, res) => {
     try {
-      const webhookSecret = process.env.WEBHOOK_SECRET || "";
-      if (webhookSecret && !verifyWebhookSignature(req, webhookSecret)) {
+      const webhookSecret = process.env.WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        return res.status(503).json({ error: "Webhook verification not configured" });
+      }
+      if (!verifyWebhookSignature(req, webhookSecret)) {
         return res.status(401).json({ error: "Invalid webhook signature" });
       }
       const userId = requireAuth(req, res);

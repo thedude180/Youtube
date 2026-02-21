@@ -293,7 +293,11 @@ async function capturePeriodicSnapshots(): Promise<number> {
 }
 
 async function runGuardianCycle(): Promise<void> {
+  const startTime = Date.now();
   try {
+    const heartbeatMod = await import("./engine-heartbeat");
+    await heartbeatMod.recordHeartbeat("connectionGuardian", "running");
+
     const tokenResult = await ensureAllTokensFresh();
     const autopilotReactivated = await ensureAutopilotAlwaysOn();
     const baselines = await captureBaselineSnapshots();
@@ -303,8 +307,12 @@ async function runGuardianCycle(): Promise<void> {
     if (activity) {
       console.log(`[ConnectionGuardian] Cycle complete: tokens refreshed=${tokenResult.refreshed} verified=${tokenResult.verified} failed=${tokenResult.failed}, autopilot reactivated=${autopilotReactivated}, baselines=${baselines}, periodic snapshots=${periodic}`);
     }
+
+    await heartbeatMod.recordHeartbeat("connectionGuardian", "idle", Date.now() - startTime);
   } catch (err) {
     console.error("[ConnectionGuardian] Cycle error:", err);
+    const { recordHeartbeat } = await import("./engine-heartbeat");
+    await recordHeartbeat("connectionGuardian", "error", undefined, String(err));
   }
 }
 

@@ -45,13 +45,21 @@ const Autopilot = lazyRetry(() => import("@/pages/Autopilot"));
 const AccessCodes = lazyRetry(() => import("@/pages/AccessCodes"));
 const Community = lazyRetry(() => import("@/pages/Community"));
 const EmpireLauncher = lazyRetry(() => import("@/pages/EmpireLauncher"));
+const SystemStatus = lazyRetry(() => import("@/pages/SystemStatus"));
+const ChangelogPage = lazyRetry(() => import("@/pages/Changelog"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
 const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
 const FloatingChat = lazyRetry(() => import("@/components/FloatingChat"));
 import { FeedbackWidget } from "@/components/FeedbackWidget";
-import { CookieConsent } from "@/components/CookieConsent";
+import CookieConsent from "@/components/CookieConsent";
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 
 const sidebarStyle = {
   "--sidebar-width": "13rem",
@@ -95,6 +103,8 @@ function Router() {
       <Route path="/privacy">{() => <PageErrorBoundary><PrivacyPolicy /></PageErrorBoundary>}</Route>
       <Route path="/terms">{() => <PageErrorBoundary><TermsOfService /></PageErrorBoundary>}</Route>
       <Route path="/data-disclosure">{() => <PageErrorBoundary><DataDisclosure /></PageErrorBoundary>}</Route>
+      <Route path="/status">{() => <PageErrorBoundary><SystemStatus /></PageErrorBoundary>}</Route>
+      <Route path="/changelog">{() => <PageErrorBoundary><ChangelogPage /></PageErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>

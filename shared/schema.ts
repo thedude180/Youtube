@@ -15,6 +15,9 @@ export const PLATFORMS = [
   "tiktok",
   "x",
   "discord",
+  "rumble",
+  "facebook",
+  "instagram",
 ] as const;
 export type Platform = typeof PLATFORMS[number];
 
@@ -61,6 +64,24 @@ export const PLATFORM_CAPABILITIES: Record<Platform, {
     primaryType: "text",
     maxVideoLength: null,
     description: "Community announcements, text posts via webhooks",
+  },
+  rumble: {
+    supports: ["video", "live_stream"],
+    primaryType: "video",
+    maxVideoLength: null,
+    description: "Free-speech video platform with monetization, video uploads and live streaming",
+  },
+  facebook: {
+    supports: ["video", "short_video", "text", "image", "live_stream"],
+    primaryType: "video",
+    maxVideoLength: null,
+    description: "Social media giant with Reels, Stories, Live, and long-form video support",
+  },
+  instagram: {
+    supports: ["short_video", "image", "live_stream"],
+    primaryType: "video",
+    maxVideoLength: 90,
+    description: "Visual-first platform with Reels, Stories, and photo posts",
   },
 };
 
@@ -151,6 +172,42 @@ export const PLATFORM_INFO: Record<Platform, {
     signupUrl: "https://discord.com/register",
     strategyDescription: "The #1 community platform for creators. Build a dedicated server for your fans with channels for announcements, discussions, and exclusive content. Superfans live here.",
     setupSteps: ["Create a Discord server for your community at discord.com", "Go to Server Settings then Widget", "Copy your Server ID", "Paste your server invite link below"],
+  },
+  rumble: {
+    label: "Rumble",
+    color: "#85C742",
+    maxResolution: "4K (2160p)",
+    maxBitrate: "25 Mbps",
+    rtmpUrlTemplate: "rtmp://live.rumble.com/live",
+    category: "content",
+    connectionType: "manual",
+    signupUrl: "https://rumble.com/register",
+    strategyDescription: "Growing free-speech video platform. Upload long-form content and live stream to reach audiences seeking alternative platforms. Revenue share available.",
+    setupSteps: ["Create an account at rumble.com", "Go to your Rumble Studio dashboard", "Find your API key or stream key in Settings", "Paste it below"],
+  },
+  facebook: {
+    label: "Facebook",
+    color: "#1877F2",
+    maxResolution: "1080p",
+    maxBitrate: "8 Mbps",
+    rtmpUrlTemplate: "rtmps://live-api-s.facebook.com:443/rtmp/",
+    category: "social",
+    connectionType: "manual",
+    signupUrl: "https://www.facebook.com/pages/create",
+    strategyDescription: "Massive social platform with video, Reels, Stories, and Live. Great for reaching older demographics and leveraging Facebook Groups for community building.",
+    setupSteps: ["Create a Facebook Page for your brand", "Go to Meta Business Suite", "Generate a Page Access Token", "Paste your credentials below"],
+  },
+  instagram: {
+    label: "Instagram",
+    color: "#E4405F",
+    maxResolution: "1080p",
+    maxBitrate: "5 Mbps",
+    rtmpUrlTemplate: "",
+    category: "social",
+    connectionType: "manual",
+    signupUrl: "https://www.instagram.com/accounts/emailsignup/",
+    strategyDescription: "Visual-first platform perfect for short-form Reels, Stories, and photo content. Strong discovery through Explore page and hashtags. Ideal for brand building.",
+    setupSteps: ["Switch to an Instagram Business or Creator account", "Connect via Meta Business Suite", "Generate an access token", "Paste your credentials below"],
   },
 };
 
@@ -4269,3 +4326,90 @@ export const gettingStartedChecklist = pgTable("getting_started_checklist", {
 export const insertGettingStartedChecklistSchema = createInsertSchema(gettingStartedChecklist).omit({ id: true, createdAt: true });
 export type InsertGettingStartedChecklist = z.infer<typeof insertGettingStartedChecklistSchema>;
 export type GettingStartedChecklist = typeof gettingStartedChecklist.$inferSelect;
+
+export const engineHeartbeats = pgTable("engine_heartbeats", {
+  id: serial("id").primaryKey(),
+  engineName: text("engine_name").notNull(),
+  status: text("status").notNull().default("idle"),
+  lastRunAt: timestamp("last_run_at").defaultNow(),
+  lastDurationMs: integer("last_duration_ms"),
+  failureCount: integer("failure_count").default(0),
+  lastError: text("last_error"),
+  metadata: jsonb("metadata"),
+}, (table) => [
+  index("heartbeat_engine_idx").on(table.engineName),
+]);
+
+export const insertEngineHeartbeatSchema = createInsertSchema(engineHeartbeats).omit({ id: true });
+export type EngineHeartbeat = typeof engineHeartbeats.$inferSelect;
+export type InsertEngineHeartbeat = z.infer<typeof insertEngineHeartbeatSchema>;
+
+export const usageMetrics = pgTable("usage_metrics", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  metricType: text("metric_type").notNull(),
+  count: integer("count").default(0),
+  periodStart: timestamp("period_start").defaultNow(),
+  periodEnd: timestamp("period_end"),
+  metadata: jsonb("metadata"),
+}, (table) => [
+  index("usage_user_idx").on(table.userId),
+  index("usage_type_idx").on(table.metricType),
+]);
+
+export const contentApprovals = pgTable("content_approvals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentType: text("content_type").notNull(),
+  contentId: integer("content_id"),
+  title: text("title"),
+  status: text("status").default("pending"),
+  generatedContent: jsonb("generated_content"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("approval_user_idx").on(table.userId),
+]);
+
+export const abTestResults = pgTable("ab_test_results", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id"),
+  variantA: text("variant_a"),
+  variantB: text("variant_b"),
+  testType: text("test_type").default("title"),
+  winnerVariant: text("winner_variant"),
+  variantAMetrics: jsonb("variant_a_metrics"),
+  variantBMetrics: jsonb("variant_b_metrics"),
+  startedAt: timestamp("started_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  status: text("status").default("active"),
+}, (table) => [
+  index("abtest_user_idx").on(table.userId),
+]);
+
+export const affiliateLinks = pgTable("affiliate_links", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  originalUrl: text("original_url").notNull(),
+  trackingUrl: text("tracking_url"),
+  platform: text("platform"),
+  clicks: integer("clicks").default(0),
+  revenue: real("revenue").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("affiliate_user_idx").on(table.userId),
+]);
+
+export const insertAffiliateLinkSchema = createInsertSchema(affiliateLinks).omit({ id: true });
+export type AffiliateLink = typeof affiliateLinks.$inferSelect;
+
+export const insertUsageMetricSchema = createInsertSchema(usageMetrics).omit({ id: true });
+export type UsageMetric = typeof usageMetrics.$inferSelect;
+export const insertNotificationPrefSchema = createInsertSchema(notificationPreferences).omit({ id: true });
+export const insertContentApprovalSchema = createInsertSchema(contentApprovals).omit({ id: true });
+export type ContentApproval = typeof contentApprovals.$inferSelect;
+export const insertAbTestResultSchema = createInsertSchema(abTestResults).omit({ id: true });
+export type AbTestResult = typeof abTestResults.$inferSelect;

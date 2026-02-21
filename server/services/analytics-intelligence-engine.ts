@@ -296,17 +296,19 @@ async function trackCompetitors(userId: string): Promise<void> {
     const targetPlatforms = platforms.length > 0 ? platforms : ["youtube"];
 
     for (const platform of targetPlatforms) {
-      for (const handle of benchmarks.competitorHandles) {
-        const variance = () => 0.7 + Math.random() * 0.6;
+      for (let hi = 0; hi < benchmarks.competitorHandles.length; hi++) {
+        const handle = benchmarks.competitorHandles[hi];
+        const seed = handle.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+        const stableVar = (offset: number) => 0.7 + ((seed + offset) % 60) / 100;
         const platformMultiplier = platform === "youtube" ? 1.0 : platform === "tiktok" ? 1.3 : platform === "twitch" ? 0.8 : 0.6;
 
         const metrics = {
-          subscribers: Math.round(benchmarks.avgSubscribers * variance() * platformMultiplier),
-          totalViews: Math.round(benchmarks.avgViews * 30 * variance() * platformMultiplier),
-          avgEngagementRate: Math.round(benchmarks.avgEngagementRate * variance() * 100) / 100,
-          avgWatchTimeMinutes: Math.round(benchmarks.avgWatchTimeMinutes * variance() * 100) / 100,
-          postingFrequency: Math.round(benchmarks.avgPostingFrequency * variance() * 10) / 10,
-          estimatedMonthlyRevenue: Math.round(benchmarks.avgRevenuePerMonth * variance() * platformMultiplier),
+          subscribers: Math.round(benchmarks.avgSubscribers * stableVar(1) * platformMultiplier),
+          totalViews: Math.round(benchmarks.avgViews * 30 * stableVar(2) * platformMultiplier),
+          avgEngagementRate: Math.round(benchmarks.avgEngagementRate * stableVar(3) * 100) / 100,
+          avgWatchTimeMinutes: Math.round(benchmarks.avgWatchTimeMinutes * stableVar(4) * 100) / 100,
+          postingFrequency: Math.round(benchmarks.avgPostingFrequency * stableVar(5) * 10) / 10,
+          estimatedMonthlyRevenue: Math.round(benchmarks.avgRevenuePerMonth * stableVar(6) * platformMultiplier),
           niche,
           dataSource: "industry_benchmark",
           confidenceLevel: 0.6,
@@ -515,7 +517,7 @@ export async function generatePerformanceBenchmarks(userId: string): Promise<voi
       niche,
       subscriberRange: totalUserSubs < 1000 ? "0-1K" : totalUserSubs < 10000 ? "1K-10K" : totalUserSubs < 100000 ? "10K-100K" : "100K+",
       monthsOnPlatform: Math.round(monthsOnPlatform),
-      sampleSize: 500 + Math.floor(Math.random() * 200),
+      sampleSize: Math.max(100, userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0) || 500),
       benchmarkSource: "industry_averages",
     };
 

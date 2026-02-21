@@ -277,7 +277,11 @@ const systemChecks: SystemCheck[] = [
 let monitorInterval: ReturnType<typeof setInterval> | null = null;
 
 async function runHealthChecks(): Promise<void> {
+  const startTime = Date.now();
   try {
+    const heartbeatMod = await import("./engine-heartbeat");
+    await heartbeatMod.recordHeartbeat("autopilotMonitor", "running");
+
     const { ensureAutopilotAlwaysOn } = await import("./connection-guardian");
     await ensureAutopilotAlwaysOn().catch(() => {});
 
@@ -314,8 +318,12 @@ async function runHealthChecks(): Promise<void> {
         console.log(`[Autopilot] Self-healed ${autoFixes.length} issues for user ${user.id}: ${autoFixes.join("; ")}`);
       }
     }
+
+    await heartbeatMod.recordHeartbeat("autopilotMonitor", "idle", Date.now() - startTime);
   } catch (err) {
     console.error("[Autopilot] Health check cycle error:", err);
+    const { recordHeartbeat } = await import("./engine-heartbeat");
+    await recordHeartbeat("autopilotMonitor", "error", undefined, String(err));
   }
 }
 

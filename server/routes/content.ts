@@ -1563,4 +1563,100 @@ export function registerContentRoutes(app: Express) {
       exportedAt: new Date().toISOString(),
     });
   }));
+
+  app.post("/api/content/bulk-update", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const bulkSchema = z.object({ videoIds: z.array(z.number()).min(1).max(50), updates: z.object({ tags: z.array(z.string()).optional(), addTags: z.array(z.string()).optional(), status: z.string().optional() }).optional().default({}) });
+      const parsed = bulkSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+      const { videoIds, updates } = parsed.data;
+      
+      let updated = 0;
+      for (const videoId of videoIds) {
+        const video = await storage.getVideo(videoId);
+        if (!video || video.userId !== userId) continue;
+        
+        const updateData: any = {};
+        if (updates.tags) updateData.metadata = { ...(video.metadata || {}), tags: updates.tags };
+        if (updates.status) updateData.status = updates.status;
+        if (updates.addTags && Array.isArray(updates.addTags)) {
+          const existing = ((video.metadata as any)?.tags || []) as string[];
+          updateData.metadata = { ...(video.metadata || {}), tags: [...new Set([...existing, ...updates.addTags])] };
+        }
+        
+        if (Object.keys(updateData).length > 0) {
+          await db.update(videos).set(updateData).where(eq(videos.id, videoId));
+          updated++;
+        }
+      }
+      
+      await storage.createAuditLog({ userId, action: "bulk_content_update", target: `${updated} videos`, details: { videoIds, updates }, riskLevel: "medium" });
+      res.json({ success: true, updated, total: videoIds.length });
+    } catch (e: any) {
+      res.status(500).json({ error: "Bulk update failed" });
+    }
+  }));
+
+  app.post("/api/content/bulk-optimize", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { videoIds } = req.body;
+      if (!Array.isArray(videoIds) || videoIds.length === 0) return res.status(400).json({ error: "No videos selected" });
+      if (videoIds.length > 20) return res.status(400).json({ error: "Maximum 20 videos per bulk optimization" });
+      
+      const results: any[] = [];
+      for (const videoId of videoIds) {
+        const video = await storage.getVideo(videoId);
+        if (!video || video.userId !== userId) continue;
+        results.push({ videoId, title: video.title, status: "queued" });
+      }
+      
+      res.json({ success: true, queued: results.length, results });
+    } catch (e: any) {
+      res.status(500).json({ error: "Bulk optimization failed" });
+    }
+  }));
+
+  app.post("/api/content/create-approval", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { contentType, contentId, title, generatedContent } = req.body;
+      const { contentApprovals } = await import("@shared/schema");
+      await db.insert(contentApprovals).values({ userId, contentType, contentId, title, generatedContent, status: "pending" });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to create approval" });
+    }
+  }));
+
+  app.post("/api/ab-tests/create", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { videoId, variantA, variantB, testType } = req.body;
+      if (!variantA || !variantB) return res.status(400).json({ error: "Both variants required" });
+      const { abTestResults } = await import("@shared/schema");
+      await db.insert(abTestResults).values({ userId, videoId, variantA, variantB, testType: testType || "title", status: "active" });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to create A/B test" });
+    }
+  }));
+
+  app.post("/api/ab-tests/:id/resolve", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { winnerVariant, variantAMetrics, variantBMetrics } = req.body;
+      const { abTestResults } = await import("@shared/schema");
+      await db.update(abTestResults).set({ winnerVariant, variantAMetrics, variantBMetrics, status: "resolved", resolvedAt: new Date() }).where(and(eq(abTestResults.id, parseInt(req.params.id)), eq(abTestResults.userId, userId)));
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to resolve A/B test" });
+    }
+  }));
 }

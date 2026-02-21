@@ -3,8 +3,8 @@ import { z } from "zod";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { db } from "../db";
-import { sql, eq, and } from "drizzle-orm";
-import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals } from "@shared/schema";
+import { sql, eq, and, desc } from "drizzle-orm";
+import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals, affiliateLinks } from "@shared/schema";
 import { requireAuth, requireTier, parseNumericId, asyncHandler } from "./helpers";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
@@ -1165,5 +1165,107 @@ export function registerMoneyRoutes(app: Express) {
       console.error("Revenue opportunities error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
+  }));
+
+  app.get("/api/billing/history", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const user = await storage.getUser(userId);
+      if (!user?.stripeCustomerId) return res.json({ invoices: [] });
+      const stripe = await getUncachableStripeClient();
+      const invoices = await stripe.invoices.list({ customer: user.stripeCustomerId, limit: 20 });
+      res.json({
+        invoices: invoices.data.map(inv => ({
+          id: inv.id,
+          number: inv.number,
+          status: inv.status,
+          amountDue: inv.amount_due,
+          amountPaid: inv.amount_paid,
+          currency: inv.currency,
+          created: new Date(inv.created * 1000).toISOString(),
+          hostedInvoiceUrl: inv.hosted_invoice_url,
+          pdfUrl: inv.invoice_pdf,
+          periodStart: inv.period_start ? new Date(inv.period_start * 1000).toISOString() : null,
+          periodEnd: inv.period_end ? new Date(inv.period_end * 1000).toISOString() : null,
+        })),
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to fetch billing history" });
+    }
+  }));
+
+  app.post("/api/billing/cancel", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const user = await storage.getUser(userId);
+      if (!user?.stripeSubscriptionId) return res.status(400).json({ error: "No active subscription" });
+      const stripe = await getUncachableStripeClient();
+      const { reason, feedback } = req.body || {};
+      await stripe.subscriptions.update(user.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+        metadata: { cancellationReason: reason || "not_specified", cancellationFeedback: feedback || "" },
+      });
+      res.json({ success: true, message: "Subscription will cancel at end of billing period" });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to cancel subscription" });
+    }
+  }));
+
+  app.post("/api/billing/reactivate", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const user = await storage.getUser(userId);
+      if (!user?.stripeSubscriptionId) return res.status(400).json({ error: "No subscription to reactivate" });
+      const stripe = await getUncachableStripeClient();
+      await stripe.subscriptions.update(user.stripeSubscriptionId, { cancel_at_period_end: false });
+      res.json({ success: true, message: "Subscription reactivated" });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to reactivate subscription" });
+    }
+  }));
+
+  app.get("/api/billing/portal", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const user = await storage.getUser(userId);
+      if (!user?.stripeCustomerId) return res.status(400).json({ error: "No billing account" });
+      const stripe = await getUncachableStripeClient();
+      const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000";
+      const session = await stripe.billingPortal.sessions.create({
+        customer: user.stripeCustomerId,
+        return_url: `https://${domain}/settings`,
+      });
+      res.json({ url: session.url });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to create billing portal" });
+    }
+  }));
+
+  app.get("/api/affiliate-links", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const links = await db.select().from(affiliateLinks).where(eq(affiliateLinks.userId, userId)).orderBy(desc(affiliateLinks.createdAt));
+    res.json(links);
+  }));
+
+  app.post("/api/affiliate-links", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { name, originalUrl, platform } = req.body;
+    if (!name || !originalUrl) return res.status(400).json({ error: "Name and URL required" });
+    const trackingUrl = `https://etgaming247.com/go/${Buffer.from(name).toString("base64url").slice(0, 12)}`;
+    await db.insert(affiliateLinks).values({ userId, name, originalUrl, trackingUrl, platform });
+    res.json({ success: true });
+  }));
+
+  app.delete("/api/affiliate-links/:id", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await db.delete(affiliateLinks).where(and(eq(affiliateLinks.id, parseInt(req.params.id)), eq(affiliateLinks.userId, userId)));
+    res.json({ success: true });
   }));
 }

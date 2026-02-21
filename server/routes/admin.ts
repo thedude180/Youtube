@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { ADMIN_EMAIL } from "@shared/schema";
+import { ADMIN_EMAIL, users, channels, videos } from "@shared/schema";
 import { storage } from "../storage";
-import { pool } from "../db";
+import { db, pool } from "../db";
+import { desc, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin, parseNumericId } from "./helpers";
 
 export function registerAdminRoutes(app: Express) {
@@ -178,6 +179,25 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.get("/api/system/health", async (_req, res) => {
+    try {
+      let dbStatus: { status: string; latencyMs: number } = { status: "unhealthy", latencyMs: -1 };
+      try {
+        const start = Date.now();
+        await pool.query("SELECT 1");
+        dbStatus = { status: "healthy", latencyMs: Date.now() - start };
+      } catch {
+        dbStatus = { status: "unhealthy", latencyMs: -1 };
+      }
+      const { getAllHeartbeats } = await import("../services/engine-heartbeat");
+      const engines = await getAllHeartbeats();
+      const mem = process.memoryUsage();
+      res.json({ database: dbStatus, engines, uptime: process.uptime(), memory: { heapUsed: mem.heapUsed, heapTotal: mem.heapTotal } });
+    } catch {
+      res.json({ database: { status: "unknown", latencyMs: -1 }, engines: {}, uptime: process.uptime(), memory: {} });
+    }
+  });
+
   app.get("/api/admin/system-health", async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
@@ -191,13 +211,17 @@ export function registerAdminRoutes(app: Express) {
         dbStatus = { status: "unhealthy", latencyMs: -1 };
       }
 
-      const engines: Record<string, { status: string; lastRun?: string }> = {
-        autopilotMonitor: { status: "running", lastRun: new Date().toISOString() },
-        connectionGuardian: { status: "running", lastRun: new Date().toISOString() },
-        dailyContent: { status: "idle" },
-        liveDetection: { status: "running" },
-        vodOptimizer: { status: "idle" },
-      };
+      const { getAllHeartbeats } = await import("../services/engine-heartbeat");
+      const engines = await getAllHeartbeats();
+      if (Object.keys(engines).length === 0) {
+        Object.assign(engines, {
+          autopilotMonitor: { status: "unknown", lastRun: null },
+          connectionGuardian: { status: "unknown", lastRun: null },
+          dailyContent: { status: "unknown", lastRun: null },
+          liveDetection: { status: "unknown", lastRun: null },
+          vodOptimizer: { status: "unknown", lastRun: null },
+        });
+      }
 
       const mem = process.memoryUsage();
 
@@ -214,6 +238,41 @@ export function registerAdminRoutes(app: Express) {
       });
     } catch (e: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
+  app.get("/api/admin/analytics", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const totalUsers = await db.select({ count: sql`count(*)` }).from(users);
+      const totalChannels = await db.select({ count: sql`count(*)` }).from(channels);
+      const totalVideos = await db.select({ count: sql`count(*)` }).from(videos);
+
+      const recentUsers = await db.select().from(users).orderBy(desc(users.createdAt)).limit(10);
+
+      const tierBreakdown = await db.select({
+        tier: users.tier,
+        count: sql`count(*)`,
+      }).from(users).groupBy(users.tier);
+
+      res.json({
+        totals: {
+          users: Number(totalUsers[0]?.count || 0),
+          channels: Number(totalChannels[0]?.count || 0),
+          videos: Number(totalVideos[0]?.count || 0),
+        },
+        recentUsers: recentUsers.map(u => ({
+          id: u.id,
+          username: u.firstName || u.email || u.id,
+          email: u.email,
+          tier: u.tier,
+          createdAt: u.createdAt,
+        })),
+        tierBreakdown: tierBreakdown.map(t => ({ tier: t.tier || "free", count: Number(t.count) })),
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to fetch admin analytics" });
     }
   });
 

@@ -1323,15 +1323,44 @@ export function registerUpgradeRoutes(app: Express) {
     if (!userId) return;
     try {
       const userVideos = await storage.getVideosByUser(userId);
-      const scores = userVideos.map(v => ({
-        videoId: v.id,
-        title: v.title,
-        seoScore: v.metadata?.seoScore || Math.floor(Math.random() * 40 + 40),
-        titleScore: Math.floor(Math.random() * 30 + 60),
-        descriptionScore: Math.floor(Math.random() * 30 + 50),
-        tagScore: Math.floor(Math.random() * 30 + 40),
-        thumbnailScore: Math.floor(Math.random() * 30 + 55),
-      }));
+      const scores = userVideos.map(v => {
+        const meta = v.metadata as any || {};
+        const title = v.title || "";
+        const desc = (meta.description || meta.optimizedDescription || "") as string;
+        const tags = (meta.tags || meta.optimizedTags || []) as string[];
+
+        const titleScore = Math.min(100, Math.max(0,
+          (title.length >= 30 && title.length <= 70 ? 40 : title.length >= 20 ? 25 : 10) +
+          (title.match(/[A-Z]/) ? 10 : 0) +
+          (/[0-9]/.test(title) ? 10 : 0) +
+          (title.includes("|") || title.includes("-") || title.includes(":") ? 10 : 0) +
+          (title.length > 0 ? 20 : 0) +
+          (title.split(/\s+/).length >= 5 ? 10 : 0)
+        ));
+        const descriptionScore = Math.min(100, Math.max(0,
+          (desc.length >= 200 ? 35 : desc.length >= 100 ? 25 : desc.length > 0 ? 10 : 0) +
+          (desc.includes("http") ? 10 : 0) +
+          (desc.includes("#") ? 10 : 0) +
+          (/\d:\d{2}/.test(desc) ? 15 : 0) +
+          (desc.split(/\n/).length >= 5 ? 15 : 0) +
+          (desc.length >= 500 ? 15 : 0)
+        ));
+        const tagScore = Math.min(100, Math.max(0,
+          (tags.length >= 10 ? 40 : tags.length >= 5 ? 25 : tags.length > 0 ? 10 : 0) +
+          (tags.some(t => t.split(/\s+/).length >= 2) ? 20 : 0) +
+          (tags.length <= 30 ? 15 : 5) +
+          (tags.join(" ").length >= 100 ? 15 : 5) +
+          (tags.length > 0 ? 10 : 0)
+        ));
+        const thumbnailScore = Math.min(100, Math.max(0,
+          (meta.thumbnailUrl ? 40 : 0) +
+          (meta.thumbnailOptimized ? 30 : 0) +
+          (meta.thumbnailCtr && meta.thumbnailCtr >= 4 ? 30 : meta.thumbnailCtr && meta.thumbnailCtr >= 2 ? 15 : 0)
+        ));
+        const seoScore = meta.seoScore || Math.round((titleScore + descriptionScore + tagScore + thumbnailScore) / 4);
+
+        return { videoId: v.id, title: v.title, seoScore, titleScore, descriptionScore, tagScore, thumbnailScore };
+      });
       const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b.seoScore, 0) / scores.length) : 0;
       res.json({ scores, averageScore: avgScore, totalVideos: scores.length });
     } catch (error: any) {
@@ -1662,7 +1691,7 @@ export function registerUpgradeRoutes(app: Express) {
         success: true,
         status: action === "enable" ? "enabled" : "configured",
         method: method || "authenticator",
-        backupCodes: action === "enable" ? Array.from({ length: 8 }, () => Math.random().toString(36).slice(2, 10).toUpperCase()) : undefined,
+        backupCodes: action === "enable" ? Array.from({ length: 8 }, () => require("crypto").randomBytes(5).toString("hex").toUpperCase()) : undefined,
       });
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
@@ -1673,14 +1702,23 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(userId + "secalerts");
+      const recentLogs = await storage.getAuditLogsByUser(userId);
+      const securityLogs = recentLogs
+        .filter(l => ["login", "2fa_enabled", "2fa_configured", "data_export", "api_key_created", "suspicious_activity", "rate_limited"].includes(l.action))
+        .slice(0, 10);
+      const alerts = securityLogs.map((l, i) => ({
+        id: l.id || i + 1,
+        type: l.riskLevel === "critical" ? "error" : l.riskLevel === "high" ? "warning" : "info",
+        title: l.action.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+        message: l.details ? JSON.stringify(l.details).slice(0, 100) : l.target || "System event",
+        createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : new Date().toISOString(),
+      }));
+      if (alerts.length === 0) {
+        alerts.push({ id: 1, type: "info", title: "No Recent Alerts", message: "Your account is secure with no recent security events", createdAt: new Date().toISOString() });
+      }
       res.json({
-        alerts: [
-          { id: 1, type: "info", title: "Password last changed", message: `${seededInt(rng, 30, 180)} days ago`, createdAt: new Date(Date.now() - 86400000).toISOString() },
-          { id: 2, type: seededPick(rng, ["info", "warning"]), title: "Login from new device", message: "Chrome on Windows detected", createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-          { id: 3, type: "info", title: "API key expiring soon", message: "YouTube API token refreshed automatically", createdAt: new Date(Date.now() - 3 * 86400000).toISOString() },
-        ],
-        unreadCount: seededInt(rng, 0, 3),
+        alerts,
+        unreadCount: alerts.filter(a => a.type === "warning" || a.type === "error").length,
       });
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });

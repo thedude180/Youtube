@@ -3,7 +3,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
-import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities } from "@shared/schema";
+import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, abTestResults } from "@shared/schema";
 import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler } from "./helpers";
 import {
   runStyleScan,
@@ -868,5 +868,64 @@ export function registerSettingsRoutes(app: Express) {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
     const activities = await storage.getAgentActivities(userId, undefined, limit);
     res.json(activities);
+  }));
+
+  app.get("/api/usage/summary", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getUsageSummary } = await import("../services/usage-metering");
+    const summary = await getUsageSummary(userId);
+    res.json(summary);
+  }));
+
+  app.get("/api/content/approvals", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const approvals = await db.select().from(contentApprovals).where(eq(contentApprovals.userId, userId)).orderBy(desc(contentApprovals.createdAt)).limit(50);
+    res.json(approvals);
+  }));
+
+  app.post("/api/content/approvals/:id/approve", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await db.update(contentApprovals).set({ status: "approved", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id)), eq(contentApprovals.userId, userId)));
+    res.json({ success: true });
+  }));
+
+  app.post("/api/content/approvals/:id/reject", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await db.update(contentApprovals).set({ status: "rejected", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id)), eq(contentApprovals.userId, userId)));
+    res.json({ success: true });
+  }));
+
+  app.get("/api/ab-tests", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const tests = await db.select().from(abTestResults).where(eq(abTestResults.userId, userId)).orderBy(desc(abTestResults.startedAt)).limit(50);
+    res.json(tests);
+  }));
+
+  app.post("/api/account/delete", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { confirmation } = req.body;
+      if (confirmation !== "DELETE MY ACCOUNT") {
+        return res.status(400).json({ error: "Please type 'DELETE MY ACCOUNT' to confirm" });
+      }
+      const userChannels = await storage.getChannelsByUser(userId);
+      for (const ch of userChannels) {
+        await db.delete(channels).where(eq(channels.id, ch.id));
+      }
+      const userVideos = await storage.getVideosByUser(userId);
+      for (const v of userVideos) {
+        await db.delete(videos).where(eq(videos.id, v.id));
+      }
+      await storage.createAuditLog({ userId, action: "account_deleted", target: "self", details: { videoCount: userVideos.length, channelCount: userChannels.length }, riskLevel: "critical" });
+      res.json({ success: true, message: "Account data has been deleted" });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to delete account" });
+    }
   }));
 }

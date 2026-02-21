@@ -192,6 +192,25 @@ app.use((req: any, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    const origin = req.headers.origin || req.headers.referer;
+    if (origin) {
+      try {
+        const allowedHosts = (process.env.REPLIT_DOMAINS || "").split(",").filter(Boolean);
+        allowedHosts.push("etgaming247.com", "localhost");
+        const originHost = new URL(origin as string).hostname;
+        if (!allowedHosts.some(h => originHost === h || originHost.endsWith("." + h))) {
+          return res.status(403).json({ error: "Cross-origin request blocked" });
+        }
+      } catch {
+        return res.status(403).json({ error: "Cross-origin request blocked" });
+      }
+    }
+  }
+  next();
+});
+
 initSecurityEngine().catch(err => logger.error("SecurityEngine init failed", { error: String(err) }));
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {

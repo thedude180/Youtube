@@ -634,7 +634,7 @@ function generateProspectBrands(niche: string, subscriberCount: number): Array<{
       duration: "30 days",
       exclusivity: false,
     },
-    estimatedValue: baseValue + Math.round(Math.random() * baseValue * 0.5),
+    estimatedValue: Math.round(baseValue * 1.25),
   }));
 }
 
