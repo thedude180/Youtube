@@ -87,8 +87,35 @@ export function onStreamEnded(userId: string, streamId: number) {
   scheduleNext(userId, 5_000);
 }
 
+async function cleanupExcessScheduledItems() {
+  try {
+    const excessIds = await db.execute(sql`
+      WITH ranked AS (
+        SELECT id,
+          ROW_NUMBER() OVER (
+            PARTITION BY
+              scheduled_at::date,
+              target_platform,
+              metadata->>'sourceStreamId',
+              metadata->>'contentType'
+            ORDER BY id ASC
+          ) as rn
+        FROM autopilot_queue
+        WHERE status = 'scheduled'
+      )
+      DELETE FROM autopilot_queue
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+    `);
+    logger.info("Boot: cleaned up excess scheduled items");
+  } catch (err) {
+    logger.error("Boot: cleanup failed", { error: String(err) });
+  }
+}
+
 export async function bootContentLoops() {
   try {
+    await cleanupExcessScheduledItems();
+
     const userRows = await db
       .selectDistinct({ userId: channels.userId })
       .from(channels)

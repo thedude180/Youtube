@@ -36,9 +36,28 @@ const SHORTS_PER_BATCH = 4;
 const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 30;
 const MAX_BATCHES_PER_RUN = 5;
+const MAX_SCHEDULED_PER_DAY = 25;
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord", "twitch"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
+
+async function getDailyScheduledCount(userId: string): Promise<number> {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.status, "scheduled"),
+      gte(autopilotQueue.scheduledAt, todayStart),
+      lte(autopilotQueue.scheduledAt, todayEnd),
+    ));
+  return result?.count || 0;
+}
 
 interface ContentPlan {
   longForm: {
@@ -540,6 +559,12 @@ async function getLiveStreamAsExhaustCandidate(userId: string): Promise<StreamWi
 
 export async function runSingleBatchForUser(userId: string): Promise<{ didWork: boolean; exhausted: boolean }> {
   try {
+    const dailyCount = await getDailyScheduledCount(userId);
+    if (dailyCount >= MAX_SCHEDULED_PER_DAY) {
+      logger.info("Daily scheduled limit reached, pausing until tomorrow", { userId, dailyCount, limit: MAX_SCHEDULED_PER_DAY });
+      return { didWork: false, exhausted: true };
+    }
+
     const connectedPlatforms = await getUserConnectedPlatforms(userId);
     const liveCandidate = await getLiveStreamAsExhaustCandidate(userId);
     const endedStreams = await getStreamsWithRemainingContent(userId);
@@ -627,6 +652,12 @@ export async function runDailyContentGeneration(): Promise<void> {
 
   for (const userId of userIds) {
     try {
+      const dailyCount = await getDailyScheduledCount(userId);
+      if (dailyCount >= MAX_SCHEDULED_PER_DAY) {
+        logger.info("Daily scheduled limit reached, skipping user", { userId, dailyCount, limit: MAX_SCHEDULED_PER_DAY });
+        continue;
+      }
+
       const connectedPlatforms = await getUserConnectedPlatforms(userId);
 
       const liveCandidate = await getLiveStreamAsExhaustCandidate(userId);

@@ -216,6 +216,26 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
   }
 }
 
+const MAX_SCHEDULED_PER_DAY = 25;
+
+async function getAutopilotDailyCount(userId: string): Promise<number> {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.status, "scheduled"),
+      gte(autopilotQueue.scheduledAt, todayStart),
+      lte(autopilotQueue.scheduledAt, todayEnd),
+    ));
+  return result?.count || 0;
+}
+
 async function generateFullThrottleDistribution(
   userId: string,
   video: any,
@@ -223,6 +243,12 @@ async function generateFullThrottleDistribution(
   platforms: string[],
   contentType: "new-video" | "recycle" | "cross-promo" | "go-live" | "post-stream",
 ) {
+  const dailyCount = await getAutopilotDailyCount(userId);
+  if (dailyCount >= MAX_SCHEDULED_PER_DAY) {
+    logger.info("Daily scheduled limit reached, skipping distribution", { userId, dailyCount, limit: MAX_SCHEDULED_PER_DAY, contentType });
+    return;
+  }
+
   const connectedPlatforms = await getUserConnectedPlatforms(userId);
   const supportedPlatforms = platforms.filter(p => ALL_DISTRIBUTION_PLATFORMS.includes(p) && connectedPlatforms.has(p));
 
