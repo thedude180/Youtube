@@ -788,6 +788,25 @@ export async function processCrossPromotion(userId: string) {
   await generateFullThrottleDistribution(userId, video, creatorTone, [crossPlatform], "cross-promo");
 }
 
+function sanitizeErrorForNotification(rawError: string, platform: string): string {
+  if (rawError.includes("yt-dlp") || rawError.includes("Command failed")) {
+    return `Video source temporarily unavailable for clip extraction. The system will automatically retry. If this persists, the source video may have restrictions.`;
+  }
+  if (rawError.includes("quota") || rawError.includes("rateLimitExceeded")) {
+    return `${platform} API quota reached. Posts will resume automatically when the quota resets.`;
+  }
+  if (rawError.includes("token") || rawError.includes("auth") || rawError.includes("401") || rawError.includes("403")) {
+    return `${platform} authentication needs refreshing. Please reconnect your ${platform} account in Settings.`;
+  }
+  if (rawError.includes("Copyright") || rawError.includes("copyright")) {
+    return rawError;
+  }
+  if (rawError.length > 150) {
+    return rawError.substring(0, 147) + "...";
+  }
+  return rawError;
+}
+
 async function handleStreamClipPublish(post: any, meta: any): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
   try {
     const streamId = meta.sourceStreamId;
@@ -1103,8 +1122,9 @@ export async function processScheduledPosts() {
           .set({ status: "failed", errorMessage: result.error || "Unknown publish error" })
           .where(eq(autopilotQueue.id, post.id));
 
+        const friendlyError = sanitizeErrorForNotification(result.error || "Publishing failed", post.targetPlatform);
         await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`,
-          result.error || "Publishing failed", "warning");
+          friendlyError, "warning");
       }
     } catch (err) {
       logger.error("Failed to publish post", { postId: post.id, error: String(err) });

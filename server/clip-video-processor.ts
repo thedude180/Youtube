@@ -25,6 +25,13 @@ function getYouTubeUrl(youtubeId: string): string {
   return `https://www.youtube.com/watch?v=${youtubeId}`;
 }
 
+const FORMAT_STRATEGIES = [
+  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
+  "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+  "best[ext=mp4]/best",
+  "best",
+];
+
 export async function downloadSourceVideo(youtubeId: string): Promise<string> {
   const outputPath = path.join(CLIP_DIR, `source_${youtubeId}.mp4`);
 
@@ -45,23 +52,40 @@ export async function downloadSourceVideo(youtubeId: string): Promise<string> {
       const url = getYouTubeUrl(youtubeId);
       logger.info("Downloading source video", { youtubeId, url });
 
-      await execFileAsync("yt-dlp", [
-        "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
-        "--merge-output-format", "mp4",
-        "-o", outputPath,
-        "--no-playlist",
-        "--no-warnings",
-        "--socket-timeout", "30",
-        "--retries", "3",
-        url,
-      ], { timeout: 300_000 });
+      let lastError: string = "";
+      for (const format of FORMAT_STRATEGIES) {
+        try {
+          if (fs.existsSync(outputPath)) {
+            try { fs.unlinkSync(outputPath); } catch {}
+          }
 
-      if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size < 1000) {
-        throw new Error("Download produced empty or missing file");
+          await execFileAsync("yt-dlp", [
+            "-f", format,
+            "--merge-output-format", "mp4",
+            "-o", outputPath,
+            "--no-playlist",
+            "--no-warnings",
+            "--no-check-certificates",
+            "--socket-timeout", "60",
+            "--retries", "5",
+            "--fragment-retries", "5",
+            "--extractor-retries", "3",
+            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            url,
+          ], { timeout: 600_000 });
+
+          if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+            logger.info("Source video downloaded", { youtubeId, format, size: fs.statSync(outputPath).size });
+            return outputPath;
+          }
+          lastError = "Download produced empty or missing file";
+        } catch (err: any) {
+          lastError = err.message || String(err);
+          logger.warn("Download attempt failed, trying next format", { youtubeId, format, error: lastError.substring(0, 200) });
+        }
       }
 
-      logger.info("Source video downloaded", { youtubeId, size: fs.statSync(outputPath).size });
-      return outputPath;
+      throw new Error(`All download strategies exhausted for ${youtubeId}: ${lastError.substring(0, 300)}`);
     } finally {
       activeDownloads.delete(youtubeId);
     }
