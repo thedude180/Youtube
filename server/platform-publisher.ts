@@ -407,7 +407,7 @@ export async function publishToplatform(
     case "discord":
       return postToDiscord(accessToken, content, channel);
     case "twitch":
-      return postToTwitch(accessToken, content, channel);
+      return { success: false, platform: "twitch", error: "Twitch is a streaming-only platform. Content posting is not supported — use Twitch for live streaming only." };
     default:
       return { success: false, platform, error: `Publishing not yet supported for ${platform}` };
   }

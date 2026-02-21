@@ -196,13 +196,7 @@ async function verifyDiscordPost(userId: string, postId: string): Promise<Verifi
 }
 
 async function verifyTwitchPost(userId: string, postId: string): Promise<VerificationResult> {
-  if (postId.startsWith("twitch_announce_") || postId.startsWith("twitch_title_")) {
-    return {
-      confirmed: true,
-      platformStatus: "api_accepted",
-    };
-  }
-  return { confirmed: false, platformStatus: "unverifiable", error: "Twitch announcements are fire-and-forget — marked as delivered based on API response" };
+  return { confirmed: false, platformStatus: "not_applicable", error: "Twitch is a streaming-only platform — content posting is not supported" };
 }
 
 export async function verifyPost(userId: string, platform: string, postId: string): Promise<VerificationResult> {

@@ -41,7 +41,7 @@ const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 5 (1 lon
 const MAX_CROSS_POSTS_PER_DAY = 20;
 const MAX_SCHEDULED_PER_DAY = CORE_YOUTUBE_PER_DAY + MAX_CROSS_POSTS_PER_DAY; // 25 total
 const VIDEO_PLATFORMS = ["tiktok"];
-const TEXT_PLATFORMS = ["x", "discord", "twitch"];
+const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
 
 async function getDailyCoreYouTubeCount(userId: string): Promise<number> {
@@ -463,9 +463,6 @@ async function queueBatchContent(
     if (platform === "x") {
       longFormAnnouncement = `NEW VIDEO: ${plan.longForm.title}\n\n${plan.longForm.description.substring(0, 160)}\n\nWatch now on YouTube!\n${topTags}`;
       if (longFormAnnouncement.length > 280) longFormAnnouncement = longFormAnnouncement.substring(0, 277) + "...";
-    } else if (platform === "twitch") {
-      longFormAnnouncement = `New video just dropped! ${plan.longForm.title} -- ${plan.longForm.description.substring(0, 350)} | Watch on YouTube!`;
-      if (longFormAnnouncement.length > 500) longFormAnnouncement = longFormAnnouncement.substring(0, 497) + "...";
     } else {
       longFormAnnouncement = `**NEW VIDEO**\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`;
       if (longFormAnnouncement.length > 2000) longFormAnnouncement = longFormAnnouncement.substring(0, 1997) + "...";
@@ -503,9 +500,6 @@ async function queueBatchContent(
       if (platform === "x") {
         textContent = `${short.hook}\n\n${short.hashtags.slice(0, 3).join(" ")}\n\nFull video on YouTube`;
         if (textContent.length > 280) textContent = textContent.substring(0, 277) + "...";
-      } else if (platform === "twitch") {
-        textContent = `${short.title} -- ${short.hook} | Check it out on YouTube!`;
-        if (textContent.length > 500) textContent = textContent.substring(0, 497) + "...";
       } else {
         textContent = `**${short.title}**\n\n${short.hook}\n\n${short.hashtags.slice(0, 5).join(" ")}\n\nCheck it out on YouTube!`;
         if (textContent.length > 2000) textContent = textContent.substring(0, 1997) + "...";
