@@ -34,7 +34,7 @@ import BusinessHealthSection from "./dashboard/BusinessHealthSection";
 import AIActionCenter from "./dashboard/AIActionCenter";
 import PriorityCommandCenter from "@/components/PriorityCommandCenter";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
-import LiveStatusBar from "@/components/LiveStatusBar";
+
 
 import PipelineStatus from "@/components/PipelineStatus";
 
@@ -244,8 +244,6 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your command center overview</p>
         </div>
       </div>
-
-      <LiveStatusBar />
 
       <SectionErrorBoundary fallbackTitle="Pipeline status failed to load">
         <PipelineStatus />
