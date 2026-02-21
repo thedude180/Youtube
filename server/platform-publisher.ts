@@ -191,11 +191,30 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
       };
     }
 
+    const discordContent = content.substring(0, 2000);
+    const hasTitle = discordContent.startsWith("**") && discordContent.includes("**\n");
+
+    let discordPayload: any;
+    if (hasTitle) {
+      const titleMatch = discordContent.match(/^\*\*(.+?)\*\*/);
+      const title = titleMatch ? titleMatch[1] : undefined;
+      const description = title ? discordContent.replace(`**${title}**`, "").trim() : discordContent;
+      discordPayload = {
+        embeds: [{
+          title: title?.substring(0, 256),
+          description: description.substring(0, 4096),
+          color: 0x9146FF,
+        }],
+      };
+    } else {
+      discordPayload = { content: discordContent };
+    }
+
     await withRetry(async () => {
       const res = await fetch(discordWebhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: content.substring(0, 2000) }),
+        body: JSON.stringify(discordPayload),
       });
 
       if (!res.ok) {
@@ -237,12 +256,15 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
       "Content-Type": "application/json",
     };
 
+    const twitchContent = content.replace(/\*\*/g, "").replace(/\n{3,}/g, "\n\n");
+    const chatMessage = twitchContent.length > 500 ? twitchContent.substring(0, 497) + "..." : twitchContent;
+
     const chatResult = await withRetry(async () => {
       const chatRes = await fetch(`https://api.twitch.tv/helix/chat/announcements?broadcaster_id=${broadcasterId}&moderator_id=${broadcasterId}`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          message: content.substring(0, 500),
+          message: chatMessage,
           color: "primary",
         }),
       });
@@ -274,7 +296,7 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
 
     console.error(`[Publisher:Twitch] Chat announcement failed:`, chatResult.error.message);
 
-    const titleContent = content.substring(0, 140);
+    const titleContent = twitchContent.replace(/\n/g, " ").substring(0, 140);
     const titleResult = await withRetry(async () => {
       const titleRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${broadcasterId}`, {
         method: "PATCH",

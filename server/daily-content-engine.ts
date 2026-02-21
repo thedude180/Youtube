@@ -18,7 +18,7 @@ const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 30;
 const MAX_BATCHES_PER_RUN = 5;
 const VIDEO_PLATFORMS = ["tiktok"];
-const TEXT_PLATFORMS = ["x", "discord"];
+const TEXT_PLATFORMS = ["x", "discord", "twitch"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
 
 interface ContentPlan {
@@ -386,9 +386,18 @@ async function queueBatchContent(
 
   for (const platform of connectedPlatforms.text) {
     const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
-    const longFormAnnouncement = platform === "x"
-      ? `🎬 NEW VIDEO: ${plan.longForm.title}\n\n${plan.longForm.description.substring(0, 180)}\n\nWatch now on YouTube!\n${plan.longForm.tags.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ")}`
-      : `🎬 **NEW VIDEO** 🎬\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 300)}\n\n▶️ Watch now on YouTube!`;
+    const topTags = plan.longForm.tags.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ");
+    let longFormAnnouncement: string;
+    if (platform === "x") {
+      longFormAnnouncement = `NEW VIDEO: ${plan.longForm.title}\n\n${plan.longForm.description.substring(0, 160)}\n\nWatch now on YouTube!\n${topTags}`;
+      if (longFormAnnouncement.length > 280) longFormAnnouncement = longFormAnnouncement.substring(0, 277) + "...";
+    } else if (platform === "twitch") {
+      longFormAnnouncement = `New video just dropped! ${plan.longForm.title} -- ${plan.longForm.description.substring(0, 350)} | Watch on YouTube!`;
+      if (longFormAnnouncement.length > 500) longFormAnnouncement = longFormAnnouncement.substring(0, 497) + "...";
+    } else {
+      longFormAnnouncement = `**NEW VIDEO**\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`;
+      if (longFormAnnouncement.length > 2000) longFormAnnouncement = longFormAnnouncement.substring(0, 1997) + "...";
+    }
 
     try {
       await db.insert(autopilotQueue).values({
@@ -418,9 +427,17 @@ async function queueBatchContent(
     for (let i = 0; i < plan.shorts.length; i++) {
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 3) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
-      const textContent = platform === "x"
-        ? `${short.hook}\n\n${short.hashtags.slice(0, 3).join(" ")}\n\n▶️ Full video on YouTube`
-        : `🔥 ${short.title}\n\n${short.hook}\n\nCheck it out on YouTube!`;
+      let textContent: string;
+      if (platform === "x") {
+        textContent = `${short.hook}\n\n${short.hashtags.slice(0, 3).join(" ")}\n\nFull video on YouTube`;
+        if (textContent.length > 280) textContent = textContent.substring(0, 277) + "...";
+      } else if (platform === "twitch") {
+        textContent = `${short.title} -- ${short.hook} | Check it out on YouTube!`;
+        if (textContent.length > 500) textContent = textContent.substring(0, 497) + "...";
+      } else {
+        textContent = `**${short.title}**\n\n${short.hook}\n\n${short.hashtags.slice(0, 5).join(" ")}\n\nCheck it out on YouTube!`;
+        if (textContent.length > 2000) textContent = textContent.substring(0, 1997) + "...";
+      }
 
       try {
         await db.insert(autopilotQueue).values({
