@@ -232,7 +232,7 @@ function CompetitorsTab() {
                 <div>
                   <Label>Upload Frequency</Label>
                   <Select name="uploadFrequency" defaultValue="weekly">
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger data-testid="select-competitor-frequency"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="daily">Daily</SelectItem>
                       <SelectItem value="weekly">Weekly</SelectItem>
@@ -318,7 +318,7 @@ function CompetitorsTab() {
                   </div>
                   <div className="flex items-center gap-1 flex-wrap">
                     {comp.channelUrl && (
-                      <a href={comp.channelUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={comp.channelUrl} target="_blank" rel="noopener noreferrer" data-testid={`link-competitor-channel-${comp.id}`}>
                         <Button size="icon" variant="ghost"><LinkIcon className="w-4 h-4" /></Button>
                       </a>
                     )}

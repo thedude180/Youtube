@@ -169,7 +169,7 @@ const COMPARISON_DATA: ComparisonCategory[] = [
 ];
 
 export default function Pricing() {
-  usePageTitle("Pricing — Plans Starting Free", "Choose from 5 tiers: Free, YouTube ($9.99), Starter ($29.99), Pro ($79.99), and Ultimate ($149.99). Scale your creator business with AI-powered automation.");
+  usePageTitle("Pricing — Plans Starting Free", "Choose from 5 tiers: Free, YouTube ($9.99), Starter ($49.99), Pro ($99.99), and Ultimate ($149.99). Scale your creator business with AI-powered automation.");
   const { user } = useAuth();
   const { toast } = useToast();
   const [accessCode, setAccessCode] = useState("");

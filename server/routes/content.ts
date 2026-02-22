@@ -11,7 +11,7 @@ import {
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
-import { requireAuth, requireTier, parseNumericId, asyncHandler, rateLimitEndpoint } from "./helpers";
+import { requireAuth, requireTier, parseNumericId, asyncHandler, rateLimitEndpoint, getUserEmail, getUserFirstName, getUserLastName } from "./helpers";
 import { sendSSEEvent } from "./events";
 import {
   generateVideoMetadata,
@@ -41,9 +41,9 @@ export function registerContentRoutes(app: Express) {
   app.post("/api/auto-connect-youtube", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const email = (req.user as any)?.claims?.email;
-    const firstName = (req.user as any)?.claims?.first_name;
-    const lastName = (req.user as any)?.claims?.last_name;
+    const email = getUserEmail(req);
+    const firstName = getUserFirstName(req);
+    const lastName = getUserLastName(req);
 
     try {
       const existingChannels = await storage.getChannelsByUser(userId);

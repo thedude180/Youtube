@@ -25,12 +25,12 @@ const TIER_LIMITS: Record<string, { platforms: number; price: number; features: 
   },
   starter: {
     platforms: 3,
-    price: 29.99,
+    price: 49.99,
     features: ["3 platforms", "Full automation", "AI content generation", "Autopilot"],
   },
   pro: {
     platforms: 10,
-    price: 79.99,
+    price: 99.99,
     features: ["10 platforms", "Advanced AI", "A/B testing", "Revenue analytics"],
   },
   ultimate: {

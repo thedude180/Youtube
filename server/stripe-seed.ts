@@ -12,14 +12,14 @@ const TIERS = [
     name: "Starter Tier",
     description: "Connect up to 3 platforms with core AI suite",
     metadata: { tier: "starter" },
-    price: 2999,
+    price: 4999,
     interval: "month" as const,
   },
   {
     name: "Pro Tier",
     description: "Connect up to 10 platforms with full AI suite",
     metadata: { tier: "pro" },
-    price: 7999,
+    price: 9999,
     interval: "month" as const,
   },
   {

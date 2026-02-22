@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { sql, eq, and, desc } from "drizzle-orm";
 import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals, affiliateLinks } from "@shared/schema";
-import { requireAuth, requireTier, parseNumericId, asyncHandler } from "./helpers";
+import { requireAuth, requireTier, parseNumericId, asyncHandler, getUserEmail } from "./helpers";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
 import {
@@ -28,7 +28,7 @@ export function registerMoneyRoutes(app: Express) {
       let customerId = user?.stripeCustomerId;
 
       if (!customerId) {
-        const email = (req.user as any)?.claims?.email;
+        const email = getUserEmail(req);
         const customer = await stripe.customers.create({
           email: email || undefined,
           metadata: { userId },
@@ -43,6 +43,7 @@ export function registerMoneyRoutes(app: Express) {
         payment_method_types: ["card"],
         line_items: [{ price: priceId, quantity: 1 }],
         mode: "subscription",
+        client_reference_id: userId,
         success_url: `${baseUrl}/settings?tab=subscription&status=success`,
         cancel_url: `${baseUrl}/pricing?status=cancelled`,
       });

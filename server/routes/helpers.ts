@@ -4,6 +4,17 @@ import { db } from "../db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+interface UserClaims {
+  sub: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+}
+
+interface AuthenticatedUser {
+  claims: UserClaims;
+}
+
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
 export function parseNumericId(raw: string, res: Response, label = "ID"): number | null {
@@ -22,7 +33,7 @@ export function asyncHandler(fn: AsyncHandler) {
 }
 
 export function getUserId(req: Request): string {
-  return (req.user as any)?.claims?.sub;
+  return (req.user as AuthenticatedUser)?.claims?.sub;
 }
 
 export function requireAuth(req: Request, res: Response): string | null {
@@ -36,12 +47,24 @@ export function requireAuth(req: Request, res: Response): string | null {
 export function requireAdmin(req: Request, res: Response): string | null {
   const userId = requireAuth(req, res);
   if (!userId) return null;
-  const email = (req.user as any)?.claims?.email;
+  const email = (req.user as AuthenticatedUser)?.claims?.email;
   if (!email || email.toLowerCase() !== ADMIN_EMAIL) {
     res.status(403).json({ error: "Admin access required" });
     return null;
   }
   return userId;
+}
+
+export function getUserEmail(req: Request): string | undefined {
+  return (req.user as AuthenticatedUser)?.claims?.email;
+}
+
+export function getUserFirstName(req: Request): string | undefined {
+  return (req.user as AuthenticatedUser)?.claims?.first_name;
+}
+
+export function getUserLastName(req: Request): string | undefined {
+  return (req.user as AuthenticatedUser)?.claims?.last_name;
 }
 
 export const TIER_RANK: Record<string, number> = {
@@ -85,8 +108,27 @@ export async function requireTier(
   return userId;
 }
 
+const SERVER_START_TIME = Date.now();
+const STARTUP_GRACE_MS = 60_000; // 1 minute grace period after startup
+
+function isInStartupGrace(): boolean {
+  return Date.now() - SERVER_START_TIME < STARTUP_GRACE_MS;
+}
+
 const endpointLimits = new Map<string, Map<string, { count: number; resetAt: number }>>();
 
+/**
+ * Rate limiter middleware for endpoint protection.
+ * 
+ * NOTE: This uses in-memory rate limiting which resets on server restart.
+ * To mitigate restart-based bypass attacks, stricter limits are applied 
+ * during the 60-second startup grace period:
+ * - During grace period: limit is reduced by half (e.g., 5 instead of 10)
+ * - After grace period: normal limit applies (e.g., 10)
+ * 
+ * This prevents rapid-fire abuse immediately after a server restart without
+ * requiring database schema changes.
+ */
 export function rateLimitEndpoint(maxRequests: number = 10, windowMs: number = 60000) {
   return (req: any, res: any, next: any) => {
     const key = `${req.path}`;
@@ -95,11 +137,15 @@ export function rateLimitEndpoint(maxRequests: number = 10, windowMs: number = 6
     const users = endpointLimits.get(key)!;
     const now = Date.now();
     const entry = users.get(userId);
+    
+    // Apply stricter limit during startup grace period
+    const effectiveLimit = isInStartupGrace() ? Math.ceil(maxRequests / 2) : maxRequests;
+    
     if (!entry || now > entry.resetAt) {
       users.set(userId, { count: 1, resetAt: now + windowMs });
       return next();
     }
-    if (entry.count >= maxRequests) {
+    if (entry.count >= effectiveLimit) {
       return res.status(429).json({ error: "Too many requests, try again later" });
     }
     entry.count++;

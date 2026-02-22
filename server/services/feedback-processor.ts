@@ -55,8 +55,8 @@ export async function processFeedback(feedbackId: number, userId: string, messag
 The platform has 5 subscription tiers: ${SUBSCRIPTION_TIERS.join(", ")}.
 - free: No platform connections, basic dashboard
 - youtube ($9.99): 1 platform, basic automation
-- starter ($29.99): 3 platforms, full automation
-- pro ($79.99): 10 platforms, advanced AI features
+- starter ($49.99): 3 platforms, full automation
+- pro ($99.99): 10 platforms, advanced AI features
 - ultimate ($149.99): 25 platforms, all features unlocked
 
 When a user submits feedback about an improvement:

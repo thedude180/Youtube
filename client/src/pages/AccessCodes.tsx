@@ -14,8 +14,8 @@ import { safeArray } from "@/lib/safe-data";
 
 const TIERS = [
   { value: "youtube", label: "YouTube", price: "$9.99/mo", icon: SiYoutube, color: "text-red-500", border: "border-red-500/40", bg: "bg-red-500/10" },
-  { value: "starter", label: "Starter", price: "$29.99/mo", icon: Zap, color: "text-blue-400", border: "border-blue-400/40", bg: "bg-blue-400/10" },
-  { value: "pro", label: "Pro", price: "$79.99/mo", icon: Rocket, color: "text-purple-400", border: "border-purple-400/40", bg: "bg-purple-400/10" },
+  { value: "starter", label: "Starter", price: "$49.99/mo", icon: Zap, color: "text-blue-400", border: "border-blue-400/40", bg: "bg-blue-400/10" },
+  { value: "pro", label: "Pro", price: "$99.99/mo", icon: Rocket, color: "text-purple-400", border: "border-purple-400/40", bg: "bg-purple-400/10" },
   { value: "ultimate", label: "Ultimate", price: "$149.99/mo", icon: Crown, color: "text-yellow-400", border: "border-yellow-400/40", bg: "bg-yellow-400/10" },
 ];
 

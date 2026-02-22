@@ -217,7 +217,7 @@ export default function ContentVerification() {
         <div className="flex items-center gap-3">
           <Shield className="h-6 w-6 text-emerald-400" />
           <h2 className="text-xl font-bold">Content Verification</h2>
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-xs" data-testid="badge-verification-rate">
             {summary.verificationRate}% verified
           </Badge>
         </div>
@@ -279,7 +279,7 @@ export default function ContentVerification() {
       </div>
 
       {(liveStreams.length > 0 || liveHealthStreams.length > 0) && (
-        <Card className="bg-card/50 border-green-500/30">
+        <Card className="bg-card/50 border-green-500/30" data-testid="card-live-stream-health">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Wifi className="h-5 w-5 text-green-400" />
@@ -313,7 +313,7 @@ export default function ContentVerification() {
                   </div>
                 </div>
               )) : liveStreams.map((stream) => (
-                <div key={stream.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50">
+                <div key={stream.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50" data-testid={`live-stream-${stream.id}`}>
                   <div className="flex items-center gap-3">
                     <span className="relative flex h-3 w-3">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -342,7 +342,7 @@ export default function ContentVerification() {
       )}
 
       {Object.keys(platformStats).length > 0 && (
-        <Card className="bg-card/50">
+        <Card className="bg-card/50" data-testid="card-platform-breakdown">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-blue-400" />
@@ -528,7 +528,7 @@ export default function ContentVerification() {
                             {Math.round((new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()) / 60000)}m
                           </span>
                         )}
-                        <Badge variant="secondary" className="text-xs">Ended</Badge>
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-stream-ended-${stream.id}`}>Ended</Badge>
                       </div>
                     </div>
                   ))}

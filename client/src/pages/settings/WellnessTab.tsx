@@ -557,7 +557,7 @@ function WellnessTab() {
                 <Button type="submit" className="flex-1" disabled={createMutation.isPending} data-testid="button-submit-checkin">
                   {createMutation.isPending ? "Saving..." : "Save Check-In"}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setShowCheckin(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => setShowCheckin(false)} data-testid="button-cancel-checkin">Cancel</Button>
               </div>
             </form>
           </CardContent>

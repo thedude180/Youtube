@@ -176,8 +176,27 @@ function seededPick<T>(rng: () => number, arr: T[]): T {
 // RATE LIMITING FOR AI ENDPOINTS
 // ═══════════════════════════════════════════════════════
 
+const SERVER_START_TIME = Date.now();
+const STARTUP_GRACE_MS = 60_000; // 1 minute grace period after startup
+
+function isInStartupGrace(): boolean {
+  return Date.now() - SERVER_START_TIME < STARTUP_GRACE_MS;
+}
+
 const aiRateLimitMap = new Map<string, Map<string, { count: number; resetAt: number }>>();
 
+/**
+ * Rate limiter middleware for AI/billing endpoints.
+ * 
+ * NOTE: This uses in-memory rate limiting which resets on server restart.
+ * To mitigate restart-based bypass attacks, stricter limits are applied 
+ * during the 60-second startup grace period:
+ * - During grace period: limit is reduced by half (e.g., 5 instead of 10)
+ * - After grace period: normal limit applies (e.g., 10)
+ * 
+ * This prevents rapid-fire AI requests immediately after a server restart,
+ * protecting against cost/quota abuse exploiting the rate limiter reset.
+ */
 function createAIRateLimiter(maxRequests: number = 10, windowMs: number = 60000) {
   return (req: any, res: any, next: any) => {
     const userId = requireAuth(req, res);
@@ -192,12 +211,15 @@ function createAIRateLimiter(maxRequests: number = 10, windowMs: number = 60000)
     const now = Date.now();
     const entry = users.get(userId);
     
+    // Apply stricter limit during startup grace period for AI endpoints (cost protection)
+    const effectiveLimit = isInStartupGrace() ? Math.ceil(maxRequests / 2) : maxRequests;
+    
     if (!entry || now > entry.resetAt) {
       users.set(userId, { count: 1, resetAt: now + windowMs });
       return next();
     }
     
-    if (entry.count >= maxRequests) {
+    if (entry.count >= effectiveLimit) {
       return res.status(429).json({ 
         error: "Too many requests. AI operations are limited to 10 requests per minute. Please try again later.",
         retryAfter: Math.ceil((entry.resetAt - now) / 1000)

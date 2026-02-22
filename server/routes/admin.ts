@@ -4,7 +4,7 @@ import { ADMIN_EMAIL, users, channels, videos } from "@shared/schema";
 import { storage } from "../storage";
 import { db, pool } from "../db";
 import { desc, sql } from "drizzle-orm";
-import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint } from "./helpers";
+import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint, getUserEmail } from "./helpers";
 
 export function registerAdminRoutes(app: Express) {
   const writeRateLimit = rateLimitEndpoint(30, 60000);
@@ -15,7 +15,7 @@ export function registerAdminRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const claimsEmail = (req.user as any)?.claims?.email;
+      const claimsEmail = getUserEmail(req);
       let user = await storage.getUser(userId);
       const userEmail = user?.email || claimsEmail;
       if (user && userEmail && userEmail.toLowerCase() === ADMIN_EMAIL && (user.role !== "admin" || user.tier !== "ultimate")) {

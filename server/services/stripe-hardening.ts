@@ -72,7 +72,7 @@ const promoCodes: PromoCode[] = [
   { code: "FRIEND10", discountPercent: 10, maxUses: 500, currentUses: 0, expiresAt: new Date("2027-12-31"), applicableTiers: ["youtube", "starter", "pro", "ultimate"] },
 ];
 
-const MONTHLY_PRICES: Record<string, number> = { youtube: 999, starter: 2999, pro: 7999, ultimate: 14999 };
+const MONTHLY_PRICES: Record<string, number> = { youtube: 999, starter: 4999, pro: 9999, ultimate: 14999 };
 
 async function findUserByCustomerId(customerId: string): Promise<string | null> {
   try {
@@ -435,7 +435,7 @@ export async function switchToAnnual(userId: string): Promise<{ success: boolean
   try {
     const user = await storage.getUser(userId);
     if (!user || user.tier === "free") return { success: false, message: "No active subscription to switch" };
-    const monthly = MONTHLY_PRICES[user.tier || "starter"] || 2999;
+    const monthly = MONTHLY_PRICES[user.tier || "starter"] || 4999;
     const annualPrice = monthly * 10;
     await storage.createNotification({
       userId, type: "billing_changed", severity: "info",

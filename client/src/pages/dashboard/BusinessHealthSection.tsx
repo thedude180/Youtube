@@ -30,7 +30,7 @@ export default function BusinessHealthSection({ healthAreas, getHealthStatus, st
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-base">Business Health</CardTitle>
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs" data-testid="badge-health-summary">
               <Activity className="w-3 h-3 mr-1" />
               {healthAreas.filter(a => getHealthStatus(a.key).status === "good").length}/{healthAreas.length} healthy
             </Badge>
@@ -42,7 +42,7 @@ export default function BusinessHealthSection({ healthAreas, getHealthStatus, st
               const health = getHealthStatus(area.key);
               const Icon = area.icon;
               return (
-                <Link key={area.key} href={area.link}>
+                <Link key={area.key} href={area.link} data-testid={`link-health-${area.key}`}>
                   <div className="flex flex-col items-center gap-1.5 p-2 rounded-md hover-elevate cursor-pointer" data-testid={`health-${area.key}`}>
                     <div className="relative">
                       <Icon className="h-5 w-5 text-muted-foreground" />
@@ -50,7 +50,7 @@ export default function BusinessHealthSection({ healthAreas, getHealthStatus, st
                     </div>
                     <div className="text-center">
                       <p className="text-xs font-medium">{area.label}</p>
-                      <p className={`text-xs ${health.status === "good" ? "text-emerald-400" : health.status === "warning" ? "text-amber-400" : "text-red-400"}`}>
+                      <p className={`text-xs ${health.status === "good" ? "text-emerald-400" : health.status === "warning" ? "text-amber-400" : "text-red-400"}`} data-testid={`text-health-status-${area.key}`}>
                         {health.label}
                       </p>
                     </div>

@@ -248,33 +248,30 @@ const FEATURES = [
 
 const TESTIMONIALS = [
   {
-    quote: "I went from 500 to 50,000 subscribers in 6 months. CreatorOS handles everything — I just play games and the content makes itself.",
-    name: "StreamerPro",
-    role: "Gaming Creator",
-    avatar: "SP",
-    growth: "+9,900%",
+    name: "Gaming Creator",
+    role: "YouTube & Twitch",
+    quote: "The AI handles all my stream highlights and uploads while I focus on playing. I went from posting once a week to daily content without any extra work.",
+    avatar: "🎮",
   },
   {
-    quote: "The AI literally replaced my entire team. Editor, thumbnail designer, SEO specialist, social media manager — all automated.",
-    name: "ContentKing",
-    role: "YouTube Creator",
-    avatar: "CK",
-    growth: "+340%",
+    name: "Tech Reviewer",
+    role: "Multi-Platform Creator",
+    quote: "Managing content across YouTube, TikTok, and X used to eat up my entire day. Now the AI optimizes and posts everything automatically.",
+    avatar: "💻",
   },
   {
-    quote: "My revenue tripled after CreatorOS optimized all my old videos. The VOD optimizer found opportunities I completely missed.",
-    name: "TechReviewer",
-    role: "Tech Channel",
-    avatar: "TR",
-    growth: "+3x revenue",
+    name: "Variety Streamer",
+    role: "Full-Time Creator",
+    quote: "The autopilot mode is a game changer. My VODs get chopped into shorts, titles get optimized, and everything posts on schedule — all hands-free.",
+    avatar: "🎙️",
   },
 ];
 
 const TIERS = [
   { name: "Free", price: "$0", period: "", desc: "Get started", features: ["Dashboard access", "Basic analytics", "AI advisor", "Content overview"], platforms: "1 platform" },
   { name: "YouTube", price: "$9.99", period: "/mo", desc: "Single platform", features: ["YouTube automation", "SEO optimizer", "Thumbnail AI", "Stream center", "Content calendar"], platforms: "1 platform" },
-  { name: "Starter", price: "$29.99", period: "/mo", desc: "Multi-platform", features: ["3 platform automation", "Content calendar", "Revenue tracking", "AI content suite", "Cross-posting"], platforms: "3 platforms", popular: true },
-  { name: "Pro", price: "$79.99", period: "/mo", desc: "Full autopilot", features: ["10 platform automation", "Full Autopilot mode", "Competitor intel", "Priority support", "Team access", "A/B testing"], platforms: "10 platforms" },
+  { name: "Starter", price: "$49.99", period: "/mo", desc: "Multi-platform", features: ["3 platform automation", "Content calendar", "Revenue tracking", "AI content suite", "Cross-posting"], platforms: "3 platforms", popular: true },
+  { name: "Pro", price: "$99.99", period: "/mo", desc: "Full autopilot", features: ["10 platform automation", "Full Autopilot mode", "Competitor intel", "Priority support", "Team access", "A/B testing"], platforms: "10 platforms" },
   { name: "Ultimate", price: "$149.99", period: "/mo", desc: "Everything", features: ["25+ platforms", "All 832 AI features", "Creator Intelligence", "6 AI agent systems", "Custom workflows", "Dedicated support"], platforms: "Unlimited" },
 ];
 
@@ -555,19 +552,14 @@ export default function Landing() {
             {TESTIMONIALS.map((t, i) => (
               <Card key={t.name} className="shine group hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-500" data-testid={`card-testimonial-${i}`}>
                 <CardContent className="p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-sm font-bold text-primary ring-2 ring-primary/10">
-                        {t.avatar}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">{t.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{t.role}</p>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-lg ring-2 ring-primary/10">
+                      {t.avatar}
                     </div>
-                    <Badge variant="secondary" className="text-[10px] text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
-                      {t.growth}
-                    </Badge>
+                    <div>
+                      <p className="text-sm font-semibold">{t.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{t.role}</p>
+                    </div>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed italic">"{t.quote}"</p>
                 </CardContent>

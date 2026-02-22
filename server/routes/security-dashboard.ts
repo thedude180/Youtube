@@ -97,7 +97,7 @@ export function registerSecurityDashboardRoutes(app: Express) {
 
   app.get("/api/security/circuit-breakers", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = requireAdmin(req, res);
       if (!userId) return;
       res.json(getAllBreakerStats());
     } catch (err) {

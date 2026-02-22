@@ -7,15 +7,38 @@ import { ADMIN_EMAIL } from "@shared/models/auth";
 import { z } from "zod";
 import { recordLoginAttempt, checkAccountLock } from "../../services/security-fortress";
 
+const SERVER_START_TIME = Date.now();
+const STARTUP_GRACE_MS = 60_000; // 1 minute grace period after startup
+
+function isInStartupGrace(): boolean {
+  return Date.now() - SERVER_START_TIME < STARTUP_GRACE_MS;
+}
+
 const authRateLimiter = new Map<string, number[]>();
 
+/**
+ * Rate limiter middleware for auth endpoints (login, register, forgot-password).
+ * 
+ * NOTE: This uses in-memory rate limiting which resets on server restart.
+ * To mitigate restart-based bypass attacks, stricter limits are applied 
+ * during the 60-second startup grace period:
+ * - During grace period: limit is reduced by half (e.g., 5 instead of 10)
+ * - After grace period: normal limit applies (e.g., 10)
+ * 
+ * These are CRITICAL endpoints for security, so applying stricter limits
+ * on restart prevents attackers from exploiting the rate limiter reset.
+ */
 function rateLimitAuth(maxAttempts: number, windowMs: number) {
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip || req.socket?.remoteAddress || "unknown";
     const now = Date.now();
     const timestamps = authRateLimiter.get(ip) || [];
     const recent = timestamps.filter(t => t > now - windowMs);
-    if (recent.length >= maxAttempts) {
+    
+    // Apply stricter limit during startup grace period for critical auth endpoints
+    const effectiveLimit = isInStartupGrace() ? Math.ceil(maxAttempts / 2) : maxAttempts;
+    
+    if (recent.length >= effectiveLimit) {
       return res.status(429).json({ message: "Too many attempts. Please wait a moment and try again." });
     }
     recent.push(now);
