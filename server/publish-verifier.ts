@@ -367,7 +367,9 @@ export async function verifyRecentPublishedPosts() {
           const { classifyFailure, scheduleAutoFix } = await import("./auto-fix-engine");
           const category = classifyFailure(existingVerification.error || "", post.targetPlatform);
           await scheduleAutoFix(post, category, meta);
-        } catch {}
+        } catch (fixErr: any) {
+          logger.warn("[Verifier] Auto-fix scheduling failed", { postId: post.id, platform: post.targetPlatform, error: fixErr?.message });
+        }
       }
       continue;
     }
@@ -493,7 +495,9 @@ export async function verifyRecentPublishedPosts() {
             const { classifyFailure, scheduleAutoFix } = await import("./auto-fix-engine");
             const category = classifyFailure(result.error || "", post.targetPlatform);
             await scheduleAutoFix(post, category, meta);
-          } catch {}
+          } catch (fixErr: any) {
+            logger.warn("[Verifier] Auto-fix scheduling failed for re-verify", { postId: post.id, platform: post.targetPlatform, error: fixErr?.message });
+          }
         }
         failed++;
       } else {

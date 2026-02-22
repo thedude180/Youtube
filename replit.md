@@ -84,7 +84,11 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
 - **AI Feedback Processor**: Analyzes user feedback.
 
 ### Infrastructure & Hardening
-- Centralized OpenAI client, retry wrapper for external API calls, LRU cache for AI responses, structured logging, memory leak prevention, AI request queue, SSE cleanup, database indexes and transactions, Zod input validation, rate limiting, request tracking, webhook security, CSRF protection, secure API keys, error handling, frontend lazy loading, data-testid attributes, ARIA accessibility, pagination.
+- Centralized OpenAI client with automatic token/latency telemetry, retry wrapper for external API calls, LRU cache for AI responses, structured logging (zero empty catch blocks), memory leak prevention, AI request queue, SSE with backpressure protection (64KB payload limit, 200 global connection cap, 5 per-user limit), database indexes and transactions, Zod input validation + centralized AI body validation middleware (50KB max), rate limiting, request tracking, webhook security, CSRF protection, secure API keys, error handling, frontend lazy loading, data-testid attributes, ARIA accessibility, pagination.
+- **DB-Backed Cron Locks** (`server/lib/cron-lock.ts`): Prevents overlapping cron execution on restart. TTL-based with instance tracking, execution count, duration, and error logging. Applied to all 15+ cron jobs.
+- **External Service Health Checks** (`server/services/external-health.ts`): Probes YouTube, Twitch, TikTok, Stripe, Gmail, Discord, Kick, OpenAI, and PostgreSQL. API: `GET /api/system/external-health`.
+- **AI Telemetry** (`server/lib/openai.ts`): Transparent proxy on OpenAI client tracks tokens in/out, latency, failure rate, per-model stats. API: `GET /api/system/ai-telemetry`.
+- **System Status APIs**: `GET /api/system/health`, `GET /api/system/subsystems`, `GET /api/system/cron-locks`, `GET /api/system/external-health`, `GET /api/system/ai-telemetry`.
 
 ### Engine Heartbeat System
 - Records real-time status (running/idle/error), timestamps, duration, and failure counts for background engines, persisted in the database.

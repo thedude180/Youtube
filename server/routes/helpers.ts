@@ -304,6 +304,45 @@ export const APP_TIER_GATES: Record<string, { minTier: string; label: string; ca
   "compliance-scan": { minTier: "free", label: "Manual Compliance Scan", category: "compliance" },
 };
 
+const MAX_AI_BODY_SIZE = 50000;
+const MAX_AI_STRING_LENGTH = 10000;
+const MAX_AI_ARRAY_LENGTH = 100;
+
+function deepSanitize(obj: any, depth = 0): any {
+  if (depth > 10) return undefined;
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "string") {
+    return obj.length > MAX_AI_STRING_LENGTH ? obj.substring(0, MAX_AI_STRING_LENGTH) : obj;
+  }
+  if (typeof obj === "number" || typeof obj === "boolean") return obj;
+  if (Array.isArray(obj)) {
+    return obj.slice(0, MAX_AI_ARRAY_LENGTH).map(item => deepSanitize(item, depth + 1));
+  }
+  if (typeof obj === "object") {
+    const result: Record<string, any> = {};
+    const keys = Object.keys(obj).slice(0, 50);
+    for (const key of keys) {
+      result[key] = deepSanitize(obj[key], depth + 1);
+    }
+    return result;
+  }
+  return undefined;
+}
+
+export function validateAiBody(req: Request, res: Response): boolean {
+  const bodyStr = JSON.stringify(req.body || {});
+  if (bodyStr.length > MAX_AI_BODY_SIZE) {
+    res.status(400).json({ error: "Request body too large for AI processing", maxSize: MAX_AI_BODY_SIZE });
+    return false;
+  }
+  if (!req.body || typeof req.body !== "object") {
+    res.status(400).json({ error: "Request body must be a JSON object" });
+    return false;
+  }
+  req.body = deepSanitize(req.body);
+  return true;
+}
+
 export function parsePagination(query: any, defaultLimit = 50, maxLimit = 200) {
   const page = Math.max(1, parseInt(query.page) || 1);
   const limit = Math.min(maxLimit, Math.max(1, parseInt(query.limit) || defaultLimit));

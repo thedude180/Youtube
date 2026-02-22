@@ -681,7 +681,9 @@ export async function runContentVerificationSweep() {
                 `;
                 await sendGmail(email, `[CreatorOS] Content removed from ${platformName}`, htmlBody);
               }
-            } catch {}
+            } catch (emailErr: any) {
+              logger.warn("[Verification] Failed to send content removal email", { userId, error: emailErr?.message });
+            }
             continue;
           }
         }

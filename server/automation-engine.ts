@@ -5,6 +5,7 @@ import { db } from "./db";
 import { cronJobs, aiResults, aiChains, webhookEvents, notifications, channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { selfHealingCore, getSystemHealthReport, type SystemHealthReport } from "./self-healing-core";
+import { withCronLock } from "./lib/cron-lock";
 import {
   aiVideoTranslator, aiSubtitleGenerator, aiLocalizationAdvisor,
   aiMultiLangSeo, aiDubbingScriptGenerator, aiCulturalAdaptation,
@@ -205,82 +206,94 @@ export async function initAutomationEngine() {
   console.log("[AutomationEngine] Initializing all subsystems...");
 
   cron.schedule("*/5 * * * *", async () => {
-    if (!acquireLock(cronLock)) return;
-    try {
+    await withCronLock("CronProcessor", 4 * 60 * 1000, async () => {
       await selfHealingCore("CronProcessor", () => processAllCronJobs(), { silent: true });
-    } finally {
-      releaseLock(cronLock);
-    }
+    });
   });
 
   cron.schedule("0 * * * *", async () => {
-    if (!acquireLock(chainLock)) return;
-    try {
+    await withCronLock("ChainProcessor", 30 * 60 * 1000, async () => {
       await selfHealingCore("ChainProcessor", () => processAllChains(), { silent: true });
-    } finally {
-      releaseLock(chainLock);
-    }
+    });
   });
 
   cron.schedule("*/30 * * * *", async () => {
-    await selfHealingCore("AutoApprovals", () => processAutoApprovals());
+    await withCronLock("AutoApprovals", 25 * 60 * 1000, async () => {
+      await selfHealingCore("AutoApprovals", () => processAutoApprovals());
+    });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    await selfHealingCore("AutoPayments", () => processAutoPayments());
+    await withCronLock("AutoPayments", 30 * 60 * 1000, async () => {
+      await selfHealingCore("AutoPayments", () => processAutoPayments());
+    });
   });
 
   cron.schedule("0 */12 * * *", async () => {
-    await selfHealingCore("AutoLocalization", () => processAutoLocalization());
-  });
-
-  cron.schedule("*/5 * * * *", async () => {
-    await selfHealingCore("TokenRefresh", async () => {
-      const { refreshExpiringTokens } = await import("./token-refresh");
-      await refreshExpiringTokens();
+    await withCronLock("AutoLocalization", 60 * 60 * 1000, async () => {
+      await selfHealingCore("AutoLocalization", () => processAutoLocalization());
     });
   });
 
   cron.schedule("*/5 * * * *", async () => {
-    await selfHealingCore("ScheduledPosts", async () => {
-      const { processScheduledPosts } = await import("./autopilot-engine");
-      await processScheduledPosts();
+    await withCronLock("TokenRefresh", 4 * 60 * 1000, async () => {
+      await selfHealingCore("TokenRefresh", async () => {
+        const { refreshExpiringTokens } = await import("./token-refresh");
+        await refreshExpiringTokens();
+      });
+    });
+  });
+
+  cron.schedule("*/5 * * * *", async () => {
+    await withCronLock("ScheduledPosts", 4 * 60 * 1000, async () => {
+      await selfHealingCore("ScheduledPosts", async () => {
+        const { processScheduledPosts } = await import("./autopilot-engine");
+        await processScheduledPosts();
+      });
     });
   });
 
   cron.schedule("*/3 * * * *", async () => {
-    await selfHealingCore("AutoFixEngine", async () => {
-      const { runAutoFixCycle } = await import("./auto-fix-engine");
-      await runAutoFixCycle();
-    }, { silent: true });
+    await withCronLock("AutoFixEngine", 2 * 60 * 1000, async () => {
+      await selfHealingCore("AutoFixEngine", async () => {
+        const { runAutoFixCycle } = await import("./auto-fix-engine");
+        await runAutoFixCycle();
+      }, { silent: true });
+    });
   });
 
   cron.schedule("*/10 * * * *", async () => {
-    await selfHealingCore("PublishVerification", async () => {
-      const { verifyAllRecentUploads } = await import("./publish-verifier");
-      await verifyAllRecentUploads();
+    await withCronLock("PublishVerification", 9 * 60 * 1000, async () => {
+      await selfHealingCore("PublishVerification", async () => {
+        const { verifyAllRecentUploads } = await import("./publish-verifier");
+        await verifyAllRecentUploads();
+      });
     });
   });
 
   cron.schedule("*/30 * * * *", async () => {
-    await selfHealingCore("ContentVerification", async () => {
-      const { runContentVerificationSweep } = await import("./content-verification-engine");
-      await runContentVerificationSweep();
+    await withCronLock("ContentVerification", 25 * 60 * 1000, async () => {
+      await selfHealingCore("ContentVerification", async () => {
+        const { runContentVerificationSweep } = await import("./content-verification-engine");
+        await runContentVerificationSweep();
+      });
     });
   });
 
   cron.schedule("0 */2 * * *", async () => {
-    await selfHealingCore("GrowthMonitoring", async () => {
-      const { refreshAllUserChannelStats } = await import("./youtube");
-      const { runComplianceCheck } = await import("./growth-programs-engine");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (userId) {
-          await refreshAllUserChannelStats(userId);
-          await runComplianceCheck(userId);
+    await withCronLock("GrowthMonitoring", 90 * 60 * 1000, async () => {
+      await selfHealingCore("GrowthMonitoring", async () => {
+        const { refreshAllUserChannelStats } = await import("./youtube");
+        const { runComplianceCheck } = await import("./growth-programs-engine");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (userId) {
+            await refreshAllUserChannelStats(userId);
+            await runComplianceCheck(userId);
+          }
         }
-      }
+      });
     });
   });
 
@@ -296,218 +309,242 @@ export async function initAutomationEngine() {
   }, 5_000);
 
   cron.schedule("0 */4 * * *", async () => {
-    await selfHealingCore("CommentResponder", async () => {
-      const { processCommentResponses } = await import("./autopilot-engine");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (userId) await processCommentResponses(userId);
-      }
+    await withCronLock("CommentResponder", 3 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("CommentResponder", async () => {
+        const { processCommentResponses } = await import("./autopilot-engine");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (userId) await processCommentResponses(userId);
+        }
+      });
     });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    await selfHealingCore("ContentRecycler", async () => {
-      const { processContentRecycling } = await import("./autopilot-engine");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (userId) await processContentRecycling(userId);
-      }
+    await withCronLock("ContentRecycler", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("ContentRecycler", async () => {
+        const { processContentRecycling } = await import("./autopilot-engine");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (userId) await processContentRecycling(userId);
+        }
+      });
     });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    await selfHealingCore("RevenueSync", async () => {
-      const { syncAllRevenue } = await import("./revenue-sync-engine");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (userId) await syncAllRevenue(userId);
-      }
-      console.log("[AutomationEngine] Revenue sync completed for", userIds.length, "users");
+    await withCronLock("RevenueSync", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("RevenueSync", async () => {
+        const { syncAllRevenue } = await import("./revenue-sync-engine");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (userId) await syncAllRevenue(userId);
+        }
+        console.log("[AutomationEngine] Revenue sync completed for", userIds.length, "users");
+      });
     });
   });
 
   cron.schedule("0 */2 * * *", async () => {
-    await selfHealingCore("VideoSync", async () => {
-      const { syncYouTubeVideosToLibrary } = await import("./youtube");
-      const allChannelRows = await db.select().from(channels);
-      const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.accessToken && c.userId);
-      let totalNew = 0;
-      for (const ch of ytChannels) {
-        try {
-          const result = await syncYouTubeVideosToLibrary(ch.id, ch.userId!);
-          totalNew += result.newVideos.length;
-        } catch (chErr: any) {
-          console.error(`[SelfHealing] VideoSync sub-task failed for channel ${ch.id}:`, chErr.message);
+    await withCronLock("VideoSync", 90 * 60 * 1000, async () => {
+      await selfHealingCore("VideoSync", async () => {
+        const { syncYouTubeVideosToLibrary } = await import("./youtube");
+        const allChannelRows = await db.select().from(channels);
+        const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.accessToken && c.userId);
+        let totalNew = 0;
+        for (const ch of ytChannels) {
+          try {
+            const result = await syncYouTubeVideosToLibrary(ch.id, ch.userId!);
+            totalNew += result.newVideos.length;
+          } catch (chErr: any) {
+            console.error(`[SelfHealing] VideoSync sub-task failed for channel ${ch.id}:`, chErr.message);
+          }
         }
-      }
-      if (totalNew > 0) {
-        console.log(`[AutomationEngine] Continuous video sync: pulled ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
-      }
+        if (totalNew > 0) {
+          console.log(`[AutomationEngine] Continuous video sync: pulled ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
+        }
+      });
     });
   });
 
   cron.schedule("0 */4 * * *", async () => {
-    await selfHealingCore("BacklogProcessing", async () => {
-      const { startBacklogOnLogin } = await import("./backlog-manager");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (userId) {
-          const result = await startBacklogOnLogin(userId);
-          if (result.started) {
-            console.log(`[AutomationEngine] Continuous backlog processing: ${result.message} for ${userId}`);
+    await withCronLock("BacklogProcessing", 3 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("BacklogProcessing", async () => {
+        const { startBacklogOnLogin } = await import("./backlog-manager");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (userId) {
+            const result = await startBacklogOnLogin(userId);
+            if (result.started) {
+              console.log(`[AutomationEngine] Continuous backlog processing: ${result.message} for ${userId}`);
+            }
           }
         }
-      }
+      });
     });
   });
 
   cron.schedule("30 */1 * * *", async () => {
-    await selfHealingCore("VideoOptimizer", async () => {
-      const { startBacklogProcessing, getBacklogSession } = await import("./backlog-engine");
-      const { getBacklogState } = await import("./backlog-manager");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (!userId) continue;
-        const engineSession = getBacklogSession(userId);
-        if (engineSession && engineSession.state === "processing") continue;
-        const managerState = getBacklogState(userId);
-        if (managerState && (managerState.state === "running" || managerState.state === "finishing_current")) continue;
-        try {
-          const result = await startBacklogProcessing(userId, "deep");
-          if (!result.alreadyRunning && result.totalVideos > 0) {
-            console.log(`[AutomationEngine] New video optimizer: queued ${result.totalVideos} unoptimized video(s) for ${userId}`);
-          }
-        } catch (bErr: any) {
-          if (!bErr.message?.includes("already")) {
-            console.error(`[SelfHealing] VideoOptimizer sub-task failed for ${userId}:`, bErr.message);
+    await withCronLock("VideoOptimizer", 50 * 60 * 1000, async () => {
+      await selfHealingCore("VideoOptimizer", async () => {
+        const { startBacklogProcessing, getBacklogSession } = await import("./backlog-engine");
+        const { getBacklogState } = await import("./backlog-manager");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (!userId) continue;
+          const engineSession = getBacklogSession(userId);
+          if (engineSession && engineSession.state === "processing") continue;
+          const managerState = getBacklogState(userId);
+          if (managerState && (managerState.state === "running" || managerState.state === "finishing_current")) continue;
+          try {
+            const result = await startBacklogProcessing(userId, "deep");
+            if (!result.alreadyRunning && result.totalVideos > 0) {
+              console.log(`[AutomationEngine] New video optimizer: queued ${result.totalVideos} unoptimized video(s) for ${userId}`);
+            }
+          } catch (bErr: any) {
+            if (!bErr.message?.includes("already")) {
+              console.error(`[SelfHealing] VideoOptimizer sub-task failed for ${userId}:`, bErr.message);
+            }
           }
         }
-      }
+      });
     });
   });
 
   cron.schedule("15 */2 * * *", async () => {
-    await selfHealingCore("AutoScheduler", async () => {
-      const { autoScheduleOptimizedContent } = await import("./backlog-engine");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (!userId) continue;
-        const count = await autoScheduleOptimizedContent(userId);
-        if (count > 0) {
-          console.log(`[AutomationEngine] Auto-scheduled ${count} post(s) with human-like timing for ${userId}`);
-          sendSSEEvent(userId, "schedule_updated", { scheduled: count });
+    await withCronLock("AutoScheduler", 90 * 60 * 1000, async () => {
+      await selfHealingCore("AutoScheduler", async () => {
+        const { autoScheduleOptimizedContent } = await import("./backlog-engine");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (!userId) continue;
+          const count = await autoScheduleOptimizedContent(userId);
+          if (count > 0) {
+            console.log(`[AutomationEngine] Auto-scheduled ${count} post(s) with human-like timing for ${userId}`);
+            sendSSEEvent(userId, "schedule_updated", { scheduled: count });
+          }
         }
-      }
+      });
     });
   });
 
   cron.schedule("0 */12 * * *", async () => {
-    await selfHealingCore("CrossPromotion", async () => {
-      const { processCrossPromotion } = await import("./autopilot-engine");
-      const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-      const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds) {
-        if (userId) await processCrossPromotion(userId);
-      }
+    await withCronLock("CrossPromotion", 10 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("CrossPromotion", async () => {
+        const { processCrossPromotion } = await import("./autopilot-engine");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds) {
+          if (userId) await processCrossPromotion(userId);
+        }
+      });
     });
   });
 
-  let liveDetectionRunning = false;
-
   cron.schedule("*/2 * * * *", async () => {
-    if (liveDetectionRunning) return;
-    liveDetectionRunning = true;
-    try {
+    await withCronLock("LiveDetection", 100 * 1000, async () => {
       await selfHealingCore("LiveDetection", async () => {
         const { runMultiPlatformLiveDetection } = await import("./services/live-detection");
         await runMultiPlatformLiveDetection();
       });
-    } finally {
-      liveDetectionRunning = false;
-    }
+    });
   });
 
   cron.schedule("0 */4 * * *", async () => {
-    await selfHealingCore("AlgorithmMonitor", async () => {
-      const { scanAlgorithmChanges } = await import("./algorithm-monitor");
-      for (const platform of ["youtube", "twitch", "kick", "tiktok", "x"]) {
-        await scanAlgorithmChanges(platform);
-      }
-      console.log("[UltimateEngine] Algorithm scan complete");
+    await withCronLock("AlgorithmMonitor", 3 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("AlgorithmMonitor", async () => {
+        const { scanAlgorithmChanges } = await import("./algorithm-monitor");
+        for (const platform of ["youtube", "twitch", "kick", "tiktok", "x"]) {
+          await scanAlgorithmChanges(platform);
+        }
+        console.log("[UltimateEngine] Algorithm scan complete");
+      });
     });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    await selfHealingCore("TrendPredictor", async () => {
-      const { scanForTrends } = await import("./trend-predictor");
-      const allUsers = await db.select().from(channels);
-      const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds.slice(0, 10)) {
-        await scanForTrends(userId!);
-      }
-      console.log("[UltimateEngine] Trend prediction scan complete");
+    await withCronLock("TrendPredictor", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("TrendPredictor", async () => {
+        const { scanForTrends } = await import("./trend-predictor");
+        const allUsers = await db.select().from(channels);
+        const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds.slice(0, 10)) {
+          await scanForTrends(userId!);
+        }
+        console.log("[UltimateEngine] Trend prediction scan complete");
+      });
     });
   });
 
   cron.schedule("0 */8 * * *", async () => {
-    await selfHealingCore("ContentCompounding", async () => {
-      const { scanForCompoundingOpportunities } = await import("./compounding-engine");
-      const allUsers = await db.select().from(channels);
-      const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds.slice(0, 10)) {
-        await scanForCompoundingOpportunities(userId!);
-      }
-      console.log("[UltimateEngine] Content compounding scan complete");
+    await withCronLock("ContentCompounding", 7 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("ContentCompounding", async () => {
+        const { scanForCompoundingOpportunities } = await import("./compounding-engine");
+        const allUsers = await db.select().from(channels);
+        const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds.slice(0, 10)) {
+          await scanForCompoundingOpportunities(userId!);
+        }
+        console.log("[UltimateEngine] Content compounding scan complete");
+      });
     });
   });
 
   cron.schedule("0 */12 * * *", async () => {
-    await selfHealingCore("ShadowBanDetector", async () => {
-      const { scanForAnomalies } = await import("./shadowban-detector");
-      const allUsers = await db.select().from(channels);
-      const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
-      for (const userId of userIds.slice(0, 10)) {
-        for (const platform of ["youtube", "twitch", "kick"]) {
-          await scanForAnomalies(userId!, platform);
+    await withCronLock("ShadowBanDetector", 10 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("ShadowBanDetector", async () => {
+        const { scanForAnomalies } = await import("./shadowban-detector");
+        const allUsers = await db.select().from(channels);
+        const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds.slice(0, 10)) {
+          for (const platform of ["youtube", "twitch", "kick"]) {
+            await scanForAnomalies(userId!, platform);
+          }
         }
-      }
-      console.log("[UltimateEngine] Shadow ban detection scan complete");
+        console.log("[UltimateEngine] Shadow ban detection scan complete");
+      });
     });
   });
 
   cron.schedule("*/15 * * * *", async () => {
-    await selfHealingCore("YouTubePushBacklog", async () => {
-      const { processBacklog } = await import("./services/youtube-push-backlog");
-      const result = await processBacklog();
-      if (result.processed > 0 || result.failed > 0) {
-        console.log(`[PushBacklog] Processed ${result.processed}, failed ${result.failed}, remaining ${result.remaining}`);
-      }
+    await withCronLock("YouTubePushBacklog", 14 * 60 * 1000, async () => {
+      await selfHealingCore("YouTubePushBacklog", async () => {
+        const { processBacklog } = await import("./services/youtube-push-backlog");
+        const result = await processBacklog();
+        if (result.processed > 0 || result.failed > 0) {
+          console.log(`[PushBacklog] Processed ${result.processed}, failed ${result.failed}, remaining ${result.remaining}`);
+        }
+      });
     });
   });
 
   cron.schedule("0 */6 * * *", async () => {
-    await selfHealingCore("MarketerEngine", async () => {
-      const { runMarketingCycleForAllUsers } = await import("./marketer-engine");
-      const count = await runMarketingCycleForAllUsers();
-      if (count > 0) {
-        console.log(`[MarketerEngine] Full marketing cycle complete — ${count} users (organic strategies + keyword learning + traffic growth + collab + sponsorship${" + paid ads if enabled"})`);
-      }
+    await withCronLock("MarketerEngine", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("MarketerEngine", async () => {
+        const { runMarketingCycleForAllUsers } = await import("./marketer-engine");
+        const count = await runMarketingCycleForAllUsers();
+        if (count > 0) {
+          console.log(`[MarketerEngine] Full marketing cycle complete — ${count} users (organic strategies + keyword learning + traffic growth + collab + sponsorship${" + paid ads if enabled"})`);
+        }
+      });
     });
   });
 
   cron.schedule("0 */4 * * *", async () => {
-    await selfHealingCore("PlaylistManager", async () => {
-      const { runPlaylistOrganizationForAllUsers } = await import("./playlist-manager");
-      const count = await runPlaylistOrganizationForAllUsers();
-      if (count > 0) {
-        console.log(`[PlaylistManager] Auto-organized playlists for ${count} users (game-specific longform + shorts)`);
-      }
+    await withCronLock("PlaylistManager", 3 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("PlaylistManager", async () => {
+        const { runPlaylistOrganizationForAllUsers } = await import("./playlist-manager");
+        const count = await runPlaylistOrganizationForAllUsers();
+        if (count > 0) {
+          console.log(`[PlaylistManager] Auto-organized playlists for ${count} users (game-specific longform + shorts)`);
+        }
+      });
     });
   });
 

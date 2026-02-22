@@ -1,6 +1,6 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
-import { requireAuth, requireTier, rateLimitEndpoint } from "./helpers";
+import { requireAuth, requireTier, rateLimitEndpoint, validateAiBody } from "./helpers";
 import {
   aiCategorizeExpenses,
   aiFinancialInsights,
@@ -1033,6 +1033,13 @@ import {
 
 export function registerAiRoutes(app: Express) {
   const aiRateLimit = rateLimitEndpoint(5, 60000);
+
+  app.use("/api/ai", (req: Request, res: Response, next: NextFunction) => {
+    if (req.method === "POST" && req.body) {
+      if (!validateAiBody(req, res)) return;
+    }
+    next();
+  });
 
   app.post("/api/ai/categorize-expenses", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);

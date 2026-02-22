@@ -264,7 +264,9 @@ async function runLoopIteration(userId: string) {
         if (bridged > 0) {
           logger.info("Idle check: bridged new VODs to streams", { userId, count: bridged });
         }
-      } catch {}
+      } catch (err: any) {
+        logger.warn("Idle VOD bridge check failed", { userId, error: err?.message });
+      }
     }
     const hasStreamContent = await checkAnyWorkRemaining(userId);
 

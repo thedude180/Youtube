@@ -56,7 +56,7 @@ export async function downloadSourceVideo(youtubeId: string): Promise<string> {
       for (const format of FORMAT_STRATEGIES) {
         try {
           if (fs.existsSync(outputPath)) {
-            try { fs.unlinkSync(outputPath); } catch {}
+            try { fs.unlinkSync(outputPath); } catch (unlinkErr: any) { console.warn("[ClipProcessor] Failed to clean up existing file", outputPath, unlinkErr?.message); }
           }
 
           await execFileAsync("yt-dlp", [

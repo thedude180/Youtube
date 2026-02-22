@@ -101,7 +101,9 @@ export async function classifyWithQuotaCheck(errorMessage: string, platform: str
       if (quotaStatus.isExceeded || quotaStatus.isNearLimit) {
         return "quota_cap";
       }
-    } catch {}
+    } catch (err: any) {
+      console.error("[AutoFix] Quota check failed during classification", { platform, userId, error: err?.message });
+    }
   }
 
   return basic;

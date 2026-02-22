@@ -455,8 +455,8 @@ export async function anonymizeUserData(userId: string): Promise<{ success: bool
     for (const t of USER_TABLES) {
       try { const r = await db.execute(sql`UPDATE ${sql.identifier(t)} SET user_id = ${anonId} WHERE user_id = ${userId}`); if (Number(r.rowCount) > 0) anonymized++; } catch { continue; }
     }
-    try { await db.execute(sql`UPDATE login_attempts SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch {}
-    try { await db.execute(sql`UPDATE security_events SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch {}
+    try { await db.execute(sql`UPDATE login_attempts SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize login_attempts", e?.message); }
+    try { await db.execute(sql`UPDATE security_events SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize security_events", e?.message); }
     await db.insert(securityEvents).values({ userId: anonId, eventType: "gdpr_data_anonymized", severity: "info", details: { originalUserId: "redacted", anonymizedTo: anonId, tablesAnonymized: anonymized }, blocked: false });
     console.log(`[Security Fortress] Anonymized user data across ${anonymized} tables`);
     return { success: true, tablesAnonymized: anonymized };

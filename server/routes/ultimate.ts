@@ -89,6 +89,29 @@ export function registerUltimateRoutes(app: Express) {
     res.json({ subsystems: getSubsystemNames() });
   }));
 
+  app.get("/api/system/cron-locks", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getCronLockStatus } = await import("../lib/cron-lock");
+    const locks = await getCronLockStatus();
+    res.json({ locks, instanceId: `inst_${process.pid}` });
+  }));
+
+  app.get("/api/system/external-health", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { runAllHealthChecks } = await import("../services/external-health");
+    const result = await runAllHealthChecks();
+    res.json(result);
+  }));
+
+  app.get("/api/system/ai-telemetry", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getAITelemetry } = await import("../lib/openai");
+    res.json(getAITelemetry());
+  }));
+
   app.get("/api/pipeline/routing-rules", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

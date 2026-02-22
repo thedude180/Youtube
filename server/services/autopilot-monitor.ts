@@ -181,7 +181,7 @@ const systemChecks: SystemCheck[] = [
 
         if (stuckDrafts.length >= 3) {
           const { startBacklogProcessing } = await import("../backlog-engine");
-          await startBacklogProcessing(userId).catch(() => {});
+          await startBacklogProcessing(userId).catch(e => console.warn("[Autopilot] Backlog processing trigger failed", e?.message));
           logAutoFix(userId, "content_queue", `Triggered backlog processing for ${stuckDrafts.length} stuck drafts`);
 
           return {
@@ -238,8 +238,8 @@ const systemChecks: SystemCheck[] = [
         if (recentPublished.length === 0 && userVideos.length > 0) {
           try {
             const { processCommentResponses, processContentRecycling } = await import("../autopilot-engine");
-            await processCommentResponses(userId).catch(() => {});
-            await processContentRecycling(userId).catch(() => {});
+            await processCommentResponses(userId).catch(e => console.warn("[Autopilot] Comment responses failed", e?.message));
+            await processContentRecycling(userId).catch(e => console.warn("[Autopilot] Content recycling failed", e?.message));
             logAutoFix(userId, "autopilot_features", "Triggered content recycling due to publishing gap");
           } catch (e) {
             console.error(`[Autopilot] Content recycling trigger failed for user ${userId}:`, e);
@@ -285,7 +285,7 @@ async function runHealthChecks(): Promise<void> {
     await heartbeatMod.recordHeartbeat("autopilotMonitor", "running");
 
     const { ensureAutopilotAlwaysOn } = await import("./connection-guardian");
-    await ensureAutopilotAlwaysOn().catch(() => {});
+    await ensureAutopilotAlwaysOn().catch(e => console.warn("[Autopilot] ensureAutopilotAlwaysOn failed", e?.message));
 
     const activeUsers = await db.select().from(users).where(eq(users.autopilotActive, true));
 

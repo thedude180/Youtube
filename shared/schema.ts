@@ -4421,3 +4421,17 @@ export const trendOverrides = pgTable("trend_overrides", {
 
 export const insertTrendOverrideSchema = createInsertSchema(trendOverrides).omit({ id: true });
 export type TrendOverride = typeof trendOverrides.$inferSelect;
+
+export const cronLocks = pgTable("cron_locks", {
+  id: serial("id").primaryKey(),
+  jobName: text("job_name").notNull().unique(),
+  lockedAt: timestamp("locked_at").defaultNow(),
+  lockedBy: text("locked_by").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastCompletedAt: timestamp("last_completed_at"),
+  lastDurationMs: integer("last_duration_ms"),
+  executionCount: integer("execution_count").default(0),
+  lastError: text("last_error"),
+}, (table) => [
+  index("cron_lock_job_idx").on(table.jobName),
+]);

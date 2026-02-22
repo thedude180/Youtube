@@ -239,10 +239,10 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     setLivestreamPriority(userId, stream.id, broadcast.title);
     onLivestreamDetected(userId, stream.id);
     pauseForLive(userId, stream.id);
-    pivotToStream(userId, stream.id).catch(() => {});
-    processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(() => {});
-    createPipelineForStream(userId, broadcast.title, "live").catch(() => {});
-    onStreamDetected(userId, stream).catch(() => {});
+    pivotToStream(userId, stream.id).catch(e => console.warn("[LiveDetection] pivotToStream failed", e?.message));
+    processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(e => console.warn("[LiveDetection] Go-live announcements failed", e?.message));
+    createPipelineForStream(userId, broadcast.title, "live").catch(e => console.warn("[LiveDetection] Pipeline creation failed", e?.message));
+    onStreamDetected(userId, stream).catch(e => console.warn("[LiveDetection] Trend detection failed", e?.message));
   } catch (err) {
     console.error(`[LiveDetection] Pipeline trigger error for ${broadcast.platform}:`, err);
   }
@@ -299,10 +299,10 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
     const { onStreamEnded } = await import("../content-loop");
     setPostStreamHarvest(userId, liveStream.id, liveStream.title);
     onStreamEnded(userId, liveStream.id);
-    resumeFromStream(userId, liveStream.id).catch(() => {});
-    processPostStreamHighlights(userId, liveStream.id, liveStream.title, liveStream.description || "", (liveStream.platforms as string[]) || ["youtube"]).catch(() => {});
-    createPipelineForStream(userId, liveStream.title, "replay").catch(() => {});
-    resumeAfterStream(userId).catch(() => {});
+    resumeFromStream(userId, liveStream.id).catch(e => console.warn("[LiveDetection] resumeFromStream failed", e?.message));
+    processPostStreamHighlights(userId, liveStream.id, liveStream.title, liveStream.description || "", (liveStream.platforms as string[]) || ["youtube"]).catch(e => console.warn("[LiveDetection] Post-stream highlights failed", e?.message));
+    createPipelineForStream(userId, liveStream.title, "replay").catch(e => console.warn("[LiveDetection] Replay pipeline failed", e?.message));
+    resumeAfterStream(userId).catch(e => console.warn("[LiveDetection] resumeAfterStream failed", e?.message));
   } catch (err) {
     console.error(`[LiveDetection] Post-stream pipeline error for ${platform}:`, err);
   }

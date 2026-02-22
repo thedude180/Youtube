@@ -988,7 +988,9 @@ export async function bridgeVodsToStreams(userId: string): Promise<number> {
             logger.error("Trend detection on bridged VOD failed", { error: String(err) })
           );
         }
-      } catch {}
+      } catch (trendErr: any) {
+        logger.warn("Trend detection lookup on bridged VOD failed", { videoId: vod.id, error: trendErr?.message });
+      }
     } catch (err: any) {
       logger.error("Failed to bridge VOD to stream", { videoId: vod.id, error: err.message });
     }

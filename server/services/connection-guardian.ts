@@ -53,10 +53,12 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
         if (body.includes("quota") || body.includes("rateLimitExceeded") || body.includes("dailyLimitExceeded")) {
           return true;
         }
-      } catch {}
+      } catch (bodyErr: any) {
+        console.warn("[ConnectionGuardian] Failed to parse 403 body", bodyErr?.message);
+      }
     }
     return false;
-  } catch {
+  } catch (err: any) {
     return false;
   }
 }
@@ -343,9 +345,7 @@ async function autoConnectStreamingPlatform(
         connectionType: "auto",
         credentials: {
           apiKey: envKeys.apiKey ? "configured" : undefined,
-          clientId: envKeys.clientId ? "configured" : undefined,
           streamKey: envKeys.streamKey ? "configured" : undefined,
-          streamUrl: envKeys.streamUrl || defaultStreamUrl,
         },
       });
 

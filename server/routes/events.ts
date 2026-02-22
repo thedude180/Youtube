@@ -3,6 +3,8 @@ import { requireAuth } from "./helpers";
 
 const STALE_CONNECTION_MS = 5 * 60 * 1000;
 const MAX_CLIENTS_PER_USER = 5;
+const MAX_TOTAL_CONNECTIONS = 200;
+const MAX_PAYLOAD_BYTES = 64 * 1024;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 
@@ -86,7 +88,21 @@ export function sendSSEEvent(userId: string, event: string, data: any) {
   const userClients = clients.get(userId);
   if (!userClients || userClients.length === 0) return;
 
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  let jsonData: string;
+  try {
+    jsonData = JSON.stringify(data);
+  } catch {
+    console.warn(`[SSE] Failed to serialize event ${event} for user ${userId}`);
+    return;
+  }
+
+  const byteLength = Buffer.byteLength(jsonData, "utf8");
+  if (byteLength > MAX_PAYLOAD_BYTES) {
+    console.warn(`[SSE] Dropping oversized event ${event} for user ${userId} (${byteLength} bytes > ${MAX_PAYLOAD_BYTES} limit)`);
+    return;
+  }
+
+  const payload = `event: ${event}\ndata: ${jsonData}\n\n`;
   const failedClients: SSEClient[] = [];
 
   for (const client of userClients) {
@@ -105,7 +121,21 @@ export function sendSSEEvent(userId: string, event: string, data: any) {
 }
 
 export function broadcastSSEEvent(event: string, data: any) {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  let jsonData: string;
+  try {
+    jsonData = JSON.stringify(data);
+  } catch {
+    console.warn(`[SSE] Failed to serialize broadcast event ${event}`);
+    return;
+  }
+
+  const byteLength = Buffer.byteLength(jsonData, "utf8");
+  if (byteLength > MAX_PAYLOAD_BYTES) {
+    console.warn(`[SSE] Dropping oversized broadcast event ${event} (${byteLength} bytes > ${MAX_PAYLOAD_BYTES} limit)`);
+    return;
+  }
+
+  const payload = `event: ${event}\ndata: ${jsonData}\n\n`;
   const usersToProcess = Array.from(clients.keys());
 
   for (const userId of usersToProcess) {
@@ -173,7 +203,14 @@ export function registerEventRoutes(app: Express) {
       createdAt: Date.now(),
     };
 
-    // Initialize user client list if needed
+    const totalActive = getTotalConnections();
+    if (totalActive >= MAX_TOTAL_CONNECTIONS) {
+      console.warn(`[SSE] Rejecting connection for user ${userId}: global limit reached (${totalActive}/${MAX_TOTAL_CONNECTIONS})`);
+      res.write(`event: error\ndata: ${JSON.stringify({ message: "Server connection limit reached, please try again later" })}\n\n`);
+      res.end();
+      return;
+    }
+
     if (!clients.has(userId)) {
       clients.set(userId, []);
     }
