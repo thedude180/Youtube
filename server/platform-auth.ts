@@ -242,7 +242,7 @@ function getAuthScopes(platform: string, config: OAuthPlatformConfig): string[] 
     case "x":
       return ["tweet.read", "users.read", "offline.access"];
     case "tiktok":
-      return ["user.info.basic"];
+      return ["user.info.basic", "video.list", "video.publish", "video.upload"];
     case "kick":
       return ["user:read"];
     default:
