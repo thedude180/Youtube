@@ -234,18 +234,5 @@ export function setupPlatformAuth(app: Express) {
 }
 
 function getAuthScopes(platform: string, config: OAuthPlatformConfig): string[] {
-  switch (platform) {
-    case "discord":
-      return ["identify", "email"];
-    case "twitch":
-      return ["user:read:email"];
-    case "x":
-      return ["tweet.read", "users.read", "offline.access"];
-    case "tiktok":
-      return ["user.info.basic", "video.list", "video.publish", "video.upload"];
-    case "kick":
-      return ["user:read"];
-    default:
-      return config.scopes;
-  }
+  return config.scopes;
 }
