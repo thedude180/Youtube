@@ -670,7 +670,12 @@ function AppContent() {
     );
   }
 
-  if (needsOnboarding || location === "/onboarding") {
+  const publicRoutes = ["/pricing", "/privacy", "/terms", "/data-disclosure", "/status", "/changelog"];
+  const normalizedPath = location.split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
+  if (needsOnboarding || normalizedPath === "/onboarding") {
+    if (publicRoutes.some(r => normalizedPath === r)) {
+      return <AuthenticatedApp />;
+    }
     return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><Onboarding onComplete={completeOnboarding} /></Suspense>;
   }
 
