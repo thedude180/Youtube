@@ -63,6 +63,7 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
     - **Stream Clip → YouTube Shorts Pipeline**: Processes clips for YouTube Shorts.
     - **Reconnect Email Service**: Sends Gmail alerts for OAuth token expiry.
     - **Self-Healing Core**: Wraps all automation subsystems with autonomous failure detection, AI diagnosis, retry logic, circuit breakers, and health monitoring.
+    - **Auto-Fix Engine**: Autonomous failure classification and recovery system. Classifies errors into 8 categories (quota_cap, rate_limit, auth_expired, network, copyright, platform_down, config_missing, unknown). Quota/cap errors defer until daily reset (YouTube midnight Pacific). Auth errors trigger auto token refresh. Network/platform errors use exponential backoff. Copyright/config errors are permanent. Runs every 3 minutes via cron. API: GET /api/autopilot/auto-fix/status.
     - **Weekly Report Engine**: Automated weekly email digest.
     - **TikTok Video Publishing Pipeline**: Downloads, cuts, and uploads clips to TikTok.
 

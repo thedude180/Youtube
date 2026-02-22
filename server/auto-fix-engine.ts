@@ -1,0 +1,543 @@
+import { db } from "./db";
+import { autopilotQueue, notifications, deadLetterQueue } from "@shared/schema";
+import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
+import { getNextResetTime, getQuotaStatus, getPacificDate } from "./services/youtube-quota-tracker";
+import { selfHealingCore } from "./self-healing-core";
+
+const logger = {
+  info: (msg: string, meta?: any) => console.log(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
+  warn: (msg: string, meta?: any) => console.warn(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
+  error: (msg: string, meta?: any) => console.error(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
+};
+
+export type FailureCategory =
+  | "quota_cap"
+  | "rate_limit"
+  | "auth_expired"
+  | "network"
+  | "copyright"
+  | "platform_down"
+  | "config_missing"
+  | "unknown";
+
+interface CapResetInfo {
+  platform: string;
+  resetsAt: Date;
+  reason: string;
+}
+
+const PLATFORM_CAP_RESET_HOURS: Record<string, number> = {
+  youtube: 0,
+  tiktok: 0,
+  x: 0,
+  discord: 0,
+};
+
+const QUOTA_PATTERNS = [
+  "quota", "quotaExceeded", "dailyLimitExceeded", "QUOTA_EXCEEDED",
+  "daily limit", "daily cap", "upload limit", "usage limit", "API limit",
+  "userRateLimitExceeded", "quota exceeded",
+];
+
+const RATE_LIMIT_PATTERNS = [
+  "rate limit", "rate_limit", "throttl", "slow down",
+  "too many requests", "429", "retry after", "retry-after",
+  "rateLimitExceeded",
+];
+
+const AUTH_PATTERNS = [
+  "token expired", "token invalid", "invalid_grant", "unauthorized",
+  "401", "revoked", "invalid credentials",
+  "access denied", "not authenticated", "session expired",
+  "re-authenticate",
+];
+
+const NETWORK_PATTERNS = [
+  "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "ENOTFOUND",
+  "network error", "fetch failed", "socket hang up",
+  "connection refused", "timeout", "timed out", "DNS",
+  "EHOSTUNREACH", "502", "503", "504", "service unavailable",
+];
+
+const COPYRIGHT_PATTERNS = [
+  "copyright", "DMCA", "content ID", "blocked by copyright",
+  "Copyright check blocked", "copyrighted material",
+];
+
+const PLATFORM_DOWN_PATTERNS = [
+  "service unavailable", "maintenance", "503", "502",
+  "platform error", "internal server error", "500",
+  "server error", "temporarily unavailable",
+];
+
+const CONFIG_PATTERNS = [
+  "not connected", "Connect your account", "reconnect",
+  "webhook URL", "not supported", "missing config",
+  "no channel", "not configured", "setup required",
+];
+
+export function classifyFailure(errorMessage: string, platform?: string): FailureCategory {
+  const msg = errorMessage.toLowerCase();
+
+  if (QUOTA_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "quota_cap";
+  if (COPYRIGHT_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "copyright";
+  if (CONFIG_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "config_missing";
+  if (AUTH_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "auth_expired";
+  if (NETWORK_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "network";
+  if (PLATFORM_DOWN_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "platform_down";
+  if (RATE_LIMIT_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "rate_limit";
+
+  if (msg.includes("403") && platform === "youtube") return "quota_cap";
+
+  return "unknown";
+}
+
+export async function classifyWithQuotaCheck(errorMessage: string, platform: string, userId?: string): Promise<FailureCategory> {
+  const basic = classifyFailure(errorMessage, platform);
+
+  if (basic === "rate_limit" && platform === "youtube" && userId) {
+    try {
+      const quotaStatus = await getQuotaStatus(userId);
+      if (quotaStatus.isExceeded || quotaStatus.isNearLimit) {
+        return "quota_cap";
+      }
+    } catch {}
+  }
+
+  return basic;
+}
+
+export function getCapResetTime(platform: string): Date {
+  if (platform === "youtube") {
+    return getNextResetTime();
+  }
+
+  const now = new Date();
+  const resetHour = PLATFORM_CAP_RESET_HOURS[platform] ?? 0;
+  const next = new Date(now);
+  next.setUTCHours(resetHour, 0, 0, 0);
+  if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+  return next;
+}
+
+function isAutoFixable(category: FailureCategory): boolean {
+  return ["quota_cap", "rate_limit", "network", "platform_down", "unknown"].includes(category);
+}
+
+function getRetryDelay(category: FailureCategory, attempt: number = 0, platform?: string): number {
+  switch (category) {
+    case "quota_cap": {
+      const resetTime = getCapResetTime(platform || "youtube");
+      return Math.max(resetTime.getTime() - Date.now(), 60_000);
+    }
+    case "rate_limit": {
+      const base = 5 * 60_000;
+      return Math.min(base * Math.pow(2, attempt), 60 * 60_000);
+    }
+    case "network": {
+      const base = 2 * 60_000;
+      return Math.min(base * Math.pow(2, attempt), 30 * 60_000);
+    }
+    case "platform_down": {
+      const base = 15 * 60_000;
+      return Math.min(base * Math.pow(2, attempt), 2 * 60 * 60_000);
+    }
+    case "unknown": {
+      const base = 5 * 60_000;
+      return Math.min(base * Math.pow(2, attempt), 60 * 60_000);
+    }
+    default:
+      return 0;
+  }
+}
+
+async function createNotification(userId: string, title: string, message: string, severity: string = "info") {
+  try {
+    await db.insert(notifications).values({
+      userId,
+      type: "system",
+      title,
+      message,
+      severity,
+    });
+  } catch (err) {
+    logger.error("Failed to create notification", { error: String(err) });
+  }
+}
+
+export async function autoFixFailedPosts(): Promise<{
+  fixed: number;
+  deferred: number;
+  permanent: number;
+  total: number;
+}> {
+  const stats = { fixed: 0, deferred: 0, permanent: 0, total: 0 };
+
+  try {
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000);
+
+    const failedPosts = await db.select().from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.status, "failed"),
+        gte(autopilotQueue.createdAt, fortyEightHoursAgo),
+        lte(autopilotQueue.scheduledAt, fiveMinutesAgo),
+      ))
+      .limit(20);
+
+    stats.total = failedPosts.length;
+    if (failedPosts.length === 0) return stats;
+
+    logger.info("Processing failed posts for auto-fix", { count: failedPosts.length });
+
+    for (const post of failedPosts) {
+      const errorMsg = post.errorMessage || "Unknown error";
+      const category = post.targetPlatform === "youtube"
+        ? await classifyWithQuotaCheck(errorMsg, post.targetPlatform, post.userId)
+        : classifyFailure(errorMsg, post.targetPlatform);
+      const metadata = (post.metadata as any) || {};
+      const retryCount = metadata.retryCount || 0;
+      const autoFixAttempts = metadata.autoFixAttempts || 0;
+
+      logger.info("Classifying failure", {
+        postId: post.id,
+        platform: post.targetPlatform,
+        category,
+        retryCount,
+        autoFixAttempts,
+        error: errorMsg.substring(0, 100),
+      });
+
+      if (category === "copyright" || category === "config_missing") {
+        stats.permanent++;
+        if (!metadata.permanentFailNotified) {
+          const friendlyMsg = category === "copyright"
+            ? `A post to ${post.targetPlatform} was blocked due to copyright. The system won't retry this one — the content may need to be modified.`
+            : `Posting to ${post.targetPlatform} requires platform reconnection. Go to Settings → Platforms to reconnect.`;
+
+          await createNotification(post.userId, `Action needed: ${post.targetPlatform}`, friendlyMsg, "warning");
+          await db.update(autopilotQueue)
+            .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: category } })
+            .where(eq(autopilotQueue.id, post.id));
+        }
+        continue;
+      }
+
+      if (category === "auth_expired") {
+        if (autoFixAttempts < 2) {
+          try {
+            const { refreshExpiringTokens } = await import("./token-refresh");
+            await refreshExpiringTokens();
+            logger.info("Auto-refreshed tokens, re-scheduling post", { postId: post.id, platform: post.targetPlatform });
+
+            await db.update(autopilotQueue)
+              .set({
+                status: "scheduled" as any,
+                scheduledAt: new Date(Date.now() + 30_000),
+                errorMessage: null,
+                metadata: {
+                  ...metadata,
+                  retryCount: retryCount + 1,
+                  autoFixAttempts: autoFixAttempts + 1,
+                  autoFixAction: "token_refresh",
+                  lastAutoFixAt: new Date().toISOString(),
+                },
+              })
+              .where(eq(autopilotQueue.id, post.id));
+            stats.fixed++;
+          } catch (refreshErr) {
+            logger.warn("Token refresh failed, marking permanent", { postId: post.id, error: String(refreshErr) });
+            stats.permanent++;
+            if (!metadata.permanentFailNotified) {
+              await createNotification(post.userId,
+                `${post.targetPlatform} needs reconnection`,
+                `Your ${post.targetPlatform} connection expired and couldn't be refreshed automatically. Go to Settings → Platforms to reconnect.`,
+                "warning"
+              );
+              await db.update(autopilotQueue)
+                .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: "auth_expired" } })
+                .where(eq(autopilotQueue.id, post.id));
+            }
+          }
+          continue;
+        }
+        stats.permanent++;
+        continue;
+      }
+
+      if (!isAutoFixable(category)) {
+        stats.permanent++;
+        continue;
+      }
+
+      if (category === "quota_cap") {
+        const resetTime = getCapResetTime(post.targetPlatform);
+        const now = new Date();
+
+        if (resetTime > now) {
+          logger.info("Quota/cap issue — deferring until reset", {
+            postId: post.id,
+            platform: post.targetPlatform,
+            resetsAt: resetTime.toISOString(),
+          });
+
+          await db.update(autopilotQueue)
+            .set({
+              status: "scheduled" as any,
+              scheduledAt: new Date(resetTime.getTime() + 5 * 60_000),
+              errorMessage: null,
+              metadata: {
+                ...metadata,
+                retryCount: retryCount + 1,
+                autoFixAttempts: autoFixAttempts + 1,
+                autoFixAction: "deferred_until_cap_reset",
+                deferredUntil: resetTime.toISOString(),
+                failureCategory: category,
+                lastAutoFixAt: new Date().toISOString(),
+              },
+            })
+            .where(eq(autopilotQueue.id, post.id));
+          stats.deferred++;
+
+          if (autoFixAttempts === 0) {
+            await createNotification(post.userId,
+              `${post.targetPlatform} daily limit reached`,
+              `The daily limit for ${post.targetPlatform} was hit. Your post is queued and will automatically go out when the limit resets.`,
+              "info"
+            );
+          }
+          continue;
+        }
+      }
+
+      const maxAutoFix = category === "network" || category === "platform_down" ? 5 : 3;
+      if (autoFixAttempts >= maxAutoFix) {
+        stats.permanent++;
+        if (!metadata.permanentFailNotified) {
+          await createNotification(post.userId,
+            `Upload couldn't be fixed automatically`,
+            `After ${autoFixAttempts} automatic fix attempts, posting to ${post.targetPlatform} was abandoned. Error: ${errorMsg.substring(0, 150)}`,
+            "error"
+          );
+          await db.update(autopilotQueue)
+            .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: category } })
+            .where(eq(autopilotQueue.id, post.id));
+        }
+        continue;
+      }
+
+      const delay = getRetryDelay(category, autoFixAttempts, post.targetPlatform);
+      const retryAt = new Date(Date.now() + delay);
+
+      logger.info("Auto-fixing: scheduling retry", {
+        postId: post.id,
+        platform: post.targetPlatform,
+        category,
+        retryAt: retryAt.toISOString(),
+        attempt: autoFixAttempts + 1,
+      });
+
+      await db.update(autopilotQueue)
+        .set({
+          status: "scheduled" as any,
+          scheduledAt: retryAt,
+          errorMessage: null,
+          metadata: {
+            ...metadata,
+            retryCount: retryCount + 1,
+            autoFixAttempts: autoFixAttempts + 1,
+            autoFixAction: `auto_retry_${category}`,
+            failureCategory: category,
+            lastAutoFixAt: new Date().toISOString(),
+          },
+        })
+        .where(eq(autopilotQueue.id, post.id));
+      stats.fixed++;
+    }
+
+    logger.info("Auto-fix cycle complete", stats);
+    return stats;
+  } catch (err) {
+    logger.error("Auto-fix engine error", { error: String(err) });
+    return stats;
+  }
+}
+
+export async function autoFixDeadLetterQueue(): Promise<{ processed: number; deferred: number }> {
+  const stats = { processed: 0, deferred: 0 };
+
+  try {
+    const now = new Date();
+    const items = await db.select().from(deadLetterQueue)
+      .where(and(
+        eq(deadLetterQueue.status, "pending"),
+        lte(deadLetterQueue.nextRetryAt, now),
+      ))
+      .limit(10);
+
+    for (const item of items) {
+      const category = classifyFailure(item.error || "", (item.payload as any)?.platform);
+
+      if (category === "quota_cap") {
+        const platform = (item.payload as any)?.platform || "youtube";
+        const resetTime = getCapResetTime(platform);
+
+        if (resetTime > now) {
+          await db.update(deadLetterQueue)
+            .set({
+              nextRetryAt: new Date(resetTime.getTime() + 5 * 60_000),
+              status: "pending",
+            })
+            .where(eq(deadLetterQueue.id, item.id));
+          stats.deferred++;
+          logger.info("DLQ item deferred until cap reset", { id: item.id, platform, resetsAt: resetTime.toISOString() });
+          continue;
+        }
+      }
+
+      if (category === "copyright" || category === "config_missing") {
+        await db.update(deadLetterQueue)
+          .set({ status: "exhausted" })
+          .where(eq(deadLetterQueue.id, item.id));
+        logger.info("DLQ item marked exhausted (non-fixable)", { id: item.id, category });
+        continue;
+      }
+
+      const retryCount = (item.retryCount || 0) + 1;
+      if (retryCount > (item.maxRetries || 3)) {
+        await db.update(deadLetterQueue)
+          .set({ status: "exhausted" })
+          .where(eq(deadLetterQueue.id, item.id));
+        continue;
+      }
+
+      const delay = getRetryDelay(category, retryCount - 1, (item.payload as any)?.platform);
+      await db.update(deadLetterQueue)
+        .set({
+          retryCount,
+          nextRetryAt: new Date(Date.now() + delay),
+          status: "pending",
+        })
+        .where(eq(deadLetterQueue.id, item.id));
+      stats.processed++;
+    }
+  } catch (err) {
+    logger.error("DLQ auto-fix error", { error: String(err) });
+  }
+
+  return stats;
+}
+
+export async function autoFixPipelines(): Promise<{ fixed: number }> {
+  let fixed = 0;
+
+  try {
+    const { pipelineFailures, streamPipelines } = await import("@shared/schema");
+
+    const failedPipelines = await db.select().from(pipelineFailures)
+      .where(and(
+        eq(pipelineFailures.status, "failed"),
+        gte(pipelineFailures.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+      ))
+      .limit(10);
+
+    for (const failure of failedPipelines) {
+      const category = classifyFailure(failure.errorMessage || "");
+
+      if (category === "quota_cap") {
+        const resetTime = getCapResetTime("youtube");
+        if (resetTime > new Date()) {
+          await db.update(pipelineFailures)
+            .set({
+              status: "retrying",
+              retryStrategy: {
+                action: "deferred_until_cap_reset",
+                deferredUntil: resetTime.toISOString(),
+                delayMs: resetTime.getTime() - Date.now(),
+              } as any,
+            })
+            .where(eq(pipelineFailures.id, failure.id));
+          logger.info("Pipeline failure deferred until cap reset", { id: failure.id });
+          fixed++;
+          continue;
+        }
+      }
+
+      if (category === "copyright" || category === "config_missing") {
+        await db.update(pipelineFailures)
+          .set({ status: "exhausted" })
+          .where(eq(pipelineFailures.id, failure.id));
+        continue;
+      }
+
+      if ((failure.retryCount || 0) < (failure.maxRetries || 3)) {
+        const delay = getRetryDelay(category, failure.retryCount || 0);
+        await db.update(pipelineFailures)
+          .set({
+            status: "retrying",
+            retryStrategy: {
+              action: `auto_fix_${category}`,
+              delayMs: delay,
+              attempt: (failure.retryCount || 0) + 1,
+            } as any,
+          })
+          .where(eq(pipelineFailures.id, failure.id));
+        fixed++;
+      }
+    }
+  } catch (err) {
+    logger.error("Pipeline auto-fix error", { error: String(err) });
+  }
+
+  return { fixed };
+}
+
+export async function runAutoFixCycle(): Promise<{
+  posts: { fixed: number; deferred: number; permanent: number; total: number };
+  dlq: { processed: number; deferred: number };
+  pipelines: { fixed: number };
+}> {
+  logger.info("Starting auto-fix cycle");
+
+  const [posts, dlq, pipelines] = await Promise.all([
+    selfHealingCore("auto-fix-posts", () => autoFixFailedPosts(), { silent: true, maxRetries: 1 }),
+    selfHealingCore("auto-fix-dlq", () => autoFixDeadLetterQueue(), { silent: true, maxRetries: 1 }),
+    selfHealingCore("auto-fix-pipelines", () => autoFixPipelines(), { silent: true, maxRetries: 1 }),
+  ]);
+
+  const result = {
+    posts: posts || { fixed: 0, deferred: 0, permanent: 0, total: 0 },
+    dlq: dlq || { processed: 0, deferred: 0 },
+    pipelines: pipelines || { fixed: 0 },
+  };
+
+  const totalActions = result.posts.fixed + result.posts.deferred + result.dlq.processed + result.dlq.deferred + result.pipelines.fixed;
+  if (totalActions > 0) {
+    logger.info("Auto-fix cycle results", result);
+  }
+
+  return result;
+}
+
+export function getAutoFixSummary(category: FailureCategory, platform?: string): string {
+  switch (category) {
+    case "quota_cap": {
+      const resetTime = getCapResetTime(platform || "youtube");
+      return `Daily limit reached. Queued for automatic retry when the cap resets at ${resetTime.toLocaleTimeString()}.`;
+    }
+    case "rate_limit":
+      return "Rate limited. Will automatically retry in 15 minutes.";
+    case "auth_expired":
+      return "Authentication expired. Attempting automatic token refresh.";
+    case "network":
+      return "Network issue detected. Will automatically retry in 5 minutes.";
+    case "platform_down":
+      return "Platform appears to be down. Will automatically retry in 30 minutes.";
+    case "copyright":
+      return "Content blocked by copyright. This requires manual review.";
+    case "config_missing":
+      return "Platform not connected. Go to Settings → Platforms to reconnect.";
+    case "unknown":
+      return "Unexpected error. The system is analyzing and will attempt an automatic fix.";
+  }
+}

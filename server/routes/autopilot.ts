@@ -42,6 +42,56 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  app.get("/api/autopilot/auto-fix/status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const fortyEightHours = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      const fixedPosts = await db.select({
+        id: autopilotQueue.id,
+        platform: autopilotQueue.targetPlatform,
+        status: autopilotQueue.status,
+        metadata: autopilotQueue.metadata,
+        errorMessage: autopilotQueue.errorMessage,
+        scheduledAt: autopilotQueue.scheduledAt,
+      })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          gte(autopilotQueue.createdAt, fortyEightHours),
+          sql`(${autopilotQueue.metadata}->>'autoFixAction') IS NOT NULL`,
+        ))
+        .orderBy(desc(autopilotQueue.createdAt))
+        .limit(20);
+
+      const deferredCount = fixedPosts.filter(p =>
+        (p.metadata as any)?.autoFixAction === "deferred_until_cap_reset").length;
+      const autoRetried = fixedPosts.filter(p =>
+        (p.metadata as any)?.autoFixAction?.startsWith("auto_retry_")).length;
+      const tokenRefreshed = fixedPosts.filter(p =>
+        (p.metadata as any)?.autoFixAction === "token_refresh").length;
+
+      res.json({
+        totalAutoFixed: fixedPosts.length,
+        deferredForCapReset: deferredCount,
+        autoRetried,
+        tokenRefreshed,
+        recentItems: fixedPosts.map(p => ({
+          id: p.id,
+          platform: p.platform,
+          status: p.status,
+          action: (p.metadata as any)?.autoFixAction,
+          category: (p.metadata as any)?.failureCategory,
+          deferredUntil: (p.metadata as any)?.deferredUntil,
+          attempts: (p.metadata as any)?.autoFixAttempts || 0,
+        })),
+      });
+    } catch (err) {
+      console.error("[Autopilot] Auto-fix status error:", err);
+      res.status(500).json({ error: "Failed to fetch auto-fix status" });
+    }
+  });
+
   app.get("/api/autopilot/recent-activity", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

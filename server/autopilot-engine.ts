@@ -1154,32 +1154,52 @@ export async function processScheduledPosts() {
           .set({ status: "cancelled" as any, errorMessage: result.error || "Skipped" })
           .where(eq(autopilotQueue.id, post.id));
       } else {
-        const retryCount = ((post.metadata as any)?.retryCount) || 0;
-        logger.error("Publish failed", { postId: post.id, platform: post.targetPlatform, error: result.error, retryCount });
+        const errorMsg = result.error || "Unknown publish error";
+        logger.error("Publish failed", { postId: post.id, platform: post.targetPlatform, error: errorMsg });
+
+        const { classifyFailure, getAutoFixSummary } = await import("./auto-fix-engine");
+        const failureCategory = classifyFailure(errorMsg, post.targetPlatform);
+
         await db.update(autopilotQueue)
-          .set({ status: "failed", errorMessage: result.error || "Unknown publish error" })
+          .set({
+            status: "failed",
+            errorMessage: errorMsg,
+            metadata: { ...((post.metadata as any) || {}), failureCategory },
+          })
           .where(eq(autopilotQueue.id, post.id));
 
+        const retryCount = ((post.metadata as any)?.retryCount) || 0;
         if (retryCount === 0) {
-          const friendlyError = sanitizeErrorForNotification(result.error || "Publishing failed", post.targetPlatform);
-          await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`,
-            friendlyError, "warning");
+          const friendlyError = getAutoFixSummary(failureCategory, post.targetPlatform);
+          await createNotification(post.userId, "autopilot", `Issue with ${post.targetPlatform} post`,
+            friendlyError, failureCategory === "quota_cap" || failureCategory === "rate_limit" ? "info" : "warning");
         }
       }
     } catch (err) {
-      const retryCount = ((post.metadata as any)?.retryCount) || 0;
-      logger.error("Failed to publish post", { postId: post.id, error: String(err), retryCount });
+      const errorMsg = String(err);
+      logger.error("Failed to publish post", { postId: post.id, error: errorMsg });
+
+      const { classifyFailure } = await import("./auto-fix-engine");
+      const failureCategory = classifyFailure(errorMsg, post.targetPlatform);
+
       await db.update(autopilotQueue)
-        .set({ status: "failed", errorMessage: String(err) })
+        .set({
+          status: "failed",
+          errorMessage: errorMsg,
+          metadata: { ...((post.metadata as any) || {}), failureCategory },
+        })
         .where(eq(autopilotQueue.id, post.id));
+
+      const retryCount = ((post.metadata as any)?.retryCount) || 0;
       if (retryCount === 0) {
-        const friendlyError = sanitizeErrorForNotification(String(err), post.targetPlatform);
+        const friendlyError = sanitizeErrorForNotification(errorMsg, post.targetPlatform);
         await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`, friendlyError, "warning");
       }
     }
   }
 
-  await retryFailedPosts();
+  const { autoFixFailedPosts } = await import("./auto-fix-engine");
+  await autoFixFailedPosts();
 }
 
 async function autoPinComment(userId: string, channelId: number, youtubeVideoId: string, videoId: number) {
@@ -1219,75 +1239,8 @@ async function autoPinComment(userId: string, channelId: number, youtubeVideoId:
   }
 }
 
-async function retryFailedPosts() {
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-  const failedPosts = await db.select().from(autopilotQueue)
-    .where(and(
-      eq(autopilotQueue.status, "failed"),
-      gte(autopilotQueue.createdAt, twentyFourHoursAgo),
-      lte(autopilotQueue.scheduledAt, tenMinutesAgo),
-    ))
-    .limit(5);
-
-  const NON_RETRYABLE_ERRORS = [
-    "not connected", "Connect your account", "reconnect", "revoked",
-    "webhook URL", "not supported", "Data API pipeline",
-    "Copyright check blocked", "blocked by copyright",
-  ];
-
-  const retryable: typeof failedPosts = [];
-  const permanent: typeof failedPosts = [];
-
-  for (const p of failedPosts) {
-    const err = p.errorMessage || "";
-    const retryCount = ((p.metadata as any)?.retryCount) || 0;
-    const isNonRetryable = NON_RETRYABLE_ERRORS.some(nre => err.includes(nre)) ||
-      (err.includes("token") && (err.includes("expired") || err.includes("invalid")));
-
-    if (isNonRetryable || retryCount >= 3) {
-      if (retryCount >= 3 && !((p.metadata as any)?.permanentFailNotified)) {
-        permanent.push(p);
-      }
-    } else {
-      retryable.push(p);
-    }
-  }
-
-  for (const p of permanent) {
-    const friendlyError = sanitizeErrorForNotification(p.errorMessage || "Publishing failed", p.targetPlatform);
-    await createNotification(p.userId, "autopilot", `Upload permanently failed`,
-      `After 3 attempts, posting to ${p.targetPlatform} was abandoned: ${friendlyError}`, "error");
-    await db.update(autopilotQueue)
-      .set({ metadata: { ...((p.metadata as any) || {}), permanentFailNotified: true } })
-      .where(eq(autopilotQueue.id, p.id));
-  }
-
-  if (retryable.length === 0) return;
-
-  logger.info("Retrying failed posts", { count: retryable.length });
-  const { publishToplatform } = await import("./platform-publisher");
-
-  for (const post of retryable) {
-    try {
-      const retryCount = ((post.metadata as any)?.retryCount || 0) + 1;
-
-      await db.update(autopilotQueue)
-        .set({
-          status: "scheduled" as any,
-          scheduledAt: new Date(),
-          errorMessage: null,
-          metadata: { ...((post.metadata as any) || {}), retryCount },
-        })
-        .where(eq(autopilotQueue.id, post.id));
-
-      logger.info("Queued failed post for retry", { postId: post.id, platform: post.targetPlatform, attempt: retryCount });
-    } catch (err) {
-      logger.error("Failed to queue retry", { postId: post.id, error: String(err) });
-    }
-  }
-}
+// retryFailedPosts is now handled by auto-fix-engine.ts (autoFixFailedPosts)
+// which classifies failures, defers quota/cap issues until reset, auto-refreshes tokens, etc.
 
 export async function getAutopilotStats(userId: string) {
   const [queueItems] = await db

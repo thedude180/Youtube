@@ -248,6 +248,13 @@ export async function initAutomationEngine() {
     });
   });
 
+  cron.schedule("*/3 * * * *", async () => {
+    await selfHealingCore("AutoFixEngine", async () => {
+      const { runAutoFixCycle } = await import("./auto-fix-engine");
+      await runAutoFixCycle();
+    }, { silent: true });
+  });
+
   cron.schedule("*/10 * * * *", async () => {
     await selfHealingCore("PublishVerification", async () => {
       const { verifyAllRecentUploads } = await import("./publish-verifier");
