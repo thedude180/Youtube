@@ -40,7 +40,27 @@ export async function seedStripeProducts() {
     );
 
     if (existingTiers.length >= 4) {
-      console.log("[Stripe Seed] Products already exist, skipping seed");
+      let pricesFixed = false;
+      for (const tier of TIERS) {
+        const product = existingTiers.find((p) => p.metadata?.tier === tier.metadata.tier);
+        if (!product) continue;
+        const prices = await stripe.prices.list({ product: product.id, active: true, limit: 10 });
+        const activePrice = prices.data.find((p) => p.recurring?.interval === "month");
+        if (activePrice && activePrice.unit_amount !== tier.price) {
+          await stripe.prices.update(activePrice.id, { active: false });
+          await stripe.prices.create({
+            product: product.id,
+            unit_amount: tier.price,
+            currency: "usd",
+            recurring: { interval: tier.interval },
+          });
+          console.log(`[Stripe Seed] Fixed ${tier.name} price: $${(activePrice.unit_amount || 0) / 100} → $${tier.price / 100}/mo`);
+          pricesFixed = true;
+        }
+      }
+      if (!pricesFixed) {
+        console.log("[Stripe Seed] Products already exist, skipping seed");
+      }
       return;
     }
 
