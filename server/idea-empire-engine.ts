@@ -147,19 +147,19 @@ Respond with JSON:
     },
     "twitch": {
       "priority": 2,
-      "role": "Role of this platform",
-      "contentTypes": ["What to post here"],
-      "postingFrequency": "How often",
-      "growthTactic": "Specific growth strategy",
-      "whenToStart": "When to add this platform"
+      "role": "STREAMING ONLY — no content posting. AI optimizes stream titles, tags, and categories during live broadcasts",
+      "contentTypes": ["Live streaming only — no video uploads or content posts"],
+      "postingFrequency": "Stream schedule only",
+      "growthTactic": "Specific live streaming growth strategy",
+      "whenToStart": "When to add this streaming platform"
     },
     "kick": {
       "priority": 3,
-      "role": "Role of this platform",
-      "contentTypes": ["What to post here"],
-      "postingFrequency": "How often",
-      "growthTactic": "Specific growth strategy",
-      "whenToStart": "When to add this platform"
+      "role": "STREAMING ONLY — no content posting. AI optimizes stream metadata during live broadcasts",
+      "contentTypes": ["Live streaming only — no video uploads or content posts"],
+      "postingFrequency": "Stream schedule only",
+      "growthTactic": "Specific live streaming growth strategy",
+      "whenToStart": "When to add this streaming platform"
     },
     "tiktok": {
       "priority": 4,
