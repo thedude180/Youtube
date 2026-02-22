@@ -91,12 +91,25 @@ export default function Dashboard() {
   useSSE();
   const { user } = useAuth();
   const [belowFoldRef] = useLazyVisible("400px");
-  const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
+  const { data: stats, isLoading: statsLoading, error: statsError, dataUpdatedAt: statsUpdatedAt } = useDashboardStats();
   const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 30_000, staleTime: 20_000 });
 
   const [dateRange, setDateRange] = useState(30);
+  const [lastUpdatedLabel, setLastUpdatedLabel] = useState("just now");
+  useEffect(() => {
+    if (!statsUpdatedAt) return;
+    const update = () => {
+      const diff = Math.floor((Date.now() - statsUpdatedAt) / 1000);
+      if (diff < 5) setLastUpdatedLabel("just now");
+      else if (diff < 60) setLastUpdatedLabel(`${diff}s ago`);
+      else setLastUpdatedLabel(`${Math.floor(diff / 60)}m ago`);
+    };
+    update();
+    const id = setInterval(update, 5000);
+    return () => clearInterval(id);
+  }, [statsUpdatedAt]);
   const [aiActions, setAiActions] = useState<AIResponse>(null);
   const [aiActionsLoading, setAiActionsLoading] = useState(false);
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
@@ -242,6 +255,10 @@ export default function Dashboard() {
             {greeting()}, <span className="gradient-text">{userName}</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your AI command center — everything runs autonomously</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-last-updated" aria-live="polite">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Live · Updated {lastUpdatedLabel}</span>
         </div>
       </div>
 
