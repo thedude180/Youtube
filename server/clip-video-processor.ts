@@ -247,12 +247,25 @@ export async function processClipForYouTubeShorts(
     const { uploadVideoToYouTube } = await import("./youtube");
     const { isMonetizationUnlocked } = await import("./services/monetization-check");
     const shortsTitle = `${(clip.title || video.title || "Clip").substring(0, 90)} #Shorts`;
+
+    const videoMeta = (video.metadata as any) || {};
+    const sourceTags: string[] = videoMeta.tags || [];
+    const clipMeta = (clip.metadata as any) || {};
+    const clipTags: string[] = clipMeta.tags || [];
+    const allClipTags = ([] as string[]).concat(clipTags, sourceTags, ["shorts", "highlights", "clips"]);
+    const inheritedTags = allClipTags.filter((t, i) => allClipTags.indexOf(t) === i).slice(0, 25);
+
+    let shortsDescription = clip.description || "";
+    if (!shortsDescription || shortsDescription.length < 30) {
+      shortsDescription = `${shortsDescription ? shortsDescription + "\n\n" : ""}From: ${video.title}\n${(video.description || "").substring(0, 200)}`;
+    }
+
     const monetizationEnabled = await isMonetizationUnlocked(userId, "youtube");
     const result = await uploadVideoToYouTube(ytChannel.id, {
       title: shortsTitle,
-      description: clip.description || `${video.title} highlight clip`,
-      tags: ["shorts", "highlights", "clips", "viral"],
-      categoryId: "20",
+      description: shortsDescription,
+      tags: inheritedTags,
+      categoryId: videoMeta.categoryId || "20",
       privacyStatus: "public",
       videoFilePath: clipPath,
       enableMonetization: monetizationEnabled,

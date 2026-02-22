@@ -249,11 +249,27 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
     const youtubeId = meta.youtubeId;
     if (!youtubeId || !video.channelId) return false;
 
+    let enrichedTitle = video.title;
+    let enrichedDescription = video.description || "";
+
+    if (meta.sourceVideoId) {
+      const [sourceVideo] = await db.select().from(videos).where(eq(videos.id, meta.sourceVideoId));
+      if (sourceVideo) {
+        if (!enrichedDescription || enrichedDescription.length < 30) {
+          enrichedDescription = `${enrichedDescription ? enrichedDescription + " | " : ""}From: ${sourceVideo.title}. ${(sourceVideo.description || "").substring(0, 200)}`;
+        }
+      }
+    }
+
+    if (meta.thumbnailConcept) {
+      enrichedDescription = `${enrichedDescription}\n\nThumbnail concept: ${meta.thumbnailConcept}`;
+    }
+
     return await generateAndUploadThumbnail(
       userId,
       videoDbId,
-      video.title,
-      video.description || "",
+      enrichedTitle,
+      enrichedDescription,
       video.type || "video",
       youtubeId,
       video.channelId

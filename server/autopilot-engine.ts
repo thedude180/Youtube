@@ -789,6 +789,18 @@ export async function processCrossPromotion(userId: string) {
 }
 
 function sanitizeErrorForNotification(rawError: string, platform: string): string {
+  if (rawError.includes("not connected") || rawError.includes("Connect your account")) {
+    return `${platform} is not connected. Go to Settings → Platforms to connect your account.`;
+  }
+  if (rawError.includes("No YouTube channel") || rawError.includes("No YouTube")) {
+    return "YouTube channel not connected. Connect your YouTube account in Settings to enable uploads.";
+  }
+  if (rawError.includes("quota") || rawError.includes("Quota")) {
+    return "YouTube API quota temporarily exceeded. Uploads will automatically retry when quota resets.";
+  }
+  if (rawError.includes("token") && (rawError.includes("expired") || rawError.includes("invalid") || rawError.includes("revoked"))) {
+    return `Your ${platform} connection needs to be refreshed. Go to Settings → Platforms to reconnect.`;
+  }
   if (rawError.includes("yt-dlp") || rawError.includes("Command failed")) {
     return `Video source temporarily unavailable for clip extraction. The system will automatically retry. If this persists, the source video may have restrictions.`;
   }
@@ -871,6 +883,19 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     let title = isShort ? `${(post.caption || "Clip").substring(0, 90)} #Shorts` : (post.caption || "Stream Highlight").substring(0, 100);
     let description = post.content || "";
 
+    const sourceMeta = (streamVideo.metadata as any) || {};
+    const sourceTags: string[] = sourceMeta.tags || (streamVideo.tags as string[]) || [];
+    const sourceCategory = sourceMeta.categoryId || sourceMeta.contentCategory || "20";
+
+    const allTags = ([] as string[]).concat(meta.tags || [], sourceTags, isShort ? ["shorts", "highlights", "clips"] : ["highlights", "stream"]);
+    const inheritedTags = allTags.filter((t, i) => allTags.indexOf(t) === i).slice(0, 25);
+
+    if (!description || description.length < 50) {
+      const sourceTitle = streamVideo.title || stream.title || "";
+      const sourceDesc = (streamVideo.description || "").substring(0, 300);
+      description = `${description ? description + "\n\n" : ""}From: ${sourceTitle}\n${sourceDesc ? sourceDesc + "\n" : ""}`;
+    }
+
     const clipCopyright = await copyrightCheckAndFix(description, title, "youtube", meta);
     if (!clipCopyright.approved) {
       logger.warn("Copyright check blocked stream clip", { postId: post.id, issues: clipCopyright.issues.map(i => i.description) });
@@ -890,8 +915,8 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title,
       description,
-      tags: meta.tags || (isShort ? ["shorts", "highlights", "clips", "gaming"] : ["highlights", "stream", "gameplay", "gaming"]),
-      categoryId: "20",
+      tags: inheritedTags,
+      categoryId: sourceCategory,
       privacyStatus: "public",
       videoFilePath: clipPath,
       enableMonetization: monetizationEnabled,
@@ -918,18 +943,23 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
         } else {
           const clipVideo = await storage.createVideo({
             channelId: ytChannel.id,
-            title: post.caption || "Stream Clip",
+            title: title,
             thumbnailUrl: streamVideo.thumbnailUrl || "",
             type: isShort ? "short" : "long",
             status: "published",
             platform: "youtube",
-            description: post.content || "",
+            description: description,
             metadata: {
               youtubeId: uploadResult.youtubeId,
               contentType: isShort ? "youtube-short" : "long-form-compilation",
-              tags: meta.tags || [],
+              tags: inheritedTags,
               duration: isShort ? `PT${Math.round((endMin - startMin) * 60)}S` : `PT${Math.round(endMin - startMin)}M`,
               publishedAt: new Date().toISOString(),
+              sourceStreamId: stream.id,
+              sourceVideoId: streamVideo.id,
+              sourceVideoTitle: streamVideo.title,
+              thumbnailConcept: meta.thumbnailConcept || null,
+              categoryId: sourceCategory,
             } as any,
           });
           clipVideoId = clipVideo.id;
@@ -1124,20 +1154,28 @@ export async function processScheduledPosts() {
           .set({ status: "cancelled" as any, errorMessage: result.error || "Skipped" })
           .where(eq(autopilotQueue.id, post.id));
       } else {
-        logger.error("Publish failed", { postId: post.id, platform: post.targetPlatform, error: result.error });
+        const retryCount = ((post.metadata as any)?.retryCount) || 0;
+        logger.error("Publish failed", { postId: post.id, platform: post.targetPlatform, error: result.error, retryCount });
         await db.update(autopilotQueue)
           .set({ status: "failed", errorMessage: result.error || "Unknown publish error" })
           .where(eq(autopilotQueue.id, post.id));
 
-        const friendlyError = sanitizeErrorForNotification(result.error || "Publishing failed", post.targetPlatform);
-        await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`,
-          friendlyError, "warning");
+        if (retryCount === 0) {
+          const friendlyError = sanitizeErrorForNotification(result.error || "Publishing failed", post.targetPlatform);
+          await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`,
+            friendlyError, "warning");
+        }
       }
     } catch (err) {
-      logger.error("Failed to publish post", { postId: post.id, error: String(err) });
+      const retryCount = ((post.metadata as any)?.retryCount) || 0;
+      logger.error("Failed to publish post", { postId: post.id, error: String(err), retryCount });
       await db.update(autopilotQueue)
         .set({ status: "failed", errorMessage: String(err) })
         .where(eq(autopilotQueue.id, post.id));
+      if (retryCount === 0) {
+        const friendlyError = sanitizeErrorForNotification(String(err), post.targetPlatform);
+        await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`, friendlyError, "warning");
+      }
     }
   }
 
@@ -1182,24 +1220,49 @@ async function autoPinComment(userId: string, channelId: number, youtubeVideoId:
 }
 
 async function retryFailedPosts() {
-  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const failedPosts = await db.select().from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.status, "failed"),
-      gte(autopilotQueue.createdAt, twoHoursAgo),
-      lte(autopilotQueue.scheduledAt, fifteenMinutesAgo),
+      gte(autopilotQueue.createdAt, twentyFourHoursAgo),
+      lte(autopilotQueue.scheduledAt, tenMinutesAgo),
     ))
-    .limit(3);
+    .limit(5);
 
-  const retryable = failedPosts.filter(p => {
+  const NON_RETRYABLE_ERRORS = [
+    "not connected", "Connect your account", "reconnect", "revoked",
+    "webhook URL", "not supported", "Data API pipeline",
+    "Copyright check blocked", "blocked by copyright",
+  ];
+
+  const retryable: typeof failedPosts = [];
+  const permanent: typeof failedPosts = [];
+
+  for (const p of failedPosts) {
     const err = p.errorMessage || "";
-    if (err.includes("reconnect") || err.includes("revoked") || err.includes("expired")) return false;
-    if (err.includes("webhook URL") || err.includes("not supported") || err.includes("Data API pipeline")) return false;
     const retryCount = ((p.metadata as any)?.retryCount) || 0;
-    return retryCount < 2;
-  });
+    const isNonRetryable = NON_RETRYABLE_ERRORS.some(nre => err.includes(nre)) ||
+      (err.includes("token") && (err.includes("expired") || err.includes("invalid")));
+
+    if (isNonRetryable || retryCount >= 3) {
+      if (retryCount >= 3 && !((p.metadata as any)?.permanentFailNotified)) {
+        permanent.push(p);
+      }
+    } else {
+      retryable.push(p);
+    }
+  }
+
+  for (const p of permanent) {
+    const friendlyError = sanitizeErrorForNotification(p.errorMessage || "Publishing failed", p.targetPlatform);
+    await createNotification(p.userId, "autopilot", `Upload permanently failed`,
+      `After 3 attempts, posting to ${p.targetPlatform} was abandoned: ${friendlyError}`, "error");
+    await db.update(autopilotQueue)
+      .set({ metadata: { ...((p.metadata as any) || {}), permanentFailNotified: true } })
+      .where(eq(autopilotQueue.id, p.id));
+  }
 
   if (retryable.length === 0) return;
 
