@@ -519,6 +519,53 @@ export async function runAutoFixCycle(): Promise<{
   return result;
 }
 
+export async function scheduleAutoFix(post: any, category: FailureCategory, metadata: any): Promise<void> {
+  const autoFixAttempts = (metadata.autoFixAttempts || 0) + 1;
+
+  if (category === "copyright" || category === "config_missing") {
+    logger.info("[AutoFix] Permanent failure, skipping auto-fix schedule", { postId: post.id, category });
+    return;
+  }
+
+  if (autoFixAttempts > 5) {
+    logger.info("[AutoFix] Max auto-fix attempts reached", { postId: post.id, category, autoFixAttempts });
+    return;
+  }
+
+  let retryAt: Date;
+  if (category === "quota_cap") {
+    retryAt = getCapResetTime(post.targetPlatform || "youtube");
+  } else if (category === "rate_limit") {
+    retryAt = new Date(Date.now() + Math.min(5 * 60_000 * Math.pow(2, autoFixAttempts), 60 * 60_000));
+  } else if (category === "auth_expired") {
+    retryAt = new Date(Date.now() + 2 * 60_000);
+  } else {
+    retryAt = new Date(Date.now() + Math.min(2 * 60_000 * Math.pow(2, autoFixAttempts), 30 * 60_000));
+  }
+
+  await db.update(autopilotQueue)
+    .set({
+      status: "scheduled",
+      scheduledAt: retryAt,
+      errorMessage: null,
+      metadata: {
+        ...metadata,
+        autoFixAttempts,
+        autoFixCategory: category,
+        autoFixScheduledAt: new Date().toISOString(),
+        deferredUntil: retryAt.toISOString(),
+      },
+    })
+    .where(eq(autopilotQueue.id, post.id));
+
+  logger.info("[AutoFix] Scheduled retry from verification failure", {
+    postId: post.id,
+    category,
+    retryAt: retryAt.toISOString(),
+    attempt: autoFixAttempts,
+  });
+}
+
 export function getAutoFixSummary(category: FailureCategory, platform?: string): string {
   switch (category) {
     case "quota_cap": {

@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { autopilotQueue, channels, videos } from "@shared/schema";
+import { users } from "@shared/models/auth";
 import { eq, and, gte, isNotNull, inArray, desc, sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { storage } from "./storage";
@@ -10,6 +11,89 @@ interface VerificationResult {
   platformStatus?: string;
   platformUrl?: string;
   error?: string;
+}
+
+function diagnoseFailureReason(error: string | undefined, platform: string, platformStatus?: string): { reason: string; fixable: boolean; category: string } {
+  const err = (error || "").toLowerCase();
+  const status = (platformStatus || "").toLowerCase();
+
+  if (err.includes("quota") || err.includes("quotaexceeded") || (err.includes("403") && platform === "youtube")) {
+    return { reason: "YouTube API quota exceeded — the upload was blocked because the daily API limit was reached.", fixable: true, category: "quota_cap" };
+  }
+  if (err.includes("not found") || status === "not_found") {
+    return { reason: `Content was not found on ${platform}. The upload may have been rejected by the platform, removed by a moderator, or failed during processing.`, fixable: false, category: "not_found" };
+  }
+  if (err.includes("copyright") || err.includes("claim")) {
+    return { reason: `Content was removed or blocked due to a copyright claim on ${platform}. Review the content for copyrighted material (music, video clips, etc.).`, fixable: false, category: "copyright" };
+  }
+  if (err.includes("auth") || err.includes("unauthorized") || err.includes("401") || err.includes("invalid_grant")) {
+    return { reason: `Your ${platform} account connection has expired. Please reconnect your ${platform} account in Settings to resume uploads.`, fixable: true, category: "auth_expired" };
+  }
+  if (err.includes("rate limit") || err.includes("429") || err.includes("too many")) {
+    return { reason: `${platform} rate limit was hit. The system will automatically retry after a cooldown period.`, fixable: true, category: "rate_limit" };
+  }
+  if (err.includes("network") || err.includes("econnrefused") || err.includes("timeout") || err.includes("enotfound")) {
+    return { reason: `A network error prevented the upload from being verified. The system will retry automatically.`, fixable: true, category: "network" };
+  }
+  if (err.includes("no post id") || err.includes("no url")) {
+    return { reason: `The upload to ${platform} may have failed silently — no confirmation ID was returned by the platform.`, fixable: true, category: "no_id" };
+  }
+  if (err.includes("no") && err.includes("credentials")) {
+    return { reason: `No ${platform} account is connected. Please connect your ${platform} account in Settings to enable uploads.`, fixable: false, category: "config_missing" };
+  }
+  if (status.includes("rejected") || status.includes("failed")) {
+    return { reason: `${platform} rejected the upload. This could be due to content policy violations, format issues, or platform restrictions.`, fixable: false, category: "platform_rejected" };
+  }
+  if (err.includes("still processing") || err.includes("will check again")) {
+    return { reason: `The content is still being processed by ${platform}. This is normal and the system will verify again shortly.`, fixable: true, category: "processing" };
+  }
+
+  return { reason: `Upload verification failed for ${platform}. The system could not confirm the content is live after multiple attempts. Error: ${error || "Unknown"}`, fixable: false, category: "unknown" };
+}
+
+async function sendUploadFailureEmail(userId: string, platform: string, title: string, reason: string, contentUrl?: string) {
+  try {
+    const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const email = user[0]?.email;
+    if (!email) return;
+
+    const notifyEmail = user[0]?.notifyEmail ?? true;
+    if (!notifyEmail) return;
+
+    const { sendGmail } = await import("./services/gmail-client");
+    const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+    const htmlBody = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #1a1a2e; color: #e0e0e0; border-radius: 12px; border: 1px solid #2d2d4e;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h1 style="font-size: 22px; color: #f87171; margin: 0;">Upload Issue Detected</h1>
+          <p style="font-size: 13px; color: #888; margin: 4px 0 0;">CreatorOS Auto-Verification</p>
+        </div>
+        <div style="background: #16213e; border-radius: 8px; padding: 16px; margin: 16px 0; border-left: 4px solid #f87171;">
+          <p style="font-size: 14px; margin: 0 0 8px; color: #a78bfa;"><strong>Platform:</strong> ${platformName}</p>
+          <p style="font-size: 14px; margin: 0 0 8px; color: #e0e0e0;"><strong>Content:</strong> ${title || "Untitled"}</p>
+          ${contentUrl ? `<p style="font-size: 14px; margin: 0 0 8px;"><strong>Link:</strong> <a href="${contentUrl}" style="color: #60a5fa;">${contentUrl}</a></p>` : ""}
+        </div>
+        <div style="background: #1e1e3a; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <h3 style="font-size: 14px; color: #fbbf24; margin: 0 0 8px;">Why This Happened</h3>
+          <p style="font-size: 14px; color: #ccc; margin: 0; line-height: 1.5;">${reason}</p>
+        </div>
+        <div style="background: #16213e; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <h3 style="font-size: 14px; color: #34d399; margin: 0 0 8px;">What Happens Next</h3>
+          <p style="font-size: 14px; color: #ccc; margin: 0; line-height: 1.5;">
+            CreatorOS has already attempted to resolve this automatically. If the issue persists, you may need to check your account connections or review the content. Visit your dashboard for full details.
+          </p>
+        </div>
+        <p style="font-size: 12px; color: #666; margin-top: 20px; text-align: center;">
+          You're receiving this because upload verification is enabled. Manage preferences in Settings.
+        </p>
+      </div>
+    `;
+
+    await sendGmail(email, `[CreatorOS] Upload issue on ${platformName}: ${title || "Content"}`, htmlBody);
+    logger.info("[Verifier] Failure email sent", { userId, platform, email: email.substring(0, 3) + "***" });
+  } catch (err: any) {
+    logger.warn("[Verifier] Failed to send failure email", { userId, error: err.message });
+  }
 }
 
 const GOOGLE_PLATFORMS = new Set(["youtube", "youtubeshorts"]);
@@ -248,6 +332,8 @@ export async function verifyRecentPublishedPosts() {
     const existingVerification = meta.verification || { attempts: 0 };
 
     if (existingVerification.attempts >= 5) {
+      const diagnosis = diagnoseFailureReason(existingVerification.error, post.targetPlatform, existingVerification.platformStatus);
+
       await db.update(autopilotQueue)
         .set({
           verificationStatus: "failed",
@@ -258,6 +344,9 @@ export async function verifyRecentPublishedPosts() {
               lastAttempt: new Date().toISOString(),
               platformConfirmed: false,
               error: "Max verification attempts reached — post may not have been published successfully",
+              failureReason: diagnosis.reason,
+              failureCategory: diagnosis.category,
+              fixable: diagnosis.fixable,
             },
           },
         })
@@ -266,9 +355,20 @@ export async function verifyRecentPublishedPosts() {
 
       const { createNotification } = await import("./autopilot-engine");
       await createNotification(post.userId, "autopilot",
-        `Verification failed: ${post.targetPlatform}`,
-        `Could not confirm content was posted to ${post.targetPlatform} after 5 attempts. Check the platform manually.`,
+        `Upload failed: ${post.targetPlatform}`,
+        diagnosis.reason,
         "warning");
+
+      const contentTitle = post.content?.substring(0, 60) || "Content post";
+      await sendUploadFailureEmail(post.userId, post.targetPlatform, contentTitle, diagnosis.reason, existingVerification.platformUrl);
+
+      if (diagnosis.fixable) {
+        try {
+          const { classifyFailure, scheduleAutoFix } = await import("./auto-fix-engine");
+          const category = classifyFailure(existingVerification.error || "", post.targetPlatform);
+          await scheduleAutoFix(post, category, meta);
+        } catch {}
+      }
       continue;
     }
 
@@ -378,11 +478,23 @@ export async function verifyRecentPublishedPosts() {
         .where(eq(autopilotQueue.id, post.id));
 
       if (isFinal) {
+        const diagnosis = diagnoseFailureReason(result.error, post.targetPlatform, result.platformStatus);
         const { createNotification } = await import("./autopilot-engine");
         await createNotification(post.userId, "autopilot",
-          `Verification failed: ${post.targetPlatform}`,
-          `Could not confirm content was posted to ${post.targetPlatform}. ${result.error || "Post may not be visible."}`,
+          `Upload failed: ${post.targetPlatform}`,
+          diagnosis.reason,
           "warning");
+
+        const contentTitle = post.content?.substring(0, 60) || "Content post";
+        await sendUploadFailureEmail(post.userId, post.targetPlatform, contentTitle, diagnosis.reason, result.platformUrl);
+
+        if (diagnosis.fixable) {
+          try {
+            const { classifyFailure, scheduleAutoFix } = await import("./auto-fix-engine");
+            const category = classifyFailure(result.error || "", post.targetPlatform);
+            await scheduleAutoFix(post, category, meta);
+          } catch {}
+        }
         failed++;
       } else {
         pending++;
@@ -503,18 +615,43 @@ export async function verifyAllRecentUploads() {
           const channel = video.channelId ? await db.select().from(channels).where(eq(channels.id, video.channelId)).limit(1) : [];
           const userId = channel[0]?.userId;
           if (userId) {
+            const diagnosis = diagnoseFailureReason(existing.error, platform, existing.platformStatus);
             const platformUrl = platform === "youtube" || platform === "youtubeshorts"
               ? `https://youtube.com/watch?v=${platformId}` : "";
             const { createNotification } = await import("./autopilot-engine");
             await createNotification(userId, "autopilot",
-              `Upload verification failed`,
-              `Could not confirm "${video.title}" is live on ${platform} after multiple checks.${platformUrl ? ` Please verify manually: ${platformUrl}` : ""}`,
+              `Upload failed: ${video.title?.substring(0, 40)}`,
+              diagnosis.reason,
               "warning");
+
+            await sendUploadFailureEmail(userId, platform, video.title || "Untitled", diagnosis.reason, platformUrl || undefined);
+
             await db.update(videos).set({
-              metadata: { ...meta, uploadVerification: { ...existing, notified: true } },
+              metadata: {
+                ...meta,
+                uploadVerification: {
+                  ...existing,
+                  notified: true,
+                  emailSent: true,
+                  failureReason: diagnosis.reason,
+                  failureCategory: diagnosis.category,
+                  fixable: diagnosis.fixable,
+                },
+              },
             }).where(eq(videos.id, video.id));
+
+            if (diagnosis.fixable) {
+              logger.info("[Verifier] Fixable upload failure detected", {
+                videoId: video.id,
+                platform,
+                category: diagnosis.category,
+                reason: diagnosis.reason,
+              });
+            }
           }
-        } catch {}
+        } catch (err: any) {
+          logger.warn("[Verifier] Failed to process upload failure notification", { videoId: video.id, error: err.message });
+        }
       }
       failed++;
       continue;
