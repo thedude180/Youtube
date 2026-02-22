@@ -518,6 +518,15 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("0 * * * *", async () => {
+    try {
+      const { purgeStaleReadNotifications } = await import("./services/notification-system");
+      await purgeStaleReadNotifications();
+    } catch (err: any) {
+      console.error("[NotificationCleanup] Error purging stale read notifications:", err.message);
+    }
+  });
+
   console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Autonomous Marketer + Playlist Manager + Content Loop + Self-Healing Core)");
 }
 

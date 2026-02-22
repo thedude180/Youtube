@@ -722,12 +722,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markRead(id: number): Promise<Notification> {
-    const [updated] = await db.update(notifications).set({ read: true }).where(eq(notifications.id, id)).returning();
+    const [updated] = await db.update(notifications).set({ read: true, readAt: new Date() }).where(eq(notifications.id, id)).returning();
     return updated;
   }
 
   async markAllRead(userId: string): Promise<void> {
-    await db.update(notifications).set({ read: true }).where(eq(notifications.userId, userId));
+    await db.update(notifications).set({ read: true, readAt: new Date() }).where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
   }
 
   async getAbTests(userId: string, videoId?: number): Promise<AbTest[]> {

@@ -322,7 +322,7 @@ export async function processAllDigests() {
 export async function markAllRead(userId: string): Promise<number> {
   const result = await db
     .update(notifications)
-    .set({ read: true })
+    .set({ read: true, readAt: new Date() })
     .where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
   return (result as any).rowCount ?? 0;
 }
@@ -330,7 +330,7 @@ export async function markAllRead(userId: string): Promise<number> {
 export async function markCategoryRead(userId: string, category: string): Promise<number> {
   const result = await db
     .update(notifications)
-    .set({ read: true })
+    .set({ read: true, readAt: new Date() })
     .where(
       and(
         eq(notifications.userId, userId),
@@ -354,6 +354,24 @@ export async function deleteOldNotifications(userId: string, olderThanDays: numb
       ),
     );
   return (result as any).rowCount ?? 0;
+}
+
+export async function purgeStaleReadNotifications(): Promise<number> {
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const result = await db
+    .delete(notifications)
+    .where(
+      and(
+        eq(notifications.read, true),
+        sql`(${notifications.readAt} IS NOT NULL AND ${notifications.readAt} <= ${twentyFourHoursAgo}) OR (${notifications.readAt} IS NULL AND ${notifications.createdAt} <= ${twentyFourHoursAgo})`,
+      ),
+    );
+  const deleted = (result as any).rowCount ?? 0;
+  if (deleted > 0) {
+    console.log(`[NotificationCleanup] Purged ${deleted} read notifications older than 24 hours`);
+  }
+  return deleted;
 }
 
 export async function getUnreadCounts(userId: string): Promise<Record<string, number>> {
