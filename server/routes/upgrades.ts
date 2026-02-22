@@ -581,7 +581,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "heatmap");
+      const rng = seedRandom(userId + "heatmap");
       const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
       const hours = Array.from({ length: 24 }, (_, i) => i);
       const heatmapData = days.map(day => ({
@@ -605,7 +605,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "milestones");
+      const rng = seedRandom(userId + "milestones");
       const currentSubs = seededInt(rng, 500, 500000);
       const milestones = [100, 500, 1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
       const achieved = milestones.filter(m => m <= currentSubs);
@@ -630,7 +630,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "funnel");
+      const rng = seedRandom(userId + "funnel");
       res.json({
         funnel: [
           { stage: "Impressions", count: seededInt(rng, 100000, 5000000), percentage: 100 },
@@ -656,7 +656,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "demographics");
+      const rng = seedRandom(userId + "demographics");
       res.json({
         ageGroups: [
           { range: "13-17", percentage: seededFloat(rng, 5, 15) },
@@ -695,7 +695,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "overlap");
+      const rng = seedRandom(userId + "overlap");
       const platforms = ["YouTube", "TikTok", "Twitch", "Instagram", "X"];
       const overlapData = [];
       for (let i = 0; i < platforms.length; i++) {
@@ -724,7 +724,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "retention");
+      const rng = seedRandom(userId + "retention");
       const retentionCurve = Array.from({ length: 20 }, (_, i) => ({
         percentThrough: (i + 1) * 5,
         retainedPercentage: Math.max(5, 100 - (i * seededFloat(rng, 3, 6))),
@@ -749,7 +749,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "topfans");
+      const rng = seedRandom(userId + "topfans");
       const names = ["Alex_Gaming", "StreamQueen99", "TechNinja", "ContentKing", "VibeCheck_", "EpicViewer", "LoyalFan_", "SuperMod", "ChillWatcher", "TopDonor"];
       const fans = names.map((name, i) => ({
         username: name + seededInt(rng, 1, 999),
@@ -770,7 +770,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "forecast");
+      const rng = seedRandom(userId + "forecast");
       const currentSubs = seededInt(rng, 1000, 200000);
       const monthlyGrowth = seededFloat(rng, 3, 15);
       const forecast = Array.from({ length: 12 }, (_, i) => ({
@@ -796,7 +796,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "churn");
+      const rng = seedRandom(userId + "churn");
       res.json({
         overallChurnRate: seededFloat(rng, 2, 8),
         riskLevel: seededPick(rng, ["low", "medium", "high"]),
@@ -821,7 +821,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "segments");
+      const rng = seedRandom(userId + "segments");
       res.json({
         segments: [
           { name: "Core Fans", size: seededInt(rng, 1000, 20000), percentage: seededFloat(rng, 15, 25), avgWatchTime: seededFloat(rng, 60, 90), engagementRate: seededFloat(rng, 8, 15) },
@@ -841,7 +841,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "sentiment");
+      const rng = seedRandom(userId + "sentiment");
       res.json({
         overallSentiment: seededFloat(rng, 60, 95),
         sentimentLabel: seededPick(rng, ["Very Positive", "Positive", "Mostly Positive"]),
@@ -866,7 +866,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "engagement");
+      const rng = seedRandom(userId + "engagement");
       res.json({
         overallScore: seededFloat(rng, 50, 95),
         components: {
@@ -894,7 +894,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "watch");
+      const rng = seedRandom(userId + "watch");
       res.json({
         avgWatchTime: seededFloat(rng, 4, 15, 1),
         avgWatchPercentage: seededFloat(rng, 35, 65),
@@ -918,7 +918,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "geo");
+      const rng = seedRandom(userId + "geo");
       const countries = [
         { code: "US", name: "United States" }, { code: "GB", name: "United Kingdom" },
         { code: "CA", name: "Canada" }, { code: "AU", name: "Australia" },
@@ -950,7 +950,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "device");
+      const rng = seedRandom(userId + "device");
       res.json({
         devices: [
           { type: "Mobile", percentage: seededFloat(rng, 45, 65), avgWatchTime: seededFloat(rng, 3, 8), sessions: seededInt(rng, 5000, 100000) },
@@ -976,7 +976,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "prefs");
+      const rng = seedRandom(userId + "prefs");
       res.json({
         preferredFormats: [
           { format: "Tutorial/How-to", preference: seededFloat(rng, 60, 95) },
@@ -1611,7 +1611,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "rankings");
+      const rng = seedRandom(userId + "rankings");
       const keywords = ["tutorial", "best settings", "pro tips", "beginner guide", "highlights",
         "tips", "tricks", "content creation", "editing tips", "thumbnail design"];
       const rankings = keywords.map(kw => ({
@@ -1657,7 +1657,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(req.params.userId + "opportunities");
+      const rng = seedRandom(userId + "opportunities");
       res.json({
         opportunities: [
           { type: "Missing Tags", severity: "high", affectedVideos: seededInt(rng, 5, 30), potentialImpact: "+15% search visibility", action: "Add relevant tags to untagged videos" },

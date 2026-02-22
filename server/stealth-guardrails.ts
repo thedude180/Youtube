@@ -155,7 +155,7 @@ export async function getGuardrailStatus(userId: string): Promise<{
   activityWindow: ReturnType<typeof getActivityWindow>;
 }> {
   const stealthReport = await getStealthReport(userId);
-  const activityWindow = getActivityWindow(userId);
+  const activityWindow = getActivityWindow();
 
   return {
     stealthReport,
@@ -164,6 +164,6 @@ export async function getGuardrailStatus(userId: string): Promise<{
 }
 
 export function isWithinActivityWindow(userId: string): boolean {
-  const window = getActivityWindow(userId);
+  const window = getActivityWindow();
   return window.isActive;
 }

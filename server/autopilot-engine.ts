@@ -1006,7 +1006,12 @@ export async function processScheduledPosts() {
   const now = new Date();
   const { isActive } = getActivityWindow();
 
-  await retryFailedPosts();
+  try {
+    const { autoFixFailedPosts } = await import("./auto-fix-engine");
+    await autoFixFailedPosts();
+  } catch (err: any) {
+    logger.warn("Auto-fix pre-scan failed", { error: err.message });
+  }
 
   const duePosts = await db.select().from(autopilotQueue)
     .where(and(

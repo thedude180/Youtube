@@ -240,20 +240,16 @@ export function registerEventRoutes(app: Express) {
     });
   });
 
-  // Optional: expose connection stats endpoint for monitoring
   app.get("/api/sse-stats", (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const totalActive = getTotalConnections();
-    const userStats: Record<string, number> = {};
-    
-    for (const [userId, userClients] of Array.from(clients)) {
-      userStats[userId] = userClients.length;
-    }
 
     res.json({
       totalActive,
       totalCreated: totalConnectionsCreated,
       totalClosed: totalConnectionsClosed,
-      userStats,
+      myConnections: (clients.get(userId) || []).length,
       maxClientsPerUser: MAX_CLIENTS_PER_USER,
     });
   });
