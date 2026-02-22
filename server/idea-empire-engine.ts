@@ -1405,7 +1405,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
         crossPlatformSchedule: distributionSchedule,
         seoPackage: videoPackage.seoPackage,
         contentIdea,
-      },
+      } as any,
     });
 
     sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-record", status: "completed", message: `Video record created (ID: ${videoRecord.id}) — queued for YouTube upload` });
@@ -1593,12 +1593,12 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
       activityWindow,
       results: results.map(r => ({
         success: r.success,
-        title: r.success ? r.pipeline?.title : r.title,
-        pipelineId: r.success ? r.pipeline?.id : null,
-        scheduledPublishTime: r.success ? r.pipeline?.scheduledPublishTime : null,
-        humanDelay: r.success ? r.pipeline?.humanDelay : null,
-        peakHourTarget: r.success ? r.pipeline?.peakHourTarget : null,
-        crossPlatformSchedule: r.success ? r.pipeline?.crossPlatformSchedule : null,
+        title: r.success ? (r as any).pipeline?.title : r.title,
+        pipelineId: r.success ? (r as any).pipeline?.id : null,
+        scheduledPublishTime: r.success ? (r as any).pipeline?.scheduledPublishTime : null,
+        humanDelay: r.success ? (r as any).pipeline?.humanDelay : null,
+        peakHourTarget: r.success ? (r as any).pipeline?.peakHourTarget : null,
+        crossPlatformSchedule: r.success ? (r as any).pipeline?.crossPlatformSchedule : null,
         error: r.success ? null : r.error,
       })),
     },

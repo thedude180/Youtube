@@ -78,7 +78,10 @@ async function findUserByCustomerId(customerId: string): Promise<string | null> 
   try {
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.stripeCustomerId, customerId)).limit(1);
     return user?.id || null;
-  } catch { return null; }
+  } catch (error) {
+    console.error("[Stripe Hardening] findUserByCustomerId error:", error);
+    return null;
+  }
 }
 
 export async function handlePaymentFailed(customerId: string, invoiceId: string, attemptCount: number): Promise<void> {
@@ -146,7 +149,10 @@ export async function handlePaymentSucceeded(customerId: string, invoiceId: stri
 export async function checkDunningStatus(userId: string): Promise<DunningRecord | null> {
   try {
     return dunningRecords.get(userId) || null;
-  } catch { return null; }
+  } catch (error) {
+    console.error("[Stripe Hardening] checkDunningStatus error:", error);
+    return null;
+  }
 }
 
 export async function startDunning(userId: string, reason: string): Promise<void> {
@@ -254,7 +260,8 @@ export async function getSubscriptionStatus(userId: string): Promise<{
       dunningStage: dunning?.stage, pausedAt: paused?.pausedAt,
       trialEndsAt: isTrialActive ? trial!.endsAt : undefined,
     };
-  } catch {
+  } catch (error) {
+    console.error("[Stripe Hardening] getSubscriptionStatus error:", error);
     return { tier: "free", active: false, paused: false, inDunning: false, inTrial: false };
   }
 }
@@ -263,7 +270,10 @@ export async function isSubscriptionActive(userId: string): Promise<boolean> {
   try {
     const status = await getSubscriptionStatus(userId);
     return status.active;
-  } catch { return false; }
+  } catch (error) {
+    console.error("[Stripe Hardening] isSubscriptionActive error:", error);
+    return false;
+  }
 }
 
 export async function validatePromoCode(code: string): Promise<{ valid: boolean; discountPercent?: number; applicableTiers?: string[]; message: string }> {
@@ -273,7 +283,10 @@ export async function validatePromoCode(code: string): Promise<{ valid: boolean;
     if (promo.currentUses >= promo.maxUses) return { valid: false, message: "Promo code has reached maximum uses" };
     if (new Date() > promo.expiresAt) return { valid: false, message: "Promo code has expired" };
     return { valid: true, discountPercent: promo.discountPercent, applicableTiers: promo.applicableTiers, message: "Promo code is valid" };
-  } catch { return { valid: false, message: "Error validating promo code" }; }
+  } catch (error) {
+    console.error("[Stripe Hardening] validatePromoCode error:", error);
+    return { valid: false, message: "Error validating promo code" };
+  }
 }
 
 export async function applyPromoCode(userId: string, code: string): Promise<{ success: boolean; discountPercent?: number; message: string }> {
@@ -292,14 +305,20 @@ export async function applyPromoCode(userId: string, code: string): Promise<{ su
       metadata: { source: "billing" },
     });
     return { success: true, discountPercent: promo.discountPercent, message: `${promo.discountPercent}% discount applied` };
-  } catch { return { success: false, message: "Error applying promo code" }; }
+  } catch (error) {
+    console.error("[Stripe Hardening] applyPromoCode error:", error);
+    return { success: false, message: "Error applying promo code" };
+  }
 }
 
 export async function getActivePromoCodes(): Promise<PromoCode[]> {
   try {
     const now = new Date();
     return promoCodes.filter(p => p.currentUses < p.maxUses && now < p.expiresAt);
-  } catch { return []; }
+  } catch (error) {
+    console.error("[Stripe Hardening] getActivePromoCodes error:", error);
+    return [];
+  }
 }
 
 export async function startFreeTrial(userId: string, tier: string = DEFAULT_TRIAL_TIER, durationDays: number = DEFAULT_TRIAL_DAYS): Promise<{ success: boolean; message: string; endsAt?: Date }> {
@@ -338,7 +357,10 @@ export async function checkTrialStatus(userId: string): Promise<{ inTrial: boole
     }
     const daysRemaining = Math.ceil((trial.endsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return { inTrial: true, daysRemaining, tier: trial.tier, endsAt: trial.endsAt };
-  } catch { return { inTrial: false }; }
+  } catch (error) {
+    console.error("[Stripe Hardening] checkTrialStatus error:", error);
+    return { inTrial: false };
+  }
 }
 
 export async function endTrial(userId: string): Promise<void> {
@@ -366,7 +388,10 @@ export async function hasUsedTrial(userId: string): Promise<boolean> {
 export async function getInvoiceHistory(userId: string): Promise<InvoiceRecord[]> {
   try {
     return invoiceStore.get(userId) || [];
-  } catch { return []; }
+  } catch (error) {
+    console.error("[Stripe Hardening] getInvoiceHistory error:", error);
+    return [];
+  }
 }
 
 export async function getNextBillingDate(userId: string): Promise<Date | null> {
@@ -377,14 +402,20 @@ export async function getNextBillingDate(userId: string): Promise<Date | null> {
     const next = new Date(last.createdAt);
     next.setMonth(next.getMonth() + 1);
     return next;
-  } catch { return null; }
+  } catch (error) {
+    console.error("[Stripe Hardening] getNextBillingDate error:", error);
+    return null;
+  }
 }
 
 export async function getLifetimeSpend(userId: string): Promise<number> {
   try {
     const invoices = invoiceStore.get(userId) || [];
     return invoices.reduce((sum, inv) => sum + inv.amount, 0);
-  } catch { return 0; }
+  } catch (error) {
+    console.error("[Stripe Hardening] getLifetimeSpend error:", error);
+    return 0;
+  }
 }
 
 export async function getAnnualPricing(): Promise<{ tier: string; monthly: number; annual: number; savings: number }[]> {
@@ -394,7 +425,10 @@ export async function getAnnualPricing(): Promise<{ tier: string; monthly: numbe
       const savings = monthly * 12 - annual;
       return { tier, monthly, annual, savings };
     });
-  } catch { return []; }
+  } catch (error) {
+    console.error("[Stripe Hardening] getAnnualPricing error:", error);
+    return [];
+  }
 }
 
 export async function switchToAnnual(userId: string): Promise<{ success: boolean; message: string; annualPrice?: number }> {
@@ -410,7 +444,10 @@ export async function switchToAnnual(userId: string): Promise<{ success: boolean
       metadata: { source: "billing" },
     });
     return { success: true, message: "Switched to annual billing", annualPrice };
-  } catch { return { success: false, message: "Failed to switch to annual billing" }; }
+  } catch (error) {
+    console.error("[Stripe Hardening] switchToAnnual error:", error);
+    return { success: false, message: "Failed to switch to annual billing" };
+  }
 }
 
 export async function switchToMonthly(userId: string): Promise<{ success: boolean; message: string }> {
@@ -424,5 +461,8 @@ export async function switchToMonthly(userId: string): Promise<{ success: boolea
       metadata: { source: "billing" },
     });
     return { success: true, message: "Switched to monthly billing" };
-  } catch { return { success: false, message: "Failed to switch to monthly billing" }; }
+  } catch (error) {
+    console.error("[Stripe Hardening] switchToMonthly error:", error);
+    return { success: false, message: "Failed to switch to monthly billing" };
+  }
 }

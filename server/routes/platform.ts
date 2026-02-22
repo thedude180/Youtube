@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { linkedChannels, streamDestinations, subscriptions, channels, videos } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
@@ -827,8 +827,12 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const userChannels = await db.select().from(channels)
+        .where(eq(channels.userId, userId));
+      const channelIds = userChannels.map(c => c.id);
+      
       const userVideos = await db.select().from(videos)
-        .where(and(eq(videos.userId, userId), eq(videos.platform, "youtube")))
+        .where(and(inArray(videos.channelId, channelIds), eq(videos.platform, "youtube")))
         .orderBy(desc(videos.createdAt));
 
       const ytChannels = await db.select().from(channels)
@@ -1320,7 +1324,8 @@ export async function registerPlatformRoutes(app: Express) {
         });
       }
 
-      res.json(result);
+      const { credentials, ...safeResult } = result;
+      res.json(safeResult);
     } catch (error: any) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
@@ -1333,7 +1338,8 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const result = await db.select().from(linkedChannels)
         .where(eq(linkedChannels.userId, userId));
-      res.json(result);
+      const safeResults = result.map(({ credentials, ...safe }) => safe);
+      res.json(safeResults);
     } catch (error: any) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
@@ -1350,7 +1356,8 @@ export async function registerPlatformRoutes(app: Express) {
         .set(req.body)
         .where(and(eq(linkedChannels.id, id), eq(linkedChannels.userId, userId)))
         .returning();
-      res.json(result);
+      const { credentials, ...safeResult } = result;
+      res.json(safeResult);
     } catch (error: any) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });

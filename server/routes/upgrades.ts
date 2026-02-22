@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { z } from "zod";
 import { getOpenAIClient } from "../lib/openai";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -10,6 +11,126 @@ import {
 } from "@shared/schema";
 
 const openai = getOpenAIClient();
+
+// ═══════════════════════════════════════════════════════
+// INPUT VALIDATION SCHEMAS
+// ═══════════════════════════════════════════════════════
+
+// Common string validation patterns
+const titleSchema = z.string().max(500, "Title must be 500 characters or less").optional();
+const descriptionSchema = z.string().max(2000, "Description must be 2000 characters or less").optional();
+const textSchema = z.string().max(1000, "Text must be 1000 characters or less").optional();
+const platformSchema = z.string().max(100, "Platform must be 100 characters or less").optional();
+
+// AI endpoint schemas
+const thumbnailAbTestSchema = z.object({
+  thumbnailA: z.string().max(500).optional(),
+  thumbnailB: z.string().max(500).optional(),
+  niche: z.string().max(200).optional(),
+  targetAudience: z.string().max(300).optional(),
+}).passthrough();
+
+const titleOptimizerSchema = z.object({
+  title: z.string().max(500).optional(),
+  niche: z.string().max(200).optional(),
+  platform: z.string().max(100).optional(),
+}).passthrough();
+
+const descriptionOptimizerSchema = z.object({
+  title: z.string().max(500).optional(),
+  description: z.string().max(2000).optional(),
+  platform: z.string().max(100).optional(),
+  niche: z.string().max(200).optional(),
+}).passthrough();
+
+const hookGeneratorSchema = z.object({
+  title: z.string().max(500).optional(),
+  niche: z.string().max(200).optional(),
+  targetEmotion: z.string().max(200).optional(),
+  videoLength: z.string().max(100).optional(),
+}).passthrough();
+
+const trendDetectorSchema = z.object({
+  niche: z.string().max(200).optional(),
+  platform: z.string().max(100).optional(),
+  region: z.string().max(100).optional(),
+}).passthrough();
+
+const audiencePsychographicsSchema = z.object({
+  niche: z.string().max(200).optional(),
+  channelDescription: z.string().max(1000).optional(),
+  topVideos: z.array(z.any()).optional(),
+}).passthrough();
+
+const competitorDeepDiveSchema = z.object({
+  competitorName: z.string().max(500).optional(),
+  niche: z.string().max(200).optional(),
+  platform: z.string().max(100).optional(),
+}).passthrough();
+
+const uploadTimeOptimizerSchema = z.object({
+  niche: z.string().max(200).optional(),
+  targetRegions: z.array(z.string()).optional(),
+  platforms: z.array(z.string()).optional(),
+}).passthrough();
+
+const hashtagStrategySchema = z.object({
+  title: z.string().max(500).optional(),
+  niche: z.string().max(200).optional(),
+  platforms: z.array(z.string()).optional(),
+}).passthrough();
+
+const viralPredictorSchema = z.object({
+  title: z.string().max(500).optional(),
+  description: z.string().max(2000).optional(),
+  niche: z.string().max(200).optional(),
+  thumbnailDescription: z.string().max(500).optional(),
+}).passthrough();
+
+const retentionAnalyzerSchema = z.object({
+  title: z.string().max(500).optional(),
+  videoLength: z.string().max(100).optional(),
+  niche: z.string().max(200).optional(),
+  currentRetention: z.string().max(100).optional(),
+}).passthrough();
+
+const communityPostGeneratorSchema = z.object({
+  topic: z.string().max(500).optional(),
+  type: z.string().max(100).optional(),
+  platform: z.string().max(100).optional(),
+  tone: z.string().max(100).optional(),
+}).passthrough();
+
+const collabPitchWriterSchema = z.object({
+  targetCreator: z.string().max(500).optional(),
+  yourNiche: z.string().max(200).optional(),
+  yourSubscribers: z.string().max(100).optional(),
+  collabIdea: z.string().max(1000).optional(),
+}).passthrough();
+
+const nicheAnalyzerSchema = z.object({
+  niche: z.string().max(200),
+  subNiche: z.string().max(200).optional(),
+}).passthrough();
+
+const captionGeneratorSchema = z.object({
+  title: z.string().max(500).optional(),
+  description: z.string().max(2000).optional(),
+  platform: z.string().max(100).optional(),
+  style: z.string().max(200).optional(),
+}).passthrough();
+
+const endScreenOptimizerSchema = z.object({
+  videoTitle: z.string().max(500).optional(),
+  niche: z.string().max(200).optional(),
+  existingEndScreen: z.string().max(1000).optional(),
+}).passthrough();
+
+const shortsStrategySchema = z.object({
+  niche: z.string().max(200).optional(),
+  existingContent: z.string().max(1000).optional(),
+  platforms: z.array(z.string()).optional(),
+}).passthrough();
 
 async function callAI(systemPrompt: string, userPrompt: string): Promise<any> {
   const response = await openai.chat.completions.create({
@@ -51,17 +172,66 @@ function seededPick<T>(rng: () => number, arr: T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
+// ═══════════════════════════════════════════════════════
+// RATE LIMITING FOR AI ENDPOINTS
+// ═══════════════════════════════════════════════════════
+
+const aiRateLimitMap = new Map<string, Map<string, { count: number; resetAt: number }>>();
+
+function createAIRateLimiter(maxRequests: number = 10, windowMs: number = 60000) {
+  return (req: any, res: any, next: any) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    
+    const endpoint = req.path;
+    if (!aiRateLimitMap.has(endpoint)) {
+      aiRateLimitMap.set(endpoint, new Map());
+    }
+    
+    const users = aiRateLimitMap.get(endpoint)!;
+    const now = Date.now();
+    const entry = users.get(userId);
+    
+    if (!entry || now > entry.resetAt) {
+      users.set(userId, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    
+    if (entry.count >= maxRequests) {
+      return res.status(429).json({ 
+        error: "Too many requests. AI operations are limited to 10 requests per minute. Please try again later.",
+        retryAfter: Math.ceil((entry.resetAt - now) / 1000)
+      });
+    }
+    
+    entry.count++;
+    next();
+  };
+}
+
+// Cleanup expired rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [endpoint, users] of aiRateLimitMap) {
+    for (const [userId, entry] of users) {
+      if (now > entry.resetAt) users.delete(userId);
+    }
+    if (users.size === 0) aiRateLimitMap.delete(endpoint);
+  }
+}, 5 * 60 * 1000);
+
 export function registerUpgradeRoutes(app: Express) {
 
   // ═══════════════════════════════════════════════════════
   // AI & CONTENT INTELLIGENCE ROUTES (/api/ai/)
   // ═══════════════════════════════════════════════════════
 
-  app.post("/api/ai/thumbnail-ab-test", asyncHandler(async (req, res) => {
+  app.post("/api/ai/thumbnail-ab-test", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { thumbnailA, thumbnailB, niche, targetAudience } = req.body;
+      const validated = thumbnailAbTestSchema.parse(req.body);
+      const { thumbnailA, thumbnailB, niche, targetAudience } = validated;
       const result = await callAI(
         "You are a thumbnail A/B testing expert. Analyze two thumbnail concepts and predict which will perform better. Return JSON with: winner (a or b), confidenceScore (0-100), analysisA (object with strengths, weaknesses, predictedCTR), analysisB (same), recommendations (array of strings).",
         `Niche: ${niche || "general"}. Target audience: ${targetAudience || "general"}. Thumbnail A: ${thumbnailA || "standard design"}. Thumbnail B: ${thumbnailB || "alternative design"}.`
@@ -72,11 +242,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/title-optimizer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/title-optimizer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { title, niche, platform } = req.body;
+      const validated = titleOptimizerSchema.parse(req.body);
+      const { title, niche, platform } = validated;
       const result = await callAI(
         "You are a YouTube title optimization expert. Analyze the title and generate optimized alternatives with CTR predictions. Return JSON with: originalScore (0-100), optimizedTitles (array of {title, predictedCTR, emotionalScore, curiosityScore, searchScore}), improvements (array of strings), keywordSuggestions (array).",
         `Title: "${title}". Niche: ${niche || "general"}. Platform: ${platform || "youtube"}.`
@@ -87,11 +258,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/description-optimizer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/description-optimizer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { title, description, platform, niche } = req.body;
+      const validated = descriptionOptimizerSchema.parse(req.body);
+      const { title, description, platform, niche } = validated;
       const result = await callAI(
         "You are an SEO description optimization expert. Generate an optimized, SEO-rich description. Return JSON with: optimizedDescription (string), seoScore (0-100), keywordsIncluded (array), hashtagSuggestions (array), callToAction (string), timestampSuggestions (array of {time, label}).",
         `Title: "${title}". Current description: "${description || "none"}". Platform: ${platform || "youtube"}. Niche: ${niche || "general"}.`
@@ -102,11 +274,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/hook-generator", asyncHandler(async (req, res) => {
+  app.post("/api/ai/hook-generator", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { title, niche, targetEmotion, videoLength } = req.body;
+      const validated = hookGeneratorSchema.parse(req.body);
+      const { title, niche, targetEmotion, videoLength } = validated;
       const result = await callAI(
         "You are a video hook/intro expert. Generate compelling hook suggestions for the first 5-15 seconds. Return JSON with: hooks (array of {text, style, estimatedRetentionBoost, duration}), bestHook (string), hookFormula (string), psychologyTrigger (string).",
         `Title: "${title}". Niche: ${niche || "general"}. Target emotion: ${targetEmotion || "curiosity"}. Video length: ${videoLength || "10 minutes"}.`
@@ -117,11 +290,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/trend-detector", asyncHandler(async (req, res) => {
+  app.post("/api/ai/trend-detector", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { niche, platform, region } = req.body;
+      const validated = trendDetectorSchema.parse(req.body);
+      const { niche, platform, region } = validated;
       const result = await callAI(
         "You are a trend detection expert for content creators. Identify trending topics and opportunities. Return JSON with: trends (array of {topic, trendScore, growthRate, competition, contentIdeas, peakWindow}), emergingTopics (array), saturatedTopics (array), recommendations (array).",
         `Niche: ${niche || "general"}. Platform: ${platform || "youtube"}. Region: ${region || "global"}.`
@@ -132,7 +306,7 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/content-dna", asyncHandler(async (req, res) => {
+  app.post("/api/ai/content-dna", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -148,11 +322,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/audience-psychographics", asyncHandler(async (req, res) => {
+  app.post("/api/ai/audience-psychographics", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { niche, channelDescription, topVideos } = req.body;
+      const validated = audiencePsychographicsSchema.parse(req.body);
+      const { niche, channelDescription, topVideos } = validated;
       const result = await callAI(
         "You are an audience psychographics expert. Provide deep psychological analysis of the target audience. Return JSON with: psychographicProfile (object with values, motivations, painPoints, aspirations, contentPreferences), personas (array of {name, age, behavior, triggers}), engagementDrivers (array), contentAngles (array).",
         `Niche: ${niche || "general"}. Channel: ${channelDescription || "content creator"}. Top videos: ${JSON.stringify(topVideos || [])}.`
@@ -163,11 +338,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/competitor-deep-dive", asyncHandler(async (req, res) => {
+  app.post("/api/ai/competitor-deep-dive", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { competitorName, niche, platform } = req.body;
+      const validated = competitorDeepDiveSchema.parse(req.body);
+      const { competitorName, niche, platform } = validated;
       const result = await callAI(
         "You are a competitive intelligence expert. Analyze the competitor's strategy deeply. Return JSON with: strategy (object with contentMix, uploadFrequency, engagementTactics, monetization), strengths (array), weaknesses (array), opportunities (array), threats (array), actionPlan (array of {action, priority, impact}).",
         `Competitor: "${competitorName}". Niche: ${niche || "general"}. Platform: ${platform || "youtube"}.`
@@ -178,11 +354,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/upload-time-optimizer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/upload-time-optimizer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { niche, targetRegions, platforms } = req.body;
+      const validated = uploadTimeOptimizerSchema.parse(req.body);
+      const { niche, targetRegions, platforms } = validated;
       const result = await callAI(
         "You are an upload timing optimization expert. Recommend optimal upload times. Return JSON with: bestTimes (array of {platform, day, time, timezone, expectedReach, competitionLevel}), weeklySchedule (object mapping days to times), peakHours (array), avoidTimes (array), reasoning (string).",
         `Niche: ${niche || "general"}. Target regions: ${JSON.stringify(targetRegions || ["US", "UK"])}. Platforms: ${JSON.stringify(platforms || ["youtube"])}.`
@@ -193,11 +370,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/hashtag-strategy", asyncHandler(async (req, res) => {
+  app.post("/api/ai/hashtag-strategy", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { title, niche, platforms } = req.body;
+      const validated = hashtagStrategySchema.parse(req.body);
+      const { title, niche, platforms } = validated;
       const result = await callAI(
         "You are a multi-platform hashtag strategy expert. Generate platform-specific hashtag strategies. Return JSON with: platformStrategies (object mapping platform to {hashtags, reasoning}), universalHashtags (array), nicheHashtags (array), trendingHashtags (array), hashtagScore (0-100), tips (array).",
         `Title: "${title}". Niche: ${niche || "general"}. Platforms: ${JSON.stringify(platforms || ["youtube", "tiktok", "instagram"])}.`
@@ -208,11 +386,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/viral-predictor", asyncHandler(async (req, res) => {
+  app.post("/api/ai/viral-predictor", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { title, description, niche, thumbnailDescription } = req.body;
+      const validated = viralPredictorSchema.parse(req.body);
+      const { title, description, niche, thumbnailDescription } = validated;
       const result = await callAI(
         "You are a viral content prediction expert. Predict the viral potential of content. Return JSON with: viralScore (0-100), shareabilityScore (0-100), emotionalImpactScore (0-100), factors (array of {factor, score, weight}), viralProbability (percentage string), improvements (array), viralFormula (string).",
         `Title: "${title}". Description: "${description || ""}". Niche: ${niche || "general"}. Thumbnail: "${thumbnailDescription || ""}".`
@@ -223,11 +402,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/retention-analyzer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/retention-analyzer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { title, videoLength, niche, currentRetention } = req.body;
+      const validated = retentionAnalyzerSchema.parse(req.body);
+      const { title, videoLength, niche, currentRetention } = validated;
       const result = await callAI(
         "You are a retention analysis expert. Analyze and predict audience retention patterns. Return JSON with: predictedRetentionCurve (array of {timestamp, percentage}), dropoffPoints (array of {timestamp, reason, fix}), retentionScore (0-100), improvements (array), pacingRecommendations (array), idealLength (string).",
         `Title: "${title}". Length: ${videoLength || "10 min"}. Niche: ${niche || "general"}. Current avg retention: ${currentRetention || "unknown"}.`
@@ -238,11 +418,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/community-post-generator", asyncHandler(async (req, res) => {
+  app.post("/api/ai/community-post-generator", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { topic, type, platform, tone } = req.body;
+      const validated = communityPostGeneratorSchema.parse(req.body);
+      const { topic, type, platform, tone } = validated;
       const result = await callAI(
         "You are a community engagement expert. Generate engaging community posts. Return JSON with: posts (array of {content, type, predictedEngagement, callToAction, bestTime}), pollIdeas (array of {question, options}), discussionStarters (array), tips (array).",
         `Topic: "${topic || "general engagement"}". Type: ${type || "mixed"}. Platform: ${platform || "youtube"}. Tone: ${tone || "casual"}.`
@@ -253,7 +434,7 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/playlist-optimizer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/playlist-optimizer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -269,11 +450,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/collab-pitch-writer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/collab-pitch-writer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { targetCreator, yourNiche, yourSubscribers, collabIdea } = req.body;
+      const validated = collabPitchWriterSchema.parse(req.body);
+      const { targetCreator, yourNiche, yourSubscribers, collabIdea } = validated;
       const result = await callAI(
         "You are a collaboration pitch writing expert. Write compelling collaboration pitch emails. Return JSON with: pitchEmail (string), subjectLine (string), followUpEmail (string), talkingPoints (array), valueProposition (string), tips (array).",
         `Target: "${targetCreator}". Your niche: ${yourNiche || "general"}. Your subs: ${yourSubscribers || "unknown"}. Idea: "${collabIdea || "collaboration"}".`
@@ -284,7 +466,7 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/content-audit", asyncHandler(async (req, res) => {
+  app.post("/api/ai/content-audit", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -304,11 +486,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/niche-analyzer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/niche-analyzer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { niche, subNiche } = req.body;
+      const validated = nicheAnalyzerSchema.parse(req.body);
+      const { niche, subNiche } = validated;
       const result = await callAI(
         "You are a niche analysis expert. Analyze niche competition and opportunity. Return JSON with: nicheScore (0-100), competition (object with level, topCreators, saturation), opportunity (object with growthRate, untappedAngles, emergingSubNiches), monetization (object with avgRPM, sponsorPotential, affiliateOpportunities), recommendations (array), subNicheIdeas (array).",
         `Niche: "${niche}". Sub-niche: "${subNiche || "general"}".`
@@ -319,11 +502,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/caption-generator", asyncHandler(async (req, res) => {
+  app.post("/api/ai/caption-generator", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { title, description, platform, style } = req.body;
+      const validated = captionGeneratorSchema.parse(req.body);
+      const { title, description, platform, style } = validated;
       const result = await callAI(
         "You are a caption and subtitle generation expert. Generate engaging captions. Return JSON with: captions (array of {text, platform, style}), socialCaptions (object mapping platform to caption), accessibilityCaptions (string), hashtagSets (array), emojiSuggestions (array).",
         `Title: "${title}". Description: "${description || ""}". Platform: ${platform || "all"}. Style: ${style || "engaging"}.`
@@ -334,11 +518,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/end-screen-optimizer", asyncHandler(async (req, res) => {
+  app.post("/api/ai/end-screen-optimizer", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { videoTitle, niche, existingEndScreen } = req.body;
+      const validated = endScreenOptimizerSchema.parse(req.body);
+      const { videoTitle, niche, existingEndScreen } = validated;
       const result = await callAI(
         "You are an end screen optimization expert. Optimize end screen strategy for maximum clicks. Return JSON with: layout (object with elements, positions, timing), ctaText (string), recommendedVideos (object with criteria, placement), subscribeButtonPlacement (object), cardTimings (array of {time, type, text}), bestPractices (array).",
         `Video: "${videoTitle}". Niche: ${niche || "general"}. Current end screen: ${existingEndScreen || "default"}.`
@@ -349,11 +534,12 @@ export function registerUpgradeRoutes(app: Express) {
     }
   }));
 
-  app.post("/api/ai/shorts-strategy", asyncHandler(async (req, res) => {
+  app.post("/api/ai/shorts-strategy", createAIRateLimiter(), asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { niche, existingContent, platforms } = req.body;
+      const validated = shortsStrategySchema.parse(req.body);
+      const { niche, existingContent, platforms } = validated;
       const result = await callAI(
         "You are a Shorts/TikTok strategy expert. Create a comprehensive short-form content strategy. Return JSON with: strategy (object with contentMix, postingFrequency, bestFormats), contentIdeas (array of {idea, format, hook, estimatedViews}), repurposeOpportunities (array), trendingFormats (array), hookFormulas (array), growthTactics (array), weeklyPlan (object).",
         `Niche: ${niche || "general"}. Existing content: ${existingContent || "none"}. Platforms: ${JSON.stringify(platforms || ["youtube_shorts", "tiktok"])}.`

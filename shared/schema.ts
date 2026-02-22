@@ -219,6 +219,7 @@ export const channels = pgTable("channels", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("channels_user_id_idx").on(table.userId),
+  channels_platform_idx: index("channels_platform_idx").on(table.platform),
 }));
 
 export const videos = pgTable("videos", {
@@ -276,6 +277,8 @@ export const videos = pgTable("videos", {
   videos_status_idx: index("videos_status_idx").on(table.status),
   videos_status_scheduled_idx: index("videos_status_scheduled_idx").on(table.status, table.scheduledTime),
   videos_channelId_status_idx: index("videos_channelId_status_idx").on(table.channelId, table.status),
+  videos_platform_idx: index("videos_platform_idx").on(table.platform),
+  videos_createdAt_idx: index("videos_createdAt_idx").on(table.createdAt),
 }));
 
 export const streamDestinations = pgTable("stream_destinations", {
@@ -330,6 +333,7 @@ export const streams = pgTable("streams", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("streams_user_id_idx").on(table.userId),
+  streams_status_idx: index("streams_status_idx").on(table.status),
 }));
 
 export const thumbnails = pgTable("thumbnails", {
@@ -342,7 +346,10 @@ export const thumbnails = pgTable("thumbnails", {
   resolution: text("resolution"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  thumbnails_videoId_idx: index("thumbnails_videoId_idx").on(table.videoId),
+  thumbnails_status_idx: index("thumbnails_status_idx").on(table.status),
+}));
 
 export const jobs = pgTable("jobs", {
   id: serial("id").primaryKey(),
@@ -356,7 +363,10 @@ export const jobs = pgTable("jobs", {
   createdAt: timestamp("created_at").defaultNow(),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
-});
+}, (table) => ({
+  jobs_status_idx: index("jobs_status_idx").on(table.status),
+  jobs_type_idx: index("jobs_type_idx").on(table.type),
+}));
 
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),

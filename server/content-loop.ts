@@ -444,7 +444,7 @@ export function forceStartLoop(userId: string) {
 
 setInterval(() => {
   const cutoff = Date.now() - 48 * 60 * 60 * 1000;
-  for (const [userId, state] of userLoops) {
+  for (const [userId, state] of Array.from(userLoops)) {
     if (state.phase === "idle" && state.lastRunAt < cutoff && state.lastRunAt > 0) {
       clearTimer(userId);
       userLoops.delete(userId);
@@ -453,8 +453,8 @@ setInterval(() => {
 }, 6 * 60 * 60 * 1000);
 
 process.on("SIGTERM", () => {
-  for (const [userId] of activeTimers) clearTimer(userId);
+  for (const [userId] of Array.from(activeTimers)) clearTimer(userId);
 });
 process.on("SIGINT", () => {
-  for (const [userId] of activeTimers) clearTimer(userId);
+  for (const [userId] of Array.from(activeTimers)) clearTimer(userId);
 });

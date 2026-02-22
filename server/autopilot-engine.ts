@@ -1351,7 +1351,7 @@ export async function updateAutopilotFeatureConfig(userId: string, feature: stri
   }
 }
 
-async function createNotification(userId: string, type: string, title: string, message: string, severity: string) {
+export async function createNotification(userId: string, type: string, title: string, message: string, severity: string) {
   await db.insert(notifications).values({ userId, type, title, message, severity });
   sendSSEEvent(userId, "notification", { type: "new" });
 }

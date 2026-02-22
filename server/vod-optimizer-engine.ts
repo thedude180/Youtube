@@ -66,10 +66,10 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
     return `${i + 1}. Title: "${v.title}" | Views: ${v.viewCount || 0} | Likes: ${v.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(v.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}${topicLabel}`;
   }).join("\n");
 
-  const topicNames = [...new Set(vods.map(v => {
+  const topicNames = [...Array.from(new Set(vods.map(v => {
     const meta = v.metadata as any;
     return detectContentContext(v.title, v.description, meta?.contentCategory, meta).topicName;
-  }).filter(Boolean))];
+  }).filter(Boolean)))];
   const nicheSpecificSection = topicNames.length > 0
     ? `\n\nNICHE-SPECIFIC OPTIMIZATION (CRITICAL):\nThese videos cover: ${topicNames.join(", ")}. Every title, description, tag, and thumbnail MUST reference the specific topic/subject. Use niche-specific terminology and community language. Tags MUST include topic names and related search terms viewers actually search for. Do NOT give generic advice — optimize for the SPECIFIC topic in each video.`
     : "";
