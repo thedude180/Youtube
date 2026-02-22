@@ -5,6 +5,7 @@ import { storage } from "../storage";
 import { db, pool } from "../db";
 import { desc, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint, getUserEmail } from "./helpers";
+import { cached } from "../lib/cache";
 
 export function registerAdminRoutes(app: Express) {
   const writeRateLimit = rateLimitEndpoint(30, 60000);
@@ -16,12 +17,15 @@ export function registerAdminRoutes(app: Express) {
     if (!userId) return;
     try {
       const claimsEmail = getUserEmail(req);
-      let user = await storage.getUser(userId);
-      const userEmail = user?.email || claimsEmail;
-      if (user && userEmail && userEmail.toLowerCase() === ADMIN_EMAIL && (user.role !== "admin" || user.tier !== "ultimate")) {
-        user = await storage.updateUserRole(userId, "admin", "ultimate");
-      }
-      res.json(user || { id: userId, role: "user", tier: "free" });
+      const result = await cached(`user-profile:${userId}`, 30, async () => {
+        let user = await storage.getUser(userId);
+        const userEmail = user?.email || claimsEmail;
+        if (user && userEmail && userEmail.toLowerCase() === ADMIN_EMAIL && (user.role !== "admin" || user.tier !== "ultimate")) {
+          user = await storage.updateUserRole(userId, "admin", "ultimate");
+        }
+        return user || { id: userId, role: "user", tier: "free" };
+      });
+      res.json(result);
     } catch (e: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
@@ -185,18 +189,21 @@ export function registerAdminRoutes(app: Express) {
 
   app.get("/api/system/health", async (_req, res) => {
     try {
-      let dbStatus: { status: string; latencyMs: number } = { status: "unhealthy", latencyMs: -1 };
-      try {
-        const start = Date.now();
-        await pool.query("SELECT 1");
-        dbStatus = { status: "healthy", latencyMs: Date.now() - start };
-      } catch {
-        dbStatus = { status: "unhealthy", latencyMs: -1 };
-      }
-      const { getAllHeartbeats } = await import("../services/engine-heartbeat");
-      const engines = await getAllHeartbeats();
-      const mem = process.memoryUsage();
-      res.json({ database: dbStatus, engines, uptime: process.uptime(), memory: { heapUsed: mem.heapUsed, heapTotal: mem.heapTotal } });
+      const health = await cached(`system-health`, 60, async () => {
+        let dbStatus: { status: string; latencyMs: number } = { status: "unhealthy", latencyMs: -1 };
+        try {
+          const start = Date.now();
+          await pool.query("SELECT 1");
+          dbStatus = { status: "healthy", latencyMs: Date.now() - start };
+        } catch {
+          dbStatus = { status: "unhealthy", latencyMs: -1 };
+        }
+        const { getAllHeartbeats } = await import("../services/engine-heartbeat");
+        const engines = await getAllHeartbeats();
+        const mem = process.memoryUsage();
+        return { database: dbStatus, engines, uptime: process.uptime(), memory: { heapUsed: mem.heapUsed, heapTotal: mem.heapTotal } };
+      });
+      res.json(health);
     } catch {
       res.json({ database: { status: "unknown", latencyMs: -1 }, engines: {}, uptime: process.uptime(), memory: {} });
     }

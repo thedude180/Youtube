@@ -3,6 +3,7 @@ import { z } from "zod";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { requireAuth, parseNumericId, asyncHandler } from "./helpers";
+import { cached } from "../lib/cache";
 import {
   generateStreamSeo,
   postStreamOptimize,
@@ -680,22 +681,25 @@ export function registerStreamRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const channels = await storage.getChannelsByUser(userId);
-      const ytChannel = channels.find(c => c.platform === "youtube" && c.accessToken);
-      if (!ytChannel) {
-        return res.json({ connected: false, broadcasts: [], activeStream: null });
-      }
+      const result = await cached(`youtube-live-status:${userId}`, 10, async () => {
+        const channels = await storage.getChannelsByUser(userId);
+        const ytChannel = channels.find(c => c.platform === "youtube" && c.accessToken);
+        if (!ytChannel) {
+          return { connected: false, broadcasts: [], activeStream: null };
+        }
 
-      const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
-      const streamList = await storage.getStreams(userId);
-      const liveStream = streamList.find(s => s.status === "live");
+        const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
+        const streamList = await storage.getStreams(userId);
+        const liveStream = streamList.find(s => s.status === "live");
 
-      res.json({
-        connected: true,
-        channelName: ytChannel.channelName,
-        broadcasts,
-        activeStream: liveStream || null,
+        return {
+          connected: true,
+          channelName: ytChannel.channelName,
+          broadcasts,
+          activeStream: liveStream || null,
+        };
       });
+      res.json(result);
     } catch (error: any) {
       console.error("[YouTube] Live status error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });

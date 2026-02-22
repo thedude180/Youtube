@@ -15,37 +15,40 @@ import {
   addHumanMicroDelay,
   calculateDailyPostBudget,
 } from "../human-behavior-engine";
+import { cached } from "../lib/cache";
 
 export function registerClipRoutes(app: Express) {
   app.get("/api/clips/backlog", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const clips = await storage.getContentClips(userId);
-      const scheduled = await db
-        .select()
-        .from(autopilotQueue)
-        .where(
-          and(
-            eq(autopilotQueue.userId, userId),
-            eq(autopilotQueue.type, "auto-clip"),
+      const enriched = await cached(`clips-backlog:${userId}`, 10, async () => {
+        const clips = await storage.getContentClips(userId);
+        const scheduled = await db
+          .select()
+          .from(autopilotQueue)
+          .where(
+            and(
+              eq(autopilotQueue.userId, userId),
+              eq(autopilotQueue.type, "auto-clip"),
+            ),
+          )
+          .orderBy(desc(autopilotQueue.scheduledAt));
+
+        const scheduledClipIds = new Set(
+          scheduled
+            .map((s: any) => (s.metadata as any)?.clipId)
+            .filter(Boolean),
+        );
+
+        return clips.map((clip) => ({
+          ...clip,
+          isScheduled: scheduledClipIds.has(clip.id),
+          scheduledItem: scheduled.find(
+            (s: any) => (s.metadata as any)?.clipId === clip.id,
           ),
-        )
-        .orderBy(desc(autopilotQueue.scheduledAt));
-
-      const scheduledClipIds = new Set(
-        scheduled
-          .map((s: any) => (s.metadata as any)?.clipId)
-          .filter(Boolean),
-      );
-
-      const enriched = clips.map((clip) => ({
-        ...clip,
-        isScheduled: scheduledClipIds.has(clip.id),
-        scheduledItem: scheduled.find(
-          (s: any) => (s.metadata as any)?.clipId === clip.id,
-        ),
-      }));
+        }));
+      });
 
       res.json(enriched);
     } catch (err) {
@@ -58,7 +61,9 @@ export function registerClipRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const status = await getShortsPipelineStatus(userId);
+      const status = await cached(`clips-pipeline-status:${userId}`, 10, async () => {
+        return getShortsPipelineStatus(userId);
+      });
       res.json(status);
     } catch (err) {
       console.error("[Clips] Pipeline status error:", err);
@@ -370,45 +375,49 @@ export function registerClipRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const allClips = await storage.getContentClips(userId);
-      const scheduled = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(autopilotQueue)
-        .where(
-          and(
-            eq(autopilotQueue.userId, userId),
-            eq(autopilotQueue.type, "auto-clip"),
-            eq(autopilotQueue.status, "scheduled"),
-            gte(autopilotQueue.scheduledAt, new Date()),
-          ),
-        );
+      const stats = await cached(`clips-stats:${userId}`, 10, async () => {
+        const allClips = await storage.getContentClips(userId);
+        const scheduled = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(autopilotQueue)
+          .where(
+            and(
+              eq(autopilotQueue.userId, userId),
+              eq(autopilotQueue.type, "auto-clip"),
+              eq(autopilotQueue.status, "scheduled"),
+              gte(autopilotQueue.scheduledAt, new Date()),
+            ),
+          );
 
-      const pending = allClips.filter((c) => c.status === "pending").length;
-      const scheduledCount = allClips.filter((c) => c.status === "scheduled").length;
-      const published = allClips.filter((c) => c.status === "published").length;
-      const avgScore =
-        allClips.length > 0
-          ? Math.round(
-              allClips.reduce((s, c) => s + (c.optimizationScore || 0), 0) /
-                allClips.length,
-            )
-          : 0;
+        const pending = allClips.filter((c) => c.status === "pending").length;
+        const scheduledCount = allClips.filter((c) => c.status === "scheduled").length;
+        const published = allClips.filter((c) => c.status === "published").length;
+        const avgScore =
+          allClips.length > 0
+            ? Math.round(
+                allClips.reduce((s, c) => s + (c.optimizationScore || 0), 0) /
+                  allClips.length,
+              )
+            : 0;
 
-      const platformBreakdown: Record<string, number> = {};
-      for (const c of allClips) {
-        const p = c.targetPlatform || "unknown";
-        platformBreakdown[p] = (platformBreakdown[p] || 0) + 1;
-      }
+        const platformBreakdown: Record<string, number> = {};
+        for (const c of allClips) {
+          const p = c.targetPlatform || "unknown";
+          platformBreakdown[p] = (platformBreakdown[p] || 0) + 1;
+        }
 
-      res.json({
-        total: allClips.length,
-        pending,
-        scheduled: scheduledCount,
-        published,
-        avgViralScore: avgScore,
-        queuedInAutopilot: scheduled[0]?.count || 0,
-        platformBreakdown,
+        return {
+          total: allClips.length,
+          pending,
+          scheduled: scheduledCount,
+          published,
+          avgViralScore: avgScore,
+          queuedInAutopilot: scheduled[0]?.count || 0,
+          platformBreakdown,
+        };
       });
+
+      res.json(stats);
     } catch (err) {
       console.error("[Clips] Stats error:", err);
       res.status(500).json({ error: "Failed to fetch clip stats" });

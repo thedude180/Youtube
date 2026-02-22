@@ -93,8 +93,8 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
     <div className="fixed inset-0 md:inset-auto md:bottom-6 md:right-6 z-50 flex flex-col md:items-end md:gap-3">
       <Card
         data-testid="panel-chat"
-        role="complementary"
-        aria-label="AI Chat"
+        role="dialog"
+        aria-label="AI Assistant"
         className="flex flex-col overflow-hidden w-full h-full md:w-[400px] md:h-[500px] rounded-none md:rounded-md"
       >
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 safe-area-top shrink-0">
@@ -113,7 +113,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
           </Button>
         </div>
 
-        <div ref={scrollRef} aria-label="Chat messages" className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div ref={scrollRef} aria-label="Chat messages" aria-live="polite" className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Bot className="w-8 h-8 text-muted-foreground/30 mb-3" />
@@ -197,6 +197,7 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
 
       <Button
         data-testid="button-floating-chat"
+        aria-label="Close AI chat"
         className="h-12 w-12 rounded-full shadow-lg hidden md:flex"
         onClick={handleClose}
       >

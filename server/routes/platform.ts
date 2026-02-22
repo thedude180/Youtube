@@ -6,6 +6,7 @@ import { linkedChannels, streamDestinations, subscriptions, channels, videos } f
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
 import { requireAuth, getUserId, parseNumericId } from "./helpers";
+import { cached } from "../lib/cache";
 import { sendSSEEvent } from "./events";
 import { trackQuotaUsage, getQuotaStatus } from "../services/youtube-quota-tracker";
 import { smartPushOrQueue, getBacklogStats, processBacklog, retryFailedItems } from "../services/youtube-push-backlog";
@@ -1003,13 +1004,16 @@ export async function registerPlatformRoutes(app: Express) {
   }
 
   app.get("/api/oauth/status", async (_req, res) => {
-    const allOAuth = getAllOAuthPlatforms();
-    const status: Record<string, { hasOAuth: boolean; configured: boolean }> = {};
-    for (const p of allOAuth) {
-      status[p] = { hasOAuth: true, configured: isPlatformOAuthConfigured(p) };
-    }
-    status["youtube"] = { hasOAuth: true, configured: true };
-    status["youtubeshorts"] = { hasOAuth: true, configured: true };
+    const status = await cached(`oauth-status`, 30, async () => {
+      const allOAuth = getAllOAuthPlatforms();
+      const result: Record<string, { hasOAuth: boolean; configured: boolean }> = {};
+      for (const p of allOAuth) {
+        result[p] = { hasOAuth: true, configured: isPlatformOAuthConfigured(p) };
+      }
+      result["youtube"] = { hasOAuth: true, configured: true };
+      result["youtubeshorts"] = { hasOAuth: true, configured: true };
+      return result;
+    });
     res.json(status);
   });
 
@@ -1336,9 +1340,11 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await db.select().from(linkedChannels)
-        .where(eq(linkedChannels.userId, userId));
-      const safeResults = result.map(({ credentials, ...safe }) => safe);
+      const safeResults = await cached(`linked-channels:${userId}`, 30, async () => {
+        const result = await db.select().from(linkedChannels)
+          .where(eq(linkedChannels.userId, userId));
+        return result.map(({ credentials, ...safe }) => safe);
+      });
       res.json(safeResults);
     } catch (error: any) {
       console.error("Error:", error);

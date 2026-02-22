@@ -309,7 +309,7 @@ export default function Dashboard() {
       </SectionErrorBoundary>
 
       <section role="region" aria-label="Key metrics">
-      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-2" role="status" aria-live="polite">
         <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key Metrics</span>
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>

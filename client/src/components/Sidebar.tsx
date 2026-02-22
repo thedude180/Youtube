@@ -99,7 +99,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent role="navigation" aria-label="Main navigation">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -111,7 +111,7 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={link.href}>
                     <SidebarMenuButton asChild isActive={active} data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}>
-                      <Link href={locked ? "/pricing" : link.href} onMouseEnter={() => !locked && prefetchForRoute(link.href)}>
+                      <Link href={locked ? "/pricing" : link.href} onMouseEnter={() => !locked && prefetchForRoute(link.href)} aria-label={locked ? `${label} (locked)` : label} aria-current={active ? "page" : undefined}>
                         <Icon className={`h-4 w-4 ${locked ? "opacity-30" : ""} ${active ? "text-primary" : ""}`} />
                         <span className={locked ? "opacity-30" : ""}>{label}</span>
                         {locked && (
@@ -135,7 +135,7 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/access-codes")} data-testid="link-access-codes">
-                    <Link href="/access-codes">
+                    <Link href="/access-codes" aria-label="Access Codes" aria-current={isActive("/access-codes") ? "page" : undefined}>
                       <KeyRound className="h-4 w-4" />
                       <span>Access Codes</span>
                     </Link>
@@ -160,7 +160,7 @@ export function AppSidebar() {
                     AI automation, multi-platform tools, and more.
                   </p>
                   <Link href="/pricing">
-                    <Button variant="default" size="sm" className="w-full gap-1.5 glow-sm group/btn" data-testid="button-sidebar-upgrade">
+                    <Button variant="default" size="sm" className="w-full gap-1.5 glow-sm group/btn" data-testid="button-sidebar-upgrade" aria-label="View upgrade plans">
                       View Plans
                       <ArrowRight className="w-3 h-3 transition-transform group-hover/btn:translate-x-0.5" />
                     </Button>
@@ -199,13 +199,13 @@ export function AppSidebar() {
                 </Link>
               )}
             </div>
-            <Button data-testid="button-logout" size="icon" variant="ghost" onClick={() => logout()} className="transition-colors">
+            <Button data-testid="button-logout" size="icon" variant="ghost" onClick={() => logout()} className="transition-colors" aria-label="Log out">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         ) : (
           <div className="p-2">
-            <Button data-testid="button-login" variant="default" className="w-full glow-sm" onClick={() => { window.location.href = "/api/login"; }}>
+            <Button data-testid="button-login" variant="default" className="w-full glow-sm" onClick={() => { window.location.href = "/api/login"; }} aria-label="Sign in to your account">
               <Zap className="h-4 w-4 mr-1.5" />
               {t("auth.signIn")}
             </Button>

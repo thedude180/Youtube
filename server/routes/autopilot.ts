@@ -799,11 +799,14 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { getPriorityDashboard } = await import("../priority-orchestrator");
-      const { getLoopStatus } = await import("../content-loop");
-      const dashboard = await getPriorityDashboard(userId);
-      const loopStatus = getLoopStatus(userId);
-      res.json({ ...dashboard, contentLoop: loopStatus });
+      const result = await cached(`priority-status:${userId}`, 10, async () => {
+        const { getPriorityDashboard } = await import("../priority-orchestrator");
+        const { getLoopStatus } = await import("../content-loop");
+        const dashboard = await getPriorityDashboard(userId);
+        const loopStatus = getLoopStatus(userId);
+        return { ...dashboard, contentLoop: loopStatus };
+      });
+      res.json(result);
     } catch (err) {
       console.error("[Priority] Status error:", err);
       res.status(500).json({ error: "Failed to get priority status" });
@@ -814,8 +817,11 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { getLoopStatus } = await import("../content-loop");
-      res.json(getLoopStatus(userId));
+      const result = await cached(`content-loop-status:${userId}`, 10, async () => {
+        const { getLoopStatus } = await import("../content-loop");
+        return getLoopStatus(userId);
+      });
+      res.json(result);
     } catch (err) {
       console.error("[ContentLoop] Status error:", err);
       res.status(500).json({ error: "Failed to get content loop status" });
@@ -878,8 +884,10 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const { getStreamExhaustStatus } = await import("../daily-content-engine");
-      const status = await getStreamExhaustStatus(userId);
+      const status = await cached(`stream-exhaust-status:${userId}`, 10, async () => {
+        const { getStreamExhaustStatus } = await import("../daily-content-engine");
+        return getStreamExhaustStatus(userId);
+      });
       res.json(status);
     } catch (err) {
       console.error("[StreamExhaust] Status error:", err);

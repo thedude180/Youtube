@@ -183,7 +183,7 @@ function GeneralTab() {
   }, [toast]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="form" aria-label="General settings">
       <div>
         <h2 className="text-sm font-medium text-muted-foreground mb-3">Risk Profile</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -192,6 +192,9 @@ function GeneralTab() {
               key={type}
               data-testid={`card-risk-${type}`}
               onClick={() => handlePresetChange(type)}
+              role="button"
+              aria-label={`${title} risk profile: ${desc}`}
+              aria-pressed={activePreset === type}
               className={cn(
                 "cursor-pointer",
                 activePreset === type ? "border-primary" : "hover-elevate"
@@ -408,6 +411,7 @@ function GeneralTab() {
                                 disabled={oauthLoading === p.key}
                                 onClick={() => handleReconnect(p.key, p.isYouTube)}
                                 data-testid={`button-reconnect-${p.key}`}
+                                aria-label={`Reconnect ${p.label}`}
                               >
                                 {oauthLoading === p.key ? (
                                   <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -467,6 +471,7 @@ function GeneralTab() {
                         <Button
                           key={p.key}
                           data-testid={`button-connect-${p.key}`}
+                          aria-label={`Connect ${p.label}`}
                           className="w-full justify-start"
                           style={{ backgroundColor: p.color === "#000000" ? "#333" : p.color, borderColor: p.color, color: "#fff" }}
                           disabled={oauthLoading === p.key || !canOAuth}
@@ -549,6 +554,7 @@ function GeneralTab() {
                 data-testid="button-export-data"
                 onClick={handleExportData}
                 disabled={isExporting}
+                aria-label="Export your data"
               >
                 <Download className="h-3.5 w-3.5 mr-1.5" />
                 {isExporting ? "Exporting..." : "Export Data"}
@@ -560,6 +566,7 @@ function GeneralTab() {
                     size="sm"
                     className="text-destructive"
                     data-testid="button-delete-account"
+                    aria-label="Delete your account"
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                     Delete Account
@@ -591,6 +598,7 @@ function GeneralTab() {
                 data-testid="button-sign-out"
                 onClick={() => logout()}
                 disabled={isLoggingOut}
+                aria-label="Sign out of your account"
               >
                 <LogOut className="h-3.5 w-3.5 mr-1.5" />
                 {isLoggingOut ? t("auth.signOut") : t("auth.signOut")}
@@ -647,6 +655,7 @@ export default function Settings() {
     billing: CreditCard,
     "admin-codes": KeyRound,
     "admin-users": UsersRound,
+    "admin-health": Shield,
   };
 
   return (
@@ -830,6 +839,7 @@ function BillingTab() {
                         className="text-destructive"
                         disabled={cancelMutation.isPending}
                         data-testid="button-cancel-subscription"
+                        aria-label="Cancel subscription"
                       >
                         {cancelMutation.isPending ? (
                           <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -864,6 +874,7 @@ function BillingTab() {
                     onClick={() => reactivateMutation.mutate()}
                     disabled={reactivateMutation.isPending}
                     data-testid="button-reactivate-subscription"
+                    aria-label="Reactivate subscription"
                   >
                     {reactivateMutation.isPending ? (
                       <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -880,6 +891,7 @@ function BillingTab() {
                 onClick={handlePortal}
                 disabled={portalLoading || !hasSubscription}
                 data-testid="button-billing-portal"
+                aria-label="Open billing portal"
               >
                 {portalLoading ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />

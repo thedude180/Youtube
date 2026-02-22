@@ -4,6 +4,7 @@ import { contentPipeline, streamPipelines, videos, videoUpdateHistory, PIPELINE_
 import { eq, and, desc, or } from "drizzle-orm";
 import { getUserId, parseNumericId } from "./helpers";
 import { storage } from "../storage";
+import { cached } from "../lib/cache";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -377,10 +378,12 @@ export function registerPipelineRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const pipelines = await db.select().from(contentPipeline)
-        .where(eq(contentPipeline.userId, userId))
-        .orderBy(desc(contentPipeline.createdAt))
-        .limit(50);
+      const pipelines = await cached(`pipeline:${userId}`, 10, async () => {
+        return db.select().from(contentPipeline)
+          .where(eq(contentPipeline.userId, userId))
+          .orderBy(desc(contentPipeline.createdAt))
+          .limit(50);
+      });
       res.json(pipelines);
     } catch (err) {
       console.error("[Pipeline] List error:", err);

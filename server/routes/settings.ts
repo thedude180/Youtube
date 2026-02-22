@@ -5,6 +5,7 @@ import { db } from "../db";
 import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
 import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, abTestResults } from "@shared/schema";
 import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler, rateLimitEndpoint } from "./helpers";
+import { cached } from "../lib/cache";
 import {
   runStyleScan,
   recordFeedback,
@@ -29,15 +30,20 @@ export function registerSettingsRoutes(app: Express) {
   app.get("/api/notifications", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const notifications = await storage.getNotifications(userId);
+    const notifications = await cached(`notifications:${userId}`, 5, async () => {
+      return storage.getNotifications(userId);
+    });
     res.json(notifications);
   });
 
   app.get("/api/notifications/unread-count", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const count = await storage.getUnreadCount(userId);
-    res.json({ count });
+    const result = await cached(`notifications-unread:${userId}`, 5, async () => {
+      const count = await storage.getUnreadCount(userId);
+      return { count };
+    });
+    res.json(result);
   });
 
   app.post("/api/notifications/:id/read", writeRateLimit, async (req, res) => {
@@ -628,9 +634,12 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId)).limit(1);
-      const preset = (userChannels[0]?.settings as any)?.preset || "normal";
-      res.json({ preset });
+      const result = await cached(`settings-preset:${userId}`, 30, async () => {
+        const userChannels = await db.select().from(channels).where(eq(channels.userId, userId)).limit(1);
+        const preset = (userChannels[0]?.settings as any)?.preset || "normal";
+        return { preset };
+      });
+      res.json(result);
     } catch {
       res.json({ preset: "normal" });
     }
@@ -908,36 +917,38 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentActivities = await db
-      .select({
-        agentId: aiAgentActivities.agentId,
-        lastRun: sql<string>`max(${aiAgentActivities.createdAt})`,
-        count: sql<number>`count(*)`,
-      })
-      .from(aiAgentActivities)
-      .where(and(eq(aiAgentActivities.userId, userId), gte(aiAgentActivities.createdAt, oneDayAgo)))
-      .groupBy(aiAgentActivities.agentId);
+    const statuses = await cached(`agents-status:${userId}`, 5, async () => {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentActivities = await db
+        .select({
+          agentId: aiAgentActivities.agentId,
+          lastRun: sql<string>`max(${aiAgentActivities.createdAt})`,
+          count: sql<number>`count(*)`,
+        })
+        .from(aiAgentActivities)
+        .where(and(eq(aiAgentActivities.userId, userId), gte(aiAgentActivities.createdAt, oneDayAgo)))
+        .groupBy(aiAgentActivities.agentId);
 
-    const activityMap = new Map(recentActivities.map(a => [a.agentId, a]));
+      const activityMap = new Map(recentActivities.map(a => [a.agentId, a]));
 
-    const statuses = AI_AGENTS.map(agent => {
-      const recent = activityMap.get(agent.id);
-      let status: "active" | "idle" | "error" = "idle";
-      if (recent) {
-        const lastRunTime = new Date(recent.lastRun).getTime();
-        const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
-        status = lastRunTime > sixHoursAgo ? "active" : "idle";
-      }
-      return {
-        id: agent.id,
-        name: agent.name,
-        role: agent.role,
-        icon: agent.icon,
-        status,
-        lastRun: recent?.lastRun || null,
-        tasksToday: recent?.count || 0,
-      };
+      return AI_AGENTS.map(agent => {
+        const recent = activityMap.get(agent.id);
+        let status: "active" | "idle" | "error" = "idle";
+        if (recent) {
+          const lastRunTime = new Date(recent.lastRun).getTime();
+          const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
+          status = lastRunTime > sixHoursAgo ? "active" : "idle";
+        }
+        return {
+          id: agent.id,
+          name: agent.name,
+          role: agent.role,
+          icon: agent.icon,
+          status,
+          lastRun: recent?.lastRun || null,
+          tasksToday: recent?.count || 0,
+        };
+      });
     });
 
     res.json(statuses);
@@ -948,15 +959,19 @@ export function registerSettingsRoutes(app: Express) {
     if (!userId) return;
 
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
-    const activities = await storage.getAgentActivities(userId, undefined, limit);
+    const activities = await cached(`agents-activities:${userId}:${limit}`, 5, async () => {
+      return storage.getAgentActivities(userId, undefined, limit);
+    });
     res.json(activities);
   }));
 
   app.get("/api/usage/summary", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const { getUsageSummary } = await import("../services/usage-metering");
-    const summary = await getUsageSummary(userId);
+    const summary = await cached(`usage-summary:${userId}`, 60, async () => {
+      const { getUsageSummary } = await import("../services/usage-metering");
+      return getUsageSummary(userId);
+    });
     res.json(summary);
   }));
 

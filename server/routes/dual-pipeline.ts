@@ -782,10 +782,12 @@ export function registerDualPipelineRoutes(app: Express) {
   app.get("/api/stream-pipeline", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const pipelines = await db.select().from(streamPipelines)
-      .where(eq(streamPipelines.userId, userId))
-      .orderBy(desc(streamPipelines.createdAt))
-      .limit(50);
+    const pipelines = await cached(`stream-pipeline:${userId}`, 10, async () => {
+      return db.select().from(streamPipelines)
+        .where(eq(streamPipelines.userId, userId))
+        .orderBy(desc(streamPipelines.createdAt))
+        .limit(50);
+    });
     res.json(pipelines);
   }));
 

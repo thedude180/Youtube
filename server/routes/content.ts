@@ -12,6 +12,7 @@ import {
 import { db } from "../db";
 import { storage } from "../storage";
 import { requireAuth, requireTier, parseNumericId, asyncHandler, rateLimitEndpoint, getUserEmail, getUserFirstName, getUserLastName } from "./helpers";
+import { cached } from "../lib/cache";
 import { sendSSEEvent } from "./events";
 import {
   generateVideoMetadata,
@@ -1209,6 +1210,7 @@ export function registerContentRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const cleaned = await cached(`calendar-uploads:${userId}`, 10, async () => {
       const entries: any[] = [];
       const seenVideoIds = new Set<number>();
 
@@ -1429,14 +1431,16 @@ export function registerContentRoutes(app: Express) {
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      const cleaned = entries.filter((e) => {
+      const filtered = entries.filter((e) => {
         const entryDate = new Date(e.date);
         if (e.status === "uploaded") return false;
         if (entryDate < todayStart) return false;
         return true;
       });
 
-      cleaned.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      return filtered;
+      });
       res.json(cleaned);
     } catch (err: any) {
       console.error("[Calendar Uploads] Error:", err);

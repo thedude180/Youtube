@@ -101,11 +101,14 @@ export function NotificationBell() {
           variant="ghost"
           className="relative"
           data-testid="button-notifications"
+          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
         >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span
               data-testid="badge-unread-count"
+              role="status"
+              aria-live="polite"
               className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
@@ -125,6 +128,8 @@ export function NotificationBell() {
               className="h-7 w-7"
               onClick={() => setShowFilters(v => !v)}
               data-testid="button-toggle-filters"
+              aria-label="Toggle notification filters"
+              aria-expanded={showFilters}
             >
               <Filter className="h-3 w-3" />
             </Button>
@@ -136,6 +141,7 @@ export function NotificationBell() {
                 onClick={() => markAllReadMutation.mutate()}
                 disabled={markAllReadMutation.isPending}
                 data-testid="button-mark-all-read"
+                aria-label="Mark all notifications as read"
               >
                 <CheckCheck className="mr-1 h-3 w-3" />
                 Read all
@@ -231,6 +237,7 @@ export function NotificationBell() {
             className="w-full text-xs text-muted-foreground"
             onClick={() => { setOpen(false); setLocation("/notifications"); }}
             data-testid="button-view-all-notifications"
+            aria-label="View all notifications"
           >
             View all notifications
           </Button>

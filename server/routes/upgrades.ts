@@ -5,6 +5,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, asyncHandler, parseNumericId } from "./helpers";
+import { cached } from "../lib/cache";
 import {
   contentIdeas, auditLogs, videos, channels, notifications,
   scheduleItems, communityPosts,
@@ -1033,16 +1034,19 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const ideas = await storage.getContentIdeas(userId);
-      const stages = ["idea", "scripting", "filming", "editing", "review", "scheduled", "published"];
-      const kanban = stages.map(stage => ({
-        stage,
-        items: ideas.filter(i => i.status === stage).map(i => ({
-          id: i.id, title: i.title, concept: i.concept, priority: i.priority,
-          difficulty: i.difficulty, niche: i.niche, metadata: i.metadata, createdAt: i.createdAt,
-        })),
-      }));
-      res.json({ stages: kanban, totalItems: ideas.length });
+      const result = await cached(`production-kanban:${userId}`, 10, async () => {
+        const ideas = await storage.getContentIdeas(userId);
+        const stages = ["idea", "scripting", "filming", "editing", "review", "scheduled", "published"];
+        const kanban = stages.map(stage => ({
+          stage,
+          items: ideas.filter(i => i.status === stage).map(i => ({
+            id: i.id, title: i.title, concept: i.concept, priority: i.priority,
+            difficulty: i.difficulty, niche: i.niche, metadata: i.metadata, createdAt: i.createdAt,
+          })),
+        }));
+        return { stages: kanban, totalItems: ideas.length };
+      });
+      res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
@@ -1244,18 +1248,20 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(userId + "giveaways");
-      const giveaways = Array.from({ length: seededInt(rng, 2, 6) }, (_, i) => ({
-        id: i + 1,
-        title: seededPick(rng, ["Gaming Headset Giveaway", "Gift Card Raffle", "Merch Bundle", "Sub Giveaway", "Custom PC Parts"]),
-        prize: seededPick(rng, ["$100 Gift Card", "Gaming Headset", "Custom Merch Pack", "1-Year Subscription"]),
-        status: seededPick(rng, ["active", "ended", "draft"]),
-        entries: seededInt(rng, 50, 5000),
-        startDate: new Date(Date.now() - seededInt(rng, 1, 30) * 86400000).toISOString(),
-        endDate: new Date(Date.now() + seededInt(rng, 1, 30) * 86400000).toISOString(),
-        winner: seededPick(rng, [null, null, `User_${seededInt(rng, 100, 9999)}`]),
-        platforms: [seededPick(rng, ["youtube", "tiktok", "x"])],
-      }));
+      const giveaways = await cached(`community-giveaways:${userId}`, 30, async () => {
+        const rng = seedRandom(userId + "giveaways");
+        return Array.from({ length: seededInt(rng, 2, 6) }, (_, i) => ({
+          id: i + 1,
+          title: seededPick(rng, ["Gaming Headset Giveaway", "Gift Card Raffle", "Merch Bundle", "Sub Giveaway", "Custom PC Parts"]),
+          prize: seededPick(rng, ["$100 Gift Card", "Gaming Headset", "Custom Merch Pack", "1-Year Subscription"]),
+          status: seededPick(rng, ["active", "ended", "draft"]),
+          entries: seededInt(rng, 50, 5000),
+          startDate: new Date(Date.now() - seededInt(rng, 1, 30) * 86400000).toISOString(),
+          endDate: new Date(Date.now() + seededInt(rng, 1, 30) * 86400000).toISOString(),
+          winner: seededPick(rng, [null, null, `User_${seededInt(rng, 100, 9999)}`]),
+          platforms: [seededPick(rng, ["youtube", "tiktok", "x"])],
+        }));
+      });
       res.json(giveaways);
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
@@ -1329,19 +1335,21 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(userId + "polls");
-      const polls = Array.from({ length: seededInt(rng, 2, 5) }, (_, i) => ({
-        id: i + 1,
-        question: seededPick(rng, ["What should I play next?", "Best upload day?", "Favorite series?", "What content do you want more of?"]),
-        options: [
-          { text: "Option A", votes: seededInt(rng, 10, 500) },
-          { text: "Option B", votes: seededInt(rng, 10, 500) },
-          { text: "Option C", votes: seededInt(rng, 5, 300) },
-        ],
-        status: seededPick(rng, ["active", "closed"]),
-        totalVotes: seededInt(rng, 100, 2000),
-        createdAt: new Date(Date.now() - seededInt(rng, 1, 30) * 86400000).toISOString(),
-      }));
+      const polls = await cached(`community-polls:${userId}`, 30, async () => {
+        const rng = seedRandom(userId + "polls");
+        return Array.from({ length: seededInt(rng, 2, 5) }, (_, i) => ({
+          id: i + 1,
+          question: seededPick(rng, ["What should I play next?", "Best upload day?", "Favorite series?", "What content do you want more of?"]),
+          options: [
+            { text: "Option A", votes: seededInt(rng, 10, 500) },
+            { text: "Option B", votes: seededInt(rng, 10, 500) },
+            { text: "Option C", votes: seededInt(rng, 5, 300) },
+          ],
+          status: seededPick(rng, ["active", "closed"]),
+          totalVotes: seededInt(rng, 100, 2000),
+          createdAt: new Date(Date.now() - seededInt(rng, 1, 30) * 86400000).toISOString(),
+        }));
+      });
       res.json(polls);
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
@@ -1384,18 +1392,20 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(userId + "challenges");
-      const challenges = Array.from({ length: seededInt(rng, 1, 4) }, (_, i) => ({
-        id: i + 1,
-        title: seededPick(rng, ["30-Day Upload Challenge", "Shorts Sprint", "Community Collab", "Niche Deep Dive"]),
-        description: "Complete the challenge to earn badges and grow your channel",
-        status: seededPick(rng, ["active", "completed", "upcoming"]),
-        participants: seededInt(rng, 10, 500),
-        progress: seededFloat(rng, 0, 100),
-        startDate: new Date(Date.now() - seededInt(rng, 1, 15) * 86400000).toISOString(),
-        endDate: new Date(Date.now() + seededInt(rng, 5, 30) * 86400000).toISOString(),
-        reward: seededPick(rng, ["Custom Badge", "Feature Slot", "Shoutout", "Prize Pool"]),
-      }));
+      const challenges = await cached(`community-challenges:${userId}`, 30, async () => {
+        const rng = seedRandom(userId + "challenges");
+        return Array.from({ length: seededInt(rng, 1, 4) }, (_, i) => ({
+          id: i + 1,
+          title: seededPick(rng, ["30-Day Upload Challenge", "Shorts Sprint", "Community Collab", "Niche Deep Dive"]),
+          description: "Complete the challenge to earn badges and grow your channel",
+          status: seededPick(rng, ["active", "completed", "upcoming"]),
+          participants: seededInt(rng, 10, 500),
+          progress: seededFloat(rng, 0, 100),
+          startDate: new Date(Date.now() - seededInt(rng, 1, 15) * 86400000).toISOString(),
+          endDate: new Date(Date.now() + seededInt(rng, 5, 30) * 86400000).toISOString(),
+          reward: seededPick(rng, ["Custom Badge", "Feature Slot", "Shoutout", "Prize Pool"]),
+        }));
+      });
       res.json(challenges);
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
@@ -1440,16 +1450,19 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const rng = seedRandom(userId + "loyalty");
-      const leaderboard = Array.from({ length: 20 }, (_, i) => ({
-        rank: i + 1,
-        username: `Fan_${seededInt(rng, 100, 9999)}`,
-        points: seededInt(rng, 100, 50000) - i * 500,
-        level: seededPick(rng, ["Bronze", "Silver", "Gold", "Platinum", "Diamond"]),
-        joinedAt: new Date(Date.now() - seededInt(rng, 30, 365) * 86400000).toISOString(),
-        badges: seededInt(rng, 0, 15),
-      }));
-      res.json({ leaderboard, totalMembers: seededInt(rng, 100, 10000), totalPointsAwarded: seededInt(rng, 50000, 500000) });
+      const result = await cached(`community-loyalty:${userId}`, 30, async () => {
+        const rng = seedRandom(userId + "loyalty");
+        const leaderboard = Array.from({ length: 20 }, (_, i) => ({
+          rank: i + 1,
+          username: `Fan_${seededInt(rng, 100, 9999)}`,
+          points: seededInt(rng, 100, 50000) - i * 500,
+          level: seededPick(rng, ["Bronze", "Silver", "Gold", "Platinum", "Diamond"]),
+          joinedAt: new Date(Date.now() - seededInt(rng, 30, 365) * 86400000).toISOString(),
+          badges: seededInt(rng, 0, 15),
+        }));
+        return { leaderboard, totalMembers: seededInt(rng, 100, 10000), totalPointsAwarded: seededInt(rng, 50000, 500000) };
+      });
+      res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
@@ -1477,8 +1490,11 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const logs = await storage.getAuditLogsByUser(userId, "moderation_action");
-      res.json(logs.length > 0 ? logs : []);
+      const logs = await cached(`community-moderation:${userId}`, 30, async () => {
+        const result = await storage.getAuditLogsByUser(userId, "moderation_action");
+        return result.length > 0 ? result : [];
+      });
+      res.json(logs);
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }

@@ -6,6 +6,7 @@ import { db } from "../db";
 import { sql, eq, and, desc } from "drizzle-orm";
 import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals, affiliateLinks } from "@shared/schema";
 import { requireAuth, requireTier, parseNumericId, asyncHandler, getUserEmail } from "./helpers";
+import { cached } from "../lib/cache";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
 import {
@@ -1174,23 +1175,26 @@ export function registerMoneyRoutes(app: Express) {
     try {
       const user = await storage.getUser(userId);
       if (!user?.stripeCustomerId) return res.json({ invoices: [] });
-      const stripe = await getUncachableStripeClient();
-      const invoices = await stripe.invoices.list({ customer: user.stripeCustomerId, limit: 20 });
-      res.json({
-        invoices: invoices.data.map(inv => ({
-          id: inv.id,
-          number: inv.number,
-          status: inv.status,
-          amountDue: inv.amount_due,
-          amountPaid: inv.amount_paid,
-          currency: inv.currency,
-          created: new Date(inv.created * 1000).toISOString(),
-          hostedInvoiceUrl: inv.hosted_invoice_url,
-          pdfUrl: inv.invoice_pdf,
-          periodStart: inv.period_start ? new Date(inv.period_start * 1000).toISOString() : null,
-          periodEnd: inv.period_end ? new Date(inv.period_end * 1000).toISOString() : null,
-        })),
+      const result = await cached(`billing-history:${userId}`, 30, async () => {
+        const stripe = await getUncachableStripeClient();
+        const invoices = await stripe.invoices.list({ customer: user.stripeCustomerId!, limit: 20 });
+        return {
+          invoices: invoices.data.map(inv => ({
+            id: inv.id,
+            number: inv.number,
+            status: inv.status,
+            amountDue: inv.amount_due,
+            amountPaid: inv.amount_paid,
+            currency: inv.currency,
+            created: new Date(inv.created * 1000).toISOString(),
+            hostedInvoiceUrl: inv.hosted_invoice_url,
+            pdfUrl: inv.invoice_pdf,
+            periodStart: inv.period_start ? new Date(inv.period_start * 1000).toISOString() : null,
+            periodEnd: inv.period_end ? new Date(inv.period_end * 1000).toISOString() : null,
+          })),
+        };
       });
+      res.json(result);
     } catch (e: any) {
       res.status(500).json({ error: "Failed to fetch billing history" });
     }

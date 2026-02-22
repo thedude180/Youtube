@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import crypto from "crypto";
 import { requireAuth, requireAdmin, parseNumericId } from "./helpers";
+import { cached } from "../lib/cache";
 import { storage } from "../storage";
 import { getSecurityStats, getBlockedIPs, getSecurityRules } from "../security-engine";
 import { getAllBreakerStats, getAllBreakerStatuses } from "../services/circuit-breaker";
@@ -242,62 +243,66 @@ export function registerSecurityDashboardRoutes(app: Express) {
       const userId = requireAuth(req, res);
       if (!userId) return;
 
-      const { channels, videos, streams, revenueRecords } = await import("@shared/schema");
+      const result = await cached(`analytics-cross-platform:${userId}`, 60, async () => {
+        const { channels, videos, streams, revenueRecords } = await import("@shared/schema");
 
-      const [userChannels, userStreams, revenue] = await Promise.all([
-        db.select().from(channels).where(eq(channels.userId, userId)),
-        db.select().from(streams).where(eq(streams.userId, userId)),
-        db.select().from(revenueRecords).where(eq(revenueRecords.userId, userId)).orderBy(desc(revenueRecords.createdAt)).limit(100),
-      ]);
+        const [userChannels, userStreams, revenue] = await Promise.all([
+          db.select().from(channels).where(eq(channels.userId, userId)),
+          db.select().from(streams).where(eq(streams.userId, userId)),
+          db.select().from(revenueRecords).where(eq(revenueRecords.userId, userId)).orderBy(desc(revenueRecords.createdAt)).limit(100),
+        ]);
 
-      const channelIds = userChannels.map(c => c.id).filter(Boolean) as number[];
-      let userVideos: any[] = [];
-      if (channelIds.length > 0) {
-        userVideos = await db.select().from(videos).where(inArray(videos.channelId, channelIds)).limit(1000);
-      }
-
-      const platformStats: Record<string, { videos: number; streams: number; totalViews: number; totalRevenue: number }> = {};
-      const platforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
-
-      for (const p of platforms) {
-        platformStats[p] = { videos: 0, streams: 0, totalViews: 0, totalRevenue: 0 };
-      }
-
-      for (const v of userVideos) {
-        const p = (v.platform || "youtube").toLowerCase();
-        if (platformStats[p]) {
-          platformStats[p].videos++;
-          const viewCount = (v.metadata as any)?.stats?.views || 0;
-          platformStats[p].totalViews += viewCount;
+        const channelIds = userChannels.map(c => c.id).filter(Boolean) as number[];
+        let userVideos: any[] = [];
+        if (channelIds.length > 0) {
+          userVideos = await db.select().from(videos).where(inArray(videos.channelId, channelIds)).limit(1000);
         }
-      }
 
-      for (const s of userStreams) {
-        const p = (s.platforms?.[0] || "youtube").toLowerCase();
-        if (platformStats[p]) {
-          platformStats[p].streams++;
-          const peakViewers = (s.streamStats as any)?.peakViewers || 0;
-          platformStats[p].totalViews += peakViewers;
+        const platformStats: Record<string, { videos: number; streams: number; totalViews: number; totalRevenue: number }> = {};
+        const platforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
+
+        for (const p of platforms) {
+          platformStats[p] = { videos: 0, streams: 0, totalViews: 0, totalRevenue: 0 };
         }
-      }
 
-      for (const r of revenue) {
-        const p = (r.platform || "youtube").toLowerCase();
-        if (platformStats[p]) {
-          platformStats[p].totalRevenue += parseFloat(r.amount?.toString() || "0");
+        for (const v of userVideos) {
+          const p = (v.platform || "youtube").toLowerCase();
+          if (platformStats[p]) {
+            platformStats[p].videos++;
+            const viewCount = (v.metadata as any)?.stats?.views || 0;
+            platformStats[p].totalViews += viewCount;
+          }
         }
-      }
 
-      res.json({
-        platforms: platformStats,
-        totals: {
-          channels: userChannels.length,
-          videos: userVideos.length,
-          streams: userStreams.length,
-          totalRevenue: revenue.reduce((sum, r) => sum + parseFloat(r.amount?.toString() || "0"), 0),
-        },
-        connectedPlatforms: userChannels.map(c => c.platform),
+        for (const s of userStreams) {
+          const p = (s.platforms?.[0] || "youtube").toLowerCase();
+          if (platformStats[p]) {
+            platformStats[p].streams++;
+            const peakViewers = (s.streamStats as any)?.peakViewers || 0;
+            platformStats[p].totalViews += peakViewers;
+          }
+        }
+
+        for (const r of revenue) {
+          const p = (r.platform || "youtube").toLowerCase();
+          if (platformStats[p]) {
+            platformStats[p].totalRevenue += parseFloat(r.amount?.toString() || "0");
+          }
+        }
+
+        return {
+          platforms: platformStats,
+          totals: {
+            channels: userChannels.length,
+            videos: userVideos.length,
+            streams: userStreams.length,
+            totalRevenue: revenue.reduce((sum, r) => sum + parseFloat(r.amount?.toString() || "0"), 0),
+          },
+          connectedPlatforms: userChannels.map(c => c.platform),
+        };
       });
+
+      res.json(result);
     } catch (err) {
       res.status(500).json({ error: "Failed to load cross-platform analytics" });
     }

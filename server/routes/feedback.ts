@@ -5,6 +5,7 @@ import { feedbackSubmissions } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { processFeedback, getFeedbackStats } from "../services/feedback-processor";
 import { getUserId } from "./helpers";
+import { cached } from "../lib/cache";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -54,11 +55,13 @@ export function registerFeedbackRoutes(app: Express) {
     if (!userId) return;
 
     try {
-      const submissions = await db.select()
-        .from(feedbackSubmissions)
-        .where(eq(feedbackSubmissions.userId, userId))
-        .orderBy(desc(feedbackSubmissions.createdAt))
-        .limit(50);
+      const submissions = await cached(`feedback:${userId}`, 30, async () => {
+        return db.select()
+          .from(feedbackSubmissions)
+          .where(eq(feedbackSubmissions.userId, userId))
+          .orderBy(desc(feedbackSubmissions.createdAt))
+          .limit(50);
+      });
 
       res.json(submissions);
     } catch (err: any) {
