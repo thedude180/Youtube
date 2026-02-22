@@ -571,6 +571,7 @@ export const notifications = pgTable("notifications", {
   message: text("message").notNull(),
   severity: text("severity").notNull().default("info"),
   read: boolean("read").default(false),
+  readAt: timestamp("read_at"),
   actionUrl: text("action_url"),
   metadata: jsonb("metadata").$type<{
     source?: string;
@@ -1860,7 +1861,7 @@ export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({
 export const insertRevenueRecordSchema = createInsertSchema(revenueRecords).omit({ id: true, createdAt: true });
 export const insertRevenueSyncLogSchema = createInsertSchema(revenueSyncLog).omit({ id: true, createdAt: true });
 export const insertCommunityPostSchema = createInsertSchema(communityPosts).omit({ id: true, createdAt: true });
-export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, readAt: true });
 export const insertAbTestSchema = createInsertSchema(abTests).omit({ id: true, createdAt: true });
 export const insertAnalyticsSnapshotSchema = createInsertSchema(analyticsSnapshots).omit({ id: true, createdAt: true });
 export const insertLearningInsightSchema = createInsertSchema(learningInsights).omit({ id: true, createdAt: true, updatedAt: true });
