@@ -367,7 +367,25 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChannel(id: number): Promise<void> {
     await db.transaction(async (tx) => {
-      await tx.delete(videos).where(eq(videos.channelId, id));
+      const channelVideos = await tx.select({ id: videos.id }).from(videos).where(eq(videos.channelId, id));
+      if (channelVideos.length > 0) {
+        const videoIds = channelVideos.map(v => v.id);
+        const tables = [
+          'playlist_items', 'ab_tests', 'cannibalization_alerts', 'comment_responses',
+          'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
+          'ctr_optimizations', 'editing_notes', 'evergreen_classifications', 'optimization_passes',
+          'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
+        ];
+        for (const table of tables) {
+          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIds})`);
+        }
+        const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts'];
+        for (const table of srcTables) {
+          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ANY(${videoIds})`);
+        }
+        await tx.execute(sql`DELETE FROM thumbnails WHERE video_id = ANY(${videoIds})`);
+        await tx.delete(videos).where(eq(videos.channelId, id));
+      }
       await tx.delete(channels).where(eq(channels.id, id));
     });
   }
@@ -401,7 +419,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVideo(id: number): Promise<void> {
-    await db.delete(videos).where(eq(videos.id, id));
+    await db.transaction(async (tx) => {
+      const tables = [
+        'playlist_items', 'ab_tests', 'cannibalization_alerts', 'comment_responses',
+        'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
+        'ctr_optimizations', 'editing_notes', 'evergreen_classifications', 'optimization_passes',
+        'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
+      ];
+      for (const table of tables) {
+        await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ${id}`);
+      }
+      const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts'];
+      for (const table of srcTables) {
+        await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ${id}`);
+      }
+      await tx.execute(sql`DELETE FROM thumbnails WHERE video_id = ${id}`);
+      await tx.delete(videos).where(eq(videos.id, id));
+    });
   }
 
   async getVideosByChannel(channelId: number): Promise<Video[]> {

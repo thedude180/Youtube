@@ -421,9 +421,12 @@ async function generateFullThrottleDistribution(
     logger.info("Queued content", { platform, deliveryType, isVideoDelivery, effectiveContentType, effectiveQueueType, scheduledAt: finalSchedule.toISOString() });
   }
 
-  await createNotification(userId, "autopilot", "Content distributed",
-    `${queuedVideo + queuedText} platform${(queuedVideo + queuedText) !== 1 ? "s" : ""} queued for "${video.title}" — ${queuedVideo} video, ${queuedText} text-optimized — audience-driven scheduling`,
-    "info");
+  const totalQueued = queuedVideo + queuedText;
+  if (totalQueued > 0) {
+    await createNotification(userId, "autopilot", "Content distributed",
+      `${totalQueued} platform${totalQueued !== 1 ? "s" : ""} queued for "${video.title}" — ${queuedVideo} video, ${queuedText} text-optimized — audience-driven scheduling`,
+      "info");
+  }
 }
 
 async function generateDiscordAnnouncement(userId: string, video: any, creatorTone: string) {
