@@ -4435,3 +4435,135 @@ export const cronLocks = pgTable("cron_locks", {
 }, (table) => [
   index("cron_lock_job_idx").on(table.jobName),
 ]);
+
+// === WORLD-BEST AI UPGRADE TABLES ===
+
+export const aiInsights = pgTable("ai_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  insightType: text("insight_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  severity: text("severity").default("info"),
+  category: text("category"),
+  actionable: boolean("actionable").default(true),
+  actionTaken: boolean("action_taken").default(false),
+  data: jsonb("data"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("ai_insights_user_id_idx").on(table.userId),
+  index("ai_insights_type_idx").on(table.userId, table.insightType),
+]);
+
+export const insertAiInsightSchema = createInsertSchema(aiInsights).omit({ id: true });
+export type InsertAiInsight = z.infer<typeof insertAiInsightSchema>;
+export type AiInsight = typeof aiInsights.$inferSelect;
+
+export const contentQualityScores = pgTable("content_quality_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  overallScore: real("overall_score"),
+  titleScore: real("title_score"),
+  descriptionScore: real("description_score"),
+  thumbnailScore: real("thumbnail_score"),
+  seoScore: real("seo_score"),
+  engagementPrediction: real("engagement_prediction"),
+  improvements: jsonb("improvements").$type<{ field: string; suggestion: string; impact: number }[]>(),
+  modelUsed: text("model_used"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("content_quality_user_idx").on(table.userId),
+  index("content_quality_video_idx").on(table.videoId),
+]);
+
+export const insertContentQualityScoreSchema = createInsertSchema(contentQualityScores).omit({ id: true });
+export type InsertContentQualityScore = z.infer<typeof insertContentQualityScoreSchema>;
+export type ContentQualityScore = typeof contentQualityScores.$inferSelect;
+
+export const aiModelRoutingLogs = pgTable("ai_model_routing_logs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  taskType: text("task_type").notNull(),
+  modelSelected: text("model_selected").notNull(),
+  modelRequested: text("model_requested"),
+  reason: text("reason"),
+  tokensUsed: integer("tokens_used"),
+  latencyMs: integer("latency_ms"),
+  qualityScore: real("quality_score"),
+  costUsd: real("cost_usd"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("ai_routing_user_idx").on(table.userId),
+  index("ai_routing_model_idx").on(table.modelSelected),
+]);
+
+export const insertAiModelRoutingLogSchema = createInsertSchema(aiModelRoutingLogs).omit({ id: true });
+export type InsertAiModelRoutingLog = z.infer<typeof insertAiModelRoutingLogSchema>;
+export type AiModelRoutingLog = typeof aiModelRoutingLogs.$inferSelect;
+
+export const copilotConversations = pgTable("copilot_conversations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  toolCalls: jsonb("tool_calls").$type<{ tool: string; args: Record<string, any>; result?: any }[]>(),
+  tokensUsed: integer("tokens_used"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("copilot_user_idx").on(table.userId),
+  index("copilot_session_idx").on(table.sessionId),
+]);
+
+export const insertCopilotConversationSchema = createInsertSchema(copilotConversations).omit({ id: true });
+export type InsertCopilotConversation = z.infer<typeof insertCopilotConversationSchema>;
+export type CopilotConversation = typeof copilotConversations.$inferSelect;
+
+export const creatorProfiles = pgTable("creator_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  niche: text("niche"),
+  subNiches: jsonb("sub_niches").$type<string[]>(),
+  contentStyle: jsonb("content_style").$type<{
+    tone?: string;
+    energy?: string;
+    humor?: string;
+    formality?: string;
+    vocabulary?: string[];
+    avoidWords?: string[];
+    signaturePhrases?: string[];
+  }>(),
+  audienceProfile: jsonb("audience_profile").$type<{
+    primaryAge?: string;
+    primaryGender?: string;
+    primaryRegion?: string;
+    interests?: string[];
+    peakHours?: number[];
+  }>(),
+  performanceBaseline: jsonb("performance_baseline").$type<{
+    avgViews?: number;
+    avgCtr?: number;
+    avgRetention?: number;
+    avgEngagement?: number;
+    bestDayOfWeek?: number;
+    bestTimeOfDay?: number;
+  }>(),
+  learningLog: jsonb("learning_log").$type<{
+    totalDecisions?: number;
+    successRate?: number;
+    lastUpdated?: string;
+    topPatterns?: string[];
+  }>(),
+  maturityLevel: text("maturity_level").default("beginner"),
+  totalContentAnalyzed: integer("total_content_analyzed").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("creator_profiles_user_idx").on(table.userId),
+]);
+
+export const insertCreatorProfileSchema = createInsertSchema(creatorProfiles).omit({ id: true });
+export type InsertCreatorProfile = z.infer<typeof insertCreatorProfileSchema>;
+export type CreatorProfile = typeof creatorProfiles.$inferSelect;
