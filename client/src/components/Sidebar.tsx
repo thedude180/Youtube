@@ -19,6 +19,8 @@ import {
   Lock,
   ArrowRight,
   Sparkles,
+  Globe,
+  Check,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +37,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { supportedLanguages } from "@/i18n";
+import i18n from "@/i18n";
 
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free", advancedOnly: false },
@@ -173,6 +178,29 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2">
+        <div className="px-1 mb-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8 text-xs text-muted-foreground hover:text-foreground" data-testid="button-language-switcher">
+                <Globe className="h-3.5 w-3.5" />
+                <span>{supportedLanguages.find(l => l.code === (i18n.language || "en"))?.nativeName || "English"}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-48 max-h-64 overflow-y-auto">
+              {supportedLanguages.map((lang) => (
+                <DropdownMenuItem
+                  key={lang.code}
+                  data-testid={`lang-option-${lang.code}`}
+                  className="flex items-center justify-between text-xs cursor-pointer"
+                  onClick={() => i18n.changeLanguage(lang.code)}
+                >
+                  <span>{lang.nativeName} <span className="text-muted-foreground ml-1">({lang.name})</span></span>
+                  {i18n.language === lang.code && <Check className="h-3.5 w-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         {isLoading ? (
           <div className="flex items-center gap-2 p-1.5">
             <Skeleton className="h-8 w-8 rounded-full" />

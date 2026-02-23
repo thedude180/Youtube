@@ -37,6 +37,8 @@ import { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from "@/lib/safe-data";
+import { useTranslation } from "react-i18next";
+import { formatCurrency } from "@/lib/locale-format";
 
 const LazyRevenueTab = lazy(() => import("./money/RevenueTab"));
 const LazyExpensesTab = lazy(() => import("./money/ExpensesTab"));
@@ -93,7 +95,8 @@ const IRS_CATEGORIES = [
 /* SponsorsTab extracted to ./money/SponsorsTab.tsx */
 
 export default function Money() {
-  usePageTitle("Money");
+  const { t } = useTranslation();
+  usePageTitle(t("money.title"));
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>("revenue");
 

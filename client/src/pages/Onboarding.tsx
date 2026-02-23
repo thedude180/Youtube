@@ -6,6 +6,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1429,7 +1430,8 @@ function ExistingCreatorNichePicker({
 }
 
 export default function Onboarding({ onComplete }: { onComplete?: () => void }) {
-  usePageTitle("Get Started");
+  const { t } = useTranslation();
+  usePageTitle(t("onboarding.title"));
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();

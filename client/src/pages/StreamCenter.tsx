@@ -26,11 +26,13 @@ import { EmptyState } from "@/components/EmptyState";
 import { LiveChatPanel } from "@/components/LiveChatPanel";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from '@/lib/safe-data';
+import { useTranslation } from "react-i18next";
 
 type AIResponse = any;
 
 export default function StreamCenter() {
-  usePageTitle("Go Live");
+  const { t } = useTranslation();
+  usePageTitle(t("streaming.title"));
   const { toast } = useToast();
   const qc = useQueryClient();
   const [aiToolsOpen, setAiToolsOpen] = useState(false);

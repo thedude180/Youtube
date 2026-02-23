@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { safeArray } from "@/lib/safe-data";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -282,7 +283,8 @@ const QUEUE_STATUS_FILTERS = [
 ] as const;
 
 export default function Autopilot() {
-  usePageTitle("Autopilot");
+  const { t } = useTranslation();
+  usePageTitle(t("automation.title"));
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
   const [queueStatusFilter, setQueueStatusFilter] = useState("all");

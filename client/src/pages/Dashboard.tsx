@@ -4,6 +4,8 @@ import { useDashboardStats } from "@/hooks/use-dashboard";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useTranslation } from "react-i18next";
+import { formatCurrency, formatCompact } from "@/lib/locale-format";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLazyVisible } from "@/hooks/use-lazy-visible";
@@ -87,7 +89,8 @@ function safeString(val: unknown): string {
 }
 
 export default function Dashboard() {
-  usePageTitle("Dashboard", "Your AI-powered creator command center. Track content, revenue, growth, and automation across all connected platforms.");
+  const { t } = useTranslation();
+  usePageTitle(t("dashboard.title"), "Your AI-powered creator command center. Track content, revenue, growth, and automation across all connected platforms.");
   useSSE();
   const { user } = useAuth();
   const [belowFoldRef] = useLazyVisible("400px");
@@ -233,7 +236,7 @@ export default function Dashboard() {
 
   const metrics = [
     { label: "Videos", value: totalVideos, icon: Film },
-    { label: "Revenue", value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign },
+    { label: t("dashboard.totalRevenue"), value: formatCurrency(totalRevenue), icon: DollarSign },
     { label: "AI Agents", value: `${activeAgents}/11`, icon: Bot },
     { label: "AI Tasks Today", value: tasksToday, icon: Zap },
   ];

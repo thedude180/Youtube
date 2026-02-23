@@ -13,6 +13,7 @@ import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { EmptyState } from "@/components/EmptyState";
 import { safeArray } from "@/lib/safe-data";
+import { useTranslation } from "react-i18next";
 
 type CategoryType = "alert" | "ai" | "update" | "system";
 type FilterType = "all" | "alert" | "update" | "ai";
@@ -50,7 +51,8 @@ const severityColor = (severity: string) => {
 };
 
 export default function Notifications() {
-  usePageTitle("Notifications");
+  const { t } = useTranslation();
+  usePageTitle(t("notifications.title"));
   const [filter, setFilter] = useState<FilterType>("all");
   const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 15_000, staleTime: 10_000 });
   const notifications = safeArray(rawNotifications);
