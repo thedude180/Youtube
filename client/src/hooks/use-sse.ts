@@ -101,15 +101,38 @@ export function useSSE() {
       es.close();
       eventSourceRef.current = null;
       setStatus("disconnected");
-      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
+      const maxRetryDelay = 30000;
+      const jitter = Math.random() * 1000;
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), maxRetryDelay) + jitter;
       retryCountRef.current++;
+      if (retryCountRef.current > 20) {
+        retryCountRef.current = 5;
+      }
       retryTimeoutRef.current = setTimeout(connect, delay);
     };
   }, []);
 
   useEffect(() => {
     connect();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !eventSourceRef.current) {
+        retryCountRef.current = 0;
+        connect();
+      }
+    };
+    const handleOnline = () => {
+      if (!eventSourceRef.current) {
+        retryCountRef.current = 0;
+        connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("online", handleOnline);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("online", handleOnline);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       if (eventSourceRef.current) {
         eventSourceRef.current.close();

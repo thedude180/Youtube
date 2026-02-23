@@ -17,13 +17,51 @@ export const pool = new Pool({
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
   allowExitOnIdle: true,
+  statement_timeout: 30_000,
+  query_timeout: 30_000,
 });
 
+let poolErrorCount = 0;
 pool.on("error", (err) => {
-  console.error("[DB Pool] Unexpected client error:", err.message);
+  poolErrorCount++;
+  const msg = err?.message || String(err);
+  if (msg.includes("Connection terminated") || msg.includes("ECONNRESET")) {
+    if (poolErrorCount % 10 === 1) {
+      console.warn(`[DB Pool] Transient error (count=${poolErrorCount}): ${msg.substring(0, 100)}`);
+    }
+  } else {
+    console.error(`[DB Pool] Unexpected client error (count=${poolErrorCount}):`, msg.substring(0, 150));
+  }
+});
+
+pool.on("connect", () => {
+  poolErrorCount = Math.max(0, poolErrorCount - 1);
 });
 
 export const db = drizzle(pool, { schema });
+
+const TRANSIENT_DB_ERRORS = [
+  "Connection terminated",
+  "Authentication timed out",
+  "connection refused",
+  "too many clients",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "Client has encountered a connection error",
+  "terminating connection",
+  "Connection lost",
+  "socket hang up",
+  "remaining connection slots are reserved",
+  "server closed the connection unexpectedly",
+  "could not connect to server",
+  "the database system is starting up",
+  "the database system is shutting down",
+];
+
+function isTransientDbError(msg: string): boolean {
+  return TRANSIENT_DB_ERRORS.some(p => msg.includes(p));
+}
 
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -37,15 +75,7 @@ export async function withRetry<T>(
     } catch (err: any) {
       lastErr = err;
       const msg = String(err?.message || err);
-      const isTransient =
-        msg.includes("Connection terminated") ||
-        msg.includes("Authentication timed out") ||
-        msg.includes("connection refused") ||
-        msg.includes("too many clients") ||
-        msg.includes("ECONNRESET") ||
-        msg.includes("ETIMEDOUT") ||
-        msg.includes("Client has encountered a connection error");
-      if (!isTransient || attempt === maxRetries) break;
+      if (!isTransientDbError(msg) || attempt === maxRetries) break;
       const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
       console.warn(`[DB Retry] ${label} attempt ${attempt}/${maxRetries} failed (${msg.substring(0, 80)}), retrying in ${delay}ms...`);
       await new Promise((r) => setTimeout(r, delay));

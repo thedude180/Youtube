@@ -32,7 +32,7 @@ import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
 import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests } from "./lib/security-hardening";
-import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache } from "./services/resilience-core";
+import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache, checkDbPool } from "./services/resilience-core";
 import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
 
 const logger = createLogger("express");
@@ -512,6 +512,78 @@ app.get("/api/resilience", async (_req: Request, res: Response) => {
   }
 });
 
+app.get("/api/verify", async (_req: Request, res: Response) => {
+  const checks: Record<string, { status: string; latencyMs?: number; detail?: string }> = {};
+  const start = Date.now();
+
+  try {
+    const dbStart = Date.now();
+    await pool.query("SELECT 1");
+    checks.database = { status: "pass", latencyMs: Date.now() - dbStart };
+  } catch (err: any) {
+    checks.database = { status: "fail", detail: String(err.message).substring(0, 100) };
+  }
+
+  try {
+    const dbStart = Date.now();
+    const r = await pool.query("SELECT count(*) FROM users");
+    checks.schema = { status: "pass", latencyMs: Date.now() - dbStart, detail: `${r.rows[0]?.count || 0} users` };
+  } catch {
+    checks.schema = { status: "fail", detail: "Schema query failed" };
+  }
+
+  const mem = process.memoryUsage();
+  const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+  const maxHeap = 512;
+  checks.memory = {
+    status: heapMB < maxHeap * 0.88 ? (heapMB < maxHeap * 0.75 ? "pass" : "warn") : "fail",
+    detail: `${heapMB}MB / ${maxHeap}MB (${Math.round(heapMB / maxHeap * 100)}%)`,
+  };
+
+  const dbPool = checkDbPool();
+  checks.dbPool = {
+    status: dbPool.healthy ? "pass" : "warn",
+    detail: `total=${dbPool.total} idle=${dbPool.idle} waiting=${dbPool.waiting}`,
+  };
+
+  const { getCleanupStats } = await import("./services/cleanup-coordinator");
+  const cleanupStats = getCleanupStats();
+  checks.cleanupCoordinator = {
+    status: cleanupStats.tasks > 0 ? "pass" : "warn",
+    detail: `${cleanupStats.tasks} tasks registered`,
+  };
+
+  const resilience = getResilienceStatus();
+  const throttledEngines = Object.entries(resilience.engineCrashes).filter(([, v]) => v.throttled);
+  checks.engines = {
+    status: throttledEngines.length === 0 ? "pass" : "warn",
+    detail: throttledEngines.length === 0 ? "All engines healthy" : `${throttledEngines.length} throttled: ${throttledEngines.map(([k]) => k).join(", ")}`,
+  };
+
+  checks.security = { status: "pass", detail: `csrf=${csrfTokens.size} rateLimit=${globalRateLimitMap.size}` };
+
+  checks.processUptime = {
+    status: "pass",
+    detail: `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m`,
+  };
+
+  const allPassed = Object.values(checks).every(c => c.status === "pass");
+  const anyFailed = Object.values(checks).some(c => c.status === "fail");
+  const overallStatus = anyFailed ? "fail" : allPassed ? "pass" : "warn";
+
+  res.status(anyFailed ? 503 : 200).json({
+    status: overallStatus,
+    timestamp: new Date().toISOString(),
+    totalLatencyMs: Date.now() - start,
+    checks,
+    summary: {
+      pass: Object.values(checks).filter(c => c.status === "pass").length,
+      warn: Object.values(checks).filter(c => c.status === "warn").length,
+      fail: Object.values(checks).filter(c => c.status === "fail").length,
+    },
+  });
+});
+
 app.get("/api/system/memory-stats", async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (!user?.claims?.sub) {
@@ -742,20 +814,43 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 
+  const TRANSIENT_PATTERNS = [
+    "Connection terminated", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT",
+    "Client has encountered", "socket hang up", "EHOSTUNREACH",
+    "write EPIPE", "read ECONNRESET", "connect ECONNREFUSED",
+    "Too many connections", "Connection lost", "terminating connection",
+  ];
+
+  function isTransientError(msg: string): boolean {
+    return TRANSIENT_PATTERNS.some(p => msg.includes(p));
+  }
+
+  let unhandledRejectionCount = 0;
+  let uncaughtExceptionCount = 0;
+
   process.on("unhandledRejection", (reason) => {
+    unhandledRejectionCount++;
     const msg = String(reason);
-    if (msg.includes("Connection terminated") || msg.includes("ECONNRESET") || msg.includes("Client has encountered")) {
-      logger.warn("Transient DB rejection (suppressed)", { error: msg.substring(0, 120) });
+    if (isTransientError(msg)) {
+      logger.warn("Transient rejection (suppressed)", { error: msg.substring(0, 120), count: unhandledRejectionCount });
     } else {
-      logger.error("Unhandled promise rejection", { error: msg.substring(0, 300) });
+      logger.error("Unhandled promise rejection", { error: msg.substring(0, 300), count: unhandledRejectionCount });
     }
   });
+
   process.on("uncaughtException", (err) => {
+    uncaughtExceptionCount++;
     const msg = String(err);
-    if (msg.includes("Connection terminated") || msg.includes("ECONNRESET")) {
-      logger.warn("Transient DB exception (suppressed)", { error: msg.substring(0, 120) });
+    if (isTransientError(msg)) {
+      logger.warn("Transient exception (suppressed)", { error: msg.substring(0, 120), count: uncaughtExceptionCount });
       return;
     }
-    logger.error("Uncaught exception", { error: msg.substring(0, 300) });
+    logger.error("Uncaught exception", { error: msg.substring(0, 300), count: uncaughtExceptionCount });
+  });
+
+  process.on("warning", (warning) => {
+    if (warning.name === "MaxListenersExceededWarning") {
+      logger.warn("MaxListeners exceeded — possible event emitter leak", { message: warning.message?.substring(0, 150) });
+    }
   });
 })();

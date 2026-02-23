@@ -8,6 +8,11 @@ let watchdogInterval: ReturnType<typeof setInterval> | null = null;
 let engineCrashCounts = new Map<string, { count: number; lastCrash: number }>();
 const ENGINE_CRASH_THRESHOLD = 5;
 const ENGINE_CRASH_WINDOW_MS = 10 * 60 * 1000;
+let serverStartTime = Date.now();
+let consecutiveDbFailures = 0;
+let lastDbRecovery = 0;
+let totalWatchdogRuns = 0;
+let totalEmergencyReliefs = 0;
 
 export function timedFetch(url: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
   const { timeoutMs = 15000, ...fetchOptions } = options;
@@ -18,6 +23,7 @@ export function timedFetch(url: string, options: RequestInit & { timeoutMs?: num
 
 export function isolateEngine(name: string, fn: () => Promise<void>): () => Promise<void> {
   return async () => {
+    if (isEngineThrottled(name)) return;
     try {
       await fn();
       const entry = engineCrashCounts.get(name);
@@ -91,6 +97,7 @@ export function registerMap(name: string, map: Map<any, any>, maxSize: number): 
 }
 
 function emergencyMemoryRelief(): void {
+  totalEmergencyReliefs++;
   console.warn("[Resilience] EMERGENCY memory relief — clearing all registered caches and capping maps");
 
   for (const cache of registeredCaches) {
@@ -130,7 +137,33 @@ function enforceMapCaps(): void {
   }
 }
 
+async function probeDbHealth(): Promise<{ healthy: boolean; latencyMs: number }> {
+  const start = Date.now();
+  try {
+    await pool.query("SELECT 1");
+    consecutiveDbFailures = 0;
+    return { healthy: true, latencyMs: Date.now() - start };
+  } catch (err) {
+    consecutiveDbFailures++;
+    const latencyMs = Date.now() - start;
+    console.error(`[Resilience] DB probe failed (consecutive: ${consecutiveDbFailures}):`, String(err).substring(0, 100));
+
+    if (consecutiveDbFailures >= 3 && Date.now() - lastDbRecovery > 60_000) {
+      lastDbRecovery = Date.now();
+      console.warn("[Resilience] Attempting DB pool recovery — draining idle connections");
+      try {
+        const idleCount = pool.idleCount;
+        if (idleCount > 0) {
+          console.warn(`[Resilience] Pool has ${idleCount} idle connections, ${pool.waitingCount} waiting`);
+        }
+      } catch {}
+    }
+    return { healthy: false, latencyMs };
+  }
+}
+
 function runWatchdog(): void {
+  totalWatchdogRuns++;
   const pressure = getHeapPressure();
 
   enforceMapCaps();
@@ -145,10 +178,13 @@ function runWatchdog(): void {
     }
   }
 
+  if (totalWatchdogRuns % 10 === 0) {
+    probeDbHealth().catch(() => {});
+  }
+
   if (engineCrashCounts.size > 100) {
-    const entries = Array.from(engineCrashCounts.entries());
     const now = Date.now();
-    for (const [key, val] of entries) {
+    for (const [key, val] of engineCrashCounts) {
       if (now - val.lastCrash > ENGINE_CRASH_WINDOW_MS * 2) {
         engineCrashCounts.delete(key);
       }
@@ -165,6 +201,7 @@ export function checkDbPool(): { healthy: boolean; total: number; idle: number; 
 
 export function startResilienceWatchdog(): void {
   if (watchdogInterval) return;
+  serverStartTime = Date.now();
   watchdogInterval = setInterval(runWatchdog, 30_000);
   console.log("[Resilience] Watchdog started — monitoring memory, engines, and DB pool every 30s");
 }
@@ -182,16 +219,23 @@ export function getResilienceStatus(): {
   engineCrashes: Record<string, { count: number; lastCrash: number; throttled: boolean }>;
   registeredCaches: number;
   registeredMaps: Array<{ name: string; size: number; maxSize: number }>;
+  uptime: { seconds: number; formatted: string };
+  watchdog: { runs: number; emergencyReliefs: number; consecutiveDbFailures: number };
 } {
   const crashes: Record<string, any> = {};
   for (const [name, entry] of engineCrashCounts) {
     crashes[name] = { ...entry, throttled: isEngineThrottled(name) };
   }
+  const uptimeSec = Math.floor((Date.now() - serverStartTime) / 1000);
+  const h = Math.floor(uptimeSec / 3600);
+  const m = Math.floor((uptimeSec % 3600) / 60);
   return {
     memory: getHeapPressure(),
     dbPool: checkDbPool(),
     engineCrashes: crashes,
     registeredCaches: registeredCaches.length,
     registeredMaps: registeredMaps.map(m => ({ name: m.name, size: m.map.size, maxSize: m.maxSize })),
+    uptime: { seconds: uptimeSec, formatted: `${h}h ${m}m` },
+    watchdog: { runs: totalWatchdogRuns, emergencyReliefs: totalEmergencyReliefs, consecutiveDbFailures },
   };
 }

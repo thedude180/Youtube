@@ -143,11 +143,16 @@ export const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
       retry: (failureCount, error) => {
-        if (error.message?.startsWith("401:") || error.message?.startsWith("403:") || error.message?.startsWith("404:")) {
+        const msg = error.message || "";
+        if (msg.startsWith("401:") || msg.startsWith("403:") || msg.startsWith("404:") || msg.startsWith("422:")) {
           return false;
+        }
+        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.startsWith("500:") || msg.startsWith("502:") || msg.startsWith("503:") || msg.startsWith("504:")) {
+          return failureCount < 3;
         }
         return failureCount < 2;
       },
+      retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 15000),
     },
     mutations: {
       retry: false,

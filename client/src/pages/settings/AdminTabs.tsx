@@ -278,6 +278,11 @@ function AdminSystemHealthTab() {
     refetchInterval: 30000,
   });
 
+  const { data: verifyData } = useQuery<any>({
+    queryKey: ["/api/verify"],
+    refetchInterval: 60000,
+  });
+
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -326,6 +331,41 @@ function AdminSystemHealthTab() {
           Refresh
         </Button>
       </div>
+
+      {verifyData && (
+        <Card data-testid="card-verification-status">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              System Verification
+              <Badge
+                variant="secondary"
+                className={`text-xs ml-auto no-default-hover-elevate ${verifyData.status === "pass" ? "bg-emerald-500/10 text-emerald-500" : verifyData.status === "warn" ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"}`}
+                data-testid="badge-verify-status"
+              >
+                {verifyData.status === "pass" ? "All Systems Go" : verifyData.status === "warn" ? "Degraded" : "Issues Detected"}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {verifyData.checks && Object.entries(verifyData.checks).map(([name, check]: [string, any]) => (
+                <div key={name} className="flex items-center gap-2 p-2 rounded-md bg-muted/30" data-testid={`verify-check-${name}`}>
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${check.status === "pass" ? "bg-emerald-400" : check.status === "warn" ? "bg-amber-400" : "bg-red-400"}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate">{name}</p>
+                    {check.detail && <p className="text-[10px] text-muted-foreground truncate">{check.detail}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+              <span data-testid="text-verify-summary">{verifyData.summary?.pass || 0} pass / {verifyData.summary?.warn || 0} warn / {verifyData.summary?.fail || 0} fail</span>
+              <span>{verifyData.totalLatencyMs}ms</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="card-database-health">
         <CardHeader className="pb-2">
