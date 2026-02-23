@@ -1745,6 +1745,41 @@ export const teamTasks = pgTable("team_tasks", {
   userIdIdx: index("team_tasks_user_id_idx").on(table.userId),
 }));
 
+export const TEAM_ROLES = ["owner", "editor", "moderator", "viewer"] as const;
+export type TeamRole = typeof TEAM_ROLES[number];
+
+export const TEAM_MEMBER_STATUS = ["pending", "active", "rejected", "removed"] as const;
+export type TeamMemberStatus = typeof TEAM_MEMBER_STATUS[number];
+
+export const teamMembers = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  memberUserId: text("member_user_id"),
+  invitedEmail: text("invited_email").notNull(),
+  role: text("role").notNull().default("viewer"),
+  status: text("status").notNull().default("pending"),
+  invitedAt: timestamp("invited_at").defaultNow(),
+  joinedAt: timestamp("joined_at"),
+  removedAt: timestamp("removed_at"),
+}, (table) => ({
+  ownerIdIdx: index("team_members_owner_id_idx").on(table.ownerId),
+  memberUserIdIdx: index("team_members_member_user_id_idx").on(table.memberUserId),
+  statusIdx: index("team_members_status_idx").on(table.status),
+}));
+
+export const teamActivityLog = pgTable("team_activity_log", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  actorUserId: text("actor_user_id").notNull(),
+  action: text("action").notNull(),
+  targetEmail: text("target_email"),
+  targetUserId: text("target_user_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  ownerIdIdx: index("team_activity_log_owner_id_idx").on(table.ownerId),
+}));
+
 export const dailyBriefings = pgTable("daily_briefings", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -1924,6 +1959,8 @@ export const insertGrowthPredictionSchema = createInsertSchema(growthPredictions
 export const insertDescriptionTemplateSchema = createInsertSchema(descriptionTemplates).omit({ id: true, createdAt: true });
 export const insertStreamPerformanceLogSchema = createInsertSchema(streamPerformanceLogs).omit({ id: true, createdAt: true });
 export const insertLinkedChannelSchema = createInsertSchema(linkedChannels).omit({ id: true, createdAt: true });
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, invitedAt: true, joinedAt: true, removedAt: true });
+export const insertTeamActivityLogSchema = createInsertSchema(teamActivityLog).omit({ id: true, createdAt: true });
 
 // === SELECT TYPES ===
 export type Channel = typeof channels.$inferSelect;
@@ -2007,6 +2044,8 @@ export type GrowthPrediction = typeof growthPredictions.$inferSelect;
 export type DescriptionTemplate = typeof descriptionTemplates.$inferSelect;
 export type StreamPerformanceLog = typeof streamPerformanceLogs.$inferSelect;
 export type LinkedChannel = typeof linkedChannels.$inferSelect;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type TeamActivityLogEntry = typeof teamActivityLog.$inferSelect;
 
 // === INSERT TYPES ===
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
@@ -2087,6 +2126,8 @@ export type InsertGrowthPrediction = z.infer<typeof insertGrowthPredictionSchema
 export type InsertDescriptionTemplate = z.infer<typeof insertDescriptionTemplateSchema>;
 export type InsertStreamPerformanceLog = z.infer<typeof insertStreamPerformanceLogSchema>;
 export type InsertLinkedChannel = z.infer<typeof insertLinkedChannelSchema>;
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type InsertTeamActivityLog = z.infer<typeof insertTeamActivityLogSchema>;
 
 export type UpdateChannelRequest = Partial<InsertChannel> & { lastSyncAt?: Date };
 export type UpdateVideoRequest = Partial<InsertVideo>;
@@ -4513,8 +4554,8 @@ export const copilotConversations = pgTable("copilot_conversations", {
   tokensUsed: integer("tokens_used"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
-  index("copilot_user_idx").on(table.userId),
-  index("copilot_session_idx").on(table.sessionId),
+  index("copilot_conv_user_idx").on(table.userId),
+  index("copilot_conv_session_idx").on(table.sessionId),
 ]);
 
 export const insertCopilotConversationSchema = createInsertSchema(copilotConversations).omit({ id: true });

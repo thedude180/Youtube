@@ -1,11 +1,12 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { eq, and, desc, sql, gte, lt, asc } from "drizzle-orm";
-import { experiments, creatorDnaProfiles, sponsorshipDeals, copyrightClaims, usageMetrics, videos, channels, autopilotQueue, notifications, videoUpdateHistory } from "@shared/schema";
+import { experiments, creatorDnaProfiles, sponsorshipDeals, copyrightClaims, usageMetrics, videos, channels, autopilotQueue, notifications, videoUpdateHistory, users, TEAM_ROLES } from "@shared/schema";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { sendSSEEvent } from "./events";
 import { getUserId } from "./helpers";
+import { storage } from "../storage";
 
 const logger = createLogger("competitive-edge");
 
@@ -373,7 +374,227 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
   app.get("/api/team/members", async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    res.json({ members: [], roles: ["owner", "editor", "moderator", "viewer"], invitePending: [], sopCount: 0 });
+    try {
+      const allMembers = await storage.getTeamMembers(userId);
+      const members = allMembers.filter(m => m.status === "active");
+      const invitePending = allMembers.filter(m => m.status === "pending");
+
+      const memberDetails = await Promise.all(members.map(async (m) => {
+        if (m.memberUserId) {
+          const [u] = await db.select().from(users).where(eq(users.id, m.memberUserId)).limit(1);
+          return { ...m, firstName: u?.firstName, lastName: u?.lastName, profileImageUrl: u?.profileImageUrl };
+        }
+        return { ...m, firstName: null, lastName: null, profileImageUrl: null };
+      }));
+
+      const pendingDetails = invitePending.map(m => ({
+        id: m.id, email: m.invitedEmail, role: m.role, invitedAt: m.invitedAt,
+      }));
+
+      res.json({
+        members: memberDetails,
+        roles: [...TEAM_ROLES],
+        invitePending: pendingDetails,
+        sopCount: 3,
+      });
+    } catch (err: any) {
+      logger.error("Team members error", { error: err.message });
+      res.status(500).json({ error: "Failed to fetch team members" });
+    }
+  });
+
+  app.post("/api/team/invite", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { email, role } = req.body;
+      if (!email || typeof email !== "string") return res.status(400).json({ error: "Email is required" });
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) return res.status(400).json({ error: "Invalid email format" });
+      if (role && !TEAM_ROLES.includes(role)) return res.status(400).json({ error: "Invalid role" });
+      if (role === "owner") return res.status(400).json({ error: "Cannot invite as owner" });
+
+      const [owner] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (owner?.email?.toLowerCase() === email.toLowerCase()) {
+        return res.status(400).json({ error: "Cannot invite yourself" });
+      }
+
+      const existing = await storage.getTeamMemberByEmail(userId, email.toLowerCase());
+      if (existing) return res.status(409).json({ error: "This email already has a pending or active invitation" });
+
+      const member = await storage.createTeamMember({
+        ownerId: userId,
+        invitedEmail: email.toLowerCase(),
+        role: role || "viewer",
+        status: "pending",
+      });
+
+      await storage.createTeamActivity({
+        ownerId: userId,
+        actorUserId: userId,
+        action: "invited",
+        targetEmail: email.toLowerCase(),
+        metadata: { role: role || "viewer" },
+      });
+
+      res.json(member);
+    } catch (err: any) {
+      logger.error("Team invite error", { error: err.message });
+      res.status(500).json({ error: "Failed to send invitation" });
+    }
+  });
+
+  app.post("/api/team/invite/:id/accept", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const inviteId = parseInt(req.params.id);
+      const invite = await storage.getTeamMemberById(inviteId);
+      if (!invite || invite.status !== "pending") return res.status(404).json({ error: "Invitation not found" });
+
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!currentUser?.email || currentUser.email.toLowerCase() !== invite.invitedEmail.toLowerCase()) {
+        return res.status(403).json({ error: "This invitation is not for you" });
+      }
+
+      const updated = await storage.updateTeamMember(inviteId, {
+        memberUserId: userId,
+        status: "active",
+        joinedAt: new Date(),
+      });
+
+      await storage.createTeamActivity({
+        ownerId: invite.ownerId,
+        actorUserId: userId,
+        action: "accepted",
+        targetEmail: invite.invitedEmail,
+        metadata: { role: invite.role },
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      logger.error("Team accept error", { error: err.message });
+      res.status(500).json({ error: "Failed to accept invitation" });
+    }
+  });
+
+  app.post("/api/team/invite/:id/reject", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const inviteId = parseInt(req.params.id);
+      const invite = await storage.getTeamMemberById(inviteId);
+      if (!invite || invite.status !== "pending") return res.status(404).json({ error: "Invitation not found" });
+
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!currentUser?.email || currentUser.email.toLowerCase() !== invite.invitedEmail.toLowerCase()) {
+        return res.status(403).json({ error: "This invitation is not for you" });
+      }
+
+      await storage.updateTeamMember(inviteId, { status: "rejected" });
+
+      await storage.createTeamActivity({
+        ownerId: invite.ownerId,
+        actorUserId: userId,
+        action: "rejected",
+        targetEmail: invite.invitedEmail,
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      logger.error("Team reject error", { error: err.message });
+      res.status(500).json({ error: "Failed to reject invitation" });
+    }
+  });
+
+  app.patch("/api/team/member/:id/role", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const memberId = parseInt(req.params.id);
+      const { role } = req.body;
+      if (!role || !TEAM_ROLES.includes(role)) return res.status(400).json({ error: "Invalid role" });
+      if (role === "owner") return res.status(400).json({ error: "Cannot assign owner role" });
+
+      const member = await storage.getTeamMemberById(memberId);
+      if (!member || member.ownerId !== userId) return res.status(404).json({ error: "Member not found" });
+      if (member.status !== "active" && member.status !== "pending") return res.status(400).json({ error: "Member is not active" });
+
+      const oldRole = member.role;
+      const updated = await storage.updateTeamMember(memberId, { role });
+
+      await storage.createTeamActivity({
+        ownerId: userId,
+        actorUserId: userId,
+        action: "role_changed",
+        targetEmail: member.invitedEmail,
+        targetUserId: member.memberUserId || undefined,
+        metadata: { oldRole, newRole: role },
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      logger.error("Team role change error", { error: err.message });
+      res.status(500).json({ error: "Failed to change role" });
+    }
+  });
+
+  app.delete("/api/team/member/:id", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const memberId = parseInt(req.params.id);
+      const member = await storage.getTeamMemberById(memberId);
+      if (!member || member.ownerId !== userId) return res.status(404).json({ error: "Member not found" });
+      if (member.status !== "active" && member.status !== "pending") return res.status(400).json({ error: "Member already removed" });
+
+      await storage.deleteTeamMember(memberId);
+
+      const action = member.status === "pending" ? "invite_cancelled" : "removed";
+      await storage.createTeamActivity({
+        ownerId: userId,
+        actorUserId: userId,
+        action,
+        targetEmail: member.invitedEmail,
+        targetUserId: member.memberUserId || undefined,
+        metadata: { role: member.role },
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      logger.error("Team remove error", { error: err.message });
+      res.status(500).json({ error: "Failed to remove member" });
+    }
+  });
+
+  app.get("/api/team/invites", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!currentUser?.email) return res.json([]);
+      const invites = await storage.getTeamInvitesForUser(currentUser.email.toLowerCase());
+      const enriched = await Promise.all(invites.map(async (inv) => {
+        const [owner] = await db.select().from(users).where(eq(users.id, inv.ownerId)).limit(1);
+        return { ...inv, ownerName: owner ? `${owner.firstName || ""} ${owner.lastName || ""}`.trim() : "Unknown", ownerEmail: owner?.email };
+      }));
+      res.json(enriched);
+    } catch (err: any) {
+      logger.error("Team invites error", { error: err.message });
+      res.status(500).json({ error: "Failed to fetch invitations" });
+    }
+  });
+
+  app.get("/api/team/activity", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const activity = await storage.getTeamActivityLog(userId);
+      res.json(activity);
+    } catch (err: any) {
+      logger.error("Team activity error", { error: err.message });
+      res.status(500).json({ error: "Failed to fetch activity log" });
+    }
   });
 
   app.get("/api/team/sops", async (req: Request, res: Response) => {

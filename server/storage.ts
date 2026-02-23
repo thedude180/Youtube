@@ -62,9 +62,12 @@ import {
   type LocalizationRecommendation, type InsertLocalizationRecommendation,
   notificationPreferences,
   apiKeys, contentPredictions, videoUpdateHistory,
+  teamMembers, teamActivityLog,
   type ApiKey, type InsertApiKey,
   type ContentPrediction, type InsertContentPrediction,
   type VideoUpdateHistory, type InsertVideoUpdateHistory,
+  type TeamMember, type InsertTeamMember,
+  type TeamActivityLogEntry, type InsertTeamActivityLog,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -311,6 +314,16 @@ export interface IStorage {
 
   getNotificationPreferences(userId: string): Promise<any | undefined>;
   upsertNotificationPreferences(userId: string, prefs: any): Promise<any>;
+
+  getTeamMembers(ownerId: string): Promise<TeamMember[]>;
+  getTeamMemberByEmail(ownerId: string, email: string): Promise<TeamMember | undefined>;
+  getTeamMemberById(id: number): Promise<TeamMember | undefined>;
+  getTeamInvitesForUser(email: string): Promise<TeamMember[]>;
+  createTeamMember(member: InsertTeamMember): Promise<TeamMember>;
+  updateTeamMember(id: number, updates: Partial<TeamMember>): Promise<TeamMember>;
+  deleteTeamMember(id: number): Promise<void>;
+  getTeamActivityLog(ownerId: string, limit?: number): Promise<TeamActivityLogEntry[]>;
+  createTeamActivity(entry: InsertTeamActivityLog): Promise<TeamActivityLogEntry>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1484,6 +1497,60 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     });
+  }
+
+  async getTeamMembers(ownerId: string): Promise<TeamMember[]> {
+    return await db.select().from(teamMembers)
+      .where(and(eq(teamMembers.ownerId, ownerId), inArray(teamMembers.status, ["pending", "active"])))
+      .orderBy(desc(teamMembers.invitedAt));
+  }
+
+  async getTeamMemberByEmail(ownerId: string, email: string): Promise<TeamMember | undefined> {
+    const [member] = await db.select().from(teamMembers)
+      .where(and(eq(teamMembers.ownerId, ownerId), eq(teamMembers.invitedEmail, email), inArray(teamMembers.status, ["pending", "active"])));
+    return member;
+  }
+
+  async getTeamMemberById(id: number): Promise<TeamMember | undefined> {
+    const [member] = await db.select().from(teamMembers).where(eq(teamMembers.id, id));
+    return member;
+  }
+
+  async getTeamInvitesForUser(email: string): Promise<TeamMember[]> {
+    return await db.select().from(teamMembers)
+      .where(and(eq(teamMembers.invitedEmail, email), eq(teamMembers.status, "pending")))
+      .orderBy(desc(teamMembers.invitedAt));
+  }
+
+  async createTeamMember(member: InsertTeamMember): Promise<TeamMember> {
+    const [created] = await db.insert(teamMembers).values(member).returning();
+    return created;
+  }
+
+  async updateTeamMember(id: number, updates: Partial<TeamMember>): Promise<TeamMember> {
+    const [updated] = await db.update(teamMembers)
+      .set(updates)
+      .where(eq(teamMembers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTeamMember(id: number): Promise<void> {
+    await db.update(teamMembers)
+      .set({ status: "removed", removedAt: new Date() })
+      .where(eq(teamMembers.id, id));
+  }
+
+  async getTeamActivityLog(ownerId: string, limit = 50): Promise<TeamActivityLogEntry[]> {
+    return await db.select().from(teamActivityLog)
+      .where(eq(teamActivityLog.ownerId, ownerId))
+      .orderBy(desc(teamActivityLog.createdAt))
+      .limit(limit);
+  }
+
+  async createTeamActivity(entry: InsertTeamActivityLog): Promise<TeamActivityLogEntry> {
+    const [created] = await db.insert(teamActivityLog).values(entry).returning();
+    return created;
   }
 }
 

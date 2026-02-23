@@ -10,11 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   RefreshCw, Dna, BarChart3, FlaskConical, Handshake, Users, Shield, CreditCard,
   CheckCircle2, AlertTriangle, Clock, TrendingUp, Zap, ArrowRight, Brain,
   Play, Pause, Settings2, Star, Target, Eye, ThumbsUp, Video, Crown, Rocket,
-  ChevronRight, Activity, Lock, Sparkles,
+  ChevronRight, Activity, Lock, Sparkles, Mail, UserPlus, Trash2, Loader2,
 } from "lucide-react";
 
 function StatCard({ label, value, icon: Icon, trend, testId }: { label: string; value: string | number; icon: any; trend?: string; testId: string }) {
@@ -621,43 +623,248 @@ function SponsorshipTab() {
   );
 }
 
+const ROLE_META: Record<string, { label: string; desc: string; color: string }> = {
+  owner: { label: "Owner", desc: "Full access to everything", color: "text-yellow-400" },
+  editor: { label: "Editor", desc: "Content creation & uploads", color: "text-blue-400" },
+  moderator: { label: "Moderator", desc: "Comments & community", color: "text-green-400" },
+  viewer: { label: "Viewer", desc: "Read-only access", color: "text-muted-foreground" },
+};
+
 function TeamTab() {
+  const { toast } = useToast();
   const { data, isLoading } = useQuery<any>({ queryKey: ["/api/team/members"] });
   const { data: sops } = useQuery<any>({ queryKey: ["/api/team/sops"] });
+  const { data: activityData } = useQuery<any[]>({ queryKey: ["/api/team/activity"] });
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
+
+  const inviteMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/team/invite", { email: inviteEmail, role: inviteRole }),
+    onSuccess: () => {
+      toast({ title: "Invitation Sent", description: `Invite sent to ${inviteEmail}` });
+      setInviteEmail("");
+      setInviteRole("viewer");
+      queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
+    },
+    onError: async (err: any) => {
+      let msg = "Failed to send invitation";
+      try { const r = await err?.json?.(); if (r?.error) msg = r.error; } catch {}
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  const changeRoleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: number; role: string }) => apiRequest("PATCH", `/api/team/member/${id}/role`, { role }),
+    onSuccess: () => {
+      toast({ title: "Role Updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/team/member/${id}`),
+    onSuccess: () => {
+      toast({ title: "Member Removed" });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
+    },
+  });
+
+  const cancelInviteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/team/member/${id}`),
+    onSuccess: () => {
+      toast({ title: "Invitation Cancelled" });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
+    },
+  });
 
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-24" />)}</div>;
 
   const d = data || {};
+  const members = d.members || [];
+  const pending = d.invitePending || [];
+  const activity = activityData || [];
 
   return (
     <div className="space-y-4" data-testid="tab-team">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Team Members" value={(d.members || []).length} icon={Users} testId="stat-team-members" />
+        <StatCard label="Team Members" value={members.length} icon={Users} testId="stat-team-members" />
         <StatCard label="Available Roles" value={(d.roles || []).length} icon={Lock} testId="stat-team-roles" />
-        <StatCard label="Pending Invites" value={(d.invitePending || []).length} icon={Clock} testId="stat-team-invites" />
+        <StatCard label="Pending Invites" value={pending.length} icon={Clock} testId="stat-team-invites" />
         <StatCard label="SOPs" value={d.sopCount || (sops?.templates || []).length} icon={Settings2} testId="stat-team-sops" />
       </div>
+
+      <Card data-testid="card-invite-member">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-primary" />
+            Invite Team Member
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={(e) => { e.preventDefault(); if (inviteEmail.trim()) inviteMutation.mutate(); }} className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                data-testid="input-invite-email"
+                type="email"
+                placeholder="teammate@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="pl-8"
+                required
+              />
+            </div>
+            <Select value={inviteRole} onValueChange={setInviteRole}>
+              <SelectTrigger className="w-full sm:w-[140px]" data-testid="select-invite-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="editor">Editor</SelectItem>
+                <SelectItem value="moderator">Moderator</SelectItem>
+                <SelectItem value="viewer">Viewer</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="submit" disabled={inviteMutation.isPending || !inviteEmail.trim()} data-testid="button-send-invite">
+              {inviteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
+              Invite
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {members.length > 0 && (
+        <Card data-testid="card-team-members">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Active Members ({members.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {members.map((m: any) => (
+                <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/30" data-testid={`member-row-${m.id}`}>
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                    {m.profileImageUrl ? (
+                      <img src={m.profileImageUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+                    ) : (
+                      <Users className="h-4 w-4 text-primary" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.invitedEmail}</p>
+                    <p className="text-xs text-muted-foreground truncate">{m.invitedEmail}</p>
+                  </div>
+                  <Select value={m.role} onValueChange={(role) => changeRoleMutation.mutate({ id: m.id, role })} >
+                    <SelectTrigger className="w-[120px]" data-testid={`select-role-${m.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="editor">Editor</SelectItem>
+                      <SelectItem value="moderator">Moderator</SelectItem>
+                      <SelectItem value="viewer">Viewer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" onClick={() => removeMutation.mutate(m.id)} data-testid={`button-remove-${m.id}`} title="Remove member">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {pending.length > 0 && (
+        <Card data-testid="card-pending-invites">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4 text-yellow-400" />
+              Pending Invitations ({pending.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {pending.map((p: any) => (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/20" data-testid={`pending-row-${p.id}`}>
+                  <Mail className="h-4 w-4 text-yellow-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">{p.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Invited as <span className="capitalize font-medium">{p.role}</span> · {p.invitedAt ? new Date(p.invitedAt).toLocaleDateString() : ""}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-yellow-400 border-yellow-400/30">Pending</Badge>
+                  <Button variant="ghost" size="icon" onClick={() => cancelInviteMutation.mutate(p.id)} data-testid={`button-cancel-invite-${p.id}`} title="Cancel invitation">
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="card-team-roles">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            Team Roles
+            <Lock className="h-4 w-4 text-primary" />
+            Role Permissions
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {(d.roles || ["owner", "editor", "moderator", "viewer"]).map((role: string) => (
+            {Object.entries(ROLE_META).map(([role, meta]) => (
               <div key={role} className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
-                <p className="text-sm font-medium capitalize">{role}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {role === "owner" ? "Full access" : role === "editor" ? "Content & uploads" : role === "moderator" ? "Comments & chat" : "View only"}
-                </p>
+                <p className={`text-sm font-medium ${meta.color}`}>{meta.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{meta.desc}</p>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      {activity.length > 0 && (
+        <Card data-testid="card-team-activity">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Activity Log
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {activity.slice(0, 20).map((a: any) => (
+                <div key={a.id} className="flex items-start gap-2 text-xs p-2 rounded bg-muted/10" data-testid={`activity-row-${a.id}`}>
+                  <div className="mt-0.5">
+                    {a.action === "invited" && <UserPlus className="h-3.5 w-3.5 text-blue-400" />}
+                    {a.action === "accepted" && <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />}
+                    {a.action === "rejected" && <AlertTriangle className="h-3.5 w-3.5 text-red-400" />}
+                    {a.action === "removed" && <Trash2 className="h-3.5 w-3.5 text-red-400" />}
+                    {a.action === "invite_cancelled" && <Trash2 className="h-3.5 w-3.5 text-orange-400" />}
+                    {a.action === "role_changed" && <Settings2 className="h-3.5 w-3.5 text-yellow-400" />}
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-foreground capitalize">{a.action.replace("_", " ")}</span>
+                    {a.targetEmail && <span className="text-muted-foreground"> — {a.targetEmail}</span>}
+                    {a.metadata?.role && <span className="text-muted-foreground"> as {a.metadata.role}</span>}
+                    {a.metadata?.oldRole && a.metadata?.newRole && (
+                      <span className="text-muted-foreground"> from {a.metadata.oldRole} to {a.metadata.newRole}</span>
+                    )}
+                  </div>
+                  <span className="text-muted-foreground/60 shrink-0">
+                    {a.createdAt ? new Date(a.createdAt).toLocaleDateString() : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="card-team-sops">
         <CardHeader className="pb-2">
