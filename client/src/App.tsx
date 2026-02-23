@@ -48,6 +48,7 @@ const Community = lazyRetry(() => import("@/pages/Community"));
 const GrowthJourney = lazyRetry(() => import("@/pages/GrowthJourney"));
 const EmpireLauncher = lazyRetry(() => import("@/pages/EmpireLauncher"));
 const CompetitiveEdge = lazyRetry(() => import("@/pages/CompetitiveEdge"));
+const StealthAutonomy = lazyRetry(() => import("@/pages/StealthAutonomy"));
 const SystemStatus = lazyRetry(() => import("@/pages/SystemStatus"));
 const ChangelogPage = lazyRetry(() => import("@/pages/Changelog"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
@@ -142,6 +143,7 @@ function Router() {
       <Route path="/knowledge">{() => <Redirect to="/settings" />}</Route>
       <Route path="/growth-old">{() => <Redirect to="/growth" />}</Route>
       <Route path="/edge">{() => <SectionErrorBoundary fallbackTitle="Competitive Edge failed to load"><CompetitiveEdge /></SectionErrorBoundary>}</Route>
+      <Route path="/stealth">{() => <SectionErrorBoundary fallbackTitle="AI Stealth failed to load"><StealthAutonomy /></SectionErrorBoundary>}</Route>
       <Route path="/legal">{() => <Redirect to="/settings" />}</Route>
       <Route path="/you">{() => <Redirect to="/settings" />}</Route>
       <Route component={NotFound} />

@@ -4,6 +4,7 @@ import { autopilotQueue, channels } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
+import { humanizeText } from "./ai-humanizer-engine";
 
 const openai = getOpenAIClient();
 
@@ -344,6 +345,15 @@ ${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO N
   }
 
   processed = appendCrosslinks(processed, platform, contentType, videoUrl, channelLinks);
+
+  const humanized = humanizeText(processed, {
+    aggressionLevel: "moderate",
+    platform,
+    preserveLinks: true,
+    preserveHashtags: true,
+    contentType: "social-post",
+  });
+  processed = humanized.humanized;
 
   const uniquenessScore = calculateUniqueness(processed, recentTexts);
   const stealthScore = calculateStealthScore(processed, platform);

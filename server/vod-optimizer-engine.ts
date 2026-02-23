@@ -7,6 +7,7 @@ import { sendSSEEvent } from "./routes/events";
 import { shouldRunVodOptimization } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel } from "./ai-engine";
+import { humanizeText } from "./ai-humanizer-engine";
 
 const logger = createLogger("vod-optimizer");
 const openai = getOpenAIClient();
@@ -142,11 +143,13 @@ Return ONLY valid JSON array matching this structure:
     return parsed.map(opt => {
       const vid = vods[(opt.videoIndex || 1) - 1];
       if (!vid) return null;
+      const titleHumanized = humanizeText(opt.newTitle, { aggressionLevel: "subtle", contentType: "title" });
+      const descHumanized = humanizeText(opt.newDescription, { aggressionLevel: "moderate", contentType: "description" });
       return {
         videoId: vid.id,
         originalTitle: vid.title || "Untitled",
-        newTitle: opt.newTitle,
-        newDescription: opt.newDescription,
+        newTitle: titleHumanized.humanized,
+        newDescription: descHumanized.humanized,
         newTags: opt.newTags || [],
         thumbnailSuggestion: opt.thumbnailSuggestion,
         strategyNotes: opt.strategyNotes,

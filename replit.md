@@ -53,7 +53,9 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **Automation Engine**: Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store.
     - **Autopilot Engine**: Auto-Clip & Post, Smart Schedule, AI Comment Responder, Discord Announcements, Content Recycler.
     - **Human Behavior Engine**: Simulates realistic posting patterns.
-    - **Content Variation Engine**: Generates platform-specific content using diverse angles and voice profiles.
+    - **AI Humanizer Engine**: Post-processes all AI text to evade AI detectors — perplexity/burstiness manipulation, 50+ AI pattern replacements, natural contractions, typos, fillers, sentence variation.
+    - **Autonomy Controller**: Central AI brain orchestrating all 27 engines autonomously with zero manual intervention, stealth reporting, and decision logging.
+    - **Content Variation Engine**: Generates platform-specific content using diverse angles and voice profiles (with humanizer integration).
     - **Creator Intelligence System**: Style Scanner, Creator Memory, Humanization Layer, Learning Engine.
     - **Ultimate Engine**: Advanced AI features including Self-Healing Pipelines, Predictive Analytics, Creator DNA, Audience Mind Mapping, and Shadow Ban Detection.
     - **Idea-to-Empire Builder**: AI-driven tool for content strategy automation.

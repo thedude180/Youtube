@@ -3,6 +3,7 @@ import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { creatorDnaProfiles, videos, channels } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
+import { humanizeText } from "./ai-humanizer-engine";
 
 const openai = getOpenAIClient();
 
@@ -306,5 +307,11 @@ Respond as JSON:
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI for voice generation");
 
-  return JSON.parse(content);
+  const parsed = JSON.parse(content);
+  if (parsed.text) {
+    const humanized = humanizeText(parsed.text, { aggressionLevel: "moderate", contentType: "social-post" });
+    parsed.text = humanized.humanized;
+    parsed.stealthScore = humanized.stealthScore;
+  }
+  return parsed;
 }
