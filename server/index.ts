@@ -465,7 +465,19 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
-app.get("/api/system/memory-stats", async (_req, res) => {
+app.get("/api/system/memory-stats", async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.email?.toLowerCase() !== "thedude180@gmail.com") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+  } catch {
+    return res.status(403).json({ error: "Admin access required" });
+  }
   const uptime = process.uptime();
   const memoryUsage = process.memoryUsage();
   const memory = {

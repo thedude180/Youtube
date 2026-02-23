@@ -88,7 +88,14 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
 - **DB-Backed Cron Locks** (`server/lib/cron-lock.ts`): Prevents overlapping cron execution on restart. TTL-based with instance tracking, execution count, duration, and error logging. Applied to all 15+ cron jobs.
 - **External Service Health Checks** (`server/services/external-health.ts`): Probes YouTube, Twitch, TikTok, Stripe, Gmail, Discord, Kick, OpenAI, and PostgreSQL. API: `GET /api/system/external-health`.
 - **AI Telemetry** (`server/lib/openai.ts`): Transparent proxy on OpenAI client tracks tokens in/out, latency, failure rate, per-model stats. API: `GET /api/system/ai-telemetry`.
-- **System Status APIs**: `GET /api/system/health`, `GET /api/system/subsystems`, `GET /api/system/cron-locks`, `GET /api/system/external-health`, `GET /api/system/ai-telemetry`.
+- **Database Transactions**: Critical multi-step storage operations (deleteChannel, redeemAccessCode, upsertBusinessDetails, upsertLocalizationRecommendations, upsertNotificationPreferences) wrapped in `db.transaction()` to prevent partial writes.
+- **Memory Monitoring**: Hard cap on globalRateLimitMap (50K entries, auto-evicts oldest 20%), heap usage warning at 512MB, admin-only `/api/system/memory-stats` endpoint with Map sizes.
+- **DB Pool Monitoring**: `/api/health` includes pool stats (total, idle, waiting, saturated flag) for connection pool saturation detection.
+- **Response Sanitization**: Production mode strips internal error details, stack traces, and `err.errors` from responses; generic messages for 500+ errors; AppError details stripped for server errors.
+- **Security Audit Logging** (`server/lib/audit.ts`): Audit trails for API key creation/revocation, admin role changes with risk levels and full context. JSONB details stored for compliance.
+- **Subscription Tier Enforcement**: 10 premium endpoints in automation (8) and streaming (2) routes now require starter/pro tier. Tier hierarchy: free < youtube < starter < pro < ultimate.
+- **Cross-Tenant Protection**: All critical routes verify resource ownership (userId scoping) before allowing access/modification.
+- **System Status APIs**: `GET /api/system/health`, `GET /api/system/subsystems`, `GET /api/system/cron-locks`, `GET /api/system/external-health`, `GET /api/system/ai-telemetry`, `GET /api/system/memory-stats` (admin-only).
 
 ### Engine Heartbeat System
 - Records real-time status (running/idle/error), timestamps, duration, and failure counts for background engines, persisted in the database.
