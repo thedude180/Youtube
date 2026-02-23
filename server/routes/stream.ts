@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { requireAuth, parseNumericId, asyncHandler } from "./helpers";
+import { requireAuth, requireTier, parseNumericId, asyncHandler } from "./helpers";
 import { cached } from "../lib/cache";
 import {
   generateStreamSeo,
@@ -176,7 +176,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post(api.streams.optimizeSeo.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireTier(req, res, "pro", "Stream SEO Optimization");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -562,7 +562,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post(api.streams.postStreamProcess.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireTier(req, res, "pro", "Post-Stream Processing");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;

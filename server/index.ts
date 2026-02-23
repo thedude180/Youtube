@@ -235,6 +235,17 @@ const globalRateLimitInterval = setInterval(() => {
   for (const [key, entry] of Array.from(globalRateLimitMap)) {
     if (now - entry.windowStart > GLOBAL_RATE_WINDOW) globalRateLimitMap.delete(key);
   }
+  
+  // Hard cap: if map exceeds 50000 entries, clear the oldest 20%
+  if (globalRateLimitMap.size > 50000) {
+    const entries = Array.from(globalRateLimitMap.entries()).sort((a, b) => a[1].windowStart - b[1].windowStart);
+    const toRemove = entries.slice(0, Math.floor(globalRateLimitMap.size * 0.2));
+    for (const [key] of toRemove) globalRateLimitMap.delete(key);
+    logger.warn(`Rate limit map exceeded 50000 entries, cleared ${toRemove.length} oldest entries`, {
+      currentSize: globalRateLimitMap.size,
+      removed: toRemove.length,
+    });
+  }
 }, 30_000);
 backgroundIntervals.push(globalRateLimitInterval);
 
@@ -402,6 +413,16 @@ app.get("/api/health", async (_req, res) => {
     heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
     external: Math.round(memoryUsage.external / 1024 / 1024),
   };
+  
+  // Log warning if heap usage is high
+  if (memory.heapUsed > 512) {
+    logger.warn(`High heap memory usage detected: ${memory.heapUsed}MB / ${memory.heapTotal}MB`, {
+      heapUsed: memory.heapUsed,
+      heapTotal: memory.heapTotal,
+      rss: memory.rss,
+    });
+  }
+  
   try {
     const dbStart = Date.now();
     await pool.query("SELECT 1");
@@ -411,7 +432,16 @@ app.get("/api/health", async (_req, res) => {
       uptime,
       uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
       timestamp: new Date().toISOString(),
-      database: { connected: true, latencyMs: dbLatencyMs },
+      database: {
+        connected: true,
+        latencyMs: dbLatencyMs,
+        pool: {
+          total: pool.totalCount,
+          idle: pool.idleCount,
+          waiting: pool.waitingCount,
+          saturated: pool.waitingCount > 0,
+        },
+      },
       memory,
     });
   } catch (err) {
@@ -420,10 +450,41 @@ app.get("/api/health", async (_req, res) => {
       uptime,
       uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
       timestamp: new Date().toISOString(),
-      database: { connected: false, error: "Database connectivity check failed" },
+      database: {
+        connected: false,
+        error: "Database connectivity check failed",
+        pool: {
+          total: pool.totalCount,
+          idle: pool.idleCount,
+          waiting: pool.waitingCount,
+          saturated: pool.waitingCount > 0,
+        },
+      },
       memory,
     });
   }
+});
+
+app.get("/api/system/memory-stats", async (_req, res) => {
+  const uptime = process.uptime();
+  const memoryUsage = process.memoryUsage();
+  const memory = {
+    rss: Math.round(memoryUsage.rss / 1024 / 1024),
+    heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+    heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+    external: Math.round(memoryUsage.external / 1024 / 1024),
+  };
+  
+  res.json({
+    timestamp: new Date().toISOString(),
+    uptime,
+    uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+    memory,
+    maps: {
+      globalRateLimitMap: globalRateLimitMap.size,
+      csrfTokens: csrfTokens.size,
+    },
+  });
 });
 
 export function log(message: string, source = "express", level: "info" | "warn" | "error" | "debug" = "info") {
@@ -440,7 +501,7 @@ app.use((req: any, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      const level: LogLevel = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+      const level: "info" | "warn" | "error" = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
       log(`${req.method} ${path} ${res.statusCode} ${duration}ms [${req.requestId}]`, "http", level);
     }
   });
@@ -469,21 +530,24 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
     if (err instanceof AppError) {
       logger.warn(`AppError [${err.code}]: ${err.message}`, { statusCode: err.statusCode, requestId });
-      return res.status(err.statusCode).json(createErrorResponse(err, requestId));
+      return res.status(err.statusCode).json(createErrorResponse(err, requestId, isProduction));
     }
 
     const status = err.status || err.statusCode || 500;
-    const message = status < 500 ? (err.message || "Request Error") : "Internal Server Error";
+    const message = status < 500 ? (err.message || "Request Error") : isProduction ? "An unexpected error occurred" : "Internal Server Error";
 
     if (status >= 500) {
       logger.error("Internal Server Error", { error: String(err), requestId });
     }
 
+    // In production, strip internal details for all status codes
+    const shouldStripErrors = isProduction;
+
     return res.status(status).json({
       error: status >= 500 ? "internal_error" : "request_error",
       message,
       ...(requestId ? { requestId } : {}),
-      ...(status === 400 && err.errors ? { errors: err.errors } : {}),
+      ...(!shouldStripErrors && status === 400 && err.errors ? { errors: err.errors } : {}),
     });
   });
 

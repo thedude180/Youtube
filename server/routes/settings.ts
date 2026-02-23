@@ -387,7 +387,7 @@ export function registerSettingsRoutes(app: Express) {
       });
       const parsed = scorecardSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-      const result = await updateAgentScorecard(userId, parsed.data.agentId, parsed.data.taskResult);
+      const result = await updateAgentScorecard(userId, parsed.data.agentId, parsed.data.taskResult as any);
       res.json(result);
     } catch (error: any) {
       console.error("Error:", error);
@@ -468,7 +468,7 @@ export function registerSettingsRoutes(app: Express) {
       if (!parsedVideo.success) return res.status(400).json({ error: "Invalid input", details: parsedVideo.error.flatten() });
       const { videoId } = parsedVideo.data;
       const { analyzeVideoPerformanceAndLearn } = await import("../youtube-learning-engine");
-      const analysis = await analyzeVideoPerformanceAndLearn(userId, videoId);
+      const analysis = await analyzeVideoPerformanceAndLearn(userId, Number(videoId));
       res.json({ success: true, analysis });
     } catch (error: any) {
       console.error("Error:", error);

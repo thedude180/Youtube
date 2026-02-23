@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../storage";
-import { requireAuth, parseNumericId } from "./helpers";
+import { requireAuth, requireTier, parseNumericId } from "./helpers";
 import { sendSSEEvent } from "./events";
 import { AI_AGENTS, automationRules, scheduleItems, cronJobs, aiChains, notifications } from "@shared/schema";
 import { z } from "zod";
@@ -61,7 +61,7 @@ export async function registerAutomationRoutes(app: Express) {
   });
 
   app.post(api.agents.trigger.path, async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireTier(req, res, "starter", "AI Agent Trigger");
     if (!userId) return;
     const { agentId } = req.params;
     const agent = AI_AGENTS.find(a => a.id === agentId);
@@ -122,7 +122,7 @@ export async function registerAutomationRoutes(app: Express) {
   });
 
   app.post(api.automation.createRule.path, async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireTier(req, res, "starter", "Automation Rules");
     if (!userId) return;
     const schema = z.object({
       name: z.string().min(1),
@@ -147,7 +147,7 @@ export async function registerAutomationRoutes(app: Express) {
   });
 
   app.put(api.automation.updateRule.path, async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireTier(req, res, "starter", "Automation Rules");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -319,7 +319,7 @@ export async function registerAutomationRoutes(app: Express) {
 
   app.post("/api/automation/cron-jobs", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = requireTier(req, res, "pro", "Custom Cron Jobs");
       if (!userId) return;
       const schema = z.object({
         featureKey: z.string().min(1),
@@ -344,7 +344,7 @@ export async function registerAutomationRoutes(app: Express) {
 
   app.patch("/api/automation/cron-jobs/:id", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = requireTier(req, res, "pro", "Custom Cron Jobs");
       if (!userId) return;
       const id = parseNumericId(req.params.id, res);
       if (id === null) return;
@@ -386,7 +386,7 @@ export async function registerAutomationRoutes(app: Express) {
 
   app.post("/api/automation/chains", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = requireTier(req, res, "pro", "AI Chains");
       if (!userId) return;
       const schema = z.object({
         name: z.string().min(1),
@@ -411,7 +411,7 @@ export async function registerAutomationRoutes(app: Express) {
 
   app.post("/api/automation/chains/:id/run", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = requireTier(req, res, "pro", "AI Chains");
       if (!userId) return;
       const id = parseNumericId(req.params.id, res);
       if (id === null) return;
@@ -424,7 +424,7 @@ export async function registerAutomationRoutes(app: Express) {
 
   app.patch("/api/automation/chains/:id", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = requireTier(req, res, "pro", "AI Chains");
       if (!userId) return;
       const id = parseNumericId(req.params.id, res);
       if (id === null) return;

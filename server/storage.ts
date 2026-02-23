@@ -353,8 +353,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteChannel(id: number): Promise<void> {
-    await db.delete(videos).where(eq(videos.channelId, id));
-    await db.delete(channels).where(eq(channels.id, id));
+    await db.transaction(async (tx) => {
+      await tx.delete(videos).where(eq(videos.channelId, id));
+      await tx.delete(channels).where(eq(channels.id, id));
+    });
   }
 
   async getVideos(): Promise<Video[]> {
@@ -1270,17 +1272,19 @@ export class DatabaseStorage implements IStorage {
 
   async upsertBusinessDetails(userId: string, details: Partial<InsertBusinessDetails>): Promise<BusinessDetails> {
     const existing = await this.getBusinessDetails(userId);
-    if (existing) {
-      const [updated] = await db.update(businessDetails)
-        .set({ ...details, updatedAt: new Date() })
-        .where(eq(businessDetails.id, existing.id))
+    return await db.transaction(async (tx) => {
+      if (existing) {
+        const [updated] = await tx.update(businessDetails)
+          .set({ ...details, updatedAt: new Date() })
+          .where(eq(businessDetails.id, existing.id))
+          .returning();
+        return updated;
+      }
+      const [created] = await tx.insert(businessDetails)
+        .values({ ...details, userId } as InsertBusinessDetails)
         .returning();
-      return updated;
-    }
-    const [created] = await db.insert(businessDetails)
-      .values({ ...details, userId } as InsertBusinessDetails)
-      .returning();
-    return created;
+      return created;
+    });
   }
 
   async updateBusinessDetailsSteps(id: number, steps: any[]): Promise<BusinessDetails> {
@@ -1306,15 +1310,17 @@ export class DatabaseStorage implements IStorage {
 
   async upsertLocalizationRecommendations(userId: string, data: InsertLocalizationRecommendation): Promise<LocalizationRecommendation> {
     const existing = await this.getLocalizationRecommendations(userId);
-    if (existing) {
-      const [updated] = await db.update(localizationRecommendations)
-        .set({ recommendedLanguages: data.recommendedLanguages, trafficData: data.trafficData, source: data.source, updatedAt: new Date() })
-        .where(eq(localizationRecommendations.id, existing.id))
-        .returning();
-      return updated;
-    }
-    const [created] = await db.insert(localizationRecommendations).values({ ...data, userId }).returning();
-    return created;
+    return await db.transaction(async (tx) => {
+      if (existing) {
+        const [updated] = await tx.update(localizationRecommendations)
+          .set({ recommendedLanguages: data.recommendedLanguages, trafficData: data.trafficData, source: data.source, updatedAt: new Date() })
+          .where(eq(localizationRecommendations.id, existing.id))
+          .returning();
+        return updated;
+      }
+      const [created] = await tx.insert(localizationRecommendations).values({ ...data, userId }).returning();
+      return created;
+    });
   }
   async getUser(userId: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -1386,18 +1392,22 @@ export class DatabaseStorage implements IStorage {
     if (ac.maxUses && ac.useCount !== null && ac.useCount >= ac.maxUses) return undefined;
     if (ac.expiresAt && new Date() > ac.expiresAt) return undefined;
 
-    const [updated] = await db.update(accessCodes)
-      .set({
-        redeemedBy: userId,
-        redeemedAt: new Date(),
-        useCount: (ac.useCount || 0) + 1,
-      })
-      .where(eq(accessCodes.code, code))
-      .returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const [accessCodeResult] = await tx.update(accessCodes)
+        .set({
+          redeemedBy: userId,
+          redeemedAt: new Date(),
+          useCount: (ac.useCount || 0) + 1,
+        })
+        .where(eq(accessCodes.code, code))
+        .returning();
 
-    await db.update(users)
-      .set({ role: "premium", tier: ac.tier || "ultimate", accessCodeUsed: code, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+      await tx.update(users)
+        .set({ role: "premium", tier: ac.tier || "ultimate", accessCodeUsed: code, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      return [accessCodeResult];
+    });
 
     return updated;
   }
@@ -1461,17 +1471,19 @@ export class DatabaseStorage implements IStorage {
 
   async upsertNotificationPreferences(userId: string, prefs: any): Promise<any> {
     const existing = await this.getNotificationPreferences(userId);
-    if (existing) {
-      const [updated] = await db.update(notificationPreferences)
-        .set({ ...prefs, updatedAt: new Date() })
-        .where(eq(notificationPreferences.userId, userId))
+    return await db.transaction(async (tx) => {
+      if (existing) {
+        const [updated] = await tx.update(notificationPreferences)
+          .set({ ...prefs, updatedAt: new Date() })
+          .where(eq(notificationPreferences.userId, userId))
+          .returning();
+        return updated;
+      }
+      const [created] = await tx.insert(notificationPreferences)
+        .values({ ...prefs, userId })
         .returning();
-      return updated;
-    }
-    const [created] = await db.insert(notificationPreferences)
-      .values({ ...prefs, userId })
-      .returning();
-    return created;
+      return created;
+    });
   }
 }
 

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { ADMIN_EMAIL, users, channels, videos } from "@shared/schema";
 import { storage } from "../storage";
+import { logSecurityEvent } from "../lib/audit";
 import { db, pool } from "../db";
 import { desc, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint, getUserEmail } from "./helpers";
@@ -179,7 +180,22 @@ export function registerAdminRoutes(app: Express) {
     try {
       const tierSchema = z.object({ tier: z.string().optional(), role: z.string().optional() });
       const { tier, role } = tierSchema.parse(req.body);
-      const updated = await storage.updateUserRole(req.params.userId, role || "user", tier || "free");
+      const targetUserId = req.params.userId;
+      const updated = await storage.updateUserRole(targetUserId, role || "user", tier || "free");
+
+      await logSecurityEvent({
+        userId: adminId,
+        action: "role_changed",
+        target: targetUserId,
+        details: { 
+          targetUserId,
+          newRole: role || "user", 
+          newTier: tier || "free",
+          adminId,
+        },
+        riskLevel: "high",
+      });
+
       res.json(updated);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });

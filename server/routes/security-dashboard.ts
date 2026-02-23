@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { requireAuth, requireAdmin, parseNumericId } from "./helpers";
 import { cached } from "../lib/cache";
 import { storage } from "../storage";
+import { logSecurityEvent } from "../lib/audit";
 import { getSecurityStats, getBlockedIPs, getSecurityRules } from "../security-engine";
 import { getAllBreakerStats, getAllBreakerStatuses } from "../services/circuit-breaker";
 import { db } from "../db";
@@ -150,6 +151,14 @@ export function registerSecurityDashboardRoutes(app: Express) {
         hashedKey,
       });
 
+      await logSecurityEvent({
+        userId,
+        action: "api_key_created",
+        target: name,
+        details: { keyId: key.id, prefix },
+        riskLevel: "medium",
+      });
+
       res.json({
         id: key.id,
         name: key.name,
@@ -169,7 +178,16 @@ export function registerSecurityDashboardRoutes(app: Express) {
       if (!userId) return;
       const keyId = parseNumericId(req.params.id as string, res, "key ID");
       if (keyId === null) return;
-      await storage.revokeApiKey(keyId, userId);
+      const revokedKey = await storage.revokeApiKey(keyId, userId);
+      
+      await logSecurityEvent({
+        userId,
+        action: "api_key_revoked",
+        target: revokedKey.name,
+        details: { keyId, prefix: revokedKey.prefix },
+        riskLevel: "medium",
+      });
+
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: "Failed to revoke API key" });

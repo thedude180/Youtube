@@ -10,12 +10,15 @@ export class AppError extends Error {
   }
 }
 
-export function createErrorResponse(error: AppError, requestId?: string) {
+export function createErrorResponse(error: AppError, requestId?: string, isProduction?: boolean) {
+  // In production mode, strip details field for 500+ status codes
+  const shouldStripDetails = isProduction && error.statusCode >= 500;
+  
   return {
     error: {
       code: error.code,
       message: error.message,
-      ...(error.details ? { details: error.details } : {}),
+      ...(!shouldStripDetails && error.details ? { details: error.details } : {}),
       ...(requestId ? { requestId } : {}),
     }
   };
