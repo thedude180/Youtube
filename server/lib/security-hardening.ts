@@ -233,3 +233,84 @@ export const hardeningStats = {
   anomaliesDetected: 0,
   idempotencyHits: 0,
 };
+
+type HttpMethod = "get" | "post" | "put" | "patch" | "delete" | "head" | "options";
+const HTTP_METHODS: HttpMethod[] = ["get", "post", "put", "patch", "delete", "head", "options"];
+
+function isAsyncFunction(fn: Function): boolean {
+  return fn.constructor.name === "AsyncFunction" || 
+    fn.toString().includes("__awaiter") ||
+    fn.length <= 3;
+}
+
+function wrapHandler(handler: any): any {
+  if (typeof handler !== "function") return handler;
+  if (handler._asyncWrapped) return handler;
+  
+  const wrapped = (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = handler(req, res, next);
+      if (result && typeof result.catch === "function") {
+        result.catch((err: any) => {
+          if (!res.headersSent) {
+            next(err);
+          } else {
+            logger.error("Async error after headers sent:", err?.message);
+          }
+        });
+      }
+    } catch (err) {
+      if (!res.headersSent) {
+        next(err);
+      }
+    }
+  };
+  (wrapped as any)._asyncWrapped = true;
+  return wrapped;
+}
+
+export function createAsyncSafeApp(app: any): any {
+  for (const method of HTTP_METHODS) {
+    const original = app[method].bind(app);
+    app[method] = function(path: string, ...handlers: any[]) {
+      const wrappedHandlers = handlers.map((h: any) => {
+        if (typeof h === "function") {
+          return wrapHandler(h);
+        }
+        return h;
+      });
+      return original(path, ...wrappedHandlers);
+    };
+  }
+
+  const originalUse = app.use.bind(app);
+  app.use = function(...args: any[]) {
+    const wrappedArgs = args.map((arg: any) => {
+      if (typeof arg === "function" && arg.length <= 3) {
+        return wrapHandler(arg);
+      }
+      return arg;
+    });
+    return originalUse(...wrappedArgs);
+  };
+
+  return app;
+}
+
+export function globalErrorHandler(err: any, _req: Request, res: Response, _next: NextFunction) {
+  const statusCode = err.statusCode || err.status || 500;
+  const isProd = process.env.NODE_ENV === "production";
+  
+  if (statusCode >= 500) {
+    logger.error(`[GlobalErrorHandler] ${err.message}`, err.stack?.split("\n").slice(0, 3).join(" "));
+  }
+  
+  if (res.headersSent) return;
+  
+  res.status(statusCode).json({
+    error: statusCode >= 500 
+      ? (isProd ? "Internal server error" : err.message)
+      : err.message || "Request failed",
+    ...(statusCode === 429 && { retryAfter: err.retryAfter }),
+  });
+}

@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { isAuthenticated } from "../replit_integrations/auth/replitAuth";
 import { getUserId } from "./helpers";
 import { storage } from "../storage";
@@ -13,7 +13,7 @@ setInterval(() => {
 }, 60_000);
 
 export function registerSyncRoutes(app: Express): void {
-  app.post("/api/sync/login", isAuthenticated, async (req: any, res) => {
+  app.post("/api/sync/login", isAuthenticated, async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -83,7 +83,7 @@ export function registerSyncRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/sync/status", isAuthenticated, async (req: any, res) => {
+  app.get("/api/sync/status", isAuthenticated, async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 

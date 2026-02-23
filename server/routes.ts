@@ -31,6 +31,7 @@ import { registerCompetitiveEdgeRoutes } from "./routes/competitive-edge";
 import { registerAutonomyRoutes } from "./routes/autonomy";
 import { registerLoopRoutes } from "./routes/loops";
 import { getUserId } from "./routes/helpers";
+import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -89,6 +90,8 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  createAsyncSafeApp(app);
 
   registerEventRoutes(app);
 
@@ -275,6 +278,8 @@ export async function registerRoutes(
       `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls}\n</urlset>`
     );
   });
+
+  app.use(globalErrorHandler);
 
   return httpServer;
 }
