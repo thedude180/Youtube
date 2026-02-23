@@ -1,4 +1,7 @@
 import { useEffect } from "react";
+import i18n from "i18next";
+
+const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "de", "ja", "ko", "zh", "ar", "hi", "ru", "it"];
 
 function setMetaContent(selector: string, content: string) {
   const el = document.querySelector(selector);
@@ -19,6 +22,44 @@ function ensureLink(rel: string): HTMLLinkElement {
   return link;
 }
 
+function updateHreflangTags() {
+  document.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove());
+
+  const baseUrl = window.location.origin;
+  const path = window.location.pathname;
+
+  SUPPORTED_LOCALES.forEach((locale) => {
+    const link = document.createElement("link");
+    link.rel = "alternate";
+    link.hreflang = locale;
+    link.href = `${baseUrl}${path}${path.includes("?") ? "&" : "?"}lang=${locale}`;
+    document.head.appendChild(link);
+  });
+
+  const xDefault = document.createElement("link");
+  xDefault.rel = "alternate";
+  xDefault.hreflang = "x-default";
+  xDefault.href = `${baseUrl}${path}`;
+  document.head.appendChild(xDefault);
+}
+
+function announceRouteChange(title: string) {
+  let announcer = document.getElementById("route-announcer");
+  if (!announcer) {
+    announcer = document.createElement("div");
+    announcer.id = "route-announcer";
+    announcer.setAttribute("role", "status");
+    announcer.setAttribute("aria-live", "polite");
+    announcer.setAttribute("aria-atomic", "true");
+    announcer.className = "sr-only";
+    document.body.appendChild(announcer);
+  }
+  announcer.textContent = "";
+  requestAnimationFrame(() => {
+    announcer!.textContent = `Navigated to ${title}`;
+  });
+}
+
 export function usePageTitle(title: string, description?: string) {
   useEffect(() => {
     const prev = document.title;
@@ -35,12 +76,19 @@ export function usePageTitle(title: string, description?: string) {
     }
     setMetaContent('meta[property="og:title"]', document.title);
 
+    const currentLang = i18n.language || "en";
+    setMetaContent('meta[property="og:locale"]', currentLang.replace("-", "_"));
+
     const currentUrl = window.location.href;
     setMetaContent('meta[property="og:url"]', currentUrl);
 
     const canonical = ensureLink("canonical");
     const prevCanonical = canonical.href;
     canonical.href = currentUrl;
+
+    updateHreflangTags();
+
+    announceRouteChange(title || "CreatorOS");
 
     return () => {
       document.title = prev;

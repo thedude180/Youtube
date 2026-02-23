@@ -26,6 +26,9 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **Adaptive System**: Adjusts rendering based on device capabilities.
 - **Native App**: Capacitor integration for iOS/Android.
 - **Internationalization**: `react-i18next` with 12 languages (EN, ES, FR, PT, DE, JA, KO, ZH, AR, HI, RU, IT), RTL support for Arabic, language switcher in sidebar, locale-aware currency/date/number formatting (`client/src/lib/locale-format.ts`), auto-detection via browser language.
+- **SEO**: Dynamic hreflang tags for 12 locales + x-default, Open Graph, Twitter Cards, JSON-LD structured data, robots.txt, sitemap.xml with multi-language support, canonical URLs.
+- **Accessibility**: Skip-to-content link, RouteAnnouncer for screen readers, ARIA roles/labels, keyboard navigation (Alt+1-5 shortcuts), focus management.
+- **Performance**: Web Vitals monitoring (CLS/LCP/INP/FCP/TTFB) with beacon-based collection, preconnect/dns-prefetch hints, lazy loading, code splitting, virtual lists.
 - **PWA Support**: Service Worker for caching, push notifications, and offline capability.
 
 ### Backend

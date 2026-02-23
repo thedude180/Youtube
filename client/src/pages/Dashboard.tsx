@@ -48,6 +48,8 @@ const LazyMissionControl = lazy(() => import("./dashboard/MissionControl"));
 const LazyAIProofOfWork = lazy(() => import("./dashboard/AIProofOfWork"));
 const LazyCompetitorBenchmark = lazy(() => import("./dashboard/CompetitorBenchmark"));
 const LazyContentVerification = lazy(() => import("./dashboard/ContentVerification"));
+const LazyPerformanceVitals = lazy(() => import("./dashboard/PerformanceVitals"));
+const LazyAnomalyDetector = lazy(() => import("./dashboard/AnomalyDetector"));
 
 type AIResponse = any;
 
@@ -368,6 +370,12 @@ export default function Dashboard() {
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
       </section>
 
+      <SectionErrorBoundary fallbackTitle="Anomaly detection failed to load">
+        <Suspense fallback={<Skeleton className="h-[200px] w-full rounded-lg" />}>
+          <LazyAnomalyDetector />
+        </Suspense>
+      </SectionErrorBoundary>
+
       <section role="region" aria-label="AI action center">
       <AIActionCenter aiActions={aiActions} aiActionsLoading={aiActionsLoading} />
       </section>
@@ -404,6 +412,14 @@ export default function Dashboard() {
       <SectionErrorBoundary fallbackTitle="Competitive Intelligence failed to load">
         <Suspense fallback={<Skeleton className="h-[200px] w-full rounded-lg" />}>
           <LazyCompetitorBenchmark />
+        </Suspense>
+      </SectionErrorBoundary>
+      </section>
+
+      <section role="region" aria-label="Performance vitals">
+      <SectionErrorBoundary fallbackTitle="Performance vitals failed to load">
+        <Suspense fallback={<Skeleton className="h-[150px] w-full rounded-lg" />}>
+          <LazyPerformanceVitals />
         </Suspense>
       </SectionErrorBoundary>
       </section>

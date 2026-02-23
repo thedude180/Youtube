@@ -186,6 +186,38 @@ export async function registerRoutes(
   registerContentVerificationRoutes(app);
   registerWorldBestRoutes(app);
 
+  const vitalsBuffer: any[] = [];
+  app.post("/api/vitals", (req, res) => {
+    try {
+      const { vitals, url, timestamp } = req.body || {};
+      if (Array.isArray(vitals)) {
+        vitalsBuffer.push(...vitals.map((v: any) => ({ ...v, url, timestamp, receivedAt: Date.now() })));
+        if (vitalsBuffer.length > 500) vitalsBuffer.splice(0, vitalsBuffer.length - 500);
+      }
+    } catch {}
+    res.sendStatus(204);
+  });
+
+  app.get("/api/vitals/summary", (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const summary: Record<string, { avg: number; p75: number; p95: number; count: number; rating: Record<string, number> }> = {};
+    for (const v of vitalsBuffer) {
+      if (!summary[v.name]) summary[v.name] = { avg: 0, p75: 0, p95: 0, count: 0, rating: {} };
+      const s = summary[v.name];
+      s.count++;
+      s.avg = (s.avg * (s.count - 1) + v.value) / s.count;
+      s.rating[v.rating] = (s.rating[v.rating] || 0) + 1;
+    }
+    for (const name of Object.keys(summary)) {
+      const values = vitalsBuffer.filter(v => v.name === name).map(v => v.value).sort((a, b) => a - b);
+      if (values.length > 0) {
+        summary[name].p75 = values[Math.floor(values.length * 0.75)] || 0;
+        summary[name].p95 = values[Math.floor(values.length * 0.95)] || 0;
+      }
+    }
+    res.json({ summary, totalSamples: vitalsBuffer.length, lastUpdated: new Date().toISOString() });
+  });
+
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
@@ -218,6 +250,8 @@ export async function registerRoutes(
     );
   });
 
+  const SITEMAP_LOCALES = ["en", "es", "fr", "pt", "de", "ja", "ko", "zh", "ar", "hi", "ru", "it"];
+
   app.get("/sitemap.xml", (_req, res) => {
     const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app");
     const today = new Date().toISOString().split("T")[0];
@@ -228,11 +262,15 @@ export async function registerRoutes(
       { path: "/privacy", changefreq: "monthly", priority: "0.3" },
       { path: "/terms", changefreq: "monthly", priority: "0.3" },
     ];
-    const urls = pages.map(
-      (p) => `  <url>\n    <loc>${domain}${p.path}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
-    ).join("\n");
+    const urls = pages.map((p) => {
+      const hreflangs = SITEMAP_LOCALES.map(
+        (lang) => `    <xhtml:link rel="alternate" hreflang="${lang}" href="${domain}${p.path}?lang=${lang}" />`
+      ).join("\n");
+      const xDefault = `    <xhtml:link rel="alternate" hreflang="x-default" href="${domain}${p.path}" />`;
+      return `  <url>\n    <loc>${domain}${p.path}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n${hreflangs}\n${xDefault}\n  </url>`;
+    }).join("\n");
     res.type("application/xml").send(
-      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls}\n</urlset>`
     );
   });
 

@@ -3,8 +3,10 @@ import App from "./App";
 import "./index.css";
 import "./i18n";
 import { initNativeFeatures } from "./lib/native-app";
+import { initWebVitals } from "./lib/web-vitals";
 
 initNativeFeatures();
+initWebVitals();
 
 const root = document.getElementById("root")!;
 
