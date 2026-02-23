@@ -47,6 +47,7 @@ const AccessCodes = lazyRetry(() => import("@/pages/AccessCodes"));
 const Community = lazyRetry(() => import("@/pages/Community"));
 const GrowthJourney = lazyRetry(() => import("@/pages/GrowthJourney"));
 const EmpireLauncher = lazyRetry(() => import("@/pages/EmpireLauncher"));
+const CompetitiveEdge = lazyRetry(() => import("@/pages/CompetitiveEdge"));
 const SystemStatus = lazyRetry(() => import("@/pages/SystemStatus"));
 const ChangelogPage = lazyRetry(() => import("@/pages/Changelog"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
@@ -140,6 +141,7 @@ function Router() {
       <Route path="/wellness">{() => <Redirect to="/settings" />}</Route>
       <Route path="/knowledge">{() => <Redirect to="/settings" />}</Route>
       <Route path="/growth-old">{() => <Redirect to="/growth" />}</Route>
+      <Route path="/edge">{() => <SectionErrorBoundary fallbackTitle="Competitive Edge failed to load"><CompetitiveEdge /></SectionErrorBoundary>}</Route>
       <Route path="/legal">{() => <Redirect to="/settings" />}</Route>
       <Route path="/you">{() => <Redirect to="/settings" />}</Route>
       <Route component={NotFound} />

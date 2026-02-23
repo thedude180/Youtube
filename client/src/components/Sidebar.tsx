@@ -48,6 +48,7 @@ const navLinks = [
   { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free", advancedOnly: false },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
   { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
+  { href: "/edge", labelKey: "Competitive Edge", icon: Crown, minTier: "free", advancedOnly: false },
   { href: "/community", labelKey: "Community", icon: Users, minTier: "starter", advancedOnly: true },
   { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free", advancedOnly: true },
   { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free", advancedOnly: false },

@@ -27,6 +27,7 @@ import { registerRetentionBeatsRoutes } from "./routes/retention-beats";
 import { registerMarketingRoutes } from "./routes/marketing";
 import { registerContentVerificationRoutes } from "./routes/content-verification";
 import { registerWorldBestRoutes } from "./routes/world-best";
+import { registerCompetitiveEdgeRoutes } from "./routes/competitive-edge";
 import { getUserId } from "./routes/helpers";
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -185,6 +186,7 @@ export async function registerRoutes(
   registerMarketingRoutes(app);
   registerContentVerificationRoutes(app);
   registerWorldBestRoutes(app);
+  registerCompetitiveEdgeRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {

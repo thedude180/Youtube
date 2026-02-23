@@ -38,6 +38,16 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **AI Integration**: Primarily OpenAI (gpt-5-mini) via Replit AI Integrations.
 - **Core Engines**:
     - **Growth Journey System**: "Zero to #1" milestone ladder (0→10M+ subs), AI-generated daily actions, growth phase detection, plateau alerts, achievement tracking, personalized roadmap.
+    - **Competitive Edge Suite** (9 features at /edge):
+      - **Closed-Loop VOD Optimizer**: Continuous humanized VOD updates with timing jitter, natural language variation, staggered scheduling.
+      - **Closed-Loop Autopilot**: 7-phase pipeline (ingest→optimize→copyright-check→publish→verify→measure→adapt).
+      - **Creator DNA & Brand Voice**: AI-learned style vector, voice patterns, humor profile, catchphrases, generate-in-voice.
+      - **Cross-Platform Analytics & ROI**: Unified dashboard with revenue attribution across all platforms.
+      - **A/B Testing Engine**: Automated title/thumbnail testing with statistical confidence and AI analysis.
+      - **Sponsorship Marketplace**: AI-powered sponsor matching, media kit generation, deal tracking.
+      - **Team Collaboration**: Role-based access (owner/editor/moderator/viewer), SOPs, task assignment.
+      - **Copyright Shield**: Pre-publish content scanning with AI-powered rewriting for flagged content.
+      - **Usage-Based Billing**: AI calls, videos processed, platform tracking with tier limits.
     - **Dual Pipeline System**: 65-step Live Stream and 56-step VOD pipelines across 9 phases.
     - **Content Loop Engine**: Manages content generation workflow (livestream → stream-exhaust → vod-optimize → thumbnail-gen → idle).
     - **Automation Engine**: Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store.
