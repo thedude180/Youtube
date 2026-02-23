@@ -55,7 +55,8 @@ const STREAM_SUPPORT_AGENTS = [
 const sessions = new Map<string, BacklogSession>();
 
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
-setInterval(() => {
+import { registerCleanup } from "./services/cleanup-coordinator";
+registerCleanup("backlogSessions", () => {
   const now = Date.now();
   for (const [userId, session] of sessions) {
     if (now - session.lastActivityAt.getTime() > SESSION_TTL_MS) {

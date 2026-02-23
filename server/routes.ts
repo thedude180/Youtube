@@ -72,17 +72,13 @@ const RATE_LIMIT_MAX_ENTRIES = 500;
 const aiDailyUsage = new Map<string, { count: number; reset: number }>();
 registerMap("aiDailyUsage", aiDailyUsage, 500);
 
-setInterval(() => {
+import { registerCleanup } from "./services/cleanup-coordinator";
+registerCleanup("routesRateLimit", () => {
   const now = Date.now();
-  for (const [key, entry] of Array.from(rateLimitMap)) {
+  for (const [key, entry] of rateLimitMap) {
     if (now > entry.reset) rateLimitMap.delete(key);
   }
-  if (rateLimitMap.size > RATE_LIMIT_MAX_ENTRIES) {
-    const entries = Array.from(rateLimitMap.entries()).sort((a, b) => a[1].reset - b[1].reset);
-    const toRemove = entries.slice(0, rateLimitMap.size - RATE_LIMIT_MAX_ENTRIES);
-    for (const [key] of toRemove) rateLimitMap.delete(key);
-  }
-  for (const [key, entry] of Array.from(aiDailyUsage)) {
+  for (const [key, entry] of aiDailyUsage) {
     if (now > entry.reset) aiDailyUsage.delete(key);
   }
 }, 60_000);

@@ -4,6 +4,7 @@ import { eq, sql, and, gte, count } from "drizzle-orm";
 import crypto from "crypto";
 import { getBreaker } from "./circuit-breaker";
 import { LRUCache } from "../lib/lru-cache";
+import { registerMap } from "./resilience-core";
 
 interface CacheEntry {
   response: any;
@@ -176,13 +177,7 @@ export async function isUserOverAiLimit(userId: string, tier: string): Promise<b
 }
 
 const modelFailures = new Map<string, number>();
-
-setInterval(() => {
-  if (modelFailures.size > 10000) {
-    modelFailures.clear();
-    console.log("[AI Hardening] Cleared oversized modelFailures cache");
-  }
-}, 30 * 60 * 1000);
+registerMap("modelFailures", modelFailures, 200);
 
 export async function executeWithFallback<T>(
   primaryFn: () => Promise<T>,
@@ -309,13 +304,7 @@ interface Batch {
 }
 
 const batches = new Map<string, Batch>();
-
-setInterval(() => {
-  if (batches.size > 10000) {
-    batches.clear();
-    console.log("[AI Hardening] Cleared oversized batches cache");
-  }
-}, 30 * 60 * 1000);
+registerMap("aiBatches", batches, 200);
 
 export function queueAiBatch(userId: string, tasks: Array<{ id: string; fn: () => Promise<any> }>): string {
   const batchId = crypto.randomUUID();

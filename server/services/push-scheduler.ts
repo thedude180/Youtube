@@ -42,11 +42,10 @@ function cleanupPushMaps(): void {
   }
 }
 
-const pushCleanupInterval = setInterval(cleanupPushMaps, 5 * 60 * 1000);
+import { registerCleanup } from "./cleanup-coordinator";
+registerCleanup("pushScheduler", cleanupPushMaps, 5 * 60 * 1000);
 
-export function stopPushCleanup(): void {
-  clearInterval(pushCleanupInterval);
-}
+export function stopPushCleanup(): void {}
 
 const YOUTUBE_UPDATE_LIMITS = {
   maxUpdatesPerHour: 15,

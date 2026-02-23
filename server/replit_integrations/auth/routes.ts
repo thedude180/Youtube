@@ -47,9 +47,10 @@ function rateLimitAuth(maxAttempts: number, windowMs: number) {
   };
 }
 
-setInterval(() => {
+import { registerCleanup } from "../../services/cleanup-coordinator";
+registerCleanup("authRateLimit", () => {
   const cutoff = Date.now() - 60_000;
-  for (const [key, timestamps] of Array.from(authRateLimiter)) {
+  for (const [key, timestamps] of authRateLimiter) {
     const filtered = timestamps.filter(t => t > cutoff);
     if (filtered.length === 0) authRateLimiter.delete(key);
     else authRateLimiter.set(key, filtered);

@@ -151,17 +151,13 @@ export function anomalyDetector() {
   };
 }
 
-setInterval(() => {
+import { registerCleanup } from "../services/cleanup-coordinator";
+registerCleanup("fingerprints", () => {
   const now = Date.now();
-  for (const [key, entry] of Array.from(requestFingerprints)) {
+  for (const [key, entry] of requestFingerprints) {
     if (now - entry.lastSeen > 120000) requestFingerprints.delete(key);
   }
-  if (requestFingerprints.size > 1000) {
-    const entries = Array.from(requestFingerprints.entries()).sort((a, b) => a[1].lastSeen - b[1].lastSeen);
-    const toRemove = entries.slice(0, Math.floor(entries.length * 0.3));
-    for (const [key] of toRemove) requestFingerprints.delete(key);
-  }
-}, 60000);
+}, 60_000);
 
 export function idempotencyGuard() {
   const seen = new Map<string, { timestamp: number; response: any }>();

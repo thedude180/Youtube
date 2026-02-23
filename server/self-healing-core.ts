@@ -257,8 +257,8 @@ export function getSubsystemNames(): string[] {
   return Array.from(subsystems.keys());
 }
 
-const HEALTH_CHECK_CLEANUP_INTERVAL = 30 * 60 * 1000;
-setInterval(() => {
+import { registerCleanup } from "./services/cleanup-coordinator";
+registerCleanup("selfHealingBreakers", () => {
   const now = new Date();
   for (const [, sub] of subsystems) {
     if (sub.circuitBreakerOpen && sub.cooldownUntil && now > sub.cooldownUntil) {
@@ -269,4 +269,4 @@ setInterval(() => {
       console.log(`[SelfHealing] ⏰ Auto-reset circuit breaker for "${sub.name}"`);
     }
   }
-}, HEALTH_CHECK_CLEANUP_INTERVAL);
+}, 30 * 60 * 1000);

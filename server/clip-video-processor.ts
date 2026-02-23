@@ -325,4 +325,5 @@ export function cleanupOldFiles() {
   }
 }
 
-setInterval(cleanupOldFiles, 6 * 60 * 60 * 1000);
+import { registerCleanup } from "./services/cleanup-coordinator";
+registerCleanup("clipFileCleanup", cleanupOldFiles, 6 * 60 * 60 * 1000);

@@ -126,3 +126,13 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **YouTube Data API v3**: YouTube integration.
 - **Stripe**: Payment processing and subscription management.
 - **node-cron**: Background task scheduling.
+
+## Memory & Performance Optimizations
+- **Node Heap**: 512MB via `--max-old-space-size=512`, emergency relief at 88% (450MB).
+- **Cleanup Coordinator** (`server/services/cleanup-coordinator.ts`): Unified timer consolidating 10+ module-level `setInterval` calls into a single 60s tick loop. Tasks registered with `registerCleanup(name, fn, intervalMs)`.
+- **Resilience Core** (`server/services/resilience-core.ts`): Watchdog monitors memory pressure, DB pool, and engine health every 30s. Registers 18+ Maps with size caps for emergency cleanup.
+- **Cache Sizes**: API cache 100 entries, AI cache 50 entries, rate-limit maps capped at 1K entries.
+- **Fetch Timeouts**: All external API calls wrapped with 10-20s AbortController timeouts.
+- **Map Iteration**: Uses direct `for...of` on Maps instead of `Array.from()` to avoid allocation overhead.
+- **Managed Engine Intervals**: All pillar engines (sentinel, community, education, brand, analytics, compliance, autopilot, push-scheduler, connection-guardian) have proper start/stop lifecycle functions.
+- **SSE**: Stale connection cleanup via coordinator; per-client heartbeat intervals cleared on disconnect.

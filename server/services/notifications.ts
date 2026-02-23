@@ -70,9 +70,10 @@ async function sendSmsNotification(phone: string, title: string, message: string
 const recentNotifications = new Map<string, number>();
 const NOTIFICATION_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
-setInterval(() => {
+import { registerCleanup } from "./cleanup-coordinator";
+registerCleanup("recentNotifications", () => {
   const now = Date.now();
-  for (const [key, ts] of Array.from(recentNotifications)) {
+  for (const [key, ts] of recentNotifications) {
     if (now - ts > NOTIFICATION_COOLDOWN_MS) recentNotifications.delete(key);
   }
 }, 60 * 60 * 1000);

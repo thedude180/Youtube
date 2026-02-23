@@ -22,11 +22,10 @@ function cleanupLastOptimized(): void {
   }
 }
 
-const settingsCleanupInterval = setInterval(cleanupLastOptimized, 5 * 60 * 1000);
+import { registerCleanup } from "./cleanup-coordinator";
+registerCleanup("settings", cleanupLastOptimized, 5 * 60 * 1000);
 
-export function stopSettingsCleanup(): void {
-  clearInterval(settingsCleanupInterval);
-}
+export function stopSettingsCleanup(): void {}
 
 const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
   gaming: {

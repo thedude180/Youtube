@@ -56,11 +56,10 @@ function cleanupLastRecommended(): void {
   }
 }
 
-const tierCleanupInterval = setInterval(cleanupLastRecommended, 5 * 60 * 1000);
+import { registerCleanup } from "./cleanup-coordinator";
+registerCleanup("tierRecommend", cleanupLastRecommended, 5 * 60 * 1000);
 
-export function stopTierCleanup(): void {
-  clearInterval(tierCleanupInterval);
-}
+export function stopTierCleanup(): void {}
 
 export async function analyzeAndRecommendTier(userId: string): Promise<TierRecommendation> {
   const user = await storage.getUser(userId);

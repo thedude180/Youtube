@@ -33,6 +33,7 @@ import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
 import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests } from "./lib/security-hardening";
 import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache } from "./services/resilience-core";
+import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
 
 const logger = createLogger("express");
 
@@ -245,24 +246,13 @@ const GLOBAL_RATE_LIMIT = 300;
 const GLOBAL_RATE_WINDOW = 60_000;
 const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
 
-const globalRateLimitInterval = setInterval(() => {
+import { registerCleanup } from "./services/cleanup-coordinator";
+registerCleanup("globalRateLimit", () => {
   const now = Date.now();
-  for (const [key, entry] of Array.from(globalRateLimitMap)) {
+  for (const [key, entry] of globalRateLimitMap) {
     if (now - entry.windowStart > GLOBAL_RATE_WINDOW) globalRateLimitMap.delete(key);
   }
-  
-  // Hard cap: if map exceeds 50000 entries, clear the oldest 20%
-  if (globalRateLimitMap.size > 1000) {
-    const entries = Array.from(globalRateLimitMap.entries()).sort((a, b) => a[1].windowStart - b[1].windowStart);
-    const toRemove = entries.slice(0, Math.floor(globalRateLimitMap.size * 0.2));
-    for (const [key] of toRemove) globalRateLimitMap.delete(key);
-    logger.warn(`Rate limit map exceeded 50000 entries, cleared ${toRemove.length} oldest entries`, {
-      currentSize: globalRateLimitMap.size,
-      removed: toRemove.length,
-    });
-  }
 }, 30_000);
-backgroundIntervals.push(globalRateLimitInterval);
 
 app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
   if (req.path === "/health" || req.path === "/stripe/webhook") return next();
@@ -332,13 +322,12 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 const csrfTokens = new Map<string, { token: string; expires: number }>();
 registerMap("csrfTokens", csrfTokens, 500);
 
-const csrfCleanupInterval = setInterval(() => {
+registerCleanup("csrfTokens", () => {
   const now = Date.now();
-  for (const [key, entry] of Array.from(csrfTokens)) {
+  for (const [key, entry] of csrfTokens) {
     if (now > entry.expires) csrfTokens.delete(key);
   }
 }, 60_000);
-backgroundIntervals.push(csrfCleanupInterval);
 
 const CSRF_MAX_SIZE = 10000;
 
@@ -668,9 +657,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) }));
 
       import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate()));
-      import("./services/ai-hardening").then(m => {
-        if (typeof (m as any).clearAICache === 'function') (m as any).clearAICache();
-      }).catch(() => {});
+      startCleanupCoordinator();
       startResilienceWatchdog();
 
       log("All 14 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot, Retention Beats, AI Team, Streaming Loop, VOD/Shorts Loop");
@@ -707,6 +694,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     stopCreatorEducationEngine();
     stopAnalyticsIntelligenceEngine();
     stopBrandPartnershipsEngine();
+    stopCleanupCoordinator();
     stopResilienceWatchdog();
     stopFortressCleanup();
     stopPushCleanup();

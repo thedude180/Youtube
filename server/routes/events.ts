@@ -19,40 +19,30 @@ const clients = new Map<string, SSEClient[]>();
 let totalConnectionsCreated = 0;
 let totalConnectionsClosed = 0;
 
-// Periodic cleanup of stale connections
-const sseCleanupInterval = setInterval(() => {
+import { registerCleanup } from "../services/cleanup-coordinator";
+registerCleanup("sseConnections", () => {
   const now = Date.now();
   let cleaned = 0;
-  for (const [userId, userClients] of Array.from(clients)) {
+  for (const [userId, userClients] of clients) {
     const validClients: SSEClient[] = [];
     for (const client of userClients) {
       if (now - client.lastHeartbeat > STALE_CONNECTION_MS) {
-        try {
-          client.res.end();
-        } catch (error) {
-          // Client already closed
-        }
+        try { client.res.end(); } catch {}
         if (client.heartbeatIntervalId) clearInterval(client.heartbeatIntervalId);
         totalConnectionsClosed++;
         cleaned++;
-        console.log(
-          `[SSE] Closed stale connection for user ${userId} (idle for ${Math.round((now - client.lastHeartbeat) / 1000)}s)`
-        );
       } else {
         validClients.push(client);
       }
     }
     if (validClients.length === 0) {
       clients.delete(userId);
-      console.log(`[SSE] Removed user ${userId} from clients map (no active connections)`);
     } else {
       clients.set(userId, validClients);
     }
   }
   if (cleaned > 0) {
-    console.log(
-      `[SSE] Cleanup cycle complete: ${cleaned} stale connections removed, ${getTotalConnections()} connections active`
-    );
+    console.log(`[SSE] Cleaned ${cleaned} stale, ${getTotalConnections()} active`);
   }
 }, CLEANUP_INTERVAL_MS);
 

@@ -926,15 +926,15 @@ export function registerUltimateRoutes(app: Express) {
   const empireLaunchRateLimitEmail = new Map<string, number>();
   const empireLaunchRateLimitIP = new Map<string, number>();
 
-  setInterval(() => {
+  import("../services/cleanup-coordinator").then(m => m.registerCleanup("empireLaunchRateLimit", () => {
     const cutoff = Date.now() - 5 * 60 * 1000;
-    for (const [key, ts] of Array.from(empireLaunchRateLimitEmail)) {
+    for (const [key, ts] of empireLaunchRateLimitEmail) {
       if (ts < cutoff) empireLaunchRateLimitEmail.delete(key);
     }
-    for (const [key, ts] of Array.from(empireLaunchRateLimitIP)) {
+    for (const [key, ts] of empireLaunchRateLimitIP) {
       if (ts < cutoff) empireLaunchRateLimitIP.delete(key);
     }
-  }, 60_000);
+  }, 60_000));
 
   const empireLaunchSchema = z.object({
     email: z.string().email("Please provide a valid email address").max(320),

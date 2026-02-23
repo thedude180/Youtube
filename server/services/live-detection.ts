@@ -14,12 +14,8 @@ interface DetectedBroadcast {
 
 const trackedBroadcasts = new Map<string, { streamId: number; platform: string; broadcastId: string; missCount: number }>();
 
-setInterval(() => {
-  if (trackedBroadcasts.size > 10000) {
-    trackedBroadcasts.clear();
-    console.log("[LiveDetection] Cleared oversized trackedBroadcasts cache");
-  }
-}, 30 * 60 * 1000);
+import { registerMap } from "./resilience-core";
+registerMap("trackedBroadcasts", trackedBroadcasts, 500);
 
 let running = false;
 

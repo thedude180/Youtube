@@ -24,7 +24,8 @@ const sessions = new Map<string, UserBacklogSession>();
 const activeLoops = new Set<string>();
 
 const BM_SESSION_TTL_MS = 4 * 60 * 60 * 1000;
-setInterval(() => {
+import { registerCleanup } from "./services/cleanup-coordinator";
+registerCleanup("backlogMgrSessions", () => {
   const now = Date.now();
   for (const [userId, session] of sessions) {
     if (now - session.lastActivityAt.getTime() > BM_SESSION_TTL_MS && !activeLoops.has(userId)) {

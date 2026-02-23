@@ -232,8 +232,8 @@ function createAIRateLimiter(maxRequests: number = 10, windowMs: number = 60000)
   };
 }
 
-// Cleanup expired rate limit entries every 5 minutes
-setInterval(() => {
+import { registerCleanup } from "../services/cleanup-coordinator";
+registerCleanup("aiRateLimit", () => {
   const now = Date.now();
   for (const [endpoint, users] of aiRateLimitMap) {
     for (const [userId, entry] of users) {

@@ -13,6 +13,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { getRetentionBeatsPromptContext } from "../retention-beats-engine";
 import { detectGamingContext, buildGamingPromptSection, getNicheLabel, ContentContext } from "../ai-engine";
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "../creator-intelligence";
+import { registerCleanup } from "../services/cleanup-coordinator";
 
 const PLATFORM_LIMITS = {
   youtube: { dailyQuotaUnits: 10000, updateCostUnits: 50, maxUpdatesPerDay: 180, maxConcurrentPipelines: 3 },
@@ -24,9 +25,9 @@ const PLATFORM_LIMITS = {
 const platformUsage = new Map<string, { date: string; count: number }>();
 const PLATFORM_USAGE_MAX = 500;
 
-setInterval(() => {
+registerCleanup("platformUsage", () => {
   const today = new Date().toISOString().split('T')[0];
-  for (const [key, val] of Array.from(platformUsage)) {
+  for (const [key, val] of platformUsage) {
     if (val.date !== today) platformUsage.delete(key);
   }
   if (platformUsage.size > PLATFORM_USAGE_MAX) platformUsage.clear();
@@ -320,7 +321,7 @@ async function autoSpawnMissingVodPipelines() {
   }
 }
 
-setInterval(() => {
+registerCleanup("dualPipelineProcess", () => {
   withRetry(() => processWaitingVodPipelines(), "dual-pipeline-vod-waiting").catch(err =>
     console.error("[DualPipeline] VOD waiting check error:", String(err).substring(0, 120))
   );
@@ -330,7 +331,7 @@ setInterval(() => {
   withRetry(() => autoSpawnMissingVodPipelines(), "dual-pipeline-autospawn").catch(err =>
     console.error("[DualPipeline] Auto-spawn VOD check error:", String(err).substring(0, 120))
   );
-}, 60000);
+}, 60_000);
 
 async function runStreamPipelineStep(
   stepId: string,

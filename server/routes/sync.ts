@@ -5,9 +5,10 @@ import { storage } from "../storage";
 
 const syncState = new Map<string, { startedAt: number; status: "syncing" | "complete" | "error" }>();
 
-setInterval(() => {
+import { registerCleanup } from "../services/cleanup-coordinator";
+registerCleanup("syncState", () => {
   const cutoff = Date.now() - 10 * 60 * 1000;
-  for (const [key, val] of Array.from(syncState)) {
+  for (const [key, val] of syncState) {
     if (val.startedAt < cutoff) syncState.delete(key);
   }
 }, 60_000);

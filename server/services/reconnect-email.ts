@@ -7,7 +7,8 @@ const logger = createLogger("reconnect-email");
 
 const recentAlerts = new Map<string, number>();
 
-setInterval(() => {
+import { registerCleanup } from "./cleanup-coordinator";
+registerCleanup("reconnectAlerts", () => {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const [key, ts] of recentAlerts) {
     if (ts < cutoff) recentAlerts.delete(key);

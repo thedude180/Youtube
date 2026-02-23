@@ -444,9 +444,10 @@ export function forceStartLoop(userId: string) {
   logger.info("Content loop force-started", { userId });
 }
 
-setInterval(() => {
+import { registerCleanup } from "./services/cleanup-coordinator";
+registerCleanup("contentLoopStale", () => {
   const cutoff = Date.now() - 48 * 60 * 60 * 1000;
-  for (const [userId, state] of Array.from(userLoops)) {
+  for (const [userId, state] of userLoops) {
     if (state.phase === "idle" && state.lastRunAt < cutoff && state.lastRunAt > 0) {
       clearTimer(userId);
       userLoops.delete(userId);

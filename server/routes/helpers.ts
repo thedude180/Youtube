@@ -153,10 +153,11 @@ export function rateLimitEndpoint(maxRequests: number = 10, windowMs: number = 6
   };
 }
 
-setInterval(() => {
+import { registerCleanup } from "../services/cleanup-coordinator";
+registerCleanup("endpointLimits", () => {
   const now = Date.now();
-  for (const [endpoint, users] of Array.from(endpointLimits)) {
-    for (const [userId, entry] of Array.from(users)) {
+  for (const [endpoint, users] of endpointLimits) {
+    for (const [userId, entry] of users) {
       if (now > entry.resetAt) users.delete(userId);
     }
     if (users.size === 0) endpointLimits.delete(endpoint);

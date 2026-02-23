@@ -44,11 +44,10 @@ function cleanupMaps(): void {
   }
 }
 
-const fortressCleanupInterval = setInterval(cleanupMaps, 60_000);
+import { registerCleanup } from "./cleanup-coordinator";
+registerCleanup("fortress", cleanupMaps, 60_000);
 
-export function stopFortressCleanup(): void {
-  clearInterval(fortressCleanupInterval);
-}
+export function stopFortressCleanup(): void {}
 
 const LOCKOUT_TIERS = [
   { t: 5, m: 5 },

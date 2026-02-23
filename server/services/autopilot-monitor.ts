@@ -37,11 +37,10 @@ function cleanupAutoFixLog(): void {
   }
 }
 
-const autoFixCleanupInterval = setInterval(cleanupAutoFixLog, 5 * 60 * 1000);
+import { registerCleanup } from "./cleanup-coordinator";
+registerCleanup("autoFixLog", cleanupAutoFixLog, 5 * 60 * 1000);
 
-export function stopAutoFixCleanup(): void {
-  clearInterval(autoFixCleanupInterval);
-}
+export function stopAutoFixCleanup(): void {}
 
 function logAutoFix(userId: string, system: string, action: string): void {
   const key = `${userId}:${system}`;
