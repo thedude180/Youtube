@@ -1325,7 +1325,7 @@ export default function Autopilot() {
                   {stealthIssues.map((issue, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <AlertCircle className="h-3 w-3 text-yellow-500 mt-1 shrink-0" />
-                      <p className="text-xs text-muted-foreground">{issue}</p>
+                      <p className="text-xs text-muted-foreground">{String(issue)}</p>
                     </div>
                   ))}
                 </div>
@@ -1344,7 +1344,7 @@ export default function Autopilot() {
                   {stealthRecommendations.map((rec, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <CheckCircle2 className="h-3 w-3 text-blue-500 mt-1 shrink-0" />
-                      <p className="text-xs text-muted-foreground">{rec}</p>
+                      <p className="text-xs text-muted-foreground">{String(rec)}</p>
                     </div>
                   ))}
                 </div>
