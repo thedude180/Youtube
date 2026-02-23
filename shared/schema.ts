@@ -1758,6 +1758,10 @@ export const teamMembers = pgTable("team_members", {
   invitedEmail: text("invited_email").notNull(),
   role: text("role").notNull().default("viewer"),
   status: text("status").notNull().default("pending"),
+  isAi: boolean("is_ai").default(false),
+  aiAgentType: text("ai_agent_type"),
+  aiPersonality: text("ai_personality"),
+  lastActiveAt: timestamp("last_active_at"),
   invitedAt: timestamp("invited_at").defaultNow(),
   joinedAt: timestamp("joined_at"),
   removedAt: timestamp("removed_at"),
@@ -1765,6 +1769,31 @@ export const teamMembers = pgTable("team_members", {
   ownerIdIdx: index("team_members_owner_id_idx").on(table.ownerId),
   memberUserIdIdx: index("team_members_member_user_id_idx").on(table.memberUserId),
   statusIdx: index("team_members_status_idx").on(table.status),
+}));
+
+export const AI_AGENT_TYPES = ["ai-editor", "ai-moderator", "ai-analyst"] as const;
+export const AI_TASK_STATUSES = ["queued", "in_progress", "completed", "failed", "handed_off"] as const;
+
+export const aiAgentTasks = pgTable("ai_agent_tasks", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  agentRole: text("agent_role").notNull(),
+  taskType: text("task_type").notNull(),
+  title: text("title").notNull(),
+  payload: jsonb("payload").$type<Record<string, any>>(),
+  status: text("status").notNull().default("queued"),
+  result: jsonb("result").$type<Record<string, any>>(),
+  handedOffTo: text("handed_off_to"),
+  parentTaskId: integer("parent_task_id"),
+  priority: integer("priority").default(5),
+  scheduledAt: timestamp("scheduled_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  ownerIdIdx: index("ai_agent_tasks_owner_id_idx").on(table.ownerId),
+  statusIdx: index("ai_agent_tasks_status_idx").on(table.status),
+  agentRoleIdx: index("ai_agent_tasks_agent_role_idx").on(table.agentRole),
 }));
 
 export const teamActivityLog = pgTable("team_activity_log", {
@@ -1959,7 +1988,8 @@ export const insertGrowthPredictionSchema = createInsertSchema(growthPredictions
 export const insertDescriptionTemplateSchema = createInsertSchema(descriptionTemplates).omit({ id: true, createdAt: true });
 export const insertStreamPerformanceLogSchema = createInsertSchema(streamPerformanceLogs).omit({ id: true, createdAt: true });
 export const insertLinkedChannelSchema = createInsertSchema(linkedChannels).omit({ id: true, createdAt: true });
-export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, invitedAt: true, joinedAt: true, removedAt: true });
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, invitedAt: true, joinedAt: true, removedAt: true, lastActiveAt: true });
+export const insertAiAgentTaskSchema = createInsertSchema(aiAgentTasks).omit({ id: true, startedAt: true, completedAt: true, createdAt: true });
 export const insertTeamActivityLogSchema = createInsertSchema(teamActivityLog).omit({ id: true, createdAt: true });
 
 // === SELECT TYPES ===
@@ -2046,6 +2076,7 @@ export type StreamPerformanceLog = typeof streamPerformanceLogs.$inferSelect;
 export type LinkedChannel = typeof linkedChannels.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type TeamActivityLogEntry = typeof teamActivityLog.$inferSelect;
+export type AiAgentTask = typeof aiAgentTasks.$inferSelect;
 
 // === INSERT TYPES ===
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
@@ -2128,6 +2159,7 @@ export type InsertStreamPerformanceLog = z.infer<typeof insertStreamPerformanceL
 export type InsertLinkedChannel = z.infer<typeof insertLinkedChannelSchema>;
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
 export type InsertTeamActivityLog = z.infer<typeof insertTeamActivityLogSchema>;
+export type InsertAiAgentTask = z.infer<typeof insertAiAgentTaskSchema>;
 
 export type UpdateChannelRequest = Partial<InsertChannel> & { lastSyncAt?: Date };
 export type UpdateVideoRequest = Partial<InsertVideo>;

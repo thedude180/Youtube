@@ -87,6 +87,7 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **Multi-Model AI Router**: Smart model selection by task, user tier, and priority (gpt-4o-mini, gpt-4o).
     - **Content Quality Engine**: AI-powered quality scoring for titles, descriptions, SEO, and engagement prediction with platform-specific optimization.
     - **Dashboard Intelligence Engine**: Real-time AI-generated insights, trend detection, and opportunity alerts.
+    - **AI Team Engine**: 3 autonomous AI agents (Editor, Moderator, Analyst) that collaborate like a real team — auto-provisioned per user, execute OpenAI-powered tasks, hand off work to each other through a shared task queue, run on 6-hour autonomous cycles, with full activity logging and status tracking.
     - **Conversational AI Co-Pilot**: Context-aware AI assistant with tool-calling for channel history, performance, and scheduling.
     - **Performance at Scale**: Request deduplication, lazy computation, slow-query detection, global performance reporting.
 - **Engine Heartbeat System**: Records real-time status, timestamps, and failure counts for background engines.

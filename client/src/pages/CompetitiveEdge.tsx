@@ -623,20 +623,44 @@ function SponsorshipTab() {
   );
 }
 
-const ROLE_META: Record<string, { label: string; desc: string; color: string }> = {
-  owner: { label: "Owner", desc: "Full access to everything", color: "text-yellow-400" },
-  editor: { label: "Editor", desc: "Content creation & uploads", color: "text-blue-400" },
-  moderator: { label: "Moderator", desc: "Comments & community", color: "text-green-400" },
-  viewer: { label: "Viewer", desc: "Read-only access", color: "text-muted-foreground" },
+const AGENT_META: Record<string, { icon: any; color: string; bgColor: string; borderColor: string }> = {
+  "ai-editor": { icon: Video, color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/30" },
+  "ai-moderator": { icon: Users, color: "text-green-400", bgColor: "bg-green-500/10", borderColor: "border-green-500/30" },
+  "ai-analyst": { icon: BarChart3, color: "text-purple-400", bgColor: "bg-purple-500/10", borderColor: "border-purple-500/30" },
+};
+
+const STATUS_META: Record<string, { label: string; color: string; dotColor: string }> = {
+  idle: { label: "Idle", color: "text-emerald-400", dotColor: "bg-emerald-400" },
+  working: { label: "Working", color: "text-yellow-400", dotColor: "bg-yellow-400 animate-pulse" },
+  offline: { label: "Offline", color: "text-muted-foreground", dotColor: "bg-muted-foreground" },
 };
 
 function TeamTab() {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<any>({ queryKey: ["/api/team/members"] });
-  const { data: sops } = useQuery<any>({ queryKey: ["/api/team/sops"] });
+  const { data: aiStatus, isLoading: aiLoading } = useQuery<any>({ queryKey: ["/api/team/ai/status"] });
   const { data: activityData } = useQuery<any[]>({ queryKey: ["/api/team/activity"] });
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
+  const [activeSection, setActiveSection] = useState<"ai-team" | "human-team">("ai-team");
+
+  const runCycleMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/team/ai/run-cycle"),
+    onSuccess: () => {
+      toast({ title: "AI Team Cycle Complete", description: "All agents have processed their tasks" });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/ai/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to run team cycle", variant: "destructive" }),
+  });
+
+  const sendTaskMutation = useMutation({
+    mutationFn: (params: { agentRole: string; taskType: string; title: string }) => apiRequest("POST", "/api/team/ai/task", params),
+    onSuccess: () => {
+      toast({ title: "Task Queued" });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/ai/status"] });
+    },
+  });
 
   const inviteMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/team/invite", { email: inviteEmail, role: inviteRole }),
@@ -659,7 +683,6 @@ function TeamTab() {
     onSuccess: () => {
       toast({ title: "Role Updated" });
       queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
     },
   });
 
@@ -668,233 +691,348 @@ function TeamTab() {
     onSuccess: () => {
       toast({ title: "Member Removed" });
       queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
     },
   });
 
-  const cancelInviteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/team/member/${id}`),
-    onSuccess: () => {
-      toast({ title: "Invitation Cancelled" });
-      queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/team/activity"] });
-    },
-  });
-
-  if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-24" />)}</div>;
+  if (isLoading || aiLoading) return <div className="space-y-4">{[1,2,3,4].map(i => <Skeleton key={i} className="h-32" />)}</div>;
 
   const d = data || {};
-  const members = d.members || [];
+  const humanMembers = (d.members || []).filter((m: any) => !m.isAi);
   const pending = d.invitePending || [];
+  const agents = aiStatus?.agents || [];
+  const recentTasks = aiStatus?.recentTasks || [];
+  const health = aiStatus?.teamHealth || {};
   const activity = activityData || [];
 
   return (
     <div className="space-y-4" data-testid="tab-team">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Team Members" value={members.length} icon={Users} testId="stat-team-members" />
-        <StatCard label="Available Roles" value={(d.roles || []).length} icon={Lock} testId="stat-team-roles" />
-        <StatCard label="Pending Invites" value={pending.length} icon={Clock} testId="stat-team-invites" />
-        <StatCard label="SOPs" value={d.sopCount || (sops?.templates || []).length} icon={Settings2} testId="stat-team-sops" />
+        <StatCard label="AI Agents" value={agents.length} icon={Brain} trend="Active" testId="stat-ai-agents" />
+        <StatCard label="Tasks Completed" value={health.completedTasks || 0} icon={CheckCircle2} testId="stat-tasks-completed" />
+        <StatCard label="Handoffs" value={health.handoffs || 0} icon={ArrowRight} trend="Cross-team" testId="stat-handoffs" />
+        <StatCard label="Human Members" value={humanMembers.length + pending.length} icon={Users} testId="stat-human-members" />
       </div>
 
-      <Card data-testid="card-invite-member">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <UserPlus className="h-4 w-4 text-primary" />
-            Invite Team Member
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => { e.preventDefault(); if (inviteEmail.trim()) inviteMutation.mutate(); }} className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                data-testid="input-invite-email"
-                type="email"
-                placeholder="teammate@example.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                className="pl-8"
-                required
-              />
-            </div>
-            <Select value={inviteRole} onValueChange={setInviteRole}>
-              <SelectTrigger className="w-full sm:w-[140px]" data-testid="select-invite-role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="editor">Editor</SelectItem>
-                <SelectItem value="moderator">Moderator</SelectItem>
-                <SelectItem value="viewer">Viewer</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="submit" disabled={inviteMutation.isPending || !inviteEmail.trim()} data-testid="button-send-invite">
-              {inviteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
-              Invite
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="flex gap-2 mb-2">
+        <Button
+          variant={activeSection === "ai-team" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setActiveSection("ai-team")}
+          data-testid="button-section-ai"
+        >
+          <Brain className="h-4 w-4 mr-1" /> AI Team
+        </Button>
+        <Button
+          variant={activeSection === "human-team" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setActiveSection("human-team")}
+          data-testid="button-section-human"
+        >
+          <Users className="h-4 w-4 mr-1" /> Human Team
+        </Button>
+      </div>
 
-      {members.length > 0 && (
-        <Card data-testid="card-team-members">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              Active Members ({members.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {members.map((m: any) => (
-                <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/30" data-testid={`member-row-${m.id}`}>
-                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                    {m.profileImageUrl ? (
-                      <img src={m.profileImageUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-                    ) : (
-                      <Users className="h-4 w-4 text-primary" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.invitedEmail}</p>
-                    <p className="text-xs text-muted-foreground truncate">{m.invitedEmail}</p>
-                  </div>
-                  <Select value={m.role} onValueChange={(role) => changeRoleMutation.mutate({ id: m.id, role })} >
-                    <SelectTrigger className="w-[120px]" data-testid={`select-role-${m.id}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="editor">Editor</SelectItem>
-                      <SelectItem value="moderator">Moderator</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="ghost" size="icon" onClick={() => removeMutation.mutate(m.id)} data-testid={`button-remove-${m.id}`} title="Remove member">
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {pending.length > 0 && (
-        <Card data-testid="card-pending-invites">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-400" />
-              Pending Invitations ({pending.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {pending.map((p: any) => (
-                <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/20" data-testid={`pending-row-${p.id}`}>
-                  <Mail className="h-4 w-4 text-yellow-400 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">{p.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Invited as <span className="capitalize font-medium">{p.role}</span> · {p.invitedAt ? new Date(p.invitedAt).toLocaleDateString() : ""}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-yellow-400 border-yellow-400/30">Pending</Badge>
-                  <Button variant="ghost" size="icon" onClick={() => cancelInviteMutation.mutate(p.id)} data-testid={`button-cancel-invite-${p.id}`} title="Cancel invitation">
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card data-testid="card-team-roles">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Lock className="h-4 w-4 text-primary" />
-            Role Permissions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {Object.entries(ROLE_META).map(([role, meta]) => (
-              <div key={role} className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
-                <p className={`text-sm font-medium ${meta.color}`}>{meta.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{meta.desc}</p>
+      {activeSection === "ai-team" && (
+        <>
+          <Card data-testid="card-ai-agents" className="border-primary/20">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-primary" />
+                  AI Team — Working Together
+                </CardTitle>
+                <Button
+                  size="sm"
+                  onClick={() => runCycleMutation.mutate()}
+                  disabled={runCycleMutation.isPending}
+                  data-testid="button-run-cycle"
+                >
+                  {runCycleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Zap className="h-4 w-4 mr-1" />}
+                  Run Team Cycle
+                </Button>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {agents.map((agent: any) => {
+                  const meta = AGENT_META[agent.type] || AGENT_META["ai-analyst"];
+                  const statusMeta = STATUS_META[agent.status] || STATUS_META.idle;
+                  const AgentIcon = meta.icon;
+                  return (
+                    <div key={agent.type} className={`p-4 rounded-xl ${meta.bgColor} border ${meta.borderColor} relative overflow-hidden`} data-testid={`agent-card-${agent.type}`}>
+                      <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${statusMeta.dotColor}`} />
+                        <span className={`text-[10px] font-medium ${statusMeta.color}`}>{statusMeta.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`h-10 w-10 rounded-lg ${meta.bgColor} border ${meta.borderColor} flex items-center justify-center`}>
+                          <AgentIcon className={`h-5 w-5 ${meta.color}`} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold flex items-center gap-1">
+                            {agent.name}
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/30 text-primary ml-1">AI</Badge>
+                          </p>
+                          <p className="text-[10px] text-muted-foreground capitalize">{agent.role}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{agent.personality}</p>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">{agent.tasksCompleted} tasks done</span>
+                        {agent.tasksQueued > 0 && <Badge variant="secondary" className="text-[9px] h-4">{agent.tasksQueued} queued</Badge>}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {(agent.capabilities || []).slice(0, 3).map((cap: string) => (
+                          <span key={cap} className="text-[9px] px-1.5 py-0.5 rounded-full bg-background/50 text-muted-foreground border border-border/30">
+                            {cap.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                        {(agent.capabilities || []).length > 3 && (
+                          <span className="text-[9px] text-muted-foreground/60">+{agent.capabilities.length - 3} more</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
-      {activity.length > 0 && (
-        <Card data-testid="card-team-activity">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
-              Activity Log
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {activity.slice(0, 20).map((a: any) => (
-                <div key={a.id} className="flex items-start gap-2 text-xs p-2 rounded bg-muted/10" data-testid={`activity-row-${a.id}`}>
-                  <div className="mt-0.5">
-                    {a.action === "invited" && <UserPlus className="h-3.5 w-3.5 text-blue-400" />}
-                    {a.action === "accepted" && <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />}
-                    {a.action === "rejected" && <AlertTriangle className="h-3.5 w-3.5 text-red-400" />}
-                    {a.action === "removed" && <Trash2 className="h-3.5 w-3.5 text-red-400" />}
-                    {a.action === "invite_cancelled" && <Trash2 className="h-3.5 w-3.5 text-orange-400" />}
-                    {a.action === "role_changed" && <Settings2 className="h-3.5 w-3.5 text-yellow-400" />}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-foreground capitalize">{a.action.replace("_", " ")}</span>
-                    {a.targetEmail && <span className="text-muted-foreground"> — {a.targetEmail}</span>}
-                    {a.metadata?.role && <span className="text-muted-foreground"> as {a.metadata.role}</span>}
-                    {a.metadata?.oldRole && a.metadata?.newRole && (
-                      <span className="text-muted-foreground"> from {a.metadata.oldRole} to {a.metadata.newRole}</span>
-                    )}
-                  </div>
-                  <span className="text-muted-foreground/60 shrink-0">
-                    {a.createdAt ? new Date(a.createdAt).toLocaleDateString() : ""}
-                  </span>
+          <Card data-testid="card-collaboration-flow" className="border-primary/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ArrowRight className="h-4 w-4 text-primary" />
+                Team Collaboration Flow
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-center gap-2 py-3 flex-wrap">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                  <BarChart3 className="h-4 w-4 text-purple-400" />
+                  <span className="text-xs font-medium">Analyst</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex flex-col items-center">
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-[9px] text-muted-foreground">insights</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <Video className="h-4 w-4 text-blue-400" />
+                  <span className="text-xs font-medium">Editor</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-[9px] text-muted-foreground">content</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                  <Users className="h-4 w-4 text-green-400" />
+                  <span className="text-xs font-medium">Moderator</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <ArrowRight className="h-4 w-4 text-muted-foreground rotate-180" />
+                  <span className="text-[9px] text-muted-foreground">feedback</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                  <BarChart3 className="h-4 w-4 text-purple-400" />
+                  <span className="text-xs font-medium">Analyst</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                Agents autonomously hand off tasks to each other — the Analyst feeds data to the Editor, who creates content for the Moderator to promote, with feedback looping back
+              </p>
+            </CardContent>
+          </Card>
+
+          {recentTasks.length > 0 && (
+            <Card data-testid="card-recent-tasks">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  Recent AI Tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {recentTasks.slice(0, 15).map((t: any) => {
+                    const meta = AGENT_META[t.agentRole] || AGENT_META["ai-analyst"];
+                    const TaskIcon = meta.icon;
+                    return (
+                      <div key={t.id} className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/10 border border-border/20" data-testid={`task-row-${t.id}`}>
+                        <TaskIcon className={`h-4 w-4 mt-0.5 shrink-0 ${meta.color}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{t.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="outline" className={`text-[9px] px-1 h-4 ${meta.color} ${meta.borderColor}`}>
+                              {t.agentRole?.replace("ai-", "")}
+                            </Badge>
+                            <Badge variant={t.status === "completed" ? "default" : t.status === "handed_off" ? "secondary" : t.status === "failed" ? "destructive" : "outline"} className="text-[9px] px-1 h-4">
+                              {t.status === "handed_off" ? `→ ${t.handedOffTo?.replace("ai-", "")}` : t.status}
+                            </Badge>
+                          </div>
+                          {t.result?.output && (
+                            <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{typeof t.result.output === "string" ? t.result.output : JSON.stringify(t.result.output)}</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                          {t.completedAt ? new Date(t.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activity.length > 0 && (
+            <Card data-testid="card-team-activity">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  Team Activity Log
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {activity.slice(0, 25).map((a: any) => {
+                    const isAi = a.actorUserId?.startsWith("ai:");
+                    return (
+                      <div key={a.id} className="flex items-start gap-2 text-xs p-2 rounded bg-muted/10" data-testid={`activity-row-${a.id}`}>
+                        <div className="mt-0.5">
+                          {a.action === "ai_task_completed" && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                          {a.action === "ai_handoff" && <ArrowRight className="h-3.5 w-3.5 text-yellow-400" />}
+                          {a.action === "ai_agent_provisioned" && <Sparkles className="h-3.5 w-3.5 text-primary" />}
+                          {a.action === "invited" && <UserPlus className="h-3.5 w-3.5 text-blue-400" />}
+                          {a.action === "accepted" && <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />}
+                          {a.action === "rejected" && <AlertTriangle className="h-3.5 w-3.5 text-red-400" />}
+                          {a.action === "removed" && <Trash2 className="h-3.5 w-3.5 text-red-400" />}
+                          {a.action === "invite_cancelled" && <Trash2 className="h-3.5 w-3.5 text-orange-400" />}
+                          {a.action === "role_changed" && <Settings2 className="h-3.5 w-3.5 text-yellow-400" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {isAi && <Badge variant="outline" className="text-[8px] px-1 h-3 mr-1 border-primary/30 text-primary">AI</Badge>}
+                          <span className="text-foreground capitalize">{a.action.replaceAll("_", " ")}</span>
+                          {a.metadata?.summary && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{a.metadata.summary}</p>}
+                          {a.metadata?.from && a.metadata?.to && (
+                            <span className="text-muted-foreground text-[10px]"> {a.metadata.from.replace("ai-", "")} → {a.metadata.to.replace("ai-", "")}</span>
+                          )}
+                          {a.targetEmail && !isAi && <span className="text-muted-foreground"> — {a.targetEmail}</span>}
+                        </div>
+                        <span className="text-muted-foreground/50 shrink-0 text-[10px]">
+                          {a.createdAt ? new Date(a.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
-      <Card data-testid="card-team-sops">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Settings2 className="h-4 w-4 text-primary" />
-            Standard Operating Procedures
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(sops?.templates || []).length === 0 ? (
-            <div className="flex flex-col items-center py-6 text-center">
-              <Settings2 className="h-8 w-8 text-muted-foreground/20 mb-2" />
-              <p className="text-sm text-muted-foreground">No SOPs created yet</p>
-              <p className="text-xs text-muted-foreground/60">SOPs help team members follow consistent workflows</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {(sops?.templates || []).map((t: any, i: number) => (
-                <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-muted/20" data-testid={`sop-${i}`}>
-                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm">{t.title}</p>
-                    <p className="text-xs text-muted-foreground">{t.steps?.length || 0} steps · {t.assignedRole}</p>
-                  </div>
+      {activeSection === "human-team" && (
+        <>
+          <Card data-testid="card-invite-member">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-primary" />
+                Invite Team Member
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={(e) => { e.preventDefault(); if (inviteEmail.trim()) inviteMutation.mutate(); }} className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input data-testid="input-invite-email" type="email" placeholder="teammate@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="pl-8" required />
                 </div>
-              ))}
-            </div>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger className="w-full sm:w-[140px]" data-testid="select-invite-role"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="editor">Editor</SelectItem>
+                    <SelectItem value="moderator">Moderator</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button type="submit" disabled={inviteMutation.isPending || !inviteEmail.trim()} data-testid="button-send-invite">
+                  {inviteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
+                  Invite
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {humanMembers.length > 0 && (
+            <Card data-testid="card-team-members">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  Active Members ({humanMembers.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {humanMembers.map((m: any) => (
+                    <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/30" data-testid={`member-row-${m.id}`}>
+                      <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                        {m.profileImageUrl ? <img src={m.profileImageUrl} alt="" className="h-8 w-8 rounded-full object-cover" /> : <Users className="h-4 w-4 text-primary" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.invitedEmail}</p>
+                        <p className="text-xs text-muted-foreground truncate">{m.invitedEmail}</p>
+                      </div>
+                      <Select value={m.role} onValueChange={(role) => changeRoleMutation.mutate({ id: m.id, role })}>
+                        <SelectTrigger className="w-[120px]" data-testid={`select-role-${m.id}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="editor">Editor</SelectItem>
+                          <SelectItem value="moderator">Moderator</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button variant="ghost" size="icon" onClick={() => removeMutation.mutate(m.id)} data-testid={`button-remove-${m.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+
+          {pending.length > 0 && (
+            <Card data-testid="card-pending-invites">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-yellow-400" />
+                  Pending Invitations ({pending.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {pending.map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/20" data-testid={`pending-row-${p.id}`}>
+                      <Mail className="h-4 w-4 text-yellow-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{p.email}</p>
+                        <p className="text-xs text-muted-foreground">Invited as <span className="capitalize font-medium">{p.role}</span></p>
+                      </div>
+                      <Badge variant="outline" className="text-yellow-400 border-yellow-400/30">Pending</Badge>
+                      <Button variant="ghost" size="icon" onClick={() => removeMutation.mutate(p.id)} data-testid={`button-cancel-invite-${p.id}`}><Trash2 className="h-4 w-4 text-muted-foreground" /></Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {humanMembers.length === 0 && pending.length === 0 && (
+            <Card>
+              <CardContent className="flex flex-col items-center py-10 text-center">
+                <Users className="h-10 w-10 text-muted-foreground/20 mb-3" />
+                <p className="text-sm text-muted-foreground">No human team members yet</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Your AI team is handling everything — invite humans when you need extra hands</p>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
     </div>
   );
 }

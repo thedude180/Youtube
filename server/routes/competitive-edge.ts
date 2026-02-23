@@ -7,6 +7,7 @@ import { createLogger } from "../lib/logger";
 import { sendSSEEvent } from "./events";
 import { getUserId } from "./helpers";
 import { storage } from "../storage";
+import { provisionAiAgents, getAgentStatus, runTeamCycle, enqueueAgentTask, getAgentConfig } from "../ai-team-engine";
 
 const logger = createLogger("competitive-edge");
 
@@ -607,6 +608,51 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
         { id: "sop-3", title: "Sponsorship Review", steps: ["Check brand safety score", "Review contract terms", "Verify deliverables", "Submit content for approval", "Track performance metrics"], assignedRole: "owner" },
       ],
     });
+  });
+
+  // ── 7b. AI Team Agents ──
+
+  app.get("/api/team/ai/status", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      await provisionAiAgents(userId);
+      const status = await getAgentStatus(userId);
+      res.json(status);
+    } catch (err: any) {
+      logger.error("AI team status error", { error: err.message });
+      res.status(500).json({ error: "Failed to fetch AI team status" });
+    }
+  });
+
+  app.post("/api/team/ai/run-cycle", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await runTeamCycle(userId);
+      res.json(result);
+    } catch (err: any) {
+      logger.error("AI team cycle error", { error: err.message });
+      res.status(500).json({ error: "Failed to run AI team cycle" });
+    }
+  });
+
+  app.post("/api/team/ai/task", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { agentRole, taskType, title, payload, priority } = req.body;
+      if (!agentRole || !taskType || !title) return res.status(400).json({ error: "agentRole, taskType, and title are required" });
+
+      const config = getAgentConfig();
+      if (!(agentRole in config)) return res.status(400).json({ error: "Invalid agent role" });
+
+      const task = await enqueueAgentTask(userId, agentRole, taskType, title, payload, priority);
+      res.json(task);
+    } catch (err: any) {
+      logger.error("AI task enqueue error", { error: err.message });
+      res.status(500).json({ error: "Failed to create task" });
+    }
   });
 
   // ── 8. Copyright Shield ──
