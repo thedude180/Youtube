@@ -2,6 +2,7 @@ import { db } from "../db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
+import { registerMap } from "./resilience-core";
 
 interface PaymentFailure {
   customerId: string;
@@ -55,12 +56,18 @@ interface InvoiceRecord {
 }
 
 const paymentFailures = new Map<string, PaymentFailure>();
+registerMap("paymentFailures", paymentFailures, 200);
 const dunningRecords = new Map<string, DunningRecord>();
+registerMap("dunningRecords", dunningRecords, 200);
 const pausedSubscriptions = new Map<string, PausedSubscription>();
+registerMap("pausedSubscriptions", pausedSubscriptions, 200);
 const trialRecords = new Map<string, TrialRecord>();
+registerMap("trialRecords", trialRecords, 200);
 const trialHistory = new Set<string>();
 const invoiceStore = new Map<string, InvoiceRecord[]>();
+registerMap("invoiceStore", invoiceStore, 500);
 const appliedPromos = new Map<string, string>();
+registerMap("appliedPromos", appliedPromos, 200);
 
 const GRACE_PERIOD_DAYS = 3;
 const DEFAULT_TRIAL_DAYS = 14;

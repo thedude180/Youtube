@@ -1,8 +1,8 @@
 import { pool } from "../db";
 
-const HEAP_WARNING_THRESHOLD = 0.85;
-const HEAP_CRITICAL_THRESHOLD = 0.92;
-const MAP_EMERGENCY_CAP = 50000;
+const MAX_HEAP_MB = parseInt(process.env.NODE_OPTIONS?.match(/--max-old-space-size=(\d+)/)?.[1] || "512", 10);
+const HEAP_WARNING_MB = Math.floor(MAX_HEAP_MB * 0.75);
+const HEAP_CRITICAL_MB = Math.floor(MAX_HEAP_MB * 0.88);
 let lastMemoryWarning = 0;
 let watchdogInterval: ReturnType<typeof setInterval> | null = null;
 let engineCrashCounts = new Map<string, { count: number; lastCrash: number }>();
@@ -54,12 +54,14 @@ export function isEngineThrottled(name: string): boolean {
   return false;
 }
 
-function getHeapPressure(): { ratio: number; heapUsedMB: number; heapTotalMB: number; rssMB: number } {
+function getHeapPressure(): { ratio: number; heapUsedMB: number; heapTotalMB: number; maxHeapMB: number; rssMB: number } {
   const mem = process.memoryUsage();
+  const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   return {
-    ratio: mem.heapUsed / mem.heapTotal,
-    heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+    ratio: heapUsedMB / MAX_HEAP_MB,
+    heapUsedMB,
     heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+    maxHeapMB: MAX_HEAP_MB,
     rssMB: Math.round(mem.rss / 1024 / 1024),
   };
 }
@@ -78,35 +80,67 @@ export function capMap<K, V>(map: Map<K, V>, maxSize: number, name: string): voi
 }
 
 const registeredCaches: Array<{ name: string; clear: () => void }> = [];
+const registeredMaps: Array<{ name: string; map: Map<any, any>; maxSize: number }> = [];
 
 export function registerCache(name: string, clearFn: () => void): void {
   registeredCaches.push({ name, clear: clearFn });
 }
 
+export function registerMap(name: string, map: Map<any, any>, maxSize: number): void {
+  registeredMaps.push({ name, map, maxSize });
+}
+
 function emergencyMemoryRelief(): void {
-  console.warn("[Resilience] EMERGENCY memory relief — clearing all registered caches");
+  console.warn("[Resilience] EMERGENCY memory relief — clearing all registered caches and capping maps");
+
   for (const cache of registeredCaches) {
     try {
       cache.clear();
       console.warn(`[Resilience] Cleared cache: ${cache.name}`);
-    } catch {
-    }
+    } catch {}
   }
+
+  for (const { name, map, maxSize } of registeredMaps) {
+    try {
+      const halfMax = Math.floor(maxSize * 0.5);
+      if (map.size > halfMax) {
+        const toDelete = map.size - halfMax;
+        let deleted = 0;
+        for (const key of map.keys()) {
+          if (deleted >= toDelete) break;
+          map.delete(key);
+          deleted++;
+        }
+        console.warn(`[Resilience] Emergency-capped ${name}: ${map.size} entries (deleted ${deleted})`);
+      }
+    } catch {}
+  }
+
   if (global.gc) {
     global.gc();
     console.warn("[Resilience] Forced garbage collection");
   }
 }
 
+function enforceMapCaps(): void {
+  for (const { name, map, maxSize } of registeredMaps) {
+    if (map.size > maxSize) {
+      capMap(map, maxSize, name);
+    }
+  }
+}
+
 function runWatchdog(): void {
   const pressure = getHeapPressure();
 
-  if (pressure.ratio > HEAP_CRITICAL_THRESHOLD) {
+  enforceMapCaps();
+
+  if (pressure.heapUsedMB > HEAP_CRITICAL_MB) {
     emergencyMemoryRelief();
     lastMemoryWarning = Date.now();
-  } else if (pressure.ratio > HEAP_WARNING_THRESHOLD) {
+  } else if (pressure.heapUsedMB > HEAP_WARNING_MB) {
     if (Date.now() - lastMemoryWarning > 300_000) {
-      console.warn(`[Resilience] Memory pressure warning: ${pressure.heapUsedMB}MB / ${pressure.heapTotalMB}MB (${Math.round(pressure.ratio * 100)}%) RSS: ${pressure.rssMB}MB`);
+      console.warn(`[Resilience] Memory pressure warning: ${pressure.heapUsedMB}MB / ${MAX_HEAP_MB}MB max (${Math.round(pressure.ratio * 100)}%) RSS: ${pressure.rssMB}MB`);
       lastMemoryWarning = Date.now();
     }
   }
@@ -147,6 +181,7 @@ export function getResilienceStatus(): {
   dbPool: ReturnType<typeof checkDbPool>;
   engineCrashes: Record<string, { count: number; lastCrash: number; throttled: boolean }>;
   registeredCaches: number;
+  registeredMaps: Array<{ name: string; size: number; maxSize: number }>;
 } {
   const crashes: Record<string, any> = {};
   for (const [name, entry] of engineCrashCounts) {
@@ -157,5 +192,6 @@ export function getResilienceStatus(): {
     dbPool: checkDbPool(),
     engineCrashes: crashes,
     registeredCaches: registeredCaches.length,
+    registeredMaps: registeredMaps.map(m => ({ name: m.name, size: m.map.size, maxSize: m.maxSize })),
   };
 }

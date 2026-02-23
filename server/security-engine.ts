@@ -3,11 +3,14 @@ import { securityEvents, securityRules } from "@shared/schema";
 import { eq, desc, sql, and, gte, count } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
+import { registerMap } from "./services/resilience-core";
 
 const openai = getOpenAIClient();
 
 const ipFailureMap = new Map<string, { count: number; firstAttempt: number }>();
+registerMap("ipFailureMap", ipFailureMap, 500);
 const ipRequestMap = new Map<string, { count: number; windowStart: number }>();
+registerMap("ipRequestMap", ipRequestMap, 500);
 
 const BRUTE_FORCE_THRESHOLD = 5;
 const BRUTE_FORCE_WINDOW_MS = 5 * 60 * 1000;

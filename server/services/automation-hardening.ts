@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { deadLetterQueue } from "@shared/schema";
 import { eq, desc, and, lte, count, asc } from "drizzle-orm";
+import { registerMap } from "./resilience-core";
 
 const PRIORITY_LEVELS = {
   CRITICAL: 1,
@@ -209,6 +210,7 @@ export async function retryPipelineStep<T>(
 // ==================== BACKPRESSURE HANDLER ====================
 
 const inflightCounters = new Map<string, number>();
+registerMap("inflightCounters", inflightCounters, 200);
 const MAX_INFLIGHT = 100;
 
 export function registerInflight(jobType: string) {
@@ -273,6 +275,7 @@ const PLATFORM_RATE_LIMITS: Record<string, RateLimitConfig> = {
 };
 
 const apiCallLog = new Map<string, number[]>();
+registerMap("apiCallLog", apiCallLog, 100);
 
 function pruneOldCalls(platform: string) {
   const config = PLATFORM_RATE_LIMITS[platform];

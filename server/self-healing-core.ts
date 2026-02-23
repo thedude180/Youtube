@@ -2,6 +2,7 @@ import { getOpenAIClient } from "./lib/openai";
 import { db, withRetry } from "./db";
 import { notifications } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
+import { registerMap } from "./services/resilience-core";
 
 const openai = getOpenAIClient();
 
@@ -41,6 +42,7 @@ const CIRCUIT_BREAKER_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_CONSECUTIVE_FAILURES = 10;
 
 const subsystems: Map<string, SubsystemHealth> = new Map();
+registerMap("selfHealingSubsystems", subsystems, 100);
 let totalSelfHeals = 0;
 let engineStartTime = new Date();
 

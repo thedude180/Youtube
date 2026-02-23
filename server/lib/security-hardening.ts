@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { createLogger } from "./logger";
+import { registerMap } from "../services/resilience-core";
 
 const logger = createLogger("security-hardening");
 
@@ -119,6 +120,7 @@ export function validateContentType() {
 }
 
 const requestFingerprints = new Map<string, { count: number; firstSeen: number; lastSeen: number }>();
+registerMap("requestFingerprints", requestFingerprints, 1000);
 
 export function anomalyDetector() {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -154,7 +156,7 @@ setInterval(() => {
   for (const [key, entry] of Array.from(requestFingerprints)) {
     if (now - entry.lastSeen > 120000) requestFingerprints.delete(key);
   }
-  if (requestFingerprints.size > 50000) {
+  if (requestFingerprints.size > 1000) {
     const entries = Array.from(requestFingerprints.entries()).sort((a, b) => a[1].lastSeen - b[1].lastSeen);
     const toRemove = entries.slice(0, Math.floor(entries.length * 0.3));
     for (const [key] of toRemove) requestFingerprints.delete(key);

@@ -32,7 +32,7 @@ import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
 import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests } from "./lib/security-hardening";
-import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus } from "./services/resilience-core";
+import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache } from "./services/resilience-core";
 
 const logger = createLogger("express");
 
@@ -240,6 +240,7 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 });
 
 const globalRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+registerMap("globalRateLimit", globalRateLimitMap, 1000);
 const GLOBAL_RATE_LIMIT = 300;
 const GLOBAL_RATE_WINDOW = 60_000;
 const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
@@ -251,7 +252,7 @@ const globalRateLimitInterval = setInterval(() => {
   }
   
   // Hard cap: if map exceeds 50000 entries, clear the oldest 20%
-  if (globalRateLimitMap.size > 50000) {
+  if (globalRateLimitMap.size > 1000) {
     const entries = Array.from(globalRateLimitMap.entries()).sort((a, b) => a[1].windowStart - b[1].windowStart);
     const toRemove = entries.slice(0, Math.floor(globalRateLimitMap.size * 0.2));
     for (const [key] of toRemove) globalRateLimitMap.delete(key);
@@ -329,6 +330,7 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 });
 
 const csrfTokens = new Map<string, { token: string; expires: number }>();
+registerMap("csrfTokens", csrfTokens, 500);
 
 const csrfCleanupInterval = setInterval(() => {
   const now = Date.now();
@@ -665,6 +667,10 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) }));
       import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) }));
 
+      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate()));
+      import("./services/ai-hardening").then(m => {
+        if (typeof (m as any).clearAICache === 'function') (m as any).clearAICache();
+      }).catch(() => {});
       startResilienceWatchdog();
 
       log("All 14 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot, Retention Beats, AI Team, Streaming Loop, VOD/Shorts Loop");

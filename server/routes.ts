@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth/index";
 import { storage } from "./storage";
+import { registerMap } from "./services/resilience-core";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerContentRoutes } from "./routes/content";
 import { registerStreamRoutes } from "./routes/stream";
@@ -42,6 +43,7 @@ function requireAuth(req: Request, res: Response): string | null {
 }
 
 const rateLimitMap = new Map<string, { count: number; reset: number }>();
+registerMap("rateLimitMap", rateLimitMap, 500);
 const RATE_LIMIT_WINDOW = 60_000;
 const RATE_LIMIT_MAX_AI = 30;
 const RATE_LIMIT_MAX_DEFAULT = 120;
@@ -65,9 +67,10 @@ function rateLimit(windowMs: number, max: number) {
   };
 }
 
-const RATE_LIMIT_MAX_ENTRIES = 10000;
+const RATE_LIMIT_MAX_ENTRIES = 500;
 
 const aiDailyUsage = new Map<string, { count: number; reset: number }>();
+registerMap("aiDailyUsage", aiDailyUsage, 500);
 
 setInterval(() => {
   const now = Date.now();

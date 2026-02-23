@@ -11,7 +11,7 @@ interface CacheEntry {
   model: string;
 }
 
-const CACHE_MAX_SIZE = 500;
+const CACHE_MAX_SIZE = 50;
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const cache = new LRUCache<string, CacheEntry>(CACHE_MAX_SIZE, CACHE_TTL_MS);
 let cacheHits = 0;

@@ -11,7 +11,7 @@ export class SimpleCache {
   private cache = new Map<string, CacheEntry<any>>();
   private maxSize: number;
 
-  constructor(maxSize = 500) {
+  constructor(maxSize = 100) {
     this.maxSize = maxSize;
     setInterval(() => this.cleanup(), 60_000);
   }
@@ -60,6 +60,10 @@ export class SimpleCache {
 }
 
 export const apiCache = new SimpleCache();
+
+export function clearApiCache(): void {
+  apiCache.invalidate();
+}
 
 export function cached<T>(key: string, ttlSeconds: number, fn: () => T | Promise<T>): T | Promise<T> {
   const existing = apiCache.get<T>(key);
