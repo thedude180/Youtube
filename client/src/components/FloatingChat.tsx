@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAdvisor } from "@/hooks/use-advisor";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,11 +16,20 @@ const suggestions = [
   "Revenue tips?",
 ];
 
+const ONBOARDING_NUDGE = "Welcome! I'm your AI co-pilot — I manage everything automatically once you connect a platform. Head to Settings → Channels to link YouTube, Twitch, or any platform, and I'll start optimizing your content, growing your audience, and handling your entire workflow 24/7. What would you like to start with?";
+
 let persistedMessages: Message[] = [];
 
 interface FloatingChatProps {
   externalOpen?: boolean;
   onExternalClose?: () => void;
+}
+
+function wasNudgeSent(userId: string): boolean {
+  try { return localStorage.getItem(`copilot_nudge_${userId}`) === "1"; } catch { return false; }
+}
+function markNudgeSent(userId: string) {
+  try { localStorage.setItem(`copilot_nudge_${userId}`, "1"); } catch {}
 }
 
 export default function FloatingChat({ externalOpen, onExternalClose }: FloatingChatProps) {
@@ -27,6 +38,19 @@ export default function FloatingChat({ externalOpen, onExternalClose }: Floating
   const [input, setInput] = useState("");
   const advisor = useAdvisor();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+
+  const { data: channelsData } = useQuery<any[]>({
+    queryKey: ["/api/channels"],
+  });
+
+  useEffect(() => {
+    if (user?.id && channelsData && channelsData.length === 0 && messages.length === 0 && !wasNudgeSent(user.id)) {
+      markNudgeSent(user.id);
+      setMessages([{ role: "assistant", content: ONBOARDING_NUDGE }]);
+      setIsOpen(true);
+    }
+  }, [user?.id, channelsData, messages.length]);
 
   useEffect(() => {
     if (scrollRef.current) {

@@ -70,11 +70,6 @@ async function generateAndUploadThumbnail(
       return false;
     }
 
-    if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY || !process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
-      logger.warn("Image generation credentials not configured, skipping thumbnail", { videoDbId });
-      return false;
-    }
-
     logger.info("Generating thumbnail image", { videoDbId, youtubeId, promptLength: prompt.length });
 
     let imageBuffer: Buffer;
@@ -82,7 +77,7 @@ async function generateAndUploadThumbnail(
       const { generateImageBuffer: genImg } = await import("./replit_integrations/image/client");
       imageBuffer = await genImg(prompt, "1024x1024");
     } catch (imgErr) {
-      logger.error("Image generation API failed", { videoDbId, error: String(imgErr) });
+      logger.error("Image generation failed (AI integration may be unavailable)", { videoDbId, error: String(imgErr) });
       return false;
     }
 

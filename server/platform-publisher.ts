@@ -341,12 +341,32 @@ async function postToKick(_accessToken: string, _content: string, _channelData: 
   };
 }
 
+export function sanitizePlaceholders(text: string, meta?: any): string {
+  if (!text) return text;
+  const channelUrl = meta?.channelUrl || meta?.youtubeChannelUrl || "";
+  const videoUrl = meta?.videoUrl || meta?.youtubeUrl || "";
+  const streamUrl = meta?.streamUrl || meta?.liveStreamUrl || videoUrl || channelUrl || "";
+
+  let result = text;
+  result = result.replace(/\[LINK TO ORIGINAL LIVE STREAM\]/gi, streamUrl || "");
+  result = result.replace(/\[LINK(?:\s+TO\s+\w+)*\]/gi, videoUrl || channelUrl || "");
+  result = result.replace(/\[YOUR (?:CHANNEL|STREAM|VIDEO) (?:URL|LINK)\]/gi, channelUrl || "");
+  result = result.replace(/\[(?:STREAM|VIDEO|CHANNEL) (?:URL|LINK)\]/gi, videoUrl || channelUrl || "");
+  result = result.replace(/\[(?:INSERT|ADD|PASTE)[\w\s]*(?:URL|LINK)[\w\s]*\]/gi, videoUrl || channelUrl || "");
+  result = result.replace(/\{\{[\w_]+\}\}/g, "");
+  result = result.replace(/\[(?:SOCIAL LINKS?|TIMESTAMPS?|AFFILIATE DISCLAIMER)\s*(?:PLACEHOLDER)?\]/gi, "");
+  result = result.replace(/\n{3,}/g, "\n\n");
+  return result.trim();
+}
+
 export async function publishToplatform(
   userId: string,
   platform: string,
   content: string,
   metadata?: any,
 ): Promise<PublishResult> {
+  content = sanitizePlaceholders(content, metadata);
+
   if (platform === "youtube" || platform === "youtubeshorts") {
     return {
       success: false,

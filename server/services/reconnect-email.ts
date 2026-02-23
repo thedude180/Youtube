@@ -25,21 +25,34 @@ export async function sendReconnectEmail(userId: string, platform: string): Prom
   try {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user?.email) {
-      logger.warn("No email found for user, cannot send reconnect alert", { userId });
+      logger.warn("No email found for user, sending in-app reconnect notification", { userId, platform });
+      try {
+        const { notifications } = await import("@shared/schema");
+        const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+        await db.insert(notifications).values({
+          userId,
+          type: "system",
+          title: `${platformName} Disconnected`,
+          message: `Your ${platformName} connection has expired. Go to Settings → Channels to reconnect and restore full automation.`,
+          severity: "warning",
+        });
+        const { sendSSEEvent } = await import("../routes/events");
+        sendSSEEvent(userId, "notification", { type: "new" });
+      } catch {}
       return;
     }
 
     const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+    const devDomain = process.env.REPLIT_DEV_DOMAIN;
+    const appDomain = devDomain ? `https://${devDomain}` : "https://etgaming247.com";
+    const settingsUrl = `${appDomain}/settings?tab=channels`;
     const subject = `Action Required: ${platformName} Disconnected from CreatorOS`;
     const body = `Hi ${user.firstName || "there"},
 
 Your ${platformName} connection in CreatorOS has expired or been revoked. This means automated content posting, live detection, and other ${platformName} features are paused.
 
-To restore full automation:
-1. Log in to CreatorOS
-2. Go to Settings > Channels
-3. Click "Reconnect" next to ${platformName}
-4. Authorize CreatorOS to manage your ${platformName} account
+Reconnect now — go to your Settings page and click Reconnect next to ${platformName}:
+${settingsUrl}
 
 Once reconnected, all automation will resume immediately — no content will be lost.
 

@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import { sendSSEEvent } from "./routes/events";
 import { applyGuardrails, removeBannedPhrases } from "./stealth-guardrails";
+import { sanitizePlaceholders } from "./platform-publisher";
 
 interface PlatformSyncResult {
   platform: string;
@@ -58,7 +59,7 @@ async function pushAndUpdateLocal(
   }
   if (updates.description) {
     const guardrailed = await applyGuardrails(updates.description, userId, "youtube", { contentType: "description" });
-    updates.description = guardrailed.content;
+    updates.description = sanitizePlaceholders(guardrailed.content, beforeMeta);
     console.log(`[PlatformSync] Guardrails applied: grade=${guardrailed.safetyGrade}, stealth=${guardrailed.stealthScore}`);
   }
 
