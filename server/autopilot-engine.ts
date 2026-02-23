@@ -86,7 +86,7 @@ const AUTOPILOT_FEATURES = [
 
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
-const ALL_DISTRIBUTION_PLATFORMS = ["x", "discord", "tiktok"];
+const ALL_DISTRIBUTION_PLATFORMS = ["youtube", "x", "discord", "tiktok"];
 const ALL_ANNOUNCE_PLATFORMS = ["x", "discord"];
 
 function getContentTypeForPlatform(platform: string, sourceContentType: string): "video" | "text" | "short_video" {
@@ -193,7 +193,9 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
 
   const autoClipConfig = await getAutopilotConfig(userId, "auto-clip");
   if (!autoClipConfig || autoClipConfig.enabled !== false) {
-    const platforms = (autoClipConfig?.settings as any)?.platforms || ALL_DISTRIBUTION_PLATFORMS;
+    const configPlatforms = (autoClipConfig?.settings as any)?.platforms || ALL_DISTRIBUTION_PLATFORMS;
+    const sourcePlatform = video.platform || "youtube";
+    const platforms = configPlatforms.filter((p: string) => p !== sourcePlatform);
     await generateFullThrottleDistribution(userId, video, creatorTone, platforms, "new-video");
   }
 
@@ -244,8 +246,9 @@ async function generateFullThrottleDistribution(
   platforms: string[],
   contentType: "new-video" | "recycle" | "cross-promo" | "go-live" | "post-stream",
 ) {
+  const isPriorityContent = contentType === "new-video" || contentType === "go-live" || contentType === "post-stream";
   const dailyCount = await getAutopilotDailyCount(userId);
-  if (dailyCount >= MAX_CROSS_POSTS_PER_DAY) {
+  if (!isPriorityContent && dailyCount >= MAX_CROSS_POSTS_PER_DAY) {
     logger.info("Daily cross-post limit reached, skipping distribution", { userId, dailyCount, limit: MAX_CROSS_POSTS_PER_DAY, contentType });
     return;
   }
@@ -316,7 +319,7 @@ async function generateFullThrottleDistribution(
         gte(autopilotQueue.createdAt, todayStart),
       ));
 
-    if ((todayCount?.count || 0) >= budget) {
+    if ((todayCount?.count || 0) >= budget && !isPriorityContent) {
       logger.info("Daily budget reached", { platform, count: todayCount?.count, budget });
       continue;
     }
