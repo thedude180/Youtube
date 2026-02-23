@@ -152,12 +152,21 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
           accessToken: result.accessToken,
           refreshToken: result.refreshToken || ch.refreshToken,
           tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
+          platformData: { ...(ch.platformData as any || {}), _connectionStatus: "active", _lastRefresh: new Date().toISOString() },
         }).where(eq(channels.id, ch.id));
 
         console.log(`[TokenRefresh] Refreshed token for ${ch.platform} channel ${ch.channelName}`);
         refreshed++;
       } else {
-        console.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
+        const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
+        if (isExpiredPermanently) {
+          await db.update(channels).set({
+            platformData: { ...(ch.platformData as any || {}), _connectionStatus: "expired", _expiredAt: new Date().toISOString() },
+          }).where(eq(channels.id, ch.id));
+          console.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} permanently expired — user must re-authorize`);
+        } else {
+          console.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
+        }
         failed++;
       }
     }

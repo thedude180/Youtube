@@ -191,6 +191,7 @@ function StatusIcon({ status }: { status: string }) {
     case "queued":
       return <RefreshCw className="h-4 w-4 text-purple-400 animate-spin" />;
     case "failed":
+    case "permanent_fail":
       return <AlertCircle className="h-4 w-4 text-red-500" />;
     case "approved":
       return <ThumbsUp className="h-4 w-4 text-green-500" />;
@@ -212,6 +213,7 @@ function statusLabel(status: string) {
     case "generating": return "Generating...";
     case "queued": return "Queued";
     case "failed": return "Failed";
+    case "permanent_fail": return "Permanently Failed";
     case "pending": return "Pending";
     default: return status;
   }
@@ -518,7 +520,9 @@ export default function Autopilot() {
       ? rawQueue
       : queueStatusFilter === "processing"
         ? rawQueue.filter(i => isProcessingStatus(i.status))
-        : rawQueue.filter(i => i.status === queueStatusFilter);
+        : queueStatusFilter === "failed"
+          ? rawQueue.filter(i => i.status === "failed" || i.status === "permanent_fail")
+          : rawQueue.filter(i => i.status === queueStatusFilter);
     return filtered;
   }, [rawQueue, queueStatusFilter]);
   const queuePageCount = Math.max(1, Math.ceil(queue.length / QUEUE_PAGE_SIZE));
@@ -531,7 +535,7 @@ export default function Autopilot() {
     const start = safePage * QUEUE_PAGE_SIZE;
     return queue.slice(start, start + QUEUE_PAGE_SIZE);
   }, [queue, queuePage]);
-  const failedCount = useMemo(() => rawQueue.filter(i => i.status === "failed").length, [rawQueue]);
+  const failedCount = useMemo(() => rawQueue.filter(i => i.status === "failed" || i.status === "permanent_fail").length, [rawQueue]);
   const scheduledCount = useMemo(() => rawQueue.filter(i => i.status === "scheduled").length, [rawQueue]);
   const processingCount = useMemo(() => rawQueue.filter(i => isProcessingStatus(i.status)).length, [rawQueue]);
   const publishedCount = useMemo(() => rawQueue.filter(i => i.status === "published").length, [rawQueue]);
@@ -1000,7 +1004,7 @@ export default function Autopilot() {
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <StatusIcon status={item.status} />
-                          <Badge variant={item.status === "failed" ? "destructive" : isProcessingStatus(item.status) ? "default" : "outline"}>
+                          <Badge variant={item.status === "failed" || item.status === "permanent_fail" ? "destructive" : isProcessingStatus(item.status) ? "default" : "outline"}>
                             {statusLabel(item.status)}
                           </Badge>
                           <Badge variant="outline">{typeLabel(item.type)}</Badge>

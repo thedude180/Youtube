@@ -130,8 +130,11 @@ async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
   try {
     const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(slug)}`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return [];
+    const kickCt = res.headers.get("content-type") || "";
+    if (!kickCt.includes("application/json")) return [];
     const data = await res.json();
 
     const channelList = Array.isArray(data.data) ? data.data : data.data ? [data.data] : [];
@@ -165,8 +168,11 @@ async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast[]> {
   try {
     const res = await fetch(`https://rumble.com/api/v0/channel/${encodeURIComponent(channelName)}/livestreams`, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return [];
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) return [];
     const data = await res.json();
 
     const livestreams = Array.isArray(data.livestreams) ? data.livestreams : Array.isArray(data.data) ? data.data : data.items ? data.items : [];

@@ -212,16 +212,19 @@ export async function autoFixFailedPosts(): Promise<{
 
       if (category === "copyright" || category === "config_missing") {
         stats.permanent++;
-        if (!metadata.permanentFailNotified) {
-          const friendlyMsg = category === "copyright"
-            ? `A post to ${post.targetPlatform} was blocked due to copyright. The system won't retry this one — the content may need to be modified.`
-            : `Posting to ${post.targetPlatform} requires platform reconnection. Go to Settings → Platforms to reconnect.`;
+        const friendlyMsg = category === "copyright"
+          ? `A post to ${post.targetPlatform} was blocked due to copyright. The system won't retry this one — the content may need to be modified.`
+          : `Posting to ${post.targetPlatform} requires platform reconnection. Go to Settings → Platforms to reconnect.`;
 
+        if (!metadata.permanentFailNotified) {
           await createNotification(post.userId, `Action needed: ${post.targetPlatform}`, friendlyMsg, "warning");
-          await db.update(autopilotQueue)
-            .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: category } })
-            .where(eq(autopilotQueue.id, post.id));
         }
+        await db.update(autopilotQueue)
+          .set({
+            status: "permanent_fail" as any,
+            metadata: { ...metadata, permanentFailNotified: true, failureCategory: category },
+          })
+          .where(eq(autopilotQueue.id, post.id));
         continue;
       }
 
@@ -321,10 +324,13 @@ export async function autoFixFailedPosts(): Promise<{
             `After ${autoFixAttempts} automatic fix attempts, posting to ${post.targetPlatform} was abandoned. Error: ${errorMsg.substring(0, 150)}`,
             "error"
           );
-          await db.update(autopilotQueue)
-            .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: category } })
-            .where(eq(autopilotQueue.id, post.id));
         }
+        await db.update(autopilotQueue)
+          .set({
+            status: "permanent_fail" as any,
+            metadata: { ...metadata, permanentFailNotified: true, failureCategory: category },
+          })
+          .where(eq(autopilotQueue.id, post.id));
         continue;
       }
 
