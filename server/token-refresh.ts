@@ -90,11 +90,19 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
       delete body.client_secret;
     }
 
-    const res = await fetch(config.tokenUrl, {
-      method: "POST",
-      headers,
-      body: new URLSearchParams(body).toString(),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    let res: Response;
+    try {
+      res = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers,
+        body: new URLSearchParams(body).toString(),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) {
       const errText = await res.text();

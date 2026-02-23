@@ -166,11 +166,15 @@ export async function sendDiscordWebhook(
     };
     if (fields?.length) embed.fields = fields;
 
+    const notifCtrl = new AbortController();
+    const notifTimer = setTimeout(() => notifCtrl.abort(), 10000);
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ embeds: [embed] }),
+      signal: notifCtrl.signal,
     });
+    clearTimeout(notifTimer);
 
     if (!response.ok) {
       console.error(`[NotificationSystem] Discord webhook failed (${response.status})`);

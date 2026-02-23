@@ -74,6 +74,8 @@ async function refreshTikTokToken(channel: any): Promise<string | null> {
 
 async function getCreatorInfo(accessToken: string): Promise<{ privacyOptions: string[] } | null> {
   try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     const res = await fetch(`${TIKTOK_API_BASE}/post/publish/creator_info/query/`, {
       method: "POST",
       headers: {
@@ -81,7 +83,9 @@ async function getCreatorInfo(accessToken: string): Promise<{ privacyOptions: st
         "Content-Type": "application/json",
       },
       body: JSON.stringify({}),
+      signal: ctrl.signal,
     });
+    clearTimeout(timer);
 
     if (!res.ok) {
       logger.warn("TikTok creator info query failed", { status: res.status });
@@ -134,6 +138,8 @@ async function initializeVideoUpload(
   };
 
   try {
+    const initCtrl = new AbortController();
+    const initTimer = setTimeout(() => initCtrl.abort(), 20000);
     const res = await fetch(`${TIKTOK_API_BASE}/post/publish/video/init/`, {
       method: "POST",
       headers: {
@@ -141,7 +147,9 @@ async function initializeVideoUpload(
         "Content-Type": "application/json; charset=UTF-8",
       },
       body: JSON.stringify(body),
+      signal: initCtrl.signal,
     });
+    clearTimeout(initTimer);
 
     const data = await res.json() as any;
 
@@ -212,6 +220,8 @@ async function checkPublishStatus(
   publishId: string,
 ): Promise<{ status: string; videoId?: string }> {
   try {
+    const statusCtrl = new AbortController();
+    const statusTimer = setTimeout(() => statusCtrl.abort(), 15000);
     const res = await fetch(`${TIKTOK_API_BASE}/post/publish/status/fetch/`, {
       method: "POST",
       headers: {
@@ -219,7 +229,9 @@ async function checkPublishStatus(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ publish_id: publishId }),
+      signal: statusCtrl.signal,
     });
+    clearTimeout(statusTimer);
 
     const data = await res.json() as any;
     return {

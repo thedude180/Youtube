@@ -32,6 +32,7 @@ import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
 import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests } from "./lib/security-hardening";
+import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus } from "./services/resilience-core";
 
 const logger = createLogger("express");
 
@@ -512,6 +513,14 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+app.get("/api/resilience", async (_req: Request, res: Response) => {
+  try {
+    res.json(getResilienceStatus());
+  } catch {
+    res.status(500).json({ error: "Failed to get resilience status" });
+  }
+});
+
 app.get("/api/system/memory-stats", async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (!user?.claims?.sub) {
@@ -656,6 +665,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) }));
       import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) }));
 
+      startResilienceWatchdog();
+
       log("All 14 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot, Retention Beats, AI Team, Streaming Loop, VOD/Shorts Loop");
     },
   );
@@ -690,6 +701,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     stopCreatorEducationEngine();
     stopAnalyticsIntelligenceEngine();
     stopBrandPartnershipsEngine();
+    stopResilienceWatchdog();
     stopFortressCleanup();
     stopPushCleanup();
     stopAutoFixCleanup();
@@ -737,9 +749,19 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   process.on("SIGINT", () => shutdown("SIGINT"));
 
   process.on("unhandledRejection", (reason) => {
-    logger.error("Unhandled promise rejection", { error: String(reason) });
+    const msg = String(reason);
+    if (msg.includes("Connection terminated") || msg.includes("ECONNRESET") || msg.includes("Client has encountered")) {
+      logger.warn("Transient DB rejection (suppressed)", { error: msg.substring(0, 120) });
+    } else {
+      logger.error("Unhandled promise rejection", { error: msg.substring(0, 300) });
+    }
   });
   process.on("uncaughtException", (err) => {
-    logger.error("Uncaught exception", { error: String(err) });
+    const msg = String(err);
+    if (msg.includes("Connection terminated") || msg.includes("ECONNRESET")) {
+      logger.warn("Transient DB exception (suppressed)", { error: msg.substring(0, 120) });
+      return;
+    }
+    logger.error("Uncaught exception", { error: msg.substring(0, 300) });
   });
 })();

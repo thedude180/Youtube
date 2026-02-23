@@ -138,7 +138,10 @@ async function getValidToken(userId: string, platform: string): Promise<string |
       }
     }
 
-    const res = await fetch(tokenUrl, { method: "POST", headers, body: new URLSearchParams(body).toString() });
+    const pvCtrl = new AbortController();
+    const pvTimer = setTimeout(() => pvCtrl.abort(), 15000);
+    const res = await fetch(tokenUrl, { method: "POST", headers, body: new URLSearchParams(body).toString(), signal: pvCtrl.signal });
+    clearTimeout(pvTimer);
     if (!res.ok) {
       logger.warn("[Verifier] Token refresh failed", { platform, status: res.status });
       return channel.accessToken;

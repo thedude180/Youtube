@@ -85,7 +85,10 @@ async function getValidToken(userId: string, platform: string): Promise<string |
         body = { grant_type: "refresh_token", refresh_token: channel.refreshToken, client_id: clientId, client_secret: clientSecret };
       }
 
-      const res = await fetch(tokenUrl, { method: "POST", headers, body: new URLSearchParams(body).toString() });
+      const abortCtrl = new AbortController();
+      const abortTimer = setTimeout(() => abortCtrl.abort(), 15000);
+      const res = await fetch(tokenUrl, { method: "POST", headers, body: new URLSearchParams(body).toString(), signal: abortCtrl.signal });
+      clearTimeout(abortTimer);
       if (res.ok) {
         const data = await res.json() as any;
         const newToken = data.access_token;
@@ -111,10 +114,13 @@ async function verifyYouTubeVideo(userId: string, videoId: string): Promise<Cont
   if (!token) return { isAccessible: false, isPublic: false, hasDuration: false, error: "No YouTube credentials" };
 
   try {
+    const ytCtrl = new AbortController();
+    const ytTimer = setTimeout(() => ytCtrl.abort(), 15000);
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=status,snippet,contentDetails,statistics&id=${videoId}`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, signal: ytCtrl.signal }
     );
+    clearTimeout(ytTimer);
 
     if (!res.ok) {
       return { isAccessible: false, isPublic: false, hasDuration: false, error: `YouTube API ${res.status}` };

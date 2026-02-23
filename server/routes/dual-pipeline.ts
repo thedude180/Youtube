@@ -22,6 +22,15 @@ const PLATFORM_LIMITS = {
 };
 
 const platformUsage = new Map<string, { date: string; count: number }>();
+const PLATFORM_USAGE_MAX = 500;
+
+setInterval(() => {
+  const today = new Date().toISOString().split('T')[0];
+  for (const [key, val] of Array.from(platformUsage)) {
+    if (val.date !== today) platformUsage.delete(key);
+  }
+  if (platformUsage.size > PLATFORM_USAGE_MAX) platformUsage.clear();
+}, 60 * 60 * 1000);
 
 export function checkPlatformLimit(platform: string, limitKey: string): boolean {
   const today = new Date().toISOString().split('T')[0];

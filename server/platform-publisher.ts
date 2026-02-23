@@ -68,11 +68,15 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
   }
 
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
     const res = await fetch(tokenUrl, {
       method: "POST",
       headers,
       body: new URLSearchParams(body).toString(),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
 
     if (!res.ok) {
       const errText = await res.text();
@@ -211,11 +215,15 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
     }
 
     await withRetry(async () => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
       const res = await fetch(discordWebhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(discordPayload),
+        signal: ctrl.signal,
       });
+      clearTimeout(t);
 
       if (!res.ok) {
         const errText = await res.text();

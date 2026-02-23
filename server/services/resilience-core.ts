@@ -1,0 +1,161 @@
+import { pool } from "../db";
+
+const HEAP_WARNING_THRESHOLD = 0.85;
+const HEAP_CRITICAL_THRESHOLD = 0.92;
+const MAP_EMERGENCY_CAP = 50000;
+let lastMemoryWarning = 0;
+let watchdogInterval: ReturnType<typeof setInterval> | null = null;
+let engineCrashCounts = new Map<string, { count: number; lastCrash: number }>();
+const ENGINE_CRASH_THRESHOLD = 5;
+const ENGINE_CRASH_WINDOW_MS = 10 * 60 * 1000;
+
+export function timedFetch(url: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
+  const { timeoutMs = 15000, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...fetchOptions, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+export function isolateEngine(name: string, fn: () => Promise<void>): () => Promise<void> {
+  return async () => {
+    try {
+      await fn();
+      const entry = engineCrashCounts.get(name);
+      if (entry) {
+        if (Date.now() - entry.lastCrash > ENGINE_CRASH_WINDOW_MS) {
+          engineCrashCounts.delete(name);
+        }
+      }
+    } catch (err) {
+      const entry = engineCrashCounts.get(name) || { count: 0, lastCrash: 0 };
+      if (Date.now() - entry.lastCrash > ENGINE_CRASH_WINDOW_MS) {
+        entry.count = 1;
+      } else {
+        entry.count++;
+      }
+      entry.lastCrash = Date.now();
+      engineCrashCounts.set(name, entry);
+
+      if (entry.count >= ENGINE_CRASH_THRESHOLD) {
+        console.error(`[Resilience] Engine "${name}" crashed ${entry.count} times in ${ENGINE_CRASH_WINDOW_MS / 60000}min — suppressing further runs until cooldown`);
+      } else {
+        console.error(`[Resilience] Engine "${name}" crashed (${entry.count}/${ENGINE_CRASH_THRESHOLD}):`, String(err).substring(0, 150));
+      }
+    }
+  };
+}
+
+export function isEngineThrottled(name: string): boolean {
+  const entry = engineCrashCounts.get(name);
+  if (!entry) return false;
+  if (entry.count >= ENGINE_CRASH_THRESHOLD && Date.now() - entry.lastCrash < ENGINE_CRASH_WINDOW_MS) {
+    return true;
+  }
+  return false;
+}
+
+function getHeapPressure(): { ratio: number; heapUsedMB: number; heapTotalMB: number; rssMB: number } {
+  const mem = process.memoryUsage();
+  return {
+    ratio: mem.heapUsed / mem.heapTotal,
+    heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+    heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+    rssMB: Math.round(mem.rss / 1024 / 1024),
+  };
+}
+
+export function capMap<K, V>(map: Map<K, V>, maxSize: number, name: string): void {
+  if (map.size > maxSize) {
+    const toDelete = map.size - Math.floor(maxSize * 0.8);
+    let deleted = 0;
+    for (const key of map.keys()) {
+      if (deleted >= toDelete) break;
+      map.delete(key);
+      deleted++;
+    }
+    console.warn(`[Resilience] Capped ${name} map from ${map.size + deleted} to ${map.size} entries`);
+  }
+}
+
+const registeredCaches: Array<{ name: string; clear: () => void }> = [];
+
+export function registerCache(name: string, clearFn: () => void): void {
+  registeredCaches.push({ name, clear: clearFn });
+}
+
+function emergencyMemoryRelief(): void {
+  console.warn("[Resilience] EMERGENCY memory relief — clearing all registered caches");
+  for (const cache of registeredCaches) {
+    try {
+      cache.clear();
+      console.warn(`[Resilience] Cleared cache: ${cache.name}`);
+    } catch {
+    }
+  }
+  if (global.gc) {
+    global.gc();
+    console.warn("[Resilience] Forced garbage collection");
+  }
+}
+
+function runWatchdog(): void {
+  const pressure = getHeapPressure();
+
+  if (pressure.ratio > HEAP_CRITICAL_THRESHOLD) {
+    emergencyMemoryRelief();
+    lastMemoryWarning = Date.now();
+  } else if (pressure.ratio > HEAP_WARNING_THRESHOLD) {
+    if (Date.now() - lastMemoryWarning > 300_000) {
+      console.warn(`[Resilience] Memory pressure warning: ${pressure.heapUsedMB}MB / ${pressure.heapTotalMB}MB (${Math.round(pressure.ratio * 100)}%) RSS: ${pressure.rssMB}MB`);
+      lastMemoryWarning = Date.now();
+    }
+  }
+
+  if (engineCrashCounts.size > 100) {
+    const entries = Array.from(engineCrashCounts.entries());
+    const now = Date.now();
+    for (const [key, val] of entries) {
+      if (now - val.lastCrash > ENGINE_CRASH_WINDOW_MS * 2) {
+        engineCrashCounts.delete(key);
+      }
+    }
+  }
+}
+
+export function checkDbPool(): { healthy: boolean; total: number; idle: number; waiting: number } {
+  const total = pool.totalCount;
+  const idle = pool.idleCount;
+  const waiting = pool.waitingCount;
+  return { healthy: waiting < 10 && total <= 20, total, idle, waiting };
+}
+
+export function startResilienceWatchdog(): void {
+  if (watchdogInterval) return;
+  watchdogInterval = setInterval(runWatchdog, 30_000);
+  console.log("[Resilience] Watchdog started — monitoring memory, engines, and DB pool every 30s");
+}
+
+export function stopResilienceWatchdog(): void {
+  if (watchdogInterval) {
+    clearInterval(watchdogInterval);
+    watchdogInterval = null;
+  }
+}
+
+export function getResilienceStatus(): {
+  memory: ReturnType<typeof getHeapPressure>;
+  dbPool: ReturnType<typeof checkDbPool>;
+  engineCrashes: Record<string, { count: number; lastCrash: number; throttled: boolean }>;
+  registeredCaches: number;
+} {
+  const crashes: Record<string, any> = {};
+  for (const [name, entry] of engineCrashCounts) {
+    crashes[name] = { ...entry, throttled: isEngineThrottled(name) };
+  }
+  return {
+    memory: getHeapPressure(),
+    dbPool: checkDbPool(),
+    engineCrashes: crashes,
+    registeredCaches: registeredCaches.length,
+  };
+}
