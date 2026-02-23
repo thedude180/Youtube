@@ -330,9 +330,9 @@ export default function Dashboard() {
         <PriorityCommandCenter />
       </SectionErrorBoundary>
 
-      <section role="region" aria-label="Key metrics">
+      <section role="region" aria-label="Key metrics" data-testid="section-key-metrics">
       <div className="flex items-center justify-between gap-2 flex-wrap mb-2" role="status" aria-live="polite">
-        <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key Metrics</span>
+        <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider" data-testid="text-metrics-label">Key Metrics</span>
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
       <SectionErrorBoundary fallbackTitle="Metrics failed to load">
@@ -366,7 +366,7 @@ export default function Dashboard() {
       </SectionErrorBoundary>
       </section>
 
-      <section role="region" aria-label="Business health overview">
+      <section role="region" aria-label="Business health overview" data-testid="section-business-health">
       <BusinessHealthSection healthAreas={healthAreas} getHealthStatus={getHealthStatus} statusDot={statusDot} />
       </section>
 
