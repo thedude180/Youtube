@@ -21,6 +21,7 @@ import {
   Sparkles,
   Globe,
   Check,
+  TrendingUp,
 } from "lucide-react";
 import {
   Sidebar,
@@ -43,6 +44,7 @@ import i18n from "@/i18n";
 
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free", advancedOnly: false },
+  { href: "/growth", labelKey: "Zero to #1", icon: TrendingUp, minTier: "free", advancedOnly: false },
   { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free", advancedOnly: false },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
   { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },

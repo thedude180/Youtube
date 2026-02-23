@@ -37,6 +37,7 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **Security**: Helmet, response compression, rate limiting, CSRF protection, API key authentication, parameter pollution protection, User-Agent validation, subscription tier enforcement, circuit breaker, AI Security Sentinel.
 - **AI Integration**: Primarily OpenAI (gpt-5-mini) via Replit AI Integrations.
 - **Core Engines**:
+    - **Growth Journey System**: "Zero to #1" milestone ladder (0→10M+ subs), AI-generated daily actions, growth phase detection, plateau alerts, achievement tracking, personalized roadmap.
     - **Dual Pipeline System**: 65-step Live Stream and 56-step VOD pipelines across 9 phases.
     - **Content Loop Engine**: Manages content generation workflow (livestream → stream-exhaust → vod-optimize → thumbnail-gen → idle).
     - **Automation Engine**: Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store.

@@ -8,7 +8,8 @@ import { createLogger } from "../lib/logger";
 const logger = createLogger("growth-tracking");
 import {
   channelGrowthTracking, analyticsSnapshots, channels, videos,
-  autopilotQueue, streamPipelines, channelBaselineSnapshots
+  autopilotQueue, streamPipelines, channelBaselineSnapshots,
+  creatorSkillProgress, skillMilestones, fanMilestones, learningPaths
 } from "@shared/schema";
 
 export function registerGrowthTrackingRoutes(app: Express) {
@@ -396,6 +397,177 @@ export function registerGrowthTrackingRoutes(app: Express) {
           subscribers: subsPlateau,
         },
         aiInsights,
+      };
+    });
+
+    res.json(result);
+  }));
+
+  app.get("/api/growth/journey", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const result = await cached(`growth-journey:${userId}`, 120, async () => {
+      const userChannels = await db.select().from(channels)
+        .where(eq(channels.userId, userId));
+
+      const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
+      const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
+      const totalVideos = userChannels.reduce((s, c) => s + (c.videoCount || 0), 0);
+
+      const completedOps = await db.select({
+        count: sql<number>`count(*)::int`,
+      }).from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.status, "completed"),
+        ));
+
+      const completedPipelines = await db.select({
+        count: sql<number>`count(*)::int`,
+      }).from(streamPipelines)
+        .where(and(
+          eq(streamPipelines.userId, userId),
+          eq(streamPipelines.status, "completed"),
+        ));
+
+      const optimizations = (completedOps[0]?.count || 0) + (completedPipelines[0]?.count || 0);
+
+      const [skillProgress] = await db.select().from(creatorSkillProgress)
+        .where(eq(creatorSkillProgress.userId, userId)).limit(1);
+
+      const achievements = await db.select().from(skillMilestones)
+        .where(eq(skillMilestones.userId, userId))
+        .orderBy(desc(skillMilestones.achievedAt));
+
+      const fanAchievements = await db.select().from(fanMilestones)
+        .where(eq(fanMilestones.userId, userId))
+        .orderBy(desc(fanMilestones.achievedAt))
+        .limit(50);
+
+      const [learningPath] = await db.select().from(learningPaths)
+        .where(eq(learningPaths.userId, userId)).limit(1);
+
+      const MILESTONES = [
+        { threshold: 0, label: "Starting Out", icon: "seedling" },
+        { threshold: 10, label: "First Steps", icon: "footprints" },
+        { threshold: 50, label: "Getting Traction", icon: "flame" },
+        { threshold: 100, label: "Rising Creator", icon: "star" },
+        { threshold: 500, label: "Building Momentum", icon: "rocket" },
+        { threshold: 1000, label: "1K Club", icon: "trophy" },
+        { threshold: 5000, label: "Established", icon: "medal" },
+        { threshold: 10000, label: "Influencer", icon: "crown" },
+        { threshold: 25000, label: "Authority", icon: "shield" },
+        { threshold: 50000, label: "Powerhouse", icon: "zap" },
+        { threshold: 100000, label: "Silver Play Button", icon: "award" },
+        { threshold: 500000, label: "Rising Star", icon: "sparkles" },
+        { threshold: 1000000, label: "Gold Play Button", icon: "gem" },
+        { threshold: 10000000, label: "Diamond Play Button", icon: "diamond" },
+      ];
+
+      let currentMilestoneIdx = 0;
+      for (let i = MILESTONES.length - 1; i >= 0; i--) {
+        if (totalSubs >= MILESTONES[i].threshold) {
+          currentMilestoneIdx = i;
+          break;
+        }
+      }
+
+      const currentMilestone = MILESTONES[currentMilestoneIdx];
+      const nextMilestone = MILESTONES[Math.min(currentMilestoneIdx + 1, MILESTONES.length - 1)];
+      const progressToNext = nextMilestone.threshold > currentMilestone.threshold
+        ? Math.min(100, Math.round(((totalSubs - currentMilestone.threshold) / (nextMilestone.threshold - currentMilestone.threshold)) * 100))
+        : 100;
+
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const snapshots = await db.select().from(channelGrowthTracking)
+        .where(and(
+          eq(channelGrowthTracking.userId, userId),
+          gte(channelGrowthTracking.snapshotDate, ninetyDaysAgo),
+        ))
+        .orderBy(asc(channelGrowthTracking.snapshotDate))
+        .limit(200);
+
+      const viewsTimeline = snapshots.map(s => s.actualViews || 0);
+      const growthRates = computeGrowthRates(viewsTimeline);
+      const subsTimeline = snapshots.map(s => s.actualSubscribers || 0);
+      const subsGrowthRates = computeGrowthRates(subsTimeline);
+      const plateau = detectPlateau(growthRates);
+      const inflection = predictInflection(viewsTimeline, growthRates, optimizations, totalVideos);
+
+      let dailyActions: { action: string; priority: "high" | "medium" | "low"; category: string; impact: string }[] = [];
+      try {
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{
+            role: "user",
+            content: `You are a world-class YouTube growth coach. Generate exactly 5 specific daily actions for today for a creator with ${totalSubs} subscribers, ${totalViews} views, ${totalVideos} videos across ${userChannels.length} platform(s), currently in "${inflection.currentPhase}" growth phase. ${plateau.detected ? `They are in a ${plateau.severity} plateau for ${plateau.durationDays} days.` : ""}
+Their next milestone is ${nextMilestone.label} (${nextMilestone.threshold} subscribers, currently at ${totalSubs}).
+Return JSON: {"actions":[{"action":"specific action","priority":"high|medium|low","category":"content|seo|engagement|growth|optimization","impact":"expected impact"}]}`
+          }],
+          max_tokens: 600,
+          temperature: 0.8,
+          response_format: { type: "json_object" },
+        });
+        const content = completion.choices[0]?.message?.content;
+        if (content) {
+          const parsed = JSON.parse(content);
+          dailyActions = Array.isArray(parsed.actions) ? parsed.actions.slice(0, 5).map((a: any) => ({
+            action: String(a.action || ""),
+            priority: ["high", "medium", "low"].includes(a.priority) ? a.priority : "medium",
+            category: String(a.category || "growth"),
+            impact: String(a.impact || ""),
+          })) : [];
+        }
+      } catch (err: any) {
+        logger.error("Failed to generate daily actions", { error: err.message });
+        dailyActions = [
+          { action: "Upload or optimize one video today", priority: "high", category: "content", impact: "Consistent uploads signal algorithm reliability" },
+          { action: "Reply to 10 comments on your latest video", priority: "medium", category: "engagement", impact: "Boosts engagement rate and community loyalty" },
+          { action: "Research 3 trending topics in your niche", priority: "medium", category: "growth", impact: "Trend-riding can 10x view counts" },
+          { action: "Update thumbnails on your 3 lowest-performing videos", priority: "low", category: "optimization", impact: "Better CTR means more impressions converted" },
+          { action: "Share your latest content on 2 social platforms", priority: "low", category: "growth", impact: "Cross-platform presence drives organic discovery" },
+        ];
+      }
+
+      const roadmap = learningPath?.roadmap as Array<{ step: number; title: string; description: string; completed: boolean }> | null;
+
+      return {
+        stats: {
+          totalSubscribers: totalSubs,
+          totalViews,
+          totalVideos,
+          optimizations,
+          connectedPlatforms: userChannels.length,
+          platforms: userChannels.map(c => ({ name: c.channelName, platform: c.platform, subscribers: c.subscriberCount || 0 })),
+        },
+        milestones: MILESTONES.map((m, idx) => ({
+          ...m,
+          achieved: idx <= currentMilestoneIdx,
+          current: idx === currentMilestoneIdx,
+          next: idx === currentMilestoneIdx + 1,
+        })),
+        currentMilestone,
+        nextMilestone,
+        progressToNext,
+        growthPhase: inflection,
+        plateau,
+        skillProgress: skillProgress ? {
+          level: skillProgress.skillLevel || 1,
+          label: skillProgress.skillLabel || "beginner",
+          qualityMultiplier: skillProgress.qualityMultiplier || 0.15,
+          videosCreated: skillProgress.videosCreated || 0,
+          strengths: skillProgress.strengths || [],
+          weaknesses: skillProgress.weaknesses || [],
+        } : null,
+        achievements: [
+          ...achievements.map(a => ({ type: "skill", milestone: a.milestone, category: a.category, achievedAt: a.achievedAt })),
+          ...fanAchievements.map(a => ({ type: "fan", milestone: `${a.milestoneType}_${a.threshold}`, category: a.platform, achievedAt: a.achievedAt })),
+        ].sort((a, b) => new Date(b.achievedAt || 0).getTime() - new Date(a.achievedAt || 0).getTime()).slice(0, 20),
+        dailyActions,
+        roadmap: roadmap?.slice(0, 10) || [],
       };
     });
 

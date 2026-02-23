@@ -45,6 +45,7 @@ const Pricing = lazyRetry(() => import("@/pages/Pricing"));
 const Autopilot = lazyRetry(() => import("@/pages/Autopilot"));
 const AccessCodes = lazyRetry(() => import("@/pages/AccessCodes"));
 const Community = lazyRetry(() => import("@/pages/Community"));
+const GrowthJourney = lazyRetry(() => import("@/pages/GrowthJourney"));
 const EmpireLauncher = lazyRetry(() => import("@/pages/EmpireLauncher"));
 const SystemStatus = lazyRetry(() => import("@/pages/SystemStatus"));
 const ChangelogPage = lazyRetry(() => import("@/pages/Changelog"));
@@ -99,6 +100,7 @@ function Router() {
       <Route path="/pipeline">{() => <Redirect to="/autopilot" />}</Route>
       <Route path="/access-codes">{() => <SectionErrorBoundary fallbackTitle="Access Codes failed to load"><AccessCodes /></SectionErrorBoundary>}</Route>
       <Route path="/community">{() => <SectionErrorBoundary fallbackTitle="Community failed to load"><Community /></SectionErrorBoundary>}</Route>
+      <Route path="/growth">{() => <SectionErrorBoundary fallbackTitle="Growth Journey failed to load"><GrowthJourney /></SectionErrorBoundary>}</Route>
       <Route path="/notifications">{() => <SectionErrorBoundary fallbackTitle="Notifications failed to load"><Notifications /></SectionErrorBoundary>}</Route>
       <Route path="/pricing">{() => <SectionErrorBoundary fallbackTitle="Pricing failed to load"><Pricing /></SectionErrorBoundary>}</Route>
       <Route path="/privacy">{() => <SectionErrorBoundary fallbackTitle="Privacy Policy failed to load"><PrivacyPolicy /></SectionErrorBoundary>}</Route>
@@ -137,7 +139,7 @@ function Router() {
       <Route path="/protections">{() => <Redirect to="/settings" />}</Route>
       <Route path="/wellness">{() => <Redirect to="/settings" />}</Route>
       <Route path="/knowledge">{() => <Redirect to="/settings" />}</Route>
-      <Route path="/growth">{() => <Redirect to="/settings" />}</Route>
+      <Route path="/growth-old">{() => <Redirect to="/growth" />}</Route>
       <Route path="/legal">{() => <Redirect to="/settings" />}</Route>
       <Route path="/you">{() => <Redirect to="/settings" />}</Route>
       <Route component={NotFound} />
