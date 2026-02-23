@@ -539,7 +539,7 @@ export default function GrowthJourney() {
   }
 
   return (
-    <div className="space-y-6 p-1" data-testid="growth-journey-page">
+    <div className="space-y-6 p-1 page-enter" data-testid="growth-journey-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-journey-title">
           {t('growth.title')}

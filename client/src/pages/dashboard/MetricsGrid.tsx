@@ -65,7 +65,7 @@ export default memo(function MetricsGrid({ metrics }: MetricsGridProps) {
         const iconColor = METRIC_ICON_COLORS[i % METRIC_ICON_COLORS.length];
 
         return (
-          <Card key={m.label} className="shine gradient-border group hover:shadow-lg hover:shadow-primary/5 transition-all duration-500 relative overflow-hidden" data-testid={`metric-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>
+          <Card key={m.label} className="shine gradient-border group hover-lift hover:shadow-lg hover:shadow-primary/5 transition-all duration-500 relative overflow-hidden" data-testid={`metric-${m.label.toLowerCase().replace(/\s+/g, '-')}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
             <CardContent className="p-4 relative">
               <div className="flex items-center justify-between gap-1 mb-1 flex-wrap">

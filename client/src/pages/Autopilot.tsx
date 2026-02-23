@@ -581,7 +581,7 @@ export default function Autopilot() {
   }
 
   return (
-    <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto overflow-y-auto h-full">
+    <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto overflow-y-auto h-full page-enter">
       <UpgradeTabGate requiredTier="pro" featureName="Autopilot" description="Automate your entire content workflow with AI-powered auto-clipping, smart scheduling, comment responses, and cross-platform posting.">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">

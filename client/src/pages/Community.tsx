@@ -860,7 +860,7 @@ export default function Community() {
   const [activeTab, setActiveTab] = useState<CommunityTab>("giveaways");
 
   return (
-    <div className="p-3 lg:p-4 space-y-3 max-w-6xl mx-auto" data-testid="page-community">
+    <div className="p-3 lg:p-4 space-y-3 max-w-6xl mx-auto page-enter" data-testid="page-community">
       <div>
         <h1 data-testid="text-page-title" className="text-xl font-display font-bold">Community</h1>
         <p className="text-sm text-muted-foreground mt-1">Engage your audience with giveaways, polls, challenges, and more</p>

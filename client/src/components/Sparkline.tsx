@@ -115,3 +115,22 @@ export function Sparkline({
     </div>
   );
 }
+
+export function TrendBadge({ value, suffix = "%" }: { value: number; suffix?: string }) {
+  const isPositive = value >= 0;
+  return (
+    <span 
+      className={`inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full ${
+        isPositive 
+          ? "text-emerald-400 bg-emerald-400/10" 
+          : "text-red-400 bg-red-400/10"
+      }`}
+      data-testid="trend-badge"
+    >
+      <svg width="10" height="10" viewBox="0 0 10 10" className={isPositive ? "" : "rotate-180"}>
+        <path d="M5 2 L8 6 L2 6 Z" fill="currentColor" />
+      </svg>
+      {isPositive ? "+" : ""}{value}{suffix}
+    </span>
+  );
+}

@@ -159,7 +159,7 @@ export function AppSidebar() {
         {user && !isPaidUser && (
           <SidebarGroup>
             <SidebarGroupContent>
-              <div className="mx-2 p-3 rounded-lg gradient-border bg-primary/[0.03] relative overflow-hidden group">
+              <div className="mx-2 p-3 rounded-lg border-glow-animated bg-primary/[0.03] relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="relative">
                   <div className="flex items-center gap-1.5 mb-1.5">

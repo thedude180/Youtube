@@ -721,7 +721,7 @@ export default function StreamCenter() {
   if (channelsError) return <div className="p-3 lg:p-4 max-w-5xl mx-auto"><QueryErrorReset error={channelsError} queryKey={["/api/channels"]} label="Failed to load channels" /></div>;
 
   return (
-    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto page-enter">
       <UpgradeTabGate requiredTier="youtube" featureName="Stream Center" description="Go live across multiple platforms simultaneously with AI-powered stream optimization, chat management, and post-stream analytics.">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Stream Center</h1>

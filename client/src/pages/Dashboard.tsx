@@ -28,6 +28,7 @@ import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { PulseOrb } from "@/components/PulseOrb";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { WhatsNext } from "@/components/WhatsNext";
 import DashboardSkeleton from "./dashboard/DashboardSkeleton";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import MetricsGrid from "./dashboard/MetricsGrid";
@@ -253,16 +254,16 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-5xl mx-auto fade-in">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className="p-4 lg:p-6 space-y-4 max-w-5xl mx-auto page-enter">
+      <div className="flex items-start justify-between gap-4 flex-wrap animate-in">
         <div>
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">
-            {greeting()}, <span className="gradient-text">{userName}</span>
+            {greeting()}, <span className="gradient-text-vivid">{userName}</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your AI command center — everything runs autonomously</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-last-updated" aria-live="polite">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px] shadow-emerald-400/50 animate-pulse" />
           <span>Live · Updated {lastUpdatedLabel}</span>
         </div>
       </div>
@@ -328,6 +329,10 @@ export default function Dashboard() {
 
       <SectionErrorBoundary fallbackTitle="Priority center failed to load">
         <PriorityCommandCenter />
+      </SectionErrorBoundary>
+
+      <SectionErrorBoundary fallbackTitle="Recommendations failed to load">
+        <WhatsNext />
       </SectionErrorBoundary>
 
       <section role="region" aria-label="Key metrics" data-testid="section-key-metrics">

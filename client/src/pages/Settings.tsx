@@ -659,7 +659,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto page-enter">
       <div>
         <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Settings</h1>
         <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground">Manage your account, brand, and tools</p>

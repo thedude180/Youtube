@@ -39,7 +39,7 @@ export default function Content() {
   const { t } = useTranslation();
 
   return (
-    <div className="p-3 lg:p-4 space-y-3 max-w-6xl mx-auto">
+    <div className="p-3 lg:p-4 space-y-3 max-w-6xl mx-auto page-enter">
       <div>
         <h1 data-testid="text-page-title" className="text-xl font-display font-bold">{t("content.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t("content.subtitle", "Manage your videos and channels")}</p>

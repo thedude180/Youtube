@@ -1200,7 +1200,7 @@ export default function CompetitiveEdge() {
   const [activeTab, setActiveTab] = useState("vod-loop");
 
   return (
-    <div className="space-y-4 p-1" data-testid="competitive-edge-page">
+    <div className="space-y-4 p-1 page-enter" data-testid="competitive-edge-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-edge-title">Competitive Edge</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Advanced tools no competitor can match</p>

@@ -28,6 +28,7 @@ import { prefetchForRoute } from "@/lib/prefetch";
 import { BackToTop } from "@/components/BackToTop";
 import { GlobalProgress } from "@/components/GlobalProgress";
 import { ScrollProgress } from "@/components/ScrollProgress";
+import { HealthRibbon } from "@/components/HealthRibbon";
 import { SessionTracker } from "@/components/SessionTracker";
 import { lazyRetry, isChunkError } from "@/lib/lazyRetry";
 
@@ -540,6 +541,7 @@ function AuthenticatedApp() {
               {!isFocusMode && <NotificationBell />}
             </div>
           </header>
+          {!isFocusMode && <HealthRibbon />}
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
             <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
               <Router />

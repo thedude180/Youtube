@@ -423,6 +423,96 @@
     pointer-events: none;
     z-index: -1;
   }
+
+  .animate-in {
+    animation: animateIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-in-delayed { animation: animateIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+
+  .reveal-up {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal-up.revealed { opacity: 1; transform: translateY(0); }
+
+  .hover-lift {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px -12px hsl(var(--primary) / 0.2), 0 4px 12px -4px rgba(0,0,0,0.1);
+  }
+
+  .hover-scale {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .hover-scale:hover { transform: scale(1.03); }
+
+  .glass-card {
+    @apply relative overflow-hidden rounded-xl;
+    background: hsl(var(--card) / 0.5);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 0 4px 24px -4px rgba(0,0,0,0.1), inset 0 1px 0 hsl(0 0% 100% / 0.05);
+  }
+
+  .metric-glow-green {
+    box-shadow: 0 0 20px -4px hsl(142 71% 45% / 0.25);
+    border-color: hsl(142 71% 45% / 0.3);
+  }
+  .metric-glow-red {
+    box-shadow: 0 0 20px -4px hsl(0 72% 51% / 0.25);
+    border-color: hsl(0 72% 51% / 0.3);
+  }
+  .metric-glow-blue {
+    box-shadow: 0 0 20px -4px hsl(217 91% 60% / 0.25);
+    border-color: hsl(217 91% 60% / 0.3);
+  }
+
+  .sparkline-container {
+    position: relative;
+    overflow: hidden;
+  }
+  .sparkline-container svg {
+    display: block;
+  }
+
+  .ribbon-gradient {
+    background: linear-gradient(90deg, hsl(142 71% 45% / 0.1), hsl(var(--primary) / 0.1), hsl(217 91% 60% / 0.1));
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  .orbit {
+    animation: orbit 8s linear infinite;
+  }
+
+  .typewriter {
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 2px solid hsl(var(--primary));
+    animation: typewriter 3s steps(40) 1s both, blinkCaret 0.75s step-end infinite;
+  }
+
+  .mesh-gradient {
+    background: 
+      radial-gradient(ellipse at 20% 50%, hsl(265 80% 60% / 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, hsl(220 90% 60% / 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 40% 80%, hsl(280 85% 60% / 0.05) 0%, transparent 50%);
+  }
+
+  .text-shimmer {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      110deg,
+      hsl(var(--foreground)) 35%,
+      hsl(var(--primary)) 50%,
+      hsl(var(--foreground)) 65%
+    );
+    background-size: 200% 100%;
+    animation: textShimmer 3s ease-in-out infinite;
+  }
 }
 
 @keyframes fadeIn {
@@ -504,6 +594,41 @@
 @keyframes statusPulse {
   0%, 100% { opacity: 0; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.05); }
+}
+
+@keyframes animateIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(40px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(40px) rotate(-360deg); }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blinkCaret {
+  from, to { border-color: transparent; }
+  50% { border-color: hsl(var(--primary)); }
+}
+
+@keyframes textShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: -100% 50%; }
+}
+
+@keyframes ripple {
+  0% { transform: scale(0); opacity: 0.5; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+@keyframes healthPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 @property --glow-angle {
