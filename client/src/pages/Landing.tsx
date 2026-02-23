@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useToast } from "@/hooks/use-toast";
 import { AuthForm } from "@/components/AuthForm";
 import { useTranslation } from "react-i18next";
 
@@ -198,8 +199,32 @@ export default function Landing() {
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [activePipelineStep, setActivePipelineStep] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   usePageTitle("AI-Powered Creator Management Platform", "CreatorOS replaces your entire creator team with 832 AI features. Manage content, streaming, revenue, and growth across 25 platforms on full autopilot.");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authError = params.get("auth_error");
+    if (authError) {
+      const errorMessages: Record<string, string> = {
+        "true": "Sign in failed. Please try again.",
+        "no_user": "Could not retrieve your account. Please try again.",
+        "login_failed": "Sign in failed. Please try again.",
+        "token_failed": "Could not connect to platform. Please try again.",
+        "no_token": "Platform authentication failed. Please try again.",
+        "missing_code": "OAuth authorization was cancelled or failed.",
+        "invalid_state": "Session expired. Please try signing in again.",
+        "state_expired": "Session expired. Please try signing in again.",
+        "user_info_failed": "Could not retrieve platform profile. Please try again.",
+        "no_user_id": "Could not retrieve your platform ID. Please try again.",
+        "platform_not_supported": "This platform is not yet supported.",
+      };
+      const message = errorMessages[authError] || `Authentication error: ${authError.replace(/_/g, " ")}`;
+      toast({ title: t('errors.error'), description: message, variant: "destructive" });
+      window.history.replaceState({}, "", "/");
+    }
+  }, [t, toast]);
 
   const PIPELINE_STEPS = useMemo(() => [
     { icon: Radio, label: t('landing.goLive'), desc: t('landing.goLiveDesc') },

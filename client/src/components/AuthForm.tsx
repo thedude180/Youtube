@@ -362,8 +362,8 @@ export function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
               onClick={() => { window.location.href = provider.path; }}
               title={`Sign in with ${provider.label}`}
             >
-              <provider.icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-              <span className="text-xs truncate">{provider.label}</span>
+              <provider.icon className="h-3.5 w-3.5 mr-1 shrink-0" />
+              <span className="text-xs">{provider.label}</span>
             </Button>
           ))}
         </div>
