@@ -26,6 +26,7 @@ import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
+import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests } from "./lib/security-hardening";
 
 const logger = createLogger("express");
 
@@ -184,6 +185,13 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
+
+app.use("/api", requestSizeLimiter(100));
+app.use("/api", inputSanitizer());
+app.use("/api", validateContentType());
+app.use("/api", slowRequestDetector(5000));
+app.use("/api", anomalyDetector());
+app.use("/api", idempotencyGuard());
 
 app.use((req: any, res, next) => {
   const requestId = req.headers['x-request-id'] || crypto.randomUUID();
@@ -423,16 +431,27 @@ app.get("/api/health", async (_req, res) => {
     });
   }
   
+  const slowReqs = getSlowRequests();
+  const recentSlowCount = slowReqs.filter(s => Date.now() - s.timestamp < 300000).length;
+
   try {
     const dbStart = Date.now();
     await pool.query("SELECT 1");
     const dbLatencyMs = Date.now() - dbStart;
+
+    const dbHealthy = dbLatencyMs < 5000;
+    const memHealthy = memory.heapUsed < 900;
+    const poolHealthy = pool.waitingCount < 10;
+
+    const overallStatus = dbHealthy && memHealthy && poolHealthy ? "ok" : "degraded";
+
     res.json({
-      status: "ok",
+      status: overallStatus,
       uptime,
       uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
       timestamp: new Date().toISOString(),
       database: {
+        status: "healthy",
         connected: true,
         latencyMs: dbLatencyMs,
         pool: {
@@ -443,6 +462,17 @@ app.get("/api/health", async (_req, res) => {
         },
       },
       memory,
+      performance: {
+        recentSlowRequests: recentSlowCount,
+        dbLatencyOk: dbLatencyMs < 1000,
+        memoryOk: memHealthy,
+        poolOk: poolHealthy,
+      },
+      security: {
+        csrfTokensActive: csrfTokens.size,
+        rateLimitEntriesActive: globalRateLimitMap.size,
+        hardeningActive: true,
+      },
     });
   } catch (err) {
     res.status(503).json({
@@ -451,6 +481,7 @@ app.get("/api/health", async (_req, res) => {
       uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
       timestamp: new Date().toISOString(),
       database: {
+        status: "unhealthy",
         connected: false,
         error: "Database connectivity check failed",
         pool: {
@@ -461,6 +492,17 @@ app.get("/api/health", async (_req, res) => {
         },
       },
       memory,
+      performance: {
+        recentSlowRequests: recentSlowCount,
+        dbLatencyOk: false,
+        memoryOk: memory.heapUsed < 900,
+        poolOk: pool.waitingCount < 10,
+      },
+      security: {
+        csrfTokensActive: csrfTokens.size,
+        rateLimitEntriesActive: globalRateLimitMap.size,
+        hardeningActive: true,
+      },
     });
   }
 });

@@ -224,10 +224,6 @@ export async function registerRoutes(
     res.json({ summary, totalSamples: vitalsBuffer.length, lastUpdated: new Date().toISOString() });
   });
 
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
-
   app.head("/api/health", (_req, res) => {
     res.sendStatus(200);
   });
