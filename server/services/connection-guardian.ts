@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db, withRetry } from "../db";
 import { channels, linkedChannels } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { eq, and, isNotNull, lt, isNull, desc } from "drizzle-orm";
@@ -399,12 +399,12 @@ async function runGuardianCycle(): Promise<void> {
     const heartbeatMod = await import("./engine-heartbeat");
     await heartbeatMod.recordHeartbeat("connectionGuardian", "running");
 
-    const tokenResult = await ensureAllTokensFresh();
-    const autopilotReactivated = await ensureAutopilotAlwaysOn();
+    const tokenResult = await withRetry(() => ensureAllTokensFresh(), "guardian-tokens");
+    const autopilotReactivated = await withRetry(() => ensureAutopilotAlwaysOn(), "guardian-autopilot");
     const streamingConnected = await autoConnectStreamingPlatforms();
     const totalStreamingConnected = streamingConnected.rumble + streamingConnected.twitch + streamingConnected.kick;
-    const baselines = await captureBaselineSnapshots();
-    const periodic = await capturePeriodicSnapshots();
+    const baselines = await withRetry(() => captureBaselineSnapshots(), "guardian-baselines");
+    const periodic = await withRetry(() => capturePeriodicSnapshots(), "guardian-snapshots");
 
     const activity = tokenResult.refreshed > 0 || autopilotReactivated > 0 || totalStreamingConnected > 0 || baselines > 0 || periodic > 0;
     if (activity) {

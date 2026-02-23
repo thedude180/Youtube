@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { db } from "../db";
+import { db, withRetry } from "../db";
 import { eq, and, desc, sql, lte, isNotNull } from "drizzle-orm";
 import { requireAuth, asyncHandler } from "./helpers";
 import { cached } from "../lib/cache";
@@ -312,14 +312,14 @@ async function autoSpawnMissingVodPipelines() {
 }
 
 setInterval(() => {
-  processWaitingVodPipelines().catch(err =>
-    console.error("[DualPipeline] VOD waiting check error:", err)
+  withRetry(() => processWaitingVodPipelines(), "dual-pipeline-vod-waiting").catch(err =>
+    console.error("[DualPipeline] VOD waiting check error:", String(err).substring(0, 120))
   );
-  processQueuedPipelines().catch(err =>
-    console.error("[DualPipeline] Queued pipeline check error:", err)
+  withRetry(() => processQueuedPipelines(), "dual-pipeline-queued").catch(err =>
+    console.error("[DualPipeline] Queued pipeline check error:", String(err).substring(0, 120))
   );
-  autoSpawnMissingVodPipelines().catch(err =>
-    console.error("[DualPipeline] Auto-spawn VOD check error:", err)
+  withRetry(() => autoSpawnMissingVodPipelines(), "dual-pipeline-autospawn").catch(err =>
+    console.error("[DualPipeline] Auto-spawn VOD check error:", String(err).substring(0, 120))
   );
 }, 60000);
 

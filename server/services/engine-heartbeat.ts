@@ -1,10 +1,10 @@
-import { db } from "../db";
+import { db, withRetry } from "../db";
 import { engineHeartbeats } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export async function recordHeartbeat(engineName: string, status: "running" | "idle" | "error" | "completed", durationMs?: number, error?: string): Promise<void> {
   try {
-    const existing = await db.select().from(engineHeartbeats).where(eq(engineHeartbeats.engineName, engineName)).limit(1);
+    const existing = await withRetry(() => db.select().from(engineHeartbeats).where(eq(engineHeartbeats.engineName, engineName)).limit(1), "heartbeat-read");
     if (existing.length > 0) {
       await db.update(engineHeartbeats).set({
         status,

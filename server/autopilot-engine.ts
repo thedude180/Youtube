@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, withRetry } from "./db";
 import { autopilotQueue, commentResponses, autopilotConfig, videos, channels, notifications, streams, PLATFORM_CAPABILITIES, VIDEO_PLATFORMS, TEXT_ONLY_PLATFORMS, LIVE_STREAM_PLATFORMS } from "@shared/schema";
 import { eq, and, desc, lte, sql, gte, inArray } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
@@ -133,9 +133,9 @@ function getPlatformsForContentType(contentType: string, connectedPlatforms: Set
 }
 
 async function getUserConnectedPlatforms(userId: string): Promise<Set<string>> {
-  const userChannels = await db.select({ platform: channels.platform, accessToken: channels.accessToken, platformData: channels.platformData })
+  const userChannels = await withRetry(() => db.select({ platform: channels.platform, accessToken: channels.accessToken, platformData: channels.platformData })
     .from(channels)
-    .where(eq(channels.userId, userId));
+    .where(eq(channels.userId, userId)), "autopilot-connected-platforms");
   return new Set(userChannels.filter(c => {
     if (!c.accessToken) return false;
     const pd = (c.platformData || {}) as any;

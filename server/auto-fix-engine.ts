@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, withRetry } from "./db";
 import { autopilotQueue, notifications, deadLetterQueue } from "@shared/schema";
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { getNextResetTime, getQuotaStatus, getPacificDate } from "./services/youtube-quota-tracker";
@@ -179,13 +179,13 @@ export async function autoFixFailedPosts(): Promise<{
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000);
 
-    const failedPosts = await db.select().from(autopilotQueue)
+    const failedPosts = await withRetry(() => db.select().from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.status, "failed"),
         gte(autopilotQueue.createdAt, fortyEightHoursAgo),
         lte(autopilotQueue.scheduledAt, fiveMinutesAgo),
       ))
-      .limit(20);
+      .limit(20), "autofix-fetch-failed");
 
     stats.total = failedPosts.length;
     if (failedPosts.length === 0) return stats;
