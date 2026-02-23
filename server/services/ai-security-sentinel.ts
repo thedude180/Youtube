@@ -442,6 +442,8 @@ export async function getScanHistory(limit: number = 50): Promise<any[]> {
   }
 }
 
+let sentinelInterval: ReturnType<typeof setInterval> | null = null;
+
 export function startSentinel(): void {
   if (sentinelRunning) return;
   sentinelRunning = true;
@@ -452,13 +454,18 @@ export function startSentinel(): void {
     runFullSecurityScan("startup").catch(e => console.error("[AI Sentinel] Startup scan failed:", e));
   }, 10_000);
 
-  setInterval(async () => {
+  sentinelInterval = setInterval(async () => {
     try {
       await runFullSecurityScan("automated");
     } catch (e) {
       console.error("[AI Sentinel] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
+}
+
+export function stopSentinel(): void {
+  if (sentinelInterval) { clearInterval(sentinelInterval); sentinelInterval = null; }
+  sentinelRunning = false;
 }
 
 export function getSentinelStatus(): { running: boolean; lastScanTime: number; intervalMs: number } {

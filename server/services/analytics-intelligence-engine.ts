@@ -572,6 +572,8 @@ export async function runAnalyticsScan(): Promise<{ usersScanned: number; durati
   }
 }
 
+let analyticsInterval: ReturnType<typeof setInterval> | null = null;
+
 export function startAnalyticsIntelligenceEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
@@ -582,13 +584,18 @@ export function startAnalyticsIntelligenceEngine(): void {
     runAnalyticsScan().catch(e => console.error("[Analytics Engine] Startup scan failed:", e));
   }, 50_000);
 
-  setInterval(async () => {
+  analyticsInterval = setInterval(async () => {
     try {
       await runAnalyticsScan();
     } catch (e) {
       console.error("[Analytics Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
+}
+
+export function stopAnalyticsIntelligenceEngine(): void {
+  if (analyticsInterval) { clearInterval(analyticsInterval); analyticsInterval = null; }
+  engineRunning = false;
 }
 
 export function getAnalyticsEngineStatus(): { running: boolean; lastScanTime: number; intervalMs: number; totalScansCompleted: number } {

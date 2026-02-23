@@ -204,7 +204,7 @@ async function executeSuggestContentIdeas(userId: string, args: Record<string, a
   });
   const content = response.choices[0]?.message?.content;
   if (!content) return { ideas: [] };
-  return JSON.parse(content);
+  try { return JSON.parse(content); } catch { return { ideas: [] }; }
 }
 
 async function executeGetPerformanceSummary(userId: string) {
@@ -337,7 +337,8 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
       ];
 
       for (const tc of choice.message.tool_calls) {
-        const args = JSON.parse(tc.function.arguments || "{}");
+        let args: any;
+        try { args = JSON.parse(tc.function.arguments || "{}"); } catch { args = {}; }
         let result: any;
         try {
           result = await executeTool(userId, tc.function.name, args);

@@ -672,6 +672,8 @@ export async function runCommunityAudienceScan(): Promise<void> {
   }
 }
 
+let communityInterval: ReturnType<typeof setInterval> | null = null;
+
 export function startCommunityAudienceEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
@@ -682,13 +684,18 @@ export function startCommunityAudienceEngine(): void {
     runCommunityAudienceScan().catch(e => console.error("[Community Engine] Startup scan failed:", e));
   }, 30_000);
 
-  setInterval(async () => {
+  communityInterval = setInterval(async () => {
     try {
       await runCommunityAudienceScan();
     } catch (e) {
       console.error("[Community Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
+}
+
+export function stopCommunityAudienceEngine(): void {
+  if (communityInterval) { clearInterval(communityInterval); communityInterval = null; }
+  engineRunning = false;
 }
 
 export function getCommunityEngineStatus(): { running: boolean; lastScanTime: number; intervalMs: number } {

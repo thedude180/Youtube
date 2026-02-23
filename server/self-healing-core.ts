@@ -1,5 +1,5 @@
 import { getOpenAIClient } from "./lib/openai";
-import { db } from "./db";
+import { db, withRetry } from "./db";
 import { notifications } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 

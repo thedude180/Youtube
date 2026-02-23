@@ -549,6 +549,8 @@ export async function runComplianceScan(): Promise<void> {
   }
 }
 
+let complianceInterval: ReturnType<typeof setInterval> | null = null;
+
 export function startComplianceLegalEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
@@ -559,13 +561,18 @@ export function startComplianceLegalEngine(): void {
     runComplianceScan().catch(e => console.error("[Compliance Engine] Startup scan failed:", e));
   }, 70_000);
 
-  setInterval(async () => {
+  complianceInterval = setInterval(async () => {
     try {
       await runComplianceScan();
     } catch (e) {
       console.error("[Compliance Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
+}
+
+export function stopComplianceLegalEngine(): void {
+  if (complianceInterval) { clearInterval(complianceInterval); complianceInterval = null; }
+  engineRunning = false;
 }
 
 export function getComplianceEngineStatus(): { running: boolean; lastScanTime: number; intervalMs: number } {

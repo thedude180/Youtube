@@ -342,7 +342,9 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
         response_format: { type: "json_object" }, max_tokens: 800, temperature: 0.7,
       });
       const content = completion.choices[0]?.message?.content;
-      res.json(content ? JSON.parse(content) : { matches: [] });
+      let parsed = { matches: [] };
+      if (content) { try { parsed = JSON.parse(content); } catch { /* malformed AI response */ } }
+      res.json(parsed);
     } catch (err: any) {
       logger.error("Sponsorship matching error", { error: err.message });
       res.status(500).json({ error: "Failed to find sponsor matches" });

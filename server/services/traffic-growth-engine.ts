@@ -132,7 +132,8 @@ Respond with JSON:
   const content = response.choices[0]?.message?.content;
   if (!content) return { strategies: [] };
 
-  const plan = JSON.parse(content);
+  let plan: any;
+  try { plan = JSON.parse(content); } catch { console.error("[TrafficGrowth] Failed to parse AI response"); return { strategies: [] }; }
 
   const BANNED_TACTICS = [
     "bot", "bots", "sub4sub", "sub 4 sub", "view exchange", "view swap",
@@ -275,7 +276,8 @@ Respond with JSON:
       return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] };
     }
 
-    const result = JSON.parse(content);
+    let result: any;
+    try { result = JSON.parse(content); } catch { return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] }; }
     const relevant: string[] = result.relevantKeywords || [];
 
     if (relevant.length === 0) {

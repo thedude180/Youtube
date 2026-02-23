@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db, withRetry } from "../db";
 import { users } from "@shared/models/auth";
 import { streamPipelines, contentPipeline } from "@shared/schema";
 import { eq, and, lt, gte } from "drizzle-orm";
@@ -287,7 +287,7 @@ async function runHealthChecks(): Promise<void> {
     const { ensureAutopilotAlwaysOn } = await import("./connection-guardian");
     await ensureAutopilotAlwaysOn().catch(e => console.warn("[Autopilot] ensureAutopilotAlwaysOn failed", e?.message));
 
-    const activeUsers = await db.select().from(users).where(eq(users.autopilotActive, true));
+    const activeUsers = await withRetry(() => db.select().from(users).where(eq(users.autopilotActive, true)), "monitor-active-users");
 
     for (const user of activeUsers) {
       let autoFixes: string[] = [];

@@ -487,6 +487,8 @@ export async function runEducationScan(): Promise<{ usersScanned: number; durati
   }
 }
 
+let educationInterval: ReturnType<typeof setInterval> | null = null;
+
 export function startCreatorEducationEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
@@ -497,13 +499,18 @@ export function startCreatorEducationEngine(): void {
     runEducationScan().catch(e => console.error("[Education Engine] Startup scan failed:", e));
   }, 45_000);
 
-  setInterval(async () => {
+  educationInterval = setInterval(async () => {
     try {
       await runEducationScan();
     } catch (e) {
       console.error("[Education Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
+}
+
+export function stopCreatorEducationEngine(): void {
+  if (educationInterval) { clearInterval(educationInterval); educationInterval = null; }
+  engineRunning = false;
 }
 
 export function getEducationEngineStatus(): { running: boolean; lastScanTime: number; scanCount: number; intervalMs: number } {

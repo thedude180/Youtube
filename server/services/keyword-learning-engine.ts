@@ -93,7 +93,8 @@ Respond with JSON:
   const content = response.choices[0]?.message?.content;
   if (!content) return { analyzed: 0, keywords: [] };
 
-  const analysis = JSON.parse(content);
+  let analysis: any;
+  try { analysis = JSON.parse(content); } catch { console.error("[KeywordEngine] Failed to parse AI response"); return { analyzed: 0, keywords: [] }; }
 
   for (const kw of (analysis.winningKeywords || [])) {
     const existing = await db.select().from(keywordInsights)

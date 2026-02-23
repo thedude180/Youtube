@@ -17,7 +17,12 @@ import { storage } from "./storage";
 import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
 import { processDeadLetterQueue } from "./services/automation-hardening";
 import { processAllDigests } from "./services/notification-system";
-import { startSentinel } from "./services/ai-security-sentinel";
+import { startSentinel, stopSentinel } from "./services/ai-security-sentinel";
+import { stopCommunityAudienceEngine } from "./services/community-audience-engine";
+import { stopComplianceLegalEngine } from "./services/compliance-legal-engine";
+import { stopCreatorEducationEngine } from "./services/creator-education-engine";
+import { stopAnalyticsIntelligenceEngine } from "./services/analytics-intelligence-engine";
+import { stopBrandPartnershipsEngine } from "./services/brand-partnerships-engine";
 import { stopFortressCleanup } from "./services/security-fortress";
 import { stopPushCleanup } from "./services/push-scheduler";
 import { stopAutoFixCleanup } from "./services/autopilot-monitor";
@@ -679,6 +684,12 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
     stopAutopilotMonitor();
     stopConnectionGuardian();
+    stopSentinel();
+    stopCommunityAudienceEngine();
+    stopComplianceLegalEngine();
+    stopCreatorEducationEngine();
+    stopAnalyticsIntelligenceEngine();
+    stopBrandPartnershipsEngine();
     stopFortressCleanup();
     stopPushCleanup();
     stopAutoFixCleanup();

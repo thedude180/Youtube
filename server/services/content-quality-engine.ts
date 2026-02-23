@@ -58,7 +58,8 @@ Respond with this exact JSON structure:
     temperature: 0.3,
   });
 
-  const result = JSON.parse(response.choices[0].message.content || "{}");
+  let result: any;
+  try { result = JSON.parse(response.choices[0].message.content || "{}"); } catch { result = {}; }
   const titleScore = Math.min(100, Math.max(0, result.titleScore || 50));
   const descriptionScore = Math.min(100, Math.max(0, result.descriptionScore || 50));
   const seoScore = Math.min(100, Math.max(0, result.seoScore || 50));
@@ -145,7 +146,8 @@ Respond with this exact JSON structure:
     temperature: 0.3,
   });
 
-  const result = JSON.parse(response.choices[0].message.content || "{}");
+  let result: any;
+  try { result = JSON.parse(response.choices[0].message.content || "{}"); } catch { result = {}; }
 
   return {
     recommendedTime: result.recommendedTime || "14:00",

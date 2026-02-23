@@ -667,6 +667,8 @@ export async function runBrandPartnershipsScan(): Promise<void> {
   }
 }
 
+let brandInterval: ReturnType<typeof setInterval> | null = null;
+
 export function startBrandPartnershipsEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
@@ -677,13 +679,18 @@ export function startBrandPartnershipsEngine(): void {
     runBrandPartnershipsScan().catch(e => console.error("[Brand Engine] Startup scan failed:", e));
   }, 60_000);
 
-  setInterval(async () => {
+  brandInterval = setInterval(async () => {
     try {
       await runBrandPartnershipsScan();
     } catch (e) {
       console.error("[Brand Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
+}
+
+export function stopBrandPartnershipsEngine(): void {
+  if (brandInterval) { clearInterval(brandInterval); brandInterval = null; }
+  engineRunning = false;
 }
 
 export function getBrandEngineStatus(): { running: boolean; lastScanTime: number; intervalMs: number } {
