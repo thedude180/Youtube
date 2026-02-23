@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { AuthForm } from "@/components/AuthForm";
+import { useTranslation } from "react-i18next";
 
 function useCountUp(target: number, duration = 2000, startOnView = true) {
   const [count, setCount] = useState(0);
@@ -192,115 +193,116 @@ function FloatingOrb({ delay, size, x, y }: { delay: number; size: number; x: st
   );
 }
 
-const PIPELINE_STEPS = [
-  { icon: Radio, label: "Go Live", desc: "Stream on any platform" },
-  { icon: Cpu, label: "AI Detects", desc: "Auto-captures highlights" },
-  { icon: Video, label: "Clips Created", desc: "Shorts + long-form" },
-  { icon: Brain, label: "SEO Optimized", desc: "World-class metadata" },
-  { icon: Layers, label: "Cross-Posted", desc: "YouTube, TikTok, X" },
-  { icon: TrendingUp, label: "Growth", desc: "Analytics + iterate" },
-];
-
-const FEATURES = [
-  {
-    icon: Brain,
-    title: "AI Content Engine",
-    description: "Autonomous content creation from livestreams. AI extracts highlights, generates clips, optimizes metadata, and publishes — zero manual work.",
-    metric: "832 AI features",
-    gradient: "from-violet-500/20 to-purple-500/10",
-  },
-  {
-    icon: Radio,
-    title: "Multi-Platform Live",
-    description: "Stream to YouTube, Twitch, Kick, and more simultaneously. AI monitors chat, detects highlights, and captures key moments in real-time.",
-    metric: "25+ platforms",
-    gradient: "from-blue-500/20 to-cyan-500/10",
-  },
-  {
-    icon: Target,
-    title: "Retention Science",
-    description: "Every piece of content shaped by proven retention beats from top creators. Hook patterns, pacing, and chapter structure that keeps viewers watching.",
-    metric: "95% retention",
-    gradient: "from-emerald-500/20 to-green-500/10",
-  },
-  {
-    icon: Eye,
-    title: "SEO Domination",
-    description: "AI-powered titles, descriptions, tags, and thumbnails optimized by world-class SEO algorithms. A/B testing built in for maximum click-through rates.",
-    metric: "3x more views",
-    gradient: "from-amber-500/20 to-orange-500/10",
-  },
-  {
-    icon: DollarSign,
-    title: "Revenue Intelligence",
-    description: "Automated monetization with P&L tracking, tax optimization, sponsorship management, and AI-powered brand deal negotiation.",
-    metric: "Full P&L",
-    gradient: "from-rose-500/20 to-pink-500/10",
-  },
-  {
-    icon: Shield,
-    title: "Self-Healing System",
-    description: "25+ subsystems protected by autonomous failure detection, AI diagnosis, auto-retry, and circuit breakers. 99.9% uptime guaranteed.",
-    metric: "Always on",
-    gradient: "from-indigo-500/20 to-blue-500/10",
-  },
-];
-
-const TESTIMONIALS = [
-  {
-    name: "Gaming Creator",
-    role: "YouTube & Twitch",
-    quote: "The AI handles all my stream highlights and uploads while I focus on playing. I went from posting once a week to daily content without any extra work.",
-    avatar: "🎮",
-  },
-  {
-    name: "Tech Reviewer",
-    role: "Multi-Platform Creator",
-    quote: "Managing content across YouTube, TikTok, and X used to eat up my entire day. Now the AI optimizes and posts everything automatically.",
-    avatar: "💻",
-  },
-  {
-    name: "Variety Streamer",
-    role: "Full-Time Creator",
-    quote: "The autopilot mode is a game changer. My VODs get chopped into shorts, titles get optimized, and everything posts on schedule — all hands-free.",
-    avatar: "🎙️",
-  },
-];
-
-const TIERS = [
-  { name: "Free", price: "$0", period: "", desc: "Get started", features: ["Dashboard access", "Basic analytics", "AI advisor", "Content overview"], platforms: "1 platform" },
-  { name: "YouTube", price: "$9.99", period: "/mo", desc: "Single platform", features: ["YouTube automation", "SEO optimizer", "Thumbnail AI", "Stream center", "Content calendar"], platforms: "1 platform" },
-  { name: "Starter", price: "$49.99", period: "/mo", desc: "Multi-platform", features: ["3 platform automation", "Content calendar", "Revenue tracking", "AI content suite", "Cross-posting"], platforms: "3 platforms", popular: true },
-  { name: "Pro", price: "$99.99", period: "/mo", desc: "Full autopilot", features: ["10 platform automation", "Full Autopilot mode", "Competitor intel", "Priority support", "Team access", "A/B testing"], platforms: "10 platforms" },
-  { name: "Ultimate", price: "$149.99", period: "/mo", desc: "Everything", features: ["25+ platforms", "All 832 AI features", "Creator Intelligence", "6 AI agent systems", "Custom workflows", "Dedicated support"], platforms: "Unlimited" },
-];
-
-const HOW_IT_WORKS = [
-  { step: 1, icon: Link2, title: "Connect", description: "Link your platforms with one-click OAuth. Takes under 60 seconds.", time: "60 sec" },
-  { step: 2, icon: Cpu, title: "AI Activates", description: "832 AI features analyze your content and build a growth strategy.", time: "5 min" },
-  { step: 3, icon: RefreshCw, title: "Autopilot", description: "AI handles content, SEO, publishing, engagement, and growth 24/7.", time: "Forever" },
-];
-
-const STATS = [
-  { value: 832, label: "AI Features", suffix: "" },
-  { value: 25, label: "Platforms", suffix: "+" },
-  { value: 11, label: "AI Agents", suffix: "" },
-  { value: 99, label: "Uptime", suffix: ".9%" },
-];
-
 export default function Landing() {
+  const { t } = useTranslation();
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [activePipelineStep, setActivePipelineStep] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
 
   usePageTitle("AI-Powered Creator Management Platform", "CreatorOS replaces your entire creator team with 832 AI features. Manage content, streaming, revenue, and growth across 25 platforms on full autopilot.");
 
+  const PIPELINE_STEPS = useMemo(() => [
+    { icon: Radio, label: t('landing.goLive'), desc: t('landing.goLiveDesc') },
+    { icon: Cpu, label: t('landing.aiDetects'), desc: t('landing.aiDetectsDesc') },
+    { icon: Video, label: t('landing.clipsCreated'), desc: t('landing.clipsCreatedDesc') },
+    { icon: Brain, label: t('landing.seoOptimized'), desc: t('landing.seoOptimizedDesc') },
+    { icon: Layers, label: t('landing.crossPosted'), desc: t('landing.crossPostedDesc') },
+    { icon: TrendingUp, label: t('landing.growth'), desc: t('landing.growthDesc') },
+  ], [t]);
+
+  const FEATURES = useMemo(() => [
+    {
+      icon: Brain,
+      title: t('landing.aiContentEngine'),
+      description: t('landing.aiContentEngineDesc'),
+      metric: "832 AI features",
+      gradient: "from-violet-500/20 to-purple-500/10",
+    },
+    {
+      icon: Radio,
+      title: t('landing.multiPlatformLive'),
+      description: t('landing.multiPlatformLiveDesc'),
+      metric: "25+ platforms",
+      gradient: "from-blue-500/20 to-cyan-500/10",
+    },
+    {
+      icon: Target,
+      title: t('landing.retentionScience'),
+      description: t('landing.retentionScienceDesc'),
+      metric: "95% retention",
+      gradient: "from-emerald-500/20 to-green-500/10",
+    },
+    {
+      icon: Eye,
+      title: t('landing.seoDomination'),
+      description: t('landing.seoDominationDesc'),
+      metric: "3x more views",
+      gradient: "from-amber-500/20 to-orange-500/10",
+    },
+    {
+      icon: DollarSign,
+      title: t('landing.revenueIntelligence'),
+      description: t('landing.revenueIntelligenceDesc'),
+      metric: "Full P&L",
+      gradient: "from-rose-500/20 to-pink-500/10",
+    },
+    {
+      icon: Shield,
+      title: t('landing.selfHealingSystem'),
+      description: t('landing.selfHealingSystemDesc'),
+      metric: "Always on",
+      gradient: "from-indigo-500/20 to-blue-500/10",
+    },
+  ], [t]);
+
+  const TESTIMONIALS = useMemo(() => [
+    {
+      name: t('landing.gamingCreator'),
+      role: t('landing.youtubeAndTwitch'),
+      quote: t('landing.gamingQuote'),
+      avatar: "🎮",
+    },
+    {
+      name: t('landing.techReviewer'),
+      role: t('landing.multiPlatformCreator'),
+      quote: t('landing.techQuote'),
+      avatar: "💻",
+    },
+    {
+      name: t('landing.varietyStreamer'),
+      role: t('landing.fullTimeCreator'),
+      quote: t('landing.varietyQuote'),
+      avatar: "🎙️",
+    },
+  ], [t]);
+
+  const TIERS = useMemo(() => [
+    { name: t('landing.free'), price: "$0", period: "", desc: t('landing.getStarted'), features: [t('landing.dashboardAccess'), t('landing.basicAnalytics'), t('landing.aiAdvisor'), t('landing.contentOverview')], platforms: "1 platform" },
+    { name: "YouTube", price: "$9.99", period: t('landing.perMonth'), desc: t('landing.singlePlatform'), features: [t('landing.youtubeAutomation'), t('landing.seoOptimizer'), t('landing.thumbnailAi'), t('landing.streamCenter'), t('landing.contentCalendar')], platforms: "1 platform" },
+    { name: "Starter", price: "$49.99", period: t('landing.perMonth'), desc: t('landing.multiPlatform'), features: [t('landing.threePlatformAutomation'), t('landing.contentCalendar'), t('landing.revenueTracking'), t('landing.aiContentSuite'), t('landing.crossPosting')], platforms: "3 platforms", popular: true },
+    { name: "Pro", price: "$99.99", period: t('landing.perMonth'), desc: t('landing.fullAutopilot'), features: [t('landing.tenPlatformAutomation'), t('landing.fullAutopilotMode'), t('landing.competitorIntel'), t('landing.prioritySupport'), t('landing.teamAccess'), t('landing.abTesting')], platforms: "10 platforms" },
+    { name: "Ultimate", price: "$149.99", period: t('landing.perMonth'), desc: t('landing.everything'), features: [t('landing.twentyFivePlatforms'), t('landing.allAiFeatures'), t('landing.creatorIntelligence'), t('landing.sixAiAgentSystems'), t('landing.customWorkflows'), t('landing.dedicatedSupport')], platforms: "Unlimited" },
+  ], [t]);
+
+  const HOW_IT_WORKS = useMemo(() => [
+    { step: 1, icon: Link2, title: t('landing.connect'), description: t('landing.connectDesc'), time: "60 sec" },
+    { step: 2, icon: Cpu, title: t('landing.aiActivates'), description: t('landing.aiActivatesDesc'), time: "5 min" },
+    { step: 3, icon: RefreshCw, title: t('landing.autopilot'), description: t('landing.autopilotDesc'), time: "Forever" },
+  ], [t]);
+
+  const STATS = useMemo(() => [
+    { value: 832, label: t('landing.aiFeatures'), suffix: "" },
+    { value: 25, label: t('landing.platforms'), suffix: "+" },
+    { value: 11, label: t('landing.aiAgents'), suffix: "" },
+    { value: 99, label: t('landing.uptime'), suffix: ".9%" },
+  ], [t]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setActivePipelineStep((prev) => (prev + 1) % PIPELINE_STEPS.length);
     }, 2500);
     return () => clearInterval(interval);
-  }, []);
+  }, [PIPELINE_STEPS.length]);
 
   const handleSpotlight = useCallback((e: React.MouseEvent<HTMLElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -331,10 +333,10 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-2">
             <a href="/pricing">
-              <Button data-testid="button-nav-pricing" variant="ghost" size="sm">Pricing</Button>
+              <Button data-testid="button-nav-pricing" variant="ghost" size="sm">{t('landing.pricing')}</Button>
             </a>
             <Button data-testid="button-sign-in-nav" size="sm" className="glow-sm" onClick={() => setShowAuthForm(true)}>
-              Sign In
+              {t('landing.signIn')}
             </Button>
           </div>
         </div>
@@ -366,37 +368,37 @@ export default function Landing() {
               <div className="slide-up-stagger" style={{ animationDelay: '0s' }}>
                 <Badge variant="secondary" className="mb-6 text-xs tracking-wide border-primary/20 bg-primary/5 backdrop-blur-sm" data-testid="badge-hero">
                   <Sparkles className="w-3 h-3 mr-1.5 text-primary" />
-                  Autonomous Creator Intelligence
+                  {t('landing.badge')}
                 </Badge>
               </div>
 
               <h1 data-testid="text-hero-heading" className="slide-up-stagger font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold leading-[1.05] tracking-tight" style={{ animationDelay: '0.1s' }}>
-                Your Entire
+                {t('landing.heroTitle1')}
                 <br />
-                <span className="gradient-text-vivid text-glow">YouTube Team</span>
+                <span className="gradient-text-vivid text-glow">{t('landing.heroTitle2')}</span>
                 <br />
-                In A Box
+                {t('landing.heroTitle3')}
               </h1>
 
               <p data-testid="text-hero-subtitle" className="slide-up-stagger mt-6 text-lg sm:text-xl text-muted-foreground leading-relaxed max-w-xl" style={{ animationDelay: '0.2s' }}>
-                Stream once. AI creates clips, optimizes SEO, publishes everywhere, and grows your audience — while you sleep.
+                {t('landing.heroSubtitle')}
               </p>
 
               <div className="slide-up-stagger mt-10 flex flex-col sm:flex-row gap-3" style={{ animationDelay: '0.3s' }}>
                 <Button data-testid="button-hero-get-started" size="lg" className="text-base glow border-glow-animated group" onClick={() => setShowAuthForm(true)}>
-                  Start Free — No Card Required
+                  {t('landing.getStartedFree')}
                   <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
                 </Button>
                 <a href="/pricing">
                   <Button data-testid="button-hero-view-pricing" variant="outline" size="lg" className="w-full sm:w-auto text-base backdrop-blur-sm">
                     <Play className="h-3.5 w-3.5 mr-2" />
-                    See Plans
+                    {t('landing.seePlans')}
                   </Button>
                 </a>
               </div>
 
               <div className="slide-up-stagger flex items-center gap-5 mt-8 flex-wrap" style={{ animationDelay: '0.4s' }}>
-                {["5-min setup", "No credit card", "Cancel anytime"].map((text) => (
+                {[t('landing.fiveMinSetup'), t('landing.noCreditCard'), t('landing.cancelAnytime')].map((text) => (
                   <span key={text} className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                     {text}
@@ -426,12 +428,12 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.02] to-transparent" aria-hidden="true" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">The Pipeline</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('landing.thePipeline')}</p>
             <h2 className="text-3xl sm:text-4xl font-display font-bold">
-              Stream Once, Content <span className="gradient-text">Forever</span>
+              {t('landing.streamOnceForever').split(', ')[0]}, <span className="gradient-text">{t('landing.streamOnceForever').split(', ')[1]}</span>
             </h2>
             <p className="mt-4 text-base text-muted-foreground max-w-lg mx-auto">
-              Your livestream becomes an endless content machine. AI handles every step automatically.
+              {t('landing.pipelineSubtitle')}
             </p>
           </div>
 
@@ -472,12 +474,12 @@ export default function Landing() {
       <section className="py-20 sm:py-28 border-t border-border/30 spotlight" data-testid="section-features" onMouseMove={handleSpotlight} ref={featuresView.ref}>
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Core Systems</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('landing.coreSystems')}</p>
             <h2 className="text-3xl sm:text-4xl font-display font-bold">
-              Six Engines, Zero Manual Work
+              {t('landing.sixEngines')}
             </h2>
             <p className="mt-4 text-base text-muted-foreground max-w-lg mx-auto">
-              Every aspect of your creator business managed by specialized AI systems working together.
+              {t('landing.sixEnginesSubtitle')}
             </p>
           </div>
           <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-all duration-700 ${featuresView.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -509,9 +511,9 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-blue-500/[0.02]" aria-hidden="true" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">How It Works</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('landing.howItWorks')}</p>
             <h2 className="text-3xl sm:text-4xl font-display font-bold">
-              Three Steps to <span className="gradient-text">Autopilot</span>
+              {t('landing.threeSteps').replace('Autopilot', '').trim()} <span className="gradient-text">{t('landing.autopilot')}</span>
             </h2>
           </div>
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 transition-all duration-700 ${howItWorksView.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -543,25 +545,25 @@ export default function Landing() {
       <section className="py-20 sm:py-28 border-t border-border/30" data-testid="section-testimonials" ref={testimonialsView.ref}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Creator Results</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('landing.creatorResults')}</p>
             <h2 className="text-3xl sm:text-4xl font-display font-bold">
-              Real Growth, Real Numbers
+              {t('landing.realGrowth')}
             </h2>
           </div>
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 transition-all duration-700 ${testimonialsView.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-            {TESTIMONIALS.map((t, i) => (
-              <Card key={t.name} className="shine group hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-500" data-testid={`card-testimonial-${i}`}>
+            {TESTIMONIALS.map((testimonial, i) => (
+              <Card key={testimonial.name} className="shine group hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-500" data-testid={`card-testimonial-${i}`}>
                 <CardContent className="p-6 space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-lg ring-2 ring-primary/10">
-                      {t.avatar}
+                      {testimonial.avatar}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">{t.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{t.role}</p>
+                      <p className="text-sm font-semibold">{testimonial.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{testimonial.role}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed italic">"{t.quote}"</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed italic">"{testimonial.quote}"</p>
                 </CardContent>
               </Card>
             ))}
@@ -572,17 +574,17 @@ export default function Landing() {
       <section className="py-20 sm:py-28 border-t border-border/30 relative" data-testid="section-trust">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Platform Capabilities</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('landing.platformCapabilities')}</p>
             <h2 className="text-3xl sm:text-4xl font-display font-bold">
-              Built for Scale
+              {t('landing.builtForScale')}
             </h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto">
             {[
-              { value: "832", label: "AI Features", icon: Sparkles },
-              { value: "25+", label: "Platforms", icon: Monitor },
-              { value: "11", label: "AI Agents", icon: Bot },
-              { value: "99.9%", label: "Uptime", icon: Shield },
+              { value: "832", label: t('landing.aiFeatures'), icon: Sparkles },
+              { value: "25+", label: t('landing.platforms'), icon: Monitor },
+              { value: "11", label: t('landing.aiAgents'), icon: Bot },
+              { value: "99.9%", label: t('landing.uptime'), icon: Shield },
             ].map((item) => (
               <div key={item.label} className="card-premium p-6 text-center group" data-testid={`card-trust-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
                 <item.icon className="w-5 h-5 text-primary mx-auto mb-3 group-hover:scale-110 transition-transform" />
@@ -613,12 +615,12 @@ export default function Landing() {
       <section className="py-20 sm:py-28 border-t border-border/30" data-testid="section-pricing" ref={pricingView.ref}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Pricing</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('landing.pricing')}</p>
             <h2 className="text-3xl sm:text-4xl font-display font-bold">
-              Simple, Transparent Pricing
+              {t('landing.simplePricing')}
             </h2>
             <p className="mt-4 text-base text-muted-foreground max-w-lg mx-auto">
-              Start free. Upgrade when you need more platforms and automation.
+              {t('landing.pricingSubtitle')}
             </p>
           </div>
           <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 transition-all duration-700 ${pricingView.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -631,7 +633,7 @@ export default function Landing() {
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold">{tier.name}</h3>
-                  {tier.popular && <Badge variant="default" className="text-[10px]">Most Popular</Badge>}
+                  {tier.popular && <Badge variant="default" className="text-[10px]">{t('landing.mostPopular')}</Badge>}
                 </div>
                 <div>
                   <p className="text-3xl font-extrabold font-display">
@@ -654,7 +656,7 @@ export default function Landing() {
                 </ul>
                 <a href="/pricing">
                   <Button variant={tier.popular ? "default" : "outline"} size="sm" className={`w-full mt-2 ${tier.popular ? "glow-sm" : ""}`} data-testid={`button-pricing-${tier.name.toLowerCase()}`}>
-                    {tier.price === "$0" ? "Get Started" : "Upgrade"}
+                    {tier.price === "$0" ? t('landing.getStarted') : t('landing.upgrade')}
                   </Button>
                 </a>
               </div>
@@ -663,7 +665,7 @@ export default function Landing() {
           <div className="text-center mt-10">
             <a href="/pricing">
               <Button variant="outline" size="lg" data-testid="button-view-full-pricing" className="group">
-                View Full Pricing Details
+                {t('landing.viewFullPricing')}
                 <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
               </Button>
             </a>
@@ -676,20 +678,20 @@ export default function Landing() {
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 text-center">
           <Award className="h-12 w-12 text-primary mx-auto mb-6 float" />
           <h2 data-testid="text-cta-heading" className="text-3xl sm:text-4xl lg:text-5xl font-display font-bold">
-            Stop Managing. Start <span className="gradient-text-vivid">Creating.</span>
+            {t('landing.stopManaging')} <span className="gradient-text-vivid">{t('landing.creating')}</span>
           </h2>
           <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-md mx-auto">
-            Join creators who let AI handle the heavy lifting while they focus on what they love.
+            {t('landing.ctaSubtitle')}
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button data-testid="button-cta-get-started" size="lg" className="text-base glow border-glow-animated group" onClick={() => setShowAuthForm(true)}>
-              Get Started Free
+              {t('landing.getStartedFreeCta')}
               <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
             </Button>
             <a href="/pricing">
               <Button data-testid="button-cta-view-pricing" variant="outline" size="lg" className="text-base">
                 <Play className="h-3.5 w-3.5 mr-2" />
-                View Plans
+                {t('landing.viewPlans')}
               </Button>
             </a>
           </div>
@@ -715,7 +717,7 @@ export default function Landing() {
             </span>
           </div>
           <div className="flex items-center gap-5 flex-wrap">
-            <a href="/pricing" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-pricing">Pricing</a>
+            <a href="/pricing" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-pricing">{t('landing.pricing')}</a>
             <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-privacy">Privacy</a>
             <a href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-terms">Terms</a>
             <a href="/data-disclosure" className="text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-footer-data">Data Disclosure</a>

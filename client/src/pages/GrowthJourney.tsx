@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -132,6 +133,7 @@ interface JourneyData {
 }
 
 function MilestoneLadder({ milestones, currentSubs, progressToNext }: { milestones: JourneyData["milestones"]; currentSubs: number; progressToNext: number }) {
+  const { t } = useTranslation();
   const visibleMilestones = milestones.filter((_, idx) => {
     const currentIdx = milestones.findIndex(m => m.current);
     return idx >= Math.max(0, currentIdx - 2) && idx <= Math.min(milestones.length - 1, currentIdx + 4);
@@ -176,11 +178,11 @@ function MilestoneLadder({ milestones, currentSubs, progressToNext }: { mileston
                     {m.label}
                   </p>
                   <p className={`text-xs ${m.current ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
-                    {formatNumber(m.threshold)} subscribers
+                    {formatNumber(m.threshold)} {t('growth.subscribers').toLowerCase()}
                   </p>
                 </div>
                 {m.current && (
-                  <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">You are here</Badge>
+                  <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">{t('growth.youAreHere')}</Badge>
                 )}
                 {m.next && (
                   <span className="text-xs text-muted-foreground">{progressToNext}%</span>
@@ -198,6 +200,7 @@ function MilestoneLadder({ milestones, currentSubs, progressToNext }: { mileston
 }
 
 function GrowthPhaseCard({ phase, plateau }: { phase: JourneyData["growthPhase"]; plateau: JourneyData["plateau"] }) {
+  const { t } = useTranslation();
   const phaseColors: Record<string, string> = {
     "Building Foundation": "text-blue-400",
     "Momentum Building": "text-cyan-400",
@@ -211,7 +214,7 @@ function GrowthPhaseCard({ phase, plateau }: { phase: JourneyData["growthPhase"]
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary" />
-          Growth Phase
+          {t('growth.growthPhase')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -223,12 +226,12 @@ function GrowthPhaseCard({ phase, plateau }: { phase: JourneyData["growthPhase"]
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">Readiness</p>
+            <p className="text-xs text-muted-foreground">{t('growth.readiness')}</p>
             <p className="text-sm font-bold" data-testid="text-readiness">{phase.confidence}%</p>
           </div>
           {phase.estimatedDays && (
             <div className="text-center">
-              <p className="text-xs text-muted-foreground">Next Inflection</p>
+              <p className="text-xs text-muted-foreground">{t('growth.nextInflection')}</p>
               <p className="text-sm font-bold" data-testid="text-inflection-days">~{phase.estimatedDays}d</p>
             </div>
           )}
@@ -237,9 +240,9 @@ function GrowthPhaseCard({ phase, plateau }: { phase: JourneyData["growthPhase"]
           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">
             <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
             <div>
-              <p className="text-xs font-medium text-amber-400">Plateau Detected</p>
+              <p className="text-xs font-medium text-amber-400">{t('growth.plateauDetected')}</p>
               <p className="text-xs text-muted-foreground">
-                {plateau.severity} severity for {plateau.durationDays} days. Growth rate: {plateau.avgGrowthRate}%
+                {plateau.severity} severity for {plateau.durationDays} days. {t('growth.growthRate')}: {plateau.avgGrowthRate}%
               </p>
             </div>
           </div>
@@ -250,17 +253,18 @@ function GrowthPhaseCard({ phase, plateau }: { phase: JourneyData["growthPhase"]
 }
 
 function DailyActionsCard({ actions }: { actions: JourneyData["dailyActions"] }) {
+  const { t } = useTranslation();
   return (
     <Card data-testid="card-daily-actions">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Target className="h-4 w-4 text-primary" />
-          What To Do Today
+          {t('growth.whatToDoToday')}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {actions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No actions generated yet</p>
+          <p className="text-sm text-muted-foreground">{t('growth.noActionsYet')}</p>
         ) : (
           <div className="space-y-2.5">
             {actions.map((action, idx) => (
@@ -300,11 +304,12 @@ function DailyActionsCard({ actions }: { actions: JourneyData["dailyActions"] })
 }
 
 function StatsOverview({ stats }: { stats: JourneyData["stats"] }) {
+  const { t } = useTranslation();
   const items = [
-    { label: "Subscribers", value: formatNumber(stats.totalSubscribers), icon: Users, color: "text-purple-400" },
-    { label: "Views", value: formatNumber(stats.totalViews), icon: Eye, color: "text-blue-400" },
-    { label: "Videos", value: formatNumber(stats.totalVideos), icon: Video, color: "text-emerald-400" },
-    { label: "AI Optimizations", value: formatNumber(stats.optimizations), icon: Sparkles, color: "text-amber-400" },
+    { label: t('growth.subscribers'), value: formatNumber(stats.totalSubscribers), icon: Users, color: "text-purple-400" },
+    { label: t('growth.views'), value: formatNumber(stats.totalViews), icon: Eye, color: "text-blue-400" },
+    { label: t('growth.videos'), value: formatNumber(stats.totalVideos), icon: Video, color: "text-emerald-400" },
+    { label: t('growth.aiOptimizations'), value: formatNumber(stats.optimizations), icon: Sparkles, color: "text-amber-400" },
   ];
 
   return (
@@ -328,20 +333,21 @@ function StatsOverview({ stats }: { stats: JourneyData["stats"] }) {
 }
 
 function AchievementsCard({ achievements }: { achievements: JourneyData["achievements"] }) {
+  const { t } = useTranslation();
   if (achievements.length === 0) {
     return (
       <Card data-testid="card-achievements">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Trophy className="h-4 w-4 text-primary" />
-            Achievements
+            {t('growth.achievements')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center py-6 text-center">
             <Trophy className="h-8 w-8 text-muted-foreground/20 mb-2" />
-            <p className="text-sm text-muted-foreground">No achievements yet</p>
-            <p className="text-xs text-muted-foreground/60">Keep creating content to unlock milestones</p>
+            <p className="text-sm text-muted-foreground">{t('growth.noAchievementsYet')}</p>
+            <p className="text-xs text-muted-foreground/60">{t('growth.keepCreating')}</p>
           </div>
         </CardContent>
       </Card>
@@ -353,7 +359,7 @@ function AchievementsCard({ achievements }: { achievements: JourneyData["achieve
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Trophy className="h-4 w-4 text-primary" />
-          Achievements
+          {t('growth.achievements')}
           <Badge variant="secondary" className="text-xs ml-auto">{achievements.length}</Badge>
         </CardTitle>
       </CardHeader>
@@ -380,15 +386,16 @@ function AchievementsCard({ achievements }: { achievements: JourneyData["achieve
 }
 
 function RoadmapCard({ roadmap, skillProgress }: { roadmap: JourneyData["roadmap"]; skillProgress: JourneyData["skillProgress"] }) {
+  const { t } = useTranslation();
   return (
     <Card data-testid="card-roadmap">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Rocket className="h-4 w-4 text-primary" />
-          Your Roadmap
+          {t('growth.yourRoadmap')}
           {skillProgress && (
             <Badge variant="secondary" className="text-xs ml-auto">
-              Skill Lv {skillProgress.level}
+              {t('growth.skillLevel', { level: skillProgress.level })}
             </Badge>
           )}
         </CardTitle>
@@ -397,8 +404,8 @@ function RoadmapCard({ roadmap, skillProgress }: { roadmap: JourneyData["roadmap
         {roadmap.length === 0 ? (
           <div className="flex flex-col items-center py-6 text-center">
             <Rocket className="h-8 w-8 text-muted-foreground/20 mb-2" />
-            <p className="text-sm text-muted-foreground">Roadmap not generated yet</p>
-            <p className="text-xs text-muted-foreground/60">Connect a platform and create content to build your roadmap</p>
+            <p className="text-sm text-muted-foreground">{t('growth.roadmapNotGenerated')}</p>
+            <p className="text-xs text-muted-foreground/60">{t('growth.connectPlatform')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -429,6 +436,7 @@ function RoadmapCard({ roadmap, skillProgress }: { roadmap: JourneyData["roadmap
 }
 
 function ProgressToNextMilestone({ current, next, progress }: { current: JourneyData["currentMilestone"]; next: JourneyData["nextMilestone"]; progress: number }) {
+  const { t } = useTranslation();
   const NextIcon = ICON_MAP[next.icon] || Star;
   const isMaxed = current.threshold === next.threshold;
 
@@ -441,10 +449,10 @@ function ProgressToNextMilestone({ current, next, progress }: { current: Journey
               <Crown className="h-5 w-5 text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm font-medium" data-testid="text-maxed-milestone">You've reached the top!</p>
-              <p className="text-xs text-muted-foreground">{current.label} - {formatNumber(current.threshold)}+ subscribers</p>
+              <p className="text-sm font-medium" data-testid="text-maxed-milestone">{t('growth.reachedTheTop')}</p>
+              <p className="text-xs text-muted-foreground">{current.label} - {formatNumber(current.threshold)}+ {t('growth.subscribers').toLowerCase()}</p>
             </div>
-            <Badge variant="secondary" className="ml-auto text-xs bg-emerald-500/10 text-emerald-400">Maxed</Badge>
+            <Badge variant="secondary" className="ml-auto text-xs bg-emerald-500/10 text-emerald-400">{t('growth.maxed')}</Badge>
           </div>
         </CardContent>
       </Card>
@@ -459,8 +467,8 @@ function ProgressToNextMilestone({ current, next, progress }: { current: Journey
             <NextIcon className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-medium" data-testid="text-next-milestone-label">Next: {next.label}</p>
-            <p className="text-xs text-muted-foreground" data-testid="text-next-milestone-target">{formatNumber(next.threshold)} subscribers</p>
+            <p className="text-sm font-medium" data-testid="text-next-milestone-label">{t('growth.nextMilestone')}: {next.label}</p>
+            <p className="text-xs text-muted-foreground" data-testid="text-next-milestone-target">{formatNumber(next.threshold)} {t('growth.subscribers').toLowerCase()}</p>
           </div>
           <Badge variant="secondary" className="ml-auto text-xs">{progress}%</Badge>
         </div>
@@ -484,6 +492,7 @@ function ProgressToNextMilestone({ current, next, progress }: { current: Journey
 }
 
 export default function GrowthJourney() {
+  const { t } = useTranslation();
   usePageTitle("Growth Journey - Zero to #1");
 
   const { data, isLoading, isError, error } = useQuery<JourneyData>({
@@ -515,14 +524,14 @@ export default function GrowthJourney() {
     return (
       <div className="space-y-6 p-1" data-testid="growth-journey-error">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Zero to #1</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Your personal roadmap to becoming the #1 creator</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('growth.title')}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('growth.personalRoadmap')}</p>
         </div>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <TrendingUp className="h-10 w-10 text-muted-foreground/20 mb-3" />
-            <p className="text-sm font-medium mb-1" data-testid="text-journey-error">Unable to load your growth journey</p>
-            <p className="text-xs text-muted-foreground">Please sign in and connect a platform to start your journey</p>
+            <p className="text-sm font-medium mb-1" data-testid="text-journey-error">{t('growth.unableToLoad')}</p>
+            <p className="text-xs text-muted-foreground">{t('growth.signInToStart')}</p>
           </CardContent>
         </Card>
       </div>
@@ -533,10 +542,10 @@ export default function GrowthJourney() {
     <div className="space-y-6 p-1" data-testid="growth-journey-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-journey-title">
-          Zero to #1
+          {t('growth.title')}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Your personal roadmap from starting out to becoming the #1 creator in your niche
+          {t('growth.personalRoadmap')}
         </p>
       </div>
 
@@ -554,7 +563,7 @@ export default function GrowthJourney() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Crown className="h-4 w-4 text-primary" />
-                Milestone Ladder
+                {t('growth.milestoneLadder')}
               </CardTitle>
             </CardHeader>
             <CardContent>

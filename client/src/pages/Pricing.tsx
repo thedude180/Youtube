@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,59 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Check, Loader2, Crown, Zap, Star, Rocket, Gift, Lock, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { SiYoutube } from "react-icons/si";
-
-const TIER_INFO = [
-  {
-    tier: "free",
-    name: "Free",
-    icon: Star,
-    color: "text-muted-foreground",
-    bgAccent: "",
-    platforms: 0,
-    features: ["Dashboard overview", "Basic analytics", "1 AI query/day"],
-    badge: null,
-  },
-  {
-    tier: "youtube",
-    name: "YouTube",
-    icon: SiYoutube,
-    color: "text-red-500",
-    bgAccent: "",
-    platforms: 1,
-    features: ["YouTube channel", "Stream Center", "Revenue tracking", "Creator plan AI", "50 AI features"],
-    badge: null,
-  },
-  {
-    tier: "starter",
-    name: "Starter",
-    icon: Zap,
-    color: "text-blue-400",
-    bgAccent: "",
-    platforms: 3,
-    features: ["3 platforms", "Content calendar", "AI tools suite", "Pipeline dashboard", "Community tools", "Empire Builder basics", "200 AI features"],
-    badge: null,
-  },
-  {
-    tier: "pro",
-    name: "Pro",
-    icon: Rocket,
-    color: "text-purple-400",
-    bgAccent: "ring-2 ring-purple-500",
-    platforms: 10,
-    features: ["10 platforms", "Full Autopilot", "SEO optimizer", "Sponsorships", "Competitor intel", "Legal protection", "Empire + Video Creation", "500 AI features"],
-    badge: "Popular",
-  },
-  {
-    tier: "ultimate",
-    name: "Ultimate",
-    icon: Crown,
-    color: "text-yellow-400",
-    bgAccent: "",
-    platforms: 25,
-    features: ["All 25 platforms", "Dual pipeline auto", "Stealth scoring", "Creator Intelligence", "Full Empire Launcher", "Content recycler", "Everything included", "832 AI features"],
-    badge: "God Tier",
-  },
-];
 
 type ComparisonCategory = {
   name: string;
@@ -169,11 +117,65 @@ const COMPARISON_DATA: ComparisonCategory[] = [
 ];
 
 export default function Pricing() {
+  const { t } = useTranslation();
   usePageTitle("Pricing — Plans Starting Free", "Choose from 5 tiers: Free, YouTube ($9.99), Starter ($49.99), Pro ($99.99), and Ultimate ($149.99). Scale your creator business with AI-powered automation.");
   const { user } = useAuth();
   const { toast } = useToast();
   const [accessCode, setAccessCode] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(["Content Management"]));
+
+  const TIER_INFO = [
+    {
+      tier: "free",
+      name: "Free",
+      icon: Star,
+      color: "text-muted-foreground",
+      bgAccent: "",
+      platforms: 0,
+      features: [t('landing.dashboardAccess'), t('landing.basicAnalytics'), "1 AI query/day"],
+      badge: null,
+    },
+    {
+      tier: "youtube",
+      name: "YouTube",
+      icon: SiYoutube,
+      color: "text-red-500",
+      bgAccent: "",
+      platforms: 1,
+      features: ["YouTube channel", t('landing.streamCenter'), t('landing.revenueTracking'), "Creator plan AI", "50 AI features"],
+      badge: null,
+    },
+    {
+      tier: "starter",
+      name: "Starter",
+      icon: Zap,
+      color: "text-blue-400",
+      bgAccent: "",
+      platforms: 3,
+      features: ["3 platforms", t('landing.contentCalendar'), t('landing.aiContentSuite'), "Pipeline dashboard", "Community tools", "Empire Builder basics", "200 AI features"],
+      badge: null,
+    },
+    {
+      tier: "pro",
+      name: "Pro",
+      icon: Rocket,
+      color: "text-purple-400",
+      bgAccent: "ring-2 ring-purple-500",
+      platforms: 10,
+      features: ["10 platforms", t('landing.fullAutopilotMode'), t('landing.seoOptimizer'), "Sponsorships", t('landing.competitorIntel'), "Legal protection", "Empire + Video Creation", "500 AI features"],
+      badge: t('pricingPage.popular'),
+    },
+    {
+      tier: "ultimate",
+      name: "Ultimate",
+      icon: Crown,
+      color: "text-yellow-400",
+      bgAccent: "",
+      platforms: 25,
+      features: [t('landing.twentyFivePlatforms'), "Dual pipeline auto", "Stealth scoring", t('landing.creatorIntelligence'), "Full Empire Launcher", "Content recycler", t('landing.everything'), t('landing.allAiFeatures')],
+      badge: t('pricingPage.godTier'),
+    },
+  ];
 
   const { data: profile } = useQuery<any>({
     queryKey: ["/api/user/profile"],
@@ -208,11 +210,11 @@ export default function Pricing() {
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast({ title: "Code Redeemed!", description: `You now have ${data.tier} access` });
+        toast({ title: t('pricingPage.codeRedeemed'), description: t('pricingPage.youNowHave', { tier: data.tier }) });
         setAccessCode("");
         queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
       } else {
-        toast({ title: "Invalid Code", description: "Please check your code and try again", variant: "destructive" });
+        toast({ title: t('pricingPage.invalidCode'), description: t('pricingPage.checkCode'), variant: "destructive" });
       }
     },
     onError: (e: any) => {
@@ -232,7 +234,7 @@ export default function Pricing() {
   function handleSubscribe(tier: string) {
     const price = getPriceForTier(tier);
     if (!price) {
-      toast({ title: "Coming soon", description: "This plan will be available shortly" });
+      toast({ title: t('pricingPage.comingSoon'), description: t('pricingPage.comingSoonDesc') });
       return;
     }
     checkoutMutation.mutate(price.id);
@@ -255,11 +257,11 @@ export default function Pricing() {
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Pricing</p>
-          <h1 className="text-3xl sm:text-4xl font-display font-bold mb-3" data-testid="text-pricing-title">Choose Your Plan</h1>
-          <p className="text-base text-muted-foreground max-w-md mx-auto">Scale your creator business with AI-powered automation</p>
+          <h1 className="text-3xl sm:text-4xl font-display font-bold mb-3" data-testid="text-pricing-title">{t('pricingPage.title')}</h1>
+          <p className="text-base text-muted-foreground max-w-md mx-auto">{t('pricingPage.scaleYourBusiness')}</p>
           {currentTier !== "free" && (
             <Badge variant="secondary" className="mt-2" data-testid="badge-current-tier">
-              Current: {currentTier.charAt(0).toUpperCase() + currentTier.slice(1)}
+              {t('pricingPage.current', { tier: currentTier.charAt(0).toUpperCase() + currentTier.slice(1) })}
             </Badge>
           )}
         </div>
@@ -290,18 +292,22 @@ export default function Pricing() {
                   <CardTitle className="text-lg">{info.name}</CardTitle>
                   <div className="text-2xl font-bold">
                     {info.tier === "free" ? (
-                      "Free"
+                      t('landing.free')
                     ) : price ? (
                       <>
                         ${(price.unit_amount / 100).toFixed(0)}
                         <span className="text-sm font-normal text-muted-foreground">/mo</span>
                       </>
                     ) : (
-                      <span className="text-base text-muted-foreground">Loading...</span>
+                      <span className="text-base text-muted-foreground">{t('pricingPage.loading')}</span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {info.platforms === 0 ? "No platforms" : `${info.platforms} platform${info.platforms > 1 ? "s" : ""}`}
+                    {info.platforms === 0
+                      ? t('pricingPage.noPlatforms')
+                      : info.platforms > 1
+                        ? t('pricingPage.platformCountPlural', { count: info.platforms })
+                        : t('pricingPage.platformCount', { count: info.platforms })}
                   </p>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -315,7 +321,7 @@ export default function Pricing() {
                   </ul>
                   {isCurrent ? (
                     <Button variant="secondary" className="w-full" disabled data-testid={`button-current-${info.tier}`}>
-                      Current Plan
+                      {t('pricingPage.currentPlan')}
                     </Button>
                   ) : info.tier === "free" ? null : (
                     <Button
@@ -325,7 +331,7 @@ export default function Pricing() {
                       disabled={checkoutMutation.isPending}
                       data-testid={`button-subscribe-${info.tier}`}
                     >
-                      {checkoutMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Subscribe"}
+                      {checkoutMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t('pricingPage.subscribe')}
                     </Button>
                   )}
                 </CardContent>
@@ -338,10 +344,10 @@ export default function Pricing() {
           <CardHeader className="pb-3">
             <CardTitle className="text-xl flex items-center gap-2">
               <Crown className="w-5 h-5 text-yellow-400" />
-              Full Feature Comparison
+              {t('pricingPage.fullFeatureComparison')}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              See exactly what you get at every tier. Click each category to expand.
+              {t('pricingPage.seeExactly')}
             </p>
           </CardHeader>
           <CardContent>
@@ -349,7 +355,7 @@ export default function Pricing() {
               <table className="w-full text-sm" data-testid="table-full-comparison">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2 pr-4 font-medium min-w-[200px]">Feature</th>
+                    <th className="text-left py-2 pr-4 font-medium min-w-[200px]">{t('pricingPage.features')}</th>
                     {tierHeaders.map((h, i) => (
                       <th key={h} className={`text-center py-2 px-2 font-medium ${tierHeaderColors[i]} min-w-[60px]`}>{h}</th>
                     ))}
@@ -382,14 +388,14 @@ export default function Pricing() {
           <Card className="max-w-md mx-auto">
             <CardHeader className="flex flex-row items-center gap-2 pb-2">
               <Gift className="w-5 h-5 text-purple-400" />
-              <CardTitle className="text-base">Have an Access Code?</CardTitle>
+              <CardTitle className="text-base">{t('pricingPage.haveAccessCode')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex gap-2">
                 <Input
                   value={accessCode}
                   onChange={(e) => setAccessCode(e.target.value)}
-                  placeholder="Enter your code"
+                  placeholder={t('pricingPage.enterCode')}
                   data-testid="input-access-code"
                 />
                 <Button
@@ -397,7 +403,7 @@ export default function Pricing() {
                   disabled={!accessCode.trim() || redeemMutation.isPending}
                   data-testid="button-redeem-code"
                 >
-                  {redeemMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Redeem"}
+                  {redeemMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t('pricingPage.redeem')}
                 </Button>
               </div>
             </CardContent>
