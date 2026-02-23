@@ -23,6 +23,8 @@ import {
   Globe,
   Check,
   TrendingUp,
+  Repeat,
+  Film,
 } from "lucide-react";
 import {
   Sidebar,
@@ -50,6 +52,8 @@ const navLinks = [
   { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
   { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
   { href: "/edge", labelKey: "Competitive Edge", icon: Crown, minTier: "free", advancedOnly: false },
+  { href: "/stream-loop", labelKey: "Stream Loop", icon: Repeat, minTier: "pro", advancedOnly: false },
+  { href: "/vod-shorts-loop", labelKey: "VOD & Shorts", icon: Film, minTier: "pro", advancedOnly: false },
   { href: "/stealth", labelKey: "AI Stealth", icon: Bot, minTier: "free", advancedOnly: false },
   { href: "/community", labelKey: "Community", icon: Users, minTier: "starter", advancedOnly: true },
   { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free", advancedOnly: true },

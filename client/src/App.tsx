@@ -49,6 +49,8 @@ const Community = lazyRetry(() => import("@/pages/Community"));
 const GrowthJourney = lazyRetry(() => import("@/pages/GrowthJourney"));
 const EmpireLauncher = lazyRetry(() => import("@/pages/EmpireLauncher"));
 const CompetitiveEdge = lazyRetry(() => import("@/pages/CompetitiveEdge"));
+const StreamLoop = lazyRetry(() => import("@/pages/StreamLoop"));
+const VodShortsLoop = lazyRetry(() => import("@/pages/VodShortsLoop"));
 const StealthAutonomy = lazyRetry(() => import("@/pages/StealthAutonomy"));
 const SystemStatus = lazyRetry(() => import("@/pages/SystemStatus"));
 const ChangelogPage = lazyRetry(() => import("@/pages/Changelog"));
@@ -111,6 +113,8 @@ function Router() {
       <Route path="/data-disclosure">{() => <SectionErrorBoundary fallbackTitle="Data Disclosure failed to load"><DataDisclosure /></SectionErrorBoundary>}</Route>
       <Route path="/status">{() => <SectionErrorBoundary fallbackTitle="System Status failed to load"><SystemStatus /></SectionErrorBoundary>}</Route>
       <Route path="/changelog">{() => <SectionErrorBoundary fallbackTitle="Changelog failed to load"><ChangelogPage /></SectionErrorBoundary>}</Route>
+      <Route path="/stream-loop">{() => <SectionErrorBoundary fallbackTitle="Stream Loop failed to load"><StreamLoop /></SectionErrorBoundary>}</Route>
+      <Route path="/vod-shorts-loop">{() => <SectionErrorBoundary fallbackTitle="VOD/Shorts Loop failed to load"><VodShortsLoop /></SectionErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>

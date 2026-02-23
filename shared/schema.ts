@@ -4640,3 +4640,95 @@ export const creatorProfiles = pgTable("creator_profiles", {
 export const insertCreatorProfileSchema = createInsertSchema(creatorProfiles).omit({ id: true });
 export type InsertCreatorProfile = z.infer<typeof insertCreatorProfileSchema>;
 export type CreatorProfile = typeof creatorProfiles.$inferSelect;
+
+export const streamLoopRuns = pgTable("stream_loop_runs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: integer("stream_id"),
+  phase: text("phase").notNull().default("idle"),
+  status: text("status").notNull().default("pending"),
+  phases: jsonb("phases").$type<{
+    name: string;
+    status: "pending" | "running" | "completed" | "failed" | "skipped";
+    startedAt?: string;
+    completedAt?: string;
+    durationMs?: number;
+    result?: any;
+    error?: string;
+  }[]>().default([]),
+  metrics: jsonb("metrics").$type<{
+    clipsExtracted?: number;
+    shortsGenerated?: number;
+    platformsDistributed?: number;
+    viewsGenerated?: number;
+    ctrDelta?: number;
+    retentionDelta?: number;
+    revenueEstimate?: number;
+  }>().default({}),
+  learnings: jsonb("learnings").$type<{
+    bestClipTimestamps?: string[];
+    topPerformingTitle?: string;
+    audiencePeakMoments?: number[];
+    keywordsDiscovered?: string[];
+    improvements?: string[];
+  }>().default({}),
+  totalDurationMs: integer("total_duration_ms"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("stream_loop_runs_user_idx").on(table.userId),
+  index("stream_loop_runs_status_idx").on(table.status),
+]);
+
+export const vodShortsLoopRuns = pgTable("vod_shorts_loop_runs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  phase: text("phase").notNull().default("idle"),
+  status: text("status").notNull().default("pending"),
+  phases: jsonb("phases").$type<{
+    name: string;
+    status: "pending" | "running" | "completed" | "failed" | "skipped";
+    startedAt?: string;
+    completedAt?: string;
+    durationMs?: number;
+    result?: any;
+    error?: string;
+  }[]>().default([]),
+  videosAnalyzed: integer("videos_analyzed").default(0),
+  videosOptimized: integer("videos_optimized").default(0),
+  shortsGenerated: integer("shorts_generated").default(0),
+  abTestsCreated: integer("ab_tests_created").default(0),
+  metrics: jsonb("metrics").$type<{
+    decayDetected?: number;
+    titlesOptimized?: number;
+    thumbnailsRefreshed?: number;
+    ctrImprovement?: number;
+    viewsRecovered?: number;
+    shortsViews?: number;
+    distributionCount?: number;
+  }>().default({}),
+  learnings: jsonb("learnings").$type<{
+    winningTitlePatterns?: string[];
+    bestThumbnailStyles?: string[];
+    optimalPostTimes?: string[];
+    topKeywords?: string[];
+    contentGaps?: string[];
+  }>().default({}),
+  totalDurationMs: integer("total_duration_ms"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("vod_shorts_loop_runs_user_idx").on(table.userId),
+  index("vod_shorts_loop_runs_status_idx").on(table.status),
+]);
+
+export const insertStreamLoopRunSchema = createInsertSchema(streamLoopRuns).omit({ id: true, createdAt: true });
+export const insertVodShortsLoopRunSchema = createInsertSchema(vodShortsLoopRuns).omit({ id: true, createdAt: true });
+export type StreamLoopRun = typeof streamLoopRuns.$inferSelect;
+export type VodShortsLoopRun = typeof vodShortsLoopRuns.$inferSelect;
+export type InsertStreamLoopRun = z.infer<typeof insertStreamLoopRunSchema>;
+export type InsertVodShortsLoopRun = z.infer<typeof insertVodShortsLoopRunSchema>;
