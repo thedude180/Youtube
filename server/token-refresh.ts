@@ -56,11 +56,7 @@ async function refreshGoogleToken(currentRefreshToken: string): Promise<RefreshR
   }
 }
 
-async function refreshToken(platform: Platform, currentRefreshToken: string): Promise<RefreshResult> {
-  if (GOOGLE_PLATFORMS.has(platform)) {
-    return refreshGoogleToken(currentRefreshToken);
-  }
-
+async function refreshTokenOnce(platform: Platform, currentRefreshToken: string): Promise<RefreshResult> {
   const config = OAUTH_CONFIGS[platform];
   if (!config) return { success: false, error: `No OAuth config for ${platform}` };
 
@@ -91,7 +87,7 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 20000);
     let res: Response;
     try {
       res = await fetch(config.tokenUrl, {
@@ -106,12 +102,18 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[TokenRefresh:${platform}] Failed:`, errText);
+      console.error(`[TokenRefresh:${platform}] Failed (${res.status}):`, errText);
 
-      if (errText.includes("invalid_grant") || errText.includes("invalid_request") || errText.includes("expired") || errText.includes("was invalid") || res.status === 401) {
+      const isPermanentlyDead =
+        (errText.includes("invalid_grant") && !errText.includes("invalid_grant_type")) ||
+        errText.includes("was invalid") ||
+        errText.includes("token has been revoked") ||
+        errText.includes("Token has been expired or revoked");
+
+      if (isPermanentlyDead || (res.status === 401 && !errText.includes("rate"))) {
         return { success: false, error: `Token expired - user needs to re-authorize ${platform}` };
       }
-      return { success: false, error: `Token refresh failed: ${res.status}` };
+      return { success: false, error: `Token refresh failed: ${res.status} — ${errText.slice(0, 200)}` };
     }
 
     const data = await res.json() as any;
@@ -129,10 +131,35 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
   }
 }
 
+async function refreshToken(platform: Platform, currentRefreshToken: string): Promise<RefreshResult> {
+  if (GOOGLE_PLATFORMS.has(platform)) {
+    return refreshGoogleToken(currentRefreshToken);
+  }
+
+  const result = await refreshTokenOnce(platform, currentRefreshToken);
+  if (result.success) return result;
+
+  const isTransient = result.error && !result.error.includes("Token expired") && !result.error.includes("re-authorize");
+  if (isTransient) {
+    console.log(`[TokenRefresh:${platform}] Transient failure, retrying in 3s...`);
+    await new Promise(r => setTimeout(r, 3000));
+    const retry = await refreshTokenOnce(platform, currentRefreshToken);
+    if (retry.success) return retry;
+
+    console.log(`[TokenRefresh:${platform}] Retry 2 in 5s...`);
+    await new Promise(r => setTimeout(r, 5000));
+    return refreshTokenOnce(platform, currentRefreshToken);
+  }
+
+  return result;
+}
+
 export async function refreshSingleChannel(ch: { platform: string; refreshToken: string | null }): Promise<RefreshResult> {
   if (!ch.refreshToken) return { success: false, error: "No refresh token" };
   return refreshToken(ch.platform as Platform, ch.refreshToken);
 }
+
+const X_PLATFORMS = new Set<string>(["x", "twitter"]);
 
 export async function refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
   const bufferMs = 2 * 60 * 60 * 1000;
@@ -142,6 +169,9 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
   let failed = 0;
 
   try {
+    const xBufferMs = 90 * 60 * 1000;
+    const xThreshold = new Date(Date.now() + xBufferMs);
+
     const expiring = await db.select().from(channels).where(
       and(
         isNotNull(channels.refreshToken),
@@ -150,7 +180,22 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
       )
     );
 
-    for (const ch of expiring) {
+    const xChannelsNeedingRefresh = await db.select().from(channels).where(
+      and(
+        isNotNull(channels.refreshToken),
+        isNotNull(channels.tokenExpiresAt),
+        lt(channels.tokenExpiresAt, xThreshold)
+      )
+    );
+
+    const allExpiring = [...expiring];
+    for (const xCh of xChannelsNeedingRefresh) {
+      if (X_PLATFORMS.has(xCh.platform) && !allExpiring.find(e => e.id === xCh.id)) {
+        allExpiring.push(xCh);
+      }
+    }
+
+    for (const ch of allExpiring) {
       if (!ch.refreshToken || !ch.platform) continue;
 
       const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
