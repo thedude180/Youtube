@@ -175,7 +175,7 @@ export function setupPlatformAuth(app: Express) {
         const firstName = nameParts[0] || displayName;
         const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
-        const dbUser = await authStorage.upsertUser({
+        const dbUser = await authStorage.upsertUserTrusted({
           id: userId,
           email: email.toLowerCase(),
           firstName,

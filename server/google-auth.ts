@@ -63,7 +63,7 @@ export function setupGoogleAuth(app: Express) {
 
           let actualUserId = userId;
           try {
-            const dbUser = await authStorage.upsertUser({
+            const dbUser = await authStorage.upsertUserTrusted({
               id: userId,
               email,
               firstName,

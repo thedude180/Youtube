@@ -77,6 +77,8 @@ registerCleanup("authRateLimit", () => {
   }
 }, 60_000);
 
+const DUMMY_HASH = "$2a$12$LJ3m4ys3Lg5Nl0wEN/dSk.GGIuGLBMXdGqGKNHtRwWJbFtQP0TEWK";
+
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]).{8,}$/;
 
 const registerSchema = z.object({
@@ -108,6 +110,9 @@ export function registerAuthRoutes(app: Express): void {
       const { email, password, firstName, lastName } = parsed.data;
 
       const normalizedEmail = email.toLowerCase();
+      if (normalizedEmail === ADMIN_EMAIL) {
+        return res.status(409).json({ message: "An account with this email already exists. Try logging in instead." });
+      }
       const existing = await authStorage.getUserByEmail(normalizedEmail);
       if (existing) {
         return res.status(409).json({ message: "An account with this email already exists. Try logging in instead." });
@@ -201,6 +206,7 @@ export function registerAuthRoutes(app: Express): void {
 
       const user = await authStorage.getUserByEmail(email.toLowerCase());
       if (!user || !user.passwordHash) {
+        await bcrypt.compare(password, DUMMY_HASH);
         try {
           await recordLoginAttempt(ip, null, false, userAgent, "Invalid email");
         } catch (e) {
@@ -299,7 +305,7 @@ export function registerAuthRoutes(app: Express): void {
 
       if (!user && userId && req.user.claims) {
         const claims = req.user.claims;
-        user = await authStorage.upsertUser({
+        user = await authStorage.upsertUserTrusted({
           id: userId,
           email: claims.email || null,
           firstName: claims.first_name || null,
@@ -314,7 +320,7 @@ export function registerAuthRoutes(app: Express): void {
 
       const userEmail = user.email || req.user.claims?.email;
       if (userEmail && userEmail.toLowerCase() === ADMIN_EMAIL && (user.role !== "admin" || user.tier !== "ultimate")) {
-        user = await authStorage.upsertUser({
+        user = await authStorage.upsertUserTrusted({
           id: userId,
           email: ADMIN_EMAIL,
           firstName: user.firstName,

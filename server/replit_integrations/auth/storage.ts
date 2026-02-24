@@ -6,6 +6,7 @@ export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  upsertUserTrusted(user: UpsertUser): Promise<User>;
 }
 
 class AuthStorage implements IAuthStorage {
@@ -20,7 +21,15 @@ class AuthStorage implements IAuthStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const isAdmin = userData.email?.toLowerCase() === ADMIN_EMAIL;
+    return this._upsert(userData, false);
+  }
+
+  async upsertUserTrusted(userData: UpsertUser): Promise<User> {
+    return this._upsert(userData, true);
+  }
+
+  private async _upsert(userData: UpsertUser, allowAdminPromotion: boolean): Promise<User> {
+    const isAdmin = allowAdminPromotion && userData.email?.toLowerCase() === ADMIN_EMAIL;
     const insertValues = isAdmin
       ? { ...userData, role: "admin" as const, tier: "ultimate" as const }
       : userData;
