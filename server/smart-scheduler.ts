@@ -194,7 +194,6 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
     const connectedPlatforms = platforms.filter(p => connectedSet.has(p));
 
     if (connectedPlatforms.length === 0) {
-      console.log(`[SmartScheduler] No connected platforms for ${userId}, skipping auto-schedule`);
       return { scheduled: [], total: 0, error: "No connected platforms. Connect your accounts in Content > Channels." };
     }
 

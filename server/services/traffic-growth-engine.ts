@@ -149,9 +149,6 @@ Respond with JSON:
   plan.strategies = (plan.strategies || []).filter((strategy: any) => {
     const text = `${strategy.title} ${strategy.description} ${JSON.stringify(strategy.actions || [])}`.toLowerCase();
     const hasBanned = BANNED_TACTICS.some(t => text.includes(t));
-    if (hasBanned) {
-      console.log(`[TrafficEngine] Blocked banned strategy: "${strategy.title}"`);
-    }
     return !hasBanned;
   });
 
@@ -215,7 +212,6 @@ Respond with JSON:
     },
   });
 
-  console.log(`[TrafficEngine] Generated ${(plan.strategies || []).length} strategies for ${userId}`);
   return plan;
 }
 
@@ -281,7 +277,6 @@ Respond with JSON:
     const relevant: string[] = result.relevantKeywords || [];
 
     if (relevant.length === 0) {
-      console.log(`[KeywordEngine] No relevant keywords found for video: "${videoTitle}"`);
       return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] };
     }
 
@@ -293,8 +288,6 @@ Respond with JSON:
         applied.push(kw);
       }
     }
-
-    console.log(`[KeywordEngine] Applied ${applied.length} relevant keywords to "${videoTitle}": ${applied.join(", ")}`);
 
     return {
       optimizedTags: optimizedTags.slice(0, 30),
@@ -322,6 +315,5 @@ export async function runTrafficGrowthCycle() {
     }
   }
 
-  console.log(`[TrafficEngine] Completed growth cycle for ${totalProcessed} users`);
   return totalProcessed;
 }

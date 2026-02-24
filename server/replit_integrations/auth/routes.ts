@@ -261,7 +261,6 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid email" });
       }
       const { email } = parsed.data;
-      console.log(`[Auth] Password reset requested for: ${email.toLowerCase()}`);
       res.json({ ok: true, message: "If an account with that email exists, you will receive a password reset link shortly." });
     } catch (error: any) {
       console.error("Forgot password error:", error);
@@ -276,7 +275,6 @@ export function registerAuthRoutes(app: Express): void {
 
       if (!user && userId && req.user.claims) {
         const claims = req.user.claims;
-        console.log("User not found in DB, creating from session claims:", userId);
         user = await authStorage.upsertUser({
           id: userId,
           email: claims.email || null,

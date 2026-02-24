@@ -165,7 +165,6 @@ export async function bootContentLoops() {
       }
     }
 
-    logger.info("Content loops booted", { users: userRows.length });
   } catch (err) {
     logger.error("Failed to boot content loops", { error: String(err) });
   }

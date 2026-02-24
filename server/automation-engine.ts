@@ -203,7 +203,6 @@ const cronLock = { get since() { return cronProcessingSince; }, set since(v) { c
 const chainLock = { get since() { return chainProcessingSince; }, set since(v) { chainProcessingSince = v; } };
 
 export async function initAutomationEngine() {
-  console.log("[AutomationEngine] Initializing all subsystems...");
 
   cron.schedule("*/5 * * * *", async () => {
     await withCronLock("CronProcessor", 4 * 60 * 1000, async () => {
@@ -301,10 +300,8 @@ export async function initAutomationEngine() {
     await selfHealingCore("ContentLoop", async () => {
       const { bootContentLoops } = await import("./content-loop");
       await bootContentLoops();
-      console.log("[AutomationEngine] Content Loop booted — continuous extraction active");
       const { startTrendRiderEngine } = await import("./trend-rider-engine");
       startTrendRiderEngine();
-      console.log("[AutomationEngine] Trend Rider Engine booted — auto-detects trending topics");
     }, { maxRetries: 3 });
   }, 5_000);
 
@@ -343,7 +340,6 @@ export async function initAutomationEngine() {
         for (const userId of userIds) {
           if (userId) await syncAllRevenue(userId);
         }
-        console.log("[AutomationEngine] Revenue sync completed for", userIds.length, "users");
       });
     });
   });
@@ -364,7 +360,6 @@ export async function initAutomationEngine() {
           }
         }
         if (totalNew > 0) {
-          console.log(`[AutomationEngine] Continuous video sync: pulled ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
         }
       });
     });
@@ -380,7 +375,6 @@ export async function initAutomationEngine() {
           if (userId) {
             const result = await startBacklogOnLogin(userId);
             if (result.started) {
-              console.log(`[AutomationEngine] Continuous backlog processing: ${result.message} for ${userId}`);
             }
           }
         }
@@ -404,7 +398,6 @@ export async function initAutomationEngine() {
           try {
             const result = await startBacklogProcessing(userId, "deep");
             if (!result.alreadyRunning && result.totalVideos > 0) {
-              console.log(`[AutomationEngine] New video optimizer: queued ${result.totalVideos} unoptimized video(s) for ${userId}`);
             }
           } catch (bErr: any) {
             if (!bErr.message?.includes("already")) {
@@ -426,7 +419,6 @@ export async function initAutomationEngine() {
           if (!userId) continue;
           const count = await autoScheduleOptimizedContent(userId);
           if (count > 0) {
-            console.log(`[AutomationEngine] Auto-scheduled ${count} post(s) with human-like timing for ${userId}`);
             sendSSEEvent(userId, "schedule_updated", { scheduled: count });
           }
         }
@@ -463,7 +455,6 @@ export async function initAutomationEngine() {
         for (const platform of ["youtube", "twitch", "kick", "tiktok", "x"]) {
           await scanAlgorithmChanges(platform);
         }
-        console.log("[UltimateEngine] Algorithm scan complete");
       });
     });
   });
@@ -477,7 +468,6 @@ export async function initAutomationEngine() {
         for (const userId of userIds.slice(0, 10)) {
           await scanForTrends(userId!);
         }
-        console.log("[UltimateEngine] Trend prediction scan complete");
       });
     });
   });
@@ -491,7 +481,6 @@ export async function initAutomationEngine() {
         for (const userId of userIds.slice(0, 10)) {
           await scanForCompoundingOpportunities(userId!);
         }
-        console.log("[UltimateEngine] Content compounding scan complete");
       });
     });
   });
@@ -507,7 +496,6 @@ export async function initAutomationEngine() {
             await scanForAnomalies(userId!, platform);
           }
         }
-        console.log("[UltimateEngine] Shadow ban detection scan complete");
       });
     });
   });
@@ -518,7 +506,6 @@ export async function initAutomationEngine() {
         const { processBacklog } = await import("./services/youtube-push-backlog");
         const result = await processBacklog();
         if (result.processed > 0 || result.failed > 0) {
-          console.log(`[PushBacklog] Processed ${result.processed}, failed ${result.failed}, remaining ${result.remaining}`);
         }
       });
     });
@@ -530,7 +517,6 @@ export async function initAutomationEngine() {
         const { runMarketingCycleForAllUsers } = await import("./marketer-engine");
         const count = await runMarketingCycleForAllUsers();
         if (count > 0) {
-          console.log(`[MarketerEngine] Full marketing cycle complete — ${count} users (organic strategies + keyword learning + traffic growth + collab + sponsorship${" + paid ads if enabled"})`);
         }
       });
     });
@@ -542,7 +528,6 @@ export async function initAutomationEngine() {
         const { runPlaylistOrganizationForAllUsers } = await import("./playlist-manager");
         const count = await runPlaylistOrganizationForAllUsers();
         if (count > 0) {
-          console.log(`[PlaylistManager] Auto-organized playlists for ${count} users (game-specific longform + shorts)`);
         }
       });
     });
@@ -551,7 +536,6 @@ export async function initAutomationEngine() {
   cron.schedule("*/30 * * * *", async () => {
     const report = getSystemHealthReport();
     if (report.overallStatus !== "healthy") {
-      console.log(`[SelfHealing] 📊 System Health: ${report.overallStatus.toUpperCase()} | Score: ${report.overallScore}/100 | Uptime: ${report.uptimePercent}% | Self-heals: ${report.totalSelfHeals} | Healthy: ${report.healthyCount}/${report.totalSubsystems} | Degraded: ${report.degradedCount} | Failed: ${report.failedCount}`);
     }
   });
 
@@ -564,7 +548,6 @@ export async function initAutomationEngine() {
     }
   });
 
-  console.log("[AutomationEngine] All systems operational (Full Throttle Stealth Mode + Ultimate Engine + Autonomous Marketer + Playlist Manager + Content Loop + Self-Healing Core)");
 }
 
 async function processAllCronJobs() {
@@ -722,7 +705,6 @@ async function processAutoLocalization() {
         featureKey: "ai-audience-language-analyzer",
         result: { ...analyzerResult, source: "auto-localization", processedAt: new Date().toISOString() },
       } as any);
-      console.log(`[AutomationEngine] Traffic analysis complete for user ${userId}. Priority languages: ${trafficDrivenLangs.join(", ")}`);
     } catch (err) {
       console.error(`[AutomationEngine] Audience language analysis failed for user ${userId}, using defaults:`, err);
     }
@@ -759,7 +741,6 @@ async function processAutoLocalization() {
       }
     }
   }
-  console.log("[AutomationEngine] Localization auto-processing cycle complete (traffic-driven)");
 }
 
 function getNextRunTime(schedule: string): Date {

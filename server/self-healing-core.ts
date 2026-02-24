@@ -74,7 +74,6 @@ function isCircuitBreakerOpen(sub: SubsystemHealth): boolean {
     sub.circuitBreakerOpen = false;
     sub.cooldownUntil = null;
     sub.consecutiveFailures = Math.floor(sub.consecutiveFailures / 2);
-    console.log(`[SelfHealing] Circuit breaker HALF-OPEN for "${sub.name}" — allowing retry`);
     return false;
   }
   return true;
@@ -86,7 +85,6 @@ function recordSuccess(sub: SubsystemHealth): void {
   if (sub.consecutiveFailures > 0) {
     sub.totalRecoveries++;
     totalSelfHeals++;
-    console.log(`[SelfHealing] ✅ "${sub.name}" RECOVERED after ${sub.consecutiveFailures} failures (total self-heals: ${totalSelfHeals})`);
   }
   sub.consecutiveFailures = 0;
   sub.status = "healthy";
@@ -109,16 +107,13 @@ async function recordFailure(sub: SubsystemHealth, error: Error): Promise<void> 
     const cooldownMs = CIRCUIT_BREAKER_COOLDOWN_MS * Math.pow(2, Math.max(0, exponent));
     sub.cooldownUntil = new Date(Date.now() + cooldownMs);
     sub.status = "failed";
-    console.log(`[SelfHealing] 🔴 Circuit breaker OPEN for "${sub.name}" — cooldown ${Math.round(cooldownMs / 1000)}s (${sub.consecutiveFailures} consecutive failures)`);
   } else if (sub.consecutiveFailures >= 2) {
     sub.status = "degraded";
-    console.log(`[SelfHealing] 🟡 "${sub.name}" DEGRADED — ${sub.consecutiveFailures} consecutive failures`);
   }
 
   if (sub.consecutiveFailures <= 3) {
     try {
       sub.lastDiagnosis = await generateQuickDiagnosis(sub.name, error);
-      console.log(`[SelfHealing] 🔧 Diagnosis for "${sub.name}": ${sub.lastDiagnosis.rootCause} → ${sub.lastDiagnosis.suggestedFix}`);
     } catch {
       sub.lastDiagnosis = { rootCause: "diagnosis-unavailable", suggestedFix: "retry-with-backoff" };
     }
@@ -176,9 +171,6 @@ export async function selfHealingCore<T>(
   const retryDelayMs = options?.retryDelayMs ?? 2000;
 
   if (isCircuitBreakerOpen(sub)) {
-    if (!options?.silent) {
-      console.log(`[SelfHealing] ⏸️ "${subsystemName}" skipped — circuit breaker open until ${sub.cooldownUntil?.toISOString()}`);
-    }
     return null;
   }
 
@@ -192,7 +184,6 @@ export async function selfHealingCore<T>(
     } catch (error: any) {
       if (attempt < maxRetries) {
         const delay = retryDelayMs * Math.pow(2, attempt) + Math.random() * 1000;
-        console.log(`[SelfHealing] 🔄 "${subsystemName}" attempt ${attempt + 1}/${maxRetries + 1} failed, retrying in ${Math.round(delay)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         await recordFailure(sub, error);
@@ -249,7 +240,6 @@ export function resetSubsystemHealth(name: string): boolean {
   sub.status = "healthy";
   sub.lastError = null;
   sub.lastDiagnosis = null;
-  console.log(`[SelfHealing] 🔄 "${name}" manually reset to healthy`);
   return true;
 }
 
@@ -266,7 +256,6 @@ registerCleanup("selfHealingBreakers", () => {
       sub.cooldownUntil = null;
       sub.consecutiveFailures = Math.max(0, sub.consecutiveFailures - 2);
       if (sub.consecutiveFailures === 0) sub.status = "healthy";
-      console.log(`[SelfHealing] ⏰ Auto-reset circuit breaker for "${sub.name}"`);
     }
   }
 }, 30 * 60 * 1000);

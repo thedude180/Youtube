@@ -180,7 +180,6 @@ export async function sendDiscordWebhook(
       console.error(`[NotificationSystem] Discord webhook failed (${response.status})`);
       return false;
     }
-    console.log(`[NotificationSystem] Discord webhook sent: ${title}`);
     return true;
   } catch (err) {
     console.error("[NotificationSystem] Discord webhook error:", err);
@@ -287,7 +286,6 @@ export async function processAllDigests() {
     }
     const digest = await generateDigest(pref.userId, pref.digestFrequency || "daily");
     if (digest) {
-      console.log(`[NotificationSystem] Digest generated for ${pref.userId}: ${digest.total} items`);
       try {
         const { sendGmail } = await import("./gmail-client");
         const user = await db.select().from(users).where(eq(users.id, pref.userId)).then(r => r[0]);
@@ -372,9 +370,6 @@ export async function purgeStaleReadNotifications(): Promise<number> {
       ),
     );
   const deleted = (result as any).rowCount ?? 0;
-  if (deleted > 0) {
-    console.log(`[NotificationCleanup] Purged ${deleted} read notifications older than 24 hours`);
-  }
   return deleted;
 }
 
@@ -414,7 +409,6 @@ export async function routeNotification(
   const shouldDelay = await shouldDelayNotification(userId, notification.severity);
   if (shouldDelay && !isCritical) {
     const nextWindow = await getNextActiveWindow(userId);
-    console.log(`[NotificationSystem] Delaying "${notification.title}" for ${userId} until ${nextWindow.toISOString()}`);
     result.delayed = true;
     return result;
   }
@@ -424,13 +418,11 @@ export async function routeNotification(
   const categoryEnabled = cats[notification.category] !== false;
 
   if (!categoryEnabled && !isCritical) {
-    console.log(`[NotificationSystem] Category "${notification.category}" disabled for ${userId}`);
     return result;
   }
 
   const isConnectionLoss = notification.category === "connection_severed" || notification.category === "platform_disconnected" || notification.category === "platform_connections";
   if (isConnectionLoss) {
-    console.log(`[NotificationSystem] Connection-loss email deferred to auto-reconnect system: "${notification.title}" for ${userId}`);
     return result;
   }
 
@@ -446,10 +438,6 @@ export async function routeNotification(
     result.channels.push("discord");
     await notifyViaDiscord(userId, notification.title, notification.message, notification.severity);
   }
-
-  console.log(
-    `[NotificationSystem] Routed "${notification.title}" for ${userId} -> [${result.channels.join(", ")}] (severity=${notification.severity}, category=${notification.category})`,
-  );
 
   return result;
 }

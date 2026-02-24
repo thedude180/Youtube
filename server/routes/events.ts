@@ -41,9 +41,6 @@ registerCleanup("sseConnections", () => {
       clients.set(userId, validClients);
     }
   }
-  if (cleaned > 0) {
-    console.log(`[SSE] Cleaned ${cleaned} stale, ${getTotalConnections()} active`);
-  }
 }, CLEANUP_INTERVAL_MS);
 
 function getTotalConnections(): number {
@@ -170,7 +167,6 @@ export function closeAllConnections(): void {
   }
 
   clearInterval(sseCleanupInterval);
-  console.log(`[SSE] Graceful shutdown: closed ${closedCount} SSE connections, cleanup interval cleared`);
 }
 
 export function registerEventRoutes(app: Express) {
@@ -213,20 +209,11 @@ export function registerEventRoutes(app: Express) {
       const oldestClient = userClients[0];
       removeClientSafely(userId, oldestClient);
       totalConnectionsClosed++;
-      const connectionDuration = Math.round((Date.now() - oldestClient.createdAt) / 1000);
-      console.log(
-        `[SSE] Evicted oldest connection for user ${userId} due to max limit (${MAX_CLIENTS_PER_USER} connections). Connection was open for ${connectionDuration}s`
-      );
     }
 
     // Add new client
     userClients.push(client);
     totalConnectionsCreated++;
-
-    const connectionCount = getTotalConnections();
-    console.log(
-      `[SSE] New connection established for user ${userId} (connections: ${userClients.length}/${MAX_CLIENTS_PER_USER}, total active: ${connectionCount})`
-    );
 
     // Setup heartbeat
     const heartbeat = setInterval(() => {
@@ -247,11 +234,6 @@ export function registerEventRoutes(app: Express) {
       clearInterval(heartbeat);
       removeClientSafely(userId, client);
       totalConnectionsClosed++;
-      const connectionDuration = Math.round((Date.now() - client.createdAt) / 1000);
-      const remainingConnections = clients.get(userId)?.length ?? 0;
-      console.log(
-        `[SSE] Connection closed for user ${userId} (duration: ${connectionDuration}s, remaining: ${remainingConnections}/${MAX_CLIENTS_PER_USER})`
-      );
     });
 
     // Handle request close
@@ -259,11 +241,6 @@ export function registerEventRoutes(app: Express) {
       clearInterval(heartbeat);
       removeClientSafely(userId, client);
       totalConnectionsClosed++;
-      const connectionDuration = Math.round((Date.now() - client.createdAt) / 1000);
-      const remainingConnections = clients.get(userId)?.length ?? 0;
-      console.log(
-        `[SSE] Request closed for user ${userId} (duration: ${connectionDuration}s, remaining: ${remainingConnections}/${MAX_CLIENTS_PER_USER})`
-      );
     });
   });
 

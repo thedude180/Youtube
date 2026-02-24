@@ -269,7 +269,6 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     riskLevel: "low",
   });
 
-  console.log(`[LiveDetection] ${broadcast.platform.toUpperCase()} LIVE detected for ${userId}: "${broadcast.title}"`);
 }
 
 async function handleBroadcastEnded(userId: string, platform: string, channelId: number) {
@@ -329,7 +328,6 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
     riskLevel: "low",
   });
 
-  console.log(`[LiveDetection] ${platform.toUpperCase()} stream ended for ${userId}: "${liveStream.title}"`);
 }
 
 export async function runMultiPlatformLiveDetection() {

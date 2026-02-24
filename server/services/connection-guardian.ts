@@ -75,7 +75,6 @@ async function tryRefreshSingleToken(ch: typeof channels.$inferSelect): Promise<
         tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
         platformData: { ...(ch.platformData || {}), _connectionStatus: "healthy", _lastVerifiedAt: Date.now(), _reconnectFailures: 0 },
       }).where(eq(channels.id, ch.id));
-      console.log(`[ConnectionGuardian] Auto-refreshed ${ch.platform} token for ${ch.channelName}`);
       return true;
     }
     return false;
@@ -127,7 +126,6 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
           }).where(eq(channels.id, ch.id));
           verified++;
         } else {
-          console.log(`[ConnectionGuardian] ${ch.platform} connection dead for ${ch.channelName}, attempting auto-refresh...`);
           const refreshOk = await tryRefreshSingleToken(ch);
           if (refreshOk) {
             refreshed++;
@@ -175,7 +173,6 @@ async function ensureAutopilotAlwaysOn(): Promise<number> {
       if (userChannels.length > 0) {
         await storage.updateUserProfile(user.id, { autopilotActive: true });
         reactivated++;
-        console.log(`[ConnectionGuardian] Re-enabled autopilot for user ${user.id} (had ${userChannels.length} connected channels)`);
       }
     }
   } catch (err) {
@@ -221,7 +218,6 @@ async function captureBaselineSnapshots(): Promise<number> {
           avgViewsPerVideo: avgViews,
         });
         captured++;
-        console.log(`[ConnectionGuardian] Captured baseline snapshot for ${ch.channelName} (${ch.platform})`);
       }
     }
   } catch (err) {
@@ -361,7 +357,6 @@ async function autoConnectStreamingPlatform(
       });
 
       connected++;
-      console.log(`[ConnectionGuardian] Auto-connected ${displayName} (AI-driven streaming) for user ${user.id}`);
     }
   } catch (err) {
     console.error(`[ConnectionGuardian] ${platformName} auto-connect error:`, err);
@@ -406,10 +401,6 @@ async function runGuardianCycle(): Promise<void> {
     const baselines = await withRetry(() => captureBaselineSnapshots(), "guardian-baselines");
     const periodic = await withRetry(() => capturePeriodicSnapshots(), "guardian-snapshots");
 
-    const activity = tokenResult.refreshed > 0 || autopilotReactivated > 0 || totalStreamingConnected > 0 || baselines > 0 || periodic > 0;
-    if (activity) {
-      console.log(`[ConnectionGuardian] Cycle complete: tokens refreshed=${tokenResult.refreshed} verified=${tokenResult.verified} failed=${tokenResult.failed}, autopilot reactivated=${autopilotReactivated}, streaming auto-connected: rumble=${streamingConnected.rumble} twitch=${streamingConnected.twitch} kick=${streamingConnected.kick}, baselines=${baselines}, periodic snapshots=${periodic}`);
-    }
 
     await heartbeatMod.recordHeartbeat("connectionGuardian", "running", Date.now() - startTime);
   } catch (err) {
@@ -421,8 +412,6 @@ async function runGuardianCycle(): Promise<void> {
 
 export function startConnectionGuardian(): void {
   if (guardianInterval) return;
-
-  console.log("[ConnectionGuardian] Always-on connection guardian started (every 3 min)");
 
   setTimeout(() => runGuardianCycle().catch(console.error), 30_000);
 

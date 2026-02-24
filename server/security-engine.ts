@@ -103,14 +103,12 @@ export async function initSecurityEngine() {
       for (const rule of DEFAULT_RULES) {
         await db.insert(securityRules).values(rule as any);
       }
-      console.log("[Security Engine] Seeded default security rules");
     }
 
     if (!cleanupTimer) {
       cleanupTimer = setInterval(cleanupMaps, CLEANUP_INTERVAL_MS);
     }
 
-    console.log("[Security Engine] Initialized successfully");
   } catch (error) {
     console.error("[Security Engine] Init error:", error);
   }

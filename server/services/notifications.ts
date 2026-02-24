@@ -41,7 +41,6 @@ async function sendSmsNotification(phone: string, title: string, message: string
     const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
     const TWILIO_FROM = process.env.TWILIO_FROM_NUMBER;
     if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-      console.log(`[Notifications] SMS skipped (no Twilio config): ${title} -> ${phone}`);
       return false;
     }
 
@@ -56,7 +55,6 @@ async function sendSmsNotification(phone: string, title: string, message: string
     });
 
     if (response.ok) {
-      console.log(`[Notifications] SMS sent: ${title} -> ${phone}`);
       return true;
     }
     console.error(`[Notifications] SMS failed (${response.status})`);
@@ -104,12 +102,10 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
 
     const isConnectionLoss = payload.category === "connection_severed" || payload.category === "platform_disconnected" || payload.category === "platform_connections";
     if (isConnectionLoss) {
-      console.log(`[Notifications] Connection-loss email deferred to auto-reconnect system: "${payload.title}" for ${payload.userId}`);
       return result;
     }
 
     if (payload.category && isRateLimited(payload.userId, payload.category)) {
-      console.log(`[Notifications] Rate-limited: "${payload.title}" for ${payload.userId} (same alert sent within 6 hours)`);
       return result;
     }
 
@@ -117,14 +113,9 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
       try {
         const sent = await sendEmailNotification((user as any).email, payload.title, payload.message, payload.severity);
         result.email = sent;
-        if (sent) {
-          console.log(`[Notifications] Email sent: "${payload.title}" -> ${(user as any).email}`);
-        }
       } catch (emailErr) {
         console.error(`[Notifications] Email send failed for ${payload.userId}:`, emailErr);
       }
-    } else {
-      console.log(`[Notifications] Email not enabled or no email for user ${payload.userId}`);
     }
   } catch (err) {
     console.error("[Notifications] Notify error:", err);

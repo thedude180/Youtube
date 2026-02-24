@@ -55,21 +55,17 @@ async function initStripe() {
   }
 
   try {
-    logger.info('Initializing Stripe schema...');
     await runMigrations({ databaseUrl, schema: 'stripe' } as any);
-    logger.info('Stripe schema ready');
 
     const stripeSync = await getStripeSync();
 
-    logger.info('Setting up managed webhook...');
     const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0];
     if (replitDomain) {
       const webhookBaseUrl = `https://${replitDomain}`;
       try {
-        const result = await stripeSync.findOrCreateManagedWebhook(
+        await stripeSync.findOrCreateManagedWebhook(
           `${webhookBaseUrl}/api/stripe/webhook`
         );
-        logger.info(`Webhook configured: ${result?.webhook?.url || 'ready'}`);
       } catch (webhookError) {
         logger.warn('Webhook setup skipped (non-critical)', { error: String(webhookError) });
       }
@@ -77,10 +73,8 @@ async function initStripe() {
       logger.warn('REPLIT_DOMAINS not set, skipping webhook setup');
     }
 
-    logger.info('Syncing Stripe data...');
     stripeSync.syncBackfill()
       .then(() => {
-        logger.info('Stripe data synced');
         return seedStripeProducts();
       })
       .catch((err: any) => logger.error('Error syncing Stripe data', { error: String(err) }));
@@ -630,11 +624,14 @@ app.use((req: any, res, next) => {
   const path = req.path;
 
   res.on("finish", () => {
+    if (!path.startsWith("/api")) return;
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      const level: "info" | "warn" | "error" = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
-      log(`${req.method} ${path} ${res.statusCode} ${duration}ms [${req.requestId}]`, "http", level);
-    }
+    const code = res.statusCode;
+    if (code < 400) return;
+    if (code === 401 && (path === "/api/auth/user" || path === "/api/events")) return;
+    if (code === 204 && path === "/api/vitals") return;
+    const level: "warn" | "error" = code >= 500 ? "error" : "warn";
+    log(`${req.method} ${path} ${code} ${duration}ms [${req.requestId}]`, "http", level);
   });
 
   next();
@@ -697,7 +694,6 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       reusePort: true,
     },
     () => {
-      log(`serving on port ${port}`);
       startAutopilotMonitor();
       startConnectionGuardian();
 
@@ -732,7 +728,6 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       startCleanupCoordinator();
       startResilienceWatchdog();
 
-      log("All 14 pillar engines initialized: Security Sentinel, Community, Education, Brand, Analytics, Compliance + DLQ, Digest, Retention, Autopilot, Retention Beats, AI Team, Streaming Loop, VOD/Shorts Loop");
     },
   );
 

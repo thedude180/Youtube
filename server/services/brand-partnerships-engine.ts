@@ -40,8 +40,6 @@ const BRAND_SAFETY_KEYWORDS: Record<string, { words: string[]; severity: "high" 
 
 export async function computeSponsorshipReadiness(userId: string): Promise<{ score: number; signals: Record<string, any> }> {
   try {
-    console.log(`[Brand Engine] Computing sponsorship readiness for user ${userId}`);
-
     const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
     if (userChannels.length === 0) {
       const result = { score: 0, signals: { error: "No channels connected" } };
@@ -173,7 +171,6 @@ export async function computeSponsorshipReadiness(userId: string): Promise<{ sco
     };
 
     await upsertSponsorshipScore(userId, finalScore, signals);
-    console.log(`[Brand Engine] Sponsorship readiness for ${userId}: ${finalScore}/100`);
     return { score: finalScore, signals };
   } catch (e) {
     console.error(`[Brand Engine] computeSponsorshipReadiness error for ${userId}:`, e);
@@ -192,8 +189,6 @@ async function upsertSponsorshipScore(userId: string, score: number, signals: Re
 
 export async function generateMediaKit(userId: string): Promise<Record<string, any>> {
   try {
-    console.log(`[Brand Engine] Generating media kit for user ${userId}`);
-
     const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
     const user = await storage.getUser(userId);
 
@@ -302,7 +297,6 @@ export async function generateMediaKit(userId: string): Promise<Record<string, a
       generatedAt: new Date(),
     });
 
-    console.log(`[Brand Engine] Media kit v${nextVersion} generated for ${userId}`);
     return content;
   } catch (e) {
     console.error(`[Brand Engine] generateMediaKit error for ${userId}:`, e);
@@ -312,8 +306,6 @@ export async function generateMediaKit(userId: string): Promise<Record<string, a
 
 export async function findCollabMatches(userId: string): Promise<Array<{ matchUserId: string; score: number; rationale: Record<string, any> }>> {
   try {
-    console.log(`[Brand Engine] Finding collab matches for user ${userId}`);
-
     const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
     if (userChannels.length === 0) return [];
 
@@ -414,7 +406,6 @@ export async function findCollabMatches(userId: string): Promise<Array<{ matchUs
       }
     }
 
-    console.log(`[Brand Engine] Found ${topMatches.length} collab matches for ${userId}`);
     return topMatches;
   } catch (e) {
     console.error(`[Brand Engine] findCollabMatches error for ${userId}:`, e);
@@ -424,8 +415,6 @@ export async function findCollabMatches(userId: string): Promise<Array<{ matchUs
 
 export async function runBrandSafetyCheck(userId: string): Promise<{ status: string; issues: Array<{ type: string; severity: string; description: string }> }> {
   try {
-    console.log(`[Brand Engine] Running brand safety check for user ${userId}`);
-
     const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
     if (userChannels.length === 0) {
       return { status: "clean", issues: [] };
@@ -518,7 +507,6 @@ export async function runBrandSafetyCheck(userId: string): Promise<{ status: str
       });
     }
 
-    console.log(`[Brand Engine] Brand safety check for ${userId}: ${status} (${issues.length} issues)`);
     return { status, issues };
   } catch (e) {
     console.error(`[Brand Engine] runBrandSafetyCheck error for ${userId}:`, e);
@@ -528,8 +516,6 @@ export async function runBrandSafetyCheck(userId: string): Promise<{ status: str
 
 export async function trackBrandDeals(userId: string): Promise<void> {
   try {
-    console.log(`[Brand Engine] Tracking brand deals for user ${userId}`);
-
     const scoreRecord = await db.select().from(sponsorshipScores)
       .where(eq(sponsorshipScores.userId, userId))
       .limit(1);
@@ -588,11 +574,9 @@ export async function trackBrandDeals(userId: string): Promise<void> {
           status: nextStage,
           lastTouchedAt: new Date(),
         }).where(eq(brandDeals.id, deal.id));
-        console.log(`[Brand Engine] Deal "${deal.brandName}" advanced: ${deal.status} -> ${nextStage}`);
       }
     }
 
-    console.log(`[Brand Engine] Brand deals tracked for ${userId}`);
   } catch (e) {
     console.error(`[Brand Engine] trackBrandDeals error for ${userId}:`, e);
   }
@@ -660,7 +644,6 @@ export async function runBrandPartnershipsScan(): Promise<void> {
 
     const duration = Date.now() - startTime;
     lastScanTime = Date.now();
-    console.log(`[Brand Engine] Full scan complete: ${processed}/${allUsers.length} users processed in ${duration}ms`);
   } catch (e) {
     console.error("[Brand Engine] Full scan failed:", e);
   }
@@ -671,8 +654,6 @@ let brandInterval: ReturnType<typeof setInterval> | null = null;
 export function startBrandPartnershipsEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
-
-  console.log("[Brand Engine] Brand & Partnerships Engine activated — continuous monitoring enabled");
 
   setTimeout(() => {
     runBrandPartnershipsScan().catch(e => console.error("[Brand Engine] Startup scan failed:", e));

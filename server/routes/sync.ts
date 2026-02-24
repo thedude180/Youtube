@@ -58,7 +58,6 @@ export function registerSyncRoutes(app: Express): void {
           const { syncAllRevenue } = await import("../revenue-sync-engine");
           await syncAllRevenue(userId);
           results.revenue = "synced";
-          console.log(`[LoginSync] Revenue sync complete for ${userId}`);
         } catch (err: any) {
           console.error(`[LoginSync] Revenue sync failed for ${userId}:`, err.message);
           results.revenue = "error";
@@ -73,7 +72,6 @@ export function registerSyncRoutes(app: Express): void {
         }
 
         syncState.set(userId, { startedAt: Date.now(), status: "complete" });
-        console.log(`[LoginSync] Full sync complete for ${userId}:`, JSON.stringify(results));
       })();
 
       res.json({ status: "syncing", message: "Sync started", results });

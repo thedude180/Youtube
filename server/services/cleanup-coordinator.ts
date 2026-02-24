@@ -27,7 +27,6 @@ function runCleanups(): void {
 
 export function startCleanupCoordinator(): void {
   if (coordinatorInterval) return;
-  console.log(`[CleanupCoordinator] Started with ${cleanupTasks.length} registered tasks`);
   coordinatorInterval = setInterval(runCleanups, TICK_MS);
 }
 

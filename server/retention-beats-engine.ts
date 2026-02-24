@@ -5,7 +5,6 @@ import { retentionBeats } from "@shared/schema";
 import { logger } from "./lib/logger";
 import cron from "node-cron";
 
-const log = (msg: string, data?: any) => logger.info(`[RetentionBeats] ${msg}`, data);
 const logError = (msg: string, data?: any) => logger.error(`[RetentionBeats] ${msg}`, data);
 
 const SEED_CREATORS = [
@@ -95,7 +94,6 @@ async function aiGenerate(prompt: string): Promise<any> {
 }
 
 export async function seedRetentionBeats(): Promise<{ seeded: number; creators: string[] }> {
-  log("Checking retention beats seed status...");
   let totalSeeded = 0;
   const seededCreators: string[] = [];
 
@@ -104,7 +102,6 @@ export async function seedRetentionBeats(): Promise<{ seeded: number; creators: 
       .where(eq(retentionBeats.sourceCreator, creator.name));
     const count = Number(existing[0]?.count || 0);
     if (count >= 10) {
-      log(`Already have ${count} beats from ${creator.name}, skipping`);
       continue;
     }
     const prompt = `You are a YouTube retention science expert who has studied ${creator.name}'s content extensively. ${creator.name} is known for ${creator.style}.
@@ -181,13 +178,11 @@ Respond with JSON:
         totalSeeded++;
       }
       seededCreators.push(creator.name);
-      log(`Seeded ${beats.length} beats from ${creator.name}`);
     } catch (err) {
       logError(`Failed to seed beats from ${creator.name}`, { error: String(err) });
     }
   }
 
-  log(`Seed complete: ${totalSeeded} retention beats loaded`);
   return { seeded: totalSeeded, creators: seededCreators };
 }
 
@@ -509,7 +504,6 @@ Respond with JSON:
     added++;
   }
 
-  log(`Added ${added} retention beats from studying ${creatorName}`);
   return { beatsAdded: added };
 }
 
@@ -524,7 +518,6 @@ export async function refreshRetentionBeats(): Promise<void> {
 
   if (staleBeats.length === 0) return;
 
-  log(`Refreshing ${staleBeats.length} stale retention beats...`);
 
   for (const beat of staleBeats) {
     const prompt = `You are a YouTube retention expert. Evaluate and potentially update this retention beat based on current YouTube algorithm trends (2025-2026).
@@ -564,14 +557,11 @@ Respond with JSON:
 }
 
 export function startRetentionBeatsEngine(): void {
-  log("Retention Beats Engine activated — learning from MrBeast & The Fat Electrician");
-
   seedRetentionBeats().catch(err => logError("Initial seed failed", { error: String(err) }));
 
   cron.schedule("0 */12 * * *", async () => {
     try {
       await refreshRetentionBeats();
-      log("Periodic retention beats refresh complete");
     } catch (err) {
       logError("Periodic refresh failed", { error: String(err) });
     }

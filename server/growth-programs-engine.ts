@@ -644,7 +644,6 @@ export async function enableAutoApplyForPlatform(userId: string, platform: strin
     }
   }
 
-  console.log(`[GrowthPrograms] Auto-apply enabled for ${programs.length} programs on ${platform} for user ${userId}`);
 }
 
 export async function activateMonetization(userId: string, programId: number) {

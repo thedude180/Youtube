@@ -47,7 +47,6 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
   try {
     const config = OAUTH_CONFIGS[platform as keyof typeof OAUTH_CONFIGS];
     if (!config) {
-      console.log(`[AutoReconnect] No OAuth config for ${platform}, skipping verification`);
       return true;
     }
 
@@ -102,14 +101,12 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
 async function sendConsolidatedReconnectEmail(userId: string, platforms: string[]): Promise<boolean> {
   const lastSentTs = await getLastEmailSent(userId);
   if (lastSentTs && Date.now() - lastSentTs < EMAIL_COOLDOWN_MS) {
-    console.log(`[AutoReconnect] Skipping email for user ${userId} — already sent within 7 days`);
     return false;
   }
 
   try {
     const user = await storage.getUser(userId);
     if (!user?.email) {
-      console.log(`[AutoReconnect] No email for user ${userId}`);
       return false;
     }
 
@@ -159,7 +156,6 @@ async function sendConsolidatedReconnectEmail(userId: string, platforms: string[
 
     if (sent) {
       await markEmailSent(userId);
-      console.log(`[AutoReconnect] Sent consolidated reconnect email to ${user.email} for: ${platforms.join(", ")}`);
     }
 
     return sent;
@@ -170,7 +166,6 @@ async function sendConsolidatedReconnectEmail(userId: string, platforms: string[
 }
 
 export async function sendReconnectEmail(_userId: string, _platform: string): Promise<boolean> {
-  console.log(`[AutoReconnect] sendReconnectEmail called for ${_platform} — deferred to consolidated health check`);
   return false;
 }
 
@@ -210,7 +205,6 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
 
           const alive = await verifyConnectionAlive(ch.platform, ch.accessToken);
           if (alive) {
-            console.log(`[AutoReconnect] ${ch.platform} for user ${ch.userId} — token looks expired but connection still works, skipping`);
             await clearFailureCount(ch.id);
             continue;
           }
@@ -222,8 +216,6 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
             const platforms = trulyBroken.get(ch.userId) || [];
             if (!platforms.includes(ch.platform)) platforms.push(ch.platform);
             trulyBroken.set(ch.userId, platforms);
-          } else {
-            console.log(`[AutoReconnect] ${ch.platform} for user ${ch.userId} — failure ${failures}/${REQUIRED_CONSECUTIVE_FAILURES}, waiting before emailing`);
           }
         }
 
@@ -235,10 +227,6 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
     }
   } catch (err) {
     console.error("[AutoReconnect] Proactive health check error:", err);
-  }
-
-  if (checked > 0) {
-    console.log(`[AutoReconnect] Health check: ${checked} checked, ${refreshed} refreshed, ${emailsSent} emails sent`);
   }
 
   return { checked, refreshed, emailsSent };

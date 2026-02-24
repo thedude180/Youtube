@@ -5,7 +5,7 @@ import { getNextResetTime, getQuotaStatus, getPacificDate } from "./services/you
 import { selfHealingCore } from "./self-healing-core";
 
 const logger = {
-  info: (msg: string, meta?: any) => console.log(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
+  info: (_msg: string, _meta?: any) => {},
   warn: (msg: string, meta?: any) => console.warn(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
   error: (msg: string, meta?: any) => console.error(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
 };
@@ -192,8 +192,6 @@ export async function autoFixFailedPosts(): Promise<{
     stats.total = failedPosts.length;
     if (failedPosts.length === 0) return stats;
 
-    logger.info("Processing failed posts for auto-fix", { count: failedPosts.length });
-
     for (const post of failedPosts) {
       const errorMsg = post.errorMessage || "Unknown error";
       const category = post.targetPlatform === "youtube"
@@ -202,15 +200,6 @@ export async function autoFixFailedPosts(): Promise<{
       const metadata = (post.metadata as any) || {};
       const retryCount = metadata.retryCount || 0;
       const autoFixAttempts = metadata.autoFixAttempts || 0;
-
-      logger.info("Classifying failure", {
-        postId: post.id,
-        platform: post.targetPlatform,
-        category,
-        retryCount,
-        autoFixAttempts,
-        error: errorMsg.substring(0, 100),
-      });
 
       if (category === "copyright" || category === "config_missing") {
         stats.permanent++;
@@ -235,8 +224,6 @@ export async function autoFixFailedPosts(): Promise<{
           try {
             const { refreshExpiringTokens } = await import("./token-refresh");
             await refreshExpiringTokens();
-            logger.info("Auto-refreshed tokens, re-scheduling post", { postId: post.id, platform: post.targetPlatform });
-
             await db.update(autopilotQueue)
               .set({
                 status: "scheduled" as any,
@@ -282,12 +269,6 @@ export async function autoFixFailedPosts(): Promise<{
         const now = new Date();
 
         if (resetTime > now) {
-          logger.info("Quota/cap issue — deferring until reset", {
-            postId: post.id,
-            platform: post.targetPlatform,
-            resetsAt: resetTime.toISOString(),
-          });
-
           await db.update(autopilotQueue)
             .set({
               status: "scheduled" as any,
@@ -338,14 +319,6 @@ export async function autoFixFailedPosts(): Promise<{
 
       const delay = getRetryDelay(category, autoFixAttempts, post.targetPlatform);
       const retryAt = new Date(Date.now() + delay);
-
-      logger.info("Auto-fixing: scheduling retry", {
-        postId: post.id,
-        platform: post.targetPlatform,
-        category,
-        retryAt: retryAt.toISOString(),
-        attempt: autoFixAttempts + 1,
-      });
 
       await db.update(autopilotQueue)
         .set({
@@ -521,14 +494,6 @@ export async function runAutoFixCycle(): Promise<{
     pipelines: pipelines || { fixed: 0 },
   };
 
-  const totalActions = result.posts.fixed + result.posts.deferred + result.dlq.processed + result.dlq.deferred + result.pipelines.fixed;
-  if (totalActions > 0) {
-    logger.info("[AutoFix] Cycle complete", result);
-    _lastAutoFixLog = Date.now();
-  } else if (Date.now() - _lastAutoFixLog > 30 * 60_000) {
-    logger.info("[AutoFix] Idle — no failed items to fix");
-    _lastAutoFixLog = Date.now();
-  }
 
   return result;
 }
@@ -536,15 +501,8 @@ export async function runAutoFixCycle(): Promise<{
 export async function scheduleAutoFix(post: any, category: FailureCategory, metadata: any): Promise<void> {
   const autoFixAttempts = (metadata.autoFixAttempts || 0) + 1;
 
-  if (category === "copyright" || category === "config_missing") {
-    logger.info("[AutoFix] Permanent failure, skipping auto-fix schedule", { postId: post.id, category });
-    return;
-  }
-
-  if (autoFixAttempts > 5) {
-    logger.info("[AutoFix] Max auto-fix attempts reached", { postId: post.id, category, autoFixAttempts });
-    return;
-  }
+  if (category === "copyright" || category === "config_missing") return;
+  if (autoFixAttempts > 5) return;
 
   let retryAt: Date;
   if (category === "quota_cap") {
@@ -572,12 +530,6 @@ export async function scheduleAutoFix(post: any, category: FailureCategory, meta
     })
     .where(eq(autopilotQueue.id, post.id));
 
-  logger.info("[AutoFix] Scheduled retry from verification failure", {
-    postId: post.id,
-    category,
-    retryAt: retryAt.toISOString(),
-    attempt: autoFixAttempts,
-  });
 }
 
 export function getAutoFixSummary(category: FailureCategory, platform?: string): string {

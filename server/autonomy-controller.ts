@@ -206,5 +206,3 @@ export async function getAutonomyDecisionLog(userId: string, limit = 20): Promis
 
   return { decisions };
 }
-
-logger.info("Autonomy Controller initialized — all content passes through humanization pipeline");

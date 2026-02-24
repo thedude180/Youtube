@@ -82,15 +82,12 @@ async function applyTierChange(userId: string, newTier: string, subscriptionId: 
     const currentTier = currentUser?.tier || 'free';
 
     if (currentTier === newTier) {
-      console.log(`[TierSync] User ${userId} already on ${newTier} tier, no change needed`);
       return;
     }
 
     const role = newTier === 'free' ? 'user' : 'premium';
     await storage.updateUserRole(userId, role, newTier);
     await storage.updateUserStripeInfo(userId, { stripeSubscriptionId: subscriptionId, tier: newTier });
-
-    console.log(`[TierSync] User ${userId} tier updated: ${currentTier} -> ${newTier}`);
 
     try {
       const { initializeUserSystems } = await import('./services/post-login-init');
@@ -132,8 +129,6 @@ async function handleSubscriptionChange(event: Stripe.Event): Promise<void> {
   } else if (subscription.status === 'canceled' || subscription.status === 'unpaid' || subscription.status === 'past_due') {
     if (subscription.status === 'canceled') {
       await applyTierChange(userId, 'free', subscription.id);
-    } else {
-      console.log(`[TierSync] Subscription ${subscription.id} status: ${subscription.status}, monitoring`);
     }
   }
 }

@@ -96,7 +96,6 @@ export function registerMoneyRoutes(app: Express) {
           stripeSubscriptionId: activeSub.id,
           tier: detectedTier,
         });
-        console.log(`[VerifySession] User ${userId} tier synced: ${user.tier} -> ${detectedTier}`);
 
         try {
           const { initializeUserSystems } = await import("../services/post-login-init");

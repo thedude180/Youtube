@@ -24,7 +24,6 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
   }
 
   if (!channel.refreshToken) {
-    console.log(`[Publisher] No refresh token for ${channel.platform} channel ${channel.id}, using existing token`);
     return channel.accessToken;
   }
 
@@ -123,7 +122,6 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
       tokenExpiresAt: newExpiry,
     });
 
-    console.log(`[Publisher] Token refreshed for ${channel.platform} channel ${channel.id}`);
     return newToken;
   } catch (err: any) {
     console.error(`[Publisher] Token refresh error for ${channel.platform}:`, err.message);

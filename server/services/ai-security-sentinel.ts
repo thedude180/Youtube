@@ -391,9 +391,6 @@ export async function runFullSecurityScan(triggeredBy: string = "automated"): Pr
     );
   }
 
-  if (allFindings.length > 0 || autoFixed > 0 || score < 100) {
-    console.log(`[AI Sentinel] Scan complete: score=${score}/100, findings=${allFindings.length}, autoFixed=${autoFixed}, duration=${duration}ms`);
-  }
   lastScanTime = Date.now();
 
   return { scanId: scan.id, findings: allFindings, summary, duration };
@@ -448,8 +445,6 @@ let sentinelInterval: ReturnType<typeof setInterval> | null = null;
 export function startSentinel(): void {
   if (sentinelRunning) return;
   sentinelRunning = true;
-
-  console.log("[AI Sentinel] Security Sentinel activated — continuous monitoring enabled");
 
   setTimeout(() => {
     runFullSecurityScan("startup").catch(e => console.error("[AI Sentinel] Startup scan failed:", e));

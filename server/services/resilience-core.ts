@@ -203,7 +203,6 @@ export function startResilienceWatchdog(): void {
   if (watchdogInterval) return;
   serverStartTime = Date.now();
   watchdogInterval = setInterval(runWatchdog, 30_000);
-  console.log("[Resilience] Watchdog started — monitoring memory, engines, and DB pool every 30s");
 }
 
 export function stopResilienceWatchdog(): void {

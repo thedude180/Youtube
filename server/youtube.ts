@@ -156,7 +156,6 @@ export async function handleCallback(code: string, userId: string) {
     const user = await storage.getUser(userId);
     if (user && !user.autopilotActive) {
       await storage.updateUserProfile(userId, { autopilotActive: true });
-      console.log(`[YouTube] Auto-enabled autopilot for ${userId} on channel connect`);
     }
   } catch (err) {
     console.error(`[YouTube] Failed to auto-enable autopilot for ${userId}:`, err);
@@ -449,7 +448,6 @@ export async function uploadVideoToYouTube(
   } else if (options.videoFilePath && fs.existsSync(options.videoFilePath)) {
     mediaBody = fs.createReadStream(options.videoFilePath);
   } else {
-    console.log(`[YouTube] No video file provided for upload, skipping`);
     return null;
   }
 
@@ -477,7 +475,6 @@ export async function uploadVideoToYouTube(
   const cleanTags = (options.tags || []).map(t => removeBannedPhrases(t)).filter(Boolean).slice(0, 500);
 
   const monetizationLabel = options.enableMonetization === true ? ", monetization: enabled" : "";
-  console.log(`[YouTube] Uploading video "${cleanTitle}" (privacy: ${statusBody.privacyStatus}${monetizationLabel})`);
 
   const response = await youtube.videos.insert({
     part: ["snippet", "status"],
@@ -502,7 +499,6 @@ export async function uploadVideoToYouTube(
     throw new Error("YouTube upload succeeded but no video ID returned");
   }
 
-  console.log(`[YouTube] Upload complete — YouTube ID: ${youtubeId}, title: "${cleanTitle}", monetization: ${options.enableMonetization === true ? "on" : "off"}`);
 
   return {
     youtubeId,
@@ -576,13 +572,9 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
 
   await storage.updateChannel(channelId, { lastSyncAt: new Date() });
   if (newVideos.length > 0) {
-    console.log(`[YouTube] Synced ${newVideos.length} new video(s) for channel ${channelId}`);
     try {
       const { bridgeVodsToStreams } = await import("./daily-content-engine");
-      const bridged = await bridgeVodsToStreams(userId);
-      if (bridged > 0) {
-        console.log(`[YouTube] Auto-bridged ${bridged} VODs to stream records for content extraction`);
-      }
+      await bridgeVodsToStreams(userId);
     } catch (err) {
       console.error("[YouTube] VOD bridge after sync failed:", err);
     }

@@ -784,7 +784,6 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
           impact: `${videoScheduledCount} posts scheduled at optimal times`,
         },
       });
-      console.log(`[AutoSchedule] Scheduled "${video.title}" across ${videoScheduledCount} platform(s) [${schedulingSource}] for user ${userId}`);
     }
   }
 

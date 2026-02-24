@@ -714,13 +714,6 @@ export async function runContentVerificationSweep() {
     }
   }
 
-  logger.info("[ContentVerification] Sweep complete", {
-    totalVerified,
-    totalFailed,
-    totalLiveHealthy,
-    totalLiveDegraded,
-    users: userIds.length,
-  });
 }
 
 export async function getVerificationDashboard(userId: string) {

@@ -68,7 +68,6 @@ export function setupPlatformAuth(app: Express) {
 
       req.session.save(() => {
         const authUrl = `${config.authUrl}?${params.toString()}`;
-        console.log(`[PlatformAuth ${platform}] Redirecting to auth`);
         res.redirect(authUrl);
       });
     });
@@ -212,7 +211,6 @@ export function setupPlatformAuth(app: Express) {
 
           req.session.save((saveErr) => {
             if (saveErr) console.error(`[PlatformAuth ${platform}] Session save error:`, saveErr);
-            console.log(`[PlatformAuth ${platform}] User ${platformUser.username} logged in`);
             res.redirect("/");
           });
         });

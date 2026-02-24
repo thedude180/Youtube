@@ -461,5 +461,4 @@ export async function cancelStreamLoop(userId: string): Promise<boolean> {
 }
 
 export function initStreamingLoopEngine() {
-  logger.info("[StreamingLoop] Closed-loop streaming engine initialized — 9-phase autonomous pipeline ready");
 }

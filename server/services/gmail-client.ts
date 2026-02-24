@@ -75,7 +75,6 @@ export async function sendGmail(to: string, subject: string, htmlBody: string): 
       userId: "me",
       requestBody: { raw },
     });
-    console.log(`[Gmail] Sent: "${subject}" -> ${to}`);
     return true;
   } catch (err: any) {
     console.error(`[Gmail] Failed to send: ${err.message}`);

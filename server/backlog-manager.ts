@@ -120,7 +120,6 @@ export async function startBacklogOnLogin(userId: string): Promise<{ started: bo
 
   sendSSEEvent(userId, "backlog_update", { state: "running", totalRemaining: remaining.length, totalQueued: remaining.length });
 
-  console.log(`[BacklogManager] Started continuous backlog for ${userId}: ${remaining.length} videos to process`);
   return { started: true, message: `Processing ${remaining.length} videos`, state: "running" };
 }
 
@@ -133,14 +132,12 @@ export function pauseForLive(userId: string, streamId: number): void {
     session.streamId = streamId;
     session.lastActivityAt = new Date();
     sendSSEEvent(userId, "backlog_update", { state: "finishing_current", streamId });
-    console.log(`[BacklogManager] User ${userId} went live — finishing current video then pausing`);
   } else if (session.state === "idle") {
     session.state = "paused_for_live";
     session.streamId = streamId;
     session.pausedAt = new Date();
     session.lastActivityAt = new Date();
     sendSSEEvent(userId, "backlog_update", { state: "paused_for_live", streamId });
-    console.log(`[BacklogManager] User ${userId} went live — backlog paused (was idle)`);
   }
 }
 
@@ -154,14 +151,12 @@ export async function resumeAfterStream(userId: string): Promise<void> {
   const endedStreamId = session.streamId;
   session.state = "waiting_for_replay";
   session.lastActivityAt = new Date();
-  console.log(`[BacklogManager] Stream ended for ${userId} — waiting for replay pipeline to complete, then resuming backlog`);
 
   setTimeout(async () => {
     const current = sessions.get(userId);
     if (!current) return;
 
     if (current.streamId !== null && current.streamId !== endedStreamId) {
-      console.log(`[BacklogManager] New stream ${current.streamId} started while waiting for replay of stream ${endedStreamId} — skipping resume for ${userId}`);
       return;
     }
 
@@ -171,7 +166,6 @@ export async function resumeAfterStream(userId: string): Promise<void> {
       current.pausedAt = null;
       current.lastActivityAt = new Date();
       sendSSEEvent(userId, "backlog_update", { state: "running", resumed: true });
-      console.log(`[BacklogManager] Replay done, resuming backlog for ${userId}`);
 
       if (!activeLoops.has(userId)) {
         processBacklogContinuously(userId).catch(err => {
@@ -184,7 +178,6 @@ export async function resumeAfterStream(userId: string): Promise<void> {
 
 async function processBacklogContinuously(userId: string): Promise<void> {
   if (activeLoops.has(userId)) {
-    console.log(`[BacklogManager] Loop already active for ${userId}, skipping`);
     return;
   }
   activeLoops.add(userId);
@@ -206,7 +199,6 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       current.currentPipelineId = null;
       current.currentVideoTitle = null;
       sendSSEEvent(userId, "backlog_update", { state: "paused_for_live" });
-      console.log(`[BacklogManager] Current video done, pausing backlog for live stream (user ${userId})`);
       break;
     }
 
@@ -239,7 +231,6 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       current.currentVideoTitle = null;
       current.lastActivityAt = new Date();
       sendSSEEvent(userId, "backlog_update", { state: "idle", completed: true, totalProcessed: publishedVideos.length });
-      console.log(`[BacklogManager] All ${publishedVideos.length} videos processed for ${userId}`);
 
       await storage.createNotification({
         userId,
@@ -278,7 +269,6 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       }).returning();
 
       current.currentPipelineId = pipeline.id;
-      console.log(`[BacklogManager] Processing "${nextVideo.title}" (${remaining.length} remaining)`);
 
       await runSinglePipeline(pipeline.id, nextVideo.title, "refresh");
 
@@ -303,7 +293,6 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       finalSession.currentPipelineId = null;
       finalSession.currentVideoTitle = null;
       finalSession.lastActivityAt = new Date();
-      console.log(`[BacklogManager] Loop exited unexpectedly for ${userId} — reset state to idle`);
       sendSSEEvent(userId, "backlog_update", { state: "idle", crashed: true });
     }
   }

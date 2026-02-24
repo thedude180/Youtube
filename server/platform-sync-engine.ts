@@ -60,7 +60,6 @@ async function pushAndUpdateLocal(
   if (updates.description) {
     const guardrailed = await applyGuardrails(updates.description, userId, "youtube", { contentType: "description" });
     updates.description = sanitizePlaceholders(guardrailed.content, beforeMeta);
-    console.log(`[PlatformSync] Guardrails applied: grade=${guardrailed.safetyGrade}, stealth=${guardrailed.stealthScore}`);
   }
 
   const { updateYouTubeVideo } = await import("./youtube");
@@ -134,7 +133,6 @@ async function pushAndUpdateLocal(
     console.error(`[PlatformSync] Failed to record update history:`, histErr);
   }
 
-  console.log(`[PlatformSync] ${source}: pushed ${updatedFields.join(", ")} to YouTube for "${videoTitle}" (${youtubeId})`);
 
   sendSSEEvent(userId, "platform_sync", {
     type: "video_updated",
@@ -211,7 +209,6 @@ export async function pushVideoUpdateToYouTube(
     }
 
     if (updatedFields.length === 0) {
-      console.log(`[PlatformSync] No fields to update for video ${videoDbId}`);
       return null;
     }
 
@@ -252,13 +249,11 @@ export async function pushThumbnailToYouTube(
     const { video, youtubeId, ytChannel } = ctx;
 
     if (!thumbnailUrl || !thumbnailUrl.startsWith("http")) {
-      console.log(`[PlatformSync] No valid thumbnail URL for video ${videoDbId}, skipping thumbnail push`);
       return null;
     }
 
     const response = await fetch(thumbnailUrl);
     if (!response.ok) {
-      console.log(`[PlatformSync] Failed to fetch thumbnail from ${thumbnailUrl}`);
       return null;
     }
 
@@ -271,7 +266,6 @@ export async function pushThumbnailToYouTube(
 
     await storage.updateVideo(videoDbId, { thumbnailUrl });
 
-    console.log(`[PlatformSync] Pushed new thumbnail to YouTube for "${video.title}" (${youtubeId})`);
 
     sendSSEEvent(userId, "platform_sync", {
       type: "thumbnail_updated",
@@ -324,13 +318,11 @@ export async function syncVideoAfterProcessing(
     if (!meta) return results;
 
     if (!meta.aiOptimized) {
-      console.log(`[PlatformSync] Skipping sync for video ${videoDbId}: not AI-optimized yet`);
       return results;
     }
 
     const ctx = await getYouTubeChannel(userId, videoDbId);
     if (!ctx) {
-      console.log(`[PlatformSync] No YouTube channel found for video ${videoDbId}, skipping push`);
       return results;
     }
     const { youtubeId, ytChannel } = ctx;
@@ -366,11 +358,9 @@ export async function syncVideoAfterProcessing(
     }
 
     if (updatedFields.length === 0) {
-      console.log(`[PlatformSync] No optimized fields to push for video ${videoDbId}`);
       return results;
     }
 
-    console.log(`[PlatformSync] Pushing ${updatedFields.join(", ")} to YouTube for video "${video.title}" (${youtubeId})`);
 
     const result = await pushAndUpdateLocal(
       userId, videoDbId, youtubeId, ytChannel.id, video.title,
@@ -378,7 +368,6 @@ export async function syncVideoAfterProcessing(
     );
     if (result) results.push(result);
 
-    console.log(`[PlatformSync] Sync complete for video ${videoDbId}: ${results.filter(r => r.success).length} platforms updated`);
   } catch (err: any) {
     console.error(`[PlatformSync] syncVideoAfterProcessing failed for video ${videoDbId}:`, err.message);
   }

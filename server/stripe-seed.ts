@@ -54,12 +54,8 @@ export async function seedStripeProducts() {
             currency: "usd",
             recurring: { interval: tier.interval },
           });
-          console.log(`[Stripe Seed] Fixed ${tier.name} price: $${(activePrice.unit_amount || 0) / 100} → $${tier.price / 100}/mo`);
           pricesFixed = true;
         }
-      }
-      if (!pricesFixed) {
-        console.log("[Stripe Seed] Products already exist, skipping seed");
       }
       return;
     }
@@ -67,7 +63,6 @@ export async function seedStripeProducts() {
     for (const tier of TIERS) {
       const existing = existingTiers.find((p) => p.metadata?.tier === tier.metadata.tier);
       if (existing) {
-        console.log(`[Stripe Seed] ${tier.name} already exists, skipping`);
         continue;
       }
 
@@ -84,10 +79,8 @@ export async function seedStripeProducts() {
         recurring: { interval: tier.interval },
       });
 
-      console.log(`[Stripe Seed] Created ${tier.name} - $${tier.price / 100}/mo`);
     }
 
-    console.log("[Stripe Seed] Seeding complete");
   } catch (e: any) {
     console.error("[Stripe Seed] Error:", e.message);
   }

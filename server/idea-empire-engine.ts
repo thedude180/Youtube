@@ -408,7 +408,6 @@ Every formula should be so specific that a beginner can follow it like a recipe.
     for (const feature of autopilotFeatures) {
       await updateAutopilotFeatureConfig(userId, feature, true, {});
     }
-    console.log(`[Empire] Autopilot fully enabled for new creator ${userId} — live detection active`);
   } catch (err: any) {
     console.error(`[Empire] Autopilot setup failed (non-fatal):`, err.message);
   }
@@ -1382,9 +1381,6 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
       const kwResult = await autoApplyKeywordsToNewVideo(userId, finalTitle, seoTags, seoDesc);
       seoTags = kwResult.optimizedTags;
       seoDesc = kwResult.optimizedDescription;
-      if (kwResult.keywordsApplied.length > 0) {
-        console.log(`[Empire] Auto-applied ${kwResult.keywordsApplied.length} proven keywords to "${finalTitle}"`);
-      }
     } catch { /* keyword optimization is optional */ }
 
     videoRecord = await storage.createVideo({
@@ -1456,7 +1452,6 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
     try {
       const { processNewVideoUpload } = await import("./autopilot-engine");
       await processNewVideoUpload(userId, videoRecord.id);
-      console.log(`[Empire] Triggered autopilot distribution for empire-generated video ${videoRecord.id}`);
     } catch (err: any) {
       console.error(`[Empire] Autopilot distribution trigger failed:`, err.message);
     }

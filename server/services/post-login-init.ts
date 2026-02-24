@@ -38,7 +38,6 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       if (userChannels.length > 0 && !user.autopilotActive) {
         await storage.updateUserProfile(userId, { autopilotActive: true });
         results.autopilotAutoEnabled = "true";
-        console.log(`[PostLoginInit] Auto-enabled autopilot for ${userId} (has ${userChannels.length} channels)`);
       }
 
       for (const channel of userChannels) {
@@ -138,7 +137,6 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       results.tierRecommendation = "error";
     }
 
-    console.log(`[PostLoginInit] Systems initialized for user ${userId}:`, JSON.stringify(results));
   } catch (err) {
     console.error(`[PostLoginInit] Critical error for ${userId}:`, err);
     results.critical = "error";
@@ -148,8 +146,6 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
 }
 
 export async function initializePostOnboarding(userId: string, niche?: string): Promise<void> {
-  console.log(`[PostLoginInit] Post-onboarding initialization for ${userId}, niche: ${niche || "unknown"}`);
-
   try {
     const updateData: Record<string, any> = {
       onboardingCompleted: new Date(),

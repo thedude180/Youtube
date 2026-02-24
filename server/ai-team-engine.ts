@@ -372,5 +372,4 @@ export function initAiTeamScheduler() {
     }
   });
 
-  logger.info("[AI Team] Autonomous scheduler activated — cycles every 6 hours");
 }

@@ -169,8 +169,6 @@ Respond with JSON:
     },
   });
 
-  console.log(`[KeywordEngine] Analyzed ${recentVideos.length} videos for ${userId}, found ${(analysis.winningKeywords || []).length} winning keywords`);
-
   return {
     analyzed: recentVideos.length,
     keywords: analysis.winningKeywords || [],
@@ -236,7 +234,6 @@ export async function refreshKeywordScores(userId: string) {
         lastAnalyzedAt: new Date(),
       }).where(eq(keywordInsights.id, kw.id));
     }
-    console.log(`[KeywordEngine] Decayed ${staleKeywords.length} stale keyword scores for ${userId}`);
   }
 }
 
@@ -256,6 +253,5 @@ export async function runKeywordLearningCycle() {
     }
   }
 
-  console.log(`[KeywordEngine] Completed learning cycle for ${totalProcessed} users`);
   return totalProcessed;
 }

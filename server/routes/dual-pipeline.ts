@@ -169,7 +169,6 @@ async function spawnVodPipelineAfterPublish(
     ));
 
   if (existing.length > 0) {
-    console.log(`[DualPipeline] VOD pipeline already exists for source ${sourcePipelineId}, skipping`);
     return existing[0];
   }
 
@@ -193,7 +192,6 @@ async function spawnVodPipelineAfterPublish(
     humanDelayMinutes: delayMinutes,
   }).returning();
 
-  console.log(`[DualPipeline] VOD pipeline ${vodPipeline.id} queued for source ${sourcePipelineId} — starts in ${delayMinutes} min (${scheduledAt.toISOString()})`);
   return vodPipeline;
 }
 
@@ -211,7 +209,6 @@ async function processWaitingVodPipelines() {
     .where(and(eq(streamPipelines.pipelineType, "vod"), eq(streamPipelines.status, "processing")));
   const activeCount = currentlyProcessing[0]?.count || 0;
   if (activeCount >= PLATFORM_LIMITS.youtube.maxConcurrentPipelines) {
-    if (waiting.length > 0) console.log(`[DualPipeline] ${activeCount} VOD pipelines already processing (limit: ${PLATFORM_LIMITS.youtube.maxConcurrentPipelines}), waiting...`);
     return;
   }
   const slotsAvailable = PLATFORM_LIMITS.youtube.maxConcurrentPipelines - activeCount;
@@ -223,12 +220,10 @@ async function processWaitingVodPipelines() {
       const [srcPipeline] = await db.select().from(streamPipelines)
         .where(eq(streamPipelines.id, pipeline.sourcePipelineId));
       if (!srcPipeline || srcPipeline.status !== "completed") {
-        console.log(`[DualPipeline] VOD pipeline ${pipeline.id} source ${pipeline.sourcePipelineId} not completed — skipping`);
         continue;
       }
     }
 
-    console.log(`[DualPipeline] VOD pipeline ${pipeline.id} delay elapsed — starting execution`);
     await db.update(streamPipelines)
       .set({ status: "processing", startedAt: new Date(), errorMessage: null })
       .where(eq(streamPipelines.id, pipeline.id));
@@ -246,7 +241,6 @@ async function processWaitingVodPipelines() {
   }
 
   if (started > 0) {
-    console.log(`[DualPipeline] Started ${started} waiting VOD pipeline(s) (${slotsAvailable} slots were available)`);
   }
 }
 
@@ -263,7 +257,6 @@ async function processQueuedPipelines() {
     const currentResults = (pipeline.stepResults as Record<string, any>) || {};
     const completedSteps = [...(pipeline.completedSteps || [])];
 
-    console.log(`[DualPipeline] Auto-starting queued pipeline ${pipeline.id}: "${pipeline.sourceTitle}"`);
     await db.update(streamPipelines)
       .set({ status: "processing", startedAt: pipeline.startedAt || new Date(), errorMessage: null })
       .where(eq(streamPipelines.id, pipeline.id));
@@ -276,7 +269,6 @@ async function processQueuedPipelines() {
   }
 
   if (queued.length > 0) {
-    console.log(`[DualPipeline] Auto-started ${queued.length} queued pipeline(s)`);
   }
 }
 
@@ -303,11 +295,9 @@ async function autoSpawnMissingVodPipelines() {
       if (existingVod.length > 0) continue;
       
       if (!checkPlatformLimit("youtube", "updates")) {
-        console.log(`[DualPipeline] YouTube daily limit reached, deferring VOD spawn`);
         break;
       }
       
-      console.log(`[DualPipeline] Auto-spawning missing VOD pipeline for completed live ${livePipeline.id}: "${livePipeline.sourceTitle}"`);
       await spawnVodPipelineAfterPublish(
         livePipeline.id,
         livePipeline.userId,
@@ -510,7 +500,6 @@ async function executeStreamPipelineInBackground(
 
     const [current] = await db.select().from(streamPipelines).where(eq(streamPipelines.id, pipelineId));
     if (current?.status === "paused" || current?.status === "cancelled") {
-      console.log(`[DualPipeline] Pipeline ${pipelineId} is ${current.status}, stopping execution`);
       return;
     }
 
@@ -574,7 +563,6 @@ async function executeStreamPipelineInBackground(
       currentStep: stepIds[stepIds.length - 1],
     })
     .where(eq(streamPipelines.id, pipelineId));
-  console.log(`[DualPipeline] Pipeline ${pipelineId} completed all steps`);
 
   if (pipelineType === "live" && userId) {
     try {
@@ -597,7 +585,6 @@ async function executeStreamPipelineInBackground(
       if (videoDbId) {
         const { processNewVideoUpload } = await import("../autopilot-engine");
         await processNewVideoUpload(userId, videoDbId);
-        console.log(`[DualPipeline] Triggered autopilot distribution for video ${videoDbId} after VOD pipeline ${pipelineId} completed`);
       } else {
         const cleanTitle = sourceTitle.replace(/^\[VOD\]\s*/i, "").trim();
         const videoMatch = await db.select().from(videos)
@@ -610,9 +597,7 @@ async function executeStreamPipelineInBackground(
         if (videoMatch.length > 0) {
           const { processNewVideoUpload } = await import("../autopilot-engine");
           await processNewVideoUpload(userId, videoMatch[0].id);
-          console.log(`[DualPipeline] Triggered autopilot distribution for matched video ${videoMatch[0].id} after VOD pipeline ${pipelineId}`);
         } else {
-          console.log(`[DualPipeline] No video record found for pipeline ${pipelineId} ("${cleanTitle}") — autopilot distribution skipped`);
         }
       }
     } catch (autopilotErr: any) {

@@ -173,7 +173,6 @@ export async function computeAudienceSegments(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Community Engine] Computed ${segments.length} audience segments for user ${userId}`);
   } catch (e) {
     console.error(`[Community Engine] computeAudienceSegments error for user ${userId}:`, e);
   }
@@ -289,7 +288,6 @@ export async function computeChurnRisk(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Community Engine] Computed churn risk for ${segments.length} segments across ${platforms.length} platforms for user ${userId}`);
   } catch (e) {
     console.error(`[Community Engine] computeChurnRisk error for user ${userId}:`, e);
   }
@@ -401,7 +399,6 @@ export async function generateReengagementCampaign(userId: string): Promise<void
       });
     }
 
-    console.log(`[Community Engine] Generated re-engagement campaigns for ${processedSegments.size} high-risk segments for user ${userId}`);
   } catch (e) {
     console.error(`[Community Engine] generateReengagementCampaign error for user ${userId}:`, e);
   }
@@ -480,7 +477,6 @@ export async function checkFanMilestones(userId: string): Promise<void> {
     }
 
     if (newMilestones.length > 0) {
-      console.log(`[Community Engine] Detected ${newMilestones.length} new milestones for user ${userId}: ${newMilestones.map(m => `${m.milestoneType}=${m.threshold}`).join(", ")}`);
     }
   } catch (e) {
     console.error(`[Community Engine] checkFanMilestones error for user ${userId}:`, e);
@@ -629,7 +625,6 @@ export async function executeAutoCommunityActions(userId: string): Promise<void>
     }
 
     if (actionsCreated.length > 0) {
-      console.log(`[Community Engine] Created ${actionsCreated.length} community actions for user ${userId}: ${actionsCreated.join(", ")}`);
     }
   } catch (e) {
     console.error(`[Community Engine] executeAutoCommunityActions error for user ${userId}:`, e);
@@ -647,7 +642,6 @@ export async function runCommunityAudienceScan(): Promise<void> {
       return;
     }
 
-    console.log(`[Community Engine] Processing ${userIds.length} users...`);
 
     for (const userId of userIds) {
       try {
@@ -663,7 +657,6 @@ export async function runCommunityAudienceScan(): Promise<void> {
 
     const duration = Date.now() - startTime;
     lastScanTime = Date.now();
-    console.log(`[Community Engine] Scan complete: processed ${userIds.length} users in ${duration}ms`);
   } catch (e) {
     console.error("[Community Engine] runCommunityAudienceScan error:", e);
   }
@@ -675,7 +668,6 @@ export function startCommunityAudienceEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
 
-  console.log("[Community Engine] Community & Audience Engine activated - scanning every 6 hours");
 
   setTimeout(() => {
     runCommunityAudienceScan().catch(e => console.error("[Community Engine] Startup scan failed:", e));

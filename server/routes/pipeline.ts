@@ -277,7 +277,6 @@ export async function executePipelineInBackground(id: number, videoTitle: string
       currentStep: "schedule",
     })
     .where(eq(contentPipeline.id, id));
-  console.log(`[Pipeline] Pipeline ${id} completed all 8 steps`);
 }
 
 export async function createPipelineForStream(userId: string, streamTitle: string, mode: "live" | "replay" = "live") {
@@ -293,8 +292,6 @@ export async function createPipelineForStream(userId: string, streamTitle: strin
       completedSteps: [],
       stepResults: {},
     }).returning();
-
-    console.log(`[Pipeline] Auto-created ${mode.toUpperCase()} pipeline ${pipeline.id} for stream "${streamTitle}"`);
 
     executePipelineInBackground(pipeline.id, streamTitle, mode, {}, []).catch(err => {
       console.error(`[Pipeline] Auto-run failed for ${mode} stream pipeline ${pipeline.id}:`, err);
@@ -365,7 +362,6 @@ export async function runBacklogRefresh(userId: string, batchSize = 10): Promise
       riskLevel: "low",
     });
 
-    console.log(`[Pipeline] Backlog refresh: ${created.length} videos queued for user ${userId}`);
     return { queued: created.length };
   } catch (err: any) {
     console.error("[Pipeline] Auto backlog refresh error:", err);

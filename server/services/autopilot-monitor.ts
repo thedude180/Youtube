@@ -52,7 +52,6 @@ function logAutoFix(userId: string, system: string, action: string): void {
     autoFixLog.set(key, { count: 1, lastFixed: new Date() });
   }
   enforceAutoFixLogCap();
-  console.log(`[Autopilot:SelfHeal] Auto-fixed ${system} for user ${userId}: ${action}`);
 }
 
 const systemChecks: SystemCheck[] = [
@@ -155,10 +154,6 @@ const systemChecks: SystemCheck[] = [
         if (result.refreshed > 0) {
           logAutoFix(userId, "platform_connections", `Auto-refreshed ${result.refreshed} expiring tokens`);
           return { ok: true, autoFixed: true, fixAction: `Auto-refreshed ${result.refreshed} tokens` };
-        }
-
-        if (result.failed > 0) {
-          console.log(`[Autopilot] ${result.failed} token(s) failed refresh for ${userId} — auto-reconnect system will handle email notifications`);
         }
 
         return { ok: true };
@@ -315,9 +310,6 @@ async function runHealthChecks(): Promise<void> {
         }
       }
 
-      if (autoFixes.length > 0) {
-        console.log(`[Autopilot] Self-healed ${autoFixes.length} issues for user ${user.id}: ${autoFixes.join("; ")}`);
-      }
     }
 
     await heartbeatMod.recordHeartbeat("autopilotMonitor", "running", Date.now() - startTime);
@@ -331,8 +323,6 @@ async function runHealthChecks(): Promise<void> {
 export function startAutopilotMonitor(): void {
   if (monitorInterval) return;
 
-  console.log("[Autopilot] Background monitor started — checking every 30 minutes");
-
   setTimeout(() => runHealthChecks().catch(console.error), 60_000);
 
   monitorInterval = setInterval(() => {
@@ -344,7 +334,6 @@ export function stopAutopilotMonitor(): void {
   if (monitorInterval) {
     clearInterval(monitorInterval);
     monitorInterval = null;
-    console.log("[Autopilot] Monitor stopped");
   }
 }
 

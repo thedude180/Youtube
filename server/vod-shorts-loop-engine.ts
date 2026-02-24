@@ -543,5 +543,4 @@ export async function cancelVodShortsLoop(userId: string): Promise<boolean> {
 }
 
 export function initVodShortsLoopEngine() {
-  logger.info("[VodShortsLoop] Closed-loop VOD & Shorts engine initialized — 9-phase autonomous pipeline ready");
 }

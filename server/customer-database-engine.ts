@@ -45,7 +45,6 @@ export async function createOrUpdateCustomerProfile(
       })
       .returning();
 
-    console.log(`[CustomerDB] Profile created/updated for user ${userId}`);
     sendSSEEvent(userId, "customer_profile_updated", { userId, profile });
     return profile;
   } catch (error) {
@@ -232,7 +231,6 @@ export async function recordTierChange(userId: string, newTier: string, reason?:
       .where(eq(customerProfiles.userId, userId))
       .returning();
 
-    console.log(`[CustomerDB] Tier changed for ${userId}: ${existing.currentTier} -> ${newTier}`);
     sendSSEEvent(userId, "customer_tier_changed", {
       userId,
       oldTier: existing.currentTier,
@@ -424,7 +422,6 @@ export async function enrichCustomerProfile(userId: string) {
       .where(eq(customerProfiles.userId, userId))
       .returning();
 
-    console.log(`[CustomerDB] Enriched profile for ${userId}: engagement=${engagementScore}, churn=${churnRisk}`);
     return updated;
   } catch (error) {
     console.error(`[CustomerDB] Error enriching profile for ${userId}:`, error);

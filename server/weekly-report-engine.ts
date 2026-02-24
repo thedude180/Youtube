@@ -221,7 +221,6 @@ export async function sendWeeklyReportEmail(userId: string): Promise<boolean> {
     const report = await generateWeeklyReport(userId);
 
     if (!report.email) {
-      console.log(`[WeeklyReport] No email found for user ${userId}, sending in-app notification instead`);
       try {
         const { notifications } = await import("@shared/schema");
         const { db } = await import("./db");
@@ -244,13 +243,10 @@ export async function sendWeeklyReportEmail(userId: string): Promise<boolean> {
     try {
       const sent = await sendGmail(report.email, subject, html);
       if (sent) {
-        console.log(`[WeeklyReport] Sent weekly report to ${report.email}`);
         return true;
       }
-      console.log(`[WeeklyReport] Gmail send returned false for ${report.email}, falling back to log`);
       return false;
     } catch (gmailErr: any) {
-      console.log(`[WeeklyReport] Gmail not connected or failed (${gmailErr.message}), report generated but not sent for user ${userId}`);
       return false;
     }
   } catch (err: any) {
@@ -275,12 +271,10 @@ export async function sendTestReport(userId: string): Promise<{ success: boolean
 
 export function initWeeklyReportEngine() {
   cron.schedule("0 9 * * 1", async () => {
-    console.log("[WeeklyReport] Starting weekly report distribution...");
     try {
       const allChannels = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannels.map((c) => c.userId).filter(Boolean))) as string[];
 
-      console.log(`[WeeklyReport] Sending reports to ${userIds.length} user(s)`);
 
       for (const uid of userIds) {
         try {
@@ -290,11 +284,8 @@ export function initWeeklyReportEngine() {
         }
       }
 
-      console.log("[WeeklyReport] Weekly report distribution complete");
     } catch (err: any) {
       console.error("[WeeklyReport] Cron job failed:", err.message);
     }
   });
-
-  console.log("[WeeklyReport] Weekly report engine initialized (runs every Monday at 9:00 AM UTC)");
 }

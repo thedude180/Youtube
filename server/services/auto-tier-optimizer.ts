@@ -188,9 +188,5 @@ export async function runTierOptimizationForAllUsers(): Promise<{ analyzed: numb
     console.error("[TierOptimizer] Batch optimization error:", err);
   }
 
-  if (analyzed > 0) {
-    console.log(`[TierOptimizer] Analyzed ${analyzed} users, ${recommended} upgrade recommendations`);
-  }
-
   return { analyzed, recommended };
 }

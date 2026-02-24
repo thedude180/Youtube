@@ -154,7 +154,6 @@ export function queueMetadataUpdate(
   );
   if (existingIndex >= 0) {
     pushQueue[existingIndex].data = { ...pushQueue[existingIndex].data, ...data };
-    console.log(`[PushScheduler] Updated existing job for video ${videoDbId}`);
     return pushQueue[existingIndex].id;
   }
 
@@ -162,7 +161,6 @@ export function queueMetadataUpdate(
   const budget = calculateDailyPostBudget("youtube");
   const effectiveLimit = Math.min(YOUTUBE_UPDATE_LIMITS.maxUpdatesPerDay, budget * 10);
   if (dailyCount >= effectiveLimit && priority !== "immediate") {
-    console.log(`[PushScheduler] Daily budget exhausted for user ${userId} (${dailyCount}/${effectiveLimit}), scheduling for tomorrow`);
   }
 
   const userJobs = pushQueue.filter(j => j.userId === userId && j.type === "metadata_update");
@@ -202,8 +200,6 @@ export function queueMetadataUpdate(
   const delayStr = priority === "immediate" && position === 0
     ? "immediate (with micro-delay)"
     : `${Math.round((scheduledAt.getTime() - now) / 1000)}s from now`;
-
-  console.log(`[PushScheduler] Queued metadata update for video ${videoDbId} — ${delayStr} (position ${position}, daily: ${dailyCount}/${effectiveLimit})`);
 
   if (!schedulerRunning) {
     startScheduler();
@@ -260,8 +256,6 @@ export function queueVideoUpload(
   pushQueue.push(job);
   pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
 
-  console.log(`[PushScheduler] Queued video upload for video ${videoDbId} — scheduled at ${scheduledAt.toISOString()}`);
-
   if (!schedulerRunning) {
     startScheduler();
   }
@@ -313,7 +307,6 @@ async function processJob(job: PushJob): Promise<boolean> {
     job.scheduledAt = new Date(Date.now() + retryMs);
     pushQueue.push(job);
     pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-    console.log(`[PushScheduler] Deferred job ${job.id}: ${check.reason}, retry in ${Math.round(retryMs / 1000)}s`);
     return false;
   }
 
@@ -325,7 +318,6 @@ async function processJob(job: PushJob): Promise<boolean> {
 
       if (success) {
         incrementPushCounts(job.userId);
-        console.log(`[PushScheduler] Pushed metadata for video ${job.videoDbId} (daily: ${getDailyPushCount(job.userId)}, hourly: ${getHourlyPushCount(job.userId)})`);
 
         sendSSEEvent(job.userId, "push_scheduler", {
           type: "metadata_pushed",
@@ -333,7 +325,6 @@ async function processJob(job: PushJob): Promise<boolean> {
           timestamp: new Date().toISOString(),
         });
       } else if (results.length === 0) {
-        console.log(`[PushScheduler] No sync targets for video ${job.videoDbId} (no youtubeId or no channel)`);
       }
 
       return true;
@@ -341,14 +332,12 @@ async function processJob(job: PushJob): Promise<boolean> {
       const { uploadVideoToYouTube } = await import("../youtube");
       const video = await storage.getVideo(job.videoDbId);
       if (!video) {
-        console.log(`[PushScheduler] Video ${job.videoDbId} not found, skipping upload`);
         return true;
       }
 
       const userChannels = await storage.getChannelsByUser(job.userId);
       const ytChannel = userChannels.find(c => c.platform === "youtube" && c.accessToken);
       if (!ytChannel) {
-        console.log(`[PushScheduler] No YouTube channel for user ${job.userId}, skipping upload`);
         return true;
       }
 
@@ -380,7 +369,6 @@ async function processJob(job: PushJob): Promise<boolean> {
         });
 
         incrementPushCounts(job.userId);
-        console.log(`[PushScheduler] Uploaded video ${job.videoDbId} to YouTube as ${uploadResult.youtubeId}`);
 
         sendSSEEvent(job.userId, "push_scheduler", {
           type: "video_uploaded",
@@ -399,7 +387,6 @@ async function processJob(job: PushJob): Promise<boolean> {
 
         import("../publish-verifier").then(({ verifyVideoUpload }) => {
           verifyVideoUpload(job.videoDbId, job.userId, uploadResult.youtubeId, "push_scheduler").catch(err => {
-            console.log(`[PushScheduler] Upload verification deferred: ${err.message}`);
           });
         });
       }
@@ -415,7 +402,6 @@ async function processJob(job: PushJob): Promise<boolean> {
       job.scheduledAt = new Date(Date.now() + retryDelay);
       pushQueue.push(job);
       pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-      console.log(`[PushScheduler] Retrying job ${job.id} in ${Math.round(retryDelay / 1000)}s (attempt ${job.retries}/${job.maxRetries})`);
       return false;
     } else {
       console.error(`[PushScheduler] Job ${job.id} exhausted retries, giving up`);
@@ -454,7 +440,6 @@ function startScheduler(): void {
     }
   }, 5_000);
 
-  console.log(`[PushScheduler] Scheduler started with ${pushQueue.length} jobs`);
 }
 
 function stopScheduler(): void {
@@ -463,7 +448,6 @@ function stopScheduler(): void {
     schedulerInterval = null;
   }
   schedulerRunning = false;
-  console.log(`[PushScheduler] Scheduler stopped (queue empty)`);
 }
 
 export function getQueueStatus(userId?: string): {
@@ -506,7 +490,6 @@ export function queueBatchMetadataUpdates(
     jobIds.push(jobId);
   }
 
-  console.log(`[PushScheduler] Batch queued ${videoDbIds.length} metadata updates for user ${userId} — first one immediate, rest staggered`);
   return jobIds;
 }
 
@@ -522,6 +505,5 @@ export function queueBatchVideoUploads(
     jobIds.push(jobId);
   }
 
-  console.log(`[PushScheduler] Batch queued ${videoDbIds.length} video uploads for user ${userId}`);
   return jobIds;
 }

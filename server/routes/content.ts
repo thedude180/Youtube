@@ -290,7 +290,6 @@ export function registerContentRoutes(app: Express) {
 
             if (backfillEntries.length > 0) {
               await db.insert(videoUpdateHistory).values(backfillEntries);
-              console.log(`[UpdateHistory] Backfilled ${backfillEntries.length} records for userId: ${userId}`);
               history = await storage.getVideoUpdateHistory(userId, youtubeVideoId);
             }
           }

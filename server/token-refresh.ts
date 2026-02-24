@@ -163,7 +163,6 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
           platformData: { ...(ch.platformData as any || {}), _connectionStatus: "active", _lastRefresh: new Date().toISOString() },
         }).where(eq(channels.id, ch.id));
 
-        console.log(`[TokenRefresh] Refreshed token for ${ch.platform} channel ${ch.channelName}`);
         refreshed++;
       } else {
         const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
@@ -180,10 +179,6 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
     }
   } catch (e) {
     console.error("[TokenRefresh] Error checking expiring tokens:", e);
-  }
-
-  if (refreshed > 0 || failed > 0) {
-    console.log(`[TokenRefresh] Complete: ${refreshed} refreshed, ${failed} failed`);
   }
 
   return { refreshed, failed };

@@ -122,7 +122,6 @@ export async function handlePaymentFailed(customerId: string, invoiceId: string,
         await endDunning(userId, false);
       }
     }
-    console.log(`[StripeHardening] Payment failed for customer ${customerId}, attempt ${attemptCount}`);
   } catch (err) {
     console.error("[StripeHardening] handlePaymentFailed error:", err);
   }
@@ -147,7 +146,6 @@ export async function handlePaymentSucceeded(customerId: string, invoiceId: stri
       existing.push({ id: invoiceId, userId, amount: 0, status: "paid", description: "Subscription payment", createdAt: new Date() });
       invoiceStore.set(userId, existing);
     }
-    console.log(`[StripeHardening] Payment succeeded for customer ${customerId}`);
   } catch (err) {
     console.error("[StripeHardening] handlePaymentSucceeded error:", err);
   }
@@ -176,7 +174,6 @@ export async function startDunning(userId: string, reason: string): Promise<void
       message: "We were unable to process your payment. Please update your payment method within 5 days to avoid losing access.",
       metadata: { source: "billing" },
     });
-    console.log(`[StripeHardening] Dunning started for user ${userId}: ${reason}`);
   } catch (err) {
     console.error("[StripeHardening] startDunning error:", err);
   }
@@ -204,7 +201,6 @@ export async function endDunning(userId: string, resolved: boolean): Promise<voi
         metadata: { source: "billing" },
       });
     }
-    console.log(`[StripeHardening] Dunning ended for user ${userId}, resolved: ${resolved}`);
   } catch (err) {
     console.error("[StripeHardening] endDunning error:", err);
   }
@@ -382,7 +378,6 @@ export async function endTrial(userId: string): Promise<void> {
       message: "Your free trial has ended. Upgrade now to keep your premium features!",
       metadata: { source: "billing" },
     });
-    console.log(`[StripeHardening] Trial ended for user ${userId}`);
   } catch (err) {
     console.error("[StripeHardening] endTrial error:", err);
   }

@@ -7,7 +7,7 @@ import { getOpenAIClient } from "./lib/openai";
 const openai = getOpenAIClient();
 
 const logger = {
-  info: (msg: string, meta?: any) => console.log(JSON.stringify({ timestamp: new Date().toISOString(), level: "info", module: "trend-rider", message: msg, ...meta })),
+  info: (_msg: string, _meta?: any) => {},
   error: (msg: string, meta?: any) => console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: "error", module: "trend-rider", message: msg, ...meta })),
 };
 
@@ -330,6 +330,4 @@ export function startTrendRiderEngine(): void {
       logger.error("Trend lifecycle update failed", { error: String(err) });
     }
   }, TREND_CHECK_INTERVAL_MS);
-
-  logger.info("[TrendRider] Trend Rider Engine activated — auto-detects trending topics and reworks schedule");
 }

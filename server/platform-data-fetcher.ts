@@ -648,13 +648,11 @@ const PLATFORM_FETCHERS: Partial<Record<string, PlatformFetcher>> = {
 export async function fetchPlatformData(platform: Platform, accessToken: string, channelId: string): Promise<PlatformFetchedData> {
   const fetcher = PLATFORM_FETCHERS[platform];
   if (!fetcher) {
-    console.log(`[PlatformFetcher] No specific fetcher for ${platform}, using defaults`);
     return { platformData: { connectionStatus: "connected" } };
   }
 
   try {
     const data = await fetcher(accessToken, channelId);
-    console.log(`[PlatformFetcher:${platform}] Successfully fetched platform data`);
     return data;
   } catch (e) {
     console.error(`[PlatformFetcher:${platform}] Error:`, e);

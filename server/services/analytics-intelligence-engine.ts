@@ -183,7 +183,6 @@ export async function aggregateUnifiedMetrics(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Analytics Engine] Unified metrics aggregated for user ${userId}`);
   } catch (e) {
     console.error("[Analytics Engine] aggregateUnifiedMetrics error:", e);
   }
@@ -279,7 +278,6 @@ async function generateTrendForecasts(userId: string): Promise<void> {
       });
     }
 
-    console.log(`[Analytics Engine] Trend forecasts generated for user ${userId}`);
   } catch (e) {
     console.error("[Analytics Engine] generateTrendForecasts error:", e);
   }
@@ -323,7 +321,6 @@ async function trackCompetitors(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Analytics Engine] Competitor tracking completed for user ${userId} (niche: ${niche})`);
   } catch (e) {
     console.error("[Analytics Engine] trackCompetitors error:", e);
   }
@@ -432,7 +429,6 @@ export async function computeAlgorithmHealth(userId: string): Promise<void> {
       });
     }
 
-    console.log(`[Analytics Engine] Algorithm health computed for user ${userId}`);
   } catch (e) {
     console.error("[Analytics Engine] computeAlgorithmHealth error:", e);
   }
@@ -531,7 +527,6 @@ export async function generatePerformanceBenchmarks(userId: string): Promise<voi
       });
     }
 
-    console.log(`[Analytics Engine] Performance benchmarks generated for user ${userId} (${niche}, ${cohort.subscriberRange})`);
   } catch (e) {
     console.error("[Analytics Engine] generatePerformanceBenchmarks error:", e);
   }
@@ -563,7 +558,6 @@ export async function runAnalyticsScan(): Promise<{ usersScanned: number; durati
     lastScanTime = Date.now();
     totalScansCompleted++;
 
-    console.log(`[Analytics Engine] Scan complete: ${userIds.length} users scanned in ${duration}ms`);
     return { usersScanned: userIds.length, duration };
   } catch (e) {
     console.error("[Analytics Engine] runAnalyticsScan error:", e);
@@ -577,7 +571,6 @@ export function startAnalyticsIntelligenceEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
 
-  console.log("[Analytics Engine] Analytics & Intelligence Engine activated — continuous monitoring enabled");
 
   setTimeout(() => {
     runAnalyticsScan().catch(e => console.error("[Analytics Engine] Startup scan failed:", e));

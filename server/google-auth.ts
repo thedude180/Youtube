@@ -33,7 +33,6 @@ export function setupGoogleAuth(app: Express) {
   }
 
   const defaultCallbackUrl = getCallbackUrl();
-  console.log("Google OAuth default callbackURL:", defaultCallbackUrl);
 
   passport.use(
     "google",
@@ -62,7 +61,6 @@ export function setupGoogleAuth(app: Express) {
 
           const userId = `google_${googleId}`;
 
-          console.log("Google auth: upserting user", userId, email);
           let actualUserId = userId;
           try {
             const dbUser = await authStorage.upsertUser({
@@ -75,7 +73,6 @@ export function setupGoogleAuth(app: Express) {
             if (dbUser?.id) {
               actualUserId = dbUser.id;
             }
-            console.log("Google auth: user upserted successfully, session ID:", actualUserId);
           } catch (upsertErr) {
             console.error("Google auth: upsertUser FAILED:", upsertErr);
           }
@@ -107,7 +104,6 @@ export function setupGoogleAuth(app: Express) {
 
   app.get("/api/auth/google", (req, res, next) => {
     const dynamicCallback = getCallbackUrl(req);
-    console.log("Google auth: initiating with callbackURL:", dynamicCallback);
     passport.authenticate("google", {
       scope: [
         "openid",
@@ -125,7 +121,6 @@ export function setupGoogleAuth(app: Express) {
 
   app.get("/api/auth/google/callback", (req, res, next) => {
     const dynamicCallback = getCallbackUrl(req);
-    console.log("Google auth callback: using callbackURL:", dynamicCallback);
     passport.authenticate("google", {
       failureRedirect: "/?auth_error=true",
       callbackURL: dynamicCallback,
@@ -136,7 +131,6 @@ export function setupGoogleAuth(app: Express) {
         return res.redirect("/?auth_error=no_user");
       }
 
-      console.log("Google auth callback: user authenticated, sub:", user.claims?.sub);
 
       req.login(user, async (loginErr) => {
         if (loginErr) {
@@ -160,7 +154,6 @@ export function setupGoogleAuth(app: Express) {
           try {
             const { initializeUserSystems } = await import("./services/post-login-init");
             await initializeUserSystems(user.claims.sub);
-            console.log(`[GoogleAuth] All systems initialized for ${user.claims.sub}`);
           } catch (initErr) {
             console.error("[GoogleAuth] Post-login init failed:", initErr);
           }
@@ -168,7 +161,6 @@ export function setupGoogleAuth(app: Express) {
 
         req.session.save((saveErr) => {
           if (saveErr) console.error("Google auth session save error:", saveErr);
-          console.log("Google auth: session saved, redirecting to /");
           res.redirect("/");
         });
       });
@@ -200,7 +192,6 @@ async function autoConnectYouTubeFromGoogle(
       tokenUpdate.refreshToken = refreshToken;
     }
     await storage.updateChannel(existingYt.id, tokenUpdate);
-    console.log(`[GoogleAuth] YouTube tokens refreshed for user ${userId}`);
   }
 
   try {
@@ -221,7 +212,6 @@ async function autoConnectYouTubeFromGoogle(
 
     const ytChannel = channelResponse.data.items?.[0];
     if (!ytChannel) {
-      console.log(`User ${userId} has no YouTube channel - new creator flow`);
       return { hasChannel: !existingYt ? false : true };
     }
 
@@ -277,9 +267,6 @@ async function autoConnectYouTubeFromGoogle(
       } as any);
     }
 
-    console.log(
-      `[GoogleAuth] Auto-connected YouTube for user ${userId}: ${ytChannel.snippet?.title}`
-    );
     return {
       hasChannel: true,
       channel,

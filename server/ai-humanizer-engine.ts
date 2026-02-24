@@ -412,5 +412,3 @@ export function getStealthAnalysis(text: string): {
 export function humanizeBatch(texts: string[], options: HumanizerOptions): HumanizerResult[] {
   return texts.map(t => humanizeText(t, options));
 }
-
-logger.info("AI Humanizer Engine initialized");

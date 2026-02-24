@@ -51,9 +51,6 @@ export class TTLMap<K, V> {
         cleaned++;
       }
     }
-    if (cleaned > 0) {
-      console.log(`[TTLMap] Cleaned up ${cleaned} expired entries, ${this.map.size} remaining`);
-    }
   }
 
   destroy(): void {

@@ -509,7 +509,6 @@ const PLATFORM_REVENUE_SYNCERS: Record<string, (channel: Channel, userId: string
 };
 
 export async function syncAllRevenue(userId: string): Promise<{ results: RevenueSyncResult[]; totalSynced: number; totalAmount: number }> {
-  console.log(`[RevenueSyncEngine] Starting full revenue sync for user ${userId}`);
   const results: RevenueSyncResult[] = [];
   let totalSynced = 0;
   let totalAmount = 0;
@@ -548,7 +547,6 @@ export async function syncAllRevenue(userId: string): Promise<{ results: Revenue
     errorMessage: stripeResult.error || null,
   });
 
-  console.log(`[RevenueSyncEngine] Sync complete: ${totalSynced} records, $${totalAmount.toFixed(2)} total`);
   return { results, totalSynced, totalAmount };
 }
 

@@ -394,7 +394,6 @@ export async function seedRetentionPolicies(): Promise<void> {
     for (const p of RETENTION_DEFAULTS) {
       await db.insert(dataRetentionPolicies).values({ tableName: p.tableName, retentionDays: p.retentionDays, enabled: true, rowsPurged: 0 }).onConflictDoNothing();
     }
-    console.log("[Security Fortress] Retention policies seeded");
   } catch (error) { console.error("[Security Fortress] seedRetentionPolicies error:", error); }
 }
 
@@ -417,7 +416,6 @@ export async function runDataRetention(): Promise<{ policiesProcessed: number; t
         await db.update(dataRetentionPolicies).set({ lastPurgedAt: new Date(), rowsPurged: sql`${dataRetentionPolicies.rowsPurged} + ${purged}` }).where(eq(dataRetentionPolicies.id, policy.id));
       } catch (e) { console.error(`[Security Fortress] Retention error for ${policy.tableName}:`, e); details.push({ table: policy.tableName, rowsPurged: 0 }); }
     }
-    console.log(`[Security Fortress] Data retention complete: ${totalPurged} rows purged across ${policies.length} tables`);
     return { policiesProcessed: policies.length, totalRowsPurged: totalPurged, details };
   } catch (error) { console.error("[Security Fortress] runDataRetention error:", error); return { policiesProcessed: 0, totalRowsPurged: 0, details }; }
 }
@@ -442,7 +440,6 @@ export async function deleteUserData(userId: string): Promise<{ success: boolean
     for (const t of USER_TABLES) {
       try { const r = await db.execute(sql`DELETE FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); const d = Number(r.rowCount) || 0; if (d > 0) { tables++; rows += d; } } catch { continue; }
     }
-    console.log(`[Security Fortress] GDPR deletion for user ${userId}: ${rows} rows from ${tables} tables`);
     return { success: true, tablesAffected: tables, totalRowsDeleted: rows };
   } catch (error) { console.error("[Security Fortress] deleteUserData error:", error); return { success: false, tablesAffected: tables, totalRowsDeleted: rows }; }
 }
@@ -457,7 +454,6 @@ export async function anonymizeUserData(userId: string): Promise<{ success: bool
     try { await db.execute(sql`UPDATE login_attempts SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize login_attempts", e?.message); }
     try { await db.execute(sql`UPDATE security_events SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize security_events", e?.message); }
     await db.insert(securityEvents).values({ userId: anonId, eventType: "gdpr_data_anonymized", severity: "info", details: { originalUserId: "redacted", anonymizedTo: anonId, tablesAnonymized: anonymized }, blocked: false });
-    console.log(`[Security Fortress] Anonymized user data across ${anonymized} tables`);
     return { success: true, tablesAnonymized: anonymized };
   } catch (error) { console.error("[Security Fortress] anonymizeUserData error:", error); return { success: false, tablesAnonymized: anonymized }; }
 }

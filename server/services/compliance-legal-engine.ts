@@ -197,7 +197,6 @@ export async function runPolicyComplianceCheck(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Compliance Engine] Policy compliance check completed for user ${userId}`);
   } catch (e) {
     console.error("[Compliance Engine] Policy compliance check error:", e);
   }
@@ -243,7 +242,6 @@ export async function monitorCopyrightClaims(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Compliance Engine] Copyright monitoring completed for user ${userId}`);
   } catch (e) {
     console.error("[Compliance Engine] Copyright monitoring error:", e);
   }
@@ -302,7 +300,6 @@ export async function auditLicensing(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Compliance Engine] Licensing audit completed for user ${userId}`);
   } catch (e) {
     console.error("[Compliance Engine] Licensing audit error:", e);
   }
@@ -363,7 +360,6 @@ export async function checkCOPPA(userId: string): Promise<void> {
       });
     }
 
-    console.log(`[Compliance Engine] COPPA check completed for user ${userId}`);
   } catch (e) {
     console.error("[Compliance Engine] COPPA check error:", e);
   }
@@ -429,7 +425,6 @@ export async function checkDisclosureRequirements(userId: string): Promise<void>
       });
     }
 
-    console.log(`[Compliance Engine] Disclosure requirements check completed for user ${userId}`);
   } catch (e) {
     console.error("[Compliance Engine] Disclosure requirements check error:", e);
   }
@@ -515,7 +510,6 @@ export async function analyzeFairUse(userId: string): Promise<void> {
       });
     }
 
-    console.log(`[Compliance Engine] Fair use analysis completed for user ${userId}`);
   } catch (e) {
     console.error("[Compliance Engine] Fair use analysis error:", e);
   }
@@ -542,7 +536,6 @@ export async function runComplianceScan(): Promise<void> {
 
     lastScanTime = Date.now();
     const duration = Date.now() - startTime;
-    console.log(`[Compliance Engine] Full compliance scan completed in ${duration}ms for ${allUsers.length} users`);
   } catch (e) {
     console.error("[Compliance Engine] Full compliance scan error:", e);
   }
@@ -554,7 +547,6 @@ export function startComplianceLegalEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
 
-  console.log("[Compliance Engine] Compliance & Legal Shield Engine activated — continuous monitoring enabled");
 
   setTimeout(() => {
     runComplianceScan().catch(e => console.error("[Compliance Engine] Startup scan failed:", e));

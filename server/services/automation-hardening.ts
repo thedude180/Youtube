@@ -34,7 +34,6 @@ export async function addToDeadLetter(
     status: "pending",
     nextRetryAt: new Date(Date.now() + BACKOFF_MINUTES[0] * 60_000),
   }).returning();
-  console.log(`[DLQ] Added job "${jobType}" (id=${item.id}, priority=${priority})`);
   return item;
 }
 
@@ -54,7 +53,6 @@ export async function retryDeadLetterItem(id: number) {
   const newRetryCount = (item.retryCount || 0) + 1;
   if (newRetryCount > (item.maxRetries || 3)) {
     await db.update(deadLetterQueue).set({ status: "exhausted" }).where(eq(deadLetterQueue.id, id));
-    console.log(`[DLQ] Item ${id} exhausted all retries`);
     return { status: "exhausted", retryCount: newRetryCount };
   }
 
@@ -67,7 +65,6 @@ export async function retryDeadLetterItem(id: number) {
     status: "pending",
   }).where(eq(deadLetterQueue.id, id));
 
-  console.log(`[DLQ] Item ${id} scheduled for retry ${newRetryCount} at ${nextRetryAt.toISOString()}`);
   return { status: "pending", retryCount: newRetryCount, nextRetryAt };
 }
 
@@ -85,7 +82,6 @@ export async function processDeadLetterQueue() {
   for (const item of items) {
     try {
       await db.update(deadLetterQueue).set({ status: "retrying" }).where(eq(deadLetterQueue.id, item.id));
-      console.log(`[DLQ] Processing item ${item.id} (type=${item.jobType}, retry=${item.retryCount})`);
       await retryDeadLetterItem(item.id);
       processed++;
     } catch (err: any) {
@@ -93,7 +89,6 @@ export async function processDeadLetterQueue() {
     }
   }
 
-  if (processed > 0) console.log(`[DLQ] Processed ${processed}/${items.length} items`);
   return { processed, total: items.length };
 }
 
@@ -102,7 +97,6 @@ export async function resolveDeadLetterItem(id: number) {
     status: "resolved",
     resolvedAt: new Date(),
   }).where(eq(deadLetterQueue.id, id));
-  console.log(`[DLQ] Item ${id} resolved`);
 }
 
 export async function getDeadLetterStats() {
@@ -133,7 +127,6 @@ export async function getNextJob(maxPriority: number = PRIORITY_LEVELS.BACKGROUN
 
 export async function reprioritize(id: number, newPriority: number) {
   await db.update(deadLetterQueue).set({ priority: newPriority }).where(eq(deadLetterQueue.id, id));
-  console.log(`[DLQ] Item ${id} reprioritized to ${newPriority}`);
 }
 
 export async function getJobsByPriority() {
@@ -186,7 +179,6 @@ export async function executeWithRetry<T>(
       const jitter = Math.floor(Math.random() * 500);
       const totalDelay = delay + jitter;
 
-      console.log(`[Retry] Attempt ${attempt + 1}/${maxRetries} failed: ${err.message}. Retrying in ${totalDelay}ms`);
       await new Promise(resolve => setTimeout(resolve, totalDelay));
     }
   }
@@ -198,7 +190,6 @@ export async function retryPipelineStep<T>(
   stepName: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  console.log(`[Pipeline] Retrying step "${stepName}" for pipeline ${pipelineId}`);
   return executeWithRetry(fn, {
     maxRetries: 3,
     baseDelayMs: 2000,

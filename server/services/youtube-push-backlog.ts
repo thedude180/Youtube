@@ -50,7 +50,6 @@ export async function addToBacklog(params: {
     maxAttempts: 3,
   }).returning();
 
-  console.log(`[PushBacklog] Queued update for video ${params.youtubeVideoId} (priority ${params.priority ?? 5})`);
   return { id: record.id, queued: true };
 }
 
@@ -108,12 +107,10 @@ export async function smartPushOrQueue(params: {
         console.error(`[PushBacklog] Failed to record update history:`, histErr);
       }
 
-      console.log(`[PushBacklog] Direct push succeeded for ${params.youtubeVideoId}`);
       return { pushed: true, queued: false };
     } catch (err: any) {
       if (err.code === 403 || err.message?.includes("quota") || err.code === "QUOTA_EXCEEDED") {
         const result = await addToBacklog(params);
-        console.log(`[PushBacklog] Quota hit during push, queued ${params.youtubeVideoId}`);
         return { pushed: false, queued: true, backlogId: result.id };
       }
       throw err;
@@ -121,7 +118,6 @@ export async function smartPushOrQueue(params: {
   }
 
   const result = await addToBacklog(params);
-  console.log(`[PushBacklog] Quota low, queued ${params.youtubeVideoId} (remaining quota insufficient)`);
   return { pushed: false, queued: true, backlogId: result.id };
 }
 
@@ -162,14 +158,12 @@ export async function processBacklog(): Promise<{
   for (const [userId, items] of userGroups) {
     const quotaStatus = await getQuotaStatus(userId);
     if (quotaStatus.isExceeded || quotaStatus.isNearLimit) {
-      console.log(`[PushBacklog] Skipping ${userId} — quota ${quotaStatus.percentUsed}% used`);
       continue;
     }
 
     for (const item of items) {
       const canPush = await canAffordOperation(userId, "write");
       if (!canPush) {
-        console.log(`[PushBacklog] Quota exhausted for ${userId}, stopping`);
         break;
       }
 
@@ -228,8 +222,6 @@ export async function processBacklog(): Promise<{
         processed++;
         quotaUsed += item.estimatedQuotaCost;
 
-        console.log(`[PushBacklog] Pushed ${item.youtubeVideoId} successfully`);
-
         await storage.createAgentActivity({
           userId,
           agentId: "seo_director",
@@ -245,7 +237,6 @@ export async function processBacklog(): Promise<{
           await db.update(youtubePushBacklog)
             .set({ status: "queued", attempts, lastError: "Quota exceeded", updatedAt: new Date() })
             .where(eq(youtubePushBacklog.id, item.id));
-          console.log(`[PushBacklog] Quota hit processing ${item.youtubeVideoId}, re-queued`);
           break;
         }
 

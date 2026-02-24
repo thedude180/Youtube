@@ -163,8 +163,6 @@ export async function refreshLearningPath(userId: string): Promise<void> {
         lastUpdatedAt: new Date(),
       });
     }
-
-    console.log(`[Education Engine] Refreshed learning path for user ${userId}: level=${currentLevel}`);
   } catch (e) {
     console.error(`[Education Engine] refreshLearningPath error for ${userId}:`, e);
   }
@@ -262,7 +260,6 @@ export async function generateCoachingTips(userId: string): Promise<void> {
     }
 
     if (selectedTips.length > 0) {
-      console.log(`[Education Engine] Generated ${selectedTips.length} coaching tips for user ${userId}`);
     }
   } catch (e) {
     console.error(`[Education Engine] generateCoachingTips error for ${userId}:`, e);
@@ -374,7 +371,6 @@ export async function generateCreatorInsights(userId: string): Promise<void> {
     }
 
     if (selectedInsights.length > 0) {
-      console.log(`[Education Engine] Generated ${selectedInsights.length} creator insights for user ${userId}`);
     }
   } catch (e) {
     console.error(`[Education Engine] generateCreatorInsights error for ${userId}:`, e);
@@ -451,7 +447,6 @@ export async function checkSkillMilestones(userId: string): Promise<void> {
     }
 
     if (newMilestones.length > 0) {
-      console.log(`[Education Engine] Detected ${newMilestones.length} new milestones for user ${userId}: ${newMilestones.map(m => m.milestone).join(", ")}`);
     }
   } catch (e) {
     console.error(`[Education Engine] checkSkillMilestones error for ${userId}:`, e);
@@ -478,7 +473,6 @@ export async function runEducationScan(): Promise<{ usersScanned: number; durati
     const duration = Date.now() - startTime;
     lastScanTime = Date.now();
     scanCount++;
-    console.log(`[Education Engine] Scan complete: ${allUsers.length} users scanned in ${duration}ms`);
     return { usersScanned: allUsers.length, duration };
   } catch (e) {
     console.error("[Education Engine] runEducationScan error:", e);
@@ -492,7 +486,6 @@ export function startCreatorEducationEngine(): void {
   if (engineRunning) return;
   engineRunning = true;
 
-  console.log("[Education Engine] Creator Education Engine activated — mentoring enabled");
 
   setTimeout(() => {
     runEducationScan().catch(e => console.error("[Education Engine] Startup scan failed:", e));
