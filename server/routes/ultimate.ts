@@ -44,7 +44,9 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<any>) {
   return (req: Request, res: Response) => {
     fn(req, res).catch((err: any) => {
       console.error(`Ultimate route error [${req.method} ${req.path}]:`, err?.message || err);
-      res.status(500).json({ error: err?.message || "Internal server error" });
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Internal server error" });
+      }
     });
   };
 }

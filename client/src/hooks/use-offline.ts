@@ -18,14 +18,14 @@ export function useOfflineStatus() {
       if (event.type === 'sync_complete' || event.type === 'sync_error') {
         setSyncing(false);
         setLastSync(offlineEngine.getLastSyncTime());
-        offlineEngine.getQueueCount().then(setQueueCount);
+        offlineEngine.getQueueCount().then(setQueueCount).catch(() => {});
       }
     });
 
-    offlineEngine.getQueueCount().then(setQueueCount);
+    offlineEngine.getQueueCount().then(setQueueCount).catch(() => {});
 
     const interval = setInterval(() => {
-      offlineEngine.getQueueCount().then(setQueueCount);
+      offlineEngine.getQueueCount().then(setQueueCount).catch(() => {});
     }, 10_000);
 
     return () => {

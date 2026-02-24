@@ -213,7 +213,7 @@ export const offlineEngine = {
 
     offlineStore.getSetting('lastSyncTime').then(v => {
       if (v) lastSyncTime = v as string;
-    });
+    }).catch(() => {});
   },
 
   stop() {

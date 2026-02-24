@@ -449,7 +449,7 @@ export function registerClipRoutes(app: Express) {
       res.json(result);
     } catch (err: any) {
       console.error("[Clips] TikTok publish error:", err);
-      res.status(500).json({ error: err.message || "Failed to publish clip to TikTok" });
+      res.status(500).json({ error: "Failed to publish clip to TikTok" });
     }
   }));
 }

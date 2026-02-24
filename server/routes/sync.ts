@@ -78,7 +78,7 @@ export function registerSyncRoutes(app: Express): void {
     } catch (err: any) {
       console.error(`[LoginSync] Sync failed for ${userId}:`, err.message);
       syncState.set(userId, { startedAt: Date.now(), status: "error" });
-      res.status(500).json({ error: "Sync failed", message: err.message });
+      res.status(500).json({ error: "Sync failed" });
     }
   });
 

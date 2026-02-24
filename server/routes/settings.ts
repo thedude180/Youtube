@@ -143,7 +143,7 @@ export function registerSettingsRoutes(app: Express) {
         res.status(500).json({ success: false, error: "Discord webhook returned an error. Check the URL is valid." });
       }
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || "Failed to test Discord webhook" });
+      res.status(500).json({ success: false, error: "Failed to test Discord webhook" });
     }
   });
 
