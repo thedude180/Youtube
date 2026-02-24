@@ -57,6 +57,7 @@ const NETWORK_PATTERNS = [
   "network error", "fetch failed", "socket hang up",
   "connection refused", "timeout", "timed out", "DNS",
   "EHOSTUNREACH", "502", "503", "504", "service unavailable",
+  "download strategies exhausted", "yt-dlp",
 ];
 
 const COPYRIGHT_PATTERNS = [
@@ -74,6 +75,7 @@ const CONFIG_PATTERNS = [
   "not connected", "Connect your account", "reconnect",
   "webhook URL", "not supported", "missing config",
   "no channel", "not configured", "setup required",
+  "no matching clip found", "streaming only",
 ];
 
 export function classifyFailure(errorMessage: string, platform?: string): FailureCategory {
