@@ -44,8 +44,25 @@ export async function withRetry<T>(
 }
 
 function isTransientError(error: any): boolean {
-  if (error?.status === 429 || error?.status === 503 || error?.status === 502) return true;
-  if (error?.code === 'ECONNRESET' || error?.code === 'ETIMEDOUT' || error?.code === 'ENOTFOUND') return true;
-  if (error?.message?.includes('rate limit') || error?.message?.includes('timeout')) return true;
+  if (error?.status === 429 || error?.status === 503 || error?.status === 502 || error?.status === 504 || error?.status === 408) return true;
+  if (error?.code === 'ECONNRESET' || error?.code === 'ETIMEDOUT' || error?.code === 'ENOTFOUND' || error?.code === 'EPIPE' || error?.code === 'EHOSTUNREACH' || error?.code === 'ECONNREFUSED') return true;
+  const msg = (error?.message || '').toLowerCase();
+  if (msg.includes('rate limit') || msg.includes('timeout') || msg.includes('socket hang up') || msg.includes('network') || msg.includes('fetch failed') || msg.includes('connection') || msg.includes('aborted')) return true;
   return false;
+}
+
+export async function withRetryUpload<T>(
+  fn: () => Promise<T>,
+  label: string,
+  options: RetryOptions = {}
+): Promise<T> {
+  return withRetry(fn, label, {
+    maxRetries: options.maxRetries ?? 5,
+    baseDelay: options.baseDelay ?? 2000,
+    maxDelay: options.maxDelay ?? 60000,
+    retryOn: options.retryOn ?? ((error) => {
+      if (error?.nonRetryable) return false;
+      return isTransientError(error);
+    }),
+  });
 }

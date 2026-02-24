@@ -166,6 +166,14 @@ function runWatchdog(): void {
   totalWatchdogRuns++;
   const pressure = getHeapPressure();
 
+  const stalled = detectEventLoopStall();
+  if (stalled) {
+    processHealthy = false;
+    emergencyMemoryRelief();
+  } else {
+    processHealthy = true;
+  }
+
   enforceMapCaps();
 
   if (pressure.heapUsedMB > HEAP_CRITICAL_MB) {
@@ -210,6 +218,29 @@ export function stopResilienceWatchdog(): void {
     clearInterval(watchdogInterval);
     watchdogInterval = null;
   }
+}
+
+export function getUptimeMs(): number {
+  return Date.now() - serverStartTime;
+}
+
+let processHealthy = true;
+let lastHealthCheckMs = Date.now();
+const HEALTH_CHECK_STALL_MS = 120_000;
+
+function detectEventLoopStall(): boolean {
+  const now = Date.now();
+  const delta = now - lastHealthCheckMs;
+  lastHealthCheckMs = now;
+  if (delta > HEALTH_CHECK_STALL_MS) {
+    console.error(`[Resilience] EVENT LOOP STALL detected: ${delta}ms since last tick (threshold: ${HEALTH_CHECK_STALL_MS}ms)`);
+    return true;
+  }
+  return false;
+}
+
+export function isProcessHealthy(): boolean {
+  return processHealthy;
 }
 
 export function getResilienceStatus(): {

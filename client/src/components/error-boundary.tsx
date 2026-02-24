@@ -1,7 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw, RotateCcw } from "lucide-react";
 import { isChunkError } from "@/lib/lazyRetry";
 
 interface Props {
@@ -12,17 +12,20 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+  errorCount: number;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  state: State = { hasError: false, errorCount: 0 };
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: any) {
     console.error("[ErrorBoundary]", error, info);
+    this.setState(prev => ({ errorCount: prev.errorCount + 1 }));
+
     if (isChunkError(error)) {
       const key = "eb_chunk_reload_ts";
       const last = sessionStorage.getItem(key);
@@ -33,6 +36,12 @@ export class ErrorBoundary extends Component<Props, State> {
         return;
       }
       sessionStorage.removeItem(key);
+    }
+
+    if (this.state.errorCount > 3) {
+      try {
+        sessionStorage.setItem("eb_recovery_attempted", String(Date.now()));
+      } catch {}
     }
   }
 
@@ -69,13 +78,28 @@ export class ErrorBoundary extends Component<Props, State> {
                     Reload Page
                   </Button>
                 ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => this.setState({ hasError: false, error: undefined })}
-                    data-testid="button-error-retry"
-                  >
-                    Try Again
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => this.setState({ hasError: false, error: undefined })}
+                      data-testid="button-error-retry"
+                    >
+                      Try Again
+                    </Button>
+                    {this.state.errorCount > 1 && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          sessionStorage.clear();
+                          window.location.href = "/";
+                        }}
+                        data-testid="button-error-reset"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Reset App
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             </CardContent>

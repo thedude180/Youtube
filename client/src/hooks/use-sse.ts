@@ -101,12 +101,12 @@ export function useSSE() {
       es.close();
       eventSourceRef.current = null;
       setStatus("disconnected");
-      const maxRetryDelay = 30000;
+      const maxRetryDelay = 15000;
       const jitter = Math.random() * 1000;
-      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), maxRetryDelay) + jitter;
+      const delay = Math.min(1000 * Math.pow(1.5, retryCountRef.current), maxRetryDelay) + jitter;
       retryCountRef.current++;
-      if (retryCountRef.current > 20) {
-        retryCountRef.current = 5;
+      if (retryCountRef.current > 30) {
+        retryCountRef.current = 3;
       }
       retryTimeoutRef.current = setTimeout(connect, delay);
     };
@@ -116,23 +116,48 @@ export function useSSE() {
     connect();
 
     const handleVisibility = () => {
-      if (document.visibilityState === "visible" && !eventSourceRef.current) {
-        retryCountRef.current = 0;
-        connect();
+      if (document.visibilityState === "visible") {
+        if (!eventSourceRef.current || eventSourceRef.current.readyState === EventSource.CLOSED) {
+          retryCountRef.current = 0;
+          eventSourceRef.current = null;
+          connect();
+        }
       }
     };
     const handleOnline = () => {
-      if (!eventSourceRef.current) {
+      if (!eventSourceRef.current || eventSourceRef.current.readyState === EventSource.CLOSED) {
         retryCountRef.current = 0;
+        eventSourceRef.current = null;
+        connect();
+      }
+    };
+    const handleFocus = () => {
+      if (!eventSourceRef.current || eventSourceRef.current.readyState !== EventSource.OPEN) {
+        retryCountRef.current = 0;
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
         connect();
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("online", handleOnline);
+    window.addEventListener("focus", handleFocus);
+
+    const keepalive = setInterval(() => {
+      if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
+        eventSourceRef.current = null;
+        retryCountRef.current = 0;
+        connect();
+      }
+    }, 45000);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("online", handleOnline);
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(keepalive);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       if (eventSourceRef.current) {
         eventSourceRef.current.close();

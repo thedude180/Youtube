@@ -232,6 +232,66 @@ export const hardeningStats = {
   idempotencyHits: 0,
 };
 
+export function payloadIntegrityCheck() {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!["POST", "PUT", "PATCH"].includes(req.method)) return next();
+    const contentLength = parseInt(req.headers["content-length"] || "0", 10);
+    if (contentLength > 5 * 1024 * 1024) {
+      return res.status(413).json({ error: "payload_too_large", message: "Request body exceeds maximum allowed size." });
+    }
+    if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
+      const json = JSON.stringify(req.body);
+      if (json.length > 2 * 1024 * 1024) {
+        return res.status(413).json({ error: "payload_too_large", message: "Request body exceeds maximum allowed size." });
+      }
+      const nestingDepth = (s: string) => {
+        let max = 0, cur = 0;
+        for (const c of s) {
+          if (c === '{' || c === '[') { cur++; if (cur > max) max = cur; }
+          else if (c === '}' || c === ']') cur--;
+        }
+        return max;
+      };
+      if (nestingDepth(json) > 15) {
+        return res.status(400).json({ error: "payload_too_complex", message: "Request body nesting is too deep." });
+      }
+    }
+    next();
+  };
+}
+
+const suspiciousPathPatterns = [
+  /\/\.env/i, /\/\.git/i, /\/wp-admin/i, /\/wp-login/i, /\/phpmyadmin/i,
+  /\/admin\.php/i, /\/config\.php/i, /\/\.htaccess/i, /\/\.passwd/i,
+  /\/etc\/passwd/i, /\/proc\/self/i, /\/xmlrpc/i, /\/actuator/i,
+  /\/debug\//i, /\/\.well-known\/(?!acme)/i,
+];
+
+export function honeypotTrapMiddleware() {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const path = req.path.toLowerCase();
+    if (suspiciousPathPatterns.some(p => p.test(path))) {
+      hardeningStats.blockedRequests++;
+      return res.status(404).end();
+    }
+    next();
+  };
+}
+
+export function responseSecurityScrubber() {
+  return (_req: Request, res: Response, next: NextFunction) => {
+    const originalJson = res.json.bind(res);
+    res.json = function(body: any) {
+      if (body && typeof body === "object" && !Array.isArray(body)) {
+        const scrubbed = sanitizeResponseData(body);
+        return originalJson(scrubbed);
+      }
+      return originalJson(body);
+    };
+    next();
+  };
+}
+
 type HttpMethod = "get" | "post" | "put" | "patch" | "delete" | "head" | "options";
 const HTTP_METHODS: HttpMethod[] = ["get", "post", "put", "patch", "delete", "head", "options"];
 

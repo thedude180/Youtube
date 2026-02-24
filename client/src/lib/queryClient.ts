@@ -147,12 +147,15 @@ export const queryClient = new QueryClient({
         if (msg.startsWith("401:") || msg.startsWith("403:") || msg.startsWith("404:") || msg.startsWith("422:")) {
           return false;
         }
-        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.startsWith("500:") || msg.startsWith("502:") || msg.startsWith("503:") || msg.startsWith("504:")) {
-          return failureCount < 3;
+        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.startsWith("500:") || msg.startsWith("502:") || msg.startsWith("503:") || msg.startsWith("504:") || msg.startsWith("429:")) {
+          return failureCount < 4;
         }
         return failureCount < 2;
       },
-      retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 15000),
+      retryDelay: (attemptIndex) => {
+        const base = Math.min(1000 * Math.pow(2, attemptIndex), 20000);
+        return base + Math.random() * 1000;
+      },
     },
     mutations: {
       retry: false,

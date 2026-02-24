@@ -31,7 +31,7 @@ import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
-import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests } from "./lib/security-hardening";
+import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests, payloadIntegrityCheck, honeypotTrapMiddleware, responseSecurityScrubber } from "./lib/security-hardening";
 import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache, checkDbPool } from "./services/resilience-core";
 import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
 
@@ -165,14 +165,18 @@ app.use(helmet({
 
 app.use("/api", (req, res, next) => {
   const staticEndpoints = ["/health"];
+  const shortCacheEndpoints = ["/verify", "/resilience"];
   if (staticEndpoints.includes(req.path)) {
-    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+  } else if (shortCacheEndpoints.includes(req.path)) {
+    res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
   } else {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
   }
   res.removeHeader("X-Powered-By");
+  res.removeHeader("Server");
   next();
 });
 
@@ -187,12 +191,15 @@ app.use(
 
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
+app.use(honeypotTrapMiddleware());
 app.use("/api", requestSizeLimiter(100));
+app.use("/api", payloadIntegrityCheck());
 app.use("/api", inputSanitizer());
 app.use("/api", validateContentType());
 app.use("/api", slowRequestDetector(5000));
 app.use("/api", anomalyDetector());
 app.use("/api", idempotencyGuard());
+app.use("/api", responseSecurityScrubber());
 
 app.use((req: any, res, next) => {
   const requestId = req.headers['x-request-id'] || crypto.randomUUID();

@@ -5,7 +5,9 @@ import { eq, and, isNotNull, lt, isNull, desc } from "drizzle-orm";
 import { storage } from "../storage";
 
 let guardianInterval: ReturnType<typeof setInterval> | null = null;
+let fastRecoveryInterval: ReturnType<typeof setInterval> | null = null;
 const GUARDIAN_CYCLE_MS = 3 * 60 * 1000;
+const FAST_RECOVERY_CYCLE_MS = 30 * 1000;
 const TOKEN_PREEMPTIVE_BUFFER_MS = 2 * 60 * 60 * 1000;
 
 async function verifyConnectionAlive(platform: string, accessToken: string): Promise<boolean> {
@@ -410,6 +412,30 @@ async function runGuardianCycle(): Promise<void> {
   }
 }
 
+async function fastRecoverBrokenConnections(): Promise<number> {
+  let recovered = 0;
+  try {
+    const brokenChannels = await db.select().from(channels)
+      .where(isNotNull(channels.refreshToken));
+
+    for (const ch of brokenChannels) {
+      const pd = (ch.platformData || {}) as any;
+      if (pd._connectionStatus !== "expired") continue;
+      const failures = pd._reconnectFailures || 0;
+      if (failures > 5) continue;
+
+      const refreshOk = await tryRefreshSingleToken(ch);
+      if (refreshOk) {
+        recovered++;
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+  } catch (err) {
+    console.error("[ConnectionGuardian] Fast recovery error:", err);
+  }
+  return recovered;
+}
+
 export function startConnectionGuardian(): void {
   if (guardianInterval) return;
 
@@ -418,12 +444,20 @@ export function startConnectionGuardian(): void {
   guardianInterval = setInterval(() => {
     runGuardianCycle().catch(console.error);
   }, GUARDIAN_CYCLE_MS);
+
+  fastRecoveryInterval = setInterval(() => {
+    fastRecoverBrokenConnections().catch(console.error);
+  }, FAST_RECOVERY_CYCLE_MS);
 }
 
 export function stopConnectionGuardian(): void {
   if (guardianInterval) {
     clearInterval(guardianInterval);
     guardianInterval = null;
+  }
+  if (fastRecoveryInterval) {
+    clearInterval(fastRecoveryInterval);
+    fastRecoveryInterval = null;
   }
 }
 
