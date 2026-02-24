@@ -54,6 +54,14 @@ const VodShortsLoop = lazyRetry(() => import("@/pages/VodShortsLoop"));
 const StealthAutonomy = lazyRetry(() => import("@/pages/StealthAutonomy"));
 const SystemStatus = lazyRetry(() => import("@/pages/SystemStatus"));
 const ChangelogPage = lazyRetry(() => import("@/pages/Changelog"));
+const MissionControl = lazyRetry(() => import("@/pages/MissionControl"));
+const IntelligenceHub = lazyRetry(() => import("@/pages/IntelligenceHub"));
+const ContentCommand = lazyRetry(() => import("@/pages/ContentCommand"));
+const Simulator = lazyRetry(() => import("@/pages/Simulator"));
+const CreatorHub = lazyRetry(() => import("@/pages/CreatorHub"));
+const AICommand = lazyRetry(() => import("@/pages/AICommand"));
+const WarRoom = lazyRetry(() => import("@/pages/WarRoom"));
+const Workspace = lazyRetry(() => import("@/pages/Workspace"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -115,6 +123,14 @@ function Router() {
       <Route path="/changelog">{() => <SectionErrorBoundary fallbackTitle="Changelog failed to load"><ChangelogPage /></SectionErrorBoundary>}</Route>
       <Route path="/stream-loop">{() => <SectionErrorBoundary fallbackTitle="Stream Loop failed to load"><StreamLoop /></SectionErrorBoundary>}</Route>
       <Route path="/vod-shorts-loop">{() => <SectionErrorBoundary fallbackTitle="VOD/Shorts Loop failed to load"><VodShortsLoop /></SectionErrorBoundary>}</Route>
+      <Route path="/mission-control">{() => <SectionErrorBoundary fallbackTitle="Mission Control failed to load"><MissionControl /></SectionErrorBoundary>}</Route>
+      <Route path="/intelligence">{() => <SectionErrorBoundary fallbackTitle="Intelligence Hub failed to load"><IntelligenceHub /></SectionErrorBoundary>}</Route>
+      <Route path="/content-command">{() => <SectionErrorBoundary fallbackTitle="Content Command failed to load"><ContentCommand /></SectionErrorBoundary>}</Route>
+      <Route path="/simulator">{() => <SectionErrorBoundary fallbackTitle="Simulator failed to load"><Simulator /></SectionErrorBoundary>}</Route>
+      <Route path="/creator-hub">{() => <SectionErrorBoundary fallbackTitle="Creator Hub failed to load"><CreatorHub /></SectionErrorBoundary>}</Route>
+      <Route path="/ai-command">{() => <SectionErrorBoundary fallbackTitle="AI Command failed to load"><AICommand /></SectionErrorBoundary>}</Route>
+      <Route path="/war-room">{() => <SectionErrorBoundary fallbackTitle="War Room failed to load"><WarRoom /></SectionErrorBoundary>}</Route>
+      <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>

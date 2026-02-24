@@ -4732,3 +4732,759 @@ export type StreamLoopRun = typeof streamLoopRuns.$inferSelect;
 export type VodShortsLoopRun = typeof vodShortsLoopRuns.$inferSelect;
 export type InsertStreamLoopRun = z.infer<typeof insertStreamLoopRunSchema>;
 export type InsertVodShortsLoopRun = z.infer<typeof insertVodShortsLoopRunSchema>;
+
+export const creatorScores = pgTable("creator_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  overallScore: integer("overall_score").notNull().default(0),
+  engagementScore: integer("engagement_score").default(0),
+  consistencyScore: integer("consistency_score").default(0),
+  growthScore: integer("growth_score").default(0),
+  monetizationScore: integer("monetization_score").default(0),
+  reachScore: integer("reach_score").default(0),
+  contentQualityScore: integer("content_quality_score").default(0),
+  breakdownData: jsonb("breakdown_data").$type<Record<string, any>>().default({}),
+  trend: text("trend").default("stable"),
+  previousScore: integer("previous_score").default(0),
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("creator_scores_user_idx").on(table.userId),
+]);
+
+export const missionControlSnapshots = pgTable("mission_control_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platformMetrics: jsonb("platform_metrics").$type<Record<string, any>>().default({}),
+  overallHealth: text("overall_health").default("healthy"),
+  activeStreams: integer("active_streams").default(0),
+  totalViewers: integer("total_viewers").default(0),
+  alerts: jsonb("alerts").$type<any[]>().default([]),
+  systemStatus: jsonb("system_status").$type<Record<string, string>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("mission_control_user_idx").on(table.userId),
+]);
+
+export const streamCommandEvents = pgTable("stream_command_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  eventType: text("event_type").notNull(),
+  sentimentScore: real("sentiment_score"),
+  engagementLevel: text("engagement_level").default("normal"),
+  chatVelocity: integer("chat_velocity").default(0),
+  suggestedAction: text("suggested_action"),
+  talkingPoints: jsonb("talking_points").$type<string[]>().default([]),
+  alertData: jsonb("alert_data").$type<Record<string, any>>().default({}),
+  handled: boolean("handled").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("stream_cmd_user_idx").on(table.userId),
+  index("stream_cmd_stream_idx").on(table.streamId),
+]);
+
+export const warRoomIncidents = pgTable("war_room_incidents", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  incidentType: text("incident_type").notNull(),
+  severity: text("severity").notNull().default("medium"),
+  title: text("title").notNull(),
+  description: text("description"),
+  affectedPlatforms: jsonb("affected_platforms").$type<string[]>().default([]),
+  recoveryPlan: jsonb("recovery_plan").$type<{ step: string; status: string; }[]>().default([]),
+  automatedActions: jsonb("automated_actions").$type<string[]>().default([]),
+  status: text("status").default("active"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("war_room_user_idx").on(table.userId),
+  index("war_room_status_idx").on(table.status),
+]);
+
+export const audienceMindMapNodes = pgTable("audience_mind_map_nodes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  nodeType: text("node_type").notNull(),
+  label: text("label").notNull(),
+  size: integer("size").default(1),
+  connections: jsonb("connections").$type<number[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  engagement: real("engagement").default(0),
+  conversionRate: real("conversion_rate").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("mind_map_user_idx").on(table.userId),
+]);
+
+export const whatIfScenarios = pgTable("what_if_scenarios", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  variables: jsonb("variables").$type<Record<string, any>>().default({}),
+  projectedOutcomes: jsonb("projected_outcomes").$type<Record<string, any>>().default({}),
+  comparisonBaseline: jsonb("comparison_baseline").$type<Record<string, any>>().default({}),
+  confidenceLevel: real("confidence_level").default(0),
+  timeframeWeeks: integer("timeframe_weeks").default(12),
+  status: text("status").default("draft"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("what_if_user_idx").on(table.userId),
+]);
+
+export const timeMachineProjections = pgTable("time_machine_projections", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  projectionType: text("projection_type").notNull().default("with_ai"),
+  subscribers: jsonb("subscribers").$type<number[]>().default([]),
+  revenue: jsonb("revenue").$type<number[]>().default([]),
+  views: jsonb("views").$type<number[]>().default([]),
+  engagement: jsonb("engagement").$type<number[]>().default([]),
+  milestones: jsonb("milestones").$type<{ month: number; label: string; }[]>().default([]),
+  timeframeMonths: integer("timeframe_months").default(6),
+  assumptions: jsonb("assumptions").$type<Record<string, any>>().default({}),
+  generatedAt: timestamp("generated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("time_machine_user_idx").on(table.userId),
+]);
+
+export const momentumSnapshots = pgTable("momentum_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  score: integer("score").notNull().default(50),
+  trend: text("trend").default("stable"),
+  platformBreakdown: jsonb("platform_breakdown").$type<Record<string, number>>().default({}),
+  factors: jsonb("factors").$type<{ factor: string; impact: number; direction: string; }[]>().default([]),
+  aiAction: text("ai_action"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("momentum_user_idx").on(table.userId),
+]);
+
+export const peakTimeAnalysis = pgTable("peak_time_analysis", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  contentType: text("content_type").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  hourUtc: integer("hour_utc").notNull(),
+  minuteUtc: integer("minute_utc").default(0),
+  score: real("score").default(0),
+  sampleSize: integer("sample_size").default(0),
+  confidence: real("confidence").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("peak_time_user_idx").on(table.userId),
+  index("peak_time_platform_idx").on(table.platform),
+]);
+
+export const platformPriorityRanks = pgTable("platform_priority_ranks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  rank: integer("rank").notNull(),
+  roiScore: real("roi_score").default(0),
+  growthPotential: real("growth_potential").default(0),
+  effortRequired: real("effort_required").default(0),
+  recommendation: text("recommendation"),
+  reasoning: text("reasoning"),
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("platform_rank_user_idx").on(table.userId),
+]);
+
+export const revenueAttribution = pgTable("revenue_attribution", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  contentTitle: text("content_title"),
+  platform: text("platform"),
+  revenueType: text("revenue_type").notNull(),
+  amount: real("amount").notNull().default(0),
+  currency: text("currency").default("USD"),
+  attributionModel: text("attribution_model").default("direct"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  period: text("period"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("rev_attr_user_idx").on(table.userId),
+  index("rev_attr_content_idx").on(table.contentId),
+]);
+
+export const creatorMarketplaceListings = pgTable("creator_marketplace_listings", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull(),
+  price: real("price"),
+  currency: text("currency").default("USD"),
+  deliveryDays: integer("delivery_days").default(3),
+  rating: real("rating").default(0),
+  reviewCount: integer("review_count").default(0),
+  status: text("status").default("active"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  portfolio: jsonb("portfolio").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("marketplace_user_idx").on(table.userId),
+  index("marketplace_category_idx").on(table.category),
+]);
+
+export const contentVaultBackups = pgTable("content_vault_backups", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  platform: text("platform").notNull(),
+  contentType: text("content_type").notNull(),
+  title: text("title"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  analyticsSnapshot: jsonb("analytics_snapshot").$type<Record<string, any>>().default({}),
+  backupUrl: text("backup_url"),
+  status: text("status").default("backed_up"),
+  restoredAt: timestamp("restored_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("vault_user_idx").on(table.userId),
+  index("vault_platform_idx").on(table.platform),
+]);
+
+export const contractAnalyses = pgTable("contract_analyses", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contractName: text("contract_name").notNull(),
+  brandName: text("brand_name"),
+  contractText: text("contract_text"),
+  redFlags: jsonb("red_flags").$type<{ clause: string; risk: string; suggestion: string; }[]>().default([]),
+  fairnessScore: integer("fairness_score").default(0),
+  suggestedCounterOffers: jsonb("suggested_counter_offers").$type<string[]>().default([]),
+  summary: text("summary"),
+  status: text("status").default("pending"),
+  analyzedAt: timestamp("analyzed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("contract_user_idx").on(table.userId),
+]);
+
+export const watchParties = pgTable("watch_parties", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  contentUrl: text("content_url"),
+  scheduledAt: timestamp("scheduled_at"),
+  platforms: jsonb("platforms").$type<string[]>().default([]),
+  announcementSent: boolean("announcement_sent").default(false),
+  attendeeEstimate: integer("attendee_estimate").default(0),
+  status: text("status").default("planned"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("watch_party_user_idx").on(table.userId),
+]);
+
+export const creatorNetworks = pgTable("creator_networks", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  ownerId: text("owner_id").notNull(),
+  memberCount: integer("member_count").default(1),
+  category: text("category"),
+  rules: jsonb("rules").$type<Record<string, any>>().default({}),
+  crossPromotionEnabled: boolean("cross_promotion_enabled").default(true),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("network_owner_idx").on(table.ownerId),
+]);
+
+export const networkMemberships = pgTable("network_memberships", {
+  id: serial("id").primaryKey(),
+  networkId: integer("network_id").notNull(),
+  userId: text("user_id").notNull(),
+  role: text("role").default("member"),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  status: text("status").default("active"),
+}, (table) => [
+  index("network_member_user_idx").on(table.userId),
+  index("network_member_network_idx").on(table.networkId),
+]);
+
+export const creatorCloneConfig = pgTable("creator_clone_config", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  cloneName: text("clone_name").default("AI Assistant"),
+  personality: text("personality").default("friendly"),
+  communicationStyle: text("communication_style").default("casual"),
+  knowledgeBase: jsonb("knowledge_base").$type<string[]>().default([]),
+  responseTemplates: jsonb("response_templates").$type<Record<string, string>>().default({}),
+  trainingSamples: jsonb("training_samples").$type<{ input: string; output: string; }[]>().default([]),
+  platforms: jsonb("platforms").$type<string[]>().default([]),
+  isActive: boolean("is_active").default(false),
+  totalInteractions: integer("total_interactions").default(0),
+  satisfactionScore: real("satisfaction_score").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("clone_user_idx").on(table.userId),
+]);
+
+export const aiPersonalityConfig = pgTable("ai_personality_config", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  aiName: text("ai_name").default("Nova"),
+  personality: text("personality").default("professional"),
+  traits: jsonb("traits").$type<string[]>().default(["analytical", "encouraging", "direct"]),
+  communicationStyle: text("communication_style").default("balanced"),
+  catchphrases: jsonb("catchphrases").$type<string[]>().default([]),
+  opinions: jsonb("opinions").$type<Record<string, string>>().default({}),
+  avatar: text("avatar"),
+  isOpinionated: boolean("is_opinionated").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("ai_personality_user_idx").on(table.userId),
+]);
+
+export const voiceCommandLog = pgTable("voice_command_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  command: text("command").notNull(),
+  parsedIntent: text("parsed_intent"),
+  action: text("action"),
+  parameters: jsonb("parameters").$type<Record<string, any>>().default({}),
+  status: text("status").default("processed"),
+  result: text("result"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("voice_cmd_user_idx").on(table.userId),
+]);
+
+export const aiLearningSnapshots = pgTable("ai_learning_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  category: text("category").notNull(),
+  insight: text("insight").notNull(),
+  confidence: real("confidence").default(0),
+  dataPoints: integer("data_points").default(0),
+  appliedCount: integer("applied_count").default(0),
+  successRate: real("success_rate").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("ai_learning_user_idx").on(table.userId),
+]);
+
+export const anomalyDetections = pgTable("anomaly_detections", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  anomalyType: text("anomaly_type").notNull(),
+  platform: text("platform"),
+  severity: text("severity").default("medium"),
+  description: text("description"),
+  metricName: text("metric_name"),
+  expectedValue: real("expected_value"),
+  actualValue: real("actual_value"),
+  deviation: real("deviation"),
+  countermeasure: text("countermeasure"),
+  status: text("status").default("detected"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("anomaly_user_idx").on(table.userId),
+  index("anomaly_type_idx").on(table.anomalyType),
+]);
+
+export const contentAtomizerJobs = pgTable("content_atomizer_jobs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceContentId: text("source_content_id"),
+  sourceTitle: text("source_title"),
+  sourcePlatform: text("source_platform"),
+  outputs: jsonb("outputs").$type<{ platform: string; contentType: string; title: string; description: string; status: string; }[]>().default([]),
+  totalOutputs: integer("total_outputs").default(0),
+  completedOutputs: integer("completed_outputs").default(0),
+  status: text("status").default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("atomizer_user_idx").on(table.userId),
+]);
+
+export const viralChainEvents = pgTable("viral_chain_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  platform: text("platform"),
+  eventType: text("event_type").notNull(),
+  sourceChannel: text("source_channel"),
+  viewsGained: integer("views_gained").default(0),
+  sharesGained: integer("shares_gained").default(0),
+  amplificationAction: text("amplification_action"),
+  chainDepth: integer("chain_depth").default(0),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("viral_chain_user_idx").on(table.userId),
+  index("viral_chain_content_idx").on(table.contentId),
+]);
+
+export const hookScores = pgTable("hook_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  title: text("title"),
+  hookText: text("hook_text"),
+  score: integer("score").default(0),
+  retentionAt3s: real("retention_at_3s"),
+  retentionAt10s: real("retention_at_10s"),
+  suggestions: jsonb("suggestions").$type<string[]>().default([]),
+  improvedHook: text("improved_hook"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("hook_user_idx").on(table.userId),
+]);
+
+export const thumbnailAbTests = pgTable("thumbnail_ab_tests", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  variants: jsonb("variants").$type<{ id: string; description: string; ctr: number; impressions: number; clicks: number; isWinner: boolean; }[]>().default([]),
+  winnerSelected: boolean("winner_selected").default(false),
+  autoSwapEnabled: boolean("auto_swap_enabled").default(true),
+  testDurationHours: integer("test_duration_hours").default(24),
+  status: text("status").default("running"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("thumb_ab_user_idx").on(table.userId),
+]);
+
+export const contentEmpireNodes = pgTable("content_empire_nodes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  title: text("title").notNull(),
+  platform: text("platform").notNull(),
+  contentType: text("content_type"),
+  views: integer("views").default(0),
+  revenue: real("revenue").default(0),
+  connections: jsonb("connections").$type<number[]>().default([]),
+  clusterGroup: text("cluster_group"),
+  valueScore: real("value_score").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("empire_user_idx").on(table.userId),
+]);
+
+export const audienceOverlaps = pgTable("audience_overlaps", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  creatorName: text("creator_name").notNull(),
+  creatorPlatform: text("creator_platform"),
+  overlapPercentage: real("overlap_percentage").default(0),
+  uniqueViewers: integer("unique_viewers").default(0),
+  sharedViewers: integer("shared_viewers").default(0),
+  collabPotential: real("collab_potential").default(0),
+  untappedAudience: integer("untapped_audience").default(0),
+  analyzedAt: timestamp("analyzed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("overlap_user_idx").on(table.userId),
+]);
+
+export const sentimentTimeline = pgTable("sentiment_timeline", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform"),
+  date: timestamp("date").notNull(),
+  positiveCount: integer("positive_count").default(0),
+  neutralCount: integer("neutral_count").default(0),
+  negativeCount: integer("negative_count").default(0),
+  averageScore: real("average_score").default(0),
+  topKeywords: jsonb("top_keywords").$type<string[]>().default([]),
+  correlatedContent: text("correlated_content"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("sentiment_user_idx").on(table.userId),
+]);
+
+export const seoLabExperiments = pgTable("seo_lab_experiments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  experimentType: text("experiment_type").notNull(),
+  platform: text("platform"),
+  testVariants: jsonb("test_variants").$type<{ variant: string; impressions: number; clicks: number; ctr: number; }[]>().default([]),
+  winningVariant: text("winning_variant"),
+  improvement: real("improvement").default(0),
+  status: text("status").default("running"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("seo_lab_user_idx").on(table.userId),
+]);
+
+export const cohortAnalysis = pgTable("cohort_analysis", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  cohortDate: text("cohort_date").notNull(),
+  platform: text("platform"),
+  initialSize: integer("initial_size").default(0),
+  retentionWeeks: jsonb("retention_weeks").$type<number[]>().default([]),
+  avgEngagement: real("avg_engagement").default(0),
+  ltv: real("ltv").default(0),
+  contentThatAcquired: text("content_that_acquired"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("cohort_user_idx").on(table.userId),
+]);
+
+export const teamInboxMessages = pgTable("team_inbox_messages", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  messageType: text("message_type").notNull(),
+  senderName: text("sender_name"),
+  senderAvatar: text("sender_avatar"),
+  content: text("content"),
+  priority: text("priority").default("normal"),
+  aiSuggestedReply: text("ai_suggested_reply"),
+  isRead: boolean("is_read").default(false),
+  isReplied: boolean("is_replied").default(false),
+  externalId: text("external_id"),
+  receivedAt: timestamp("received_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("inbox_user_idx").on(table.userId),
+  index("inbox_priority_idx").on(table.priority),
+]);
+
+export const assetLibrary = pgTable("asset_library", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  assetType: text("asset_type").notNull(),
+  category: text("category"),
+  url: text("url"),
+  thumbnailUrl: text("thumbnail_url"),
+  fileSize: integer("file_size"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  version: integer("version").default(1),
+  usageCount: integer("usage_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("asset_user_idx").on(table.userId),
+  index("asset_type_idx").on(table.assetType),
+]);
+
+export const customReports = pgTable("custom_reports", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  metrics: jsonb("metrics").$type<string[]>().default([]),
+  filters: jsonb("filters").$type<Record<string, any>>().default({}),
+  layout: jsonb("layout").$type<Record<string, any>>().default({}),
+  schedule: text("schedule"),
+  lastGeneratedAt: timestamp("last_generated_at"),
+  reportData: jsonb("report_data").$type<Record<string, any>>().default({}),
+  exportFormat: text("export_format").default("pdf"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("report_user_idx").on(table.userId),
+]);
+
+export const emailLists = pgTable("email_lists", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  subscriberCount: integer("subscriber_count").default(0),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("email_list_user_idx").on(table.userId),
+]);
+
+export const emailSubscribers = pgTable("email_subscribers", {
+  id: serial("id").primaryKey(),
+  listId: integer("list_id").notNull(),
+  email: text("email").notNull(),
+  name: text("name"),
+  source: text("source"),
+  segments: jsonb("segments").$type<string[]>().default([]),
+  status: text("status").default("active"),
+  subscribedAt: timestamp("subscribed_at").defaultNow(),
+}, (table) => [
+  index("subscriber_list_idx").on(table.listId),
+]);
+
+export const discordBotConfig = pgTable("discord_bot_config", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  botName: text("bot_name").default("CreatorBot"),
+  isActive: boolean("is_active").default(false),
+  autoModeration: boolean("auto_moderation").default(true),
+  welcomeMessage: text("welcome_message"),
+  autoRoles: jsonb("auto_roles").$type<string[]>().default([]),
+  commandPrefix: text("command_prefix").default("!"),
+  features: jsonb("features").$type<Record<string, boolean>>().default({}),
+  moderationRules: jsonb("moderation_rules").$type<Record<string, any>>().default({}),
+  engagementFeatures: jsonb("engagement_features").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("discord_bot_user_idx").on(table.userId),
+]);
+
+export const merchStoreItems = pgTable("merch_store_items", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: real("price").notNull(),
+  category: text("category"),
+  imageUrl: text("image_url"),
+  storeUrl: text("store_url"),
+  totalSold: integer("total_sold").default(0),
+  totalRevenue: real("total_revenue").default(0),
+  isActive: boolean("is_active").default(true),
+  autoPromote: boolean("auto_promote").default(false),
+  bestSellingWith: jsonb("best_selling_with").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("merch_store_user_idx").on(table.userId),
+]);
+
+export const tipDonations = pgTable("tip_donations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  donorName: text("donor_name"),
+  amount: real("amount").notNull(),
+  currency: text("currency").default("USD"),
+  message: text("message"),
+  contentId: text("content_id"),
+  receivedAt: timestamp("received_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("tip_user_idx").on(table.userId),
+  index("tip_platform_idx").on(table.platform),
+]);
+
+export const growthCelebrations = pgTable("growth_celebrations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  milestoneType: text("milestone_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  metric: text("metric"),
+  value: real("value"),
+  autoPosted: boolean("auto_posted").default(false),
+  platforms: jsonb("platforms").$type<string[]>().default([]),
+  celebrationContent: text("celebration_content"),
+  achievedAt: timestamp("achieved_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("celebration_user_idx").on(table.userId),
+]);
+
+export const contentLifeBalance = pgTable("content_life_balance", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  balanceScore: integer("balance_score").default(50),
+  workHoursWeekly: real("work_hours_weekly").default(0),
+  contentOutputWeekly: integer("content_output_weekly").default(0),
+  stressLevel: text("stress_level").default("normal"),
+  recommendation: text("recommendation"),
+  streakDays: integer("streak_days").default(0),
+  breakSuggested: boolean("break_suggested").default(false),
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("balance_user_idx").on(table.userId),
+]);
+
+export const platformFailoverRules = pgTable("platform_failover_rules", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourcePlatform: text("source_platform").notNull(),
+  targetPlatforms: jsonb("target_platforms").$type<string[]>().default([]),
+  triggerCondition: text("trigger_condition").notNull(),
+  autoAnnounce: boolean("auto_announce").default(true),
+  announcementTemplate: text("announcement_template"),
+  isActive: boolean("is_active").default(true),
+  lastTriggered: timestamp("last_triggered"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("failover_user_idx").on(table.userId),
+]);
+
+export const scriptGenerations = pgTable("script_generations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  topic: text("topic"),
+  targetLength: text("target_length").default("medium"),
+  style: text("style").default("educational"),
+  script: text("script"),
+  hookOptions: jsonb("hook_options").$type<string[]>().default([]),
+  callToAction: text("call_to_action"),
+  seoKeywords: jsonb("seo_keywords").$type<string[]>().default([]),
+  status: text("status").default("draft"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("script_user_idx").on(table.userId),
+]);
+
+export type CreatorScore = typeof creatorScores.$inferSelect;
+export type MissionControlSnapshot = typeof missionControlSnapshots.$inferSelect;
+export type StreamCommandEvent = typeof streamCommandEvents.$inferSelect;
+export type WarRoomIncident = typeof warRoomIncidents.$inferSelect;
+export type AudienceMindMapNode = typeof audienceMindMapNodes.$inferSelect;
+export type WhatIfScenario = typeof whatIfScenarios.$inferSelect;
+export type TimeMachineProjection = typeof timeMachineProjections.$inferSelect;
+export type MomentumSnapshot = typeof momentumSnapshots.$inferSelect;
+export type PeakTimeAnalysis = typeof peakTimeAnalysis.$inferSelect;
+export type PlatformPriorityRank = typeof platformPriorityRanks.$inferSelect;
+export type RevenueAttribution = typeof revenueAttribution.$inferSelect;
+export type CreatorMarketplaceListing = typeof creatorMarketplaceListings.$inferSelect;
+export type ContentVaultBackup = typeof contentVaultBackups.$inferSelect;
+export type ContractAnalysis = typeof contractAnalyses.$inferSelect;
+export type WatchParty = typeof watchParties.$inferSelect;
+export type CreatorNetwork = typeof creatorNetworks.$inferSelect;
+export type NetworkMembership = typeof networkMemberships.$inferSelect;
+export type CreatorCloneConfig = typeof creatorCloneConfig.$inferSelect;
+export type AiPersonalityConfig = typeof aiPersonalityConfig.$inferSelect;
+export type VoiceCommandLog = typeof voiceCommandLog.$inferSelect;
+export type AiLearningSnapshot = typeof aiLearningSnapshots.$inferSelect;
+export type AnomalyDetection = typeof anomalyDetections.$inferSelect;
+export type ContentAtomizerJob = typeof contentAtomizerJobs.$inferSelect;
+export type ViralChainEvent = typeof viralChainEvents.$inferSelect;
+export type HookScore = typeof hookScores.$inferSelect;
+export type ThumbnailAbTest = typeof thumbnailAbTests.$inferSelect;
+export type ContentEmpireNode = typeof contentEmpireNodes.$inferSelect;
+export type AudienceOverlap = typeof audienceOverlaps.$inferSelect;
+export type SentimentTimelineEntry = typeof sentimentTimeline.$inferSelect;
+export type SeoLabExperiment = typeof seoLabExperiments.$inferSelect;
+export type CohortAnalysisEntry = typeof cohortAnalysis.$inferSelect;
+export type TeamInboxMessage = typeof teamInboxMessages.$inferSelect;
+export type AssetLibraryItem = typeof assetLibrary.$inferSelect;
+export type CustomReport = typeof customReports.$inferSelect;
+export type EmailList = typeof emailLists.$inferSelect;
+export type EmailSubscriber = typeof emailSubscribers.$inferSelect;
+export type DiscordBotConfig = typeof discordBotConfig.$inferSelect;
+export type MerchStoreItem = typeof merchStoreItems.$inferSelect;
+export type TipDonation = typeof tipDonations.$inferSelect;
+export type GrowthCelebration = typeof growthCelebrations.$inferSelect;
+export type ContentLifeBalanceEntry = typeof contentLifeBalance.$inferSelect;
+export type PlatformFailoverRule = typeof platformFailoverRules.$inferSelect;
+export type ScriptGeneration = typeof scriptGenerations.$inferSelect;
