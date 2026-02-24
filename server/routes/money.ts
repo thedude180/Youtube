@@ -319,7 +319,8 @@ export function registerMoneyRoutes(app: Express) {
     try {
       const expenseSchema = z.object({ category: z.string(), description: z.string(), amount: z.number(), date: z.string().optional() }).passthrough();
       const parsed = expenseSchema.parse(req.body);
-      const record = await storage.createExpenseRecord({ ...parsed, userId } as any);
+      const { date, ...rest } = parsed;
+      const record = await storage.createExpenseRecord({ ...rest, userId, expenseDate: date ? new Date(date) : new Date() } as any);
       res.status(201).json(record);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
@@ -444,7 +445,7 @@ export function registerMoneyRoutes(app: Express) {
     if (!userId) return;
     const schema = z.object({
       name: z.string().min(1),
-      type: z.string().optional(),
+      type: z.string().default("general"),
       status: z.string().optional(),
       description: z.string().optional(),
       revenue: z.number().optional(),
