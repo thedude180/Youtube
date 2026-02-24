@@ -221,19 +221,6 @@ export async function sendWeeklyReportEmail(userId: string): Promise<boolean> {
     const report = await generateWeeklyReport(userId);
 
     if (!report.email) {
-      try {
-        const { notifications } = await import("@shared/schema");
-        const { db } = await import("./db");
-        await db.insert(notifications).values({
-          userId,
-          type: "system",
-          title: "Weekly Report Ready",
-          message: `Your weekly AI performance report is ready! Add your email in Settings to receive it by email. Summary: ${report.totalVideos} videos, ${report.totalViews} views this week.`,
-          severity: "info",
-        });
-        const { sendSSEEvent } = await import("./routes/events");
-        sendSSEEvent(userId, "notification", { type: "new" });
-      } catch {}
       return false;
     }
 

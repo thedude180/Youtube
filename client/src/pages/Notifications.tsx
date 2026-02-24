@@ -55,7 +55,7 @@ export default function Notifications() {
   usePageTitle(t("notifications.title"));
   const [filter, setFilter] = useState<FilterType>("all");
   const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 15_000, staleTime: 10_000 });
-  const notifications = safeArray(rawNotifications);
+  const notifications = safeArray<Notification>(rawNotifications);
 
   const markReadMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -78,12 +78,12 @@ export default function Notifications() {
     },
   });
 
-  const filtered = notifications.filter(n => {
+  const filtered = notifications.filter((n: Notification) => {
     if (filter === "all") return true;
     return deriveCategory(n) === filter;
   });
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n: Notification) => !n.read).length;
 
   const filterOptions: { key: FilterType; label: string }[] = [
     { key: "all", label: "All" },

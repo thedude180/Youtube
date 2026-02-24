@@ -225,7 +225,7 @@ function GiveawaysTab() {
         />
       ) : (
         <div className="space-y-1">
-          {safeArray(data).map((g) => (
+          {safeArray<Giveaway>(data).map((g) => (
             <Card key={g.id} data-testid={`card-giveaway-${g.id}`}>
               <CardContent className="p-2">
                 <div className="flex items-center justify-between gap-1 flex-wrap">
@@ -382,8 +382,9 @@ function PollsTab() {
         />
       ) : (
         <div className="space-y-1">
-          {safeArray(data).map((poll) => {
-            const maxVotes = Math.max(...safeArray(poll?.options).map((o) => o.votes), 1);
+          {safeArray<Poll>(data).map((poll) => {
+            const pollOptions = safeArray<{ label: string; votes: number }>(poll?.options);
+            const maxVotes = Math.max(...pollOptions.map((o) => o.votes), 1);
             return (
               <Card key={poll.id} data-testid={`card-poll-${poll.id}`}>
                 <CardContent className="p-2 space-y-1">
@@ -401,7 +402,7 @@ function PollsTab() {
                     </div>
                   </div>
                   <div className="space-y-0.5">
-                    {safeArray(poll?.options).map((opt, i) => (
+                    {pollOptions.map((opt, i) => (
                       <div key={i} className="space-y-0.5" data-testid={`poll-option-${poll.id}-${i}`}>
                         <div className="flex items-center justify-between text-[10px]">
                           <span>{opt.label}</span>
@@ -542,7 +543,7 @@ function ChallengesTab() {
         />
       ) : (
         <div className="space-y-1">
-          {safeArray(data).map((c) => (
+          {safeArray<Challenge>(data).map((c) => (
             <Card key={c.id} data-testid={`card-challenge-${c.id}`}>
               <CardContent className="p-2">
                 <div className="flex items-center justify-between gap-1 flex-wrap">
@@ -656,7 +657,7 @@ function LoyaltyTab() {
         </Card>
       ) : (
         <div className="space-y-0.5">
-          {safeArray(data).map((m) => {
+          {safeArray<LoyaltyMember>(data).map((m) => {
             const LevelIcon = LEVEL_ICONS[m.level] || Medal;
             return (
               <div
@@ -722,8 +723,8 @@ function ModerationTab() {
     return true;
   }) ?? [], [data, filterPlatform, filterType]);
 
-  const platforms = useMemo(() => [...new Set(data?.map((a) => a.platform) || [])], [data]);
-  const types = useMemo(() => [...new Set(data?.map((a) => a.type) || [])], [data]);
+  const platforms = useMemo(() => Array.from(new Set(data?.map((a) => a.platform) || [])), [data]);
+  const types = useMemo(() => Array.from(new Set(data?.map((a) => a.type) || [])), [data]);
 
   return (
     <div className="space-y-2" data-testid="tab-content-moderation">
@@ -824,7 +825,7 @@ function ModerationTab() {
         </Card>
       ) : (
         <div className="space-y-0.5">
-          {safeArray(filtered).map((a) => (
+          {safeArray<ModerationAction>(filtered).map((a) => (
             <div
               key={a.id}
               className="flex items-center justify-between gap-1 p-1.5 rounded-md border border-border"

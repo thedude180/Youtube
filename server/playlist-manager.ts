@@ -458,14 +458,7 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
     playlistsCreated = existingPlaylistsAfter.length - beforeCount;
 
     if (assigned > 0 || playlistsCreated > 0) {
-      await db.insert(notifications).values({
-        userId,
-        type: "autopilot",
-        title: "Playlists Organized",
-        message: `Organized ${assigned} video(s) into topic-specific playlists${playlistsCreated > 0 ? ` (${playlistsCreated} new playlist(s) created)` : ""}.`,
-        severity: "info",
-      });
-      sendSSEEvent(userId, "notification", { type: "new" });
+      logger.info("Playlists organized", { userId, assigned, playlistsCreated });
     }
   } catch (err) {
     logger.error("Playlist organization failed", { userId, error: String(err) });

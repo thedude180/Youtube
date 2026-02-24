@@ -55,24 +55,25 @@ import i18n from "@/i18n";
 
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free", advancedOnly: false },
-  { href: "/mission-control", labelKey: "Mission Control", icon: Satellite, minTier: "free", advancedOnly: false },
-  { href: "/intelligence", labelKey: "Intelligence", icon: Brain, minTier: "free", advancedOnly: false },
-  { href: "/content-command", labelKey: "Content Command", icon: Clapperboard, minTier: "free", advancedOnly: false },
-  { href: "/growth", labelKey: "Zero to #1", icon: TrendingUp, minTier: "free", advancedOnly: false },
+  { href: "/mission-control", labelKey: "nav.missionControl", icon: Satellite, minTier: "free", advancedOnly: false },
+  { href: "/intelligence", labelKey: "nav.intelligence", icon: Brain, minTier: "free", advancedOnly: false },
+  { href: "/content-command", labelKey: "nav.contentCommand", icon: Clapperboard, minTier: "free", advancedOnly: false },
+  { href: "/growth", labelKey: "nav.zeroToOne", icon: TrendingUp, minTier: "free", advancedOnly: false },
   { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free", advancedOnly: false },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
-  { href: "/autopilot", labelKey: "Autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
-  { href: "/simulator", labelKey: "Simulator", icon: FlaskConical, minTier: "free", advancedOnly: false },
-  { href: "/ai-command", labelKey: "AI Command", icon: Sparkles, minTier: "free", advancedOnly: false },
-  { href: "/war-room", labelKey: "War Room", icon: Siren, minTier: "pro", advancedOnly: false },
-  { href: "/creator-hub", labelKey: "Creator Hub", icon: Network, minTier: "free", advancedOnly: false },
-  { href: "/workspace", labelKey: "Workspace", icon: KanbanSquare, minTier: "free", advancedOnly: false },
-  { href: "/heartbeat", labelKey: "AI Heartbeat", icon: Heart, minTier: "free", advancedOnly: false },
-  { href: "/edge", labelKey: "Competitive Edge", icon: Crown, minTier: "free", advancedOnly: true },
-  { href: "/stream-loop", labelKey: "Stream Loop", icon: Repeat, minTier: "pro", advancedOnly: true },
-  { href: "/vod-shorts-loop", labelKey: "VOD & Shorts", icon: Film, minTier: "pro", advancedOnly: true },
-  { href: "/stealth", labelKey: "AI Stealth", icon: Bot, minTier: "free", advancedOnly: true },
-  { href: "/community", labelKey: "Community", icon: Users, minTier: "starter", advancedOnly: true },
+  { href: "/autopilot", labelKey: "nav.autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
+  { href: "/simulator", labelKey: "nav.simulator", icon: FlaskConical, minTier: "free", advancedOnly: false },
+  { href: "/ai-command", labelKey: "nav.aiCommand", icon: Sparkles, minTier: "free", advancedOnly: false },
+  { href: "/war-room", labelKey: "nav.warRoom", icon: Siren, minTier: "pro", advancedOnly: false },
+  { href: "/creator-hub", labelKey: "nav.creatorHub", icon: Network, minTier: "free", advancedOnly: false },
+  { href: "/workspace", labelKey: "nav.workspace", icon: KanbanSquare, minTier: "free", advancedOnly: false },
+  { href: "/heartbeat", labelKey: "nav.heartbeat", icon: Heart, minTier: "free", advancedOnly: false },
+  { href: "/edge", labelKey: "nav.competitiveEdge", icon: Crown, minTier: "free", advancedOnly: true },
+  { href: "/stream-loop", labelKey: "nav.streamLoop", icon: Repeat, minTier: "pro", advancedOnly: true },
+  { href: "/vod-shorts-loop", labelKey: "nav.vodShorts", icon: Film, minTier: "pro", advancedOnly: true },
+  { href: "/empire", labelKey: "nav.empireLauncher", icon: Rocket, minTier: "free", advancedOnly: false },
+  { href: "/stealth", labelKey: "nav.aiStealth", icon: Bot, minTier: "free", advancedOnly: true },
+  { href: "/community", labelKey: "nav.community", icon: Users, minTier: "starter", advancedOnly: true },
   { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free", advancedOnly: true },
   { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free", advancedOnly: false },
 ];
@@ -166,9 +167,9 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/access-codes")} data-testid="link-access-codes">
-                    <Link href="/access-codes" aria-label="Access Codes" aria-current={isActive("/access-codes") ? "page" : undefined}>
+                    <Link href="/access-codes" aria-label={t("nav.accessCodes")} aria-current={isActive("/access-codes") ? "page" : undefined}>
                       <KeyRound className="h-4 w-4" />
-                      <span>Access Codes</span>
+                      <span>{t("nav.accessCodes")}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

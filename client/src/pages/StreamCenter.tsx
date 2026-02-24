@@ -826,7 +826,7 @@ export default function StreamCenter() {
                     {aiStreamRecs.schedule.bestDays?.length > 0 && (
                       <div data-testid="text-best-days" className="flex items-center gap-1.5 flex-wrap">
                         <span>Best days:</span>
-                        {safeArray(aiStreamRecs?.schedule?.bestDays).map((day: string, i: number) => (
+                        {safeArray<string>(aiStreamRecs?.schedule?.bestDays).map((day: string, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs">{day}</Badge>
                         ))}
                       </div>

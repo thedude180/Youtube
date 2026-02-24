@@ -156,6 +156,7 @@ function getRetryDelay(category: FailureCategory, attempt: number = 0, platform?
 }
 
 async function createNotification(userId: string, title: string, message: string, severity: string = "info") {
+  if (severity === "info") return;
   try {
     await db.insert(notifications).values({
       userId,
@@ -287,13 +288,6 @@ export async function autoFixFailedPosts(): Promise<{
             .where(eq(autopilotQueue.id, post.id));
           stats.deferred++;
 
-          if (autoFixAttempts === 0) {
-            await createNotification(post.userId,
-              `${post.targetPlatform} daily limit reached`,
-              `The daily limit for ${post.targetPlatform} was hit. Your post is queued and will automatically go out when the limit resets.`,
-              "info"
-            );
-          }
           continue;
         }
       }

@@ -31,7 +31,7 @@ export default function CreatorHub() {
   if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-pink-950/20 to-gray-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-pink-950/20 to-gray-950 p-6" data-testid="page-creator-hub">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-600 to-rose-600 flex items-center justify-center">
@@ -39,7 +39,7 @@ export default function CreatorHub() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white" data-testid="text-page-title">Creator Hub</h1>
-            <p className="text-sm text-pink-300">Networks, community, achievements & creator ecosystem</p>
+            <p className="text-sm text-pink-300" data-testid="text-page-subtitle">Networks, community, achievements & creator ecosystem</p>
           </div>
         </div>
 
@@ -60,7 +60,7 @@ export default function CreatorHub() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <Input placeholder="Network name" value={networkName} onChange={(e) => setNetworkName(e.target.value)} className="bg-gray-800/60 border-gray-700/30 text-white" data-testid="input-network-name" />
-                <Textarea placeholder="Description" value={networkDesc} onChange={(e) => setNetworkDesc(e.target.value)} className="bg-gray-800/60 border-gray-700/30 text-white" />
+                <Textarea placeholder="Description" value={networkDesc} onChange={(e) => setNetworkDesc(e.target.value)} className="bg-gray-800/60 border-gray-700/30 text-white" data-testid="input-network-desc" />
                 <Button onClick={() => createNetwork.mutate()} disabled={createNetwork.isPending || !networkName} data-testid="button-create-network">
                   <Network className="w-4 h-4 mr-1" /> Create Network
                 </Button>
@@ -90,12 +90,16 @@ export default function CreatorHub() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-400">Create your first creator network to start collaborating and cross-promoting.</div>
+              <div className="text-center py-12">
+                <Network className="w-12 h-12 text-pink-400 mx-auto mb-3 opacity-60" />
+                <p className="text-gray-300 font-medium">No Creator Networks Yet</p>
+                <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Create your first creator network to start collaborating and cross-promoting with other creators in your niche.</p>
+              </div>
             )}
           </TabsContent>
 
           <TabsContent value="achievements">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-achievements">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Trophy className="w-5 h-5 text-yellow-400" /> Achievement System</CardTitle>
               </CardHeader>
@@ -111,7 +115,7 @@ export default function CreatorHub() {
                     { icon: Megaphone, title: "Multi-Platform", desc: "Active on 3+ platforms", unlocked: false, color: "from-orange-600 to-red-600" },
                     { icon: PartyPopper, title: "1K Club", desc: "Reach 1,000 subscribers", unlocked: false, color: "from-pink-600 to-purple-600" },
                   ].map((achievement, i) => (
-                    <div key={i} className={`relative p-4 rounded-xl border text-center ${achievement.unlocked ? "bg-gray-800/60 border-yellow-500/30" : "bg-gray-900/40 border-gray-700/20 opacity-50"}`}>
+                    <div key={i} className={`relative p-4 rounded-xl border text-center ${achievement.unlocked ? "bg-gray-800/60 border-yellow-500/30" : "bg-gray-900/40 border-gray-700/20 opacity-50"}`} data-testid={`achievement-${i}`}>
                       <div className={`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center bg-gradient-to-br ${achievement.color}`}>
                         <achievement.icon className="w-6 h-6 text-white" />
                       </div>
@@ -140,7 +144,7 @@ export default function CreatorHub() {
           </TabsContent>
 
           <TabsContent value="clone">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-ai-clone">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-violet-400" /> AI Creator Clone</CardTitle>
               </CardHeader>
@@ -149,17 +153,17 @@ export default function CreatorHub() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20 text-center">
                     <MessageCircle className="w-8 h-8 text-violet-400 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-white">{(cloneConfig as any)?.cloneName || "AI Assistant"}</p>
-                    <Badge variant="outline" className={`mt-1 text-xs ${(cloneConfig as any)?.isActive ? "border-green-500/30 text-green-400" : "border-gray-500/30 text-gray-400"}`}>{(cloneConfig as any)?.isActive ? "Active" : "Inactive"}</Badge>
+                    <p className="text-sm font-medium text-white" data-testid="text-clone-name">{(cloneConfig as any)?.cloneName || "AI Assistant"}</p>
+                    <Badge variant="outline" className={`mt-1 text-xs ${(cloneConfig as any)?.isActive ? "border-green-500/30 text-green-400" : "border-gray-500/30 text-gray-400"}`} data-testid="badge-clone-status">{(cloneConfig as any)?.isActive ? "Active" : "Inactive"}</Badge>
                   </div>
                   <div className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20 text-center">
                     <Users className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-white">{(cloneConfig as any)?.totalInteractions || 0}</p>
+                    <p className="text-2xl font-bold text-white" data-testid="text-clone-interactions">{(cloneConfig as any)?.totalInteractions || 0}</p>
                     <p className="text-xs text-gray-400">Total Interactions</p>
                   </div>
                   <div className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20 text-center">
                     <Heart className="w-8 h-8 text-pink-400 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-white">{((cloneConfig as any)?.satisfactionScore || 0).toFixed(0)}%</p>
+                    <p className="text-2xl font-bold text-white" data-testid="text-clone-satisfaction">{((cloneConfig as any)?.satisfactionScore || 0).toFixed(0)}%</p>
                     <p className="text-xs text-gray-400">Satisfaction Rate</p>
                   </div>
                 </div>
@@ -195,7 +199,11 @@ export default function CreatorHub() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">The creator marketplace connects you with services like editing, thumbnails, and collabs. Coming soon!</div>
+                  <div className="text-center py-12">
+                    <Gift className="w-12 h-12 text-emerald-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">Marketplace is Empty</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">The creator marketplace connects you with services like editing, thumbnails, and collabs. Listings will appear as the community grows.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -226,32 +234,36 @@ export default function CreatorHub() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">AI is scanning for perfect collaboration matches based on your audience and content style.</div>
+                  <div className="text-center py-12">
+                    <UserPlus className="w-12 h-12 text-cyan-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Collaboration Matches Yet</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">AI is scanning for perfect collaboration matches based on your audience and content style. Potential partners will appear here with compatibility scores.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="wellness">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-wellness">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Heart className="w-5 h-5 text-red-400" /> Creator Wellness</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-6 rounded-xl bg-gray-800/40 border border-gray-700/20">
-                    <div className="text-4xl font-bold text-white mb-1">{(balanceScore as any)?.balanceScore || 50}</div>
+                  <div className="text-center p-6 rounded-xl bg-gray-800/40 border border-gray-700/20" data-testid="stat-balance-score">
+                    <div className="text-4xl font-bold text-white mb-1" data-testid="text-balance-score">{(balanceScore as any)?.balanceScore || 50}</div>
                     <p className="text-sm text-gray-400">Life-Content Balance</p>
                     <div className="w-full h-2 bg-gray-700 rounded-full mt-3">
                       <div className="h-full rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500" style={{ width: `${(balanceScore as any)?.balanceScore || 50}%` }} />
                     </div>
                   </div>
-                  <div className="text-center p-6 rounded-xl bg-gray-800/40 border border-gray-700/20">
-                    <div className="text-4xl font-bold text-white mb-1">{(balanceScore as any)?.workHoursWeekly || 0}h</div>
+                  <div className="text-center p-6 rounded-xl bg-gray-800/40 border border-gray-700/20" data-testid="stat-work-hours">
+                    <div className="text-4xl font-bold text-white mb-1" data-testid="text-work-hours">{(balanceScore as any)?.workHoursWeekly || 0}h</div>
                     <p className="text-sm text-gray-400">Weekly Work Hours</p>
                   </div>
-                  <div className="text-center p-6 rounded-xl bg-gray-800/40 border border-gray-700/20">
-                    <div className="text-4xl font-bold text-white mb-1 capitalize">{(balanceScore as any)?.stressLevel || "normal"}</div>
+                  <div className="text-center p-6 rounded-xl bg-gray-800/40 border border-gray-700/20" data-testid="stat-stress-level">
+                    <div className="text-4xl font-bold text-white mb-1 capitalize" data-testid="text-stress-level">{(balanceScore as any)?.stressLevel || "normal"}</div>
                     <p className="text-sm text-gray-400">Stress Level</p>
                     {(balanceScore as any)?.breakSuggested && <Badge className="mt-2 bg-amber-600 text-xs">Break Suggested</Badge>}
                   </div>

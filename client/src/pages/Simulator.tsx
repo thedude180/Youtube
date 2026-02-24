@@ -55,7 +55,7 @@ export default function Simulator() {
   if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-emerald-950/20 to-gray-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-emerald-950/20 to-gray-950 p-6" data-testid="page-simulator">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center">
@@ -63,7 +63,7 @@ export default function Simulator() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white" data-testid="text-page-title">Simulator & Forecasting</h1>
-            <p className="text-sm text-emerald-300">What-If scenarios, time machine projections & revenue forecasting</p>
+            <p className="text-sm text-emerald-300" data-testid="text-page-subtitle">What-If scenarios, time machine projections & revenue forecasting</p>
           </div>
         </div>
 
@@ -112,8 +112,17 @@ export default function Simulator() {
                 </Button>
               </CardContent>
             </Card>
+            {(scenarios as any[]).length === 0 && (
+              <Card className="bg-gray-900/60 border-gray-700/30">
+                <CardContent className="py-12 text-center">
+                  <FlaskConical className="w-12 h-12 text-emerald-400 mx-auto mb-3 opacity-60" />
+                  <p className="text-gray-300 font-medium">No Simulations Run Yet</p>
+                  <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Configure a scenario above and click "Run Simulation" to see projected outcomes for different content strategies and posting frequencies.</p>
+                </CardContent>
+              </Card>
+            )}
             {(scenarios as any[]).map((s: any) => (
-              <Card key={s.id} className="bg-gray-900/60 border-gray-700/30">
+              <Card key={s.id} className="bg-gray-900/60 border-gray-700/30" data-testid={`card-scenario-${s.id}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-white text-base">{s.name}</CardTitle>
@@ -166,7 +175,11 @@ export default function Simulator() {
                     )}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">Click "Project 6 Months" to see where you'll be with and without AI optimization.</div>
+                  <div className="text-center py-12">
+                    <Clock className="w-12 h-12 text-blue-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Projections Yet</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Click "Project 6 Months" to see where you'll be with and without AI optimization. Compare subscriber growth, revenue, views, and engagement trajectories.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -178,18 +191,18 @@ export default function Simulator() {
                 <CardTitle className="text-white flex items-center gap-2"><Gauge className="w-5 h-5 text-orange-400" /> Momentum Engine</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-6">
+                <div className="text-center py-6" data-testid="stat-momentum-score">
                   <div className="relative inline-flex items-center justify-center">
                     <svg width="200" height="200" className="transform -rotate-90">
                       <circle cx="100" cy="100" r="80" stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="none" />
                       <circle cx="100" cy="100" r="80" stroke={((momentum as any)?.score || 50) > 70 ? "#22c55e" : ((momentum as any)?.score || 50) > 40 ? "#eab308" : "#ef4444"} strokeWidth="8" fill="none" strokeDasharray={502} strokeDashoffset={502 * (1 - ((momentum as any)?.score || 50) / 100)} strokeLinecap="round" className="transition-all duration-1000" />
                     </svg>
                     <div className="absolute text-center">
-                      <span className="text-4xl font-bold text-white">{(momentum as any)?.score || 50}</span>
+                      <span className="text-4xl font-bold text-white" data-testid="text-momentum-value">{(momentum as any)?.score || 50}</span>
                       <p className="text-xs text-gray-400">Momentum</p>
                     </div>
                   </div>
-                  <Badge variant="outline" className={`mt-4 ${(momentum as any)?.trend === "up" ? "border-green-500/30 text-green-400" : "border-yellow-500/30 text-yellow-400"}`}>
+                  <Badge variant="outline" className={`mt-4 ${(momentum as any)?.trend === "up" ? "border-green-500/30 text-green-400" : "border-yellow-500/30 text-yellow-400"}`} data-testid="badge-momentum-trend">
                     {(momentum as any)?.trend === "up" ? "Accelerating" : (momentum as any)?.trend === "down" ? "Decelerating" : "Steady"}
                   </Badge>
                 </div>
@@ -216,7 +229,7 @@ export default function Simulator() {
                 {(revenueAttr as any[]).length ? (
                   <div className="space-y-2">
                     {(revenueAttr as any[]).map((r: any) => (
-                      <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/40">
+                      <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/40" data-testid={`revenue-item-${r.id}`}>
                         <div>
                           <p className="text-sm text-white">{r.contentTitle || "Unknown content"}</p>
                           <p className="text-xs text-gray-400 capitalize">{r.platform} • {r.revenueType}</p>
@@ -226,7 +239,11 @@ export default function Simulator() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">Revenue attribution data will appear as your content generates income across platforms.</div>
+                  <div className="text-center py-12">
+                    <BarChart3 className="w-12 h-12 text-green-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Revenue Attribution Data</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Revenue attribution data will appear as your content generates income across platforms. Track exactly which videos, streams, and posts drive the most revenue.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>

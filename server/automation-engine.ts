@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { storage } from "./storage";
 import { sendSSEEvent } from "./routes/events";
 import { db } from "./db";
-import { cronJobs, aiResults, aiChains, webhookEvents, notifications, channels } from "@shared/schema";
+import { cronJobs, aiResults, aiChains, webhookEvents, channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { selfHealingCore, getSystemHealthReport, type SystemHealthReport } from "./self-healing-core";
 import { withCronLock } from "./lib/cron-lock";
@@ -600,14 +600,6 @@ async function processAllChains() {
       const results = await executeChainSteps(chain);
       await db.update(aiChains).set({ status: "idle", lastResult: { steps: results, completedAt: new Date().toISOString() } }).where(eq(aiChains.id, chain.id));
 
-      await db.insert(notifications).values({
-        userId: chain.userId,
-        type: "chain_complete",
-        title: `AI Chain "${chain.name}" completed`,
-        message: `All ${(chain.steps as any[]).length} steps executed successfully`,
-        severity: "info",
-      });
-      sendSSEEvent(chain.userId, "notification", { type: "new" });
     } catch (err) {
       console.error(`[AutomationEngine] Chain ${chain.id} failed:`, err);
       await db.update(aiChains).set({ status: "error" }).where(eq(aiChains.id, chain.id));
@@ -627,15 +619,6 @@ async function processAutoApprovals() {
         result: { ...deal.result as any, processed: true, processedAt: new Date().toISOString() },
       }).where(eq(aiResults.id, deal.id));
 
-      if (deal.userId) {
-        await db.insert(notifications).values({
-          userId: deal.userId,
-          type: "auto_approval",
-          title: "Sponsorship auto-evaluated",
-          message: `Deal #${deal.id} has been automatically reviewed`,
-          severity: "info",
-        });
-      }
     } catch (err) {
       console.error(`[AutomationEngine] Auto-approval failed for deal ${deal.id}:`, err);
     }
@@ -654,15 +637,6 @@ async function processAutoPayments() {
         result: { ...payment.result as any, processed: true, processedAt: new Date().toISOString() },
       }).where(eq(aiResults.id, payment.id));
 
-      if (payment.userId) {
-        await db.insert(notifications).values({
-          userId: payment.userId,
-          type: "auto_payment",
-          title: "Payment cycle completed",
-          message: `Financial review #${payment.id} processed automatically`,
-          severity: "info",
-        });
-      }
     } catch (err) {
       console.error(`[AutomationEngine] Auto-payment failed for ${payment.id}:`, err);
     }
@@ -761,15 +735,6 @@ export async function processWebhookEvent(userId: string, source: string, eventT
   try {
     const event = await storage.createWebhookEvent({ userId, source, eventType, payload, processed: false });
 
-    await storage.createNotification({
-      userId,
-      type: "webhook",
-      title: `${source} Event: ${eventType}`,
-      message: `Received ${eventType} event from ${source}`,
-      severity: "info",
-    });
-    sendSSEEvent(userId, "notification", { type: "new" });
-
     await storage.markWebhookProcessed(event.id);
     return event;
   } catch (err) {
@@ -786,15 +751,6 @@ export async function runChainManually(chainId: number) {
     await db.update(aiChains).set({ status: "running", lastRun: new Date() }).where(eq(aiChains.id, chain.id));
     const results = await executeChainSteps(chain);
     await db.update(aiChains).set({ status: "idle", lastResult: { steps: results, completedAt: new Date().toISOString() } }).where(eq(aiChains.id, chain.id));
-
-    await db.insert(notifications).values({
-      userId: chain.userId,
-      type: "chain_complete",
-      title: `AI Chain "${chain.name}" completed`,
-      message: `All ${(chain.steps as any[]).length} steps executed successfully`,
-      severity: "info",
-    });
-    sendSSEEvent(chain.userId, "notification", { type: "new" });
 
     return { chainId, steps: results };
   } catch (err) {
@@ -814,15 +770,6 @@ export async function evaluateRules(userId: string, eventType: string, _eventDat
       const ruleData = rule as any;
       if (ruleData.trigger === eventType || ruleData.agentId === eventType) {
         triggered.push({ ruleId: rule.id, name: rule.name, action: "executed" });
-
-        await storage.createNotification({
-          userId,
-          type: "rule_triggered",
-          title: `Rule "${rule.name}" triggered`,
-          message: `Auto-action executed for ${eventType}`,
-          severity: "info",
-        });
-        sendSSEEvent(userId, "notification", { type: "new" });
       }
     }
 

@@ -46,7 +46,7 @@ export default function AICommand() {
   if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-violet-950/20 to-gray-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-violet-950/20 to-gray-950 p-6" data-testid="page-ai-command">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center">
@@ -54,7 +54,7 @@ export default function AICommand() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white" data-testid="text-page-title">AI Command</h1>
-            <p className="text-sm text-violet-300">Your AI team member — personality, voice commands, daily briefings & learning</p>
+            <p className="text-sm text-violet-300" data-testid="text-page-subtitle">Your AI team member — personality, voice commands, daily briefings & learning</p>
           </div>
         </div>
 
@@ -81,12 +81,12 @@ export default function AICommand() {
                   </Button>
                 </div>
                 {processVoiceCommand.data && (
-                  <div className="p-4 rounded-lg bg-violet-900/20 border border-violet-500/20">
+                  <div className="p-4 rounded-lg bg-violet-900/20 border border-violet-500/20" data-testid="card-voice-result">
                     <div className="flex items-center gap-2 mb-2">
                       <Bot className="w-4 h-4 text-violet-400" />
                       <span className="text-sm font-medium text-violet-300">{currentAiName}</span>
                     </div>
-                    <p className="text-sm text-white">{(processVoiceCommand.data as any)?.result}</p>
+                    <p className="text-sm text-white" data-testid="text-voice-result">{(processVoiceCommand.data as any)?.result}</p>
                     <div className="flex gap-2 mt-2">
                       <Badge variant="outline" className="text-xs border-violet-500/30">{(processVoiceCommand.data as any)?.parsedIntent}</Badge>
                       <Badge variant="outline" className="text-xs border-blue-500/30">{(processVoiceCommand.data as any)?.action}</Badge>
@@ -102,7 +102,7 @@ export default function AICommand() {
                     "Check if any of my platforms are shadow banned",
                     "What should I stream about tonight?"
                   ].map((suggestion, i) => (
-                    <button key={i} onClick={() => { setVoiceCommand(suggestion); }} className="p-2 text-left text-xs text-gray-400 bg-gray-800/40 rounded-lg border border-gray-700/20 hover:border-violet-500/30 hover:text-violet-300 transition-all">
+                    <button key={i} onClick={() => { setVoiceCommand(suggestion); }} className="p-2 text-left text-xs text-gray-400 bg-gray-800/40 rounded-lg border border-gray-700/20 hover:border-violet-500/30 hover:text-violet-300 transition-all" data-testid={`button-suggestion-${i}`}>
                       "{suggestion}"
                     </button>
                   ))}
@@ -218,7 +218,7 @@ export default function AICommand() {
                 {(learningData as any[]).length ? (
                   <div className="space-y-3">
                     {(learningData as any[]).map((l: any) => (
-                      <div key={l.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                      <div key={l.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`learning-item-${l.id}`}>
                         <div className="flex items-center justify-between mb-1">
                           <Badge variant="outline" className="text-xs capitalize">{l.category}</Badge>
                           <span className="text-xs text-gray-400">{l.dataPoints} data points • {(l.confidence * 100).toFixed(0)}% confident</span>
@@ -252,7 +252,7 @@ export default function AICommand() {
                   {(failoverRules as any[]).length ? (
                     <div className="space-y-2">
                       {(failoverRules as any[]).map((r: any) => (
-                        <div key={r.id} className="p-3 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                        <div key={r.id} className="p-3 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`failover-rule-${r.id}`}>
                           <p className="text-sm text-white">If <span className="text-red-400 capitalize">{r.sourcePlatform}</span> goes down → Redirect to <span className="text-green-400">{(r.targetPlatforms || []).join(", ")}</span></p>
                           <p className="text-xs text-gray-400 mt-1">{r.triggerCondition}</p>
                         </div>

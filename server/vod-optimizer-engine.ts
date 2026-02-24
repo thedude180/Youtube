@@ -244,15 +244,6 @@ export async function runSingleVodBatchForUser(userId: string): Promise<{ didWor
 
     logger.info("Loop: VOD batch complete", { userId, analyzed: vods.length, queued });
 
-    await db.insert(notifications).values({
-      userId,
-      type: "autopilot",
-      title: "VOD Optimization Batch",
-      message: `Optimized ${queued} old videos. AI improvements queued for YouTube.`,
-      severity: "info",
-    });
-    sendSSEEvent(userId, "notification", { type: "new" });
-
     const remaining = await findOptimizableVods(userId);
     return { didWork: queued > 0, allDone: remaining.length === 0 };
   } catch (err: any) {
@@ -299,14 +290,6 @@ export async function runVodOptimizationCycle(): Promise<void> {
 
       logger.info("VOD optimization cycle complete", { userId, analyzed: vods.length, queued });
 
-      await db.insert(notifications).values({
-        userId,
-        type: "autopilot",
-        title: "VOD Optimization Complete",
-        message: `Analyzed ${vods.length} old videos, queued ${queued} optimizations. Expected impact: more views on existing content.`,
-        severity: "info",
-      });
-      sendSSEEvent(userId, "notification", { type: "new" });
     } catch (err: any) {
       logger.error("VOD optimization failed for user", { userId, error: err.message });
     }

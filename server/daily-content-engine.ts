@@ -117,6 +117,7 @@ interface ContentPlan {
 }
 
 async function notify(userId: string, title: string, message: string, severity: string) {
+  if (severity === "info") return;
   await db.insert(notifications).values({ userId, type: "autopilot", title, message, severity });
   sendSSEEvent(userId, "notification", { type: "new" });
 }

@@ -101,14 +101,6 @@ async function generateAndUploadThumbnail(
 
     logger.info("Auto-thumbnail uploaded to YouTube", { videoDbId, youtubeId, videoTitle });
 
-    await db.insert(notifications).values({
-      userId,
-      type: "autopilot",
-      title: "Auto-Thumbnail Generated",
-      message: `AI-generated thumbnail uploaded for "${videoTitle}"`,
-      severity: "info",
-    });
-    sendSSEEvent(userId, "notification", { type: "new" });
     sendSSEEvent(userId, "content-update", { type: "thumbnail_generated", videoId: videoDbId });
 
     return true;
@@ -353,14 +345,7 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
     }
 
     if (regenerated > 0) {
-      await db.insert(notifications).values({
-        userId,
-        type: "autopilot",
-        title: "Thumbnails Refreshed",
-        message: `Regenerated ${regenerated} thumbnail(s) for underperforming videos to boost CTR.`,
-        severity: "info",
-      });
-      sendSSEEvent(userId, "notification", { type: "new" });
+      logger.info("Thumbnails refreshed for underperformers", { userId, regenerated });
     }
   } catch (err) {
     logger.error("Thumbnail refresh for underperformers failed", { userId, error: String(err) });

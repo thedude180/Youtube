@@ -211,14 +211,6 @@ export async function runMarketingCycle(userId: string): Promise<{
     strategiesGenerated,
   };
 
-  await db.insert(notifications).values({
-    userId,
-    type: "autopilot",
-    title: "Marketing Cycle Complete",
-    message: `Generated ${strategiesGenerated} strategies, ${campaignsCreated} campaigns, ${organicActions} organic actions${config.paidAdsEnabled ? `, ${paidActions} paid ad actions` : " (organic only — paid ads disabled)"}`,
-    severity: "info",
-  });
-  sendSSEEvent(userId, "notification", { type: "new" });
   sendSSEEvent(userId, "marketing-update", { type: "cycle_complete", ...summary });
 
   logger.info("Marketing cycle complete", { userId, ...summary });

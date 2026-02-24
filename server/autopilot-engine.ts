@@ -1237,13 +1237,6 @@ async function autoPinComment(userId: string, channelId: number, youtubeVideoId:
         strategy: result.strategy,
       });
 
-      await db.insert(notifications).values({
-        userId,
-        type: "autopilot",
-        title: "Pinned Comment Added",
-        message: `AI posted & pinned an engagement comment on your new video`,
-        severity: "info",
-      });
     } else {
       logger.warn("Auto-pin comment post failed", { videoId, error: pinResult.error });
     }
@@ -1381,6 +1374,7 @@ export async function updateAutopilotFeatureConfig(userId: string, feature: stri
 }
 
 export async function createNotification(userId: string, type: string, title: string, message: string, severity: string) {
+  if (severity === "info") return;
   await db.insert(notifications).values({ userId, type, title, message, severity });
   sendSSEEvent(userId, "notification", { type: "new" });
 }

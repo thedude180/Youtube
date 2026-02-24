@@ -82,6 +82,38 @@ const sidebarStyle = {
   "--sidebar-width-icon": "3rem",
 } as React.CSSProperties;
 
+const PAGE_META: Record<string, { title: string; description: string }> = {
+  "/": { title: "Dashboard", description: "Your AI-powered creator command center with real-time analytics, daily briefings, and automated growth insights." },
+  "/mission-control": { title: "Mission Control", description: "Monitor all systems, subsystem health, and AI engine status in one unified command view." },
+  "/intelligence": { title: "Intelligence Hub", description: "Creator scoring, audience mind maps, anomaly detection, and sentiment analysis powered by AI." },
+  "/content-command": { title: "Content Command", description: "AI script generation, content atomization, hook analysis, SEO lab, and viral chain tracking." },
+  "/growth": { title: "Zero to #1", description: "Your AI-powered roadmap from beginner to top creator with daily actions and milestone tracking." },
+  "/content": { title: "Content", description: "Manage your video library, content ideas, SEO, scripts, thumbnails, and publishing calendar." },
+  "/stream": { title: "Go Live", description: "Multi-platform streaming center with AI chat bots, raid strategy, and real-time analytics." },
+  "/autopilot": { title: "Autopilot", description: "Fully autonomous content clipping, scheduling, comment response, and cross-platform posting." },
+  "/simulator": { title: "Simulator", description: "What-if scenarios, time machine projections, momentum tracking, and revenue attribution analysis." },
+  "/ai-command": { title: "AI Command", description: "Configure AI personality, voice commands, daily briefings, and platform failover rules." },
+  "/war-room": { title: "War Room", description: "Real-time crisis detection, threat scanning, anomaly monitoring, and automated recovery plans." },
+  "/creator-hub": { title: "Creator Hub", description: "Creator networks, collaboration matching, achievements, AI clone, and wellness tracking." },
+  "/workspace": { title: "Workspace", description: "Team inbox, asset library, reports, email lists, Discord bot, merch, and tip tracking." },
+  "/heartbeat": { title: "AI Heartbeat", description: "Live status of 15 autonomous AI engines, decision logs, run history, and exception alerts." },
+  "/edge": { title: "Competitive Edge", description: "VOD optimization, A/B testing, competitor tracking, and growth analytics for advanced creators." },
+  "/stealth": { title: "AI Stealth", description: "Human behavior simulation and AI detection evasion for authentic content posting." },
+  "/empire": { title: "Empire Launcher", description: "Launch and scale your content empire with AI-powered multi-platform growth strategies." },
+  "/money": { title: "Money", description: "Revenue tracking, expense management, tax estimates, sponsorships, and financial AI insights." },
+  "/community": { title: "Community", description: "Polls, giveaways, challenges, loyalty programs, and superfan management tools." },
+  "/settings": { title: "Settings", description: "Profile, brand, integrations, automation rules, security, and account preferences." },
+  "/notifications": { title: "Notifications", description: "Exception-only alerts for critical issues, platform bans, and system failures." },
+  "/stream-loop": { title: "Stream Loop", description: "Automated livestream content extraction and multi-platform distribution pipeline." },
+  "/vod-shorts-loop": { title: "VOD & Shorts", description: "AI-powered VOD clipping, shorts generation, and automated publishing workflow." },
+  "/pricing": { title: "Pricing", description: "Choose your plan — from free to Ultimate tier with 832+ AI features and full automation." },
+  "/privacy": { title: "Privacy Policy", description: "How CreatorOS handles your data, privacy protections, and GDPR compliance." },
+  "/terms": { title: "Terms of Service", description: "Terms and conditions for using the CreatorOS platform." },
+  "/data-disclosure": { title: "Data Disclosure", description: "Detailed information about data collection, processing, and third-party sharing." },
+  "/status": { title: "System Status", description: "Real-time operational status of all CreatorOS systems and services." },
+  "/changelog": { title: "Changelog", description: "Latest updates, new features, and improvements to CreatorOS." },
+};
+
 function useRouteMetaSync() {
   const [location] = useLocation();
   useEffect(() => {
@@ -95,6 +127,23 @@ function useRouteMetaSync() {
       document.head.appendChild(canonical);
     }
     canonical.href = url;
+
+    const basePath = "/" + (location.split("/").filter(Boolean)[0] || "");
+    const meta = PAGE_META[location] || PAGE_META[basePath] || PAGE_META["/"];
+    if (meta) {
+      document.title = `${meta.title} | CreatorOS`;
+      let desc = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+      if (!desc) {
+        desc = document.createElement("meta");
+        desc.name = "description";
+        document.head.appendChild(desc);
+      }
+      desc.content = meta.description;
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      if (ogTitle) ogTitle.setAttribute("content", `${meta.title} | CreatorOS`);
+      const ogDesc = document.querySelector('meta[property="og:description"]');
+      if (ogDesc) ogDesc.setAttribute("content", meta.description);
+    }
   }, [location]);
 }
 
@@ -133,6 +182,7 @@ function Router() {
       <Route path="/war-room">{() => <SectionErrorBoundary fallbackTitle="War Room failed to load"><WarRoom /></SectionErrorBoundary>}</Route>
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
       <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>
+      <Route path="/empire">{() => <SectionErrorBoundary fallbackTitle="Empire Launcher failed to load"><EmpireLauncher /></SectionErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>
@@ -337,35 +387,62 @@ function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   );
 }
 
-const ROUTE_LABELS: Record<string, string> = {
-  "/": "Home",
-  "/content": "Content",
-  "/content/channels": "Channels",
-  "/content/updated": "Updated",
-  "/stream": "Go Live",
-  "/money": "Money",
-  "/settings": "Settings",
-  "/settings/security": "Security",
-  "/settings/subscription": "Subscription",
-  "/community": "Community",
-  "/notifications": "Notifications",
-  "/pricing": "Pricing",
-  "/privacy": "Privacy Policy",
-  "/terms": "Terms of Service",
-  "/data-disclosure": "Data Disclosure",
+const ROUTE_LABEL_KEYS: Record<string, string> = {
+  "/": "nav.home",
+  "/content": "nav.content",
+  "/content/channels": "content.channels",
+  "/content/updated": "content.library",
+  "/stream": "nav.goLive",
+  "/money": "nav.money",
+  "/settings": "nav.settings",
+  "/settings/security": "settings.general",
+  "/settings/subscription": "settings.account",
+  "/community": "nav.community",
+  "/notifications": "notifications.title",
+  "/pricing": "pricingPage.pricing",
+  "/privacy": "common.details",
+  "/terms": "common.details",
+  "/data-disclosure": "common.details",
+  "/empire": "nav.empireLauncher",
+  "/mission-control": "nav.missionControl",
+  "/intelligence": "nav.intelligence",
+  "/content-command": "nav.contentCommand",
+  "/growth": "nav.zeroToOne",
+  "/autopilot": "nav.autopilot",
+  "/simulator": "nav.simulator",
+  "/ai-command": "nav.aiCommand",
+  "/war-room": "nav.warRoom",
+  "/creator-hub": "nav.creatorHub",
+  "/workspace": "nav.workspace",
+  "/heartbeat": "nav.heartbeat",
+  "/edge": "nav.competitiveEdge",
+  "/stream-loop": "nav.streamLoop",
+  "/vod-shorts-loop": "nav.vodShorts",
+  "/stealth": "nav.aiStealth",
 };
+
+function useRouteLabel(path: string): string {
+  const { t } = useTranslation();
+  const key = ROUTE_LABEL_KEYS[path];
+  if (key) return t(key);
+  const seg = path.split("/").pop() || "";
+  return seg.charAt(0).toUpperCase() + seg.slice(1);
+}
 
 function RouteBreadcrumb() {
   const [location] = useLocation();
+  const { t } = useTranslation();
   if (location === "/" || location === "") return null;
 
   const segments = location.split("/").filter(Boolean);
-  const crumbs: { label: string; path: string }[] = [{ label: "Home", path: "/" }];
+  const homeLabel = t("nav.home");
+  const crumbs: { label: string; path: string }[] = [{ label: homeLabel, path: "/" }];
 
   let accumulated = "";
   for (const seg of segments) {
     accumulated += `/${seg}`;
-    const label = ROUTE_LABELS[accumulated] || seg.charAt(0).toUpperCase() + seg.slice(1);
+    const key = ROUTE_LABEL_KEYS[accumulated];
+    const label = key ? t(key) : seg.charAt(0).toUpperCase() + seg.slice(1);
     crumbs.push({ label, path: accumulated });
   }
 
@@ -431,8 +508,10 @@ function MobileBottomNav() {
 
 function MobilePageTitle() {
   const [location] = useLocation();
-  const label = ROUTE_LABELS[location] || ROUTE_LABELS[location.split("/").slice(0, 2).join("/")] || "";
-  if (!label || location === "/") return null;
+  const { t } = useTranslation();
+  const key = ROUTE_LABEL_KEYS[location] || ROUTE_LABEL_KEYS[location.split("/").slice(0, 2).join("/")];
+  if (!key || location === "/") return null;
+  const label = t(key);
   return (
     <span className="md:hidden text-sm font-semibold truncate" data-testid="text-mobile-page-title">
       {label}
@@ -442,14 +521,15 @@ function MobilePageTitle() {
 
 function RouteAnnouncer() {
   const [location] = useLocation();
+  const { t } = useTranslation();
   const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
-    const label = ROUTE_LABELS[location] || ROUTE_LABELS[location.split("/").slice(0, 2).join("/")] || "";
-    if (label) {
-      setAnnouncement(`Navigated to ${label}`);
+    const key = ROUTE_LABEL_KEYS[location] || ROUTE_LABEL_KEYS[location.split("/").slice(0, 2).join("/")];
+    if (key) {
+      setAnnouncement(`Navigated to ${t(key)}`);
     }
-  }, [location]);
+  }, [location, t]);
 
   return (
     <div

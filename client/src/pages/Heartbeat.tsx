@@ -82,46 +82,46 @@ export default function Heartbeat() {
           </Badge>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <Card className="bg-gray-900/60 border-gray-700/30">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3" data-testid="section-heartbeat-metrics">
+          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-system-health">
             <CardContent className="p-3 text-center">
               <Heart className={`w-6 h-6 mx-auto mb-1 ${healthColor}`} />
-              <p className={`text-xl font-bold ${healthColor}`}>{s.overallHealth || 0}%</p>
+              <p className={`text-xl font-bold ${healthColor}`} data-testid="text-system-health">{s.overallHealth || 0}%</p>
               <p className="text-xs text-gray-400">System Health</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30">
+          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-autonomy-level">
             <CardContent className="p-3 text-center">
               <Cpu className="w-6 h-6 mx-auto mb-1 text-blue-400" />
-              <p className="text-xl font-bold text-white">{s.autonomyLevel || 0}%</p>
+              <p className="text-xl font-bold text-white" data-testid="text-autonomy-level">{s.autonomyLevel || 0}%</p>
               <p className="text-xs text-gray-400">Autonomy Level</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30">
+          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-engines-active">
             <CardContent className="p-3 text-center">
               <Zap className="w-6 h-6 mx-auto mb-1 text-yellow-400" />
-              <p className="text-xl font-bold text-white">{s.enabledEngines || 0}/{s.totalEngines || 15}</p>
+              <p className="text-xl font-bold text-white" data-testid="text-engines-active">{s.enabledEngines || 0}/{s.totalEngines || 15}</p>
               <p className="text-xs text-gray-400">Engines Active</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30">
+          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-runs-today">
             <CardContent className="p-3 text-center">
               <BarChart3 className="w-6 h-6 mx-auto mb-1 text-purple-400" />
-              <p className="text-xl font-bold text-white">{s.decisionsToday || 0}</p>
+              <p className="text-xl font-bold text-white" data-testid="text-runs-today">{s.decisionsToday || 0}</p>
               <p className="text-xs text-gray-400">Runs Today</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30">
+          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-actions-today">
             <CardContent className="p-3 text-center">
               <Activity className="w-6 h-6 mx-auto mb-1 text-emerald-400" />
-              <p className="text-xl font-bold text-white">{s.totalActionsToday || 0}</p>
+              <p className="text-xl font-bold text-white" data-testid="text-actions-today">{s.totalActionsToday || 0}</p>
               <p className="text-xs text-gray-400">Actions Today</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30">
+          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-uptime">
             <CardContent className="p-3 text-center">
               <Timer className="w-6 h-6 mx-auto mb-1 text-cyan-400" />
-              <p className="text-xl font-bold text-white">{s.uptime || "0h"}</p>
+              <p className="text-xl font-bold text-white" data-testid="text-uptime">{s.uptime || "0h"}</p>
               <p className="text-xs text-gray-400">Uptime</p>
             </CardContent>
           </Card>
@@ -135,6 +135,15 @@ export default function Heartbeat() {
           </TabsList>
 
           <TabsContent value="engines" className="space-y-3">
+            {engines.length === 0 && (
+              <Card className="bg-gray-900/60 border-gray-700/30">
+                <CardContent className="py-12 text-center">
+                  <Cpu className="w-12 h-12 text-blue-400 mx-auto mb-3 opacity-60" />
+                  <p className="text-gray-300 font-medium">No Engines Registered</p>
+                  <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">AI engines will appear here once the autonomy system initializes. Each engine handles a specific aspect of your creator workflow.</p>
+                </CardContent>
+              </Card>
+            )}
             {engines.map((engine: any) => (
               <Card key={engine.name} className={`border ${engine.status === "error" ? "bg-red-900/20 border-red-500/20" : engine.status === "running" ? "bg-blue-900/10 border-blue-500/20" : "bg-gray-900/60 border-gray-700/30"}`} data-testid={`card-engine-${engine.name}`}>
                 <CardContent className="p-4">
@@ -194,7 +203,7 @@ export default function Heartbeat() {
           </TabsContent>
 
           <TabsContent value="decisions">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-decision-log">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Brain className="w-5 h-5 text-purple-400" /> AI Decision Log</CardTitle>
               </CardHeader>
@@ -202,24 +211,24 @@ export default function Heartbeat() {
                 {decisions.length ? (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {decisions.map((d: any) => (
-                      <div key={d.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                      <div key={d.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`decision-item-${d.id}`}>
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${d.outcome === "executed" ? "bg-green-900/50" : "bg-red-900/50"}`}>
                           {d.outcome === "executed" ? <CheckCircle className="w-3 h-3 text-green-400" /> : <XCircle className="w-3 h-3 text-red-400" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs capitalize">{d.engine.replace(/_/g, " ")}</Badge>
+                            <Badge variant="outline" className="text-xs capitalize" data-testid={`badge-decision-engine-${d.id}`}>{d.engine.replace(/_/g, " ")}</Badge>
                             <span className="text-xs text-gray-400">{formatTimeAgo(d.timestamp)}</span>
-                            {d.confidence && <span className="text-xs text-gray-500">{(d.confidence * 100).toFixed(0)}% confidence</span>}
+                            {d.confidence && <span className="text-xs text-gray-500" data-testid={`text-decision-confidence-${d.id}`}>{(d.confidence * 100).toFixed(0)}% confidence</span>}
                           </div>
-                          <p className="text-xs text-gray-300 mt-1 truncate">{d.decision}</p>
+                          <p className="text-xs text-gray-300 mt-1 truncate" data-testid={`text-decision-text-${d.id}`}>{d.decision}</p>
                           {d.reasoning && <p className="text-xs text-gray-500 mt-0.5">{d.reasoning}</p>}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
+                  <div className="text-center py-12" data-testid="empty-decisions">
                     <Brain className="w-12 h-12 text-purple-400 mx-auto mb-3" />
                     <p className="text-gray-300">AI Decision Log</p>
                     <p className="text-sm text-gray-400 mt-1">Every autonomous decision made by the AI will be logged here with reasoning and confidence levels.</p>
@@ -230,7 +239,7 @@ export default function Heartbeat() {
           </TabsContent>
 
           <TabsContent value="runs">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-run-history">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Clock className="w-5 h-5 text-cyan-400" /> Run History</CardTitle>
               </CardHeader>
@@ -238,13 +247,13 @@ export default function Heartbeat() {
                 {(runs as any[]).length ? (
                   <div className="space-y-1 max-h-96 overflow-y-auto">
                     {(runs as any[]).map((run: any) => (
-                      <div key={run.id} className="flex items-center justify-between p-2 rounded bg-gray-800/40 text-xs">
+                      <div key={run.id} className="flex items-center justify-between p-2 rounded bg-gray-800/40 text-xs" data-testid={`run-item-${run.id}`}>
                         <div className="flex items-center gap-2">
                           {run.status === "completed" ? <CheckCircle className="w-3 h-3 text-green-400" /> : <XCircle className="w-3 h-3 text-red-400" />}
-                          <span className="text-gray-300 capitalize">{run.engineName?.replace(/_/g, " ")}</span>
+                          <span className="text-gray-300 capitalize" data-testid={`text-run-engine-${run.id}`}>{run.engineName?.replace(/_/g, " ")}</span>
                         </div>
                         <div className="flex items-center gap-4 text-gray-400">
-                          <span>{run.actionsExecuted} actions</span>
+                          <span data-testid={`text-run-actions-${run.id}`}>{run.actionsExecuted} actions</span>
                           <span>{run.durationMs}ms</span>
                           <span>{formatTimeAgo(run.startedAt)}</span>
                         </div>
@@ -252,19 +261,23 @@ export default function Heartbeat() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">Run history will appear after the first autonomy cycle completes.</div>
+                  <div className="text-center py-12" data-testid="empty-runs">
+                    <Clock className="w-12 h-12 text-cyan-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Run History Yet</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Run history will appear after the first autonomy cycle completes. Every engine execution is logged with duration, actions taken, and success status.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        <Card className="bg-green-900/10 border-green-500/20">
+        <Card className="bg-green-900/10 border-green-500/20" data-testid="card-exception-mode">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <Eye className="w-5 h-5 text-green-400 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-green-300">Exception-Only Mode Active</p>
+                <p className="text-sm font-medium text-green-300" data-testid="text-exception-mode">Exception-Only Mode Active</p>
                 <p className="text-xs text-gray-400 mt-1">All 15 engines run silently in the background. You'll only be notified when something needs your attention — engine failures, content strikes, engagement crashes, or platform bans. Everything else is handled automatically.</p>
               </div>
             </div>

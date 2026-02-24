@@ -39,7 +39,7 @@ export default function ContentCommand() {
   if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/20 to-gray-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/20 to-gray-950 p-6" data-testid="page-content-command">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center">
@@ -47,7 +47,7 @@ export default function ContentCommand() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white" data-testid="text-page-title">Content Command</h1>
-            <p className="text-sm text-blue-300">AI-powered content creation, optimization & distribution</p>
+            <p className="text-sm text-blue-300" data-testid="text-page-subtitle">AI-powered content creation, optimization & distribution</p>
           </div>
         </div>
 
@@ -83,12 +83,21 @@ export default function ContentCommand() {
                 </div>
               </CardContent>
             </Card>
+            {(scripts as any[]).length === 0 && (
+              <Card className="bg-gray-900/60 border-gray-700/30">
+                <CardContent className="py-12 text-center">
+                  <FileText className="w-12 h-12 text-blue-400 mx-auto mb-3 opacity-60" />
+                  <p className="text-gray-300 font-medium">No Scripts Generated Yet</p>
+                  <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Use the form above to generate your first AI-powered script. Choose a topic, style, and let the AI craft a complete video script with hooks and SEO keywords.</p>
+                </CardContent>
+              </Card>
+            )}
             {(scripts as any[]).map((script: any) => (
-              <Card key={script.id} className="bg-gray-900/60 border-gray-700/30">
+              <Card key={script.id} className="bg-gray-900/60 border-gray-700/30" data-testid={`card-script-${script.id}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-white text-lg">{script.title}</CardTitle>
-                    <Badge variant="outline" className="border-blue-500/30 text-blue-400">{script.style}</Badge>
+                    <CardTitle className="text-white text-lg" data-testid={`text-script-title-${script.id}`}>{script.title}</CardTitle>
+                    <Badge variant="outline" className="border-blue-500/30 text-blue-400" data-testid={`badge-script-style-${script.id}`}>{script.style}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -135,8 +144,17 @@ export default function ContentCommand() {
                 </div>
               </CardContent>
             </Card>
+            {(atomizerJobs as any[]).length === 0 && (
+              <Card className="bg-gray-900/60 border-gray-700/30">
+                <CardContent className="py-12 text-center">
+                  <Split className="w-12 h-12 text-cyan-400 mx-auto mb-3 opacity-60" />
+                  <p className="text-gray-300 font-medium">No Atomized Content Yet</p>
+                  <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Enter a content title above and click "Atomize" to split one piece of content into optimized versions for every platform automatically.</p>
+                </CardContent>
+              </Card>
+            )}
             {(atomizerJobs as any[]).map((job: any) => (
-              <Card key={job.id} className="bg-gray-900/60 border-gray-700/30">
+              <Card key={job.id} className="bg-gray-900/60 border-gray-700/30" data-testid={`card-atomizer-${job.id}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-white text-base">{job.sourceTitle}</CardTitle>
@@ -162,7 +180,7 @@ export default function ContentCommand() {
           </TabsContent>
 
           <TabsContent value="hooks">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-hook-analyzer">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-400" /> Hook Analyzer</CardTitle>
               </CardHeader>
@@ -170,7 +188,7 @@ export default function ContentCommand() {
                 {(hookData as any[]).length ? (
                   <div className="space-y-3">
                     {(hookData as any[]).map((h: any) => (
-                      <div key={h.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                      <div key={h.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`hook-item-${h.id}`}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm text-white">{h.title}</span>
                           <div className="flex items-center gap-2">
@@ -183,14 +201,18 @@ export default function ContentCommand() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">Hook analysis will appear as your content is processed by the AI.</div>
+                  <div className="text-center py-12">
+                    <Zap className="w-12 h-12 text-yellow-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Hook Data Yet</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Hook analysis will appear as your content is processed by the AI. Each video's opening hook is scored and improvement suggestions are generated.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="thumbnails">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-thumbnail-tests">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Image className="w-5 h-5 text-pink-400" /> Thumbnail A/B Testing</CardTitle>
               </CardHeader>
@@ -198,7 +220,7 @@ export default function ContentCommand() {
                 {(thumbTests as any[]).length ? (
                   <div className="space-y-3">
                     {(thumbTests as any[]).map((t: any) => (
-                      <div key={t.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                      <div key={t.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`thumb-test-${t.id}`}>
                         <div className="flex items-center justify-between mb-2">
                           <Badge variant="outline" className={t.status === "completed" ? "border-green-500/30 text-green-400" : "border-blue-500/30 text-blue-400"}>{t.status}</Badge>
                           <span className="text-xs text-gray-400">{t.testDurationHours}h test</span>
@@ -216,7 +238,11 @@ export default function ContentCommand() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">Thumbnail A/B tests will run automatically when you upload new content.</div>
+                  <div className="text-center py-12">
+                    <Image className="w-12 h-12 text-pink-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Thumbnail Tests Running</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Thumbnail A/B tests will run automatically when you upload new content. The AI tests multiple variants and picks the one with the highest click-through rate.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -251,7 +277,11 @@ export default function ContentCommand() {
                     </svg>
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">Your content galaxy map will appear as your content ecosystem grows.</div>
+                  <div className="text-center py-12">
+                    <Globe className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">Content Empire Map Empty</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Your content galaxy map will appear as your content ecosystem grows. Each piece of content becomes a node showing reach, engagement, and cross-platform connections.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -276,7 +306,11 @@ export default function ContentCommand() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">SEO experiments will run automatically as AI tests different titles, tags, and descriptions.</div>
+                  <div className="text-center py-12">
+                    <FlaskConical className="w-12 h-12 text-emerald-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No SEO Experiments Yet</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">SEO experiments will run automatically as the AI tests different titles, tags, and descriptions to maximize search discovery and click-through rates.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -302,7 +336,11 @@ export default function ContentCommand() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-400">Viral chain reactions will be tracked in real-time when your content starts spreading.</div>
+                  <div className="text-center py-12">
+                    <Zap className="w-12 h-12 text-orange-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Viral Chains Detected</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Viral chain reactions will be tracked in real-time when your content starts spreading. See how shares cascade across platforms and communities.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>

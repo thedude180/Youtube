@@ -268,16 +268,6 @@ async function runEmpireBuild(buildId: number, email: string, idea: string, buil
       autopilotCount,
     });
 
-    await db.insert(notifications).values({
-      userId,
-      type: "empire-complete",
-      title: "Your Content Empire is Live!",
-      message: `AI built your empire from "${idea}". ${videosLaunched} videos in production, ${autopilotCount} posts scheduled across 6 platforms. Everything is running on autopilot.`,
-      severity: "info",
-      actionUrl: "/autopilot",
-      metadata: { source: "empire-launcher" },
-    });
-
   } catch (err: any) {
     console.error(`[EmpireLauncher] CATASTROPHIC failure for build ${buildId}:`, err.message);
 

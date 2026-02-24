@@ -22,7 +22,7 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
 - **Technology**: React + Vite, Tailwind CSS, shadcn/ui.
 - **UI/UX**: Dark theme, consolidated tabbed pages, notification bell, Advanced Mode toggle, content calendar, floating AI chat, command palette, keyboard shortcuts, rich empty states.
 - **Internationalization**: `react-i18next` with 12 languages (EN, ES, FR, PT, DE, JA, KO, ZH, AR, HI, RU, IT), RTL support, locale-aware formatting, auto-detection.
-- **SEO**: Dynamic hreflang, Open Graph, Twitter Cards, JSON-LD, robots.txt, sitemap.xml, canonical URLs.
+- **SEO**: Dynamic hreflang, Open Graph, Twitter Cards, JSON-LD, robots.txt, sitemap.xml, canonical URLs, per-page title/meta description via PAGE_META map.
 - **Accessibility**: Skip-to-content, RouteAnnouncer, ARIA roles/labels, keyboard navigation, focus management.
 - **Performance**: Web Vitals monitoring, preconnect/dns-prefetch, lazy loading, code splitting, virtual lists.
 - **PWA Support**: Service Worker for caching, push notifications, and offline capability.
@@ -57,7 +57,7 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
 - **Subscription & Access**: Multi-tier subscription model with role-based access.
 
 ### Notification & Feedback Systems
-- **Notification Engine**: Email and optional SMS alerts.
+- **Notification Engine**: Exception-only model — alerts only on 3+ consecutive engine failures, critical security threats, platform bans/shadow bans. All routine "info" notifications are suppressed.
 - **AI Feedback Processor**: Analyzes user feedback.
 
 ### Infrastructure & Hardening

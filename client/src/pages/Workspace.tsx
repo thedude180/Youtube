@@ -34,7 +34,7 @@ export default function Workspace() {
   if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-slate-950/20 to-gray-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-slate-950/20 to-gray-950 p-6" data-testid="page-workspace">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-600 to-gray-600 flex items-center justify-center">
@@ -42,7 +42,7 @@ export default function Workspace() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white" data-testid="text-page-title">Workspace</h1>
-            <p className="text-sm text-slate-300">Productivity tools — inbox, assets, reports, email & integrations</p>
+            <p className="text-sm text-slate-300" data-testid="text-page-subtitle">Productivity tools — inbox, assets, reports, email & integrations</p>
           </div>
         </div>
 
@@ -68,7 +68,7 @@ export default function Workspace() {
                 {(inboxMessages as any[]).length ? (
                   <div className="space-y-2">
                     {(inboxMessages as any[]).map((msg: any) => (
-                      <div key={msg.id} className={`flex items-center gap-3 p-3 rounded-lg border ${!msg.isRead ? "bg-blue-900/10 border-blue-500/20" : "bg-gray-800/40 border-gray-700/20"}`}>
+                      <div key={msg.id} className={`flex items-center gap-3 p-3 rounded-lg border ${!msg.isRead ? "bg-blue-900/10 border-blue-500/20" : "bg-gray-800/40 border-gray-700/20"}`} data-testid={`inbox-message-${msg.id}`}>
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xs font-bold">{msg.senderName?.charAt(0) || "?"}</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -120,7 +120,7 @@ export default function Workspace() {
                 {(assets as any[]).length ? (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {(assets as any[]).map((asset: any) => (
-                      <div key={asset.id} className="p-3 rounded-lg bg-gray-800/40 border border-gray-700/20 text-center">
+                      <div key={asset.id} className="p-3 rounded-lg bg-gray-800/40 border border-gray-700/20 text-center" data-testid={`asset-item-${asset.id}`}>
                         <FolderOpen className="w-8 h-8 text-amber-400 mx-auto mb-2" />
                         <p className="text-sm font-medium text-white truncate">{asset.name}</p>
                         <p className="text-xs text-gray-400 capitalize">{asset.assetType?.replace("_", " ")}</p>
@@ -129,7 +129,11 @@ export default function Workspace() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-400">Add intros, outros, overlays, music, and brand assets to your centralized library.</div>
+                  <div className="text-center py-8">
+                    <FolderOpen className="w-12 h-12 text-amber-400 mx-auto mb-3 opacity-60" />
+                    <p className="text-gray-300 font-medium">No Assets in Library</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">Add intros, outros, overlays, music, and brand assets to your centralized library using the form above.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -144,7 +148,7 @@ export default function Workspace() {
                 {(reports as any[]).length ? (
                   <div className="space-y-3">
                     {(reports as any[]).map((report: any) => (
-                      <div key={report.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                      <div key={report.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`report-item-${report.id}`}>
                         <div>
                           <p className="text-sm font-medium text-white">{report.name}</p>
                           <p className="text-xs text-gray-400">{report.description}</p>
@@ -176,7 +180,7 @@ export default function Workspace() {
                 {(emailLists as any[]).length ? (
                   <div className="space-y-3">
                     {(emailLists as any[]).map((list: any) => (
-                      <div key={list.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                      <div key={list.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`email-list-${list.id}`}>
                         <div>
                           <p className="text-sm font-medium text-white">{list.name}</p>
                           <p className="text-xs text-gray-400">{list.subscriberCount} subscribers</p>
@@ -238,7 +242,7 @@ export default function Workspace() {
                 {(merchItems as any[]).length ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {(merchItems as any[]).map((item: any) => (
-                      <div key={item.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                      <div key={item.id} className="p-4 rounded-lg bg-gray-800/40 border border-gray-700/20" data-testid={`merch-item-${item.id}`}>
                         <ShoppingBag className="w-8 h-8 text-pink-400 mb-2" />
                         <p className="text-sm font-medium text-white">{item.name}</p>
                         <p className="text-lg font-bold text-green-400">${item.price}</p>
@@ -270,7 +274,7 @@ export default function Workspace() {
                 {(tips as any[]).length ? (
                   <div className="space-y-2">
                     {(tips as any[]).map((tip: any) => (
-                      <div key={tip.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/40">
+                      <div key={tip.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/40" data-testid={`tip-item-${tip.id}`}>
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center text-white text-xs font-bold">{tip.donorName?.charAt(0) || "$"}</div>
                           <div>
