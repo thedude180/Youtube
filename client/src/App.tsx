@@ -62,6 +62,7 @@ const CreatorHub = lazyRetry(() => import("@/pages/CreatorHub"));
 const AICommand = lazyRetry(() => import("@/pages/AICommand"));
 const WarRoom = lazyRetry(() => import("@/pages/WarRoom"));
 const Workspace = lazyRetry(() => import("@/pages/Workspace"));
+const Heartbeat = lazyRetry(() => import("@/pages/Heartbeat"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -131,6 +132,7 @@ function Router() {
       <Route path="/ai-command">{() => <SectionErrorBoundary fallbackTitle="AI Command failed to load"><AICommand /></SectionErrorBoundary>}</Route>
       <Route path="/war-room">{() => <SectionErrorBoundary fallbackTitle="War Room failed to load"><WarRoom /></SectionErrorBoundary>}</Route>
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
+      <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>

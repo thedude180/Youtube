@@ -14,6 +14,7 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
+import { getAutonomyStatus, getAutonomyDecisionLog, getRecentRuns, toggleEngine, forceRunEngine } from "../autonomy-controller";
 
 const router = Router();
 
@@ -573,5 +574,47 @@ router.post("/api/nexus/daily-briefing/generate", async (req, res) => {
     const data = JSON.parse(response.choices[0].message.content || "{}");
     res.json(data);
   } catch (e) { res.status(500).json({ error: "Failed to generate briefing" }); }
+});
+
+router.get("/api/nexus/autonomy/status", async (req, res) => {
+  const userId = requireAuth(req, res); if (!userId) return;
+  try {
+    const status = await getAutonomyStatus(userId);
+    res.json(status);
+  } catch (e) { res.status(500).json({ error: "Failed to get autonomy status" }); }
+});
+
+router.get("/api/nexus/autonomy/decisions", async (req, res) => {
+  const userId = requireAuth(req, res); if (!userId) return;
+  try {
+    const log = await getAutonomyDecisionLog(userId, 50);
+    res.json(log);
+  } catch (e) { res.status(500).json({ error: "Failed to get decision log" }); }
+});
+
+router.get("/api/nexus/autonomy/runs", async (req, res) => {
+  const userId = requireAuth(req, res); if (!userId) return;
+  try {
+    const runs = await getRecentRuns(userId, 50);
+    res.json(runs);
+  } catch (e) { res.status(500).json({ error: "Failed to get engine runs" }); }
+});
+
+router.post("/api/nexus/autonomy/toggle-engine", async (req, res) => {
+  const userId = requireAuth(req, res); if (!userId) return;
+  try {
+    const { engineName, enabled } = req.body;
+    const result = await toggleEngine(userId, engineName, enabled);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: "Failed to toggle engine" }); }
+});
+
+router.post("/api/nexus/autonomy/force-run", async (req, res) => {
+  const userId = requireAuth(req, res); if (!userId) return;
+  try {
+    const { engineName } = req.body;
+    const result = await forceRunEngine(userId, engineName);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: "Failed to force run engine" }); }
 });
 

@@ -32,6 +32,7 @@ import {
   Network,
   Siren,
   KanbanSquare,
+  Heart,
 } from "lucide-react";
 import {
   Sidebar,
@@ -66,6 +67,7 @@ const navLinks = [
   { href: "/war-room", labelKey: "War Room", icon: Siren, minTier: "pro", advancedOnly: false },
   { href: "/creator-hub", labelKey: "Creator Hub", icon: Network, minTier: "free", advancedOnly: false },
   { href: "/workspace", labelKey: "Workspace", icon: KanbanSquare, minTier: "free", advancedOnly: false },
+  { href: "/heartbeat", labelKey: "AI Heartbeat", icon: Heart, minTier: "free", advancedOnly: false },
   { href: "/edge", labelKey: "Competitive Edge", icon: Crown, minTier: "free", advancedOnly: true },
   { href: "/stream-loop", labelKey: "Stream Loop", icon: Repeat, minTier: "pro", advancedOnly: true },
   { href: "/vod-shorts-loop", labelKey: "VOD & Shorts", icon: Film, minTier: "pro", advancedOnly: true },

@@ -5488,3 +5488,63 @@ export type GrowthCelebration = typeof growthCelebrations.$inferSelect;
 export type ContentLifeBalanceEntry = typeof contentLifeBalance.$inferSelect;
 export type PlatformFailoverRule = typeof platformFailoverRules.$inferSelect;
 export type ScriptGeneration = typeof scriptGenerations.$inferSelect;
+
+export const autonomyEngineRuns = pgTable("autonomy_engine_runs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  engineName: text("engine_name").notNull(),
+  status: text("status").notNull().default("pending"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+  actionsExecuted: integer("actions_executed").default(0),
+  result: jsonb("result"),
+  error: text("error"),
+}, (table) => [
+  index("autonomy_runs_user_idx").on(table.userId),
+  index("autonomy_runs_engine_idx").on(table.engineName),
+]);
+
+export const autonomyEngineConfig = pgTable("autonomy_engine_config", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  engineName: text("engine_name").notNull().unique(),
+  enabled: boolean("enabled").default(true),
+  intervalMinutes: integer("interval_minutes").default(15),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  status: text("status").notNull().default("idle"),
+  failureCount: integer("failure_count").default(0),
+  lastError: text("last_error"),
+  config: jsonb("config"),
+  totalRuns: integer("total_runs").default(0),
+  totalActions: integer("total_actions").default(0),
+  successRate: real("success_rate").default(1.0),
+});
+
+export const aiDecisionLog = pgTable("ai_decision_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  engineName: text("engine_name").notNull(),
+  decisionType: text("decision_type").notNull(),
+  context: jsonb("context"),
+  decision: text("decision").notNull(),
+  reasoning: text("reasoning"),
+  confidence: real("confidence").default(0.5),
+  outcome: text("outcome"),
+  appliedAt: timestamp("applied_at").defaultNow(),
+  resultMeasuredAt: timestamp("result_measured_at"),
+  wasSuccessful: boolean("was_successful"),
+});
+
+export const insertAutonomyEngineRunSchema = createInsertSchema(autonomyEngineRuns).omit({ id: true });
+export type InsertAutonomyEngineRun = z.infer<typeof insertAutonomyEngineRunSchema>;
+export type AutonomyEngineRun = typeof autonomyEngineRuns.$inferSelect;
+
+export const insertAutonomyEngineConfigSchema = createInsertSchema(autonomyEngineConfig).omit({ id: true });
+export type InsertAutonomyEngineConfig = z.infer<typeof insertAutonomyEngineConfigSchema>;
+export type AutonomyEngineConfig = typeof autonomyEngineConfig.$inferSelect;
+
+export const insertAiDecisionLogSchema = createInsertSchema(aiDecisionLog).omit({ id: true });
+export type InsertAiDecisionLog = z.infer<typeof insertAiDecisionLogSchema>;
+export type AiDecisionLog = typeof aiDecisionLog.$inferSelect;

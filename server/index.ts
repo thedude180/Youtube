@@ -13,6 +13,7 @@ import { pool } from "./db";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 import { startAutopilotMonitor, stopAutopilotMonitor } from "./services/autopilot-monitor";
 import { startConnectionGuardian, stopConnectionGuardian } from "./services/connection-guardian";
+import { startAutonomyController, stopAutonomyController } from "./autonomy-controller";
 import { storage } from "./storage";
 import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
 import { processDeadLetterQueue } from "./services/automation-hardening";
@@ -703,6 +704,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     () => {
       startAutopilotMonitor();
       startConnectionGuardian();
+      startAutonomyController();
 
       seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
 
@@ -762,6 +764,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
     stopAutopilotMonitor();
     stopConnectionGuardian();
+    stopAutonomyController();
     stopSentinel();
     stopCommunityAudienceEngine();
     stopComplianceLegalEngine();
