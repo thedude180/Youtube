@@ -16,35 +16,49 @@ function isInStartupGrace(): boolean {
 
 const authRateLimiter = new Map<string, number[]>();
 
-/**
- * Rate limiter middleware for auth endpoints (login, register, forgot-password).
- * 
- * NOTE: This uses in-memory rate limiting which resets on server restart.
- * To mitigate restart-based bypass attacks, stricter limits are applied 
- * during the 60-second startup grace period:
- * - During grace period: limit is reduced by half (e.g., 5 instead of 10)
- * - After grace period: normal limit applies (e.g., 10)
- * 
- * These are CRITICAL endpoints for security, so applying stricter limits
- * on restart prevents attackers from exploiting the rate limiter reset.
- */
 function rateLimitAuth(maxAttempts: number, windowMs: number) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip || req.socket?.remoteAddress || "unknown";
+    const realIp = req.socket?.remoteAddress || "unknown";
+    const forwardedIp = req.ip || realIp;
     const now = Date.now();
-    const timestamps = authRateLimiter.get(ip) || [];
-    const recent = timestamps.filter(t => t > now - windowMs);
-    
-    // Apply stricter limit during startup grace period for critical auth endpoints
+
     const effectiveLimit = isInStartupGrace() ? Math.ceil(maxAttempts / 2) : maxAttempts;
-    
-    if (recent.length >= effectiveLimit) {
-      return res.status(429).json({ message: "Too many attempts. Please wait a moment and try again." });
+
+    for (const ip of [realIp, forwardedIp]) {
+      const timestamps = authRateLimiter.get(ip) || [];
+      const recent = timestamps.filter(t => t > now - windowMs);
+      if (recent.length >= effectiveLimit) {
+        return res.status(429).json({ message: "Too many attempts. Please wait a moment and try again." });
+      }
     }
+
+    const key = realIp;
+    const timestamps = authRateLimiter.get(key) || [];
+    const recent = timestamps.filter(t => t > now - windowMs);
     recent.push(now);
-    authRateLimiter.set(ip, recent);
+    authRateLimiter.set(key, recent);
+
+    if (forwardedIp !== realIp) {
+      const fwdTimestamps = authRateLimiter.get(forwardedIp) || [];
+      const fwdRecent = fwdTimestamps.filter(t => t > now - windowMs);
+      fwdRecent.push(now);
+      authRateLimiter.set(forwardedIp, fwdRecent);
+    }
+
     next();
   };
+}
+
+const emailLoginLimiter = new Map<string, number[]>();
+function checkEmailRateLimit(email: string, maxAttempts: number = 8, windowMs: number = 120_000): boolean {
+  const now = Date.now();
+  const key = `email:${email.toLowerCase()}`;
+  const timestamps = emailLoginLimiter.get(key) || [];
+  const recent = timestamps.filter(t => t > now - windowMs);
+  if (recent.length >= maxAttempts) return false;
+  recent.push(now);
+  emailLoginLimiter.set(key, recent);
+  return true;
 }
 
 import { registerCleanup } from "../../services/cleanup-coordinator";
@@ -54,6 +68,12 @@ registerCleanup("authRateLimit", () => {
     const filtered = timestamps.filter(t => t > cutoff);
     if (filtered.length === 0) authRateLimiter.delete(key);
     else authRateLimiter.set(key, filtered);
+  }
+  const emailCutoff = Date.now() - 120_000;
+  for (const [key, timestamps] of emailLoginLimiter) {
+    const filtered = timestamps.filter(t => t > emailCutoff);
+    if (filtered.length === 0) emailLoginLimiter.delete(key);
+    else emailLoginLimiter.set(key, filtered);
   }
 }, 60_000);
 
@@ -166,6 +186,10 @@ export function registerAuthRoutes(app: Express): void {
       const { email, password } = parsed.data;
       const ip = req.ip || req.socket?.remoteAddress || "unknown";
       const userAgent = req.headers["user-agent"] || "";
+
+      if (!checkEmailRateLimit(email)) {
+        return res.status(429).json({ message: "Too many login attempts for this account. Please wait a moment and try again." });
+      }
 
       const lockStatus = await checkAccountLock(email.toLowerCase());
       if (lockStatus.locked) {
