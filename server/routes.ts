@@ -294,6 +294,10 @@ export async function registerRoutes(
     );
   });
 
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "Endpoint not found" });
+  });
+
   app.use(globalErrorHandler);
 
   return httpServer;

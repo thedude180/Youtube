@@ -26,7 +26,8 @@ export function registerAdminRoutes(app: Express) {
         }
         return user || { id: userId, role: "user", tier: "free" };
       });
-      res.json(result);
+      const { passwordHash, ...safeResult } = result as any;
+      res.json(safeResult);
     } catch (e: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
@@ -168,7 +169,8 @@ export function registerAdminRoutes(app: Express) {
     if (!userId) return;
     try {
       const allUsers = await storage.getAllUsers();
-      res.json(allUsers);
+      const safeUsers = allUsers.map(({ passwordHash, ...u }: any) => u);
+      res.json(safeUsers);
     } catch (e: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }

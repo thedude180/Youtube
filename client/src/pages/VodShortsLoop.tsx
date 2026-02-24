@@ -156,7 +156,7 @@ function MetricCard({ label, value, icon: Icon, color = "text-primary" }: { labe
 export default function VodShortsLoop() {
   const { data: status, isLoading } = useQuery<any>({
     queryKey: ["/api/loops/vod-shorts/status"],
-    refetchInterval: status?.isRunning ? 3000 : 15000,
+    refetchInterval: (query) => query.state.data?.isRunning ? 3000 : 15000,
   });
 
   const executeMutation = useMutation({
