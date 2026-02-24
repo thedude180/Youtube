@@ -18,7 +18,7 @@ export default function ContentCommand() {
   const [atomizerTitle, setAtomizerTitle] = useState("");
   const [atomizerPlatform, setAtomizerPlatform] = useState("youtube");
 
-  const { data: scripts = [] } = useQuery({ queryKey: ["/api/nexus/scripts"] });
+  const { data: scripts = [], isLoading } = useQuery({ queryKey: ["/api/nexus/scripts"] });
   const { data: hookData = [] } = useQuery({ queryKey: ["/api/nexus/hook-scores"] });
   const { data: thumbTests = [] } = useQuery({ queryKey: ["/api/nexus/thumbnail-tests"] });
   const { data: empireNodes = [] } = useQuery({ queryKey: ["/api/nexus/content-empire"] });
@@ -35,6 +35,8 @@ export default function ContentCommand() {
     mutationFn: () => apiRequest("POST", "/api/nexus/content-atomizer", { sourceTitle: atomizerTitle, sourcePlatform: atomizerPlatform }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nexus/content-atomizer"] }); setAtomizerTitle(""); },
   });
+
+  if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/20 to-gray-950 p-6">
@@ -68,7 +70,7 @@ export default function ContentCommand() {
               <CardContent className="space-y-4">
                 <div className="flex gap-3">
                   <Input placeholder="What's your video about?" value={scriptTopic} onChange={(e) => setScriptTopic(e.target.value)} className="bg-gray-800/60 border-gray-700/30 text-white" data-testid="input-script-topic" />
-                  <select value={scriptStyle} onChange={(e) => setScriptStyle(e.target.value)} className="bg-gray-800/60 border border-gray-700/30 rounded-md px-3 text-white text-sm">
+                  <select value={scriptStyle} onChange={(e) => setScriptStyle(e.target.value)} className="bg-gray-800/60 border border-gray-700/30 rounded-md px-3 text-white text-sm" data-testid="select-script-style">
                     <option value="educational">Educational</option>
                     <option value="entertaining">Entertaining</option>
                     <option value="tutorial">Tutorial</option>
@@ -122,7 +124,7 @@ export default function ContentCommand() {
                 <p className="text-sm text-gray-400">Take one piece of content and split it into optimized versions for every platform.</p>
                 <div className="flex gap-3">
                   <Input placeholder="Content title or URL" value={atomizerTitle} onChange={(e) => setAtomizerTitle(e.target.value)} className="bg-gray-800/60 border-gray-700/30 text-white" data-testid="input-atomizer-title" />
-                  <select value={atomizerPlatform} onChange={(e) => setAtomizerPlatform(e.target.value)} className="bg-gray-800/60 border border-gray-700/30 rounded-md px-3 text-white text-sm">
+                  <select value={atomizerPlatform} onChange={(e) => setAtomizerPlatform(e.target.value)} className="bg-gray-800/60 border border-gray-700/30 rounded-md px-3 text-white text-sm" data-testid="select-atomizer-platform">
                     <option value="youtube">YouTube</option>
                     <option value="twitch">Twitch</option>
                     <option value="tiktok">TikTok</option>

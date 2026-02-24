@@ -15,7 +15,7 @@ export default function Workspace() {
   const [assetName, setAssetName] = useState("");
   const [assetType, setAssetType] = useState("intro");
 
-  const { data: inboxMessages = [] } = useQuery({ queryKey: ["/api/nexus/team-inbox"] });
+  const { data: inboxMessages = [], isLoading } = useQuery({ queryKey: ["/api/nexus/team-inbox"] });
   const { data: assets = [] } = useQuery({ queryKey: ["/api/nexus/asset-library"] });
   const { data: reports = [] } = useQuery({ queryKey: ["/api/nexus/reports"] });
   const { data: emailLists = [] } = useQuery({ queryKey: ["/api/nexus/email-lists"] });
@@ -30,6 +30,8 @@ export default function Workspace() {
 
   const unreadCount = (inboxMessages as any[]).filter((m: any) => !m.isRead).length;
   const totalTips = (tips as any[]).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+  if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-slate-950/20 to-gray-950 p-6">
@@ -102,7 +104,7 @@ export default function Workspace() {
               <CardContent className="space-y-4">
                 <div className="flex gap-3">
                   <Input placeholder="Asset name" value={assetName} onChange={(e) => setAssetName(e.target.value)} className="bg-gray-800/60 border-gray-700/30 text-white" data-testid="input-asset-name" />
-                  <select value={assetType} onChange={(e) => setAssetType(e.target.value)} className="bg-gray-800/60 border border-gray-700/30 rounded-md px-3 text-white text-sm">
+                  <select value={assetType} onChange={(e) => setAssetType(e.target.value)} className="bg-gray-800/60 border border-gray-700/30 rounded-md px-3 text-white text-sm" data-testid="select-asset-type">
                     <option value="intro">Intro</option>
                     <option value="outro">Outro</option>
                     <option value="overlay">Overlay</option>

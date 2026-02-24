@@ -16,7 +16,7 @@ export default function AICommand() {
   const [aiName, setAiName] = useState("");
   const [aiPersonality, setAiPersonality] = useState("professional");
 
-  const { data: personalityConfig } = useQuery({ queryKey: ["/api/nexus/ai-personality"] });
+  const { data: personalityConfig, isLoading } = useQuery({ queryKey: ["/api/nexus/ai-personality"] });
   const { data: learningData = [] } = useQuery({ queryKey: ["/api/nexus/ai-learning"] });
   const { data: balanceScore } = useQuery({ queryKey: ["/api/nexus/balance-score"] });
   const { data: failoverRules = [] } = useQuery({ queryKey: ["/api/nexus/failover-rules"] });
@@ -42,6 +42,8 @@ export default function AICommand() {
   });
 
   const currentAiName = (personalityConfig as any)?.aiName || "Nova";
+
+  if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-violet-950/20 to-gray-950 p-6">
@@ -123,7 +125,7 @@ export default function AICommand() {
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Personality</label>
-                    <select value={aiPersonality} onChange={(e) => setAiPersonality(e.target.value)} className="w-full bg-gray-800/60 border border-gray-700/30 rounded-md px-3 py-2 text-white text-sm">
+                    <select value={aiPersonality} onChange={(e) => setAiPersonality(e.target.value)} className="w-full bg-gray-800/60 border border-gray-700/30 rounded-md px-3 py-2 text-white text-sm" data-testid="select-ai-personality">
                       <option value="professional">Professional & Focused</option>
                       <option value="friendly">Friendly & Casual</option>
                       <option value="motivational">Motivational Coach</option>

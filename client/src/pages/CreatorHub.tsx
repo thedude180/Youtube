@@ -16,7 +16,7 @@ export default function CreatorHub() {
   const [networkName, setNetworkName] = useState("");
   const [networkDesc, setNetworkDesc] = useState("");
 
-  const { data: networks = [] } = useQuery({ queryKey: ["/api/nexus/networks"] });
+  const { data: networks = [], isLoading } = useQuery({ queryKey: ["/api/nexus/networks"] });
   const { data: achievements = [] } = useQuery({ queryKey: ["/api/nexus/achievements"] });
   const { data: cloneConfig } = useQuery({ queryKey: ["/api/nexus/creator-clone"] });
   const { data: overlaps = [] } = useQuery({ queryKey: ["/api/nexus/audience-overlaps"] });
@@ -27,6 +27,8 @@ export default function CreatorHub() {
     mutationFn: () => apiRequest("POST", "/api/nexus/networks", { name: networkName, description: networkDesc, category: "general" }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nexus/networks"] }); setNetworkName(""); setNetworkDesc(""); },
   });
+
+  if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-pink-950/20 to-gray-950 p-6">
@@ -67,7 +69,7 @@ export default function CreatorHub() {
             {(networks as any[]).length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(networks as any[]).map((n: any) => (
-                  <Card key={n.id} className="bg-gray-900/60 border-gray-700/30">
+                  <Card key={n.id} className="bg-gray-900/60 border-gray-700/30" data-testid={`card-network-${n.id}`}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-600 to-purple-600 flex items-center justify-center">

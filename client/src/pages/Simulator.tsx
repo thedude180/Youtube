@@ -33,7 +33,7 @@ export default function Simulator() {
   const [platformFocus, setPlatformFocus] = useState("youtube");
   const [contentType, setContentType] = useState("mixed");
 
-  const { data: scenarios = [] } = useQuery({ queryKey: ["/api/nexus/what-if"] });
+  const { data: scenarios = [], isLoading } = useQuery({ queryKey: ["/api/nexus/what-if"] });
   const { data: projections = [] } = useQuery({ queryKey: ["/api/nexus/time-machine"] });
   const { data: momentum } = useQuery({ queryKey: ["/api/nexus/momentum"] });
   const { data: peakTimes = [] } = useQuery({ queryKey: ["/api/nexus/peak-times"] });
@@ -51,6 +51,8 @@ export default function Simulator() {
 
   const withAI = (projections as any[]).find((p: any) => p.projectionType === "with_ai");
   const withoutAI = (projections as any[]).find((p: any) => p.projectionType === "without_ai");
+
+  if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-emerald-950/20 to-gray-950 p-6">
@@ -88,7 +90,7 @@ export default function Simulator() {
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Platform Focus</label>
-                    <select value={platformFocus} onChange={(e) => setPlatformFocus(e.target.value)} className="w-full bg-gray-800/60 border border-gray-700/30 rounded-md px-3 py-2 text-white text-sm">
+                    <select value={platformFocus} onChange={(e) => setPlatformFocus(e.target.value)} className="w-full bg-gray-800/60 border border-gray-700/30 rounded-md px-3 py-2 text-white text-sm" data-testid="select-platform-focus">
                       <option value="youtube">YouTube</option>
                       <option value="tiktok">TikTok</option>
                       <option value="twitch">Twitch</option>
@@ -97,7 +99,7 @@ export default function Simulator() {
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Content Type</label>
-                    <select value={contentType} onChange={(e) => setContentType(e.target.value)} className="w-full bg-gray-800/60 border border-gray-700/30 rounded-md px-3 py-2 text-white text-sm">
+                    <select value={contentType} onChange={(e) => setContentType(e.target.value)} className="w-full bg-gray-800/60 border border-gray-700/30 rounded-md px-3 py-2 text-white text-sm" data-testid="select-content-type">
                       <option value="mixed">Mixed</option>
                       <option value="longform">Long-form</option>
                       <option value="shorts">Shorts/Clips</option>

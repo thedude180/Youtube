@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Shield, Siren, CheckCircle, RefreshCw, Radio, Activity, Zap } from "lucide-react";
 
 export default function WarRoom() {
-  const { data: incidents = [] } = useQuery({ queryKey: ["/api/nexus/war-room"] });
+  const { data: incidents = [], isLoading } = useQuery({ queryKey: ["/api/nexus/war-room"] });
   const { data: anomalies = [] } = useQuery({ queryKey: ["/api/nexus/anomalies"] });
 
   const scanThreats = useMutation({
@@ -16,6 +16,8 @@ export default function WarRoom() {
 
   const activeIncidents = (incidents as any[]).filter((i: any) => i.status === "active");
   const hasActiveCrisis = activeIncidents.length > 0;
+
+  if (isLoading) return <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-950 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full" /></div>;
 
   return (
     <div className={`min-h-screen p-6 ${hasActiveCrisis ? "bg-gradient-to-br from-red-950 via-gray-950 to-red-950" : "bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950"}`}>
@@ -70,7 +72,7 @@ export default function WarRoom() {
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-red-400 flex items-center gap-2"><Siren className="w-5 h-5 animate-pulse" /> Active Incidents</h2>
             {activeIncidents.map((incident: any) => (
-              <Card key={incident.id} className={`border ${incident.severity === "critical" ? "bg-red-900/30 border-red-500/30" : incident.severity === "high" ? "bg-orange-900/30 border-orange-500/30" : "bg-amber-900/30 border-amber-500/30"}`}>
+              <Card key={incident.id} className={`border ${incident.severity === "critical" ? "bg-red-900/30 border-red-500/30" : incident.severity === "high" ? "bg-orange-900/30 border-orange-500/30" : "bg-amber-900/30 border-amber-500/30"}`} data-testid={`card-incident-${incident.id}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-white">{incident.title}</CardTitle>
