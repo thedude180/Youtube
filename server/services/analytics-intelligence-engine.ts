@@ -539,7 +539,6 @@ export async function generatePerformanceBenchmarks(userId: string): Promise<voi
 
 export async function runAnalyticsScan(): Promise<{ usersScanned: number; duration: number }> {
   const startTime = Date.now();
-  console.log("[Analytics Engine] Starting full analytics scan...");
 
   try {
     const allChannels = await db.select({ userId: channels.userId }).from(channels)

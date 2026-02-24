@@ -639,7 +639,6 @@ function generateProspectBrands(niche: string, subscriberCount: number): Array<{
 }
 
 export async function runBrandPartnershipsScan(): Promise<void> {
-  console.log("[Brand Engine] Starting full brand partnerships scan...");
   const startTime = Date.now();
 
   try {

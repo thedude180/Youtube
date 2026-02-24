@@ -696,6 +696,23 @@ function AppContent() {
 
 offlineEngine.start();
 
+function OfflineBanner() {
+  const [offline, setOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const goOff = () => setOffline(true);
+    const goOn = () => setOffline(false);
+    window.addEventListener("offline", goOff);
+    window.addEventListener("online", goOn);
+    return () => { window.removeEventListener("offline", goOff); window.removeEventListener("online", goOn); };
+  }, []);
+  if (!offline) return null;
+  return (
+    <div className="fixed top-0 inset-x-0 z-[9999] bg-destructive text-destructive-foreground text-center text-xs py-1 font-medium" data-testid="banner-offline">
+      You are offline — changes will sync when you reconnect
+    </div>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -710,6 +727,7 @@ function App() {
               </AdvancedModeProvider>
             </AdaptiveProvider>
           </ThemeProvider>
+          <OfflineBanner />
           <GlobalProgress />
           <Toaster />
           <CookieConsent />

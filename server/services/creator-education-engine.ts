@@ -460,7 +460,6 @@ export async function checkSkillMilestones(userId: string): Promise<void> {
 
 export async function runEducationScan(): Promise<{ usersScanned: number; duration: number }> {
   const startTime = Date.now();
-  console.log("[Education Engine] Starting education scan...");
 
   try {
     const allUsers = await db.select({ id: users.id }).from(users);

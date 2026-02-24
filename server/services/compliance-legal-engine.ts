@@ -523,7 +523,6 @@ export async function analyzeFairUse(userId: string): Promise<void> {
 
 export async function runComplianceScan(): Promise<void> {
   const startTime = Date.now();
-  console.log("[Compliance Engine] Starting full compliance scan...");
 
   try {
     const allUsers = await db.select({ id: users.id }).from(users);

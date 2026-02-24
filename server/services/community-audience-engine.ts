@@ -638,14 +638,11 @@ export async function executeAutoCommunityActions(userId: string): Promise<void>
 
 export async function runCommunityAudienceScan(): Promise<void> {
   const startTime = Date.now();
-  console.log("[Community Engine] Starting community & audience scan...");
-
   try {
     const allChannels = await db.select({ userId: channels.userId }).from(channels);
     const userIds = [...new Set(allChannels.map(ch => ch.userId).filter((id): id is string => id !== null))];
 
     if (userIds.length === 0) {
-      console.log("[Community Engine] No users with connected channels found. Scan complete.");
       lastScanTime = Date.now();
       return;
     }

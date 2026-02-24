@@ -500,13 +500,13 @@ export async function autoFixPipelines(): Promise<{ fixed: number }> {
   return { fixed };
 }
 
+let _lastAutoFixLog = 0;
+
 export async function runAutoFixCycle(): Promise<{
   posts: { fixed: number; deferred: number; permanent: number; total: number };
   dlq: { processed: number; deferred: number };
   pipelines: { fixed: number };
 }> {
-  logger.info("Starting auto-fix cycle");
-
   const [posts, dlq, pipelines] = await Promise.all([
     selfHealingCore("auto-fix-posts", () => autoFixFailedPosts(), { silent: true, maxRetries: 1 }),
     selfHealingCore("auto-fix-dlq", () => autoFixDeadLetterQueue(), { silent: true, maxRetries: 1 }),
@@ -521,7 +521,11 @@ export async function runAutoFixCycle(): Promise<{
 
   const totalActions = result.posts.fixed + result.posts.deferred + result.dlq.processed + result.dlq.deferred + result.pipelines.fixed;
   if (totalActions > 0) {
-    logger.info("Auto-fix cycle results", result);
+    logger.info("[AutoFix] Cycle complete", result);
+    _lastAutoFixLog = Date.now();
+  } else if (Date.now() - _lastAutoFixLog > 30 * 60_000) {
+    logger.info("[AutoFix] Idle — no failed items to fix");
+    _lastAutoFixLog = Date.now();
   }
 
   return result;

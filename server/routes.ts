@@ -143,6 +143,22 @@ export async function registerRoutes(
     return rateLimit(RATE_LIMIT_WINDOW, RATE_LIMIT_MAX_DEFAULT)(req, res, next);
   });
 
+  const PUBLIC_API_PATHS = new Set([
+    "/api/health", "/api/verify", "/api/vitals", "/api/events",
+  ]);
+  const PUBLIC_API_PREFIXES = ["/api/auth", "/api/stripe"];
+
+  app.use("/api", (req: any, res, next) => {
+    const fullPath = `/api${req.path}`;
+    if (PUBLIC_API_PATHS.has(fullPath)) return next();
+    if (PUBLIC_API_PREFIXES.some(p => fullPath.startsWith(p))) return next();
+    if (req.method === "HEAD") return next();
+    if (!req.isAuthenticated || !req.isAuthenticated()) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    next();
+  });
+
   const FREE_AI_ROUTES = new Set([
     "/api/ai/dashboard-actions", "/api/ai/content-ideas", "/api/ai/advisor",
     "/api/ai/daily-briefing", "/api/ai/health-score",

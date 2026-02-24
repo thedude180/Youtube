@@ -326,7 +326,6 @@ async function scanRateLimitEffectiveness(): Promise<Finding[]> {
 
 export async function runFullSecurityScan(triggeredBy: string = "automated"): Promise<SecurityScanResult> {
   const startTime = Date.now();
-  console.log(`[AI Sentinel] Starting ${triggeredBy} security scan...`);
 
   const [scan] = await db.insert(securityScans).values({
     scanType: "full",
@@ -392,7 +391,9 @@ export async function runFullSecurityScan(triggeredBy: string = "automated"): Pr
     );
   }
 
-  console.log(`[AI Sentinel] Scan complete: score=${score}/100, findings=${allFindings.length}, autoFixed=${autoFixed}, duration=${duration}ms`);
+  if (allFindings.length > 0 || autoFixed > 0 || score < 100) {
+    console.log(`[AI Sentinel] Scan complete: score=${score}/100, findings=${allFindings.length}, autoFixed=${autoFixed}, duration=${duration}ms`);
+  }
   lastScanTime = Date.now();
 
   return { scanId: scan.id, findings: allFindings, summary, duration };
