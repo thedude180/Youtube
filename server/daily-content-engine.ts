@@ -41,13 +41,13 @@ const MIN_DAY_OFFSET = 1; // always schedule from tomorrow onward — never over
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
-// Safety valve: max batches processed per single engine invocation.
-// Each batch takes ~15-30s (AI call). Without a cap the while-loop monopolises
-// the Node.js event loop and starves every other cron job.
-// Stream progress is persisted to the DB after every batch, so the next cron
-// cycle picks up exactly where this one left off — no content is skipped.
-const MAX_BATCHES_PER_ENGINE_RUN = 8;
-const ENGINE_RUN_BUDGET_MS = 90_000; // 90 s — hard wall-clock limit per run
+// Hard wall-clock safety valve per engine invocation.
+// Each batch awaits a real OpenAI API call (~5-15 s), so the event loop is
+// freed between batches — no starvation occurs.  The 10-minute cap only
+// protects against runaway scenarios (e.g. 50+ unprocessed streams).
+// Stream progress is persisted after every batch, so the next cron cycle
+// resumes exactly where this one left off — no content is ever skipped.
+const ENGINE_RUN_BUDGET_MS = 600_000; // 10 minutes
 
 
 async function getNextAvailableDayOffset(userId: string): Promise<number> {
@@ -819,15 +819,9 @@ export async function runDailyContentGeneration(): Promise<void> {
         let consecutiveFailures = 0;
 
         while (streamRemaining >= 1) {
-          // Safety valve: stop this cron invocation if we've hit the batch cap OR
-          // the wall-clock budget.  Stream progress is already persisted to the DB
-          // after every successful batch, so the next cron cycle resumes from here.
-          if (totalBatchesThisRun >= MAX_BATCHES_PER_ENGINE_RUN) {
-            logger.info("Per-run batch cap reached, deferring remaining content to next cycle", {
-              userId, batchesDone: totalBatchesThisRun, streamRemainingMinutes: streamRemaining,
-            });
-            break;
-          }
+          // Safety valve: stop only when the wall-clock budget is exceeded.
+          // Each batch awaits a real API call, so the event loop is freed between
+          // iterations — no starvation.  Progress is persisted after every batch.
           if (Date.now() - runStartMs > ENGINE_RUN_BUDGET_MS) {
             logger.info("Per-run time budget reached, deferring remaining content to next cycle", {
               userId, elapsedMs: Date.now() - runStartMs, streamRemainingMinutes: streamRemaining,
