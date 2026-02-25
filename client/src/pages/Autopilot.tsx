@@ -5,12 +5,13 @@ import { safeArray } from "@/lib/safe-data";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { formatDistanceToNow } from "date-fns";
@@ -512,6 +513,7 @@ export default function Autopilot() {
   });
 
   const [selectedQueueIds, setSelectedQueueIds] = useState<Set<number>>(new Set());
+  const [previewItemId, setPreviewItemId] = useState<number | null>(null);
 
   const stats = statsQuery.data;
   const rawQueue = useMemo(() => queueQuery.data || [], [queueQuery.data]);
@@ -539,6 +541,23 @@ export default function Autopilot() {
   const scheduledCount = useMemo(() => rawQueue.filter(i => i.status === "scheduled").length, [rawQueue]);
   const processingCount = useMemo(() => rawQueue.filter(i => isProcessingStatus(i.status)).length, [rawQueue]);
   const publishedCount = useMemo(() => rawQueue.filter(i => i.status === "published").length, [rawQueue]);
+
+  const formatPreviewQuery = useQuery<{
+    platform: string;
+    raw: string;
+    formatted: string;
+    title?: string;
+    tags?: string[];
+    warnings: string[];
+    rules: string[];
+    limits: Record<string, string | number>;
+    charCount: number;
+    truncated: boolean;
+  }>({
+    queryKey: ["/api/autopilot/queue", previewItemId, "format-preview"],
+    enabled: previewItemId !== null,
+    staleTime: 30_000,
+  });
 
   const toggleQueueSelect = useCallback((id: number) => {
     setSelectedQueueIds(prev => {
@@ -1105,6 +1124,16 @@ export default function Autopilot() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setPreviewItemId(item.id)}
+                        data-testid={`button-preview-${item.id}`}
+                        aria-label="Preview platform format"
+                        title="See how this looks when posted"
+                      >
+                        <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
                       {item.status === "scheduled" && (
                         <Button
                           size="icon"
@@ -1385,6 +1414,110 @@ export default function Autopilot() {
         </TabsContent>
       </Tabs>
       </UpgradeTabGate>
+
+      <Dialog open={previewItemId !== null} onOpenChange={open => { if (!open) setPreviewItemId(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="dialog-platform-preview">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-primary" />
+              Platform Format Preview
+            </DialogTitle>
+          </DialogHeader>
+
+          {formatPreviewQuery.isLoading && (
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          )}
+
+          {formatPreviewQuery.isError && (
+            <p className="text-sm text-destructive">Failed to load format preview. Try again.</p>
+          )}
+
+          {formatPreviewQuery.data && (() => {
+            const preview = formatPreviewQuery.data;
+            const item = rawQueue.find(q => q.id === previewItemId);
+            const platformLabel = preview.platform.charAt(0).toUpperCase() + preview.platform.slice(1);
+            const charLimit = preview.limits.chars || preview.limits.caption || preview.limits.postMaxLength;
+            const pct = charLimit ? Math.round((preview.charCount / Number(charLimit)) * 100) : null;
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {item && <PlatformBadge platform={item.targetPlatform} />}
+                  <span className="text-sm text-muted-foreground">
+                    {preview.charCount.toLocaleString()} chars
+                    {charLimit ? ` / ${Number(charLimit).toLocaleString()} max` : ""}
+                    {pct !== null && (
+                      <span className={pct > 95 ? " text-destructive font-medium" : pct > 80 ? " text-yellow-400" : " text-green-400"}>
+                        {" "}({pct}%)
+                      </span>
+                    )}
+                  </span>
+                  {preview.truncated && (
+                    <Badge variant="destructive" className="text-xs">Truncated</Badge>
+                  )}
+                </div>
+
+                {preview.title && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Title / Caption</p>
+                    <p className="text-sm font-semibold border rounded-md px-3 py-2 bg-muted/30" data-testid="text-preview-title">{preview.title}</p>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Formatted Content ({platformLabel})</p>
+                  <pre className="text-xs whitespace-pre-wrap break-words font-sans border rounded-md px-3 py-3 bg-muted/30 max-h-48 overflow-y-auto" data-testid="text-preview-content">
+                    {preview.formatted}
+                  </pre>
+                </div>
+
+                {preview.tags && preview.tags.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tags ({preview.tags.length})</p>
+                    <div className="flex flex-wrap gap-1">
+                      {preview.tags.slice(0, 20).map((tag, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
+                      ))}
+                      {preview.tags.length > 20 && <Badge variant="outline" className="text-xs">+{preview.tags.length - 20} more</Badge>}
+                    </div>
+                  </div>
+                )}
+
+                {preview.warnings.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-yellow-400 uppercase tracking-wide flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Format Warnings
+                    </p>
+                    <ul className="space-y-1">
+                      {preview.warnings.map((w, i) => (
+                        <li key={i} className="text-xs text-yellow-300/80 bg-yellow-500/10 rounded px-2 py-1">• {w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {preview.rules.length > 0 && (
+                  <div className="space-y-1 border-t pt-3">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{platformLabel} Format Rules</p>
+                    <ul className="space-y-1">
+                      {preview.rules.map((r, i) => (
+                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-green-400 mt-0.5 shrink-0" />
+                          {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

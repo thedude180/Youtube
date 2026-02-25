@@ -552,7 +552,11 @@ export function registerAutopilotRoutes(app: Express) {
         .where(eq(autopilotQueue.id, id));
 
       const { publishToplatform } = await import("../platform-publisher");
-      const result = await publishToplatform(userId, post.targetPlatform, post.content || "");
+      const result = await publishToplatform(userId, post.targetPlatform, post.content || "", {
+        ...(post.metadata as any),
+        caption: post.caption,
+        contentType: (post.metadata as any)?.contentType,
+      });
 
       if (result.success) {
         const [updated] = await db.update(autopilotQueue)
@@ -582,6 +586,48 @@ export function registerAutopilotRoutes(app: Express) {
           .where(eq(autopilotQueue.id, id)).catch(() => {});
       }
       res.status(500).json({ error: "Failed to publish" });
+    }
+  });
+
+  app.get("/api/autopilot/queue/:id/format-preview", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const id = parseNumericId(req.params.id as string, res);
+      if (id === null) return;
+
+      const [post] = await db.select().from(autopilotQueue)
+        .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)));
+      if (!post) return res.status(404).json({ error: "Post not found" });
+
+      const { formatContentForPlatform, getFormatSummary } = await import("../lib/platform-formatter");
+      const { sanitizePlaceholders } = await import("../platform-publisher");
+
+      const rawContent = sanitizePlaceholders(post.content || "", post.metadata as any);
+      const meta = {
+        ...(post.metadata as any),
+        caption: post.caption,
+        title: post.caption,
+      };
+
+      const platform = post.targetPlatform;
+      const formatted = formatContentForPlatform(platform, rawContent, meta);
+      const summary = getFormatSummary(platform);
+
+      res.json({
+        platform,
+        raw: rawContent,
+        formatted: formatted.content,
+        title: formatted.title,
+        tags: formatted.tags,
+        warnings: formatted.warnings,
+        rules: summary.rules,
+        limits: summary.limits,
+        charCount: formatted.content.length,
+        truncated: formatted.content.length < rawContent.length,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: "Format preview failed" });
     }
   });
 

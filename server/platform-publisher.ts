@@ -5,6 +5,7 @@ import { OAUTH_CONFIGS } from "./oauth-config";
 import { storage } from "./storage";
 import { withRetry } from "./services/api-retry";
 import { PLATFORM_CONTENT_SPECS, getTitleLimit, getDescriptionLimit } from "@shared/platform-specs";
+import { formatContentForPlatform } from "./lib/platform-formatter";
 
 export interface PublishResult {
   success: boolean;
@@ -376,6 +377,12 @@ export async function publishToplatform(
 ): Promise<PublishResult> {
   content = sanitizePlaceholders(content, metadata);
 
+  const formatted = formatContentForPlatform(platform, content, metadata);
+  const formattedContent = formatted.content;
+  if (formatted.warnings.length > 0) {
+    console.info(`[Publisher:${platform}] Format warnings:`, formatted.warnings);
+  }
+
   if (platform === "youtube" || platform === "youtubeshorts") {
     return {
       success: false,
@@ -387,7 +394,12 @@ export async function publishToplatform(
 
   if (platform === "tiktok") {
     const { publishVideoToTikTok } = await import("./tiktok-publisher");
-    const result = await publishVideoToTikTok(userId, content, metadata);
+    const tiktokContent = formatted.content;
+    const enrichedMetadata = {
+      ...metadata,
+      tiktokCaption: tiktokContent,
+    };
+    const result = await publishVideoToTikTok(userId, tiktokContent, enrichedMetadata);
     return {
       success: result.success,
       platform: "tiktok",
@@ -397,7 +409,7 @@ export async function publishToplatform(
   }
 
   if (platform === "kick") {
-    return postToKick("", content, null);
+    return postToKick("", formattedContent, null);
   }
 
   if (platform === "rumble") {
@@ -432,9 +444,9 @@ export async function publishToplatform(
 
   switch (platform) {
     case "x":
-      return postToX(accessToken, content);
+      return postToX(accessToken, formattedContent);
     case "discord":
-      return postToDiscord(accessToken, content, channel);
+      return postToDiscord(accessToken, formattedContent, channel);
     case "twitch":
       return { success: false, platform: "twitch", error: "Twitch is configured for AI-driven streaming only. Content distribution is handled through other platforms." };
     default:
