@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, ArrowRight, Lightbulb, TrendingUp, Video, DollarSign, Users, Zap } from "lucide-react";
+import { Sparkles, ArrowRight, Lightbulb, TrendingUp, Video, DollarSign, Users, Zap, CheckCircle2, Calendar, Upload } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -12,13 +12,19 @@ interface Recommendation {
   action: string;
   href: string;
   priority: "high" | "medium" | "low";
-  category: string;
 }
 
-function getStaticRecommendations(stats: any): Recommendation[] {
+function buildRecommendations(
+  channels: any[],
+  stats: any,
+  autopilotStats: any,
+): Recommendation[] {
   const recs: Recommendation[] = [];
+  const channelCount = channels?.length ?? 0;
+  const queuedCount = autopilotStats?.scheduledPosts ?? 0;
+  const totalVideos = stats?.totalVideos ?? 0;
 
-  if (!stats?.totalChannels || stats.totalChannels === 0) {
+  if (channelCount === 0) {
     recs.push({
       icon: Video,
       title: "Connect Your First Platform",
@@ -26,11 +32,21 @@ function getStaticRecommendations(stats: any): Recommendation[] {
       action: "Connect Now",
       href: "/settings",
       priority: "high",
-      category: "Setup",
     });
   }
 
-  if (!stats?.totalVideos || stats.totalVideos < 5) {
+  if (channelCount > 0 && queuedCount > 0) {
+    recs.push({
+      icon: Upload,
+      title: `${queuedCount} Videos Ready to Publish`,
+      description: `AI has queued ${queuedCount} pieces of content — they're going live automatically`,
+      action: "View Queue",
+      href: "/content",
+      priority: "high",
+    });
+  }
+
+  if (channelCount > 0 && queuedCount === 0 && totalVideos === 0) {
     recs.push({
       icon: TrendingUp,
       title: "Start Your Growth Journey",
@@ -38,38 +54,43 @@ function getStaticRecommendations(stats: any): Recommendation[] {
       action: "Begin Journey",
       href: "/growth",
       priority: "high",
-      category: "Growth",
     });
   }
 
   recs.push({
-    icon: Zap,
-    title: "Enable Full Autopilot",
-    description: "Let AI handle content scheduling, optimization, and cross-posting automatically",
-    action: "Activate",
-    href: "/autopilot",
+    icon: Calendar,
+    title: "Content Calendar",
+    description: "See everything scheduled — AI fills future days automatically from your stream footage",
+    action: "View Calendar",
+    href: "/content",
     priority: "medium",
-    category: "Automation",
+  });
+
+  recs.push({
+    icon: Zap,
+    title: "Autopilot Controls",
+    description: "AI handles scheduling, optimization, and cross-posting — review what's running",
+    action: "Open Autopilot",
+    href: "/content",
+    priority: "medium",
   });
 
   recs.push({
     icon: DollarSign,
-    title: "Optimize Revenue Streams",
-    description: "AI has identified potential revenue opportunities across your connected platforms",
+    title: "Revenue Dashboard",
+    description: "AI has identified revenue opportunities across your connected platforms",
     action: "Review",
     href: "/money",
     priority: "medium",
-    category: "Revenue",
   });
 
   recs.push({
     icon: Users,
-    title: "Engage Your Community",
-    description: "Your AI team can automatically respond to comments and build community engagement",
+    title: "Community Engagement",
+    description: "Your AI team automatically responds to comments and builds community growth",
     action: "Set Up",
-    href: "/community",
+    href: "/settings",
     priority: "low",
-    category: "Community",
   });
 
   return recs.slice(0, 3);
@@ -83,7 +104,14 @@ const priorityColors = {
 
 export function WhatsNext({ compact = false }: { compact?: boolean }) {
   const { data: stats } = useQuery<any>({ queryKey: ["/api/dashboard/stats"] });
-  const recommendations = getStaticRecommendations(stats);
+  const { data: channels } = useQuery<any[]>({ queryKey: ["/api/channels"] });
+  const { data: autopilotStats } = useQuery<any>({ queryKey: ["/api/autopilot/stats"] });
+
+  const recommendations = buildRecommendations(
+    channels ?? [],
+    stats,
+    autopilotStats,
+  );
 
   if (compact) {
     return (
@@ -121,13 +149,13 @@ export function WhatsNext({ compact = false }: { compact?: boolean }) {
         </div>
         <div className="space-y-2.5">
           {recommendations.map((rec, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 hover:border-primary/20 transition-all hover-lift"
               data-testid={`recommendation-${i}`}
             >
               <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                <rec.icon className="h-4.5 w-4.5 text-primary" />
+                <rec.icon className="h-4 w-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
