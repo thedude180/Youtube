@@ -3,6 +3,7 @@ import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { pipeline } from "stream/promises";
 import { storage } from "./storage";
 import { db } from "./db";
 import { videos } from "@shared/schema";
@@ -25,12 +26,112 @@ function getYouTubeUrl(youtubeId: string): string {
   return `https://www.youtube.com/watch?v=${youtubeId}`;
 }
 
-const FORMAT_STRATEGIES = [
+async function downloadWithYtdlCore(youtubeId: string, outputPath: string): Promise<boolean> {
+  try {
+    const ytdl = (await import("@distube/ytdl-core")).default;
+    const url = getYouTubeUrl(youtubeId);
+
+    const info = await ytdl.getInfo(url);
+    const format = ytdl.chooseFormat(info.formats, {
+      quality: "highest",
+      filter: (f: any) => f.container === "mp4" && f.hasVideo && f.hasAudio,
+    });
+
+    if (!format) {
+      const videoOnly = ytdl.chooseFormat(info.formats, {
+        quality: "highestvideo",
+        filter: "videoonly",
+      });
+      if (videoOnly) {
+        logger.info("Using video-only format, will need ffmpeg merge", { youtubeId, itag: videoOnly.itag });
+        const videoPath = outputPath + ".video.mp4";
+        const audioPath = outputPath + ".audio.m4a";
+
+        const audioFormat = ytdl.chooseFormat(info.formats, {
+          quality: "highestaudio",
+          filter: "audioonly",
+        });
+
+        if (!audioFormat) {
+          logger.warn("No audio format found, downloading video-only", { youtubeId });
+          const stream = ytdl.downloadFromInfo(info, { format: videoOnly });
+          await pipeline(stream, fs.createWriteStream(outputPath));
+          return fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000;
+        }
+
+        const videoStream = ytdl.downloadFromInfo(info, { format: videoOnly });
+        await pipeline(videoStream, fs.createWriteStream(videoPath));
+
+        const audioStream = ytdl.downloadFromInfo(info, { format: audioFormat });
+        await pipeline(audioStream, fs.createWriteStream(audioPath));
+
+        await execFileAsync("ffmpeg", [
+          "-y", "-i", videoPath, "-i", audioPath,
+          "-c:v", "copy", "-c:a", "aac",
+          "-movflags", "+faststart",
+          outputPath,
+        ], { timeout: 300_000 });
+
+        try { fs.unlinkSync(videoPath); } catch {}
+        try { fs.unlinkSync(audioPath); } catch {}
+
+        return fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000;
+      }
+      logger.warn("No suitable format found via ytdl-core", { youtubeId });
+      return false;
+    }
+
+    logger.info("Downloading with ytdl-core", { youtubeId, itag: format.itag, quality: format.qualityLabel });
+    const stream = ytdl.downloadFromInfo(info, { format });
+    await pipeline(stream, fs.createWriteStream(outputPath));
+
+    return fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000;
+  } catch (err: any) {
+    logger.warn("ytdl-core download failed", { youtubeId, error: (err.message || String(err)).substring(0, 300) });
+    return false;
+  }
+}
+
+const YT_DLP_FORMAT_STRATEGIES = [
   "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
   "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
   "best[ext=mp4]/best",
   "best",
 ];
+
+async function downloadWithYtDlp(youtubeId: string, outputPath: string): Promise<boolean> {
+  const url = getYouTubeUrl(youtubeId);
+  for (const format of YT_DLP_FORMAT_STRATEGIES) {
+    try {
+      if (fs.existsSync(outputPath)) {
+        try { fs.unlinkSync(outputPath); } catch {}
+      }
+
+      await execFileAsync("yt-dlp", [
+        "-f", format,
+        "--merge-output-format", "mp4",
+        "-o", outputPath,
+        "--no-playlist",
+        "--no-warnings",
+        "--no-check-certificates",
+        "--socket-timeout", "60",
+        "--retries", "5",
+        "--fragment-retries", "5",
+        "--extractor-retries", "3",
+        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        url,
+      ], { timeout: 600_000 });
+
+      if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+        logger.info("yt-dlp download succeeded", { youtubeId, format });
+        return true;
+      }
+    } catch (err: any) {
+      logger.warn("yt-dlp format failed", { youtubeId, format, error: (err.message || String(err)).substring(0, 200) });
+    }
+  }
+  return false;
+}
 
 export async function downloadSourceVideo(youtubeId: string): Promise<string> {
   const outputPath = path.join(CLIP_DIR, `source_${youtubeId}.mp4`);
@@ -49,43 +150,26 @@ export async function downloadSourceVideo(youtubeId: string): Promise<string> {
 
   const downloadPromise = (async () => {
     try {
-      const url = getYouTubeUrl(youtubeId);
-      logger.info("Downloading source video", { youtubeId, url });
+      logger.info("Downloading source video", { youtubeId });
 
-      let lastError: string = "";
-      for (const format of FORMAT_STRATEGIES) {
-        try {
-          if (fs.existsSync(outputPath)) {
-            try { fs.unlinkSync(outputPath); } catch (unlinkErr: any) { console.warn("[ClipProcessor] Failed to clean up existing file", outputPath, unlinkErr?.message); }
-          }
-
-          await execFileAsync("yt-dlp", [
-            "-f", format,
-            "--merge-output-format", "mp4",
-            "-o", outputPath,
-            "--no-playlist",
-            "--no-warnings",
-            "--no-check-certificates",
-            "--socket-timeout", "60",
-            "--retries", "5",
-            "--fragment-retries", "5",
-            "--extractor-retries", "3",
-            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            url,
-          ], { timeout: 600_000 });
-
-          if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
-            logger.info("Source video downloaded", { youtubeId, format, size: fs.statSync(outputPath).size });
-            return outputPath;
-          }
-          lastError = "Download produced empty or missing file";
-        } catch (err: any) {
-          lastError = err.message || String(err);
-          logger.warn("Download attempt failed, trying next format", { youtubeId, format, error: lastError.substring(0, 200) });
-        }
+      if (fs.existsSync(outputPath)) {
+        try { fs.unlinkSync(outputPath); } catch {}
       }
 
-      throw new Error(`All download strategies exhausted for ${youtubeId}: ${lastError.substring(0, 300)}`);
+      const ytdlSuccess = await downloadWithYtdlCore(youtubeId, outputPath);
+      if (ytdlSuccess) {
+        logger.info("Source video downloaded via ytdl-core", { youtubeId, size: fs.statSync(outputPath).size });
+        return outputPath;
+      }
+
+      logger.info("Falling back to yt-dlp", { youtubeId });
+      const ytDlpSuccess = await downloadWithYtDlp(youtubeId, outputPath);
+      if (ytDlpSuccess) {
+        logger.info("Source video downloaded via yt-dlp fallback", { youtubeId, size: fs.statSync(outputPath).size });
+        return outputPath;
+      }
+
+      throw new Error(`All download methods failed for ${youtubeId}. Both ytdl-core and yt-dlp could not download this video.`);
     } finally {
       activeDownloads.delete(youtubeId);
     }
