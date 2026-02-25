@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AutopilotEntry {
@@ -288,6 +288,77 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
 };
 
+function GroupedActivitySummary({ entries }: { entries: AutopilotEntry[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { type: string; platform: string; entries: AutopilotEntry[] }>();
+    for (const e of entries) {
+      const key = `${e.type}::${e.targetPlatform}`;
+      if (!map.has(key)) map.set(key, { type: e.type, platform: e.targetPlatform, entries: [] });
+      map.get(key)!.entries.push(e);
+    }
+    return Array.from(map.values()).sort((a, b) => b.entries.length - a.entries.length);
+  }, [entries]);
+
+  const INITIAL_SHOW = 5;
+  const visible = expanded ? grouped : grouped.slice(0, INITIAL_SHOW);
+  const hasMore = grouped.length > INITIAL_SHOW;
+
+  return (
+    <div className="space-y-1.5" data-testid="section-grouped-activity">
+      {visible.map(({ type, platform, entries: groupEntries }) => {
+        const Icon = TYPE_ICONS[type] || Zap;
+        const label = TYPE_LABELS[type] || type;
+        const latestStatus = groupEntries[0]?.status || "scheduled";
+        const statusStyle = STATUS_STYLES[latestStatus] || "bg-muted text-muted-foreground";
+        const latestDate = groupEntries[0]?.createdAt;
+        return (
+          <div
+            key={`${type}-${platform}`}
+            className="flex items-center gap-3 p-2.5 rounded-lg border border-border/50 bg-card/50"
+            data-testid={`activity-group-${type}-${platform}`}
+          >
+            <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+              <Icon className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium truncate">{label}</span>
+                {groupEntries.length > 1 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">×{groupEntries.length}</Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[11px] text-muted-foreground capitalize">{platform}</span>
+                {latestDate && (
+                  <span className="text-[11px] text-muted-foreground">
+                    {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
+                  </span>
+                )}
+              </div>
+            </div>
+            <Badge variant="outline" className={`text-[10px] shrink-0 ${statusStyle}`}>
+              {latestStatus}
+            </Badge>
+          </div>
+        );
+      })}
+      {hasMore && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-xs text-muted-foreground"
+          onClick={() => setExpanded(!expanded)}
+          data-testid="button-toggle-activity"
+        >
+          {expanded ? "Show less" : `Show ${grouped.length - INITIAL_SHOW} more`}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function UpdatedVideosTab() {
   const pollInterval = useAdaptiveInterval(10000);
   const { data: updateHistory, isLoading: historyLoading } = useQuery<UpdateHistoryEntry[]>({
@@ -395,40 +466,7 @@ function UpdatedVideosTab() {
             ))}
           </div>
         ) : safeArray(autopilotActivity).length > 0 ? (
-          <div className="space-y-2">
-            {safeArray<AutopilotEntry>(autopilotActivity).map((entry) => {
-              const Icon = TYPE_ICONS[entry.type] || Zap;
-              const label = TYPE_LABELS[entry.type] || entry.type;
-              const statusStyle = STATUS_STYLES[entry.status] || "bg-muted text-muted-foreground";
-              return (
-                <Card key={entry.id} data-testid={`card-activity-${entry.id}`}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                          <Icon className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate" data-testid={`text-activity-label-${entry.id}`}>
-                            {label}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-muted-foreground capitalize">{entry.targetPlatform}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {entry.createdAt ? formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true }) : ""}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className={`text-[10px] shrink-0 ${statusStyle}`}>
-                        {entry.status}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <GroupedActivitySummary entries={safeArray<AutopilotEntry>(autopilotActivity)} />
         ) : (
           <Card>
             <CardContent className="p-4">
