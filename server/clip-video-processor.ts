@@ -126,40 +126,52 @@ async function getYouTubeAccessToken(userId: string): Promise<string | null> {
 async function downloadWithYtDlp(youtubeId: string, outputPath: string, accessToken?: string | null): Promise<boolean> {
   const url = getYouTubeUrl(youtubeId);
 
-  // Build the auth header args — passing the user's OAuth token bypasses YouTube's
-  // server-IP bot detection for the creator's own (and any public) videos.
+  // iOS player client bypasses YouTube's server-IP bot detection — it uses
+  // the same API endpoints as the official iOS app, which YouTube doesn't block.
+  // The OAuth bearer header is kept as an additional auth layer for private/restricted videos.
   const authArgs: string[] = accessToken
     ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
     : [];
 
-  for (const format of YT_DLP_FORMAT_STRATEGIES) {
-    try {
-      if (fs.existsSync(outputPath)) {
-        try { fs.unlinkSync(outputPath); } catch {}
-      }
+  // Two passes: first with iOS client (bypasses bot detection), then fallback to web client
+  const clientStrategies = [
+    ["--extractor-args", "youtube:player_client=ios"],
+    ["--extractor-args", "youtube:player_client=android"],
+    [], // plain fallback — no player_client override
+  ];
 
-      await execFileAsync("yt-dlp", [
-        "-f", format,
-        "--merge-output-format", "mp4",
-        "-o", outputPath,
-        "--no-playlist",
-        "--no-warnings",
-        "--no-check-certificates",
-        "--socket-timeout", "60",
-        "--retries", "5",
-        "--fragment-retries", "5",
-        "--extractor-retries", "3",
-        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        ...authArgs,
-        url,
-      ], { timeout: 600_000 });
+  for (const clientArgs of clientStrategies) {
+    for (const format of YT_DLP_FORMAT_STRATEGIES) {
+      try {
+        if (fs.existsSync(outputPath)) {
+          try { fs.unlinkSync(outputPath); } catch {}
+        }
 
-      if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
-        logger.info("yt-dlp download succeeded", { youtubeId, format, authenticated: !!accessToken });
-        return true;
+        await execFileAsync("yt-dlp", [
+          "-f", format,
+          "--merge-output-format", "mp4",
+          "-o", outputPath,
+          "--no-playlist",
+          "--no-warnings",
+          "--no-check-certificates",
+          "--socket-timeout", "60",
+          "--retries", "3",
+          "--fragment-retries", "3",
+          "--extractor-retries", "2",
+          ...clientArgs,
+          ...authArgs,
+          url,
+        ], { timeout: 300_000 }); // 5 min per attempt (down from 10) so we try all strategies
+
+        if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+          const client = clientArgs[1] || "web";
+          logger.info("yt-dlp download succeeded", { youtubeId, format, client, authenticated: !!accessToken });
+          return true;
+        }
+      } catch (err: any) {
+        const client = clientArgs[1] || "web";
+        logger.warn("yt-dlp format failed", { youtubeId, format, client, error: (err.message || String(err)).substring(0, 150) });
       }
-    } catch (err: any) {
-      logger.warn("yt-dlp format failed", { youtubeId, format, error: (err.message || String(err)).substring(0, 200) });
     }
   }
   return false;
@@ -177,6 +189,7 @@ async function checkVideoAvailability(youtubeId: string, accessToken?: string | 
       "--no-warnings",
       "--no-check-certificates",
       "--socket-timeout", "20",
+      "--extractor-args", "youtube:player_client=ios",
       ...authArgs,
       url,
     ], { timeout: 30_000 });

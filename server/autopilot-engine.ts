@@ -822,7 +822,8 @@ function sanitizeErrorForNotification(rawError: string, platform: string): strin
   if (rawError.length > 150) {
     return rawError.substring(0, 147) + "...";
   }
-  return rawError;
+  // Guard: never return empty string — the notifications table has a NOT NULL constraint
+  return rawError || `Publishing to ${platform} failed. The system will retry automatically.`;
 }
 
 async function handleStreamClipPublish(post: any, meta: any): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
@@ -1039,7 +1040,36 @@ export async function flushQueueToAsap(): Promise<number> {
     }));
 
     logger.info("Flushed future queue items to ASAP", { count: futurePosts.length });
-    return futurePosts.length;
+
+    // Reset auto-clip Shorts that were falsely blocked by the yt_shorts_duration
+    // compliance rule (which matched "#Shorts" keyword in descriptions).
+    // Those are now exempt from that check, so re-queue them as scheduled.
+    const falselyBlocked = await db
+      .select({ id: autopilotQueue.id })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.status, "failed"),
+        eq(autopilotQueue.type, "auto-clip" as any),
+        sql`${autopilotQueue.errorMessage} ILIKE '%yt_shorts_duration%' OR ${autopilotQueue.errorMessage} ILIKE '%Shorts must be 60 seconds%'`,
+      ));
+
+    if (falselyBlocked.length > 0) {
+      await Promise.all(falselyBlocked.map((post, i) => {
+        const jitterMs = (i / falselyBlocked.length) * staggerWindowMs + Math.random() * 30_000;
+        const asapTime = new Date(now.getTime() + jitterMs);
+        return db.update(autopilotQueue)
+          .set({
+            status: "scheduled",
+            scheduledAt: asapTime,
+            errorMessage: null,
+            metadata: sql`${autopilotQueue.metadata} - 'complianceBlocked' - 'violations'`,
+          })
+          .where(eq(autopilotQueue.id, post.id));
+      }));
+      logger.info("Reset falsely-blocked Shorts to scheduled", { count: falselyBlocked.length });
+    }
+
+    return futurePosts.length + falselyBlocked.length;
   } catch (err: any) {
     logger.warn("flushQueueToAsap failed", { error: err.message });
     return 0;
@@ -1158,20 +1188,30 @@ export async function processScheduledPosts() {
         );
 
         if (!compliance.compliant) {
-          const criticalViolations = compliance.violations.filter(v => v.severity === "critical");
-          logger.warn("Content blocked by compliance check", {
-            postId: post.id, platform: post.targetPlatform,
-            violations: criticalViolations.map(v => v.rule),
-          });
+          // Skip duration-rule violations for verified auto-clip Shorts — the clip
+          // processor already enforces the 60s ceiling, so this is always a false
+          // positive caused by "#Shorts" matching the keyword "shorts" in the rule.
+          const isVerifiedShort = meta?.contentType === "youtube-short" && post.type === "auto-clip";
+          const criticalViolations = compliance.violations.filter(v =>
+            v.severity === "critical" &&
+            !(isVerifiedShort && v.rule === "yt_shorts_duration")
+          );
 
-          await db.update(autopilotQueue)
-            .set({
-              status: "failed" as any,
-              errorMessage: `Compliance violation: ${criticalViolations.map(v => v.description).join("; ")}`,
-              metadata: { ...meta, complianceBlocked: true, violations: criticalViolations },
-            })
-            .where(eq(autopilotQueue.id, post.id));
-          continue;
+          if (criticalViolations.length > 0) {
+            logger.warn("Content blocked by compliance check", {
+              postId: post.id, platform: post.targetPlatform,
+              violations: criticalViolations.map(v => v.rule),
+            });
+
+            await db.update(autopilotQueue)
+              .set({
+                status: "failed" as any,
+                errorMessage: `Compliance violation: ${criticalViolations.map(v => v.description).join("; ")}`,
+                metadata: { ...meta, complianceBlocked: true, violations: criticalViolations },
+              })
+              .where(eq(autopilotQueue.id, post.id));
+            continue;
+          }
         }
 
         if (compliance.autoFixes.length > 0) {
