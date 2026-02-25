@@ -3,7 +3,6 @@ import { videos, streams, autopilotQueue, channels, notifications } from "@share
 import { eq, and, desc, sql, gte, lte, isNotNull, ne, inArray } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
-import { generateHumanScheduledTime } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunDailyContent } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
@@ -36,10 +35,7 @@ const LONG_FORM_MAX_MINUTES = 15;
 const SHORTS_PER_BATCH = 3;
 const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 30;
-const MAX_BATCHES_PER_RUN = 10;
-const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 4 (1 long-form + 3 shorts per batch, audience-data driven)
-const MAX_CROSS_POSTS_PER_DAY = 20;
-const MAX_SCHEDULED_PER_DAY = CORE_YOUTUBE_PER_DAY + MAX_CROSS_POSTS_PER_DAY; // 24 total
+const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 4 (1 long-form + 3 shorts per batch)
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
@@ -86,6 +82,53 @@ async function getDailyScheduledCount(userId: string): Promise<number> {
   const core = await getDailyCoreYouTubeCount(userId);
   const cross = await getDailyCrossPostCount(userId);
   return core + cross;
+}
+
+async function getNextAvailableDayOffset(userId: string): Promise<number> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const scheduledDays = await db
+    .select({ scheduledDate: sql<string>`DATE(${autopilotQueue.scheduledAt})` })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.status, "scheduled"),
+      eq(autopilotQueue.targetPlatform, "youtube"),
+      eq(autopilotQueue.type, "auto-clip" as any),
+      gte(autopilotQueue.scheduledAt, today),
+    ))
+    .groupBy(sql`DATE(${autopilotQueue.scheduledAt})`)
+    .having(sql`count(*) >= ${CORE_YOUTUBE_PER_DAY}`);
+
+  const filledDays = new Set(scheduledDays.map(r => r.scheduledDate));
+
+  for (let offset = 0; offset < 365; offset++) {
+    const checkDate = new Date(today.getTime() + offset * 86400000);
+    const dateStr = checkDate.toISOString().split("T")[0];
+    if (!filledDays.has(dateStr)) return offset;
+  }
+
+  return filledDays.size;
+}
+
+function getScheduledTimeForDay(dayOffset: number): Date {
+  const TIMEZONE_OFFSET_HOURS = -5;
+  const peakHours = [10, 11, 12, 14, 15, 16, 17, 18, 19, 20];
+  const targetHour = peakHours[Math.floor(Math.random() * peakHours.length)];
+  const targetMinute = Math.max(0, Math.min(59, Math.floor(Math.random() * 60)));
+
+  const baseDate = new Date();
+  baseDate.setHours(0, 0, 0, 0);
+  const targetDate = new Date(baseDate.getTime() + dayOffset * 86400000);
+  const targetUtcHour = ((targetHour - TIMEZONE_OFFSET_HOURS) % 24 + 24) % 24;
+  targetDate.setUTCHours(targetUtcHour, targetMinute, Math.floor(Math.random() * 60), 0);
+
+  if (targetDate.getTime() <= Date.now() + 90 * 60000) {
+    targetDate.setTime(targetDate.getTime() + 86400000);
+  }
+
+  return targetDate;
 }
 
 interface ContentPlan {
@@ -329,18 +372,14 @@ async function queueBatchContent(
   stream: StreamWithRemaining,
   batchNumber: number,
   connectedPlatforms: ConnectedPlatforms,
+  dayOffset: number = 0,
 ): Promise<{ longFormQueued: boolean; shortsQueued: number; crossPostsQueued: number }> {
   let longFormQueued = false;
   let shortsQueued = 0;
   let crossPostsQueued = 0;
   const groupId = `exhaust-${stream.stream.id}-batch-${batchNumber}-${Date.now()}`;
 
-  const longFormTime = generateHumanScheduledTime({
-    platform: "youtube",
-    userId,
-    contentType: "new-video",
-    urgency: "normal",
-  });
+  const longFormTime = getScheduledTimeForDay(dayOffset);
 
   const allPlatforms = ["youtube", ...connectedPlatforms.all];
 
@@ -413,12 +452,8 @@ async function queueBatchContent(
     }
   }
 
-  const crossPostBudget = MAX_CROSS_POSTS_PER_DAY - await getDailyCrossPostCount(userId);
-
   for (const platform of connectedPlatforms.video) {
-    if (crossPostsQueued >= crossPostBudget) break;
     for (let i = 0; i < plan.shorts.length; i++) {
-      if (crossPostsQueued >= crossPostBudget) break;
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 2) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
       const platformCaption = platform === "tiktok"
@@ -457,7 +492,6 @@ async function queueBatchContent(
   }
 
   for (const platform of connectedPlatforms.text) {
-    if (crossPostsQueued >= crossPostBudget) break;
     const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
     const topTags = plan.longForm.tags.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ");
     let longFormAnnouncement: string;
@@ -588,12 +622,6 @@ async function getLiveStreamAsExhaustCandidate(userId: string): Promise<StreamWi
 
 export async function runSingleBatchForUser(userId: string): Promise<{ didWork: boolean; exhausted: boolean }> {
   try {
-    const coreCount = await getDailyCoreYouTubeCount(userId);
-    if (coreCount >= CORE_YOUTUBE_PER_DAY) {
-      logger.info("Daily core YouTube limit reached (1 long-form + 3 shorts already scheduled), pausing", { userId, coreCount, limit: CORE_YOUTUBE_PER_DAY });
-      return { didWork: false, exhausted: true };
-    }
-
     const connectedPlatforms = await getUserConnectedPlatforms(userId);
     const liveCandidate = await getLiveStreamAsExhaustCandidate(userId);
     const endedStreams = await getStreamsWithRemainingContent(userId);
@@ -611,6 +639,7 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
     streamsWithContent = selectStreamByTrend(streamsWithContent, activeTrend, cooldownTrends) as StreamWithRemaining[];
 
     const streamData = streamsWithContent[0];
+    const dayOffset = await getNextAvailableDayOffset(userId);
 
     const existingBatches = await db
       .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
@@ -626,6 +655,7 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
       userId,
       streamId: streamData.stream.id,
       batchNumber,
+      dayOffset,
       remainingMinutes: streamData.remainingMinutes,
     });
 
@@ -644,7 +674,7 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
       return { didWork: false, exhausted: false };
     }
 
-    const result = await queueBatchContent(userId, plan, streamData, batchNumber, connectedPlatforms);
+    const result = await queueBatchContent(userId, plan, streamData, batchNumber, connectedPlatforms, dayOffset);
 
     const ytCount = (result.longFormQueued ? 1 : 0) + result.shortsQueued;
     logger.info("Loop: batch queued", {
@@ -685,12 +715,6 @@ export async function runDailyContentGeneration(): Promise<void> {
 
   for (const userId of userIds) {
     try {
-      const coreCount = await getDailyCoreYouTubeCount(userId);
-      if (coreCount >= CORE_YOUTUBE_PER_DAY) {
-        logger.info("Daily core YouTube limit reached, skipping user", { userId, coreCount, limit: CORE_YOUTUBE_PER_DAY });
-        continue;
-      }
-
       const connectedPlatforms = await getUserConnectedPlatforms(userId);
 
       const liveCandidate = await getLiveStreamAsExhaustCandidate(userId);
@@ -723,60 +747,67 @@ export async function runDailyContentGeneration(): Promise<void> {
       let totalBatchesThisRun = 0;
 
       for (const streamData of streamsWithContent) {
-        if (totalBatchesThisRun >= MAX_BATCHES_PER_RUN) {
-          logger.info("Max batches per run reached, saving rest for next cycle", { userId });
-          break;
-        }
+        let streamRemaining = streamData.remainingMinutes;
+        let streamExtracted = streamData.extractedMinutes;
+        let streamNextStart = streamData.nextSegmentStart;
+        let consecutiveFailures = 0;
 
-        const existingBatches = await db
-          .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
-          .from(autopilotQueue)
-          .where(and(
-            eq(autopilotQueue.userId, userId),
-            sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
-          ));
+        while (streamRemaining >= 1) {
+          const dayOffset = await getNextAvailableDayOffset(userId);
 
-        const batchNumber = (existingBatches[0]?.count || 0) + 1;
+          const existingBatches = await db
+            .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
+            .from(autopilotQueue)
+            .where(and(
+              eq(autopilotQueue.userId, userId),
+              sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
+            ));
 
-        logger.info("Generating batch from stream", {
-          userId,
-          streamId: streamData.stream.id,
-          streamTitle: streamData.stream.title,
-          batchNumber,
-          remainingMinutes: streamData.remainingMinutes,
-          totalMinutes: streamData.totalMinutes,
-        });
+          const batchNumber = (existingBatches[0]?.count || 0) + 1;
 
-        const plan = await generateBatchPlan(streamData, batchNumber, userId);
-        if (!plan) {
-          logger.warn("Could not generate batch plan, skipping stream", {
+          const currentStreamData: StreamWithRemaining = {
+            ...streamData,
+            remainingMinutes: streamRemaining,
+            extractedMinutes: streamExtracted,
+            nextSegmentStart: streamNextStart,
+          };
+
+          logger.info("Generating batch from stream", {
             userId,
             streamId: streamData.stream.id,
+            streamTitle: streamData.stream.title,
+            batchNumber,
+            dayOffset,
+            remainingMinutes: streamRemaining,
+            totalMinutes: streamData.totalMinutes,
           });
-          continue;
+
+          const plan = await generateBatchPlan(currentStreamData, batchNumber, userId);
+          if (!plan) {
+            consecutiveFailures++;
+            if (consecutiveFailures >= 3) {
+              logger.warn("3 consecutive plan generation failures, moving to next stream", {
+                userId,
+                streamId: streamData.stream.id,
+              });
+              break;
+            }
+            const skipMinutes = Math.min(MINUTES_PER_BATCH, streamRemaining);
+            streamRemaining -= skipMinutes;
+            streamExtracted += skipMinutes;
+            streamNextStart += skipMinutes;
+            continue;
+          }
+          consecutiveFailures = 0;
+
+          const result = await queueBatchContent(userId, plan, currentStreamData, batchNumber, connectedPlatforms, dayOffset);
+          totalBatchesThisRun++;
+
+          const consumed = Math.min(MINUTES_PER_BATCH, streamRemaining);
+          streamRemaining -= consumed;
+          streamExtracted += consumed;
+          streamNextStart += consumed;
         }
-
-        const result = await queueBatchContent(userId, plan, streamData, batchNumber, connectedPlatforms);
-        totalBatchesThisRun++;
-
-        const ytCount = (result.longFormQueued ? 1 : 0) + result.shortsQueued;
-        const totalPieces = ytCount + result.crossPostsQueued;
-
-        logger.info("Batch complete", {
-          userId,
-          streamId: streamData.stream.id,
-          batchNumber,
-          youtubeItems: ytCount,
-          crossPosts: result.crossPostsQueued,
-          totalPieces,
-        });
-
-        await notify(
-          userId,
-          `Content Batch #${batchNumber} from "${streamData.stream.title}"`,
-          `Queued ${ytCount} YouTube pieces + ${result.crossPostsQueued} cross-platform posts. ${Math.round(streamData.remainingMinutes - MINUTES_PER_BATCH)} min of stream footage remaining.`,
-          "info",
-        );
       }
 
       if (totalBatchesThisRun > 0) {

@@ -36,7 +36,7 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
     - **Growth Journey System**: AI-generated daily actions, growth phase detection, personalized roadmaps.
     - **Competitive Edge Suite**: Closed-Loop VOD Optimizer, Closed-Loop Autopilot (7-phase pipeline), Creator DNA & Brand Voice, Cross-Platform Analytics & ROI, A/B Testing Engine, Sponsorship Marketplace, Team Collaboration, Copyright Shield, Usage-Based Billing.
     - **Dual Pipeline System**: 65-step Live Stream and 56-step VOD pipelines.
-    - **Content Loop Engine**: Manages content generation workflow.
+    - **Content Loop Engine**: Manages content generation workflow. Schedules 1 long-form + 3 shorts per day across sequential future days until all stream footage is exhausted. No daily batch cap — fills the entire calendar in a single engine run.
     - **Automation Engine**: Cron Scheduler, Chain Orchestrator, Rules Engine, Webhook Listeners, Notification Pipeline, AI Results Store.
     - **Autopilot Engine**: Auto-Clip & Post, Smart Schedule, AI Comment Responder, Discord Announcements, Content Recycler.
     - **Human Behavior & AI Humanizer Engines**: Simulate realistic posting and evade AI detectors.
