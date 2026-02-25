@@ -141,9 +141,10 @@ function ChatSentimentSection() {
     staleTime: 20_000,
   });
 
-  const moodTotal = data ? data.moods.positive + data.moods.neutral + data.moods.negative : 0;
-  const pctPos = moodTotal ? Math.round((data!.moods.positive / moodTotal) * 100) : 0;
-  const pctNeu = moodTotal ? Math.round((data!.moods.neutral / moodTotal) * 100) : 0;
+  const moods = data?.moods;
+  const moodTotal = moods ? moods.positive + moods.neutral + moods.negative : 0;
+  const pctPos = moodTotal && moods ? Math.round((moods.positive / moodTotal) * 100) : 0;
+  const pctNeu = moodTotal && moods ? Math.round((moods.neutral / moodTotal) * 100) : 0;
   const pctNeg = moodTotal ? 100 - pctPos - pctNeu : 0;
 
   const scoreColor = (score: number) => {

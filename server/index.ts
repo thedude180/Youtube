@@ -734,7 +734,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) }));
       import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) }));
 
-      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate()));
+      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) }));
       startCleanupCoordinator();
       startResilienceWatchdog();
 

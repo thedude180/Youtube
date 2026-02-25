@@ -114,14 +114,16 @@ export function registerGrowthTrackingRoutes(app: Express) {
       let viewsGrowth = 0;
       let subsGrowth = 0;
       if (recentSnapshots.length >= 2) {
-        const first = recentSnapshots[0].metrics;
-        const last = recentSnapshots[recentSnapshots.length - 1].metrics;
-        viewsGrowth = first.totalViews > 0
-          ? Math.round(((last.totalViews - first.totalViews) / first.totalViews) * 100)
-          : 0;
-        subsGrowth = first.totalSubscribers > 0
-          ? Math.round(((last.totalSubscribers - first.totalSubscribers) / first.totalSubscribers) * 100)
-          : 0;
+        const first = recentSnapshots[0]?.metrics as any;
+        const last = recentSnapshots[recentSnapshots.length - 1]?.metrics as any;
+        if (first && last) {
+          viewsGrowth = first.totalViews > 0
+            ? Math.round(((last.totalViews - first.totalViews) / first.totalViews) * 100)
+            : 0;
+          subsGrowth = first.totalSubscribers > 0
+            ? Math.round(((last.totalSubscribers - first.totalSubscribers) / first.totalSubscribers) * 100)
+            : 0;
+        }
       }
 
       return {

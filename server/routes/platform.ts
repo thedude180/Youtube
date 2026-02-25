@@ -145,7 +145,7 @@ export async function registerPlatformRoutes(app: Express) {
       delete (req.session as any).youtubeOAuthUserId;
       sendSSEEvent(userId, "content-update", { type: "channel_connected", platform: "youtube" });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_connected", platform: "youtube" });
-      res.redirect(`/channels?connected=youtube&channel=${encodeURIComponent(result.ytChannel.title || "")}`);
+      res.redirect(`/channels?connected=youtube&channel=${encodeURIComponent(result?.ytChannel?.title || "YouTube")}`);
     } catch (error: any) {
       console.error("YouTube OAuth callback error:", error);
       res.redirect(`/channels?error=${encodeURIComponent(error.message)}`);
