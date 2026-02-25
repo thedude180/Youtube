@@ -197,7 +197,7 @@ function Router() {
       <Route path="/business/learning">{() => <Redirect to="/settings" />}</Route>
       <Route path="/videos">{() => <Redirect to="/content" />}</Route>
       <Route path="/videos/:id">{() => <Redirect to="/content" />}</Route>
-      <Route path="/channels">{() => <Redirect to="/content/channels" />}</Route>
+      <Route path="/channels">{() => { const qs = window.location.search; return <Redirect to={`/content/channels${qs}`} />; }}</Route>
       <Route path="/team">{() => <Redirect to="/" />}</Route>
       <Route path="/advisor">{() => <Redirect to="/" />}</Route>
       <Route path="/schedule">{() => <Redirect to="/content" />}</Route>

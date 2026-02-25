@@ -124,7 +124,7 @@ export function AppSidebar() {
             </span>
             {isAdvanced && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 w-fit border-primary/30 text-primary/80">
-                Advanced
+                {t("common.advanced")}
               </Badge>
             )}
           </div>
@@ -186,14 +186,14 @@ export function AppSidebar() {
                 <div className="relative">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-xs font-semibold">Unlock Everything</span>
+                    <span className="text-xs font-semibold">{t("common.unlockEverything")}</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mb-2.5 leading-relaxed">
-                    AI automation, multi-platform tools, and more.
+                    {t("common.unlockDescription")}
                   </p>
                   <Link href="/pricing">
-                    <Button variant="default" size="sm" className="w-full gap-1.5 glow-sm group/btn" data-testid="button-sidebar-upgrade" aria-label="View upgrade plans">
-                      View Plans
+                    <Button variant="default" size="sm" className="w-full gap-1.5 glow-sm group/btn" data-testid="button-sidebar-upgrade" aria-label={t("common.viewPlans")}>
+                      {t("common.viewPlans")}
                       <ArrowRight className="w-3 h-3 transition-transform group-hover/btn:translate-x-0.5" />
                     </Button>
                   </Link>
@@ -249,7 +249,7 @@ export function AppSidebar() {
               ) : (
                 <Link href="/pricing">
                   <span className="text-[10px] text-primary font-medium cursor-pointer hover:underline" data-testid="link-upgrade-tier">
-                    Upgrade plan
+                    {t("common.upgradePlan")}
                   </span>
                 </Link>
               )}
