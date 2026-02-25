@@ -67,6 +67,7 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
 - **AI Telemetry**: Tracks OpenAI usage, latency, and failure rates.
 - **Self-Healing Core**: Autonomous failure detection, AI diagnosis, retry logic, circuit breakers, and health monitoring.
 - **Auto-Fix Engine**: Classifies and recovers from various errors.
+- **Platform Policy Tracker**: Autonomous engine (runs every 12 hours via autonomy controller) that monitors 7 platforms for policy/TOS changes, updates `complianceRules` table, and auto-enforces limits before publishing. Pre-publish compliance check blocks critical violations and auto-fixes lengths/metadata.
 - **System Status APIs**: Endpoints for health, subsystems, and monitoring.
 
 ## External Dependencies

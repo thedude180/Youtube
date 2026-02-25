@@ -1110,6 +1110,43 @@ export async function processScheduledPosts() {
           .where(eq(autopilotQueue.id, post.id));
       }
 
+      try {
+        const { enforceComplianceRules } = await import("./services/platform-policy-tracker");
+        const compliance = await enforceComplianceRules(
+          publishContent || "",
+          publishCaption || post.caption || "",
+          post.targetPlatform as any,
+          meta,
+        );
+
+        if (!compliance.compliant) {
+          const criticalViolations = compliance.violations.filter(v => v.severity === "critical");
+          logger.warn("Content blocked by compliance check", {
+            postId: post.id, platform: post.targetPlatform,
+            violations: criticalViolations.map(v => v.rule),
+          });
+
+          await db.update(autopilotQueue)
+            .set({
+              status: "failed" as any,
+              errorMessage: `Compliance violation: ${criticalViolations.map(v => v.description).join("; ")}`,
+              metadata: { ...meta, complianceBlocked: true, violations: criticalViolations },
+            })
+            .where(eq(autopilotQueue.id, post.id));
+          continue;
+        }
+
+        if (compliance.autoFixes.length > 0) {
+          publishContent = compliance.fixedContent;
+          publishCaption = compliance.fixedTitle;
+          logger.info("Compliance auto-fixes applied", {
+            postId: post.id, fixes: compliance.autoFixes.map(f => f.reason),
+          });
+        }
+      } catch (complianceErr: any) {
+        logger.warn("Compliance check skipped (non-blocking)", { postId: post.id, error: complianceErr.message?.substring(0, 100) });
+      }
+
       await db.update(autopilotQueue)
         .set({ status: "publishing" as any })
         .where(eq(autopilotQueue.id, post.id));

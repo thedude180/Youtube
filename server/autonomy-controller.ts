@@ -61,6 +61,7 @@ const ENGINE_DEFINITIONS = [
   { name: "platform_health", label: "Platform Health Monitor", interval: 15, description: "Checks API connectivity and platform status" },
   { name: "engagement_booster", label: "Engagement Booster", interval: 120, description: "Identifies high-potential content for engagement campaigns" },
   { name: "decision_engine", label: "AI Decision Engine", interval: 60, description: "Analyzes past decisions, measures outcomes, adjusts strategies" },
+  { name: "policy_tracker", label: "Platform Policy Tracker", interval: 720, description: "Monitors platform policy changes across YouTube, TikTok, X, Twitch, Kick, Discord, Rumble and auto-updates compliance rules" },
 ];
 
 const startTime = Date.now();
@@ -107,6 +108,7 @@ async function runEngineWithAI(engineName: string, userId: string): Promise<{ ac
     platform_health: "Check platform health. Return JSON: {platforms:[{name,status,latency,issues}], overallHealth}.",
     engagement_booster: "Find engagement opportunities. Return JSON: {highPotentialContent:[{title,boostAction,expectedLift}], totalBoosts}.",
     decision_engine: "Review past decisions. Return JSON: {decisionsReviewed, successRate, adjustments:[{area,fromStrategy,toStrategy,reason}], confidence}.",
+    policy_tracker: "Check for platform policy changes across YouTube, TikTok, X, Twitch, Kick, Discord, Rumble. Return JSON: {platformsChecked, policyChangesDetected:[{platform,change,severity,action}], rulesUpdated, status}.",
   };
 
   const prompt = enginePrompts[engineName] || "Analyze creator status. Return JSON: {status, recommendations:[], actionsToTake:[]}";
@@ -191,7 +193,18 @@ async function runAutonomyCycle() {
         await db.update(autonomyEngineConfig).set({ status: "running" }).where(eq(autonomyEngineConfig.id, engine.id));
         await recordHeartbeat(engine.engineName, "running");
 
-        const { actionsExecuted, result } = await runEngineWithAI(engine.engineName, userId);
+        let engineResult: { actionsExecuted: number; result: any };
+        if (engine.engineName === "policy_tracker") {
+          const { fetchLatestPlatformPolicies } = await import("./services/platform-policy-tracker");
+          const policyResult = await fetchLatestPlatformPolicies();
+          engineResult = {
+            actionsExecuted: policyResult.rulesCreated + policyResult.rulesUpdated,
+            result: policyResult,
+          };
+        } else {
+          engineResult = await runEngineWithAI(engine.engineName, userId);
+        }
+        const { actionsExecuted, result } = engineResult;
         const durationMs = Date.now() - startMs;
         const nextRun = new Date(now.getTime() + (engine.intervalMinutes || 15) * 60000);
 

@@ -404,6 +404,43 @@ export function registerPillarRoutes(app: Express): void {
     res.json({ success: true, message: "Compliance scan complete" });
   }));
 
+  app.get("/api/compliance/platform-rules", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getComplianceRuleSummary } = await import("../services/platform-policy-tracker");
+    const summary = await getComplianceRuleSummary();
+    res.json(summary);
+  }));
+
+  app.get("/api/compliance/platform-rules/:platform", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { complianceRules } = await import("@shared/schema");
+    const { eq, and, desc } = await import("drizzle-orm");
+    const rules = await db.select().from(complianceRules)
+      .where(and(eq(complianceRules.platform, req.params.platform), eq(complianceRules.isActive, true)))
+      .orderBy(desc(complianceRules.lastUpdated));
+    res.json(rules);
+  }));
+
+  app.post("/api/compliance/refresh-policies", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { fetchLatestPlatformPolicies } = await import("../services/platform-policy-tracker");
+    const result = await fetchLatestPlatformPolicies();
+    res.json(result);
+  }));
+
+  app.post("/api/compliance/enforce-check", asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { content, title, platform, metadata } = req.body;
+    if (!content || !platform) return res.status(400).json({ message: "content and platform are required" });
+    const { enforceComplianceRules } = await import("../services/platform-policy-tracker");
+    const result = await enforceComplianceRules(content, title || "", platform, metadata);
+    res.json(result);
+  }));
+
   // ==========================================
   // ADMIN: ALL ENGINES STATUS
   // ==========================================
