@@ -41,49 +41,6 @@ const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
 
-async function getDailyCoreYouTubeCount(userId: string): Promise<number> {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
-
-  const [result] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(autopilotQueue)
-    .where(and(
-      eq(autopilotQueue.userId, userId),
-      eq(autopilotQueue.status, "scheduled"),
-      eq(autopilotQueue.targetPlatform, "youtube"),
-      gte(autopilotQueue.scheduledAt, todayStart),
-      lte(autopilotQueue.scheduledAt, todayEnd),
-    ));
-  return result?.count || 0;
-}
-
-async function getDailyCrossPostCount(userId: string): Promise<number> {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
-
-  const [result] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(autopilotQueue)
-    .where(and(
-      eq(autopilotQueue.userId, userId),
-      eq(autopilotQueue.status, "scheduled"),
-      sql`${autopilotQueue.targetPlatform} != 'youtube'`,
-      gte(autopilotQueue.scheduledAt, todayStart),
-      lte(autopilotQueue.scheduledAt, todayEnd),
-    ));
-  return result?.count || 0;
-}
-
-async function getDailyScheduledCount(userId: string): Promise<number> {
-  const core = await getDailyCoreYouTubeCount(userId);
-  const cross = await getDailyCrossPostCount(userId);
-  return core + cross;
-}
 
 async function getNextAvailableDayOffset(userId: string): Promise<number> {
   const today = new Date();

@@ -18,6 +18,8 @@ export type FailureCategory =
   | "copyright"
   | "platform_down"
   | "config_missing"
+  | "video_unavailable"
+  | "compliance_violation"
   | "unknown";
 
 interface CapResetInfo {
@@ -60,6 +62,25 @@ const NETWORK_PATTERNS = [
   "download strategies exhausted", "yt-dlp",
 ];
 
+const VIDEO_UNAVAILABLE_PATTERNS = [
+  "video unavailable", "video is unavailable", "this video is private",
+  "private video", "video has been removed", "video not available",
+  "account has been terminated", "age-restricted", "age restricted",
+  "confirm your age", "video was deleted", "no longer available",
+  "video is age restricted", "sign in to confirm your age",
+  "uploader has not made this video available",
+  "video has been removed by the user",
+  "HTTP Error 410", "error 410",
+];
+
+const COMPLIANCE_VIOLATION_PATTERNS = [
+  "compliance violation", "primarily uploading reused content",
+  "without significant commentary", "may lose monetization",
+  "reused content", "repetitive content", "without transformation",
+  "policy violation", "community guidelines violation",
+  "violates our policies", "content policy",
+];
+
 const COPYRIGHT_PATTERNS = [
   "copyright", "DMCA", "content ID", "blocked by copyright",
   "Copyright check blocked", "copyrighted material",
@@ -81,6 +102,8 @@ const CONFIG_PATTERNS = [
 export function classifyFailure(errorMessage: string, platform?: string): FailureCategory {
   const msg = errorMessage.toLowerCase();
 
+  if (VIDEO_UNAVAILABLE_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "video_unavailable";
+  if (COMPLIANCE_VIOLATION_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "compliance_violation";
   if (QUOTA_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "quota_cap";
   if (COPYRIGHT_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "copyright";
   if (CONFIG_PATTERNS.some(p => msg.includes(p.toLowerCase()))) return "config_missing";
@@ -128,6 +151,10 @@ function isAutoFixable(category: FailureCategory): boolean {
   return ["quota_cap", "rate_limit", "network", "platform_down", "unknown"].includes(category);
 }
 
+function isPermanentFailure(category: FailureCategory): boolean {
+  return ["video_unavailable", "compliance_violation", "copyright"].includes(category);
+}
+
 function getRetryDelay(category: FailureCategory, attempt: number = 0, platform?: string): number {
   switch (category) {
     case "quota_cap": {
@@ -155,7 +182,7 @@ function getRetryDelay(category: FailureCategory, attempt: number = 0, platform?
   }
 }
 
-async function createNotification(userId: string, title: string, message: string, severity: string = "info") {
+async function createNotification(userId: string, title: string, message: string, severity: string = "info", actionUrl?: string) {
   if (severity === "info") return;
   try {
     await db.insert(notifications).values({
@@ -164,7 +191,8 @@ async function createNotification(userId: string, title: string, message: string
       title,
       message,
       severity,
-    });
+      actionUrl: actionUrl ?? null,
+    } as any);
   } catch (err) {
     logger.error("Failed to create notification", { error: String(err) });
   }
@@ -202,14 +230,35 @@ export async function autoFixFailedPosts(): Promise<{
       const retryCount = metadata.retryCount || 0;
       const autoFixAttempts = metadata.autoFixAttempts || 0;
 
-      if (category === "copyright" || category === "config_missing") {
+      if (isPermanentFailure(category) || category === "config_missing") {
         stats.permanent++;
-        const friendlyMsg = category === "copyright"
-          ? `A post to ${post.targetPlatform} was blocked due to copyright. The system won't retry this one — the content may need to be modified.`
-          : `Posting to ${post.targetPlatform} requires platform reconnection. Go to Settings → Platforms to reconnect.`;
+        let notifTitle = `Action needed: ${post.targetPlatform}`;
+        let friendlyMsg = `Posting to ${post.targetPlatform} requires platform reconnection. Go to Settings → Platforms to reconnect.`;
+        let notifSeverity = "warning";
+        let notifActionUrl: string | undefined = "/channels";
+
+        if (category === "copyright") {
+          notifTitle = `Copyright block on ${post.targetPlatform}`;
+          friendlyMsg = `A post to ${post.targetPlatform} was blocked due to copyright. The content may need to be modified before reposting.`;
+          notifActionUrl = "/content";
+        } else if (category === "video_unavailable") {
+          notifTitle = `Video unavailable — skipped`;
+          friendlyMsg = `The source video could not be downloaded — it may be private, deleted, or age-restricted. That batch was skipped automatically.`;
+          notifSeverity = "warning";
+          notifActionUrl = "/content";
+        } else if (category === "compliance_violation") {
+          notifTitle = `Compliance issue — post skipped`;
+          friendlyMsg = `YouTube flagged this content as reused without sufficient commentary or transformation. The post was skipped to protect monetization. Add original commentary to resubmit.`;
+          notifSeverity = "warning";
+          notifActionUrl = "/content";
+        } else if (category === "config_missing") {
+          notifTitle = `${post.targetPlatform} needs reconnection`;
+          friendlyMsg = `Posting to ${post.targetPlatform} requires reconnecting your account. Go to Settings → Channels and reconnect.`;
+          notifActionUrl = "/channels";
+        }
 
         if (!metadata.permanentFailNotified) {
-          await createNotification(post.userId, `Action needed: ${post.targetPlatform}`, friendlyMsg, "warning");
+          await createNotification(post.userId, notifTitle, friendlyMsg, notifSeverity, notifActionUrl);
         }
         await db.update(autopilotQueue)
           .set({
@@ -246,8 +295,9 @@ export async function autoFixFailedPosts(): Promise<{
             if (!metadata.permanentFailNotified) {
               await createNotification(post.userId,
                 `${post.targetPlatform} needs reconnection`,
-                `Your ${post.targetPlatform} connection expired and couldn't be refreshed automatically. Go to Settings → Platforms to reconnect.`,
-                "warning"
+                `Your ${post.targetPlatform} connection expired and couldn't be refreshed automatically. Go to Settings → Channels to reconnect.`,
+                "warning",
+                "/channels"
               );
               await db.update(autopilotQueue)
                 .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: "auth_expired" } })
@@ -292,14 +342,15 @@ export async function autoFixFailedPosts(): Promise<{
         }
       }
 
-      const maxAutoFix = category === "network" || category === "platform_down" ? 5 : 3;
+      const maxAutoFix = category === "network" || category === "platform_down" ? 8 : 3;
       if (autoFixAttempts >= maxAutoFix) {
         stats.permanent++;
         if (!metadata.permanentFailNotified) {
           await createNotification(post.userId,
             `Upload couldn't be fixed automatically`,
             `After ${autoFixAttempts} automatic fix attempts, posting to ${post.targetPlatform} was abandoned. Error: ${errorMsg.substring(0, 150)}`,
-            "error"
+            "error",
+            post.targetPlatform === "youtube" ? "/content" : "/channels"
           );
         }
         await db.update(autopilotQueue)

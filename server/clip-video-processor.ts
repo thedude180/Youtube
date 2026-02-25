@@ -133,6 +133,51 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string): Promise
   return false;
 }
 
+async function checkVideoAvailability(youtubeId: string): Promise<{ available: boolean; reason?: string }> {
+  try {
+    const url = getYouTubeUrl(youtubeId);
+    const { stdout } = await execFileAsync("yt-dlp", [
+      "--dump-json",
+      "--no-download",
+      "--no-warnings",
+      "--no-check-certificates",
+      "--socket-timeout", "20",
+      url,
+    ], { timeout: 30_000 });
+
+    const info = JSON.parse(stdout);
+    if (!info || !info.id) {
+      return { available: false, reason: "Video unavailable or removed" };
+    }
+
+    if (info.is_live === false && info.was_live === false && !info.duration) {
+      return { available: false, reason: "Video unavailable" };
+    }
+
+    return { available: true };
+  } catch (err: any) {
+    const msg = (err.message || String(err)).toLowerCase();
+
+    if (
+      msg.includes("private video") || msg.includes("video is private") ||
+      msg.includes("this video is private") || msg.includes("video unavailable") ||
+      msg.includes("video has been removed") || msg.includes("no longer available") ||
+      msg.includes("http error 410") || msg.includes("error 410") ||
+      msg.includes("account has been terminated") || msg.includes("age-restricted") ||
+      msg.includes("age restricted") || msg.includes("confirm your age") ||
+      msg.includes("sign in to confirm your age") || msg.includes("uploader has not made")
+    ) {
+      const reason = msg.includes("private") ? "Video is private"
+        : msg.includes("removed") || msg.includes("410") ? "Video has been removed"
+        : msg.includes("age") ? "Video is age-restricted"
+        : "Video unavailable";
+      return { available: false, reason };
+    }
+
+    return { available: true };
+  }
+}
+
 export async function downloadSourceVideo(youtubeId: string): Promise<string> {
   const outputPath = path.join(CLIP_DIR, `source_${youtubeId}.mp4`);
 
@@ -151,6 +196,11 @@ export async function downloadSourceVideo(youtubeId: string): Promise<string> {
   const downloadPromise = (async () => {
     try {
       logger.info("Downloading source video", { youtubeId });
+
+      const availability = await checkVideoAvailability(youtubeId);
+      if (!availability.available) {
+        throw new Error(`Video unavailable: ${availability.reason || "Video is private, deleted, or age-restricted"} (${youtubeId})`);
+      }
 
       if (fs.existsSync(outputPath)) {
         try { fs.unlinkSync(outputPath); } catch {}

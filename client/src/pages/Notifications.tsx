@@ -6,9 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, CheckCircle2, RefreshCw } from "lucide-react";
+import { Bell, CheckCircle2, RefreshCw, ArrowRight, Wifi, FileVideo } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { useLocation } from "wouter";
 import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { EmptyState } from "@/components/EmptyState";
@@ -50,10 +51,32 @@ const severityColor = (severity: string) => {
   }
 };
 
+function getActionButton(n: Notification, navigate: (path: string) => void) {
+  const url = (n as any).actionUrl as string | undefined;
+  if (!url) return null;
+  const isReconnect = url === "/channels" || n.title?.toLowerCase().includes("reconnect") || n.title?.toLowerCase().includes("needs reconnection") || n.message?.toLowerCase().includes("reconnect");
+  const isContent = url === "/content";
+  const Icon = isReconnect ? Wifi : isContent ? FileVideo : ArrowRight;
+  const label = isReconnect ? "Reconnect" : isContent ? "Go to Content" : "View";
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="text-xs shrink-0"
+      onClick={() => navigate(url)}
+      data-testid={`button-action-${n.id}`}
+    >
+      <Icon className="h-3 w-3 mr-1" />
+      {label}
+    </Button>
+  );
+}
+
 export default function Notifications() {
   const { t } = useTranslation();
   usePageTitle(t("notifications.title"));
   const [filter, setFilter] = useState<FilterType>("all");
+  const [, navigate] = useLocation();
   const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 15_000, staleTime: 10_000 });
   const notifications = safeArray<Notification>(rawNotifications);
 
@@ -120,7 +143,11 @@ export default function Notifications() {
         <div>
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Notifications</h1>
           <p className="text-sm text-muted-foreground mt-1" data-testid="text-unread-count">
-            {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
+            {unreadCount > 0
+              ? `${unreadCount} unread${notifications.length > unreadCount ? ` · ${notifications.length} total` : ""}`
+              : notifications.length > 0
+                ? `All read · ${notifications.length} total`
+                : "All caught up"}
           </p>
         </div>
         {unreadCount > 0 && (
@@ -191,9 +218,12 @@ export default function Notifications() {
                         {!n.read && <Badge variant="default" className="text-[10px]" data-testid={`badge-new-${n.id}`}>New</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground" data-testid={`text-notification-message-${n.id}`}>{n.message}</p>
-                      <span className="text-xs text-muted-foreground mt-1 block" data-testid={`text-notification-time-${n.id}`}>
-                        {n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true }) : ""}
-                      </span>
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        <span className="text-xs text-muted-foreground" data-testid={`text-notification-time-${n.id}`}>
+                          {n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true }) : ""}
+                        </span>
+                        {getActionButton(n, navigate)}
+                      </div>
                     </div>
                     {!n.read && (
                       <Button
@@ -202,6 +232,7 @@ export default function Notifications() {
                         onClick={() => markReadMutation.mutate(n.id)}
                         disabled={markReadMutation.isPending}
                         data-testid={`button-mark-read-${n.id}`}
+                        title="Mark as read"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                       </Button>
