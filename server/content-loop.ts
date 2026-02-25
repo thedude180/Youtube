@@ -189,20 +189,32 @@ async function checkVodWorkRemaining(userId: string): Promise<boolean> {
   return count > 0;
 }
 
-const MAX_BATCHES_PER_CYCLE = 3;
+// Wall-clock budget per loop invocation — keeps each phase from blocking
+// indefinitely while still exhausting an entire backlog in one pass.
+// Each batch awaits real I/O (OpenAI API / DB), so the event loop is freed
+// between iterations; no starvation occurs.
+const STREAM_EXHAUST_BUDGET_MS = 600_000; // 10 minutes
+const VOD_OPTIMIZE_BUDGET_MS   = 600_000; // 10 minutes
 
 async function runStreamExhaustBatch(userId: string): Promise<{ didWork: boolean; exhausted: boolean }> {
   try {
     const { runSingleBatchForUser } = await import("./daily-content-engine");
     let anyWork = false;
     let lastExhausted = false;
+    const startMs = Date.now();
 
-    for (let i = 0; i < MAX_BATCHES_PER_CYCLE; i++) {
+    while (true) {
+      if (Date.now() - startMs > STREAM_EXHAUST_BUDGET_MS) {
+        logger.info("Stream exhaust time budget reached, deferring remainder to next cycle", { userId, elapsedMs: Date.now() - startMs });
+        break;
+      }
+
       const result = await runSingleBatchForUser(userId);
       if (result.didWork) {
         anyWork = true;
         lastExhausted = result.exhausted;
         if (result.exhausted) break;
+        // Yield briefly so other event-loop work (SSE, health checks) can run
         await new Promise(r => setTimeout(r, 2_000));
       } else {
         lastExhausted = result.exhausted;
@@ -220,8 +232,29 @@ async function runStreamExhaustBatch(userId: string): Promise<{ didWork: boolean
 async function runVodOptimizeBatch(userId: string): Promise<{ didWork: boolean; allDone: boolean }> {
   try {
     const { runSingleVodBatchForUser } = await import("./vod-optimizer-engine");
-    const result = await runSingleVodBatchForUser(userId);
-    return result;
+    let anyWork = false;
+    let lastAllDone = false;
+    const startMs = Date.now();
+
+    while (true) {
+      if (Date.now() - startMs > VOD_OPTIMIZE_BUDGET_MS) {
+        logger.info("VOD optimize time budget reached, deferring remainder to next cycle", { userId, elapsedMs: Date.now() - startMs });
+        break;
+      }
+
+      const result = await runSingleVodBatchForUser(userId);
+      if (result.didWork) {
+        anyWork = true;
+        lastAllDone = result.allDone;
+        if (result.allDone) break;
+        await new Promise(r => setTimeout(r, 2_000));
+      } else {
+        lastAllDone = result.allDone;
+        break;
+      }
+    }
+
+    return { didWork: anyWork, allDone: lastAllDone };
   } catch (err) {
     logger.error("VOD optimize batch failed", { userId, error: String(err) });
     return { didWork: false, allDone: false };
