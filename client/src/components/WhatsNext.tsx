@@ -82,7 +82,7 @@ const priorityColors = {
 };
 
 export function WhatsNext({ compact = false }: { compact?: boolean }) {
-  const { data: stats } = useQuery<any>({ queryKey: ["/api/stats"] });
+  const { data: stats } = useQuery<any>({ queryKey: ["/api/dashboard/stats"] });
   const recommendations = getStaticRecommendations(stats);
 
   if (compact) {
