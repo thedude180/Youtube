@@ -1010,6 +1010,42 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
   }
 }
 
+/**
+ * Reschedules all future-dated "scheduled" queue items to fire within the next
+ * 1-5 minutes, staggered so they don't all hit the APIs simultaneously.
+ * Called once at server startup so any backlog of tomorrow+ content fires ASAP.
+ */
+export async function flushQueueToAsap(): Promise<number> {
+  try {
+    const now = new Date();
+    const futurePosts = await db
+      .select({ id: autopilotQueue.id })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.status, "scheduled"),
+        sql`${autopilotQueue.scheduledAt} > NOW()`,
+      ));
+
+    if (futurePosts.length === 0) return 0;
+
+    // Stagger across 5 minutes so publish cron processes them in orderly batches
+    const staggerWindowMs = 5 * 60_000;
+    await Promise.all(futurePosts.map((post, i) => {
+      const jitterMs = (i / futurePosts.length) * staggerWindowMs + Math.random() * 30_000;
+      const asapTime = new Date(now.getTime() + jitterMs);
+      return db.update(autopilotQueue)
+        .set({ scheduledAt: asapTime })
+        .where(eq(autopilotQueue.id, post.id));
+    }));
+
+    logger.info("Flushed future queue items to ASAP", { count: futurePosts.length });
+    return futurePosts.length;
+  } catch (err: any) {
+    logger.warn("flushQueueToAsap failed", { error: err.message });
+    return 0;
+  }
+}
+
 export async function processScheduledPosts() {
   const now = new Date();
   const { isActive } = getActivityWindow();
@@ -1026,7 +1062,7 @@ export async function processScheduledPosts() {
       eq(autopilotQueue.status, "scheduled"),
       lte(autopilotQueue.scheduledAt, now),
     ))
-    .limit(isActive ? 10 : 3);
+    .limit(25);
 
   if (duePosts.length === 0) return;
 

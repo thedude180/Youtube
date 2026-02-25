@@ -204,6 +204,19 @@ const chainLock = { get since() { return chainProcessingSince; }, set since(v) {
 
 export async function initAutomationEngine() {
 
+  // On startup, move any future-dated scheduled posts to fire within the next
+  // 5 minutes so existing backlogs publish ASAP instead of waiting for their
+  // originally-assigned peak-hour times.
+  try {
+    const { flushQueueToAsap } = await import("./autopilot-engine");
+    const flushed = await flushQueueToAsap();
+    if (flushed > 0) {
+      console.log(`[AutomationEngine] Flushed ${flushed} future-scheduled posts to ASAP on startup`);
+    }
+  } catch (err: any) {
+    console.warn("[AutomationEngine] Startup flush failed:", err.message);
+  }
+
   cron.schedule("*/5 * * * *", async () => {
     await withCronLock("CronProcessor", 4 * 60 * 1000, async () => {
       await selfHealingCore("CronProcessor", () => processAllCronJobs(), { silent: true });
@@ -243,8 +256,8 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/5 * * * *", async () => {
-    await withCronLock("ScheduledPosts", 4 * 60 * 1000, async () => {
+  cron.schedule("* * * * *", async () => {
+    await withCronLock("ScheduledPosts", 55 * 1000, async () => {
       await selfHealingCore("ScheduledPosts", async () => {
         const { processScheduledPosts } = await import("./autopilot-engine");
         await processScheduledPosts();

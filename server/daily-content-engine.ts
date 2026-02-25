@@ -37,7 +37,7 @@ const SHORTS_PER_BATCH = 3;
 const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 75; // 60 min long-form + ~15 min headroom for 3 shorts
 const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 4 (1 long-form + 3 shorts per batch)
-const MIN_DAY_OFFSET = 1; // always schedule from tomorrow onward — never overwrite today
+const MIN_DAY_OFFSET = 0; // start from today — first batch fires ASAP, subsequent batches fill sequential future days
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
@@ -90,6 +90,15 @@ async function getNextAvailableDayOffset(userId: string): Promise<number> {
  *  3. UTC fallback — if timezone lookup fails entirely, schedules in UTC.
  */
 async function getScheduledTimeForDay(dayOffset: number, userId: string): Promise<Date> {
+  // dayOffset=0 (today): schedule for RIGHT NOW with a small jitter (2-8 min) so the
+  // 1-minute publish cron picks it up almost immediately.
+  if (dayOffset === 0) {
+    const asapMs = Date.now() + (2 + Math.random() * 6) * 60_000; // 2–8 minutes from now
+    const t = new Date(asapMs);
+    logger.info("Scheduled time determined (ASAP)", { userId, dayOffset, scheduledAt: t.toISOString() });
+    return t;
+  }
+
   const PLATFORM = "youtube";
   const YOUTUBE_PEAK_HOURS = [10, 11, 12, 14, 15, 16, 17, 18, 19, 20];
   const MIN_DATA_POINTS = 3;
@@ -138,6 +147,8 @@ async function getScheduledTimeForDay(dayOffset: number, userId: string): Promis
 
   targetDate.setUTCHours(Math.round(targetUtcHour), targetMinute, Math.floor(Math.random() * 60), 0);
 
+  // If the target time has already passed (or is within 90 min), push to next day.
+  // This guard only applies to future-day batches (dayOffset>=1) — dayOffset=0 handled above.
   if (targetDate.getTime() <= Date.now() + 90 * 60000) {
     targetDate.setTime(targetDate.getTime() + 86400000);
   }
