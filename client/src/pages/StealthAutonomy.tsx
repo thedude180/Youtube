@@ -143,12 +143,23 @@ function EnginesTab() {
         <div>
           <p className="text-sm text-muted-foreground">{running} of {engines.length} engines active</p>
         </div>
-        <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400">
-          <Cpu className="h-3 w-3 mr-1" /> All Systems Go
-        </Badge>
+        {engines.length > 0 && (
+          <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400">
+            <Cpu className="h-3 w-3 mr-1" /> All Systems Go
+          </Badge>
+        )}
       </div>
 
       <div className="grid gap-2">
+        {engines.length === 0 && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Server className="h-10 w-10 mx-auto text-muted-foreground/60 mb-3" />
+              <p className="font-medium text-muted-foreground">No Engines Registered</p>
+              <p className="text-sm text-muted-foreground/70 mt-1 max-w-md mx-auto">AI engines will appear here once the autonomy system initializes. Each engine handles a specific aspect of your creator workflow automatically.</p>
+            </CardContent>
+          </Card>
+        )}
         {engines.map((engine: any) => (
           <div key={engine.name} className="flex items-center justify-between p-3 rounded-lg bg-card border" data-testid={`engine-${engine.name}`}>
             <div className="flex items-center gap-3">
@@ -200,6 +211,13 @@ function StealthTab() {
           <CardTitle className="text-base flex items-center gap-2"><Gauge className="h-4 w-4" /> Detection Metrics</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {metrics.length === 0 && (
+            <div className="text-center py-6">
+              <EyeOff className="h-10 w-10 mx-auto text-muted-foreground/60 mb-3" />
+              <p className="font-medium text-muted-foreground">No Detection Data Yet</p>
+              <p className="text-sm text-muted-foreground/70 mt-1">Stealth metrics will appear once the AI starts generating and publishing content. All content is automatically screened for AI detection patterns.</p>
+            </div>
+          )}
           {metrics.map((m: any, i: number) => (
             <div key={i} className="flex items-center justify-between">
               <div className="flex items-center gap-2">

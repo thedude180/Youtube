@@ -213,6 +213,8 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
         const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
         if (isExpiredPermanently) {
           await db.update(channels).set({
+            tokenExpiresAt: null,
+            refreshToken: null,
             platformData: { ...(ch.platformData as any || {}), _connectionStatus: "expired", _expiredAt: new Date().toISOString() },
           }).where(eq(channels.id, ch.id));
           console.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} permanently expired — user must re-authorize`);

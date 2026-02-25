@@ -144,10 +144,10 @@ export const queryClient = new QueryClient({
       gcTime: 10 * 60 * 1000,
       retry: (failureCount, error) => {
         const msg = error.message || "";
-        if (msg.startsWith("401:") || msg.startsWith("403:") || msg.startsWith("404:") || msg.startsWith("422:")) {
+        if (msg.startsWith("401:") || msg.startsWith("403:") || msg.startsWith("404:") || msg.startsWith("422:") || msg.startsWith("500:")) {
           return false;
         }
-        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.startsWith("500:") || msg.startsWith("502:") || msg.startsWith("503:") || msg.startsWith("504:") || msg.startsWith("429:")) {
+        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.startsWith("502:") || msg.startsWith("503:") || msg.startsWith("504:") || msg.startsWith("429:")) {
           return failureCount < 4;
         }
         return failureCount < 2;

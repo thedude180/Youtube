@@ -114,6 +114,16 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
 
         const pd = (ch.platformData || {}) as any;
         const lastCheck = pd._lastVerifiedAt || 0;
+        const existingFailures = (pd._reconnectFailures || 0) as number;
+
+        if (existingFailures >= 5 && pd._connectionStatus === "expired") {
+          const cooldownMs = Math.min(existingFailures * 30 * 60 * 1000, 24 * 60 * 60 * 1000);
+          if (now - lastCheck < cooldownMs) {
+            failed++;
+            continue;
+          }
+        }
+
         if (now - lastCheck < FULL_VERIFY_INTERVAL_MS) {
           if (pd._connectionStatus === "healthy") verified++;
           else failed++;
@@ -132,12 +142,15 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
           if (refreshOk) {
             refreshed++;
           } else {
-            const failures = ((pd._reconnectFailures || 0) as number) + 1;
+            const failures = existingFailures + 1;
             await db.update(channels).set({
               platformData: { ...(ch.platformData || {}), _connectionStatus: "expired", _lastVerifiedAt: now, _reconnectFailures: failures },
             }).where(eq(channels.id, ch.id));
             failed++;
-            console.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token expired/revoked, needs manual reconnect (failure #${failures})`);
+
+            if (failures <= 3) {
+              console.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token expired/revoked, needs manual reconnect (failure #${failures})`);
+            }
 
             if (failures === 2 && ch.userId) {
               try {

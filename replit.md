@@ -65,6 +65,8 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
 - **DB-Backed Cron Locks**: Prevents overlapping cron execution.
 - **External Service Health Checks**: Probes integrated services.
 - **AI Telemetry**: Tracks OpenAI usage, latency, and failure rates.
+- **Token Refresh**: Permanently expired tokens have `refreshToken` and `tokenExpiresAt` nulled to prevent infinite retry loops. ConnectionGuardian uses exponential backoff cooldown for dead tokens.
+- **Query Client Retry**: 500 errors fail immediately (no retry); transient errors (502/503/504/429/network) retry up to 4 times with exponential backoff.
 - **Self-Healing Core**: Autonomous failure detection, AI diagnosis, retry logic, circuit breakers, and health monitoring.
 - **Auto-Fix Engine**: Classifies and recovers from various errors.
 - **Platform Policy Tracker**: Autonomous engine (runs every 12 hours via autonomy controller) that monitors 7 platforms for policy/TOS changes, updates `complianceRules` table, and auto-enforces limits before publishing. Pre-publish compliance check blocks critical violations and auto-fixes lengths/metadata.
