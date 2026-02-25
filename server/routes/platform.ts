@@ -1070,6 +1070,67 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  app.get("/api/oauth/:platform/bounce", (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const platform = req.params.platform as Platform;
+    const config = OAUTH_CONFIGS[platform];
+    if (!config) return res.status(400).json({ error: `No OAuth config for platform: ${platform}` });
+
+    const clientId = process.env[config.clientIdEnv];
+    const clientSecret = process.env[config.clientSecretEnv];
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ error: `OAuth not configured for ${config.label}.` });
+    }
+
+    cleanupOAuthStates();
+    const state = crypto.randomBytes(32).toString("hex");
+    let codeVerifier: string | undefined;
+    if (config.requiresPKCE) {
+      codeVerifier = crypto.randomBytes(32).toString("base64url");
+    }
+    pendingOAuthStates.set(state, { userId, platform, timestamp: Date.now(), codeVerifier });
+
+    const scopeDelimiter = config.usesClientKey ? "," : " ";
+    const params = new URLSearchParams({
+      [config.usesClientKey ? "client_key" : "client_id"]: clientId,
+      redirect_uri: getOAuthRedirectUri(platform),
+      response_type: config.responseType || "code",
+      scope: config.scopes.join(scopeDelimiter),
+      state,
+      ...(config.additionalAuthParams || {}),
+    });
+    if (config.requiresPKCE && codeVerifier) {
+      if (config.pkceChallengeMethod === "S256") {
+        const hash = crypto.createHash("sha256").update(codeVerifier).digest();
+        const codeChallenge = hash.toString("base64url");
+        params.set("code_challenge", codeChallenge);
+        params.set("code_challenge_method", "S256");
+      } else {
+        params.set("code_challenge", codeVerifier);
+        params.set("code_challenge_method", "plain");
+      }
+    }
+
+    const authUrl = `${config.authUrl}?${params.toString()}`;
+    const safeUrl = authUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.send(`<!DOCTYPE html>
+<html><head>
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="refresh" content="1;url=${safeUrl}">
+<style>body{background:#0a0a0f;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+.c{text-align:center}.s{width:40px;height:40px;border:3px solid rgba(139,92,246,0.3);border-top-color:#8b5cf6;border-radius:50%;animation:r 1s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}.l{margin-top:16px;color:#a78bfa;font-size:14px}
+a{color:#8b5cf6;text-decoration:underline;margin-top:12px;display:inline-block;font-size:13px}</style>
+</head><body><div class="c"><div class="s" style="margin:0 auto"></div><p class="l">Connecting to ${config.label}...</p>
+<a href="${safeUrl}" rel="noreferrer noopener" target="_self">Click here if not redirected</a>
+<script>setTimeout(function(){location.replace("${authUrl.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}")},800);</script>
+</div></body></html>`);
+  });
+
   app.get("/api/oauth/:platform/callback", async (req, res) => {
     const platform = req.params.platform as Platform;
     const code = req.query.code as string | undefined;

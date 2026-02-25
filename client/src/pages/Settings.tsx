@@ -324,22 +324,21 @@ function GeneralTab() {
 
             const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
+            const DEEP_LINK_PLATFORMS = ["kick", "twitch", "tiktok", "discord"];
+
             const handleOAuthLogin = async (platform: string, isYouTube: boolean) => {
               setOauthLoading(platform);
               try {
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
+                  window.location.href = `/api/oauth/${platform}/bounce`;
+                  return;
+                }
                 const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
                 const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
                 if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
                 const { url } = await res.json();
-                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                if (isMobile) {
-                  const w = window.open(url, "_blank", "noopener,noreferrer");
-                  if (!w) {
-                    window.location.href = url;
-                  }
-                } else {
-                  window.location.href = url;
-                }
+                window.location.href = url;
               } catch (error: any) {
                 toast({ title: "Error", description: error.message, variant: "destructive" });
                 setOauthLoading(null);
@@ -368,6 +367,11 @@ function GeneralTab() {
             const handleReconnect = async (platform: string, isYouTube: boolean) => {
               setOauthLoading(platform);
               try {
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
+                  window.location.href = `/api/oauth/${platform}/bounce`;
+                  return;
+                }
                 const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
                 const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
                 if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
