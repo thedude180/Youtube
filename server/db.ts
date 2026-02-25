@@ -13,9 +13,9 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,
+  max: 10,                      // keep headroom — Replit Postgres handles ~25 total
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 30_000, // 30 s — handles burst at startup
   allowExitOnIdle: true,
   statement_timeout: 30_000,
   query_timeout: 30_000,

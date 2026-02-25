@@ -702,41 +702,47 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       reusePort: true,
     },
     () => {
-      startAutopilotMonitor();
-      startConnectionGuardian();
-      startAutonomyController();
+      // ── TIER 1: Critical publish pipeline — starts immediately ──────────────
+      startAutopilotMonitor();       // runs publish cron every 1 min
+      startConnectionGuardian();     // OAuth token refresh
+      startAutonomyController();     // master cron scheduler
 
-      seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
+      // ── TIER 2: DB-touching services — staggered to avoid pool exhaustion ──
+      // Each service is delayed by an increasing offset so the DB connection
+      // pool is never slammed with 20 concurrent queries at startup.
+      const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
+
+      delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
 
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
       const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
 
-      const dlqInterval = setInterval(() => {
-        processDeadLetterQueue().catch(err => logger.error("DLQ process failed", { error: String(err) }));
-      }, DLQ_INTERVAL_MS);
+      delay(5_000, () => {
+        const dlqInterval = setInterval(() => {
+          processDeadLetterQueue().catch(err => logger.error("DLQ process failed", { error: String(err) }));
+        }, DLQ_INTERVAL_MS);
+        const digestInterval = setInterval(() => {
+          processAllDigests().catch(err => logger.error("Digest process failed", { error: String(err) }));
+        }, DIGEST_INTERVAL_MS);
+        backgroundIntervals.push(dlqInterval, digestInterval);
+      });
 
-      const digestInterval = setInterval(() => {
-        processAllDigests().catch(err => logger.error("Digest process failed", { error: String(err) }));
-      }, DIGEST_INTERVAL_MS);
+      delay(8_000,  () => { try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); } });
 
-      backgroundIntervals.push(dlqInterval, digestInterval);
+      delay(12_000, () => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) })));
+      delay(18_000, () => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) })));
+      delay(24_000, () => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) })));
+      delay(30_000, () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) })));
+      delay(36_000, () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) })));
+      delay(42_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
+      delay(48_000, () => import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) })));
+      delay(54_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
+      delay(60_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
+      delay(66_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
 
-      try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); }
-
-      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) }));
-      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) }));
-      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) }));
-      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) }));
-      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) }));
-      import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) }));
-      import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) }));
-      import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) }));
-      import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) }));
-      import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) }));
-
-      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) }));
-      startCleanupCoordinator();
-      startResilienceWatchdog();
+      delay(72_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
+      delay(75_000, () => startCleanupCoordinator());
+      delay(78_000, () => startResilienceWatchdog());
 
     },
   );
