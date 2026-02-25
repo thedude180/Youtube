@@ -32,11 +32,12 @@ function isVideoPostable(video: any): boolean {
   return true;
 }
 
-const LONG_FORM_MAX_MINUTES = 15;
+const LONG_FORM_MAX_MINUTES = 60;
 const SHORTS_PER_BATCH = 3;
 const LONG_FORM_PER_BATCH = 1;
-const MINUTES_PER_BATCH = 30;
+const MINUTES_PER_BATCH = 75; // 60 min long-form + ~15 min headroom for 3 shorts
 const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 4 (1 long-form + 3 shorts per batch)
+const MIN_DAY_OFFSET = 1; // always schedule from tomorrow onward — never overwrite today
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
@@ -61,13 +62,13 @@ async function getNextAvailableDayOffset(userId: string): Promise<number> {
 
   const filledDays = new Set(scheduledDays.map(r => r.scheduledDate));
 
-  for (let offset = 0; offset < 365; offset++) {
+  for (let offset = MIN_DAY_OFFSET; offset < 365; offset++) {
     const checkDate = new Date(today.getTime() + offset * 86400000);
     const dateStr = checkDate.toISOString().split("T")[0];
     if (!filledDays.has(dateStr)) return offset;
   }
 
-  return filledDays.size;
+  return Math.max(MIN_DAY_OFFSET, filledDays.size);
 }
 
 /**
@@ -300,15 +301,16 @@ CONTENT-ADAPTIVE REQUIREMENTS:
 - Use niche-specific terminology and community language relevant to this stream.
 
 RULES:
-- Long-form MUST NOT exceed ${LONG_FORM_MAX_MINUTES} minutes. Use segments from ${segStart}-${segEnd} minutes.
-- Create exactly ${SHORTS_PER_BATCH} shorts (21-59 seconds each, sweet spot 30-45 seconds)
+- Long-form is a FULL-LENGTH video — target 45-${LONG_FORM_MAX_MINUTES} minutes. Do NOT create a short clip. Cover as much of the ${segStart}-${segEnd} minute range as possible with meaningful, engaging content. This is a complete standalone video, not a highlight reel.
+- Create exactly ${SHORTS_PER_BATCH} shorts (30-59 seconds each, sweet spot 40-50 seconds) — pick the 3 best standalone moments from the ${segStart}-${segEnd} minute range
 - All timestamps MUST be within the ${segStart}-${segEnd} minute range
+- Long-form segments array: provide 4-8 chapter segments spanning the full ${segStart}-${segEnd} range with hooks for each chapter
 - Titles: Use power words, numbers, emotional triggers, curiosity gaps. Under 60 chars. Front-load keywords. Examples: "I Can't Believe This Actually Worked..." or "This 1v4 Clutch Changed Everything"
-- Descriptions: First 2 lines are CRITICAL (shown in search). Include primary keyword in first sentence. Add timestamps at retention beat markers. End with strong CTA (subscribe, comment, share). Include 3-5 related keyword phrases naturally. Add links section and social proof.
+- Descriptions: First 2 lines are CRITICAL (shown in search). Include primary keyword in first sentence. Add timestamps at EVERY chapter for YouTube chapters feature. End with strong CTA. Include 3-5 related keyword phrases naturally.
 - Tags: 15-25 tags mixing broad niche keywords with specific long-tail keywords. Include topic/subject variations, trending terms, and competitor video tags.
-- Shorts: Hook in first 0.5 seconds. Title must work as both a YouTube Short title AND TikTok caption. Hashtags must include trending + niche-specific tags.
-- Each batch must feel like a FRESH standalone video
-- CRITICAL: Structure every piece using retention beats. Hook must grab in first 3 seconds. Include pattern interrupts every 30-60 seconds in long-form.
+- Shorts: Hook in first 0.5 seconds. Title must work as both a YouTube Short title AND TikTok caption. Hashtags must include trending + niche-specific tags. Include #Shorts in the description.
+- Each batch must feel like a FRESH standalone video — unique angle, unique title
+- CRITICAL: Long-form structure — strong hook in first 3 seconds, chapter breaks with re-hooks every 5-8 minutes, curiosity loops throughout, strong end-screen CTA.
 
 Return ONLY valid JSON:
 {
@@ -316,7 +318,7 @@ Return ONLY valid JSON:
     "title": "string - irresistible clickbait title under 60 chars with power words and curiosity gap",
     "description": "string - SEO-optimized description: keyword-rich first 2 lines, timestamps at retention beats, hashtags, CTA, and social proof",
     "segments": [{"startMinute": number, "endMinute": number, "hook": "string - why this moment is compelling"}],
-    "totalDurationEstimate": "string like 12:30",
+    "totalDurationEstimate": "string like 52:30 — target 45-60 minutes for long-form",
     "tags": ["array of 15-25 SEO-optimized tags mixing broad and long-tail keywords"],
     "thumbnailConcept": "detailed thumbnail concept: emotion, composition, colors, focal point, contrast technique",
     "retentionBrief": {
