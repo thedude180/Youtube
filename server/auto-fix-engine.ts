@@ -601,7 +601,13 @@ export function getAutoFixSummary(category: FailureCategory, platform?: string):
       return "Content blocked by copyright. This requires manual review.";
     case "config_missing":
       return "Platform not connected. Go to Settings → Platforms to reconnect.";
+    case "video_unavailable":
+      return "Source video is unavailable for download. It may be private, geo-blocked, or DRM-protected. The system has marked this post as failed.";
+    case "compliance_violation":
+      return "Content was blocked by a platform compliance rule. The system has flagged this for review.";
     case "unknown":
       return "Unexpected error. The system is analyzing and will attempt an automatic fix.";
+    default:
+      return "Publishing failed. The system will analyze and retry automatically.";
   }
 }

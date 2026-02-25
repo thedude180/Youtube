@@ -1295,7 +1295,8 @@ export async function processScheduledPosts() {
           .where(eq(autopilotQueue.id, post.id));
 
         const retryCount = ((post.metadata as any)?.retryCount) || 0;
-        const silentCategories = new Set(["config_missing", "auth_expired", "unknown", "network", "platform_down", "rate_limit", "quota_cap"]);
+        // Silent: permanent/auto-handled failures that don't need user attention
+        const silentCategories = new Set(["config_missing", "auth_expired", "unknown", "network", "platform_down", "rate_limit", "quota_cap", "video_unavailable", "compliance_violation"]);
         if (retryCount === 0 && !silentCategories.has(failureCategory)) {
           const friendlyError = getAutoFixSummary(failureCategory, post.targetPlatform);
           await createNotification(post.userId, "autopilot", `Issue with ${post.targetPlatform} post`,
@@ -1318,7 +1319,7 @@ export async function processScheduledPosts() {
         .where(eq(autopilotQueue.id, post.id));
 
       const retryCount = ((post.metadata as any)?.retryCount) || 0;
-      const silentCatch = new Set(["config_missing", "auth_expired", "unknown", "network", "platform_down", "rate_limit", "quota_cap"]);
+      const silentCatch = new Set(["config_missing", "auth_expired", "unknown", "network", "platform_down", "rate_limit", "quota_cap", "video_unavailable", "compliance_violation"]);
       if (retryCount === 0 && !silentCatch.has(failureCategory)) {
         const friendlyError = sanitizeErrorForNotification(errorMsg, post.targetPlatform);
         await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`, friendlyError, "warning");
@@ -1490,7 +1491,9 @@ export async function updateAutopilotFeatureConfig(userId: string, feature: stri
 
 export async function createNotification(userId: string, type: string, title: string, message: string, severity: string) {
   if (severity === "info") return;
-  await db.insert(notifications).values({ userId, type, title, message, severity });
+  const safeMessage = message || `${title} — the system is handling this automatically.`;
+  const safeTitle = title || "System notification";
+  await db.insert(notifications).values({ userId, type, title: safeTitle, message: safeMessage, severity });
   sendSSEEvent(userId, "notification", { type: "new" });
 }
 
