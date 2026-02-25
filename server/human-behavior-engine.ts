@@ -1,10 +1,51 @@
-const TIMEZONE_OFFSET_HOURS = -5;
+import { db } from "./db";
+import { notificationPreferences } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+/**
+ * Returns the UTC offset in hours for a given IANA timezone on a specific date.
+ * Positive = east of UTC (e.g., +5.5 for IST), negative = west (e.g., -5 for EST).
+ * Automatically accounts for Daylight Saving Time.
+ */
+export function getTimezoneOffsetHours(timezone: string, date: Date): number {
+  try {
+    const tzTime = new Date(date.toLocaleString("en-US", { timeZone: timezone }));
+    const utcTime = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+    return (tzTime.getTime() - utcTime.getTime()) / 3600000;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Looks up the creator's IANA timezone from their notification preferences.
+ * Falls back to "UTC" if not set or not found.
+ */
+export async function getUserTimezone(userId: string): Promise<string> {
+  try {
+    const [prefs] = await db
+      .select({ timezone: notificationPreferences.timezone })
+      .from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, userId))
+      .limit(1);
+    const tz = prefs?.timezone;
+    if (tz && tz !== "UTC") {
+      // Validate it's a real IANA timezone
+      Intl.DateTimeFormat("en-US", { timeZone: tz });
+      return tz;
+    }
+    return "UTC";
+  } catch {
+    return "UTC";
+  }
+}
 
 interface HumanScheduleOptions {
   platform: string;
   userId: string;
   contentType: "new-video" | "recycle" | "engagement" | "comment";
   urgency?: "immediate" | "normal" | "low";
+  timezone?: string;
 }
 
 interface PlatformTimingProfile {
@@ -59,9 +100,17 @@ function gaussianRandom(mean: number, stddev: number): number {
   return num * stddev + mean;
 }
 
-function getLocalHour(date: Date): number {
-  const utcHour = date.getUTCHours();
-  return ((utcHour + TIMEZONE_OFFSET_HOURS) % 24 + 24) % 24;
+function getLocalHourForTimezone(date: Date, timezone: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      hour12: false,
+    }).formatToParts(date);
+    return parseInt(parts.find(p => p.type === "hour")?.value ?? "0", 10);
+  } catch {
+    return date.getUTCHours();
+  }
 }
 
 function isWeekend(date: Date): boolean {
@@ -70,11 +119,11 @@ function isWeekend(date: Date): boolean {
 }
 
 export function generateHumanScheduledTime(options: HumanScheduleOptions): Date {
-  const { platform, contentType, urgency = "normal" } = options;
+  const { platform, contentType, urgency = "normal", timezone = "UTC" } = options;
   const timing = PLATFORM_TIMING[platform] || PLATFORM_TIMING.x;
+  const offset = getTimezoneOffsetHours(timezone, new Date());
 
   const now = new Date();
-  const currentLocalHour = getLocalHour(now);
 
   if (urgency === "immediate") {
     const delayMinutes = gaussianRandom(8, 4);
@@ -96,7 +145,7 @@ export function generateHumanScheduledTime(options: HumanScheduleOptions): Date 
   const targetMinute = Math.max(0, Math.min(59, minuteJitter));
 
   let scheduledDate = new Date(now);
-  const targetUtcHour = ((targetHour - TIMEZONE_OFFSET_HOURS) % 24 + 24) % 24;
+  const targetUtcHour = ((targetHour - offset) % 24 + 24) % 24;
   scheduledDate.setUTCHours(targetUtcHour, targetMinute, Math.floor(Math.random() * 60), 0);
 
   if (scheduledDate.getTime() <= now.getTime() + timing.minGapMinutes * 60000) {
@@ -174,7 +223,7 @@ export function shouldPostToday(platform: string): boolean {
 
 export function getActivityWindow(): { start: number; end: number; isActive: boolean } {
   const now = new Date();
-  const localHour = getLocalHour(now);
+  const localHour = now.getUTCHours();
 
   const wakeHour = Math.floor(gaussianRandom(8, 0.5));
   const sleepHour = Math.floor(gaussianRandom(23, 0.5));
@@ -219,6 +268,8 @@ export function simulateTypingDelay(textLength: number): number {
 }
 
 export async function getAudienceDrivenTime(options: HumanScheduleOptions): Promise<Date> {
+  const timezone = options.timezone ?? (await getUserTimezone(options.userId));
+
   try {
     const { getOptimalPostingTimes } = await import("./smart-scheduler");
     const result = await getOptimalPostingTimes(options.userId, options.platform);
@@ -241,12 +292,14 @@ export async function getAudienceDrivenTime(options: HumanScheduleOptions): Prom
         const candidate = new Date(now);
         const currentDay = candidate.getDay();
         let daysUntil = (picked.dayOfWeek - currentDay + 7) % 7;
-        if (daysUntil === 0 && candidate.getHours() >= (picked.hourOfDay + 1)) {
+        if (daysUntil === 0 && getLocalHourForTimezone(candidate, timezone) >= (picked.hourOfDay + 1)) {
           daysUntil = 7;
         }
         candidate.setDate(candidate.getDate() + daysUntil);
         const minuteJitter = Math.floor(gaussianRandom(25, 15));
-        candidate.setHours(picked.hourOfDay, Math.max(0, Math.min(59, minuteJitter)), 0, 0);
+        const offset = getTimezoneOffsetHours(timezone, candidate);
+        const targetUtcHour = ((picked.hourOfDay - offset) % 24 + 24) % 24;
+        candidate.setUTCHours(Math.round(targetUtcHour), Math.max(0, Math.min(59, minuteJitter)), 0, 0);
 
         return candidate;
       }
@@ -254,7 +307,7 @@ export async function getAudienceDrivenTime(options: HumanScheduleOptions): Prom
   } catch {
   }
 
-  return generateHumanScheduledTime(options);
+  return generateHumanScheduledTime({ ...options, timezone });
 }
 
 export async function getAudienceDrivenStaggeredSchedule(
@@ -265,6 +318,7 @@ export async function getAudienceDrivenStaggeredSchedule(
   const schedule = new Map<string, Date>();
   let lastTime = new Date();
 
+  const timezone = await getUserTimezone(userId);
   const shuffled = [...platforms].sort(() => Math.random() - 0.5);
 
   for (let i = 0; i < shuffled.length; i++) {
@@ -278,6 +332,7 @@ export async function getAudienceDrivenStaggeredSchedule(
         userId,
         contentType,
         urgency: contentType === "new-video" ? "normal" : "low",
+        timezone,
       });
     } else {
       const gapMinutes = gaussianRandom(timing.avgGapMinutes, timing.avgGapMinutes * 0.3);
@@ -300,7 +355,9 @@ export async function getAudienceDrivenStaggeredSchedule(
             const currentDay = candidate.getDay();
             let daysUntil = (picked.dayOfWeek - currentDay + 7) % 7;
             candidate.setDate(candidate.getDate() + daysUntil);
-            candidate.setHours(picked.hourOfDay, Math.floor(Math.random() * 45) + 5, 0, 0);
+            const offset = getTimezoneOffsetHours(timezone, candidate);
+            const targetUtcHour = ((picked.hourOfDay - offset) % 24 + 24) % 24;
+            candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, 0, 0);
             if (candidate.getTime() < afterGap.getTime()) {
               candidate.setDate(candidate.getDate() + 7);
             }

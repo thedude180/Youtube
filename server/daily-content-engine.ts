@@ -1,8 +1,9 @@
 import { db } from "./db";
-import { videos, streams, autopilotQueue, channels, notifications } from "@shared/schema";
+import { videos, streams, autopilotQueue, channels, notifications, audienceActivityPatterns } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte, isNotNull, ne, inArray } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
+import { getUserTimezone, getTimezoneOffsetHours } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunDailyContent } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
@@ -112,21 +113,71 @@ async function getNextAvailableDayOffset(userId: string): Promise<number> {
   return filledDays.size;
 }
 
-function getScheduledTimeForDay(dayOffset: number): Date {
-  const TIMEZONE_OFFSET_HOURS = -5;
-  const peakHours = [10, 11, 12, 14, 15, 16, 17, 18, 19, 20];
-  const targetHour = peakHours[Math.floor(Math.random() * peakHours.length)];
-  const targetMinute = Math.max(0, Math.min(59, Math.floor(Math.random() * 60)));
+/**
+ * Returns the optimal scheduled time for a piece of content on `today + dayOffset` days.
+ *
+ * Priority order:
+ *  1. Real audience activity data (audienceActivityPatterns) — uses the top-performing
+ *     hours learned from actual viewer behaviour on YouTube.
+ *  2. Creator's home timezone + platform peak hours — if no audience data has been
+ *     collected yet, schedules during known-good YouTube windows but expressed in the
+ *     creator's local timezone (taken from their notification preferences).
+ *  3. UTC fallback — if timezone lookup fails entirely, schedules in UTC.
+ */
+async function getScheduledTimeForDay(dayOffset: number, userId: string): Promise<Date> {
+  const PLATFORM = "youtube";
+  const YOUTUBE_PEAK_HOURS = [10, 11, 12, 14, 15, 16, 17, 18, 19, 20];
+  const MIN_DATA_POINTS = 3;
 
   const baseDate = new Date();
   baseDate.setHours(0, 0, 0, 0);
   const targetDate = new Date(baseDate.getTime() + dayOffset * 86400000);
-  const targetUtcHour = ((targetHour - TIMEZONE_OFFSET_HOURS) % 24 + 24) % 24;
-  targetDate.setUTCHours(targetUtcHour, targetMinute, Math.floor(Math.random() * 60), 0);
+
+  let targetLocalHour: number;
+  let sourceLabel: string;
+
+  try {
+    const patterns = await db
+      .select({
+        hourOfDay: audienceActivityPatterns.hourOfDay,
+        activityLevel: audienceActivityPatterns.activityLevel,
+      })
+      .from(audienceActivityPatterns)
+      .where(
+        and(
+          eq(audienceActivityPatterns.userId, userId),
+          eq(audienceActivityPatterns.platform, PLATFORM),
+        ),
+      )
+      .orderBy(desc(audienceActivityPatterns.activityLevel))
+      .limit(10);
+
+    if (patterns.length >= MIN_DATA_POINTS) {
+      const topSlots = patterns.slice(0, 5);
+      const picked = topSlots[Math.floor(Math.random() * topSlots.length)];
+      targetLocalHour = picked.hourOfDay;
+      sourceLabel = "audience-data";
+    } else {
+      targetLocalHour = YOUTUBE_PEAK_HOURS[Math.floor(Math.random() * YOUTUBE_PEAK_HOURS.length)];
+      sourceLabel = "platform-peak";
+    }
+  } catch {
+    targetLocalHour = YOUTUBE_PEAK_HOURS[Math.floor(Math.random() * YOUTUBE_PEAK_HOURS.length)];
+    sourceLabel = "fallback";
+  }
+
+  const timezone = await getUserTimezone(userId);
+  const offsetHours = getTimezoneOffsetHours(timezone, targetDate);
+  const targetUtcHour = ((targetLocalHour - offsetHours) % 24 + 24) % 24;
+  const targetMinute = Math.floor(Math.random() * 60);
+
+  targetDate.setUTCHours(Math.round(targetUtcHour), targetMinute, Math.floor(Math.random() * 60), 0);
 
   if (targetDate.getTime() <= Date.now() + 90 * 60000) {
     targetDate.setTime(targetDate.getTime() + 86400000);
   }
+
+  logger.info("Scheduled time determined", { userId, dayOffset, targetLocalHour, timezone, sourceLabel, scheduledAt: targetDate.toISOString() });
 
   return targetDate;
 }
@@ -379,7 +430,7 @@ async function queueBatchContent(
   let crossPostsQueued = 0;
   const groupId = `exhaust-${stream.stream.id}-batch-${batchNumber}-${Date.now()}`;
 
-  const longFormTime = getScheduledTimeForDay(dayOffset);
+  const longFormTime = await getScheduledTimeForDay(dayOffset, userId);
 
   const allPlatforms = ["youtube", ...connectedPlatforms.all];
 

@@ -362,6 +362,7 @@ export function registerFortressRoutes(app: Express) {
       inApp: z.boolean().optional(),
       digest: z.enum(["daily", "weekly", "never"]).optional(),
       categories: z.record(z.boolean()).optional(),
+      timezone: z.string().max(100).optional(),
     }).passthrough();
     const parsed = prefsSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });

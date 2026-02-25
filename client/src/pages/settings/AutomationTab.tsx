@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { safeArray } from '@/lib/safe-data';
@@ -6,11 +6,32 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   Sparkles, Shield, Zap, Plus, Clock, Globe, Play, Bell,
   ChevronDown, ChevronUp, UserPlus, CheckCircle, Palette, DollarSign,
 } from "lucide-react";
+
+const ALL_TIMEZONES: string[] = (() => {
+  try {
+    return (Intl as any).supportedValuesOf("timeZone") as string[];
+  } catch {
+    return [
+      "UTC",
+      "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+      "America/Phoenix", "America/Anchorage", "Pacific/Honolulu",
+      "America/Toronto", "America/Vancouver", "America/Sao_Paulo", "America/Mexico_City",
+      "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Rome", "Europe/Madrid",
+      "Europe/Amsterdam", "Europe/Stockholm", "Europe/Moscow",
+      "Asia/Dubai", "Asia/Kolkata", "Asia/Bangkok", "Asia/Singapore",
+      "Asia/Tokyo", "Asia/Seoul", "Asia/Shanghai", "Asia/Hong_Kong",
+      "Australia/Sydney", "Australia/Melbourne", "Pacific/Auckland",
+      "Africa/Cairo", "Africa/Johannesburg", "Africa/Lagos",
+    ];
+  }
+})();
 
 function AutomationTab() {
   const { toast } = useToast();
@@ -18,6 +39,7 @@ function AutomationTab() {
   const [showChainSection, setShowChainSection] = useState(false);
   const [showRulesSection, setShowRulesSection] = useState(false);
   const [showWebhookSection, setShowWebhookSection] = useState(false);
+  const [tzSearch, setTzSearch] = useState("");
   const [showNotifSection, setShowNotifSection] = useState(false);
 
   const { data: status, isLoading: statusLoading } = useQuery<any>({ queryKey: ["/api/automation/status"], refetchInterval: 30_000, staleTime: 20_000 });
@@ -28,6 +50,27 @@ function AutomationTab() {
   const { data: notifsData } = useQuery<any>({ queryKey: ["/api/automation/notifications"], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: rawWebhookData } = useQuery<any[]>({ queryKey: ["/api/automation/webhook-events"], refetchInterval: 30_000, staleTime: 20_000 });
   const webhookData = safeArray(rawWebhookData);
+  const { data: notifPrefs } = useQuery<any>({ queryKey: ["/api/notification-ops/preferences"], staleTime: 60_000 });
+  const currentTimezone: string = notifPrefs?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+  const filteredTimezones = useMemo(() =>
+    tzSearch.trim().length > 0
+      ? ALL_TIMEZONES.filter(tz => tz.toLowerCase().includes(tzSearch.toLowerCase())).slice(0, 60)
+      : ALL_TIMEZONES.slice(0, 60),
+    [tzSearch],
+  );
+
+  const saveTimezoneMutation = useMutation({
+    mutationFn: async (timezone: string) => {
+      const r = await apiRequest("PUT", "/api/notification-ops/preferences", { timezone });
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notification-ops/preferences"] });
+      toast({ title: "Timezone saved", description: "All future posts will be scheduled in your local time." });
+    },
+    onError: () => toast({ title: "Failed to save timezone", variant: "destructive" }),
+  });
 
   const createCronMutation = useMutation({
     mutationFn: async (data: any) => { const r = await apiRequest("POST", "/api/automation/cron-jobs", data); return r.json(); },
@@ -101,6 +144,67 @@ function AutomationTab() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-scheduling-timezone">
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Globe className="h-5 w-5 text-blue-400" />
+            <h3 className="text-sm font-bold">Scheduling Timezone</h3>
+            <Badge variant="outline" className="text-[10px] ml-auto">Smart Scheduling</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Set your home timezone so the AI schedules posts at the right times for your audience.
+            Once enough viewer data has been collected, scheduling automatically adapts to peak audience hours.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            <div className="flex-1 space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Current timezone</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-semibold" data-testid="text-current-timezone">{currentTimezone}</span>
+              </div>
+            </div>
+            <div className="flex-1 space-y-1 w-full">
+              <p className="text-xs font-medium text-muted-foreground">Search &amp; select timezone</p>
+              <Input
+                data-testid="input-timezone-search"
+                placeholder="Search timezone..."
+                value={tzSearch}
+                onChange={e => setTzSearch(e.target.value)}
+                className="text-xs"
+              />
+              <Select
+                onValueChange={tz => {
+                  setTzSearch("");
+                  saveTimezoneMutation.mutate(tz);
+                }}
+                value={currentTimezone}
+              >
+                <SelectTrigger data-testid="select-timezone" className="text-xs">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64 overflow-y-auto">
+                  {filteredTimezones.map(tz => (
+                    <SelectItem key={tz} value={tz} data-testid={`option-timezone-${tz.replace(/\//g, "-")}`}>
+                      {tz}
+                    </SelectItem>
+                  ))}
+                  {filteredTimezones.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">No results</div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <Sparkles className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs font-medium text-blue-400">AI adapts automatically</p>
+              <p className="text-[10px] text-muted-foreground">As your audience grows, the AI learns when your viewers are most active and shifts scheduling to match — without any manual input.</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
