@@ -60,6 +60,10 @@ const NETWORK_PATTERNS = [
   "connection refused", "timeout", "timed out", "DNS",
   "EHOSTUNREACH", "502", "503", "504", "service unavailable",
   "download strategies exhausted", "yt-dlp",
+  // Bot detection / sign-in prompt — retryable because we now pass OAuth auth on retry
+  "sign in to confirm", "confirm you're not a bot", "looks like a bot",
+  // Auth-less download failure — retryable once credentials are connected
+  "all download methods failed",
 ];
 
 const VIDEO_UNAVAILABLE_PATTERNS = [
@@ -71,11 +75,8 @@ const VIDEO_UNAVAILABLE_PATTERNS = [
   "uploader has not made this video available",
   "video has been removed by the user",
   "HTTP Error 410", "error 410",
-  // Bot/verification detection — YouTube blocks server IPs; cannot download
-  "sign in to confirm you're not a bot", "sign in to confirm",
-  "confirm you're not a bot", "looks like a bot",
-  // Exhausted all download strategies — the video is permanently inaccessible from this host
-  "all download methods failed",
+  // Permanently inaccessible even with authenticated OAuth download (DRM, geo-block, live-only)
+  "permanently inaccessible even with authentication",
 ];
 
 const COMPLIANCE_VIOLATION_PATTERNS = [

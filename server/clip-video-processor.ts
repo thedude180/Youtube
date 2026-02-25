@@ -6,8 +6,8 @@ import * as os from "os";
 import { pipeline } from "stream/promises";
 import { storage } from "./storage";
 import { db } from "./db";
-import { videos } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { videos, channels } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("clip-video-processor");
@@ -99,8 +99,39 @@ const YT_DLP_FORMAT_STRATEGIES = [
   "best",
 ];
 
-async function downloadWithYtDlp(youtubeId: string, outputPath: string): Promise<boolean> {
+/**
+ * Looks up the YouTube OAuth access token for the given userId.
+ * Returns null if no connected YouTube channel is found.
+ */
+async function getYouTubeAccessToken(userId: string): Promise<string | null> {
+  try {
+    const ytChannels = await db
+      .select({ accessToken: channels.accessToken, tokenExpiresAt: channels.tokenExpiresAt })
+      .from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
+      .limit(1);
+
+    const ch = ytChannels[0];
+    if (!ch?.accessToken) return null;
+
+    // Only use if not expired (or no expiry set)
+    if (ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date()) return null;
+
+    return ch.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadWithYtDlp(youtubeId: string, outputPath: string, accessToken?: string | null): Promise<boolean> {
   const url = getYouTubeUrl(youtubeId);
+
+  // Build the auth header args — passing the user's OAuth token bypasses YouTube's
+  // server-IP bot detection for the creator's own (and any public) videos.
+  const authArgs: string[] = accessToken
+    ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
+    : [];
+
   for (const format of YT_DLP_FORMAT_STRATEGIES) {
     try {
       if (fs.existsSync(outputPath)) {
@@ -119,11 +150,12 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string): Promise
         "--fragment-retries", "5",
         "--extractor-retries", "3",
         "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        ...authArgs,
         url,
       ], { timeout: 600_000 });
 
       if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
-        logger.info("yt-dlp download succeeded", { youtubeId, format });
+        logger.info("yt-dlp download succeeded", { youtubeId, format, authenticated: !!accessToken });
         return true;
       }
     } catch (err: any) {
@@ -133,15 +165,19 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string): Promise
   return false;
 }
 
-async function checkVideoAvailability(youtubeId: string): Promise<{ available: boolean; reason?: string }> {
+async function checkVideoAvailability(youtubeId: string, accessToken?: string | null): Promise<{ available: boolean; reason?: string }> {
   try {
     const url = getYouTubeUrl(youtubeId);
+    const authArgs: string[] = accessToken
+      ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
+      : [];
     const { stdout } = await execFileAsync("yt-dlp", [
       "--dump-json",
       "--no-download",
       "--no-warnings",
       "--no-check-certificates",
       "--socket-timeout", "20",
+      ...authArgs,
       url,
     ], { timeout: 30_000 });
 
@@ -178,7 +214,7 @@ async function checkVideoAvailability(youtubeId: string): Promise<{ available: b
   }
 }
 
-export async function downloadSourceVideo(youtubeId: string): Promise<string> {
+export async function downloadSourceVideo(youtubeId: string, userId?: string): Promise<string> {
   const outputPath = path.join(CLIP_DIR, `source_${youtubeId}.mp4`);
 
   if (fs.existsSync(outputPath)) {
@@ -195,9 +231,13 @@ export async function downloadSourceVideo(youtubeId: string): Promise<string> {
 
   const downloadPromise = (async () => {
     try {
-      logger.info("Downloading source video", { youtubeId });
+      logger.info("Downloading source video", { youtubeId, authenticated: !!userId });
 
-      const availability = await checkVideoAvailability(youtubeId);
+      // Fetch the YouTube access token once — used for both availability check and download.
+      // Authenticated requests bypass YouTube's server-IP bot detection.
+      const accessToken = userId ? await getYouTubeAccessToken(userId) : null;
+
+      const availability = await checkVideoAvailability(youtubeId, accessToken);
       if (!availability.available) {
         throw new Error(`Video unavailable: ${availability.reason || "Video is private, deleted, or age-restricted"} (${youtubeId})`);
       }
@@ -206,20 +246,27 @@ export async function downloadSourceVideo(youtubeId: string): Promise<string> {
         try { fs.unlinkSync(outputPath); } catch {}
       }
 
+      // Try ytdl-core first (faster, no subprocess overhead)
       const ytdlSuccess = await downloadWithYtdlCore(youtubeId, outputPath);
       if (ytdlSuccess) {
         logger.info("Source video downloaded via ytdl-core", { youtubeId, size: fs.statSync(outputPath).size });
         return outputPath;
       }
 
-      logger.info("Falling back to yt-dlp", { youtubeId });
-      const ytDlpSuccess = await downloadWithYtDlp(youtubeId, outputPath);
+      // Fall back to yt-dlp with OAuth auth header to avoid bot detection
+      logger.info("Falling back to yt-dlp", { youtubeId, authenticated: !!accessToken });
+      const ytDlpSuccess = await downloadWithYtDlp(youtubeId, outputPath, accessToken);
       if (ytDlpSuccess) {
         logger.info("Source video downloaded via yt-dlp fallback", { youtubeId, size: fs.statSync(outputPath).size });
         return outputPath;
       }
 
-      throw new Error(`All download methods failed for ${youtubeId}. Both ytdl-core and yt-dlp could not download this video.`);
+      // Differentiate: if we had an OAuth token and still failed → permanent.
+      // If no token → retryable (might work once the creator's channel is connected).
+      if (accessToken) {
+        throw new Error(`Video permanently inaccessible even with authentication (${youtubeId}). The video may be geo-blocked, live-only, or have DRM.`);
+      }
+      throw new Error(`All download methods failed for ${youtubeId}. Both ytdl-core and yt-dlp could not download this video. Will retry when credentials are available.`);
     } finally {
       activeDownloads.delete(youtubeId);
     }

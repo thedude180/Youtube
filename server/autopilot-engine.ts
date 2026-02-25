@@ -880,7 +880,9 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
 
     const { downloadSourceVideo, cutClipFromVideo, cleanupClipFile } = await import("./clip-video-processor");
-    const sourcePath = await downloadSourceVideo(youtubeSourceId);
+    // Pass userId so downloadSourceVideo can use the creator's OAuth token —
+    // authenticated requests bypass YouTube's server-side bot detection.
+    const sourcePath = await downloadSourceVideo(youtubeSourceId, post.userId);
     const clipPath = await cutClipFromVideo(sourcePath, startMin * 60, endMin * 60, post.id);
 
     const { uploadVideoToYouTube } = await import("./youtube");
