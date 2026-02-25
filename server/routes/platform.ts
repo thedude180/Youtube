@@ -1070,6 +1070,8 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  const pendingBounceTokens = new Map<string, { authUrl: string; platform: string; timestamp: number }>();
+
   app.get("/api/oauth/:platform/bounce", (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -1113,22 +1115,43 @@ export async function registerPlatformRoutes(app: Express) {
     }
 
     const authUrl = `${config.authUrl}?${params.toString()}`;
-    const safeUrl = authUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    const bounceToken = crypto.randomBytes(24).toString("hex");
+    pendingBounceTokens.set(bounceToken, { authUrl, platform, timestamp: Date.now() });
+    const now = Date.now();
+    for (const [k, v] of pendingBounceTokens) {
+      if (now - v.timestamp > 5 * 60 * 1000) pendingBounceTokens.delete(k);
+    }
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.send(`<!DOCTYPE html>
 <html><head>
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="refresh" content="1;url=${safeUrl}">
+<meta name="robots" content="noindex">
 <style>body{background:#0a0a0f;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
-.c{text-align:center}.s{width:40px;height:40px;border:3px solid rgba(139,92,246,0.3);border-top-color:#8b5cf6;border-radius:50%;animation:r 1s linear infinite}
+.c{text-align:center}.s{width:40px;height:40px;border:3px solid rgba(139,92,246,0.3);border-top-color:#8b5cf6;border-radius:50%;animation:r 1s linear infinite;margin:0 auto}
 @keyframes r{to{transform:rotate(360deg)}}.l{margin-top:16px;color:#a78bfa;font-size:14px}
-a{color:#8b5cf6;text-decoration:underline;margin-top:12px;display:inline-block;font-size:13px}</style>
-</head><body><div class="c"><div class="s" style="margin:0 auto"></div><p class="l">Connecting to ${config.label}...</p>
-<a href="${safeUrl}" rel="noreferrer noopener" target="_self">Click here if not redirected</a>
-<script>setTimeout(function(){location.replace("${authUrl.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}")},800);</script>
+.b{margin-top:16px;background:#8b5cf6;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}</style>
+</head><body><div class="c">
+<div class="s"></div>
+<p class="l">Connecting to ${config.label}...</p>
+<form id="bf" method="POST" action="/api/oauth/bounce-redirect">
+<input type="hidden" name="t" value="${bounceToken}">
+<noscript><button type="submit" class="b">Continue to ${config.label}</button></noscript>
+</form>
+<script>document.getElementById("bf").submit();</script>
 </div></body></html>`);
+  });
+
+  app.post("/api/oauth/bounce-redirect", (req, res) => {
+    const token = req.body?.t;
+    if (!token || !pendingBounceTokens.has(token)) {
+      return res.redirect("/channels?error=" + encodeURIComponent("Session expired. Please try connecting again."));
+    }
+    const { authUrl } = pendingBounceTokens.get(token)!;
+    pendingBounceTokens.delete(token);
+    res.redirect(302, authUrl);
   });
 
   app.get("/api/oauth/:platform/callback", async (req, res) => {
