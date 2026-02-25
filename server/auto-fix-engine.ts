@@ -71,6 +71,11 @@ const VIDEO_UNAVAILABLE_PATTERNS = [
   "uploader has not made this video available",
   "video has been removed by the user",
   "HTTP Error 410", "error 410",
+  // Bot/verification detection — YouTube blocks server IPs; cannot download
+  "sign in to confirm you're not a bot", "sign in to confirm",
+  "confirm you're not a bot", "looks like a bot",
+  // Exhausted all download strategies — the video is permanently inaccessible from this host
+  "all download methods failed",
 ];
 
 const COMPLIANCE_VIOLATION_PATTERNS = [

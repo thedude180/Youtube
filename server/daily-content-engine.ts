@@ -41,6 +41,13 @@ const MIN_DAY_OFFSET = 1; // always schedule from tomorrow onward — never over
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["x", "discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
+// Safety valve: max batches processed per single engine invocation.
+// Each batch takes ~15-30s (AI call). Without a cap the while-loop monopolises
+// the Node.js event loop and starves every other cron job.
+// Stream progress is persisted to the DB after every batch, so the next cron
+// cycle picks up exactly where this one left off — no content is skipped.
+const MAX_BATCHES_PER_ENGINE_RUN = 8;
+const ENGINE_RUN_BUDGET_MS = 90_000; // 90 s — hard wall-clock limit per run
 
 
 async function getNextAvailableDayOffset(userId: string): Promise<number> {
@@ -258,6 +265,50 @@ async function getCurrentLiveStream(userId: string): Promise<typeof streams.$inf
   return live || null;
 }
 
+/**
+ * Extracts and sanitises a JSON object from raw AI output.
+ *
+ * The AI occasionally returns:
+ *  - Unquoted / single-quoted property names  → fixed with regex
+ *  - Trailing commas before } or ]           → stripped
+ *  - Extra text / another JSON fragment after the main object → trimmed
+ *  - Truncated JSON (missing closing braces) → returns null so caller retries
+ */
+function extractAndSanitizeJSON(raw: string): string | null {
+  // Step 1: find the outermost { ... } block by tracking brace depth
+  let start = raw.indexOf("{");
+  if (start === -1) return null;
+
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+  if (end === -1) return null; // truncated — missing closing braces
+
+  let json = raw.slice(start, end + 1);
+
+  // Step 2: remove JS-style // and /* */ comments
+  json = json.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+  // Step 3: single-quoted string values → double-quoted
+  // (handles 'value' → "value" — property names are handled below)
+  json = json.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
+
+  // Step 4: unquoted property names → quoted  (e.g.  key: → "key":)
+  json = json.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+
+  // Step 5: trailing commas before ] or }
+  json = json.replace(/,(\s*[}\]])/g, "$1");
+
+  return json;
+}
+
 async function generateBatchPlan(
   stream: StreamWithRemaining,
   batchNumber: number,
@@ -353,13 +404,23 @@ Return ONLY valid JSON:
     });
 
     const text = response.choices[0]?.message?.content?.trim() || "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const sanitized = extractAndSanitizeJSON(text);
+    if (!sanitized) {
       logger.error("AI returned non-JSON content plan", { text: text.substring(0, 200) });
       return null;
     }
 
-    const plan = JSON.parse(jsonMatch[0]) as ContentPlan;
+    let plan: ContentPlan;
+    try {
+      plan = JSON.parse(sanitized) as ContentPlan;
+    } catch (parseErr: any) {
+      logger.error("AI JSON parse failed after sanitization", {
+        batchNumber,
+        error: parseErr.message,
+        snippet: sanitized.substring(0, 300),
+      });
+      return null;
+    }
     if (!plan.longForm?.title || !plan.shorts || plan.shorts.length === 0) {
       logger.error("AI content plan missing required fields");
       return null;
@@ -695,12 +756,6 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
     });
 
     const remainingAfter = Math.max(0, streamData.remainingMinutes - Math.min(streamData.remainingMinutes, MINUTES_PER_BATCH));
-    await notify(
-      userId,
-      `Content Batch #${batchNumber} from "${streamData.stream.title}"`,
-      `Queued ${ytCount} YouTube pieces + ${result.crossPostsQueued} cross-platform posts. ${Math.round(remainingAfter)} min remaining.`,
-      "info",
-    );
 
     sendSSEEvent(userId, "content-update", { source: "content-loop", batches: 1 });
     sendSSEEvent(userId, "autopilot-update", { source: "content-loop" });
@@ -755,6 +810,7 @@ export async function runDailyContentGeneration(): Promise<void> {
       streamsWithContent = selectStreamByTrend(streamsWithContent, activeTrend, cooldownTrends) as StreamWithRemaining[];
 
       let totalBatchesThisRun = 0;
+      const runStartMs = Date.now();
 
       for (const streamData of streamsWithContent) {
         let streamRemaining = streamData.remainingMinutes;
@@ -763,6 +819,21 @@ export async function runDailyContentGeneration(): Promise<void> {
         let consecutiveFailures = 0;
 
         while (streamRemaining >= 1) {
+          // Safety valve: stop this cron invocation if we've hit the batch cap OR
+          // the wall-clock budget.  Stream progress is already persisted to the DB
+          // after every successful batch, so the next cron cycle resumes from here.
+          if (totalBatchesThisRun >= MAX_BATCHES_PER_ENGINE_RUN) {
+            logger.info("Per-run batch cap reached, deferring remaining content to next cycle", {
+              userId, batchesDone: totalBatchesThisRun, streamRemainingMinutes: streamRemaining,
+            });
+            break;
+          }
+          if (Date.now() - runStartMs > ENGINE_RUN_BUDGET_MS) {
+            logger.info("Per-run time budget reached, deferring remaining content to next cycle", {
+              userId, elapsedMs: Date.now() - runStartMs, streamRemainingMinutes: streamRemaining,
+            });
+            break;
+          }
           const dayOffset = await getNextAvailableDayOffset(userId);
 
           const existingBatches = await db
