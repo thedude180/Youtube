@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/schema";
+import { PLATFORM_CONTENT_SPECS } from "@shared/platform-specs";
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, ExternalLink, Loader2, RefreshCw, Trash2, LogIn,
@@ -421,6 +422,20 @@ function ChannelsTab() {
                     )}
                   </div>
                 ))}
+
+                {(() => {
+                  const spec = PLATFORM_CONTENT_SPECS[platform as keyof typeof PLATFORM_CONTENT_SPECS];
+                  if (!spec) return null;
+                  return (
+                    <div className="flex flex-wrap gap-1" data-testid={`capabilities-${platform}`}>
+                      {spec.capabilities.map((cap) => (
+                        <Badge key={cap} variant="outline" className="text-[10px] py-0 px-1.5 border-border/60 text-muted-foreground">
+                          {cap}
+                        </Badge>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center gap-2 mt-auto pt-1 flex-wrap">
                   {isYouTube && !isConnected ? (

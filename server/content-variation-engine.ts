@@ -5,6 +5,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { humanizeText } from "./ai-humanizer-engine";
+import { PLATFORM_CONTENT_SPECS } from "@shared/platform-specs";
 
 const openai = getOpenAIClient();
 
@@ -493,7 +494,8 @@ function calculateStealthScore(text: string, platform: string): number {
 
   const words = text.split(/\s+/);
   if (platform === "tiktok" && words.length > 40) score -= 0.1;
-  if (platform === "x" && text.length > 280) score -= 0.2;
+  const xPostLimit = PLATFORM_CONTENT_SPECS.x?.limits.postMaxLength || 280;
+  if (platform === "x" && text.length > xPostLimit) score -= 0.2;
 
   const hashtags = (text.match(/#\w+/g) || []).length;
   if (hashtags > 5) score -= 0.15;
@@ -543,12 +545,15 @@ export async function checkContentSafety(content: string, userId: string, platfo
     }
   }
 
-  if (platform === "x" && content.length > 280) {
-    issues.push("Exceeds X character limit");
+  const platformSpec = PLATFORM_CONTENT_SPECS[platform as keyof typeof PLATFORM_CONTENT_SPECS];
+  const charLimit = platformSpec?.limits.postMaxLength || platformSpec?.limits.titleMaxLength;
+  if (charLimit && content.length > charLimit) {
+    issues.push(`Exceeds ${platformSpec?.label || platform} character limit (${charLimit} chars)`);
   }
 
   const hashtags = (content.match(/#\w+/g) || []).length;
-  if (hashtags > 5) issues.push("Too many hashtags (looks spammy)");
+  const maxHashtags = platformSpec?.limits.maxHashtags || 5;
+  if (hashtags > maxHashtags) issues.push(`Too many hashtags for ${platformSpec?.label || platform} (max ${maxHashtags})`);
   if (platform === "discord" && hashtags > 0) issues.push("Hashtags on Discord look automated");
 
   if (/https?:\/\/\S+/g.test(content)) {

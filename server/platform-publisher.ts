@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { OAUTH_CONFIGS } from "./oauth-config";
 import { storage } from "./storage";
 import { withRetry } from "./services/api-retry";
+import { PLATFORM_CONTENT_SPECS, getTitleLimit, getDescriptionLimit } from "@shared/platform-specs";
 
 export interface PublishResult {
   success: boolean;
@@ -131,7 +132,8 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
 
 async function postToX(accessToken: string, content: string): Promise<PublishResult> {
   try {
-    const tweetText = content.length > 280 ? content.substring(0, 277) + "..." : content;
+    const xLimit = PLATFORM_CONTENT_SPECS.x.limits.postMaxLength || 280;
+    const tweetText = content.length > xLimit ? content.substring(0, xLimit - 3) + "..." : content;
 
     const data = await withRetry(async () => {
       const res = await fetch("https://api.twitter.com/2/tweets", {
@@ -193,7 +195,8 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
       };
     }
 
-    const discordContent = content.substring(0, 2000);
+    const discordLimit = PLATFORM_CONTENT_SPECS.discord.limits.postMaxLength || 2000;
+    const discordContent = content.substring(0, discordLimit);
     const hasTitle = discordContent.startsWith("**") && discordContent.includes("**\n");
 
     let discordPayload: any;

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { PLATFORM_CONTENT_SPECS, getContentTypesForPlatform, getTitleLimit, type Platform as PlatSpec } from "@shared/platform-specs";
 import {
   format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks,
   addMonths, subMonths, addYears, subYears,
@@ -93,7 +94,7 @@ function CalendarTab() {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formType, setFormType] = useState("video");
-  const [formPlatform, setFormPlatform] = useState("youtube");
+  const [formPlatform, setFormPlatform] = useState<PlatSpec>("youtube");
   const [detailDate, setDetailDate] = useState<Date | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
@@ -470,81 +471,121 @@ function CalendarTab() {
               <DialogHeader>
                 <DialogTitle>Schedule Upload</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div>
-                  <Label>Title</Label>
-                  <Input
-                    name="title"
-                    required
-                    data-testid="input-schedule-title"
-                    placeholder="Video title"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Type</Label>
-                    <Select value={formType} onValueChange={setFormType}>
-                      <SelectTrigger data-testid="select-schedule-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="video">Video</SelectItem>
-                        <SelectItem value="stream">Stream</SelectItem>
-                        <SelectItem value="post">Post</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Platform</Label>
-                    <Select
-                      value={formPlatform}
-                      onValueChange={setFormPlatform}
+              {(() => {
+                const spec = PLATFORM_CONTENT_SPECS[formPlatform];
+                const availableTypes = getContentTypesForPlatform(formPlatform);
+                const titleLimit = getTitleLimit(formPlatform);
+                if (!availableTypes.includes(formType)) {
+                  setTimeout(() => setFormType(availableTypes[0] || "video"), 0);
+                }
+                return (
+                  <form onSubmit={handleCreate} className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label>Title</Label>
+                        <span className="text-[10px] text-muted-foreground">{titleLimit} char max</span>
+                      </div>
+                      <Input
+                        name="title"
+                        required
+                        maxLength={titleLimit}
+                        data-testid="input-schedule-title"
+                        placeholder={formPlatform === "x" ? "What's happening?" : formPlatform === "discord" ? "Announcement title" : "Video title"}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Platform</Label>
+                        <Select
+                          value={formPlatform}
+                          onValueChange={(v) => setFormPlatform(v as PlatSpec)}
+                        >
+                          <SelectTrigger data-testid="select-schedule-platform">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="youtube">YouTube</SelectItem>
+                            <SelectItem value="tiktok">TikTok</SelectItem>
+                            <SelectItem value="x">X (Twitter)</SelectItem>
+                            <SelectItem value="discord">Discord</SelectItem>
+                            <SelectItem value="twitch">Twitch</SelectItem>
+                            <SelectItem value="kick">Kick</SelectItem>
+                            <SelectItem value="rumble">Rumble</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Type</Label>
+                        <Select value={availableTypes.includes(formType) ? formType : availableTypes[0]} onValueChange={setFormType}>
+                          <SelectTrigger data-testid="select-schedule-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableTypes.includes("video") && <SelectItem value="video">Video</SelectItem>}
+                            {availableTypes.includes("short") && <SelectItem value="short">Short / Clip</SelectItem>}
+                            {availableTypes.includes("stream") && <SelectItem value="stream">Stream</SelectItem>}
+                            {availableTypes.includes("post") && <SelectItem value="post">Post</SelectItem>}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    {spec && (
+                      <div className="rounded-md bg-muted/50 border border-border/50 px-3 py-2 space-y-1" data-testid="platform-spec-hints">
+                        <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                          {spec.posting.aspectRatio && (
+                            <Badge variant="outline" className="text-[10px] py-0">{spec.posting.aspectRatio}</Badge>
+                          )}
+                          {spec.limits.videoMaxDuration && (
+                            <Badge variant="outline" className="text-[10px] py-0">Max {Math.floor(spec.limits.videoMaxDuration / 60)}min</Badge>
+                          )}
+                          {spec.limits.shortsMaxDuration && formType === "short" && (
+                            <Badge variant="outline" className="text-[10px] py-0">≤{spec.limits.shortsMaxDuration}s</Badge>
+                          )}
+                          {spec.limits.maxHashtags && (
+                            <Badge variant="outline" className="text-[10px] py-0">{spec.limits.maxHashtags} hashtags max</Badge>
+                          )}
+                          {spec.limits.maxTags && (
+                            <Badge variant="outline" className="text-[10px] py-0">{spec.limits.maxTags} tags max</Badge>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-snug">
+                          {spec.posting.bestPractices[0]}
+                        </p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Upload Date</Label>
+                        <Input
+                          name="date"
+                          type="date"
+                          required
+                          defaultValue={format(selectedDate, "yyyy-MM-dd")}
+                          data-testid="input-schedule-date"
+                        />
+                      </div>
+                      <div>
+                        <Label>Upload Time</Label>
+                        <Input
+                          name="time"
+                          type="time"
+                          required
+                          defaultValue="15:00"
+                          data-testid="input-schedule-time"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={createMutation.isPending}
+                      data-testid="button-submit-schedule"
                     >
-                      <SelectTrigger data-testid="select-schedule-platform">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="youtube">YouTube</SelectItem>
-                        <SelectItem value="twitch">Twitch</SelectItem>
-                        <SelectItem value="tiktok">TikTok</SelectItem>
-                        <SelectItem value="kick">Kick</SelectItem>
-                        <SelectItem value="x">X</SelectItem>
-                        <SelectItem value="discord">Discord</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Upload Date</Label>
-                    <Input
-                      name="date"
-                      type="date"
-                      required
-                      defaultValue={format(selectedDate, "yyyy-MM-dd")}
-                      data-testid="input-schedule-date"
-                    />
-                  </div>
-                  <div>
-                    <Label>Upload Time</Label>
-                    <Input
-                      name="time"
-                      type="time"
-                      required
-                      defaultValue="15:00"
-                      data-testid="input-schedule-time"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={createMutation.isPending}
-                  data-testid="button-submit-schedule"
-                >
-                  {createMutation.isPending ? "Saving..." : "Schedule Upload"}
-                </Button>
-              </form>
+                      {createMutation.isPending ? "Saving..." : "Schedule Upload"}
+                    </Button>
+                  </form>
+                );
+              })()}
             </DialogContent>
           </Dialog>
         </div>
