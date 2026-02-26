@@ -38,6 +38,18 @@ import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/clea
 
 const logger = createLogger("express");
 
+// Debug interceptor — captures the exact call site and error message that triggers process.exit
+// so we can identify and fix the crash root cause.
+{
+  const _realExit = process.exit.bind(process);
+  (process as any).exit = (code?: number) => {
+    const stack = new Error(`process.exit(${code}) intercepted`).stack || "";
+    // Write synchronously so it's not lost
+    process.stderr.write(`\n[EXIT-INTERCEPTOR] process.exit(${code}) called:\n${stack}\n`);
+    _realExit(code as any);
+  };
+}
+
 const app = express();
 app.set("trust proxy", 1);
 const httpServer = createServer(app);
