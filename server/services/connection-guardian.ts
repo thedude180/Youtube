@@ -166,7 +166,11 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
         await new Promise(r => setTimeout(r, 1000));
       }
     }
-  } catch (err) {
+  } catch (err: any) {
+    // TransformError from esbuild service (dev-mode only) is not a real failure
+    if (err?.message?.includes("service is no longer running") || err?.name === "TransformError") {
+      return { refreshed, verified, failed };
+    }
     console.error("[ConnectionGuardian] Token check error:", err);
   }
 

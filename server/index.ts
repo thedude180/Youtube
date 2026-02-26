@@ -717,8 +717,6 @@ httpServer.listen(
     startAutopilotMonitor();
     startAutonomyController();
 
-    setTimeout(() => startConnectionGuardian(), 60_000);
-
     const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
 
     delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
@@ -736,26 +734,56 @@ httpServer.listen(
       backgroundIntervals.push(dlqInterval, digestInterval);
     });
 
-    // ── TIER 3: Optional intelligence engines — deferred to T+210s+ ─────────
-    delay(210_000, () => { try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); } });
-    delay(230_000, () => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) })));
-    delay(250_000, () => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) })));
-    delay(270_000, () => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) })));
-    delay(290_000, () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) })));
-    delay(310_000, () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) })));
-    delay(330_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
-    delay(350_000, () => import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) })));
-    delay(370_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
-    delay(390_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
-    delay(410_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
-    delay(430_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
-    delay(450_000, () => startCleanupCoordinator());
-    delay(470_000, () => startResilienceWatchdog());
+    // ── TIER 2: Content pipeline — TOP PRIORITY, starts at T+15s ─────────────
+    // VOD exhaust + live detection start immediately so new content flows
+    // within seconds of boot rather than waiting for a 60-min autonomy cycle.
+    delay(15_000, () => {
+      import("./content-loop")
+        .then(m => m.bootContentLoops())
+        .catch(err => logger.error("Content loop boot failed", { error: String(err) }));
+    });
+
+    // Live-stream polling: checks all platforms every 90 seconds.
+    // Triggers onLivestreamDetected / onStreamEnded, which pause/resume
+    // the content loop automatically with no manual intervention.
+    delay(20_000, () => {
+      const LIVE_POLL_MS = parseInt(process.env.LIVE_POLL_INTERVAL_MS || "90000");
+      const pollLive = () => {
+        import("./services/live-detection")
+          .then(m => m.runMultiPlatformLiveDetection())
+          .catch(err => logger.warn("Live detection poll failed", { error: String(err) }));
+      };
+      pollLive();
+      const liveInterval = setInterval(pollLive, LIVE_POLL_MS);
+      backgroundIntervals.push(liveInterval);
+      logger.info(`Live detection polling started — interval ${LIVE_POLL_MS / 1000}s`);
+    });
+
+    // ── TIER 3: Infrastructure services ──────────────────────────────────────
+    delay(60_000, () => startConnectionGuardian());
 
     // Stripe init deferred to T+90s so the workflow runner confirms server stability first
     delay(90_000, () => {
       initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) }));
     });
+
+    // ── TIER 4: Intelligence engines — staggered 20s apart from T+120s ───────
+    // 14 engines × 20s gap = last engine starts at T+380s (~6.3 min).
+    // Each engine gets its own CPU/IO slot; no simultaneous init spikes.
+    delay(120_000, () => { try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); } });
+    delay(140_000, () => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) })));
+    delay(160_000, () => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) })));
+    delay(180_000, () => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) })));
+    delay(200_000, () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) })));
+    delay(220_000, () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) })));
+    delay(240_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
+    delay(260_000, () => import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) })));
+    delay(280_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
+    delay(300_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
+    delay(320_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
+    delay(340_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
+    delay(360_000, () => startCleanupCoordinator());
+    delay(380_000, () => startResilienceWatchdog());
   }
 );
 

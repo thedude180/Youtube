@@ -187,7 +187,9 @@ export async function selfHealingCore<T>(
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         await recordFailure(sub, error);
-        if (!options?.silent) {
+        // Suppress esbuild service errors — transient dev-mode artifact, not a real failure
+        const isTransformError = error?.message?.includes("service is no longer running") || error?.name === "TransformError";
+        if (!options?.silent && !isTransformError) {
           console.error(`[SelfHealing] ❌ "${subsystemName}" failed after ${maxRetries + 1} attempts: ${error.message}`);
         }
         return null;
