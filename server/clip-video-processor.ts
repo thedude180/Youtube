@@ -92,6 +92,13 @@ async function downloadWithYtdlCore(youtubeId: string, outputPath: string): Prom
   }
 }
 
+// Prefer the fresh binary downloaded at deploy-time; fall back to the system binary.
+const YT_DLP_BIN = (() => {
+  const LOCAL = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
+  if (fs.existsSync(LOCAL)) return LOCAL;
+  return "yt-dlp";
+})();
+
 const YT_DLP_FORMAT_STRATEGIES = [
   "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
   "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
@@ -133,11 +140,15 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string, accessTo
     ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
     : [];
 
-  // Two passes: first with iOS client (bypasses bot detection), then fallback to web client
+  // Client strategies ordered by effectiveness (2026):
+  // tv_embedded: most reliable bypass for server-IP bot detection
+  // ios / android: official app APIs, YouTube avoids blocking
+  // web: plain fallback
   const clientStrategies = [
+    ["--extractor-args", "youtube:player_client=tv_embedded"],
     ["--extractor-args", "youtube:player_client=ios"],
     ["--extractor-args", "youtube:player_client=android"],
-    [], // plain fallback — no player_client override
+    [], // plain fallback
   ];
 
   for (const clientArgs of clientStrategies) {
@@ -147,7 +158,7 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string, accessTo
           try { fs.unlinkSync(outputPath); } catch {}
         }
 
-        await execFileAsync("yt-dlp", [
+        await execFileAsync(YT_DLP_BIN, [
           "-f", format,
           "--merge-output-format", "mp4",
           "-o", outputPath,
@@ -158,18 +169,19 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string, accessTo
           "--retries", "3",
           "--fragment-retries", "3",
           "--extractor-retries", "2",
+          "--age-limit", "99",
           ...clientArgs,
           ...authArgs,
           url,
-        ], { timeout: 300_000 }); // 5 min per attempt (down from 10) so we try all strategies
+        ], { timeout: 300_000 });
 
         if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
-          const client = clientArgs[1] || "web";
+          const client = (clientArgs[1] || "web").replace("youtube:player_client=", "");
           logger.info("yt-dlp download succeeded", { youtubeId, format, client, authenticated: !!accessToken });
           return true;
         }
       } catch (err: any) {
-        const client = clientArgs[1] || "web";
+        const client = (clientArgs[1] || "web").replace("youtube:player_client=", "");
         logger.warn("yt-dlp format failed", { youtubeId, format, client, error: (err.message || String(err)).substring(0, 150) });
       }
     }
@@ -183,13 +195,14 @@ async function checkVideoAvailability(youtubeId: string, accessToken?: string | 
     const authArgs: string[] = accessToken
       ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
       : [];
-    const { stdout } = await execFileAsync("yt-dlp", [
+    const { stdout } = await execFileAsync(YT_DLP_BIN, [
       "--dump-json",
       "--no-download",
       "--no-warnings",
       "--no-check-certificates",
       "--socket-timeout", "20",
-      "--extractor-args", "youtube:player_client=ios",
+      "--extractor-args", "youtube:player_client=tv_embedded",
+      "--age-limit", "99",
       ...authArgs,
       url,
     ], { timeout: 30_000 });

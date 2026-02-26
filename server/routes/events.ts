@@ -166,7 +166,6 @@ export function closeAllConnections(): void {
     clients.delete(userId);
   }
 
-  clearInterval(sseCleanupInterval);
 }
 
 export function registerEventRoutes(app: Express) {
