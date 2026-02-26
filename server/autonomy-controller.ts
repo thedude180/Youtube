@@ -160,10 +160,12 @@ async function ensureUserEngineConfigs(userId: string) {
   const existingNames = new Set(existing.map(e => e.engineName));
   for (const def of ENGINE_DEFINITIONS) {
     if (!existingNames.has(def.name)) {
+      // Stagger first run by one full interval so all engines don't fire simultaneously on cold boot.
+      const firstRun = new Date(Date.now() + def.interval * 60_000);
       await db.insert(autonomyEngineConfig).values({
         userId, engineName: def.name, enabled: true,
         intervalMinutes: def.interval, status: "idle",
-        nextRunAt: new Date(),
+        nextRunAt: firstRun,
         config: { label: def.label, description: def.description },
       }).onConflictDoNothing();
     }
@@ -181,11 +183,17 @@ async function runAutonomyCycle() {
     const configs = await ensureUserEngineConfigs(userId);
 
     const now = new Date();
-    const dueEngines = configs.filter(c => c.enabled && (!c.nextRunAt || c.nextRunAt <= now));
+    const allDue = configs.filter(c => c.enabled && (!c.nextRunAt || c.nextRunAt <= now));
+
+    // Cap at 3 engines per user per cycle to avoid flooding AI API with concurrent requests.
+    // Sort by most overdue first (furthest past their scheduled time gets priority).
+    const dueEngines = allDue
+      .sort((a, b) => (a.nextRunAt?.getTime() ?? 0) - (b.nextRunAt?.getTime() ?? 0))
+      .slice(0, 3);
 
     if (dueEngines.length === 0) continue;
 
-    logger.info(`Processing ${dueEngines.length} due engines for user ${userId}`);
+    logger.info(`Processing ${dueEngines.length}/${allDue.length} due engines for user ${userId}`);
 
     for (const engine of dueEngines) {
       const startMs = Date.now();
@@ -424,7 +432,7 @@ export function startAutonomyController() {
 
   logger.info("Autonomy Controller starting — 15-minute cycles");
 
-  setTimeout(() => runAutonomyCycle().catch(e => logger.error("Cycle error", { error: e.message })), 30000);
+  setTimeout(() => runAutonomyCycle().catch(e => logger.error("Cycle error", { error: e.message })), 90000);
 
   autonomyInterval = setInterval(() => {
     runAutonomyCycle().catch(e => logger.error("Cycle error", { error: e.message }));

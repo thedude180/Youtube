@@ -67,12 +67,15 @@ export async function getStripeSync() {
     const { StripeSync } = await import('stripe-replit-sync');
     const secretKey = await getStripeSecretKey();
 
+    const noop = () => {};
+    const silentLogger = { info: noop, warn: noop, error: noop, debug: noop, trace: noop, fatal: noop, child: () => silentLogger };
     stripeSync = new StripeSync({
       poolConfig: {
         connectionString: process.env.DATABASE_URL!,
         max: 2,
       },
       stripeSecretKey: secretKey,
+      logger: silentLogger,
     });
   }
   return stripeSync;

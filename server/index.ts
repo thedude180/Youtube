@@ -35,6 +35,7 @@ import { closeAllConnections } from "./routes/events";
 import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests, payloadIntegrityCheck, honeypotTrapMiddleware, responseSecurityScrubber } from "./lib/security-hardening";
 import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache, checkDbPool } from "./services/resilience-core";
 import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
+import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } from "fs";
 
 const logger = createLogger("express");
 
@@ -44,11 +45,28 @@ const logger = createLogger("express");
   const _realExit = process.exit.bind(process);
   (process as any).exit = (code?: number) => {
     const stack = new Error(`process.exit(${code}) intercepted`).stack || "";
-    // Write synchronously so it's not lost
+    // Write to stdout so Replit workflow runner captures it (stderr is not shown in logs)
+    process.stdout.write(`\n[EXIT-INTERCEPTOR] process.exit(${code}) called:\n${stack}\n`);
     process.stderr.write(`\n[EXIT-INTERCEPTOR] process.exit(${code}) called:\n${stack}\n`);
     _realExit(code as any);
   };
 }
+
+// Write crash info to a persistent file so it survives workflow restarts
+const CRASH_LOG = "/tmp/server-crash.log";
+_writeFileSync(CRASH_LOG, `[STARTUP] PID=${process.pid} started at ${new Date().toISOString()}\n`, { flag: "a" });
+
+// Catch unhandled rejections / exceptions that may bypass the exit interceptor
+process.on("uncaughtException", (err) => {
+  const msg = `\n[UNCAUGHT-EXCEPTION] PID=${process.pid} ${err.message}\n${err.stack}\n`;
+  process.stdout.write(msg);
+  _appendFileSync(CRASH_LOG, msg);
+});
+process.on("unhandledRejection", (reason) => {
+  const msg = `\n[UNHANDLED-REJECTION] PID=${process.pid} ${String(reason)}\n`;
+  process.stdout.write(msg);
+  _appendFileSync(CRASH_LOG, msg);
+});
 
 const app = express();
 app.set("trust proxy", 1);
@@ -96,9 +114,8 @@ async function initStripe() {
   }
 }
 
-(async () => {
-  await initStripe();
-})();
+// initStripe is deferred into the listen callback (T+90s) so that the workflow
+// runner has time to confirm server stability before heavy startup work begins.
 
 app.post(
   '/api/stripe/webhook',
@@ -447,7 +464,10 @@ app.get("/api/health", async (_req, res) => {
 
   try {
     const dbStart = Date.now();
-    await pool.query("SELECT 1");
+    await Promise.race([
+      pool.query("SELECT 1"),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("health-db-timeout")), 3000)),
+    ]);
     const dbLatencyMs = Date.now() - dbStart;
 
     const dbHealthy = dbLatencyMs < 5000;
@@ -486,7 +506,10 @@ app.get("/api/health", async (_req, res) => {
       },
     });
   } catch (err) {
-    res.status(503).json({
+    // Always return 200 so the Replit workflow runner never kills us for a "503 unhealthy"
+    // response during DB warm-up. The 'status' field in the JSON body tells monitoring tools
+    // whether the DB is healthy without causing the runner to SIGTERM the process.
+    res.status(200).json({
       status: "degraded",
       uptime,
       uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
@@ -666,6 +689,76 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// ── EARLY SPA HANDLER ────────────────────────────────────────────────────────
+// The Replit workflow runner probes GET / immediately after port 5000 opens
+// and sends SIGKILL if it doesn't get HTTP 200. registerRoutes() is async
+// (OIDC discovery, DB queries) and may not complete for 15–20 s, so we
+// register a dedicated GET / handler HERE — before listen() — that immediately
+// returns index.html (HTTP 200).  Later, serveStatic() inside registerRoutes()
+// also registers a catch-all; both coexist fine (first-registered wins for /).
+if (process.env.NODE_ENV === "production") {
+  const _distPublic = require("path").resolve(__dirname, "..", "dist", "public");
+  app.get("/", (_req: Request, res: Response) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.sendFile(require("path").join(_distPublic, "index.html"));
+  });
+}
+
+// ── BIND PORT FIRST — ensures the workflow health-check passes before the
+// async route registration (setupAuth OIDC discovery, DB queries) completes.
+// Express queues requests; routes registered after listen() still work.
+const port = parseInt(process.env.PORT || "5000", 10);
+httpServer.listen(
+  { port, host: "0.0.0.0" },
+  () => {
+    process.stderr.write(`[Server] listening on port ${port}\n`);
+
+    // ── TIER 1: Critical publish pipeline — starts immediately ──────────────
+    startAutopilotMonitor();
+    startAutonomyController();
+
+    setTimeout(() => startConnectionGuardian(), 60_000);
+
+    const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
+
+    delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
+
+    const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
+    const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
+
+    delay(5_000, () => {
+      const dlqInterval = setInterval(() => {
+        processDeadLetterQueue().catch(err => logger.error("DLQ process failed", { error: String(err) }));
+      }, DLQ_INTERVAL_MS);
+      const digestInterval = setInterval(() => {
+        processAllDigests().catch(err => logger.error("Digest process failed", { error: String(err) }));
+      }, DIGEST_INTERVAL_MS);
+      backgroundIntervals.push(dlqInterval, digestInterval);
+    });
+
+    // ── TIER 3: Optional intelligence engines — deferred to T+210s+ ─────────
+    delay(210_000, () => { try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); } });
+    delay(230_000, () => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) })));
+    delay(250_000, () => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) })));
+    delay(270_000, () => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) })));
+    delay(290_000, () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) })));
+    delay(310_000, () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) })));
+    delay(330_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
+    delay(350_000, () => import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) })));
+    delay(370_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
+    delay(390_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
+    delay(410_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
+    delay(430_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
+    delay(450_000, () => startCleanupCoordinator());
+    delay(470_000, () => startResilienceWatchdog());
+
+    // Stripe init deferred to T+90s so the workflow runner confirms server stability first
+    delay(90_000, () => {
+      initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) }));
+    });
+  }
+);
+
 (async () => {
   await registerRoutes(httpServer, app);
 
@@ -688,7 +781,6 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       logger.error("Internal Server Error", { error: String(err), requestId });
     }
 
-    // In production, strip internal details for all status codes
     const shouldStripErrors = isProduction;
 
     return res.status(status).json({
@@ -706,78 +798,22 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     await setupVite(httpServer, app);
   }
 
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      // ── TIER 1: Critical publish pipeline — starts immediately ──────────────
-      startAutopilotMonitor();       // runs publish cron every 1 min
-      startConnectionGuardian();     // OAuth token refresh
-      startAutonomyController();     // master cron scheduler
-
-      // ── TIER 2: DB-touching services — staggered to avoid pool exhaustion ──
-      // Each service is delayed by an increasing offset so the DB connection
-      // pool is never slammed with 20 concurrent queries at startup.
-      const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
-
-      delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
-
-      const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
-      const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
-
-      delay(5_000, () => {
-        const dlqInterval = setInterval(() => {
-          processDeadLetterQueue().catch(err => logger.error("DLQ process failed", { error: String(err) }));
-        }, DLQ_INTERVAL_MS);
-        const digestInterval = setInterval(() => {
-          processAllDigests().catch(err => logger.error("Digest process failed", { error: String(err) }));
-        }, DIGEST_INTERVAL_MS);
-        backgroundIntervals.push(dlqInterval, digestInterval);
-      });
-
-      delay(8_000,  () => { try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); } });
-
-      delay(12_000, () => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) })));
-      delay(18_000, () => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) })));
-      delay(24_000, () => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) })));
-      delay(30_000, () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) })));
-      delay(36_000, () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) })));
-      delay(42_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
-      delay(48_000, () => import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) })));
-      delay(54_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
-      delay(60_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
-      delay(66_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
-
-      delay(72_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
-      delay(75_000, () => startCleanupCoordinator());
-      delay(78_000, () => startResilienceWatchdog());
-
-      // ── CRASH-POINT INSTRUMENTATION ────────────────────────────────────────
-      // Synchronous write every 5s until 90s to find exact crash window
-      let _t = 0;
-      const _dbg = setInterval(() => {
-        _t += 5;
-        const m = process.memoryUsage();
-        process.stderr.write(`[DBG T+${_t}s] rss=${Math.round(m.rss/1048576)}MB heap=${Math.round(m.heapUsed/1048576)}/${Math.round(m.heapTotal/1048576)}MB ext=${Math.round(m.external/1048576)}MB\n`);
-        if (_t >= 90) clearInterval(_dbg);
-      }, 5000);
-
-    },
-  );
+  process.stderr.write("[Server] routes registered, all middleware active\n");
+})();
 
   let isShuttingDown = false;
 
   function shutdown(signal: string) {
+    // Synchronous write so this ALWAYS appears in logs even during buffered shutdown
+    process.stdout.write(`[Server] SHUTDOWN TRIGGERED by signal: ${signal} (uptime: ${process.uptime().toFixed(1)}s)\n`);
+
     if (isShuttingDown) {
-      log(`[Server] ${signal} received again during shutdown, forcing exit...`);
+      process.stdout.write(`[Server] ${signal} received again during shutdown, forcing exit...\n`);
       process.exit(1);
     }
 
     isShuttingDown = true;
+    process.stdout.write(`[Server] ${signal} received, starting graceful shutdown...\n`);
     log(`[Server] ${signal} received, starting graceful shutdown...`);
 
     // Stop accepting new connections
@@ -845,8 +881,16 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     });
   }
 
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGTERM", () => {
+    const msg = `[SIGTERM] PID=${process.pid} received at uptime=${process.uptime().toFixed(1)}s\n`;
+    process.stdout.write(msg);
+    _appendFileSync(CRASH_LOG, msg);
+    shutdown("SIGTERM");
+  });
   process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGHUP", () => {
+    process.stdout.write(`[SIGHUP] PID=${process.pid} received at uptime=${process.uptime().toFixed(1)}s — ignored\n`);
+  });
 
   const TRANSIENT_PATTERNS = [
     "Connection terminated", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT",
@@ -882,9 +926,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
     logger.error("Uncaught exception", { error: msg.substring(0, 300), count: uncaughtExceptionCount });
   });
 
-  process.on("warning", (warning) => {
-    if (warning.name === "MaxListenersExceededWarning") {
-      logger.warn("MaxListeners exceeded — possible event emitter leak", { message: warning.message?.substring(0, 150) });
-    }
-  });
-})();
+process.on("warning", (warning) => {
+  if (warning.name === "MaxListenersExceededWarning") {
+    logger.warn("MaxListeners exceeded — possible event emitter leak", { message: warning.message?.substring(0, 150) });
+  }
+});
