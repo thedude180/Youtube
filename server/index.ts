@@ -756,6 +756,16 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
       delay(75_000, () => startCleanupCoordinator());
       delay(78_000, () => startResilienceWatchdog());
 
+      // ── CRASH-POINT INSTRUMENTATION ────────────────────────────────────────
+      // Synchronous write every 5s until 90s to find exact crash window
+      let _t = 0;
+      const _dbg = setInterval(() => {
+        _t += 5;
+        const m = process.memoryUsage();
+        process.stderr.write(`[DBG T+${_t}s] rss=${Math.round(m.rss/1048576)}MB heap=${Math.round(m.heapUsed/1048576)}/${Math.round(m.heapTotal/1048576)}MB ext=${Math.round(m.external/1048576)}MB\n`);
+        if (_t >= 90) clearInterval(_dbg);
+      }, 5000);
+
     },
   );
 
