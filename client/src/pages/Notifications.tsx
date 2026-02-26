@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, CheckCircle2, RefreshCw, ArrowRight, Wifi, FileVideo } from "lucide-react";
+import { Bell, CheckCircle2, RefreshCw, ArrowRight, Wifi, FileVideo, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
@@ -16,47 +16,32 @@ import { EmptyState } from "@/components/EmptyState";
 import { safeArray } from "@/lib/safe-data";
 import { useTranslation } from "react-i18next";
 
-type CategoryType = "alert" | "ai" | "update" | "system";
-type FilterType = "all" | "alert" | "update" | "ai";
-
-function deriveCategory(notification: Notification): CategoryType {
-  const title = (notification.title || "").toLowerCase();
-  const type = (notification.type || "").toLowerCase();
-
-  if (/alert|warning|error|critical|urgent/.test(title) || /alert|warning|error|critical/.test(type)) {
-    return "alert";
-  }
-  if (/ai|agent|automation|optimize|generated|analysis/.test(title) || /ai|agent|automation/.test(type)) {
-    return "ai";
-  }
-  if (/system|maintenance|downtime/.test(title) || /system/.test(type)) {
-    return "system";
-  }
-  return "update";
-}
-
-const categoryConfig: Record<CategoryType, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  alert: { label: "Alert", variant: "destructive" },
-  ai: { label: "AI", variant: "default" },
-  update: { label: "Update", variant: "secondary" },
-  system: { label: "System", variant: "outline" },
-};
+type SeverityFilter = "all" | "critical" | "warning" | "success";
 
 const severityColor = (severity: string) => {
   switch (severity) {
     case "critical": return "bg-red-400";
-    case "warning": return "bg-amber-400";
-    case "success": return "bg-emerald-400";
-    default: return "bg-blue-400";
+    case "warning":  return "bg-amber-400";
+    case "success":  return "bg-emerald-400";
+    default:         return "bg-blue-400";
+  }
+};
+
+const severityBadge = (severity: string): { label: string; variant: "default" | "secondary" | "destructive" | "outline" } => {
+  switch (severity) {
+    case "critical": return { label: "Critical", variant: "destructive" };
+    case "warning":  return { label: "Warning",  variant: "default" };
+    case "success":  return { label: "Success",  variant: "secondary" };
+    default:         return { label: "Info",     variant: "outline" };
   }
 };
 
 function getActionButton(n: Notification, navigate: (path: string) => void) {
-  const url = (n as any).actionUrl as string | undefined;
+  const url = n.actionUrl as string | undefined;
   if (!url) return null;
-  const isReconnect = url === "/channels" || n.title?.toLowerCase().includes("reconnect") || n.title?.toLowerCase().includes("needs reconnection") || n.message?.toLowerCase().includes("reconnect");
-  const isContent = url === "/content";
-  const Icon = isReconnect ? Wifi : isContent ? FileVideo : ArrowRight;
+  const isReconnect = url === "/channels" || n.title?.toLowerCase().includes("reconnect");
+  const isContent   = url === "/content";
+  const Icon  = isReconnect ? Wifi : isContent ? FileVideo : ArrowRight;
   const label = isReconnect ? "Reconnect" : isContent ? "Go to Content" : "View";
   return (
     <Button
@@ -72,48 +57,64 @@ function getActionButton(n: Notification, navigate: (path: string) => void) {
   );
 }
 
+const FILTER_OPTIONS: { key: SeverityFilter; label: string }[] = [
+  { key: "all",      label: "All"      },
+  { key: "critical", label: "Critical" },
+  { key: "warning",  label: "Warnings" },
+  { key: "success",  label: "Success"  },
+];
+
 export default function Notifications() {
   const { t } = useTranslation();
   usePageTitle(t("notifications.title"));
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<SeverityFilter>("all");
   const [, navigate] = useLocation();
-  const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 15_000, staleTime: 10_000 });
+  const { toast } = useToast();
+
+  const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({
+    queryKey: ['/api/notifications'],
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
   const notifications = safeArray<Notification>(rawNotifications);
 
   const markReadMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("POST", `/api/notifications/${id}/read`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-    },
+    mutationFn: (id: number) => apiRequest("POST", `/api/notifications/${id}/read`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/notifications'] }),
   });
 
-  const { toast } = useToast();
-
   const markAllReadMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/notifications/mark-all-read");
-    },
+    mutationFn: () => apiRequest("POST", "/api/notifications/mark-all-read"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
       toast({ title: "All notifications marked as read" });
     },
   });
 
-  const filtered = notifications.filter((n: Notification) => {
-    if (filter === "all") return true;
-    return deriveCategory(n) === filter;
+  const dismissMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/notifications/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
   });
 
-  const unreadCount = notifications.filter((n: Notification) => !n.read).length;
+  const clearReadMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/notifications"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+      toast({ title: "Read notifications cleared" });
+    },
+  });
 
-  const filterOptions: { key: FilterType; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "alert", label: "Alerts" },
-    { key: "update", label: "Updates" },
-    { key: "ai", label: "AI Results" },
-  ];
+  const filtered = notifications.filter((n: Notification) =>
+    filter === "all" ? true : n.severity === filter
+  );
+
+  const unreadCount = notifications.filter((n: Notification) => !n.read).length;
+  const readCount   = notifications.filter((n: Notification) => n.read).length;
 
   if (isLoading) {
     return (
@@ -150,26 +151,42 @@ export default function Notifications() {
                 : "All caught up"}
           </p>
         </div>
-        {unreadCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => markAllReadMutation.mutate()}
-            disabled={markAllReadMutation.isPending}
-            data-testid="button-mark-all-read"
-          >
-            {markAllReadMutation.isPending ? (
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            Mark All Read
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {unreadCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => markAllReadMutation.mutate()}
+              disabled={markAllReadMutation.isPending}
+              data-testid="button-mark-all-read"
+            >
+              {markAllReadMutation.isPending
+                ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+              Mark All Read
+            </Button>
+          )}
+          {readCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => clearReadMutation.mutate()}
+              disabled={clearReadMutation.isPending}
+              data-testid="button-clear-read"
+              className="text-muted-foreground"
+            >
+              {clearReadMutation.isPending
+                ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+              Clear Read
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap" data-testid="container-filters">
-        {filterOptions.map(f => (
+        {FILTER_OPTIONS.map(f => (
           <Button
             key={f.key}
             size="sm"
@@ -187,14 +204,13 @@ export default function Notifications() {
         <EmptyState
           icon={Bell}
           type="notifications"
-          title={filter === "all" ? "All Caught Up!" : `No ${filterOptions.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
-          description={filter === "all" ? "No new notifications. We'll let you know when something needs your attention." : "Try selecting a different filter."}
+          title={filter === "all" ? "All Caught Up!" : `No ${FILTER_OPTIONS.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
+          description={filter === "all" ? "No new notifications. We'll alert you only when something genuinely needs your attention." : "Try selecting a different filter."}
         />
       ) : (
         <div className="space-y-2" data-testid="container-notifications">
           {filtered.map(n => {
-            const category = deriveCategory(n);
-            const config = categoryConfig[category];
+            const { label, variant } = severityBadge(n.severity);
             return (
               <Card
                 key={n.id}
@@ -212,12 +228,16 @@ export default function Notifications() {
                         >
                           {n.title}
                         </p>
-                        <Badge variant={config.variant} className="text-[10px]" data-testid={`badge-category-${n.id}`}>
-                          {config.label}
+                        <Badge variant={variant} className="text-[10px]" data-testid={`badge-severity-${n.id}`}>
+                          {label}
                         </Badge>
-                        {!n.read && <Badge variant="default" className="text-[10px]" data-testid={`badge-new-${n.id}`}>New</Badge>}
+                        {!n.read && (
+                          <Badge variant="default" className="text-[10px]" data-testid={`badge-new-${n.id}`}>New</Badge>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground" data-testid={`text-notification-message-${n.id}`}>{n.message}</p>
+                      <p className="text-xs text-muted-foreground" data-testid={`text-notification-message-${n.id}`}>
+                        {n.message}
+                      </p>
                       <div className="flex items-center gap-3 mt-2 flex-wrap">
                         <span className="text-xs text-muted-foreground" data-testid={`text-notification-time-${n.id}`}>
                           {n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true }) : ""}
@@ -225,18 +245,33 @@ export default function Notifications() {
                         {getActionButton(n, navigate)}
                       </div>
                     </div>
-                    {!n.read && (
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {!n.read && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => markReadMutation.mutate(n.id)}
+                          disabled={markReadMutation.isPending}
+                          data-testid={`button-mark-read-${n.id}`}
+                          title="Mark as read"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => markReadMutation.mutate(n.id)}
-                        disabled={markReadMutation.isPending}
-                        data-testid={`button-mark-read-${n.id}`}
-                        title="Mark as read"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => dismissMutation.mutate(n.id)}
+                        disabled={dismissMutation.isPending}
+                        data-testid={`button-dismiss-${n.id}`}
+                        title="Dismiss"
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
-                    )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

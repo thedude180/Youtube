@@ -69,6 +69,22 @@ export function registerSettingsRoutes(app: Express) {
     res.json({ success: true });
   });
 
+  app.delete("/api/notifications/:id", writeRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    await storage.deleteNotification(id, userId);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/notifications", writeRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.deleteAllRead(userId);
+    res.json({ success: true });
+  });
+
   app.get("/api/notifications/preferences", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

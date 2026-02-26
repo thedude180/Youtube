@@ -154,6 +154,8 @@ export interface IStorage {
   createNotification(n: InsertNotification): Promise<Notification>;
   markRead(id: number): Promise<Notification>;
   markAllRead(userId: string): Promise<void>;
+  deleteNotification(id: number, userId: string): Promise<void>;
+  deleteAllRead(userId: string): Promise<void>;
 
   getAbTests(userId: string, videoId?: number): Promise<AbTest[]>;
   getAbTest(id: number): Promise<AbTest | undefined>;
@@ -777,6 +779,14 @@ export class DatabaseStorage implements IStorage {
 
   async markAllRead(userId: string): Promise<void> {
     await db.update(notifications).set({ read: true, readAt: new Date() }).where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+  }
+
+  async deleteNotification(id: number, userId: string): Promise<void> {
+    await db.delete(notifications).where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+  }
+
+  async deleteAllRead(userId: string): Promise<void> {
+    await db.delete(notifications).where(and(eq(notifications.userId, userId), eq(notifications.read, true)));
   }
 
   async getAbTests(userId: string, videoId?: number): Promise<AbTest[]> {

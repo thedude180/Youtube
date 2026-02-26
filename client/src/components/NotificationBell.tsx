@@ -10,41 +10,31 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-
-interface Notification {
-  id: number;
-  userId: string;
-  type: string;
-  title: string;
-  message: string;
-  priority: "high" | "medium" | "low";
-  isRead: boolean;
-  actionUrl: string | null;
-  createdAt: string;
-}
+import type { Notification } from "@shared/schema";
 
 interface UnreadCount {
   count: number;
 }
 
-type PriorityFilter = "all" | "high" | "medium" | "low";
+type SeverityFilter = "all" | "critical" | "warning" | "success";
 
-const priorityDotColor: Record<string, string> = {
-  high: "bg-red-500",
-  medium: "bg-amber-500",
-  low: "bg-emerald-500",
+const severityDotColor: Record<string, string> = {
+  critical: "bg-red-500",
+  warning:  "bg-amber-500",
+  success:  "bg-emerald-500",
+  info:     "bg-blue-400",
 };
 
-const FILTER_OPTIONS: { key: PriorityFilter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "high", label: "Urgent" },
-  { key: "medium", label: "Important" },
-  { key: "low", label: "Info" },
+const FILTER_OPTIONS: { key: SeverityFilter; label: string }[] = [
+  { key: "all",      label: "All"       },
+  { key: "critical", label: "Critical"  },
+  { key: "warning",  label: "Warnings"  },
+  { key: "success",  label: "Successes" },
 ];
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<PriorityFilter>("all");
+  const [filter, setFilter] = useState<SeverityFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [, setLocation] = useLocation();
   const pollInterval = useAdaptiveInterval(30000);
@@ -68,7 +58,7 @@ export function NotificationBell() {
   });
 
   const markAllReadMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/notifications/read-all"),
+    mutationFn: () => apiRequest("POST", "/api/notifications/mark-all-read"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
@@ -79,12 +69,14 @@ export function NotificationBell() {
 
   const filtered = useMemo(() => {
     if (!notifications) return [];
-    if (filter === "all") return notifications;
-    return notifications.filter(n => n.priority === filter);
+    const list = filter === "all"
+      ? notifications
+      : notifications.filter(n => n.severity === filter);
+    return list.slice(0, 50);
   }, [notifications, filter]);
 
   const handleNotificationClick = (notification: Notification) => {
-    if (!notification.isRead) {
+    if (!notification.read) {
       markReadMutation.mutate(notification.id);
     }
     if (notification.actionUrl) {
@@ -187,20 +179,20 @@ export function NotificationBell() {
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
                   className={`flex w-full gap-3 p-3 text-left hover-elevate ${
-                    !notification.isRead ? "bg-muted/50" : ""
+                    !notification.read ? "bg-muted/50" : ""
                   }`}
                   data-testid={`notification-item-${notification.id}`}
                 >
                   <span
                     className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                      priorityDotColor[notification.priority] || priorityDotColor.low
+                      severityDotColor[notification.severity] ?? severityDotColor.info
                     }`}
-                    data-testid={`notification-priority-${notification.id}`}
+                    data-testid={`notification-severity-${notification.id}`}
                   />
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm leading-snug ${
-                        notification.isRead ? "text-muted-foreground" : "font-medium text-foreground"
+                        notification.read ? "text-muted-foreground" : "font-medium text-foreground"
                       }`}
                       data-testid={`notification-title-${notification.id}`}
                     >
@@ -216,9 +208,9 @@ export function NotificationBell() {
                       className="mt-1 text-[11px] text-muted-foreground/70"
                       data-testid={`notification-time-${notification.id}`}
                     >
-                      {formatDistanceToNow(new Date(notification.createdAt), {
-                        addSuffix: true,
-                      })}
+                      {notification.createdAt
+                        ? formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })
+                        : ""}
                     </p>
                   </div>
                 </button>
@@ -226,10 +218,13 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="p-6 text-center text-sm text-muted-foreground" data-testid="text-no-notifications">
-              {filter === "all" ? "No notifications yet" : `No ${FILTER_OPTIONS.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
+              {filter === "all"
+                ? "No notifications yet"
+                : `No ${FILTER_OPTIONS.find(f => f.key === filter)?.label.toLowerCase()} notifications`}
             </div>
           )}
         </ScrollArea>
+
         <div className="border-t border-border p-2">
           <Button
             variant="ghost"
