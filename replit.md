@@ -27,6 +27,12 @@ CreatorOS is a multi-platform content management and live streaming platform des
 - **Mobile CSS Classes**: `.fab`, `.touch-scroll`, `.pb-nav`, `.mb-nav`, `.mobile-status-pill`, `.god-mode-badge`
 - **Theme Toggle**: Now visible on mobile (removed `hidden sm:inline-flex` wrapper)
 
+## Dual-Mode Hub System
+- **Hub Page** (`/hub`): Dual-mode command center — Content Mode (AI publishing queue + verification receipts) and Stream Mode (auto-triggered when live detected)
+- **CreatorModeProvider**: Wraps entire app in `client/src/hooks/use-creator-mode.tsx` — polls `/api/youtube/live-status` every 30s, auto-switches to streaming mode when live
+- **LiveStreamBanner**: Global overlay banner shown when streaming is active (`client/src/components/LiveStreamBanner.tsx`), links to /hub
+- **Mode switching**: Auto-triggers Stream Mode on live detection, auto-returns to Content Mode when stream ends
+
 ## Visual Design System (index.css)
 - **New Keyframes**: radar-sweep, pulse-ring, data-stream, neon-flicker, scan-line, ticker-scroll, orbit, empire-glow, threat-pulse, gradient-shift, holographic
 - **Power Classes**: .card-empire (animated glow border), .neon-text, .holographic-text, .data-grid-bg, .terminal, .metric-display, .live-dot, .gradient-border, .ticker-scroll, .orbit-1/2/3, .animated-gradient-bg, .glow-purple/green/red/gold/blue

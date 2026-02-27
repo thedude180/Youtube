@@ -71,8 +71,11 @@ const PrivacyPolicy = lazyRetry(() => import("@/pages/Legal").then(m => ({ defau
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
 const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
 const FloatingChat = lazyRetry(() => import("@/components/FloatingChat"));
+const Hub = lazyRetry(() => import("@/pages/Hub"));
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import CookieConsent from "@/components/CookieConsent";
+import { CreatorModeProvider } from "@/hooks/use-creator-mode";
+import { LiveStreamBanner } from "@/components/LiveStreamBanner";
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -107,6 +110,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/empire": { title: "Empire Launcher", description: "Launch and scale your content empire with AI-powered multi-platform growth strategies." },
   "/money": { title: "Money", description: "Revenue tracking, expense management, tax estimates, sponsorships, and financial AI insights." },
   "/community": { title: "Community", description: "Polls, giveaways, challenges, loyalty programs, and superfan management tools." },
+  "/hub": { title: "Creator Hub", description: "AI-powered content mode and live stream command center — the heart of your creator operation." },
   "/settings": { title: "Settings", description: "Profile, brand, integrations, automation rules, security, and account preferences." },
   "/notifications": { title: "Notifications", description: "Exception-only alerts for critical issues, platform bans, and system failures." },
   "/stream-loop": { title: "Stream Loop", description: "Automated livestream content extraction and multi-platform distribution pipeline." },
@@ -189,6 +193,7 @@ function Router() {
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
       <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>
       <Route path="/empire">{() => <SectionErrorBoundary fallbackTitle="Empire Launcher failed to load"><EmpireLauncher /></SectionErrorBoundary>}</Route>
+      <Route path="/hub">{() => <SectionErrorBoundary fallbackTitle="Hub failed to load"><Hub /></SectionErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>
       <Route path="/ai/:tab">{() => <Redirect to="/" />}</Route>
@@ -669,6 +674,7 @@ function AuthenticatedApp() {
             </div>
           </header>
           {!isFocusMode && <HealthRibbon />}
+          <LiveStreamBanner />
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
             <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
               <Router />
@@ -854,7 +860,9 @@ function App() {
             <AdaptiveProvider>
               <AdvancedModeProvider>
                 <FocusModeProvider>
-                  <AppContent />
+                  <CreatorModeProvider>
+                    <AppContent />
+                  </CreatorModeProvider>
                 </FocusModeProvider>
               </AdvancedModeProvider>
             </AdaptiveProvider>

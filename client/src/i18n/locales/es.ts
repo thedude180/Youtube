@@ -1,6 +1,7 @@
 export default {
   translation: {
     nav: {
+      hub: "Hub",
       home: "Inicio",
       content: "Contenido",
       goLive: "En Vivo",

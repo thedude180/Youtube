@@ -2,6 +2,7 @@ export default {
   translation: {
     nav: {
       home: "Home",
+      hub: "Hub",
       content: "Content",
       goLive: "Go Live",
       money: "Money",

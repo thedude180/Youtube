@@ -61,6 +61,7 @@ import { Separator } from "@/components/ui/separator";
 
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free", advancedOnly: false },
+  { href: "/hub", labelKey: "nav.hub", icon: Zap, minTier: "free", advancedOnly: false },
   { href: "/mission-control", labelKey: "nav.missionControl", icon: Satellite, minTier: "free", advancedOnly: false },
   { href: "/intelligence", labelKey: "nav.intelligence", icon: Brain, minTier: "free", advancedOnly: false },
   { href: "/content-command", labelKey: "nav.contentCommand", icon: Clapperboard, minTier: "free", advancedOnly: false },
