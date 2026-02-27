@@ -6,8 +6,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useTranslation } from "react-i18next";
 import { formatCurrency, formatCompact } from "@/lib/locale-format";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 import { useLazyVisible } from "@/hooks/use-lazy-visible";
 import {
   Film,
@@ -25,6 +26,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  Trophy,
+  Target,
+  Sparkles,
+  BarChart2,
+  Network as NetworkIcon,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -112,9 +118,17 @@ export default function Dashboard() {
   const { data: creatorScore } = useQuery<any>({ queryKey: ['/api/nexus/creator-score'], refetchInterval: 300_000 });
   const { data: momentumScore } = useQuery<any>({ queryKey: ['/api/nexus/momentum'], refetchInterval: 300_000 });
   const { data: missionControl } = useQuery<any>({ queryKey: ['/api/nexus/mission-control'], refetchInterval: 60_000 });
+  const { data: creatorRank } = useQuery<any>({ queryKey: ['/api/creator/rank'], refetchInterval: 300_000 });
 
+  const [, navigateTo] = useLocation();
   const [dateRange, setDateRange] = useState(30);
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("just now");
+  const fillCalendarMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/content-loop/force-start", {}).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/calendar/horizon'] });
+    },
+  });
   useEffect(() => {
     if (!statsUpdatedAt) return;
     const update = () => {
@@ -187,6 +201,21 @@ export default function Dashboard() {
     if (!Array.isArray(agentActivities)) return [];
     return agentActivities.slice(0, 5);
   }, [agentActivities]);
+
+  const achievements = useMemo(() => [
+    { id: "first-video", emoji: "🎬", label: "First Video", unlocked: safeNumber(stats?.totalVideos) >= 1 },
+    { id: "ten-videos", emoji: "📺", label: "10 Videos", unlocked: safeNumber(stats?.totalVideos) >= 10 },
+    { id: "century-videos", emoji: "🏭", label: "100 Videos", unlocked: safeNumber(stats?.totalVideos) >= 100 },
+    { id: "first-dollar", emoji: "💰", label: "First Dollar", unlocked: safeNumber(stats?.totalRevenue) >= 1 },
+    { id: "hundred-revenue", emoji: "💵", label: "$100 Club", unlocked: safeNumber(stats?.totalRevenue) >= 100 },
+    { id: "k-revenue", emoji: "🤑", label: "$1K Revenue", unlocked: safeNumber(stats?.totalRevenue) >= 1000 },
+    { id: "ai-active", emoji: "🤖", label: "AI Active", unlocked: activeAgents >= 1 },
+    { id: "full-autopilot", emoji: "🚀", label: "Full Autopilot", unlocked: activeAgents >= 8 },
+    { id: "daily-tasks", emoji: "⚡", label: "10 AI Tasks", unlocked: tasksToday >= 10 },
+    { id: "creator-pro", emoji: "⭐", label: "Creator Pro", unlocked: (creatorScore?.overallScore || 0) >= 30 },
+    { id: "creator-elite", emoji: "💎", label: "Creator Elite", unlocked: (creatorScore?.overallScore || 0) >= 60 },
+    { id: "creator-legend", emoji: "🏆", label: "Legend", unlocked: (creatorScore?.overallScore || 0) >= 75 },
+  ], [stats?.totalVideos, stats?.totalRevenue, activeAgents, tasksToday, creatorScore]);
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -527,6 +556,114 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+      </section>
+
+      {/* Creator Rank + Quick Actions */}
+      <section role="region" aria-label="Creator Rank and Quick Actions" data-testid="section-rank-actions">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="relative overflow-hidden border-primary/20" style={{ background: "linear-gradient(135deg, hsl(230 22% 7%), hsl(265 30% 10%))" }}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4 mb-4">
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 transition-all duration-500"
+                  style={{
+                    background: creatorRank?.color ? `${creatorRank.color}20` : "hsl(265 80% 60% / 0.1)",
+                    boxShadow: creatorRank?.color ? `0 0 24px ${creatorRank.color}40` : "none",
+                  }}
+                  data-testid="icon-rank-emoji"
+                >
+                  {creatorRank?.emoji || "🎮"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-1">Creator Rank</div>
+                  <div className="text-2xl font-bold metric-display" style={{ color: creatorRank?.color || "hsl(265 80% 60%)" }} data-testid="text-creator-rank">
+                    {creatorRank?.rank || "—"}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Score: {creatorRank?.overallScore || 0}/100 &middot; Next: <span style={{ color: creatorRank?.color || "hsl(265 80% 60%)" }}>{creatorRank?.nextTier || "Max Rank"}</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
+                  <span>XP Progress</span>
+                  <span className="font-mono">{creatorRank?.xp || 0}/{creatorRank?.xpToNext || 15} XP</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000"
+                    style={{
+                      width: `${creatorRank?.progress || 0}%`,
+                      background: creatorRank?.color || "hsl(265 80% 60%)",
+                      boxShadow: `0 0 8px ${creatorRank?.color || "hsl(265 80% 60%)"}60`,
+                    }}
+                    data-testid="progress-rank"
+                  />
+                </div>
+                <div className="mt-2 text-[10px] text-muted-foreground">{creatorRank?.progress || 0}% to {creatorRank?.nextTier || "Max"}</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="w-3.5 h-3.5 text-primary" />
+                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Quick Actions</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Fill Calendar", icon: Zap, bgColor: "bg-primary/10", iconColor: "text-primary", onClick: () => fillCalendarMutation.mutate() },
+                  { label: "Gen Titles", icon: Sparkles, bgColor: "bg-purple-500/10", iconColor: "text-purple-400", onClick: () => { apiRequest("POST", "/api/ai/title-generator", {}).catch(() => {}); } },
+                  { label: "Analyze", icon: BarChart2, bgColor: "bg-blue-500/10", iconColor: "text-blue-400", onClick: () => { apiRequest("POST", "/api/ai/competitive-analysis", {}).catch(() => {}); } },
+                  { label: "Calc Score", icon: Target, bgColor: "bg-emerald-500/10", iconColor: "text-emerald-400", onClick: () => { apiRequest("POST", "/api/nexus/creator-score/calculate", {}).then(() => queryClient.invalidateQueries({ queryKey: ['/api/creator/rank'] })).catch(() => {}); } },
+                  { label: "Intelligence", icon: Activity, bgColor: "bg-amber-500/10", iconColor: "text-amber-400", onClick: () => navigateTo("/intelligence") },
+                  { label: "AI Matrix", icon: NetworkIcon, bgColor: "bg-cyan-500/10", iconColor: "text-cyan-400", onClick: () => navigateTo("/ai-matrix") },
+                ].map(action => (
+                  <button
+                    key={action.label}
+                    onClick={action.onClick}
+                    className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-muted/20 hover:bg-muted/40 border border-border/20 hover:border-primary/30 transition-all group cursor-pointer"
+                    data-testid={`button-quick-${action.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${action.bgColor} group-hover:scale-110 transition-transform`}>
+                      <action.icon className={`w-4 h-4 ${action.iconColor}`} />
+                    </div>
+                    <span className="text-[9px] font-medium leading-tight text-center">{action.label}</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Achievement System */}
+      <section role="region" aria-label="Creator Achievements" data-testid="section-achievements">
+        <div className="flex items-center gap-2 mb-3">
+          <Trophy className="w-4 h-4 text-amber-400" />
+          <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Achievements</h3>
+          <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30" data-testid="text-achievements-count">
+            {achievements.filter(a => a.unlocked).length}/{achievements.length} Unlocked
+          </Badge>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+          {achievements.map(ach => (
+            <div
+              key={ach.id}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all duration-300 ${
+                ach.unlocked
+                  ? "bg-amber-500/5 border-amber-500/20 shadow-[0_0_12px_hsl(45_90%_55%_/_0.1)]"
+                  : "bg-muted/10 border-border/20 grayscale opacity-40"
+              }`}
+              data-testid={`badge-achievement-${ach.id}`}
+            >
+              <div className="text-2xl leading-none">{ach.emoji}</div>
+              <div className="text-[9px] font-semibold leading-tight">{ach.label}</div>
+              {ach.unlocked && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+            </div>
+          ))}
+        </div>
       </section>
 
       <SectionErrorBoundary fallbackTitle="Growth impact chart failed to load">

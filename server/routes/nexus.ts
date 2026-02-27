@@ -58,6 +58,30 @@ router.post("/api/nexus/creator-score/calculate", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to calculate score" }); }
 });
 
+router.get("/api/creator/rank", async (req, res) => {
+  const userId = requireAuth(req, res); if (!userId) return;
+  try {
+    const [score] = await db.select().from(creatorScores).where(eq(creatorScores.userId, userId)).orderBy(desc(creatorScores.createdAt)).limit(1);
+    const overallScore = score?.overallScore || 0;
+    const TIERS = [
+      { name: "Galaxy", min: 97, next: 100, color: "#a855f7", emoji: "🌌", glow: "hsl(265 80% 60%)" },
+      { name: "God",    min: 89, next: 97,  color: "#f97316", emoji: "⚡", glow: "hsl(25 90% 55%)" },
+      { name: "Legend", min: 75, next: 89,  color: "#eab308", emoji: "🏆", glow: "hsl(45 90% 55%)" },
+      { name: "Elite",  min: 60, next: 75,  color: "#8b5cf6", emoji: "💎", glow: "hsl(260 70% 60%)" },
+      { name: "Expert", min: 45, next: 60,  color: "#14b8a6", emoji: "🎯", glow: "hsl(180 70% 50%)" },
+      { name: "Pro",    min: 30, next: 45,  color: "#22c55e", emoji: "⭐", glow: "hsl(142 70% 50%)" },
+      { name: "Creator",min: 15, next: 30,  color: "#3b82f6", emoji: "🚀", glow: "hsl(220 70% 60%)" },
+      { name: "Rookie", min: 0,  next: 15,  color: "#64748b", emoji: "🎮", glow: "hsl(215 20% 50%)" },
+    ];
+    const tier = TIERS.find(t => overallScore >= t.min) || TIERS[TIERS.length - 1];
+    const xp = overallScore - tier.min;
+    const xpToNext = tier.next - tier.min;
+    const progress = xpToNext > 0 ? Math.round((xp / xpToNext) * 100) : 100;
+    const nextTier = TIERS[TIERS.indexOf(tier) - 1] || null;
+    res.json({ rank: tier.name, tier: tier.name, xp, xpToNext, progress, color: tier.color, emoji: tier.emoji, glow: tier.glow, overallScore, nextTier: nextTier?.name || null });
+  } catch (e) { res.status(500).json({ error: "Failed to fetch rank" }); }
+});
+
 router.get("/api/nexus/mission-control", async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {

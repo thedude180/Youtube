@@ -63,6 +63,7 @@ const AIFactory = lazyRetry(() => import("@/pages/AIFactory"));
 const AICommand = lazyRetry(() => import("@/pages/AICommand"));
 const CalendarPage = lazyRetry(() => import("@/pages/CalendarPage"));
 const WarRoom = lazyRetry(() => import("@/pages/WarRoom"));
+const AIMatrix = lazyRetry(() => import("@/pages/AIMatrix"));
 const Workspace = lazyRetry(() => import("@/pages/Workspace"));
 const Heartbeat = lazyRetry(() => import("@/pages/Heartbeat"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
@@ -184,6 +185,7 @@ function Router() {
       <Route path="/intelligence">{() => <SectionErrorBoundary fallbackTitle="Intelligence Hub failed to load"><IntelligenceHub /></SectionErrorBoundary>}</Route>
       <Route path="/intelligence/:tab">{() => <SectionErrorBoundary fallbackTitle="Intelligence Hub failed to load"><IntelligenceHub /></SectionErrorBoundary>}</Route>
       <Route path="/war-room">{() => <SectionErrorBoundary fallbackTitle="War Room failed to load"><WarRoom /></SectionErrorBoundary>}</Route>
+      <Route path="/ai-matrix">{() => <SectionErrorBoundary fallbackTitle="AI Matrix failed to load"><AIMatrix /></SectionErrorBoundary>}</Route>
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
       <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>
       <Route path="/empire">{() => <SectionErrorBoundary fallbackTitle="Empire Launcher failed to load"><EmpireLauncher /></SectionErrorBoundary>}</Route>

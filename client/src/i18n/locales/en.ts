@@ -27,6 +27,7 @@ export default {
       community: "Community",
       accessCodes: "Access Codes",
       calendar: "Calendar",
+      aiMatrix: "AI Matrix",
     },
     common: {
       loading: "Loading...",

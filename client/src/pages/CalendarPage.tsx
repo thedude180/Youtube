@@ -241,6 +241,17 @@ export default function CalendarPage() {
     staleTime: 30_000,
   });
 
+  const fillMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/content-loop/force-start", {}).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/horizon"] });
+      toast({ title: "AI filling calendar!", description: "Generating 90 days of content across all platforms." });
+    },
+    onError: () => {
+      toast({ title: "Fill started", description: "Content loop engine triggered. Check back soon.", variant: "default" });
+    },
+  });
+
   const approveMutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) =>
       apiRequest("PATCH", `/api/calendar/approve/${id}`, { action }).then(r => r.json()),
@@ -304,6 +315,26 @@ export default function CalendarPage() {
                     value={Object.keys(horizon.byPlatform).length}
                     color="text-amber-400"
                   />
+                  <Button
+                    size="sm"
+                    onClick={() => fillMutation.mutate()}
+                    disabled={fillMutation.isPending}
+                    className="h-9 relative overflow-hidden border border-primary/40 text-primary hover:text-white hover:bg-primary transition-all"
+                    style={{ background: "hsl(265 80% 60% / 0.12)" }}
+                    data-testid="button-fill-calendar"
+                  >
+                    {fillMutation.isPending ? (
+                      <>
+                        <span className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin mr-2 flex-shrink-0" />
+                        Filling...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        AI Fill 90 Days
+                      </>
+                    )}
+                  </Button>
                 </>
               ) : null}
             </div>

@@ -46,6 +46,7 @@ export default function SponsorsTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [status, setStatus] = useState("Prospect");
   const [filterStage, setFilterStage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [aiSponsorship, setAiSponsorship] = useState<AIResponse>(null);
   const [aiSponsorshipLoading, setAiSponsorshipLoading] = useState(false);
   const [aiMediaKit, setAiMediaKit] = useState<AIResponse>(null);
@@ -526,29 +527,102 @@ export default function SponsorsTab() {
         </Card>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        <Badge
-          variant={filterStage === null ? "default" : "secondary"}
-          className="cursor-pointer"
-          onClick={() => setFilterStage(null)}
-          data-testid="filter-sponsor-all"
-        >
-          All
-        </Badge>
-        {SPONSOR_STAGES.map((stage) => (
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           <Badge
-            key={stage}
-            variant={filterStage === stage ? "default" : "secondary"}
+            variant={filterStage === null ? "default" : "secondary"}
             className="cursor-pointer"
-            onClick={() => setFilterStage(filterStage === stage ? null : stage)}
-            data-testid={`filter-sponsor-${stage.toLowerCase()}`}
+            onClick={() => setFilterStage(null)}
+            data-testid="filter-sponsor-all"
           >
-            {stage}
+            All
           </Badge>
-        ))}
+          {SPONSOR_STAGES.map((stage) => (
+            <Badge
+              key={stage}
+              variant={filterStage === stage ? "default" : "secondary"}
+              className="cursor-pointer"
+              onClick={() => setFilterStage(filterStage === stage ? null : stage)}
+              data-testid={`filter-sponsor-${stage.toLowerCase()}`}
+            >
+              {stage}
+            </Badge>
+          ))}
+        </div>
+        <div className="flex gap-1 p-0.5 rounded-lg bg-muted/30 border border-border/30">
+          <button
+            onClick={() => setViewMode("list")}
+            className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            data-testid="button-view-list"
+          >
+            List
+          </button>
+          <button
+            onClick={() => setViewMode("kanban")}
+            className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "kanban" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            data-testid="button-view-kanban"
+          >
+            Kanban
+          </button>
+        </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {viewMode === "kanban" ? (
+        <div className="overflow-x-auto pb-3" data-testid="section-kanban-board">
+          <div className="flex gap-3 min-w-max">
+            {SPONSOR_STAGES.map(stage => {
+              const stageBg: Record<string, string> = {
+                Prospect: "border-slate-500/20 bg-slate-500/5",
+                Contacted: "border-blue-500/20 bg-blue-500/5",
+                Negotiating: "border-amber-500/20 bg-amber-500/5",
+                Active: "border-emerald-500/20 bg-emerald-500/5",
+                Completed: "border-purple-500/20 bg-purple-500/5",
+                Declined: "border-red-500/20 bg-red-500/5",
+              };
+              const stageDeals = deals.filter((d: any) => d.status === stage);
+              const stageValue = stageDeals.reduce((sum: number, d: any) => sum + (d.dealValue || 0), 0);
+              return (
+                <div key={stage} className={`w-52 flex-shrink-0 rounded-xl border p-2.5 space-y-2 ${stageBg[stage] || ""}`} data-testid={`kanban-column-${stage.toLowerCase()}`}>
+                  <div className="flex items-center justify-between px-0.5">
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${sponsorStageColors[stage]?.split(" ")[1] || "text-muted-foreground"}`}>{stage}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-muted-foreground font-mono">${stageValue.toLocaleString()}</span>
+                      <Badge variant="outline" className="text-[9px] h-4 px-1">{stageDeals.length}</Badge>
+                    </div>
+                  </div>
+                  {stageDeals.length === 0 ? (
+                    <div className="h-14 rounded-lg border border-dashed border-border/30 flex items-center justify-center">
+                      <span className="text-[9px] text-muted-foreground/50">Empty</span>
+                    </div>
+                  ) : (
+                    stageDeals.map((deal: any) => (
+                      <Card key={deal.id} className="p-2.5 space-y-1.5 cursor-default hover:border-primary/20 transition-all" data-testid={`kanban-card-${deal.id}`}>
+                        <div className="text-xs font-semibold leading-tight truncate">{deal.brandName}</div>
+                        <div className="text-xs font-bold text-emerald-400">${(deal.dealValue || 0).toLocaleString()}</div>
+                        {deal.contactEmail && (
+                          <div className="text-[10px] text-muted-foreground truncate">{deal.contactEmail}</div>
+                        )}
+                        <div className="flex gap-1">
+                          {SPONSOR_STAGES.filter(s => s !== stage).slice(0, 2).map(s => (
+                            <button
+                              key={s}
+                              onClick={() => updateStatusMutation.mutate({ id: deal.id, status: s })}
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-muted/40 hover:bg-muted/70 text-muted-foreground hover:text-foreground transition-colors"
+                              data-testid={`kanban-move-${deal.id}-${s.toLowerCase()}`}
+                            >
+                              → {s}
+                            </button>
+                          ))}
+                        </div>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Handshake className="w-10 h-10 text-muted-foreground/30 mb-3" />
