@@ -58,7 +58,7 @@ function HealthTimeline({ runs }: { runs: any[] }) {
   });
 
   return (
-    <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-health-timeline">
+    <Card className="card-empire border-0" data-testid="card-health-timeline">
       <CardHeader className="py-2 px-4 border-b border-white/5">
         <CardTitle className="text-xs font-mono text-muted-foreground uppercase tracking-widest">24-Hour System Health</CardTitle>
       </CardHeader>
@@ -158,28 +158,28 @@ export default function Heartbeat() {
           <div className="md:col-span-2 space-y-6">
             <HealthTimeline runs={runs} />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" data-testid="section-heartbeat-metrics">
-              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-autonomy-level">
+              <Card className="card-empire border-0" data-testid="card-autonomy-level">
                 <CardContent className="p-4">
                   <Cpu className="w-5 h-5 text-blue-400 mb-2" />
                   <p className="text-2xl font-bold text-white metric-display">{s.autonomyLevel || 0}%</p>
                   <p className="text-[10px] text-muted-foreground uppercase">Autonomy</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-engines-active">
+              <Card className="card-empire border-0" data-testid="card-engines-active">
                 <CardContent className="p-4">
                   <Zap className="w-5 h-5 text-yellow-400 mb-2" />
                   <p className="text-2xl font-bold text-white metric-display">{s.enabledEngines || 0}/{s.totalEngines || 15}</p>
                   <p className="text-[10px] text-muted-foreground uppercase">Engines</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-runs-today">
+              <Card className="card-empire border-0" data-testid="card-runs-today">
                 <CardContent className="p-4">
                   <BarChart3 className="w-5 h-5 text-purple-400 mb-2" />
                   <p className="text-2xl font-bold text-white metric-display">{s.decisionsToday || 0}</p>
                   <p className="text-[10px] text-muted-foreground uppercase">Runs Today</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-uptime">
+              <Card className="card-empire border-0" data-testid="card-uptime">
                 <CardContent className="p-4">
                   <Timer className="w-5 h-5 text-cyan-400 mb-2" />
                   <p className="text-2xl font-bold text-white metric-display">{s.uptime || "0h"}</p>
@@ -199,7 +199,7 @@ export default function Heartbeat() {
 
           <TabsContent value="engines" className="space-y-3">
             {engines.length === 0 && (
-              <Card className="bg-gray-900/60 border-gray-700/30">
+              <Card className="card-empire border-0">
                 <CardContent className="py-12 text-center">
                   <Cpu className="w-12 h-12 text-blue-400 mx-auto mb-3 opacity-60" />
                   <p className="text-gray-300 font-medium">No Engines Registered</p>
@@ -267,7 +267,7 @@ export default function Heartbeat() {
           </TabsContent>
 
           <TabsContent value="decisions">
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-decision-log">
+            <Card className="card-empire border-0" data-testid="card-decision-log">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Brain className="w-5 h-5 text-purple-400" /> AI Decision Log</CardTitle>
               </CardHeader>
@@ -303,7 +303,7 @@ export default function Heartbeat() {
           </TabsContent>
 
           <TabsContent value="runs">
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-run-history">
+            <Card className="card-empire border-0" data-testid="card-run-history">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Clock className="w-5 h-5 text-cyan-400" /> Run History</CardTitle>
               </CardHeader>

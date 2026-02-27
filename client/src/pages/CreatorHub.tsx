@@ -134,7 +134,7 @@ export default function CreatorHub() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader>
                       <CardTitle className="text-white flex items-center gap-2">
                         <Trophy className="w-5 h-5 text-yellow-400" /> Top Wins
@@ -149,7 +149,7 @@ export default function CreatorHub() {
                       ))}
                     </CardContent>
                   </Card>
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader>
                       <CardTitle className="text-white flex items-center gap-2">
                         <Target className="w-5 h-5 text-purple-400" /> Opportunities
@@ -195,7 +195,7 @@ export default function CreatorHub() {
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm text-gray-400 font-medium uppercase tracking-wider">Revenue Multiple</CardTitle>
                     </CardHeader>
@@ -203,7 +203,7 @@ export default function CreatorHub() {
                       <p className="text-2xl font-bold text-white">{valuation.multiples.revenueMultiple}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm text-gray-400 font-medium uppercase tracking-wider">Audience Multiple</CardTitle>
                     </CardHeader>
@@ -211,7 +211,7 @@ export default function CreatorHub() {
                       <p className="text-2xl font-bold text-white">{valuation.multiples.audienceMultiple}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm text-gray-400 font-medium uppercase tracking-wider">Growth Multiple</CardTitle>
                     </CardHeader>
@@ -222,7 +222,7 @@ export default function CreatorHub() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader>
                       <CardTitle className="text-white flex items-center gap-2">
                         <Activity className="w-5 h-5 text-blue-400" /> Valuation Breakdown
@@ -241,7 +241,7 @@ export default function CreatorHub() {
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader>
                       <CardTitle className="text-white flex items-center gap-2">
                         <Users className="w-5 h-5 text-purple-400" /> Market Comparables
@@ -270,7 +270,7 @@ export default function CreatorHub() {
             {financials && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Monthly Revenue</CardTitle>
                     </CardHeader>
@@ -278,7 +278,7 @@ export default function CreatorHub() {
                       <p className="text-2xl font-bold text-green-400">{financials.monthlyRevenue}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Monthly Expenses</CardTitle>
                     </CardHeader>
@@ -286,7 +286,7 @@ export default function CreatorHub() {
                       <p className="text-2xl font-bold text-red-400">{financials.monthlyExpenses}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Net Profit</CardTitle>
                     </CardHeader>
@@ -294,7 +294,7 @@ export default function CreatorHub() {
                       <p className="text-2xl font-bold text-blue-400">{financials.netProfit}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Profit Margin</CardTitle>
                     </CardHeader>
@@ -305,7 +305,7 @@ export default function CreatorHub() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader>
                       <CardTitle className="text-white flex items-center gap-2">
                         <PieChart className="w-5 h-5 text-red-400" /> Expense Breakdown
@@ -324,7 +324,7 @@ export default function CreatorHub() {
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-gray-900/60 border-gray-700/30">
+                  <Card className="card-empire border-0">
                     <CardHeader>
                       <CardTitle className="text-white flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-green-400" /> Financial Trends
@@ -365,7 +365,7 @@ export default function CreatorHub() {
           </TabsContent>
 
           <TabsContent value="networks" className="space-y-4">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Network className="w-5 h-5 text-pink-400" /> Create a Network</CardTitle>
               </CardHeader>
@@ -410,7 +410,7 @@ export default function CreatorHub() {
           </TabsContent>
 
           <TabsContent value="achievements">
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-achievements">
+            <Card className="card-empire border-0" data-testid="card-achievements">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Trophy className="w-5 h-5 text-yellow-400" /> Achievement System</CardTitle>
               </CardHeader>
@@ -455,7 +455,7 @@ export default function CreatorHub() {
           </TabsContent>
 
           <TabsContent value="clone">
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-ai-clone">
+            <Card className="card-empire border-0" data-testid="card-ai-clone">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-violet-400" /> AI Creator Clone</CardTitle>
               </CardHeader>
@@ -487,7 +487,7 @@ export default function CreatorHub() {
           </TabsContent>
 
           <TabsContent value="marketplace">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Gift className="w-5 h-5 text-emerald-400" /> Creator Marketplace</CardTitle>
               </CardHeader>
@@ -521,7 +521,7 @@ export default function CreatorHub() {
           </TabsContent>
 
           <TabsContent value="collab">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><UserPlus className="w-5 h-5 text-cyan-400" /> Collaboration Radar</CardTitle>
               </CardHeader>
@@ -556,7 +556,7 @@ export default function CreatorHub() {
           </TabsContent>
 
           <TabsContent value="wellness">
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-wellness">
+            <Card className="card-empire border-0" data-testid="card-wellness">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Heart className="w-5 h-5 text-red-400" /> Creator Wellness</CardTitle>
               </CardHeader>

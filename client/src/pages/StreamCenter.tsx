@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check, ChevronDown, ChevronUp, Activity, Brain, Signal, Eye, Users, Shield } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
@@ -723,8 +723,49 @@ export default function StreamCenter() {
   return (
     <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto page-enter">
       <UpgradeTabGate requiredTier="youtube" featureName="Stream Center" description="Go live across multiple platforms simultaneously with AI-powered stream optimization, chat management, and post-stream analytics.">
+      {/* Stream Center Hero */}
+      <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
+                <Radio className="w-7 h-7 text-primary" style={{ filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))" }} />
+              </div>
+              {ytLiveStatus?.broadcasts?.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-background animate-pulse" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <h1 data-testid="text-page-title" className="text-xl font-display font-extrabold holographic-text">Stream Center</h1>
+                {ytLiveStatus?.broadcasts?.length > 0 ? (
+                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-bold animate-pulse">● LIVE NOW</Badge>
+                ) : (
+                  <Badge className="bg-muted/50 text-muted-foreground border-border/50 text-[10px]">● STANDBY</Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">AI managing {destinations?.length || 0} destinations · Multi-platform autopilot active</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { icon: Brain, label: "AI Advisor", value: "Active", color: "hsl(265 80% 60%)" },
+              { icon: Shield, label: "Copyright", value: "Clear", color: "hsl(142 70% 50%)" },
+              { icon: Signal, label: "Destinations", value: `${destinations?.length || 0}`, color: "hsl(200 80% 55%)" },
+              { icon: Activity, label: "Stream Health", value: ytLiveStatus?.connected ? "Online" : "Idle", color: ytLiveStatus?.connected ? "hsl(142 70% 50%)" : "hsl(45 90% 55%)" }
+            ].map(({ icon: Icon, label, value, color }) => (
+              <div key={label} className="flex flex-col items-center px-3 py-2 rounded-xl bg-muted/20 border border-border/30 min-w-[64px]">
+                <Icon className="w-3.5 h-3.5 mb-1" style={{ color }} />
+                <span className="text-[11px] font-bold metric-display" style={{ color }}>{value}</span>
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">Stream Center</h1>
         <div className="flex items-center gap-2">
           <Dialog open={showAddDest} onOpenChange={setShowAddDest}>
             <DialogTrigger asChild>
@@ -767,12 +808,18 @@ export default function StreamCenter() {
         </div>
       </div>
 
-      <Card data-testid="card-ai-stream-recs">
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+      <Card data-testid="card-ai-stream-recs" className="card-empire border-0 relative overflow-hidden">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 relative">
           <div className="flex items-center gap-2 flex-wrap">
-            <Sparkles className="h-4 w-4 text-amber-500" />
-            <CardTitle className="text-sm font-medium">AI Stream Advisor</CardTitle>
-            <Badge variant="secondary">Auto-running</Badge>
+            <Sparkles className="h-4 w-4 text-amber-400" style={{ filter: "drop-shadow(0 0 6px hsl(45 90% 55% / 0.6))" }} />
+            <CardTitle className="text-sm font-bold holographic-text">AI Stream Advisor</CardTitle>
+            <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />Auto-running
+            </Badge>
+          </div>
+          <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
+            <Activity className="w-3 h-3 text-primary" /> AI ANALYZING
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

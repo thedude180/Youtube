@@ -231,7 +231,7 @@ export default function MissionControl() {
           <OrbitalSystem />
           <div className="lg:col-span-1 space-y-6">
             <LiveTelemetry />
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-overall-vitals">
+            <Card className="card-empire border-0" data-testid="card-overall-vitals">
               <CardHeader className="py-3">
                 <CardTitle className="text-xs font-bold text-white uppercase tracking-widest">System Vitals</CardTitle>
               </CardHeader>
@@ -256,7 +256,7 @@ export default function MissionControl() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-platform-status">
+          <Card className="card-empire border-0" data-testid="card-platform-status">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><Globe className="w-5 h-5 text-purple-400" /> Platform Status</CardTitle>
             </CardHeader>
@@ -283,7 +283,7 @@ export default function MissionControl() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-active-alerts">
+          <Card className="card-empire border-0" data-testid="card-active-alerts">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" /> Active Alerts</CardTitle>
             </CardHeader>
@@ -307,7 +307,7 @@ export default function MissionControl() {
           </Card>
         </div>
 
-        <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-ai-engines">
+        <Card className="card-empire border-0" data-testid="card-ai-engines">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2"><Brain className="w-5 h-5 text-purple-400" /> AI Engine Status</CardTitle>
           </CardHeader>

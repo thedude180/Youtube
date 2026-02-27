@@ -755,45 +755,39 @@ export default function Autopilot() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Rocket className="h-6 w-6 text-primary" />
-            <h1 data-testid="text-autopilot-title" className="text-2xl font-bold">Autopilot</h1>
+      {/* Autopilot Hero */}
+      <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+              <Rocket className="w-7 h-7 text-primary" style={{ filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))" }} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <h1 data-testid="text-autopilot-title" className="text-xl font-display font-extrabold holographic-text">Autopilot</h1>
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1" data-testid="badge-active-features" aria-live="polite">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {activeFeatureCount}/7 Active
+                </Badge>
+                <Badge className="bg-primary/15 text-primary border border-primary/30 text-[10px]">
+                  Full Throttle
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground">AI autonomously managing your entire content pipeline — no manual input required</p>
+            </div>
           </div>
-          <Badge variant="secondary" data-testid="badge-active-features" aria-live="polite">
-            <Bot className="h-3 w-3 mr-1" />
-            {activeFeatureCount}/7 Active
-          </Badge>
-          <Badge variant="outline">
-            <Eye className="h-3 w-3 mr-1" />
-            Full Throttle
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeFeatureCount > 0 ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => pauseAllMutation.mutate()}
-              disabled={pauseAllMutation.isPending}
-              data-testid="button-pause-all"
-            >
-              <Pause className="h-3.5 w-3.5 mr-1.5" />
-              Pause All
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => resumeAllMutation.mutate()}
-              disabled={resumeAllMutation.isPending}
-              data-testid="button-resume-all"
-            >
-              <Play className="h-3.5 w-3.5 mr-1.5" />
-              Resume All
-            </Button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {activeFeatureCount > 0 ? (
+              <Button size="sm" variant="outline" onClick={() => pauseAllMutation.mutate()} disabled={pauseAllMutation.isPending} data-testid="button-pause-all" className="h-8 text-xs">
+                <Pause className="h-3 w-3 mr-1.5" /> Pause All
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => resumeAllMutation.mutate()} disabled={resumeAllMutation.isPending} data-testid="button-resume-all" className="h-8 text-xs">
+                <Play className="h-3 w-3 mr-1.5" /> Resume All
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

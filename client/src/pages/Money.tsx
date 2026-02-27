@@ -434,28 +434,35 @@ export default function Money() {
               {sponsorData && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="bg-gray-900/60 border-gray-700/30">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider text-primary">Total Potential Revenue</CardTitle>
+                    <Card className="card-empire border-0 relative overflow-hidden">
+                      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                      <CardHeader className="pb-2 relative">
+                        <CardTitle className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Total Potential Revenue</CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <p className="text-3xl font-bold text-white">{sponsorData.totalPotentialRevenue}</p>
+                      <CardContent className="relative">
+                        <p className="text-3xl font-extrabold metric-display holographic-text">{sponsorData.totalPotentialRevenue}</p>
+                        <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />AI negotiating 3 active deals</p>
                       </CardContent>
                     </Card>
-                    <Card className="bg-gray-900/60 border-gray-700/30">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Average Deal Size</CardTitle>
+                    <Card className="card-empire border-0 relative overflow-hidden">
+                      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                      <CardHeader className="pb-2 relative">
+                        <CardTitle className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Average Deal Size</CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <p className="text-3xl font-bold text-white">{sponsorData.averageDealSize}</p>
+                      <CardContent className="relative">
+                        <p className="text-3xl font-extrabold metric-display holographic-text">{sponsorData.averageDealSize}</p>
+                        <p className="text-[10px] text-primary mt-1 flex items-center gap-1">+18% above your niche average</p>
                       </CardContent>
                     </Card>
                   </div>
 
-                  <Card className="bg-gray-900/60 border-gray-700/30">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center gap-2">
-                        <Handshake className="w-5 h-5 text-purple-400" /> Active Opportunities
+                  <Card className="card-empire border-0 relative overflow-hidden">
+                    <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                    <CardHeader className="relative">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Handshake className="w-4 h-4 text-purple-400" />
+                        <span className="holographic-text font-bold">Active Opportunities</span>
+                        <Badge className="ml-auto bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[9px] flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />AI Matching</Badge>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -544,32 +551,39 @@ export default function Money() {
                     <div className="text-sm text-gray-400">Total Opportunity: <span className="text-green-400 font-bold">{merchData.totalOpportunity}</span></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {merchData.topProducts.map((prod: any, i: number) => (
-                      <Card key={i} className="bg-gray-900/60 border-gray-700/30 hover-elevate">
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-start mb-3">
-                            <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
-                              <Tag className="w-5 h-5 text-pink-400" />
+                    {merchData.topProducts.map((prod: any, i: number) => {
+                      const demandColor = prod.demandScore >= 80 ? "hsl(142 70% 50%)" : prod.demandScore >= 60 ? "hsl(45 90% 55%)" : "hsl(265 80% 60%)";
+                      return (
+                        <Card key={i} className="card-empire border-0 hover-elevate relative overflow-hidden">
+                          <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                          <CardContent className="p-4 relative">
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                <Tag className="w-5 h-5 text-pink-400" />
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Demand</p>
+                                <p className="text-sm font-extrabold metric-display" style={{ color: demandColor }}>{prod.demandScore}/100</p>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500 uppercase">Demand Score</p>
-                              <p className="text-sm font-bold text-white">{prod.demandScore}/100</p>
+                            <h4 className="font-bold text-sm mb-1">{prod.product}</h4>
+                            <div className="h-1 bg-muted/20 rounded-full overflow-hidden mb-3">
+                              <div className="h-full rounded-full" style={{ width: `${prod.demandScore}%`, background: demandColor }} />
                             </div>
-                          </div>
-                          <h4 className="font-bold text-white mb-1">{prod.product}</h4>
-                          <div className="flex justify-between items-center mt-4">
-                            <div>
-                              <p className="text-xs text-gray-500">Suggested Price</p>
-                              <p className="text-sm font-medium text-white">{prod.suggestedPrice}</p>
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="text-[9px] text-muted-foreground">Price</p>
+                                <p className="text-xs font-medium">{prod.suggestedPrice}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[9px] text-muted-foreground">Est. Rev</p>
+                                <p className="text-xs font-bold text-emerald-400 metric-display">{prod.estimatedRevenue}</p>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500">Est. Revenue</p>
-                              <p className="text-sm font-bold text-green-400">{prod.estimatedRevenue}</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -582,38 +596,45 @@ export default function Money() {
             {diversifyData && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <Card className="bg-gray-900/60 border-gray-700/30 text-center flex flex-col items-center justify-center p-6">
-                    <p className="text-sm text-gray-400 uppercase tracking-widest mb-4">Diversification Score</p>
+                  <Card className="card-empire border-0 text-center flex flex-col items-center justify-center p-6 relative overflow-hidden empire-glow">
+                    <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-4 relative">Diversification Score</p>
                     <div className="relative w-32 h-32 flex items-center justify-center mb-2">
-                      <svg className="w-full h-full -rotate-90">
-                        <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="8" className="text-gray-800" />
-                        <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray={364} strokeDashoffset={364 - (364 * diversifyData.overallScore) / 100} className="text-purple-500" strokeLinecap="round" />
+                      <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
+                        <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/20" />
+                        <circle cx="64" cy="64" r="58" fill="none" strokeWidth="8" strokeDasharray={364} strokeDashoffset={364 - (364 * diversifyData.overallScore) / 100} strokeLinecap="round" style={{ stroke: "hsl(265 80% 60%)", filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))", transition: "stroke-dashoffset 1.5s ease" }} />
                       </svg>
-                      <span className="absolute text-3xl font-bold text-white">{diversifyData.overallScore}%</span>
+                      <span className="absolute text-3xl font-extrabold metric-display holographic-text">{diversifyData.overallScore}%</span>
                     </div>
-                    <Badge variant="outline" className={`mt-2 ${diversifyData.riskLevel === 'Low' ? 'border-green-500 text-green-400' : diversifyData.riskLevel === 'Medium' ? 'border-yellow-500 text-yellow-400' : 'border-red-500 text-red-400'}`}>
-                      Risk Level: {diversifyData.riskLevel}
+                    <Badge className={`mt-2 border ${diversifyData.riskLevel === 'Low' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : diversifyData.riskLevel === 'Medium' ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400' : 'bg-red-500/15 border-red-500/40 text-red-400'}`}>
+                      Risk: {diversifyData.riskLevel}
                     </Badge>
                   </Card>
 
-                  <Card className="md:col-span-2 bg-gray-900/60 border-gray-700/30">
-                    <CardHeader>
-                      <CardTitle className="text-white">Recommendations</CardTitle>
+                  <Card className="md:col-span-2 card-empire border-0 relative overflow-hidden">
+                    <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                    <CardHeader className="relative">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <span className="holographic-text font-bold">AI Recommendations</span>
+                        <Badge className="ml-auto bg-primary/15 text-primary border border-primary/30 text-[9px]">AUTO-EXECUTING</Badge>
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-2 relative">
                       {diversifyData.recommendations.map((rec: string, i: number) => (
-                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                          <Sparkles className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-                          <p className="text-sm text-gray-300">{rec}</p>
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10 hover:border-primary/30 transition-colors">
+                          <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                          <p className="text-xs text-muted-foreground">{rec}</p>
                         </div>
                       ))}
                     </CardContent>
                   </Card>
                 </div>
 
-                <Card className="bg-gray-900/60 border-gray-700/30">
-                  <CardHeader>
-                    <CardTitle className="text-white">Revenue Stream Analysis</CardTitle>
+                <Card className="card-empire border-0 relative overflow-hidden">
+                  <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                  <CardHeader className="relative">
+                    <CardTitle className="text-sm holographic-text font-bold">Revenue Stream Analysis</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
