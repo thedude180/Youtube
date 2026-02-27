@@ -50,7 +50,7 @@ function ContentStatsStrip() {
     { icon: Eye, label: "Est. Views", value: stats.totalViews > 1000 ? `${(stats.totalViews/1000).toFixed(1)}K` : stats.totalViews.toLocaleString(), color: "text-amber-400" },
   ];
   return (
-    <div className="card-empire rounded-xl px-4 py-3 flex flex-wrap gap-4 items-center relative overflow-hidden" data-testid="content-stats-strip">
+    <div className="card-empire rounded-xl px-4 py-3 flex flex-wrap gap-4 items-center relative overflow-hidden mb-4" data-testid="content-stats-strip">
       <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
       <div className="flex items-center gap-2 shrink-0 relative">
         <BarChart2 className="h-4 w-4 text-primary" />

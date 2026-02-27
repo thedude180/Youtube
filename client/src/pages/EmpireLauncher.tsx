@@ -21,6 +21,7 @@ import {
   Calendar,
   TrendingUp,
   ArrowRight,
+  Check,
 } from "lucide-react";
 
 type BuildStatus = {
@@ -345,7 +346,10 @@ export default function EmpireLauncher() {
                 <CardContent className="p-6 space-y-6 relative">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="md:col-span-3 space-y-6">
-                      <MissionTimeline currentStage={buildStatus?.stage || "queued"} />
+                      <MissionTimeline 
+                        stages={[{name:"Initialization"},{name:"Content Analysis"},{name:"Platform Setup"},{name:"AI Calibration"},{name:"Launch Ready"}]} 
+                        currentStage={buildStatus?.stage === "completed" ? 5 : buildStatus?.stage === "seeding_autopilot" ? 4 : buildStatus?.stage === "auto_launching_content" ? 3 : buildStatus?.stage === "building_blueprint" ? 2 : buildStatus?.stage === "creating_user" ? 1 : 0} 
+                      />
                     </div>
                     <div className="flex flex-col gap-4">
                       <LaunchVelocityGauge progress={buildStatus?.progress || 0} />

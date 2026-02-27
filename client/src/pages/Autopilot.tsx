@@ -24,8 +24,51 @@ import { StealthRing } from "@/components/StealthRing";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { PulseOrb } from "@/components/PulseOrb";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop, Rocket, Download, FileText, Share2, MessageSquare, Recycle, Shuffle, CheckCircle2, Clock, RefreshCw, AlertCircle, AlertTriangle, ThumbsUp, ThumbsDown, CalendarClock, DollarSign, Target, Radio, Sparkles, Brain, Pause, Play, Eye, Send } from "lucide-react";
-import { SiDiscord } from "react-icons/si";
+import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop, Rocket, Download, FileText, Share2, MessageSquare, Recycle, Shuffle, CheckCircle2, Clock, RefreshCw, AlertCircle, AlertTriangle, ThumbsUp, ThumbsDown, CalendarClock, DollarSign, Target, Radio, Sparkles, Brain, Pause, Play, Eye, Send, Check, Wifi, WifiOff, ExternalLink, Fingerprint, Share, Square, SquareCheck } from "lucide-react";
+import { SiDiscord, SiYoutube } from "react-icons/si";
+
+const PIPELINE_NODES = [
+  { id: "trigger", label: "Trigger", icon: "⚡" },
+  { id: "fetch", label: "Fetch", icon: "📥" },
+  { id: "ai", label: "AI", icon: "🤖" },
+  { id: "format", label: "Format", icon: "📝" },
+  { id: "optimize", label: "Optimize", icon: "⚙️" },
+  { id: "schedule", label: "Schedule", icon: "📅" },
+  { id: "publish", label: "Publish", icon: "🚀" },
+];
+const PipelineVisualizer = ({ activePhase = 2 }: { activePhase?: number }) => (
+  <div className="card-empire rounded-2xl p-4 mb-4 relative overflow-hidden" data-testid="widget-pipeline-visualizer">
+    <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+    <div className="text-xs font-mono text-muted-foreground mb-3 flex items-center gap-2">
+      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+      AUTOPILOT PIPELINE — 7-PHASE ENGINE
+    </div>
+    <div className="flex items-center gap-1 overflow-x-auto touch-scroll pb-2">
+      {PIPELINE_NODES.map((node, i) => (
+        <div key={node.id} className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex flex-col items-center gap-1 relative" data-testid={`pipeline-node-${node.id}`}>
+            {i === activePhase && (
+              <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ background: 'hsl(265 80% 60%)' }} />
+            )}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all duration-500 ${
+              i < activePhase ? 'border-emerald-500 bg-emerald-500/20' :
+              i === activePhase ? 'border-primary bg-primary/20' :
+              'border-border/30 bg-muted/20'
+            }`} style={{ boxShadow: i === activePhase ? '0 0 20px hsl(265 80% 60% / 0.5)' : 'none' }}>
+              {i < activePhase ? <Check className="w-5 h-5 text-emerald-500" /> : node.icon}
+            </div>
+            <span className={`text-[9px] font-mono whitespace-nowrap ${i === activePhase ? 'text-primary' : i < activePhase ? 'text-emerald-400' : 'text-muted-foreground'}`}>{node.label}</span>
+          </div>
+          {i < PIPELINE_NODES.length - 1 && (
+            <div className={`flex-shrink-0 h-0.5 w-6 ${i < activePhase ? 'bg-emerald-500' : 'bg-border/30'}`}
+              style={{ boxShadow: i < activePhase ? '0 0 4px hsl(142 70% 50%)' : 'none' }} />
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 
 
 interface StealthData {
@@ -387,65 +430,65 @@ function LiveTasksWidget() {
   );
 }
 
-  const AutonomousBrain = () => {
-    const [activeSignal, setActiveSignal] = useState(0);
-    const signals = ["Analyzing Trends", "Optimizing Flow", "Neural Sync", "Data Harvest"];
-    const [stats, setStats] = useState({ neural: 12, sync: 0.4, uptime: 99.9, confidence: 98.4 });
+function AutonomousBrain() {
+  const [activeSignal, setActiveSignal] = useState(0);
+  const signals = ["Analyzing Trends", "Optimizing Flow", "Neural Sync", "Data Harvest"];
+  const [stats, setStats] = useState({ neural: 12, sync: 0.4, uptime: 99.9, confidence: 98.4 });
 
-    useEffect(() => {
-      const t = setInterval(() => {
-        setActiveSignal(s => (s + 1) % signals.length);
-        setStats(prev => ({
-          neural: Math.min(100, Math.max(5, prev.neural + (Math.random() * 4 - 2))),
-          sync: Math.min(2, Math.max(0.1, prev.sync + (Math.random() * 0.2 - 0.1))),
-          uptime: 99.9,
-          confidence: Math.min(100, Math.max(90, prev.confidence + (Math.random() * 0.4 - 0.2)))
-        }));
-      }, 2000);
-      return () => clearInterval(t);
-    }, []);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setActiveSignal(s => (s + 1) % signals.length);
+      setStats(prev => ({
+        neural: Math.min(100, Math.max(5, prev.neural + (Math.random() * 4 - 2))),
+        sync: Math.min(2, Math.max(0.1, prev.sync + (Math.random() * 0.2 - 0.1))),
+        uptime: 99.9,
+        confidence: Math.min(100, Math.max(90, prev.confidence + (Math.random() * 0.4 - 0.2)))
+      }));
+    }, 2000);
+    return () => clearInterval(t);
+  }, []);
 
-    return (
-      <div className="card-empire rounded-2xl p-6 relative overflow-hidden mb-6" data-testid="widget-autonomous-brain">
-        <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
-        <div className="flex flex-col md:flex-row gap-8 items-center relative">
-          <div className="relative w-32 h-32 flex items-center justify-center">
-            <div className="absolute inset-0 border-4 border-primary/20 rounded-full orbit-1" />
-            <div className="absolute inset-2 border-2 border-primary/40 rounded-full orbit-2" />
-            <div className="absolute inset-4 border border-primary/60 rounded-full orbit-3" />
-            <Bot className="w-12 h-12 text-primary empire-glow" />
-            <div className="absolute -top-2 -right-2 bg-emerald-500 w-4 h-4 rounded-full border-2 border-background animate-pulse" />
-          </div>
-          <div className="flex-1 space-y-4 text-center md:text-left">
-            <div>
-              <h2 className="text-2xl font-black holographic-text uppercase tracking-tighter mb-1">Autonomous Brain Active</h2>
-              <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs font-mono text-muted-foreground uppercase tracking-widest">
-                {signals.map((s, i) => (
-                  <div key={s} className={`flex items-center gap-2 transition-opacity duration-500 ${i === activeSignal ? 'opacity-100' : 'opacity-30'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${i === activeSignal ? 'bg-primary' : 'bg-muted'}`} />
-                    {s}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[
-                { label: "Neural Load", val: `${stats.neural.toFixed(0)}%`, color: "text-blue-400" },
-                { label: "Sync Speed", val: `${stats.sync.toFixed(1)}ms`, color: "text-emerald-400" },
-                { label: "Uptime", val: `${stats.uptime}%`, color: "text-purple-400" },
-                { label: "Confidence", val: `${stats.confidence.toFixed(1)}%`, color: "text-primary" }
-              ].map(m => (
-                <div key={m.label} className="bg-white/5 rounded-lg p-2 border border-white/10">
-                  <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-tighter">{m.label}</div>
-                  <div className={`text-sm font-bold font-mono ${m.color}`}>{m.val}</div>
+  return (
+    <div className="card-empire rounded-2xl p-6 relative overflow-hidden mb-4" data-testid="widget-autonomous-brain">
+      <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
+      <div className="flex flex-col md:flex-row gap-8 items-center relative">
+        <div className="relative w-32 h-32 flex items-center justify-center">
+          <div className="absolute inset-0 border-4 border-primary/20 rounded-full orbit-1" />
+          <div className="absolute inset-2 border-2 border-primary/40 rounded-full orbit-2" />
+          <div className="absolute inset-4 border border-primary/60 rounded-full orbit-3" />
+          <Bot className="w-12 h-12 text-primary empire-glow" />
+          <div className="absolute -top-2 -right-2 bg-emerald-500 w-4 h-4 rounded-full border-2 border-background animate-pulse" />
+        </div>
+        <div className="flex-1 space-y-4 text-center md:text-left">
+          <div>
+            <h2 className="text-2xl font-black holographic-text uppercase tracking-tighter mb-1">Autonomous Brain Active</h2>
+            <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              {signals.map((s, i) => (
+                <div key={s} className={`flex items-center gap-2 transition-opacity duration-500 ${i === activeSignal ? 'opacity-100' : 'opacity-30'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${i === activeSignal ? 'bg-primary' : 'bg-muted'}`} />
+                  {s}
                 </div>
               ))}
             </div>
           </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: "Neural Load", val: `${stats.neural.toFixed(0)}%`, color: "text-blue-400" },
+              { label: "Sync Speed", val: `${stats.sync.toFixed(1)}ms`, color: "text-emerald-400" },
+              { label: "Uptime", val: `${stats.uptime}%`, color: "text-purple-400" },
+              { label: "Confidence", val: `${stats.confidence.toFixed(1)}%`, color: "text-primary" }
+            ].map(m => (
+              <div key={m.label} className="bg-white/5 rounded-lg p-2 border border-white/10">
+                <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-tighter">{m.label}</div>
+                <div className={`text-sm font-bold font-mono ${m.color}`}>{m.val}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+}
 
 const PipelineCommandCenter = ({ stats }: { stats: any }) => {
   return (
@@ -824,14 +867,13 @@ export default function Autopilot() {
 
   return (
     <div className="p-3 md:p-4 space-y-4 max-w-6xl mx-auto overflow-y-auto h-full page-enter">
+      <PipelineVisualizer activePhase={2} />
+      <LiveTasksWidget />
       <UpgradeTabGate requiredTier="pro" featureName="Autopilot" description="Automate your entire content workflow with AI-powered auto-clipping, smart scheduling, comment responses, and cross-platform posting.">
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <div className="lg:col-span-2">
           <PipelineFlowVisualizer currentPhase={stats?.recentActivity?.[0]?.phase || "ai"} />
-        </div>
-        <div>
-          <LiveTasksWidget />
         </div>
       </div>
 
@@ -953,7 +995,7 @@ export default function Autopilot() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3 min-w-0">
-                  <Youtube className="h-5 w-5 text-red-500 shrink-0" />
+                  <SiYoutube className="h-5 w-5 text-red-500 shrink-0" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-sm">YouTube Connection</h3>
@@ -1335,7 +1377,7 @@ export default function Autopilot() {
                         </div>
                         {item.sourceVideoTitle && (
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid={`text-source-video-${item.id}`}>
-                            <Youtube className="h-3 w-3 text-red-400 shrink-0" />
+                            <SiYoutube className="h-3 w-3 text-red-400 shrink-0" />
                             <span className="truncate">From: {item.sourceVideoTitle}</span>
                           </div>
                         )}

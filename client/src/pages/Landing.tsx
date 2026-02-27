@@ -39,10 +39,7 @@ function LiveStatsBar() {
     <div className="flex justify-center mt-12 slide-up-stagger" data-testid="widget-live-stats-bar" style={{ animationDelay: '0.5s' }}>
       <div className="inline-flex items-center gap-6 px-6 py-2.5 rounded-full bg-background/40 backdrop-blur-md border border-primary/20 shadow-xl shadow-primary/5 text-xs font-medium">
         <div className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-          </span>
+          <span className="live-dot" />
           <span className="text-muted-foreground uppercase tracking-wider">Live</span>
         </div>
         <div className="h-4 w-px bg-border/50" />
@@ -128,7 +125,7 @@ function VideoDemoMockup() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   {[1,2,3,4].map(i => (
-                    <div key={i} className="h-24 rounded-lg border border-border/50 bg-card/50 p-3 space-y-2 relative overflow-hidden">
+                    <div key={i} className="h-24 rounded-lg border border-border/50 bg-card/50 p-3 space-y-2 relative overflow-hidden scan-overlay">
                       <div className="h-3 w-12 bg-muted rounded" />
                       <div className="h-6 w-20 bg-primary/20 rounded" />
                       {/* Animated lines */}
@@ -539,7 +536,7 @@ export default function Landing() {
   const StatsShowcase = () => (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 my-24" data-testid="section-stats-showcase">
       {STATS.map((s, i) => (
-        <div key={s.label} className="card-empire rounded-2xl p-6 relative group overflow-hidden" data-testid={`stat-card-${s.label.toLowerCase().replace(/\s+/g, '-')}`}>
+        <div key={s.label} className="card-empire rounded-2xl p-6 relative group overflow-hidden scan-overlay" data-testid={`stat-card-${s.label.toLowerCase().replace(/\s+/g, '-')}`}>
           <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
             <Zap className="w-8 h-8 text-primary" />
           </div>

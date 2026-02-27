@@ -300,7 +300,10 @@ export default function MissionControl() {
                 <CardTitle className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
                   <Activity className="w-3 h-3 text-primary" /> SYSTEM VITALS
                 </CardTitle>
-                <span className="text-[10px] text-emerald-400 font-mono animate-pulse">● LIVE</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-primary/60 font-mono animate-pulse mr-2">SECURE_LINK_ESTABLISHED</span>
+                  <span className="text-[10px] text-emerald-400 font-mono animate-pulse">● LIVE</span>
+                </div>
               </CardHeader>
               <CardContent className="p-4 space-y-4 relative">
                 <div className="grid grid-cols-2 gap-2">

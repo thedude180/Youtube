@@ -199,7 +199,7 @@ export default function Money() {
       </div>
 
       {/* Revenue Hero Strip */}
-      <div className="card-empire rounded-xl p-4 relative overflow-hidden" data-testid="revenue-hero-strip">
+      <div className="card-empire rounded-xl p-4 relative overflow-hidden mb-4" data-testid="revenue-hero-strip">
         <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
           <div className="flex items-center gap-3">

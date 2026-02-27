@@ -201,6 +201,10 @@ export default function Heartbeat() {
             <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
             <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
             <CardContent className="p-8 flex flex-col items-center justify-center text-center relative">
+              <div className="absolute top-4 left-4 flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="text-[10px] font-mono text-emerald-400/60 uppercase tracking-widest">Neural Link: ACTIVE</span>
+              </div>
               <div className="absolute top-4 right-4 text-[10px] font-mono text-emerald-400/40" data-testid="text-cycle-count">
                 CYCLE: #8,241
               </div>
