@@ -35,7 +35,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+
 import { Badge } from "@/components/ui/badge";
 import type { Notification } from "@shared/schema";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
@@ -144,15 +144,6 @@ export default function Dashboard() {
   }, [statsUpdatedAt]);
   const [aiActions, setAiActions] = useState<AIResponse>(null);
   const [aiActionsLoading, setAiActionsLoading] = useState(false);
-  const [humanReviewMode, setHumanReviewMode] = useState(() => {
-    const stored = localStorage.getItem("humanReviewMode");
-    return stored === null ? false : stored === "true";
-  });
-
-  useEffect(() => {
-    localStorage.setItem("humanReviewMode", String(humanReviewMode));
-  }, [humanReviewMode]);
-
   const activeAgents = useMemo(() => {
     if (!Array.isArray(agentStatus)) return 0;
     return agentStatus.filter((a) => a && a.status === "active").length;
@@ -326,52 +317,39 @@ export default function Dashboard() {
       )}
 
       <section role="region" aria-label="AI autonomy status">
-      <Card
-        data-testid="card-autonomy-banner"
-        className={`shine relative overflow-hidden ${humanReviewMode
-          ? "border-amber-500/20"
-          : "border-emerald-500/20"
-        }`}
-      >
-        <div className={`absolute inset-0 bg-gradient-to-r ${humanReviewMode ? "from-amber-500/5 to-transparent" : "from-emerald-500/5 via-primary/3 to-transparent"} pointer-events-none`} />
-        <CardContent className="p-4 relative">
+      <div data-testid="card-autonomy-banner" className="card-empire rounded-2xl relative overflow-hidden empire-glow">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-primary/3 to-transparent pointer-events-none" />
+        <div className="p-4 relative">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <PulseOrb
-                status={humanReviewMode ? "warning" : "active"}
-                size="lg"
-                data-testid="status-ai-pulse"
-              />
-              <div aria-live="polite">
+              <PulseOrb status="active" size="lg" data-testid="status-ai-pulse" />
+              <div>
                 <div className="flex items-center gap-2">
-                  <p data-testid="text-ai-status" className="text-sm font-semibold">
-                    {humanReviewMode ? "Human review required" : "AI is running everything"}
+                  <p data-testid="text-ai-status" className="text-sm font-bold holographic-text">
+                    AUTONOMOUS — AI running at full power
                   </p>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                     <Activity className="h-2.5 w-2.5 mr-0.5" />
                     <AnimatedCounter value={activeAgents} className="font-mono" />/11 active
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground" data-testid="text-tasks-today">
-                  <AnimatedCounter value={tasksToday} className="font-medium" /> task{tasksToday !== 1 ? "s" : ""} completed today
+                  <AnimatedCounter value={tasksToday} className="font-medium text-emerald-400" /> task{tasksToday !== 1 ? "s" : ""} completed today — <span className="text-primary/70 font-mono text-[10px]">zero human intervention required</span>
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <label htmlFor="human-review-toggle" className="text-xs text-muted-foreground cursor-pointer">
-                Human Review
-              </label>
-              <Switch
-                id="human-review-toggle"
-                data-testid="toggle-human-review"
-                checked={humanReviewMode}
-                onCheckedChange={setHumanReviewMode}
-                aria-label="Toggle human review mode"
-              />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-emerald-400 animate-pulse">● FULL AUTONOMY</span>
+              <div className="flex gap-1">
+                {["Content","Growth","Revenue","Security"].map((label) => (
+                  <div key={label} className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-emerald-500/10 text-emerald-400/80 border border-emerald-500/20" data-testid={`agent-pill-${label.toLowerCase()}`}>{label}</div>
+                ))}
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       </section>
 
       {(() => {

@@ -19,7 +19,7 @@ import { useLoginSync } from "@/hooks/use-login-sync";
 import { AdaptiveProvider } from "@/hooks/use-adaptive";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon, Maximize, Minimize, Clock, Rocket, CalendarDays, Bot, TrendingUp as TrendingUpIcon } from "lucide-react";
+import { Loader2, Zap, Sun, Moon, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon, Maximize, Minimize, Clock, Rocket, CalendarDays, Bot, TrendingUp as TrendingUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
@@ -296,25 +296,6 @@ function ThemeToggle() {
   );
 }
 
-function AdvancedToggle() {
-  const { isAdvanced, toggleAdvanced } = useAdvancedMode();
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          data-testid="button-advanced-toggle"
-          size="icon"
-          variant={isAdvanced ? "default" : "ghost"}
-          onClick={toggleAdvanced}
-          aria-label={isAdvanced ? "Switch to simple mode" : "Switch to advanced mode"}
-        >
-          <Gauge className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{isAdvanced ? "Switch to Simple Mode" : "Switch to Advanced Mode"}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 function GlobalErrorToast() {
   const { toast } = useToast();
@@ -674,7 +655,6 @@ function AuthenticatedApp() {
                 <TooltipContent>{isFocusMode ? "Exit Focus Mode (Ctrl+Shift+F)" : "Focus Mode (Ctrl+Shift+F)"}</TooltipContent>
               </Tooltip>
               {!isFocusMode && <HeaderClock />}
-              {!isFocusMode && <span className="hidden sm:inline-flex"><AdvancedToggle /></span>}
               {!isFocusMode && <ThemeToggle />}
               {!isFocusMode && <NotificationBell />}
             </div>
