@@ -33,6 +33,7 @@ import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
 import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests, payloadIntegrityCheck, honeypotTrapMiddleware, responseSecurityScrubber } from "./lib/security-hardening";
+import { methodOverrideBlock, badUserAgentBlock, promptInjectionGuard, replayAttackGuard, highEntropyPayloadBlock, timingAttackMitigation, serverTimingHeaderStrip, tokenFloodGuard, perEndpointRateLimit, requestIdEnforcement, hostHeaderValidation, sensitiveRouteHardening } from "./lib/ai-attack-shield";
 import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache, checkDbPool } from "./services/resilience-core";
 import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
 import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } from "fs";
@@ -222,6 +223,9 @@ app.use(
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 app.use(honeypotTrapMiddleware());
+app.use(hostHeaderValidation());
+app.use(methodOverrideBlock());
+app.use(serverTimingHeaderStrip());
 app.use("/api", requestSizeLimiter(100));
 app.use("/api", payloadIntegrityCheck());
 app.use("/api", inputSanitizer());
@@ -230,6 +234,22 @@ app.use("/api", slowRequestDetector(5000));
 app.use("/api", anomalyDetector());
 app.use("/api", idempotencyGuard());
 app.use("/api", responseSecurityScrubber());
+app.use(badUserAgentBlock());
+app.use(requestIdEnforcement());
+app.use("/api", highEntropyPayloadBlock());
+app.use("/api", replayAttackGuard());
+app.use("/api", promptInjectionGuard());
+app.use("/api", tokenFloodGuard(50_000));
+app.use("/api", timingAttackMitigation());
+app.use("/api", sensitiveRouteHardening());
+app.use("/api", perEndpointRateLimit({
+  "/api/ai/": { max: 30, windowMs: 60_000 },
+  "/api/nexus/co-pilot": { max: 20, windowMs: 60_000 },
+  "/api/nexus/voice": { max: 15, windowMs: 60_000 },
+  "/api/login": { max: 10, windowMs: 60_000 },
+  "/api/empire/launch": { max: 5, windowMs: 300_000 },
+  "/api/stripe": { max: 20, windowMs: 60_000 },
+}));
 
 app.use((req: any, res, next) => {
   const requestId = req.headers['x-request-id'] || crypto.randomUUID();

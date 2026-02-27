@@ -114,6 +114,7 @@ CreatorOS is a full-stack application with an Express.js backend and a React/Vit
 - **Auto-Fix Engine**: Classifies and recovers from various errors.
 - **Platform Policy Tracker**: Autonomous engine (runs every 12 hours via autonomy controller) that monitors 7 platforms for policy/TOS changes, updates `complianceRules` table, and auto-enforces limits before publishing. Pre-publish compliance check blocks critical violations and auto-fixes lengths/metadata.
 - **System Status APIs**: Endpoints for health, subsystems, and monitoring.
+- **AI Attack Shield** (`server/lib/ai-attack-shield.ts`): Nation-state-grade defense layer specifically targeting AI-powered attacks — prompt injection detection (35+ patterns including jailbreaks, DAN mode, persona hijacks), bad user-agent blocking (sqlmap, nikto, GPTBot, CCBot, scrapers), HTTP method override blocking, replay attack prevention (SHA-256 body deduplication per IP/path), high-entropy payload blocking (detects base64/encoded attacks), timing attack mitigation (random jitter on auth paths), Server-Timing header stripping (side-channel prevention), AI token flood defense (50K tokens/min/IP cap), per-endpoint rate limits (AI: 30/min, co-pilot: 20/min, voice: 15/min, login: 10/min, launch: 5/5min), X-Request-ID validation, host header injection prevention, zero-width/unicode homoglyph stripping.
 
 ## External Dependencies
 - **Replit Auth**: User authentication.
