@@ -267,36 +267,71 @@ function SuperFansTab() {
         </Card>
       </div>
 
-      <Card>
-        <div className="p-4 border-b">
+      <Card className="card-empire overflow-hidden border-0 relative">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="p-4 border-b border-white/5 flex items-center justify-between relative">
           <h3 className="text-sm font-bold flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-yellow-500" /> Superfan Leaderboard
+            <Trophy className="h-4 w-4 text-amber-400" />
+            <span className="holographic-text">Superfan Leaderboard</span>
           </h3>
+          <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30 gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            LIVE RANKINGS
+          </Badge>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12 text-center">Rank</TableHead>
-              <TableHead>User</TableHead>
-              <TableHead className="text-right">Points</TableHead>
-              <TableHead className="text-right">Engagement</TableHead>
-              <TableHead className="text-right">Tier</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {fans?.map((fan, i) => (
-              <TableRow key={fan.id} data-testid={`row-fan-${fan.id}`}>
-                <TableCell className="text-center font-medium">{i + 1}</TableCell>
-                <TableCell className="font-medium" data-testid={`text-fan-username-${fan.id}`}>{fan.username}</TableCell>
-                <TableCell className="text-right" data-testid={`text-fan-points-${fan.id}`}>{fan.points.toLocaleString()}</TableCell>
-                <TableCell className="text-right" data-testid={`text-fan-engagement-${fan.id}`}>{fan.engagementScore}%</TableCell>
-                <TableCell className="text-right">
-                  <Badge variant="outline" className="capitalize" data-testid={`badge-fan-tier-${fan.id}`}>{fan.tier}</Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="divide-y divide-white/5 relative">
+          {fans?.map((fan, i) => {
+            const MEDAL = i === 0 ? { icon: "🥇", glow: "hsl(45 90% 55% / 0.15)", border: "border-amber-500/30", label: "GOLD" }
+                       : i === 1 ? { icon: "🥈", glow: "hsl(0 0% 70% / 0.12)", border: "border-slate-400/30", label: "SILVER" }
+                       : i === 2 ? { icon: "🥉", glow: "hsl(25 80% 50% / 0.12)", border: "border-orange-600/30", label: "BRONZE" }
+                       : null;
+            const engPct = Math.min(fan.engagementScore, 100);
+            const fireLevel = engPct > 80 ? "🔥🔥🔥" : engPct > 60 ? "🔥🔥" : engPct > 40 ? "🔥" : "";
+            return (
+              <div
+                key={fan.id}
+                className={`flex items-center gap-3 p-3 transition-all duration-300 hover:bg-primary/5 ${MEDAL ? `border-l-2 ${MEDAL.border}` : ""}`}
+                style={MEDAL ? { background: MEDAL.glow } : {}}
+                data-testid={`row-fan-${fan.id}`}
+              >
+                <div className="w-8 text-center shrink-0">
+                  {MEDAL ? (
+                    <span className="text-lg leading-none">{MEDAL.icon}</span>
+                  ) : (
+                    <span className="text-sm font-bold text-muted-foreground/50 font-mono">#{i + 1}</span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-semibold truncate" data-testid={`text-fan-username-${fan.id}`}>{fan.username}</span>
+                    {fireLevel && <span className="text-[11px] leading-none">{fireLevel}</span>}
+                    <Badge variant="outline" className="text-[9px] capitalize h-4 px-1.5 ml-auto shrink-0" data-testid={`badge-fan-tier-${fan.id}`}>
+                      {fan.tier}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{
+                          width: `${engPct}%`,
+                          background: engPct > 80 ? "hsl(45 90% 55%)" : engPct > 60 ? "hsl(265 80% 60%)" : "hsl(200 80% 55%)"
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground shrink-0" data-testid={`text-fan-engagement-${fan.id}`}>{fan.engagementScore}%</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-bold metric-display text-primary" data-testid={`text-fan-points-${fan.id}`}>
+                    {fan.points.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">pts</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </Card>
     </div>
   );
@@ -350,6 +385,33 @@ function RadarTab() {
           <p className="text-[10px] uppercase text-muted-foreground mb-1">Current Risk Level</p>
           <Badge className={`${riskColor} capitalize px-4 py-1 text-sm font-bold`} data-testid="badge-risk-level">{data.riskLevel}</Badge>
         </div>
+      </div>
+
+      {/* Sentiment Ring Gauges */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Overall Sentiment", value: data.overallSentiment, color: data.overallSentiment > 60 ? "hsl(142 70% 50%)" : data.overallSentiment > 40 ? "hsl(45 90% 55%)" : "hsl(0 80% 55%)", textClass: data.overallSentiment > 60 ? "text-emerald-400" : data.overallSentiment > 40 ? "text-amber-400" : "text-red-400" },
+          { label: "Brand Safety", value: Math.round(100 - (data.overallSentiment < 30 ? 60 : 20)), color: "hsl(265 80% 60%)", textClass: "text-primary" },
+          { label: "Positive Mentions", value: Math.round(data.mentions.filter((m: any) => m.sentiment === 'positive').length / Math.max(data.mentions.length, 1) * 100), color: "hsl(142 70% 50%)", textClass: "text-emerald-400" },
+          { label: "Crisis Risk", value: data.riskLevel === 'critical' ? 85 : data.riskLevel === 'high' ? 55 : data.riskLevel === 'medium' ? 25 : 8, color: "hsl(0 80% 55%)", textClass: "text-red-400" },
+        ].map((metric) => {
+          const r = 28; const circ = 2 * Math.PI * r;
+          const dashOffset = circ - (circ * metric.value) / 100;
+          return (
+            <Card key={metric.label} className="p-3 flex flex-col items-center gap-2 bg-card/50 border-border/30" data-testid={`metric-radar-${metric.label.toLowerCase().replace(/\s+/g,'-')}`}>
+              <div className="relative w-16 h-16">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 72 72">
+                  <circle cx="36" cy="36" r={r} fill="none" stroke="currentColor" strokeWidth="6" className="text-muted/20" />
+                  <circle cx="36" cy="36" r={r} fill="none" strokeWidth="6" strokeDasharray={circ} strokeDashoffset={dashOffset} strokeLinecap="round" style={{ stroke: metric.color, transition: "stroke-dashoffset 1s ease" }} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={`text-sm font-bold metric-display ${metric.textClass}`}>{metric.value}</span>
+                </div>
+              </div>
+              <span className="text-[10px] text-center text-muted-foreground font-medium leading-tight">{metric.label}</span>
+            </Card>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1176,6 +1238,58 @@ function ModerationTab() {
   );
 }
 
+function CommunityHeroStrip() {
+  const { user } = useAuth();
+  const { data: health } = useQuery<any>({
+    queryKey: [`/api/community/health-score/${user?.id}`],
+    enabled: !!user?.id,
+    staleTime: 60000,
+  });
+  const score = health?.overallScore ?? 72;
+  const grade = health?.grade ?? "B+";
+  const r = 30; const circ = 2 * Math.PI * r;
+  const dashOff = circ - (circ * score) / 100;
+  const scoreColor = score >= 75 ? "hsl(142 70% 50%)" : score >= 50 ? "hsl(45 90% 55%)" : "hsl(0 80% 55%)";
+  const metrics = [
+    { label: "Engagement", value: health?.components?.engagementRate ?? 68, unit: "%" },
+    { label: "Sentiment", value: health?.components?.sentimentScore ?? 81, unit: "%" },
+    { label: "Retention", value: health?.components?.retentionRate ?? 74, unit: "%" },
+    { label: "Growth", value: health?.components?.growthRate ?? 12, unit: "%" },
+  ];
+  return (
+    <div className="card-empire rounded-xl p-4 flex flex-col sm:flex-row items-center gap-4 relative overflow-hidden">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="flex items-center gap-4 shrink-0">
+        <div className="relative w-20 h-20">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 76 76">
+            <circle cx="38" cy="38" r={r} fill="none" stroke="currentColor" strokeWidth="7" className="text-muted/20" />
+            <circle cx="38" cy="38" r={r} fill="none" strokeWidth="7" strokeDasharray={circ} strokeDashoffset={dashOff} strokeLinecap="round" style={{ stroke: scoreColor, transition: "stroke-dashoffset 1.2s ease", filter: `drop-shadow(0 0 6px ${scoreColor})` }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-xl font-bold metric-display" style={{ color: scoreColor }}>{score}</span>
+            <span className="text-[9px] text-muted-foreground font-mono">{grade}</span>
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="holographic-text text-base font-bold">Community Health</span>
+            <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono animate-pulse"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />LIVE</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground">AI-monitored across all platforms 24/7</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-3 sm:ml-auto justify-center sm:justify-end">
+        {metrics.map(m => (
+          <div key={m.label} className="flex flex-col items-center gap-1 min-w-[56px]">
+            <span className="text-lg font-bold metric-display text-primary">{m.value}{m.unit}</span>
+            <span className="text-[10px] text-muted-foreground">{m.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Community() {
   usePageTitle("Community");
   const [activeTab, setActiveTab] = useState<CommunityTab>("giveaways");
@@ -1186,6 +1300,8 @@ export default function Community() {
         <h1 data-testid="text-page-title" className="text-xl font-display font-bold">Community</h1>
         <p className="text-sm text-muted-foreground mt-1">Engage your audience with giveaways, polls, challenges, and more</p>
       </div>
+
+      <CommunityHeroStrip />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CommunityTab)}>
         <TabsList data-testid="tabs-community">

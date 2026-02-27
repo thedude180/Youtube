@@ -128,21 +128,31 @@ export default function Heartbeat() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          <Card className="md:col-span-1 bg-gray-900/60 border-gray-700/30 overflow-hidden relative" data-testid="card-overall-health-score">
-            <CardContent className="p-8 flex flex-col items-center justify-center text-center">
+          <Card className="card-empire empire-glow md:col-span-1 overflow-hidden relative border-0" data-testid="card-overall-health-score">
+            <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+            <CardContent className="p-8 flex flex-col items-center justify-center text-center relative">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="holographic-text text-sm font-bold uppercase tracking-wider">System Health</span>
+                <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono animate-pulse">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />LIVE
+                </span>
+              </div>
               <div className="relative inline-flex items-center justify-center mb-4">
                 <svg width="160" height="160" className="transform -rotate-90">
                   <circle cx="80" cy="80" r="70" stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="none" />
-                  <circle cx="80" cy="80" r="70" stroke={s.overallHealth > 80 ? "#22c55e" : "#eab308"} strokeWidth="8" fill="none" strokeDasharray={440} strokeDashoffset={440 * (1 - (s.overallHealth || 0) / 100)} strokeLinecap="round" className="transition-all duration-1000" />
+                  <circle cx="80" cy="80" r="70" stroke={s.overallHealth > 80 ? "#22c55e" : s.overallHealth > 50 ? "#eab308" : "#ef4444"} strokeWidth="8" fill="none" strokeDasharray={440} strokeDashoffset={440 * (1 - (s.overallHealth || 0) / 100)} strokeLinecap="round" className="transition-all duration-1000" style={{ filter: `drop-shadow(0 0 8px ${s.overallHealth > 80 ? "#22c55e80" : "#eab30880"})` }} />
                 </svg>
                 <div className="absolute flex flex-col items-center">
                   <span className={`text-4xl font-bold metric-display ${healthColor}`}>{s.overallHealth || 0}%</span>
                   <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Global Health</span>
                 </div>
               </div>
-              <p className="text-sm text-gray-400">All autonomous engines performing within nominal parameters.</p>
+              <Badge variant="outline" className="text-xs mb-2 border-emerald-500/30 text-emerald-400">
+                {s.enabledEngines || 0}/{s.totalEngines || 15} Engines Active
+              </Badge>
+              <p className="text-xs text-gray-400">All autonomous AI engines monitored 24/7 — exception-only alerts</p>
             </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-green-500 via-emerald-400 to-green-500 animate-gradient-shift" />
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-green-500 via-emerald-400 to-green-500" style={{ animation: "gradient-shift 3s ease infinite", backgroundSize: "200% 200%" }} />
           </Card>
 
           <div className="md:col-span-2 space-y-6">
@@ -198,7 +208,7 @@ export default function Heartbeat() {
               </Card>
             )}
             {engines.map((engine: any) => (
-              <Card key={engine.name} className={`border ${engine.status === "error" ? "bg-red-900/20 border-red-500/20" : engine.status === "running" ? "bg-blue-900/10 border-blue-500/20" : "bg-gray-900/60 border-gray-700/30"}`} data-testid={`card-engine-${engine.name}`}>
+              <Card key={engine.name} className={`transition-all duration-300 hover:border-primary/30 ${engine.status === "error" ? "bg-red-900/20 border-red-500/30 threat-pulse" : engine.status === "running" ? "bg-blue-900/10 border-blue-500/30" : "bg-gray-900/60 border-gray-700/30"}`} data-testid={`card-engine-${engine.name}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1">

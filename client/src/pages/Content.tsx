@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
   Calendar as CalendarIcon, Eye, Loader2, Brain,
+  TrendingUp, Film, Zap, BarChart2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
@@ -28,6 +29,52 @@ const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
 const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
 const RetentionBeatsTab = lazyRetry(() => import("./content/RetentionBeatsTab"));
+
+function ContentStatsStrip() {
+  const { data: videos } = useVideos();
+  const stats = useMemo(() => {
+    if (!videos) return null;
+    const vods = videos.filter(v => v.type === "vod").length;
+    const shorts = videos.filter(v => v.type === "short").length;
+    const published = videos.filter(v => v.status === "published").length;
+    const totalViews = videos.reduce((sum, v) => sum + (Number(v.metadata?.viewCount) || 0), 0);
+    return { total: videos.length, vods, shorts, published, totalViews };
+  }, [videos]);
+
+  if (!stats) return null;
+  const items = [
+    { icon: Film, label: "Total Videos", value: stats.total.toLocaleString(), color: "text-primary" },
+    { icon: Video, label: "VODs", value: stats.vods.toLocaleString(), color: "text-blue-400" },
+    { icon: Zap, label: "Shorts", value: stats.shorts.toLocaleString(), color: "text-purple-400" },
+    { icon: CheckCircle2, label: "Published", value: stats.published.toLocaleString(), color: "text-emerald-400" },
+    { icon: Eye, label: "Est. Views", value: stats.totalViews > 1000 ? `${(stats.totalViews/1000).toFixed(1)}K` : stats.totalViews.toLocaleString(), color: "text-amber-400" },
+  ];
+  return (
+    <div className="card-empire rounded-xl px-4 py-3 flex flex-wrap gap-4 items-center relative overflow-hidden" data-testid="content-stats-strip">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="flex items-center gap-2 shrink-0 relative">
+        <BarChart2 className="h-4 w-4 text-primary" />
+        <span className="holographic-text text-xs font-bold uppercase tracking-wider">Content Vault</span>
+      </div>
+      <div className="w-px h-6 bg-border/30 hidden sm:block" />
+      <div className="flex flex-wrap gap-4 relative">
+        {items.map(({ icon: Icon, label, value, color }) => (
+          <div key={label} className="flex items-center gap-2" data-testid={`stat-content-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+            <Icon className={`h-3.5 w-3.5 ${color}`} />
+            <div>
+              <div className={`text-sm font-bold metric-display ${color}`}>{value}</div>
+              <div className="text-[10px] text-muted-foreground leading-none">{label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="ml-auto shrink-0 relative flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[10px] text-emerald-400 font-mono">AI Organizing</span>
+      </div>
+    </div>
+  );
+}
 
 export default function Content() {
   usePageTitle("Content");
@@ -44,6 +91,8 @@ export default function Content() {
         <h1 data-testid="text-page-title" className="text-xl font-display font-bold">{t("content.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t("content.subtitle", "Manage your videos and channels")}</p>
       </div>
+
+      <ContentStatsStrip />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContentTab)}>
         <div className="scrollable-tabs">

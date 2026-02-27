@@ -187,11 +187,48 @@ export default function Money() {
     );
   }
 
+  const totalPotential = sponsorData?.totalPotentialRevenue ?? "$0";
+  const paymentCount = payments?.length ?? 0;
+  const revenueStreams = diversifyData?.streams?.length ?? 0;
+
   return (
     <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto page-enter">
       <div>
-        <h1 data-testid="text-page-title" className="text-xl font-display font-bold">Money & Business</h1>
-        <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground mt-1">Revenue, expenses, taxes, ventures & deals</p>
+        <h1 data-testid="text-page-title" className="text-xl font-display font-bold">Money &amp; Business</h1>
+        <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground mt-1">Revenue, expenses, taxes, ventures &amp; deals</p>
+      </div>
+
+      {/* Revenue Hero Strip */}
+      <div className="card-empire rounded-xl p-4 relative overflow-hidden" data-testid="revenue-hero-strip">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-600 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <DollarSign className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="holographic-text text-lg font-bold">Revenue Intelligence</span>
+                <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono animate-pulse">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />TRACKING
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">AI-optimized across all monetization streams</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-6 sm:ml-auto">
+            {[
+              { label: "Sponsor Potential", value: totalPotential, color: "text-emerald-400" },
+              { label: "Revenue Streams", value: revenueStreams.toString(), color: "text-primary" },
+              { label: "Payments Logged", value: paymentCount.toString(), color: "text-amber-400" },
+            ].map(item => (
+              <div key={item.label} className="text-right" data-testid={`stat-money-${item.label.toLowerCase().replace(/\s+/g,'-')}`}>
+                <div className={`text-xl font-bold metric-display ${item.color}`}>{item.value}</div>
+                <div className="text-[10px] text-muted-foreground">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)}>

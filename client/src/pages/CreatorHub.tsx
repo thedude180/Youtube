@@ -94,29 +94,43 @@ export default function CreatorHub() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {reportCard.kpis.map((kpi: any, idx: number) => (
-                    <Card key={idx} className="bg-gray-900/60 border-gray-700/30 hover-elevate" data-testid={`kpi-card-${idx}`}>
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="text-sm text-gray-400">{kpi.name}</p>
-                          <Badge variant="outline" className={`
-                            ${kpi.grade === 'A' ? 'border-green-500 text-green-400' : 
-                              kpi.grade === 'B' ? 'border-blue-500 text-blue-400' :
-                              kpi.grade === 'C' ? 'border-yellow-500 text-yellow-400' : 'border-red-500 text-red-400'}
-                          `}>
-                            {kpi.grade}
-                          </Badge>
-                        </div>
-                        <p className="text-xl font-bold text-white">{kpi.value}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-xs ${kpi.trend.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
-                            {kpi.trend}
-                          </span>
-                          <span className="text-[10px] text-gray-500">vs {kpi.benchmark} bench</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {reportCard.kpis.map((kpi: any, idx: number) => {
+                    const gradeColor = kpi.grade === 'A' ? { ring: "hsl(142 70% 50%)", text: "text-emerald-400", bg: "bg-emerald-500/10" }
+                      : kpi.grade === 'B' ? { ring: "hsl(200 80% 55%)", text: "text-blue-400", bg: "bg-blue-500/10" }
+                      : kpi.grade === 'C' ? { ring: "hsl(45 90% 55%)", text: "text-amber-400", bg: "bg-amber-500/10" }
+                      : { ring: "hsl(0 80% 55%)", text: "text-red-400", bg: "bg-red-500/10" };
+                    const gradeScore = kpi.grade === 'A' ? 90 : kpi.grade === 'B' ? 70 : kpi.grade === 'C' ? 50 : 30;
+                    const r = 18; const circ = 2 * Math.PI * r;
+                    const dashOff = circ - (circ * gradeScore) / 100;
+                    return (
+                      <Card key={idx} className={`card-empire hover-elevate cursor-default border-0 relative overflow-hidden`} data-testid={`kpi-card-${idx}`}>
+                        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                        <CardContent className="p-4 relative">
+                          <div className="flex justify-between items-start mb-3">
+                            <p className="text-xs text-gray-400 font-medium leading-tight max-w-[80%]">{kpi.name}</p>
+                            <div className="relative w-10 h-10 shrink-0">
+                              <svg className="w-full h-full -rotate-90" viewBox="0 0 44 44">
+                                <circle cx="22" cy="22" r={r} fill="none" stroke="currentColor" strokeWidth="4" className="text-muted/20" />
+                                <circle cx="22" cy="22" r={r} fill="none" strokeWidth="4" strokeDasharray={circ} strokeDashoffset={dashOff} strokeLinecap="round" style={{ stroke: gradeColor.ring, transition: "stroke-dashoffset 1s ease" }} />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className={`text-[11px] font-bold ${gradeColor.text}`}>{kpi.grade}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-xl font-bold text-white metric-display mb-2">{kpi.value}</p>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs font-semibold ${kpi.trend?.startsWith?.('+') ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {kpi.trend}
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${gradeColor.bg} ${gradeColor.text}`}>
+                              {kpi.benchmark} bench
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

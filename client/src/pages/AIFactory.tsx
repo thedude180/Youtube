@@ -50,19 +50,39 @@ export default function AIFactory() {
 
   return (
     <div className="flex flex-col gap-6 p-6 min-h-screen bg-background">
-      <header className="flex flex-col gap-2 rounded-xl p-8 bg-gradient-to-r from-purple-900/20 via-blue-900/20 to-purple-900/20 border border-purple-500/20">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-500/10 rounded-lg">
-            <Sparkles className="w-8 h-8 text-purple-400" />
+      <header className="card-empire rounded-xl p-6 relative overflow-hidden">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-purple-500/15 rounded-xl border border-purple-500/20 shadow-lg shadow-purple-500/10">
+              <Sparkles className="w-8 h-8 text-purple-400" style={{ filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))" }} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold holographic-text tracking-tight">
+                AI Content Factory
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                20 AI-powered tools to dominate every platform
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
-              AI Content Factory
-            </h1>
-            <p className="text-muted-foreground text-lg">
-              20 AI-powered tools to dominate every platform
-            </p>
+          <div className="flex flex-wrap gap-3 sm:ml-auto">
+            {[
+              { label: "AI Tools", value: "20", color: "text-primary", bg: "bg-primary/10" },
+              { label: "Platforms", value: "10+", color: "text-purple-400", bg: "bg-purple-500/10" },
+              { label: "Status", value: "READY", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+            ].map(stat => (
+              <div key={stat.label} className={`px-3 py-2 rounded-lg border border-white/5 ${stat.bg} flex flex-col items-center min-w-[64px]`}>
+                <span className={`text-base font-bold metric-display ${stat.color}`}>{stat.value}</span>
+                <span className="text-[10px] text-muted-foreground">{stat.label}</span>
+              </div>
+            ))}
           </div>
+        </div>
+        <div className="relative flex items-center gap-2 mt-4 pt-3 border-t border-white/5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[11px] text-emerald-400 font-mono">All AI models online and operational</span>
+          <span className="ml-auto text-[10px] text-muted-foreground font-mono">OpenAI GPT-4o · Last sync: just now</span>
         </div>
       </header>
 
