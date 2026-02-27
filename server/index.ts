@@ -33,7 +33,8 @@ import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
 import { requestSizeLimiter, slowRequestDetector, validateContentType, anomalyDetector, inputSanitizer, idempotencyGuard, getSlowRequests, payloadIntegrityCheck, honeypotTrapMiddleware, responseSecurityScrubber } from "./lib/security-hardening";
-import { methodOverrideBlock, badUserAgentBlock, promptInjectionGuard, replayAttackGuard, highEntropyPayloadBlock, timingAttackMitigation, serverTimingHeaderStrip, tokenFloodGuard, perEndpointRateLimit, requestIdEnforcement, hostHeaderValidation, sensitiveRouteHardening } from "./lib/ai-attack-shield";
+import { methodOverrideBlock, badUserAgentBlock, promptInjectionGuard, replayAttackGuard, highEntropyPayloadBlock, timingAttackMitigation, serverTimingHeaderStrip, tokenFloodGuard, perEndpointRateLimit, requestIdEnforcement, hostHeaderValidation, sensitiveRouteHardening, requestRecorder, adaptiveLearningGuard } from "./lib/ai-attack-shield";
+import { startThreatLearningEngine, stopThreatLearningEngine, getLearningStats } from "./lib/threat-learning-engine";
 import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache, checkDbPool } from "./services/resilience-core";
 import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
 import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } from "fs";
@@ -250,6 +251,8 @@ app.use("/api", perEndpointRateLimit({
   "/api/empire/launch": { max: 5, windowMs: 300_000 },
   "/api/stripe": { max: 20, windowMs: 60_000 },
 }));
+app.use(requestRecorder());
+app.use(adaptiveLearningGuard());
 
 app.use((req: any, res, next) => {
   const requestId = req.headers['x-request-id'] || crypto.randomUUID();
@@ -792,6 +795,7 @@ httpServer.listen(
     // ── TIER 4: Intelligence engines — staggered 20s apart from T+120s ───────
     // 14 engines × 20s gap = last engine starts at T+380s (~6.3 min).
     // Each engine gets its own CPU/IO slot; no simultaneous init spikes.
+    startThreatLearningEngine().catch(err => logger.error("Threat Learning Engine init failed", { error: String(err) }));
     delay(120_000, () => { try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); } });
     delay(140_000, () => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) })));
     delay(160_000, () => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) })));
@@ -881,6 +885,7 @@ httpServer.listen(
     stopConnectionGuardian();
     stopAutonomyController();
     stopSentinel();
+    stopThreatLearningEngine();
     stopCommunityAudienceEngine();
     stopComplianceLegalEngine();
     stopCreatorEducationEngine();

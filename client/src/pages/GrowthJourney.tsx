@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useMemo } from "react";
 import {
   Sprout,
   Footprints,
@@ -32,7 +33,44 @@ import {
   ZapOff,
   Activity,
   Globe,
+  Compass
 } from "lucide-react";
+
+function GrowthStatsStrip() {
+  const stats = useMemo(() => [
+    { icon: Rocket, label: "Expansion Rate", value: "+15.2%", color: "text-primary" },
+    { icon: Trophy, label: "Milestones Hit", value: "12", color: "text-emerald-400" },
+    { icon: Users, label: "Network Effect", value: "8.4x", color: "text-blue-400" },
+    { icon: Star, label: "Elite Status", value: "Tier 3", color: "text-purple-400" },
+    { icon: Activity, label: "Consistency", value: "98%", color: "text-amber-400" },
+  ], []);
+
+  return (
+    <div className="card-empire rounded-xl px-4 py-3 flex flex-wrap gap-4 items-center relative overflow-hidden mb-4" data-testid="growth-stats-strip">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="flex items-center gap-2 shrink-0 relative">
+        <Compass className="h-4 w-4 text-primary" />
+        <span className="holographic-text text-xs font-bold uppercase tracking-wider">Empire Roadmap</span>
+      </div>
+      <div className="w-px h-6 bg-border/30 hidden sm:block" />
+      <div className="flex flex-wrap gap-4 relative">
+        {stats.map(({ icon: Icon, label, value, color }) => (
+          <div key={label} className="flex items-center gap-2" data-testid={`stat-journey-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+            <Icon className={`h-3.5 w-3.5 ${color}`} />
+            <div>
+              <div className={`text-sm font-bold metric-display ${color}`}>{value}</div>
+              <div className="text-[10px] text-muted-foreground leading-none">{label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="ml-auto shrink-0 relative flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[10px] text-emerald-400 font-mono">CALCULATING TRAJECTORY</span>
+      </div>
+    </div>
+  );
+}
 
 const ParticleField = () => {
   return (
@@ -694,6 +732,7 @@ export default function GrowthJourney() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-4 relative pb-4">
+      <GrowthStatsStrip />
       <GrowthPhaseHero phase={data.growthPhase} />
       <GrowthVelocityGauge progress={data.plateau?.avgGrowthRate ?? 68} />
 

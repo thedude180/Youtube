@@ -185,7 +185,9 @@ export default function AICommand() {
                     ].map((agent) => (
                       <div key={agent.label} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20 border border-border/10"
                         data-testid={`agent-status-${agent.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: agent.color, boxShadow: `0 0 6px ${agent.color}` }} />
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: agent.color, boxShadow: `0 0 6px ${agent.color}` }}>
+                           <div className="w-full h-full rounded-full animate-ping opacity-75" style={{ backgroundColor: agent.color }} />
+                        </div>
                         <div>
                           <div className="text-[10px] font-medium text-foreground">{agent.label}</div>
                           <div className="text-[9px] font-mono" style={{ color: agent.color }}>{agent.status}</div>

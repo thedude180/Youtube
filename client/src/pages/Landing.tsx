@@ -6,6 +6,7 @@ import {
   Brain, Calendar, Shield, Sparkles, Play,
   Radio, Video, Layers, Target, Eye,
   RefreshCw, Clock, Award, ChevronRight,
+  TrendingDown, Minus, ArrowUpRight
 } from "lucide-react";
 import {
   SiYoutube, SiTwitch, SiTiktok, SiX, SiDiscord,
@@ -556,6 +557,76 @@ export default function Landing() {
     </div>
   );
 
+  const CreatorPulseTicker = () => {
+    const pulses = [
+      { name: "PewDiePie", action: "Optimized 42 thumbnails", trend: "up" },
+      { name: "MrBeast", action: "A/B Testing hook variations", trend: "up" },
+      { name: "Pokimane", action: "Syncing to 8 new platforms", trend: "neutral" },
+      { name: "Kai Cenat", action: "Revenue maximized +12%", trend: "up" },
+      { name: "IShowSpeed", action: "AI Clip generation active", trend: "up" },
+      { name: "Ninja", action: "Cross-platform SEO boost", trend: "up" },
+    ];
+    return (
+      <div className="w-full bg-primary/5 border-y border-primary/10 py-2 overflow-hidden mb-12" data-testid="widget-creator-pulse">
+        <div className="ticker-scroll flex gap-12 items-center">
+          {[...pulses, ...pulses].map((p, i) => (
+            <div key={i} className="flex items-center gap-3 whitespace-nowrap">
+              <span className="text-[10px] font-mono text-primary/60 uppercase tracking-tighter">Pulse</span>
+              <span className="text-xs font-bold text-white">{p.name}</span>
+              <span className="text-xs text-muted-foreground">{p.action}</span>
+              {p.trend === "up" ? <TrendingUp className="w-3 h-3 text-emerald-400" /> : <Minus className="w-3 h-3 text-muted-foreground" />}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const GrowthTrajectoryWidget = () => (
+    <div className="card-empire rounded-3xl p-8 mb-24 relative overflow-hidden" data-testid="widget-growth-trajectory">
+      <div className="data-grid-bg absolute inset-0 opacity-5" />
+      <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
+        <div>
+          <Badge className="mb-4 bg-primary/20 text-primary border-primary/30">Predictive Intelligence</Badge>
+          <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">Growth Trajectory Predictor</h2>
+          <p className="text-muted-foreground mb-8">Our AI analyzes 400+ data points to forecast your empire's expansion with 94% accuracy.</p>
+          <div className="space-y-4">
+            {[
+              { label: "Content Velocity", value: 85 },
+              { label: "Audience Retention", value: 92 },
+              { label: "Revenue compounding", value: 78 }
+            ].map(m => (
+              <div key={m.label} className="space-y-1">
+                <div className="flex justify-between text-[10px] uppercase font-mono">
+                  <span>{m.label}</span>
+                  <span className="text-primary">{m.value}%</span>
+                </div>
+                <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary animate-[count-up_2s_ease-out]" style={{ width: `${m.value}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative aspect-video rounded-xl border border-white/5 bg-black/40 overflow-hidden flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center">
+             <div className="w-full h-1/2 flex items-end gap-1 px-4">
+               {[40, 45, 42, 50, 55, 52, 60, 70, 65, 75, 85, 80, 95].map((h, i) => (
+                 <div key={i} className="flex-1 bg-primary/20 border-t border-primary/40 rounded-t-sm relative group" style={{ height: `${h}%` }}>
+                   <div className="absolute inset-0 bg-primary opacity-0 group-hover:opacity-40 transition-opacity" />
+                 </div>
+               ))}
+             </div>
+          </div>
+          <div className="absolute top-4 right-4 flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded text-[10px] font-mono border border-emerald-500/30">
+            <ArrowUpRight className="w-3 h-3" />
+            +412% PROJECTION
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const PipelineAnimation = () => (
     <div className="relative w-full h-[400px] flex items-center justify-center p-8 bg-black/40 rounded-3xl border border-white/5 overflow-hidden" data-testid="widget-pipeline-animation">
       <div className="absolute inset-0 data-grid-bg opacity-10" />
@@ -730,6 +801,10 @@ export default function Landing() {
             </div>
 
             <StatsShowcase />
+
+            <CreatorPulseTicker />
+
+            <GrowthTrajectoryWidget />
 
             <LiveStatsBar />
           </div>

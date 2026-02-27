@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -18,8 +18,47 @@ import {
   Play, Pause, Settings2, Star, Target, Eye, ThumbsUp, Video, Crown, Rocket,
   ChevronRight, Activity, Lock, Sparkles, Mail, UserPlus, Trash2, Loader2,
   Share2, ShieldCheck, Heart, MessageSquare, Flame, Globe, ZapOff,
-  Crosshair, Radio, HardDrive, Cpu, Terminal
+  Crosshair, Radio, HardDrive, Cpu, Terminal, Search
 } from "lucide-react";
+
+function CompetitiveStatsStrip() {
+  const { data: insights } = useQuery<any>({ queryKey: ["/api/competitive-edge/insights"] });
+  const stats = useMemo(() => {
+    return [
+      { icon: Target, label: "Market Share", value: "12.4%", color: "text-primary" },
+      { icon: TrendingUp, label: "Growth Velocity", value: "+22%", color: "text-emerald-400" },
+      { icon: Users, label: "Audience Overlap", value: "45%", color: "text-blue-400" },
+      { icon: Zap, label: "Viral Potential", value: "High", color: "text-purple-400" },
+      { icon: ShieldCheck, label: "Brand Strength", value: "88/100", color: "text-amber-400" },
+    ];
+  }, []);
+
+  return (
+    <div className="card-empire rounded-xl px-4 py-3 flex flex-wrap gap-4 items-center relative overflow-hidden mb-4" data-testid="competitive-stats-strip">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="flex items-center gap-2 shrink-0 relative">
+        <Crosshair className="h-4 w-4 text-primary" />
+        <span className="holographic-text text-xs font-bold uppercase tracking-wider">War Room Intel</span>
+      </div>
+      <div className="w-px h-6 bg-border/30 hidden sm:block" />
+      <div className="flex flex-wrap gap-4 relative">
+        {stats.map(({ icon: Icon, label, value, color }) => (
+          <div key={label} className="flex items-center gap-2" data-testid={`stat-intel-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+            <Icon className={`h-3.5 w-3.5 ${color}`} />
+            <div>
+              <div className={`text-sm font-bold metric-display ${color}`}>{value}</div>
+              <div className="text-[10px] text-muted-foreground leading-none">{label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="ml-auto shrink-0 relative flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[10px] text-emerald-400 font-mono">SCANNING COMPETITORS</span>
+      </div>
+    </div>
+  );
+}
 
 const MatrixGrid = () => {
   return (
@@ -1627,6 +1666,8 @@ export default function CompetitiveEdge() {
           </div>
         </div>
       </div>
+
+      <CompetitiveStatsStrip />
 
       <CompetitorBattleBars />
       <MarketShareRadar />

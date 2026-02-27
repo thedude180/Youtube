@@ -300,6 +300,7 @@ export default function MissionControl() {
                 <CardTitle className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
                   <Activity className="w-3 h-3 text-primary" /> SYSTEM VITALS
                 </CardTitle>
+                <span className="text-[10px] text-emerald-400 font-mono animate-pulse">● LIVE</span>
               </CardHeader>
               <CardContent className="p-4 space-y-4 relative">
                 <div className="grid grid-cols-2 gap-2">
@@ -310,6 +311,15 @@ export default function MissionControl() {
                   <div className="p-2 rounded bg-black/40 border border-white/5">
                     <p className="text-[9px] text-muted-foreground uppercase font-mono">Ping</p>
                     <p className="text-sm font-mono text-emerald-400">14ms</p>
+                  </div>
+                </div>
+                <div className="p-2 rounded bg-black/40 border border-white/5">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="text-[9px] text-muted-foreground uppercase font-mono">Neural Load</p>
+                    <p className="text-[10px] font-mono text-primary">84%</p>
+                  </div>
+                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary/60 rounded-full w-[84%] animate-pulse" />
                   </div>
                 </div>
                 <SystemConsole />

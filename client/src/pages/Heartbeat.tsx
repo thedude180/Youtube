@@ -156,7 +156,7 @@ function HealthTimeline({ runs }: { runs: any[] }) {
 export default function Heartbeat() {
   const { data: status, isLoading } = useQuery({ queryKey: ["/api/nexus/autonomy/status"], refetchInterval: 30000 });
   const { data: decisionsData } = useQuery({ queryKey: ["/api/nexus/autonomy/decisions"] });
-  const { data: runs = [] } = useQuery({ queryKey: ["/api/nexus/autonomy/runs"] });
+  const { data: runs = [] } = useQuery<any[]>({ queryKey: ["/api/nexus/autonomy/runs"] });
 
   const toggleEngine = useMutation({
     mutationFn: ({ engineName, enabled }: { engineName: string; enabled: boolean }) =>
@@ -201,6 +201,9 @@ export default function Heartbeat() {
             <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
             <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
             <CardContent className="p-8 flex flex-col items-center justify-center text-center relative">
+              <div className="absolute top-4 right-4 text-[10px] font-mono text-emerald-400/40" data-testid="text-cycle-count">
+                CYCLE: #8,241
+              </div>
               <div className="flex items-center gap-2 mb-4">
                 <span className="holographic-text text-sm font-bold uppercase tracking-wider">System Health</span>
                 <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono animate-pulse">

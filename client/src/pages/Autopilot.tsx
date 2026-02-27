@@ -359,7 +359,7 @@ function LiveTasksWidget() {
   }, []);
 
   return (
-    <Card className="bg-muted/30 border-primary/10">
+    <Card className="bg-muted/30 border-primary/10" data-testid="widget-live-tasks">
       <CardHeader className="py-3 px-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -373,8 +373,8 @@ function LiveTasksWidget() {
         </div>
       </CardHeader>
       <CardContent className="py-0 px-4 pb-4 space-y-3">
-        {tasks.map(task => (
-          <div key={task.id} className="space-y-1">
+        {tasks.map((task, i) => (
+          <div key={task.id} className="space-y-1" data-testid={`live-task-${i}`}>
             <div className="flex justify-between text-[10px] text-muted-foreground uppercase font-medium">
               <span>{task.name}</span>
               <span>{Math.round(task.progress)}%</span>
@@ -387,54 +387,65 @@ function LiveTasksWidget() {
   );
 }
 
-const AutonomousBrain = () => {
-  const [activeSignal, setActiveSignal] = useState(0);
-  const signals = ["Analyzing Trends", "Optimizing Flow", "Neural Sync", "Data Harvest"];
-  useEffect(() => {
-    const t = setInterval(() => setActiveSignal(s => (s + 1) % signals.length), 2000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="card-empire rounded-2xl p-6 relative overflow-hidden mb-6" data-testid="widget-autonomous-brain">
-      <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
-      <div className="flex flex-col md:flex-row gap-8 items-center relative">
-        <div className="relative w-32 h-32 flex items-center justify-center">
-          <div className="absolute inset-0 border-4 border-primary/20 rounded-full orbit-1" />
-          <div className="absolute inset-2 border-2 border-primary/40 rounded-full orbit-2" />
-          <div className="absolute inset-4 border border-primary/60 rounded-full orbit-3" />
-          <Bot className="w-12 h-12 text-primary empire-glow" />
-          <div className="absolute -top-2 -right-2 bg-emerald-500 w-4 h-4 rounded-full border-2 border-background animate-pulse" />
-        </div>
-        <div className="flex-1 space-y-4 text-center md:text-left">
-          <div>
-            <h2 className="text-2xl font-black holographic-text uppercase tracking-tighter mb-1">Autonomous Brain Active</h2>
-            <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs font-mono text-muted-foreground uppercase tracking-widest">
-              {signals.map((s, i) => (
-                <div key={s} className={`flex items-center gap-2 transition-opacity duration-500 ${i === activeSignal ? 'opacity-100' : 'opacity-30'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${i === activeSignal ? 'bg-primary' : 'bg-muted'}`} />
-                  {s}
+  const AutonomousBrain = () => {
+    const [activeSignal, setActiveSignal] = useState(0);
+    const signals = ["Analyzing Trends", "Optimizing Flow", "Neural Sync", "Data Harvest"];
+    const [stats, setStats] = useState({ neural: 12, sync: 0.4, uptime: 99.9, confidence: 98.4 });
+
+    useEffect(() => {
+      const t = setInterval(() => {
+        setActiveSignal(s => (s + 1) % signals.length);
+        setStats(prev => ({
+          neural: Math.min(100, Math.max(5, prev.neural + (Math.random() * 4 - 2))),
+          sync: Math.min(2, Math.max(0.1, prev.sync + (Math.random() * 0.2 - 0.1))),
+          uptime: 99.9,
+          confidence: Math.min(100, Math.max(90, prev.confidence + (Math.random() * 0.4 - 0.2)))
+        }));
+      }, 2000);
+      return () => clearInterval(t);
+    }, []);
+
+    return (
+      <div className="card-empire rounded-2xl p-6 relative overflow-hidden mb-6" data-testid="widget-autonomous-brain">
+        <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
+        <div className="flex flex-col md:flex-row gap-8 items-center relative">
+          <div className="relative w-32 h-32 flex items-center justify-center">
+            <div className="absolute inset-0 border-4 border-primary/20 rounded-full orbit-1" />
+            <div className="absolute inset-2 border-2 border-primary/40 rounded-full orbit-2" />
+            <div className="absolute inset-4 border border-primary/60 rounded-full orbit-3" />
+            <Bot className="w-12 h-12 text-primary empire-glow" />
+            <div className="absolute -top-2 -right-2 bg-emerald-500 w-4 h-4 rounded-full border-2 border-background animate-pulse" />
+          </div>
+          <div className="flex-1 space-y-4 text-center md:text-left">
+            <div>
+              <h2 className="text-2xl font-black holographic-text uppercase tracking-tighter mb-1">Autonomous Brain Active</h2>
+              <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+                {signals.map((s, i) => (
+                  <div key={s} className={`flex items-center gap-2 transition-opacity duration-500 ${i === activeSignal ? 'opacity-100' : 'opacity-30'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${i === activeSignal ? 'bg-primary' : 'bg-muted'}`} />
+                    {s}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                { label: "Neural Load", val: `${stats.neural.toFixed(0)}%`, color: "text-blue-400" },
+                { label: "Sync Speed", val: `${stats.sync.toFixed(1)}ms`, color: "text-emerald-400" },
+                { label: "Uptime", val: `${stats.uptime}%`, color: "text-purple-400" },
+                { label: "Confidence", val: `${stats.confidence.toFixed(1)}%`, color: "text-primary" }
+              ].map(m => (
+                <div key={m.label} className="bg-white/5 rounded-lg p-2 border border-white/10">
+                  <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-tighter">{m.label}</div>
+                  <div className={`text-sm font-bold font-mono ${m.color}`}>{m.val}</div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: "Neural Load", val: "12%", color: "text-blue-400" },
-              { label: "Sync Speed", val: "0.4ms", color: "text-emerald-400" },
-              { label: "Uptime", val: "99.9%", color: "text-purple-400" },
-              { label: "Confidence", val: "98.4%", color: "text-primary" }
-            ].map(m => (
-              <div key={m.label} className="bg-white/5 rounded-lg p-2 border border-white/10">
-                <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-tighter">{m.label}</div>
-                <div className={`text-sm font-bold font-mono ${m.color}`}>{m.val}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 const PipelineCommandCenter = ({ stats }: { stats: any }) => {
   return (

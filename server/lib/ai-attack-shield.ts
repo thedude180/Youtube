@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createLogger } from "./logger";
 import { registerMap } from "../services/resilience-core";
 import { registerCleanup } from "../services/cleanup-coordinator";
+import { extractFeatures, recordRequest, recordBlock, getAnomalyScore, isCooldown, getThreatScore } from "./threat-learning-engine";
 
 const logger = createLogger("ai-attack-shield");
 
@@ -193,6 +194,8 @@ export function promptInjectionGuard(): (req: Request, res: Response, next: Next
     if (scanForPromptInjection(req.body)) {
       const ip = req.ip || "unknown";
       logger.warn(`[AIShield] Prompt injection attempt from ${ip} at ${req.path}`);
+      const features = extractFeatures(req as any);
+      recordBlock("prompt_injection", features);
       return res.status(400).json({
         error: "prompt_injection_detected",
         message: "Your request contains patterns that are not allowed.",
@@ -201,6 +204,8 @@ export function promptInjectionGuard(): (req: Request, res: Response, next: Next
 
     if (hasExcessiveUnicode(req.body)) {
       logger.warn(`[AIShield] Excessive unicode/homoglyphs in request from ${req.ip}`);
+      const features = extractFeatures(req as any);
+      recordBlock("unicode_attack", features);
       return res.status(400).json({
         error: "invalid_characters",
         message: "Request contains excessive special characters.",
@@ -227,6 +232,7 @@ export function replayAttackGuard(): (req: Request, res: Response, next: NextFun
       existing.count++;
       if (existing.count > 10 && now - existing.firstSeen < 60_000) {
         logger.warn(`[AIShield] Replay attack detected from ${ip} at ${req.path} (${existing.count} identical requests in ${now - existing.firstSeen}ms)`);
+        recordBlock("replay_attack", extractFeatures(req as any));
         return res.status(429).json({
           error: "replay_detected",
           message: "Identical repeated requests are not allowed. Please wait before retrying.",
@@ -247,6 +253,7 @@ export function highEntropyPayloadBlock(): (req: Request, res: Response, next: N
     if (entropy > 7.5 && json.length > 5000) {
       const ip = req.ip || "unknown";
       logger.warn(`[AIShield] High-entropy payload blocked from ${ip} (entropy=${entropy.toFixed(2)}, len=${json.length})`);
+      recordBlock("high_entropy_payload", extractFeatures(req as any));
       return res.status(400).json({
         error: "suspicious_payload",
         message: "Request payload appears to be obfuscated or encoded.",
@@ -381,6 +388,72 @@ export function sensitiveRouteHardening(): (req: Request, res: Response, next: N
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Surrogate-Control", "no-store");
+    next();
+  };
+}
+
+export function requestRecorder(): (req: Request, res: Response, next: NextFunction) => void {
+  const AI_PATHS = ["/api/ai", "/api/nexus", "/api/youtube", "/api/twitch", "/api/tiktok"];
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!AI_PATHS.some(p => req.path.startsWith(p))) return next();
+    try {
+      const features = extractFeatures(req as any);
+      recordRequest(features);
+    } catch {}
+    next();
+  };
+}
+
+export function adaptiveLearningGuard(): (req: Request, res: Response, next: NextFunction) => void {
+  const ANOMALY_PATHS = ["/api/ai", "/api/nexus/co-pilot", "/api/nexus/voice", "/api/auth", "/api/login"];
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!ANOMALY_PATHS.some(p => req.path.startsWith(p))) return next();
+    const ip = req.ip || "unknown";
+
+    if (isCooldown(ip)) {
+      logger.warn(`[AIShield+Learner] Cooldown active for ${ip} at ${req.path}`);
+      return res.status(429).json({
+        error: "ip_in_cooldown",
+        message: "Your IP has been temporarily restricted due to suspicious activity. Please try again later.",
+        retryAfter: 900,
+      });
+    }
+
+    const threatScore = getThreatScore(ip);
+    if (threatScore >= 90) {
+      logger.warn(`[AIShield+Learner] Ultra-high threat IP blocked: ${ip} (score=${threatScore})`);
+      recordBlock("high_threat_score", extractFeatures(req as any));
+      return res.status(403).json({
+        error: "access_denied",
+        message: "Access denied due to suspicious activity pattern.",
+      });
+    }
+
+    try {
+      const features = extractFeatures(req as any);
+      const anomalyScore = getAnomalyScore(features);
+
+      if (anomalyScore >= 75) {
+        logger.warn(`[AIShield+Learner] High anomaly score ${anomalyScore} from ${ip} at ${req.path}`);
+        recordBlock("behavioral_anomaly", features);
+        return res.status(429).json({
+          error: "anomalous_behavior",
+          message: "Unusual request pattern detected. Please slow down.",
+          retryAfter: 60,
+        });
+      }
+
+      if (anomalyScore >= 50 && threatScore >= 50) {
+        logger.warn(`[AIShield+Learner] Combined risk: anomaly=${anomalyScore}, threat=${threatScore} from ${ip}`);
+        recordBlock("combined_risk", features);
+        return res.status(429).json({
+          error: "risk_threshold_exceeded",
+          message: "Request blocked due to elevated risk signals.",
+          retryAfter: 120,
+        });
+      }
+    } catch {}
+
     next();
   };
 }

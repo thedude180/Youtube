@@ -76,16 +76,28 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
 }
 
 function LaunchVelocityGauge({ progress }: { progress: number }) {
-  const velocity = Math.min(100, progress * 1.2);
+  const [velocity, setVelocity] = useState(Math.min(100, progress * 1.2));
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVelocity(v => {
+        const target = Math.min(100, progress * 1.2);
+        const diff = target - v;
+        return v + (diff * 0.1) + (Math.random() * 2 - 1);
+      });
+    }, 100);
+    return () => clearInterval(t);
+  }, [progress]);
+
   return (
     <div className="flex flex-col items-center justify-center p-4 border border-primary/10 rounded-xl bg-card/50 relative overflow-hidden group">
       <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter mb-1">Engine Thrust</div>
       <div className="text-2xl font-mono font-black text-primary metric-display">
-        {velocity.toFixed(1)}<span className="text-xs ml-1">v/s</span>
+        {Math.max(0, velocity).toFixed(1)}<span className="text-xs ml-1">v/s</span>
       </div>
       <div className="w-full h-1 bg-muted mt-2 rounded-full overflow-hidden">
-        <div className="h-full bg-primary animate-pulse" style={{ width: `${velocity}%` }} />
+        <div className="h-full bg-primary animate-pulse" style={{ width: `${Math.max(0, Math.min(100, velocity))}%` }} />
       </div>
     </div>
   );
@@ -105,7 +117,7 @@ function MissionTimeline({ currentStage }: { currentStage: string }) {
   const isFailed = currentStage === "failed";
 
   return (
-    <div className="space-y-4 py-2" data-testid="mission-timeline">
+    <div className="space-y-4 py-2" data-testid="widget-mission-timeline">
       {stages.map((stage, idx) => {
         const isActive = stage.key === currentStage;
         const isPast = !isFailed && idx < currentIdx;
@@ -113,7 +125,7 @@ function MissionTimeline({ currentStage }: { currentStage: string }) {
         const Icon = config?.icon || Zap;
 
         return (
-          <div key={stage.key} className="flex items-center gap-4 group">
+          <div key={stage.key} className="flex items-center gap-4 group" data-testid={`timeline-stage-${idx}`}>
             <div className="flex flex-col items-center">
               <div
                 className={`h-8 w-8 rounded-full flex items-center justify-center transition-all duration-500 z-10
