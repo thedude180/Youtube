@@ -1,11 +1,13 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -26,7 +28,7 @@ import {
   Calculator, FileText, AlertTriangle, CheckCircle2, Building2,
   CreditCard, Link2, Copy, Upload,
   Briefcase, Target, Sparkles, Handshake, ChevronDown, ChevronUp, Mail, Users, Eye,
-  Loader2,
+  Loader2, Activity, Zap, TrendingDown, Layers
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
@@ -51,7 +53,7 @@ const LazyMoneyAIToolSuites = lazy(() => import("./money/MoneyAIToolSuites"));
 
 type AIResponse = any;
 
-type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors";
+type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors" | "merch-intel" | "diversify";
 
 const ventureTypes = ["All", "Merch", "Courses", "Membership", "Affiliate", "Consulting", "Podcast", "SaaS", "Events", "Licensing"] as const;
 
@@ -98,7 +100,22 @@ export default function Money() {
   const { t } = useTranslation();
   usePageTitle(t("money.title"));
   const { toast } = useToast();
+  const { user } = useAuth();
+  const userId = user?.id;
   const [activeTab, setActiveTab] = useState<TabKey>("revenue");
+
+  const { data: sponsorData } = useQuery({ 
+    queryKey: ["/api/monetization/sponsorship-opportunities", userId],
+    enabled: !!userId 
+  });
+  const { data: merchData } = useQuery({ 
+    queryKey: ["/api/monetization/merch-predictor", userId],
+    enabled: !!userId 
+  });
+  const { data: diversifyData } = useQuery({ 
+    queryKey: ["/api/monetization/revenue-diversification", userId],
+    enabled: !!userId 
+  });
 
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
@@ -202,6 +219,12 @@ export default function Money() {
           </TabsTrigger>
           <TabsTrigger value="sponsors" data-testid="tab-sponsors" aria-label="Sponsors tab">
             <Handshake className="h-3.5 w-3.5 mr-1.5" />Sponsors
+          </TabsTrigger>
+          <TabsTrigger value="merch-intel" data-testid="tab-merch-intel">
+            <Tag className="h-3.5 w-3.5 mr-1.5" />Merch Intel
+          </TabsTrigger>
+          <TabsTrigger value="diversify" data-testid="tab-diversify">
+            <Layers className="h-3.5 w-3.5 mr-1.5" />Diversify
           </TabsTrigger>
         </TabsList>
 
@@ -370,9 +393,253 @@ export default function Money() {
         </TabsContent>
         <TabsContent value="sponsors" className="mt-2">
           <UpgradeTabGate requiredTier="pro" featureName="Sponsorship Manager" description="Find, negotiate, and manage brand deals with AI-powered sponsorship tools.">
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <LazySponsorsTab />
-            </Suspense>
+            <div className="space-y-6">
+              {sponsorData && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="bg-gray-900/60 border-gray-700/30">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider text-primary">Total Potential Revenue</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-3xl font-bold text-white">{sponsorData.totalPotentialRevenue}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gray-900/60 border-gray-700/30">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Average Deal Size</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-3xl font-bold text-white">{sponsorData.averageDealSize}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Handshake className="w-5 h-5 text-purple-400" /> Active Opportunities
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-800">
+                              <th className="p-4 text-xs font-medium text-gray-400 uppercase">Brand</th>
+                              <th className="p-4 text-xs font-medium text-gray-400 uppercase">Niche</th>
+                              <th className="p-4 text-xs font-medium text-gray-400 uppercase">Est. Deal</th>
+                              <th className="p-4 text-xs font-medium text-gray-400 uppercase">Fit Score</th>
+                              <th className="p-4 text-xs font-medium text-gray-400 uppercase text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-800">
+                            {sponsorData.opportunities.map((opp: any, i: number) => (
+                              <tr key={i} className="hover:bg-gray-800/20 transition-colors">
+                                <td className="p-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded bg-purple-500/10 flex items-center justify-center text-xs text-purple-400 font-bold">
+                                      {opp.brand[0]}
+                                    </div>
+                                    <span className="text-sm font-medium text-white">{opp.brand}</span>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-sm text-gray-300">{opp.niche}</td>
+                                <td className="p-4 text-sm font-bold text-green-400">{opp.estimatedDeal}</td>
+                                <td className="p-4">
+                                  <div className="flex items-center gap-2 w-32">
+                                    <Progress value={opp.fitScore} className="h-1.5" />
+                                    <span className="text-xs text-gray-400">{opp.fitScore}%</span>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-right">
+                                  <Button size="sm" variant="ghost" className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" data-testid={`button-reach-out-${i}`}>
+                                    Reach Out <ChevronRight className="w-4 h-4 ml-1" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <LazySponsorsTab />
+              </Suspense>
+            </div>
+          </UpgradeTabGate>
+        </TabsContent>
+
+        <TabsContent value="merch-intel" className="mt-2">
+          <UpgradeTabGate requiredTier="pro" featureName="Merch Predictor" description="AI-powered analysis of viral phrases and audience demand to suggest high-converting merchandise.">
+            {merchData && (
+              <div className="space-y-6">
+                <Card className="bg-gradient-to-br from-orange-900/20 to-pink-900/20 border-orange-500/20">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-orange-400" /> Viral Moments & Phrases
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {merchData.viralMoments.map((moment: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-gray-900/40 border border-gray-700/30">
+                        <div className="flex items-center gap-4">
+                          <div className="text-2xl font-bold text-orange-400 italic">"{moment.phrase}"</div>
+                          <Badge variant="outline" className="border-orange-500/50 text-orange-400">
+                            {moment.virality}% Virality
+                          </Badge>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-white">{moment.merchandiseType}</p>
+                          <p className="text-xs text-orange-400/70">{moment.urgency}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-white">Top Recommended Products</h3>
+                    <div className="text-sm text-gray-400">Total Opportunity: <span className="text-green-400 font-bold">{merchData.totalOpportunity}</span></div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {merchData.topProducts.map((prod: any, i: number) => (
+                      <Card key={i} className="bg-gray-900/60 border-gray-700/30 hover-elevate">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                              <Tag className="w-5 h-5 text-pink-400" />
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500 uppercase">Demand Score</p>
+                              <p className="text-sm font-bold text-white">{prod.demandScore}/100</p>
+                            </div>
+                          </div>
+                          <h4 className="font-bold text-white mb-1">{prod.product}</h4>
+                          <div className="flex justify-between items-center mt-4">
+                            <div>
+                              <p className="text-xs text-gray-500">Suggested Price</p>
+                              <p className="text-sm font-medium text-white">{prod.suggestedPrice}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Est. Revenue</p>
+                              <p className="text-sm font-bold text-green-400">{prod.estimatedRevenue}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </UpgradeTabGate>
+        </TabsContent>
+
+        <TabsContent value="diversify" className="mt-2">
+          <UpgradeTabGate requiredTier="pro" featureName="Revenue Diversification" description="Analyze your income streams and identify missing opportunities to build a more resilient creator business.">
+            {diversifyData && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <Card className="bg-gray-900/60 border-gray-700/30 text-center flex flex-col items-center justify-center p-6">
+                    <p className="text-sm text-gray-400 uppercase tracking-widest mb-4">Diversification Score</p>
+                    <div className="relative w-32 h-32 flex items-center justify-center mb-2">
+                      <svg className="w-full h-full -rotate-90">
+                        <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="8" className="text-gray-800" />
+                        <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray={364} strokeDashoffset={364 - (364 * diversifyData.overallScore) / 100} className="text-purple-500" strokeLinecap="round" />
+                      </svg>
+                      <span className="absolute text-3xl font-bold text-white">{diversifyData.overallScore}%</span>
+                    </div>
+                    <Badge variant="outline" className={`mt-2 ${diversifyData.riskLevel === 'Low' ? 'border-green-500 text-green-400' : diversifyData.riskLevel === 'Medium' ? 'border-yellow-500 text-yellow-400' : 'border-red-500 text-red-400'}`}>
+                      Risk Level: {diversifyData.riskLevel}
+                    </Badge>
+                  </Card>
+
+                  <Card className="md:col-span-2 bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white">Recommendations</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {diversifyData.recommendations.map((rec: string, i: number) => (
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-purple-500/5 border border-purple-500/10">
+                          <Sparkles className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+                          <p className="text-sm text-gray-300">{rec}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="bg-gray-900/60 border-gray-700/30">
+                  <CardHeader>
+                    <CardTitle className="text-white">Revenue Stream Analysis</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-800">
+                            <th className="p-4 text-xs font-medium text-gray-400 uppercase">Stream Source</th>
+                            <th className="p-4 text-xs font-medium text-gray-400 uppercase">Current Share</th>
+                            <th className="p-4 text-xs font-medium text-gray-400 uppercase">Potential</th>
+                            <th className="p-4 text-xs font-medium text-gray-400 uppercase">Status</th>
+                            <th className="p-4 text-xs font-medium text-gray-400 uppercase text-right">Est. Monthly</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800">
+                          {diversifyData.streams.map((stream: any, i: number) => (
+                            <tr key={i} className="hover:bg-gray-800/20 transition-colors">
+                              <td className="p-4 text-sm font-medium text-white">{stream.source}</td>
+                              <td className="p-4">
+                                <div className="flex items-center gap-2 w-24">
+                                  <Progress value={stream.current} className="h-1.5" />
+                                  <span className="text-xs text-gray-400">{stream.current}%</span>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex items-center gap-2 w-24">
+                                  <Progress value={stream.potential} className="h-1.5 bg-gray-800" />
+                                  <span className="text-xs text-gray-400">{stream.potential}%</span>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                {stream.implemented ? (
+                                  <Badge variant="outline" className="border-green-500/30 text-green-400">Active</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-gray-500/30 text-gray-400">Unused</Badge>
+                                )}
+                              </td>
+                              <td className="p-4 text-right text-sm font-bold text-white">{stream.monthlyEstimate}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="bg-gray-900/60 border-gray-700/30 border-dashed">
+                    <CardHeader>
+                      <CardTitle className="text-white text-sm uppercase tracking-widest flex items-center gap-2">
+                        <TrendingDown className="w-4 h-4 text-red-400" /> Missing Streams
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {diversifyData.missingStreams.map((miss: string, i: number) => (
+                        <Badge key={i} variant="secondary" className="bg-gray-800 text-gray-300">
+                          {miss}
+                        </Badge>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
           </UpgradeTabGate>
         </TabsContent>
       </Tabs>

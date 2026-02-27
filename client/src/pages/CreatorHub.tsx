@@ -6,15 +6,33 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Users, Network, Heart, Trophy, UserPlus, ArrowRightLeft, Megaphone,
-  Gift, Star, Target, Sparkles, PartyPopper, MessageCircle, Vote
+  Gift, Star, Target, Sparkles, PartyPopper, MessageCircle, Vote,
+  FileText, TrendingUp, DollarSign, PieChart, Activity, Briefcase, ChevronRight, CheckCircle, AlertCircle
 } from "lucide-react";
 import { useState } from "react";
 
 export default function CreatorHub() {
+  const { user } = useAuth();
+  const userId = user?.id;
   const [networkName, setNetworkName] = useState("");
   const [networkDesc, setNetworkDesc] = useState("");
+
+  const { data: reportCard } = useQuery({ 
+    queryKey: ["/api/creator/report-card", userId],
+    enabled: !!userId 
+  });
+  const { data: valuation } = useQuery({ 
+    queryKey: ["/api/creator/valuation", userId],
+    enabled: !!userId 
+  });
+  const { data: financials } = useQuery({ 
+    queryKey: ["/api/creator/burn-rate", userId],
+    enabled: !!userId 
+  });
 
   const { data: networks = [], isLoading } = useQuery({ queryKey: ["/api/nexus/networks"] });
   const { data: achievements = [] } = useQuery({ queryKey: ["/api/nexus/achievements"] });
@@ -43,8 +61,11 @@ export default function CreatorHub() {
           </div>
         </div>
 
-        <Tabs defaultValue="networks" className="space-y-4">
+        <Tabs defaultValue="report-card" className="space-y-4">
           <TabsList className="bg-gray-900/60 border border-gray-700/30 p-1 flex-wrap">
+            <TabsTrigger value="report-card" data-testid="tab-report-card">Report Card</TabsTrigger>
+            <TabsTrigger value="valuation" data-testid="tab-valuation">Valuation</TabsTrigger>
+            <TabsTrigger value="financials" data-testid="tab-financials">Financials</TabsTrigger>
             <TabsTrigger value="networks" data-testid="tab-networks">Creator Networks</TabsTrigger>
             <TabsTrigger value="achievements" data-testid="tab-achievements">Achievements</TabsTrigger>
             <TabsTrigger value="clone" data-testid="tab-clone">AI Creator Clone</TabsTrigger>
@@ -52,6 +73,282 @@ export default function CreatorHub() {
             <TabsTrigger value="collab" data-testid="tab-collab">Collaboration Radar</TabsTrigger>
             <TabsTrigger value="wellness" data-testid="tab-wellness">Creator Wellness</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="report-card" className="space-y-4">
+            {reportCard && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg shadow-purple-500/20">
+                      {reportCard.overallGrade}
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-white">Creator Report Card</h2>
+                      <p className="text-gray-400">Month of {reportCard.month}</p>
+                    </div>
+                  </div>
+                  <div className="bg-gray-900/60 border border-gray-700/30 rounded-xl p-4 text-center min-w-[120px]">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Overall Score</p>
+                    <p className="text-3xl font-bold text-purple-400">{reportCard.score}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {reportCard.kpis.map((kpi: any, idx: number) => (
+                    <Card key={idx} className="bg-gray-900/60 border-gray-700/30 hover-elevate" data-testid={`kpi-card-${idx}`}>
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="text-sm text-gray-400">{kpi.name}</p>
+                          <Badge variant="outline" className={`
+                            ${kpi.grade === 'A' ? 'border-green-500 text-green-400' : 
+                              kpi.grade === 'B' ? 'border-blue-500 text-blue-400' :
+                              kpi.grade === 'C' ? 'border-yellow-500 text-yellow-400' : 'border-red-500 text-red-400'}
+                          `}>
+                            {kpi.grade}
+                          </Badge>
+                        </div>
+                        <p className="text-xl font-bold text-white">{kpi.value}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-xs ${kpi.trend.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                            {kpi.trend}
+                          </span>
+                          <span className="text-[10px] text-gray-500">vs {kpi.benchmark} bench</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-yellow-400" /> Top Wins
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {reportCard.topWins.map((win: string, i: number) => (
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                          <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                          <p className="text-sm text-gray-200">{win}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Target className="w-5 h-5 text-purple-400" /> Opportunities
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {reportCard.topOpportunities.map((opp: string, i: number) => (
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                          <AlertCircle className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+                          <p className="text-sm text-gray-200">{opp}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="valuation" className="space-y-6">
+            {valuation && (
+              <div className="space-y-6">
+                <Card className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-purple-500/30">
+                  <CardContent className="p-8 text-center">
+                    <p className="text-sm text-purple-300 uppercase tracking-widest mb-2 font-medium">Estimated Creator Net Worth</p>
+                    <h2 className="text-6xl md:text-7xl font-bold text-white tracking-tight mb-4" data-testid="text-valuation-total">
+                      {valuation.estimatedValue}
+                    </h2>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-full max-w-md h-3 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+                        <div className="h-full bg-gradient-to-r from-purple-500 to-blue-500" style={{ width: '65%' }} />
+                      </div>
+                      <div className="flex justify-between w-full max-w-md text-xs text-gray-500">
+                        <span>Low: {valuation.valueRange.low}</span>
+                        <span>Mid: {valuation.valueRange.mid}</span>
+                        <span>High: {valuation.valueRange.high}</span>
+                      </div>
+                      <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 border-purple-500/30">
+                        Methodology: {valuation.methodology}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-gray-400 font-medium uppercase tracking-wider">Revenue Multiple</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold text-white">{valuation.multiples.revenueMultiple}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-gray-400 font-medium uppercase tracking-wider">Audience Multiple</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold text-white">{valuation.multiples.audienceMultiple}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-gray-400 font-medium uppercase tracking-wider">Growth Multiple</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold text-white">{valuation.multiples.growthMultiple}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-blue-400" /> Valuation Breakdown
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {valuation.breakdown.map((item: any, i: number) => (
+                        <div key={i} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-300">{item.factor}</span>
+                            <span className="text-white font-medium">{item.contribution}</span>
+                          </div>
+                          <Progress value={item.weight * 100} className="h-1.5" />
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Users className="w-5 h-5 text-purple-400" /> Market Comparables
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {valuation.comparables.map((comp: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/40 border border-gray-700/20">
+                            <div>
+                              <p className="text-sm font-medium text-white">{comp.channel}</p>
+                              <p className="text-xs text-gray-500">{comp.size}</p>
+                            </div>
+                            <p className="text-sm font-bold text-purple-400">{comp.valuation}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="financials" className="space-y-6">
+            {financials && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Monthly Revenue</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold text-green-400">{financials.monthlyRevenue}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Monthly Expenses</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold text-red-400">{financials.monthlyExpenses}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Net Profit</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold text-blue-400">{financials.netProfit}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs text-gray-400 font-medium uppercase tracking-wider">Profit Margin</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold text-purple-400">{financials.profitMargin}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <PieChart className="w-5 h-5 text-red-400" /> Expense Breakdown
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {financials.expensesByCategory.map((cat: any, i: number) => (
+                        <div key={i} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-300">{cat.category}</span>
+                            <span className="text-white font-medium">{cat.amount} ({cat.percentage}%)</span>
+                          </div>
+                          <Progress value={cat.percentage} className="h-1.5 bg-gray-800" />
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gray-900/60 border-gray-700/30">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-green-400" /> Financial Trends
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-purple-500/20">
+                          <div>
+                            <p className="text-xs text-gray-400 uppercase">Revenue Per Hour</p>
+                            <p className="text-2xl font-bold text-white">{financials.revenuePerHour}</p>
+                          </div>
+                          <Activity className="w-8 h-8 text-purple-400 opacity-50" />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-gray-400 uppercase tracking-wider">Last 6 Months</p>
+                          <div className="flex items-end justify-between h-24 gap-1 px-2">
+                            {financials.trends.map((t: any, i: number) => (
+                              <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                <div className="w-full bg-blue-500/20 rounded-t-sm hover:bg-blue-500/40 transition-colors" style={{ height: `${(t.revenue / 50000) * 100}%` }} />
+                                <div className="w-full bg-red-500/20 rounded-t-sm hover:bg-red-500/40 transition-colors -mt-1" style={{ height: `${(t.expenses / 50000) * 100}%` }} />
+                                <span className="text-[10px] text-gray-600 uppercase">{t.month}</span>
+                                <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 p-2 rounded hidden group-hover:block z-10 whitespace-nowrap">
+                                  <p className="text-xs text-green-400">Rev: {t.revenue}</p>
+                                  <p className="text-xs text-red-400">Exp: {t.expenses}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="networks" className="space-y-4">
             <Card className="bg-gray-900/60 border-gray-700/30">

@@ -59,6 +59,7 @@ const IntelligenceHub = lazyRetry(() => import("@/pages/IntelligenceHub"));
 const ContentCommand = lazyRetry(() => import("@/pages/ContentCommand"));
 const Simulator = lazyRetry(() => import("@/pages/Simulator"));
 const CreatorHub = lazyRetry(() => import("@/pages/CreatorHub"));
+const AIFactory = lazyRetry(() => import("@/pages/AIFactory"));
 const AICommand = lazyRetry(() => import("@/pages/AICommand"));
 const WarRoom = lazyRetry(() => import("@/pages/WarRoom"));
 const Workspace = lazyRetry(() => import("@/pages/Workspace"));
@@ -93,6 +94,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/autopilot": { title: "Autopilot", description: "Fully autonomous content clipping, scheduling, comment response, and cross-platform posting." },
   "/simulator": { title: "Simulator", description: "What-if scenarios, time machine projections, momentum tracking, and revenue attribution analysis." },
   "/ai-command": { title: "AI Command", description: "Configure AI personality, voice commands, daily briefings, and platform failover rules." },
+  "/ai-factory": { title: "AI Factory", description: "20 AI-powered tools to dominate every platform including title, hook, and strategy generators." },
   "/war-room": { title: "War Room", description: "Real-time crisis detection, threat scanning, anomaly monitoring, and automated recovery plans." },
   "/creator-hub": { title: "Creator Hub", description: "Creator networks, collaboration matching, achievements, AI clone, and wellness tracking." },
   "/workspace": { title: "Workspace", description: "Team inbox, asset library, reports, email lists, Discord bot, merch, and tip tracking." },
@@ -174,11 +176,10 @@ function Router() {
       <Route path="/stream-loop">{() => <SectionErrorBoundary fallbackTitle="Stream Loop failed to load"><StreamLoop /></SectionErrorBoundary>}</Route>
       <Route path="/vod-shorts-loop">{() => <SectionErrorBoundary fallbackTitle="VOD/Shorts Loop failed to load"><VodShortsLoop /></SectionErrorBoundary>}</Route>
       <Route path="/mission-control">{() => <SectionErrorBoundary fallbackTitle="Mission Control failed to load"><MissionControl /></SectionErrorBoundary>}</Route>
+      <Route path="/ai-factory">{() => <SectionErrorBoundary fallbackTitle="AI Factory failed to load"><AIFactory /></SectionErrorBoundary>}</Route>
+      <Route path="/ai-factory/:tab">{() => <SectionErrorBoundary fallbackTitle="AI Factory failed to load"><AIFactory /></SectionErrorBoundary>}</Route>
       <Route path="/intelligence">{() => <SectionErrorBoundary fallbackTitle="Intelligence Hub failed to load"><IntelligenceHub /></SectionErrorBoundary>}</Route>
-      <Route path="/content-command">{() => <SectionErrorBoundary fallbackTitle="Content Command failed to load"><ContentCommand /></SectionErrorBoundary>}</Route>
-      <Route path="/simulator">{() => <SectionErrorBoundary fallbackTitle="Simulator failed to load"><Simulator /></SectionErrorBoundary>}</Route>
-      <Route path="/creator-hub">{() => <SectionErrorBoundary fallbackTitle="Creator Hub failed to load"><CreatorHub /></SectionErrorBoundary>}</Route>
-      <Route path="/ai-command">{() => <SectionErrorBoundary fallbackTitle="AI Command failed to load"><AICommand /></SectionErrorBoundary>}</Route>
+      <Route path="/intelligence/:tab">{() => <SectionErrorBoundary fallbackTitle="Intelligence Hub failed to load"><IntelligenceHub /></SectionErrorBoundary>}</Route>
       <Route path="/war-room">{() => <SectionErrorBoundary fallbackTitle="War Room failed to load"><WarRoom /></SectionErrorBoundary>}</Route>
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
       <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>

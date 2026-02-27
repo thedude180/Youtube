@@ -15,13 +15,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/PageState";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Gift, BarChart3, Trophy, Star, Shield, Plus, Loader2, Users,
   Crown, Award, Medal, Target, MessageSquare, Calendar,
-  ChevronRight, Trash2, Check, Vote, Sparkles,
+  ChevronRight, Trash2, Check, Vote, Sparkles, Activity,
+  Zap, Heart, AlertTriangle, Radar, Clock,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type CommunityTab = "giveaways" | "polls" | "challenges" | "loyalty" | "moderation";
+type CommunityTab = "giveaways" | "polls" | "challenges" | "loyalty" | "moderation" | "health" | "superfans" | "radar";
 
 type Giveaway = {
   id: number;
@@ -94,6 +98,322 @@ const LEVEL_ICONS: Record<string, typeof Medal> = {
   gold: Star,
   platinum: Crown,
 };
+
+function HealthTab() {
+  const { user } = useAuth();
+  const { data, isLoading, error } = useQuery<{
+    overallScore: number;
+    grade: string;
+    components: {
+      toxicityRate: number;
+      responseRate: number;
+      growthRate: number;
+      retentionRate: number;
+      sentimentScore: number;
+    };
+    alerts: string[];
+    strengths: string[];
+    improvements: string[];
+  }>({
+    queryKey: [`/api/community/health-score/${user?.id}`],
+    enabled: !!user?.id,
+  });
+
+  if (isLoading) return <Skeleton className="h-[400px] w-full" data-testid="skeleton-health" />;
+  if (error || !data) return <ErrorState message="Failed to load community health score" />;
+
+  return (
+    <div className="space-y-4" data-testid="tab-content-health">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="md:col-span-1">
+          <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Overall Health</h3>
+            <div className="relative h-24 w-24 mb-2">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-3xl font-bold" data-testid="text-health-score">{data.overallScore}</span>
+              </div>
+              <svg className="h-full w-full" viewBox="0 0 36 36">
+                <path
+                  className="stroke-muted fill-none"
+                  strokeWidth="3"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <path
+                  className="stroke-primary fill-none transition-all duration-1000"
+                  strokeWidth="3"
+                  strokeDasharray={`${data.overallScore}, 100`}
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+              </svg>
+            </div>
+            <Badge variant="outline" className="text-lg px-3 py-0.5" data-testid="badge-health-grade">{data.grade}</Badge>
+          </CardContent>
+        </Card>
+
+        <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {Object.entries(data.components).map(([key, value]) => (
+            <Card key={key} className="p-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                {key.replace(/([A-Z])/g, ' $1').trim()}
+              </p>
+              <div className="flex items-end justify-between">
+                <span className="text-lg font-bold" data-testid={`text-health-component-${key}`}>{value}%</span>
+                <Progress value={value} className="h-1 w-12 mb-1.5" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-4">
+          <h4 className="text-xs font-bold flex items-center gap-1.5 mb-3 text-red-500">
+            <AlertTriangle className="h-3.5 w-3.5" /> Critical Alerts
+          </h4>
+          <ul className="space-y-2">
+            {data.alerts.map((alert, i) => (
+              <li key={i} className="text-xs flex gap-2" data-testid={`text-health-alert-${i}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 mt-1 shrink-0" />
+                {alert}
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card className="p-4">
+          <h4 className="text-xs font-bold flex items-center gap-1.5 mb-3 text-green-500">
+            <Check className="h-3.5 w-3.5" /> Key Strengths
+          </h4>
+          <ul className="space-y-2">
+            {data.strengths.map((strength, i) => (
+              <li key={i} className="text-xs flex gap-2" data-testid={`text-health-strength-${i}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 mt-1 shrink-0" />
+                {strength}
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card className="p-4">
+          <h4 className="text-xs font-bold flex items-center gap-1.5 mb-3 text-blue-500">
+            <Zap className="h-3.5 w-3.5" /> Improvements
+          </h4>
+          <ul className="space-y-2">
+            {data.improvements.map((improvement, i) => (
+              <li key={i} className="text-xs flex gap-2" data-testid={`text-health-improvement-${i}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
+                {improvement}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SuperFansTab() {
+  const { user } = useAuth();
+  const { data: fans, isLoading: loadingFans } = useQuery<{
+    id: string;
+    username: string;
+    avatar: string;
+    points: number;
+    engagementScore: number;
+    tier: string;
+    lastActive: string;
+  }[]>({
+    queryKey: [`/api/audience/top-fans/${user?.id}`],
+    enabled: !!user?.id,
+  });
+
+  const { data: segments } = useQuery<{
+    name: string;
+    size: number;
+    growth: number;
+    description: string;
+  }[]>({
+    queryKey: ["/api/audience/segments", user?.id],
+    enabled: !!user?.id,
+  });
+
+  const coreFans = segments?.find(s => s.name === "Core Fans");
+
+  if (loadingFans) return <Skeleton className="h-[400px] w-full" data-testid="skeleton-superfans" />;
+
+  return (
+    <div className="space-y-4" data-testid="tab-content-superfans">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-4 flex flex-col items-center justify-center">
+          <Users className="h-8 w-8 text-primary mb-2" />
+          <span className="text-2xl font-bold" data-testid="text-total-superfans">{fans?.length || 0}</span>
+          <p className="text-xs text-muted-foreground">Identified Superfans</p>
+        </Card>
+        <Card className="p-4 flex flex-col items-center justify-center">
+          <Activity className="h-8 w-8 text-green-500 mb-2" />
+          <span className="text-2xl font-bold" data-testid="text-superfan-growth">+12%</span>
+          <p className="text-xs text-muted-foreground">Superfan Growth Rate</p>
+        </Card>
+        <Card className="p-4 border-primary/50 bg-primary/5">
+          <div className="flex items-center gap-2 mb-2">
+            <Heart className="h-4 w-4 text-primary" />
+            <h4 className="text-sm font-bold">Core Fans Segment</h4>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">{coreFans?.description || "Your most loyal and active community members."}</p>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium" data-testid="text-core-fans-size">{coreFans?.size || 0} members</span>
+            <Badge className="bg-primary/20 text-primary border-primary/20" data-testid="badge-core-fans-growth">+{coreFans?.growth || 0}% growth</Badge>
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <div className="p-4 border-b">
+          <h3 className="text-sm font-bold flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-yellow-500" /> Superfan Leaderboard
+          </h3>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12 text-center">Rank</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead className="text-right">Points</TableHead>
+              <TableHead className="text-right">Engagement</TableHead>
+              <TableHead className="text-right">Tier</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {fans?.map((fan, i) => (
+              <TableRow key={fan.id} data-testid={`row-fan-${fan.id}`}>
+                <TableCell className="text-center font-medium">{i + 1}</TableCell>
+                <TableCell className="font-medium" data-testid={`text-fan-username-${fan.id}`}>{fan.username}</TableCell>
+                <TableCell className="text-right" data-testid={`text-fan-points-${fan.id}`}>{fan.points.toLocaleString()}</TableCell>
+                <TableCell className="text-right" data-testid={`text-fan-engagement-${fan.id}`}>{fan.engagementScore}%</TableCell>
+                <TableCell className="text-right">
+                  <Badge variant="outline" className="capitalize" data-testid={`badge-fan-tier-${fan.id}`}>{fan.tier}</Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    </div>
+  );
+}
+
+function RadarTab() {
+  const { user } = useAuth();
+  const { data, isLoading, error } = useQuery<{
+    riskLevel: string;
+    mentions: {
+      platform: string;
+      sentiment: string;
+      volume: number;
+      trending: boolean;
+      summary: string;
+    }[];
+    overallSentiment: number;
+    recommendations: string[];
+    lastChecked: string;
+  }>({
+    queryKey: [`/api/community/controversy-radar/${user?.id}`],
+    enabled: !!user?.id,
+  });
+
+  if (isLoading) return <Skeleton className="h-[400px] w-full" data-testid="skeleton-radar" />;
+  if (error || !data) return <ErrorState message="Failed to load controversy radar" />;
+
+  const riskColor = {
+    low: "bg-green-500/20 text-green-500 border-green-500/20",
+    medium: "bg-yellow-500/20 text-yellow-500 border-yellow-500/20",
+    high: "bg-red-500/20 text-red-500 border-red-500/20",
+    critical: "bg-red-700/20 text-red-700 border-red-700/20 animate-pulse",
+  }[data.riskLevel.toLowerCase()] || "bg-muted text-muted-foreground";
+
+  return (
+    <div className="space-y-4" data-testid="tab-content-radar">
+      <div className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-full">
+            <Radar className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold">Controversy Radar</h3>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" /> Last scanned: {new Date(data.lastChecked).toLocaleString()}
+              <Badge variant="secondary" className="h-4 text-[8px] px-1 uppercase ml-2">Auto-Monitored</Badge>
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase text-muted-foreground mb-1">Current Risk Level</p>
+          <Badge className={`${riskColor} capitalize px-4 py-1 text-sm font-bold`} data-testid="badge-risk-level">{data.riskLevel}</Badge>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2 overflow-hidden">
+          <div className="p-3 bg-muted/50 border-b flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider">Social Mentions & Sentiment</h4>
+            <div className="flex items-center gap-2 text-[10px]">
+              <span>Sentiment Score:</span>
+              <span className="font-bold text-primary">{data.overallSentiment}%</span>
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-transparent">
+                <TableHead className="text-[10px] py-2">Platform</TableHead>
+                <TableHead className="text-[10px] py-2">Sentiment</TableHead>
+                <TableHead className="text-[10px] py-2">Volume</TableHead>
+                <TableHead className="text-[10px] py-2">Trend</TableHead>
+                <TableHead className="text-[10px] py-2">Summary</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.mentions.map((m, i) => (
+                <TableRow key={i} data-testid={`row-mention-${i}`}>
+                  <TableCell className="py-2 text-xs font-medium">{m.platform}</TableCell>
+                  <TableCell className="py-2">
+                    <Badge variant="outline" className="text-[10px] capitalize">{m.sentiment}</Badge>
+                  </TableCell>
+                  <TableCell className="py-2 text-xs">{m.volume}</TableCell>
+                  <TableCell className="py-2">
+                    {m.trending ? (
+                      <span className="text-red-500 flex items-center gap-0.5 text-[10px] font-bold">
+                        <Zap className="h-3 w-3 fill-current" /> RISING
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-[10px]">STABLE</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-2 text-[10px] text-muted-foreground max-w-[200px] truncate">{m.summary}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+
+        <Card className="p-4 bg-primary/5 border-primary/20">
+          <h4 className="text-xs font-bold flex items-center gap-1.5 mb-4 uppercase tracking-wider">
+            <Shield className="h-4 w-4 text-primary" /> Strategic Recommendations
+          </h4>
+          <ul className="space-y-3">
+            {data.recommendations.map((rec, i) => (
+              <li key={i} className="text-xs flex gap-3 p-2 rounded bg-background border" data-testid={`text-radar-recommendation-${i}`}>
+                <span className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-[10px] font-bold text-primary">
+                  {i + 1}
+                </span>
+                {rec}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 function GiveawaysTab() {
   const { toast } = useToast();
@@ -884,6 +1204,15 @@ export default function Community() {
           <TabsTrigger value="moderation" data-testid="tab-moderation">
             <Shield className="h-3.5 w-3.5 mr-1.5" />Moderation
           </TabsTrigger>
+          <TabsTrigger value="health" data-testid="tab-health">
+            <Activity className="h-3.5 w-3.5 mr-1.5" />Health
+          </TabsTrigger>
+          <TabsTrigger value="superfans" data-testid="tab-superfans">
+            <Heart className="h-3.5 w-3.5 mr-1.5" />Super Fans
+          </TabsTrigger>
+          <TabsTrigger value="radar" data-testid="tab-radar">
+            <Radar className="h-3.5 w-3.5 mr-1.5" />Radar
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="giveaways" className="mt-2">
@@ -909,6 +1238,21 @@ export default function Community() {
         <TabsContent value="moderation" className="mt-2">
           <UpgradeTabGate requiredTier="pro" featureName="Moderation Tools" description="Advanced moderation tools to keep your community safe and maintain a positive environment.">
             <ModerationTab />
+          </UpgradeTabGate>
+        </TabsContent>
+        <TabsContent value="health" className="mt-2">
+          <UpgradeTabGate requiredTier="pro" featureName="Community Health" description="Monitor the overall health of your community with toxicity, sentiment, and engagement metrics.">
+            <HealthTab />
+          </UpgradeTabGate>
+        </TabsContent>
+        <TabsContent value="superfans" className="mt-2">
+          <UpgradeTabGate requiredTier="pro" featureName="Superfans" description="Identify and reward your most loyal fans with exclusive insights and leaderboards.">
+            <SuperFansTab />
+          </UpgradeTabGate>
+        </TabsContent>
+        <TabsContent value="radar" className="mt-2">
+          <UpgradeTabGate requiredTier="ultimate" featureName="Controversy Radar" description="AI-powered real-time monitoring of social sentiment and potential brand risks.">
+            <RadarTab />
           </UpgradeTabGate>
         </TabsContent>
       </Tabs>

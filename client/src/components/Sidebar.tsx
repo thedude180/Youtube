@@ -62,6 +62,7 @@ const navLinks = [
   { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free", advancedOnly: false },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
   { href: "/autopilot", labelKey: "nav.autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
+  { href: "/ai-factory", labelKey: "nav.aiFactory", icon: Sparkles, minTier: "free", advancedOnly: false },
   { href: "/simulator", labelKey: "nav.simulator", icon: FlaskConical, minTier: "free", advancedOnly: false },
   { href: "/ai-command", labelKey: "nav.aiCommand", icon: Sparkles, minTier: "free", advancedOnly: false },
   { href: "/war-room", labelKey: "nav.warRoom", icon: Siren, minTier: "pro", advancedOnly: false },

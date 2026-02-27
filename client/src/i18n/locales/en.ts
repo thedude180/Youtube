@@ -14,6 +14,7 @@ export default {
       zeroToOne: "Zero to #1",
       autopilot: "Autopilot",
       simulator: "Simulator",
+      aiFactory: "AI Factory",
       aiCommand: "AI Command",
       warRoom: "War Room",
       creatorHub: "Creator Hub",

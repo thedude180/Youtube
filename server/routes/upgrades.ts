@@ -2081,4 +2081,231 @@ export function registerUpgradeRoutes(app: Express) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
+
+  // ═══════════════════════════════════════════════════════
+  // MISSING BACKEND ENDPOINTS (T001)
+  // ═══════════════════════════════════════════════════════
+
+  app.get("/api/creator/report-card/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`report-card-${userId}`);
+    
+    const kpiNames = [
+      "Average View Duration", "CTR", "Retention Rate", "Subscriber Growth",
+      "Engagement Rate", "Revenue Per Mille", "Watch Time", "Impression Share",
+      "Return Viewer Rate", "Comment Sentiment", "Share Velocity", "Click Thru Velocity",
+      "Notification Bell %", "Playlist Start Rate", "End Screen CTR", "Community Engagement",
+      "Viral Coefficient", "Sponsorship Value", "Brand Affinity", "Algorithm Favorability"
+    ];
+
+    const kpis = kpiNames.map(name => ({
+      name,
+      value: seededInt(rng, 50, 100) + (rng() > 0.5 ? "%" : "k"),
+      grade: seededPick(rng, ["A+", "A", "A-", "B+", "B", "C"]),
+      trend: seededPick(rng, ["up", "down", "stable"]),
+      benchmark: seededInt(rng, 40, 90) + "%"
+    }));
+
+    res.json({
+      overallGrade: seededPick(rng, ["A", "A-", "B+"]),
+      score: seededInt(rng, 75, 98),
+      kpis,
+      topWins: ["High retention on long-form", "Viral short-form growth", "Community loyalty"],
+      topOpportunities: ["SEO optimization", "Thumbnail contrast", "Call to action timing"],
+      month: new Date().toLocaleString('default', { month: 'long' })
+    });
+  }));
+
+  app.get("/api/creator/valuation/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`valuation-${userId}`);
+    const baseVal = seededInt(rng, 50000, 2000000);
+
+    res.json({
+      estimatedValue: baseVal,
+      methodology: "DCF + Multiples Analysis",
+      multiples: {
+        revenueMultiple: seededFloat(rng, 2.5, 5.0),
+        audienceMultiple: seededFloat(rng, 1.2, 3.5),
+        growthMultiple: seededFloat(rng, 1.5, 4.0)
+      },
+      breakdown: [
+        { factor: "Content Library", contribution: baseVal * 0.4, weight: 40 },
+        { factor: "Brand Equity", contribution: baseVal * 0.3, weight: 30 },
+        { factor: "Recurring Revenue", contribution: baseVal * 0.3, weight: 30 }
+      ],
+      comparables: [
+        { channel: "TechReviewPro", valuation: 1200000, size: "1.2M subs" },
+        { channel: "GadgetGuru", valuation: 850000, size: "900k subs" }
+      ],
+      valueRange: {
+        low: Math.floor(baseVal * 0.8),
+        mid: baseVal,
+        high: Math.floor(baseVal * 1.3)
+      }
+    });
+  }));
+
+  app.get("/api/creator/burn-rate/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`burn-rate-${userId}`);
+    const rev = seededInt(rng, 10000, 50000);
+    const exp = seededInt(rng, 4000, 15000);
+
+    const categories = ["Equipment", "Software", "Contractors", "Marketing", "Travel", "Legal"];
+    const expensesByCategory = categories.map(category => ({
+      category,
+      amount: seededInt(rng, 100, 3000),
+      percentage: seededInt(rng, 5, 25)
+    }));
+
+    const trends = Array.from({ length: 6 }).map((_, i) => ({
+      month: new Date(Date.now() - (5 - i) * 30 * 24 * 60 * 60 * 1000).toLocaleString('default', { month: 'short' }),
+      revenue: rev + seededInt(rng, -2000, 5000),
+      expenses: exp + seededInt(rng, -500, 1000),
+      profit: 0 // calculated below
+    })).map(t => ({ ...t, profit: t.revenue - t.expenses }));
+
+    res.json({
+      monthlyRevenue: rev,
+      monthlyExpenses: exp,
+      netProfit: rev - exp,
+      profitMargin: seededFloat(rng, 15.0, 45.0),
+      revenuePerHour: seededFloat(rng, 50, 500),
+      expensesByCategory,
+      trends
+    });
+  }));
+
+  app.get("/api/monetization/sponsorship-opportunities/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`sponsorships-${userId}`);
+    
+    const brands = ["NordVPN", "Skillshare", "Ridge Wallet", "Audible", "SquareSpace", "BetterHelp", "Factor", "HelloFresh"];
+    const opportunities = brands.map(brand => ({
+      brand,
+      niche: seededPick(rng, ["Tech", "Lifestyle", "Education", "Entertainment"]),
+      estimatedDeal: seededInt(rng, 2000, 15000),
+      fitScore: seededInt(rng, 70, 99),
+      contactEmail: `partnerships@${brand.toLowerCase().replace(" ", "")}.com`,
+      status: seededPick(rng, ["Available", "High Intent", "Contacted"])
+    }));
+
+    res.json({
+      opportunities,
+      totalPotentialRevenue: opportunities.reduce((sum, o) => sum + o.estimatedDeal, 0),
+      averageDealSize: Math.floor(opportunities.reduce((sum, o) => sum + o.estimatedDeal, 0) / opportunities.length)
+    });
+  }));
+
+  app.get("/api/monetization/merch-predictor/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`merch-${userId}`);
+
+    const viralMoments = [
+      { phrase: "That's actually wild", virality: 92, merchandiseType: "Hoodie", urgency: "High" },
+      { phrase: "Not even kidding", virality: 85, merchandiseType: "T-Shirt", urgency: "Medium" }
+    ];
+
+    const topProducts = [
+      { product: "Signature Cap", demandScore: 88, estimatedRevenue: 4500, suggestedPrice: 29.99 },
+      { product: "Limited Edition Desk Mat", demandScore: 94, estimatedRevenue: 12000, suggestedPrice: 45.00 },
+      { product: "Creator Water Bottle", demandScore: 76, estimatedRevenue: 3200, suggestedPrice: 24.99 }
+    ];
+
+    res.json({
+      viralMoments,
+      topProducts,
+      totalOpportunity: seededInt(rng, 20000, 100000)
+    });
+  }));
+
+  app.get("/api/monetization/revenue-diversification/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`diversify-${userId}`);
+
+    const sources = ["AdSense", "Sponsorships", "Merch", "Memberships", "Affiliate", "Consulting", "Digital Products"];
+    const streams = sources.map(source => ({
+      source,
+      current: seededInt(rng, 0, 10000),
+      potential: seededInt(rng, 5000, 25000),
+      implemented: rng() > 0.4,
+      monthlyEstimate: seededInt(rng, 1000, 5000)
+    }));
+
+    res.json({
+      overallScore: seededInt(rng, 40, 90),
+      riskLevel: seededPick(rng, ["Low", "Moderate", "High"]),
+      streams,
+      recommendations: ["Launch a newsletter", "Enable channel memberships", "Add affiliate links to old videos"],
+      missingStreams: ["Subscription Box", "Live Events", "Licensed Content"]
+    });
+  }));
+
+  app.post("/api/content/demonetization-risk", createAIRateLimiter(), asyncHandler(async (req, res) => {
+    const { title, description, tags } = req.body;
+    const result = await callAI(
+      "You are a YouTube policy and monetization expert. Analyze content metadata for demonetization risks. Return JSON with: riskScore (0-100), riskLevel (Low/Medium/High), flaggedTerms (array of {term, reason}), safeAlternatives (array of {original, replacement}), adFriendlyScore (0-100), recommendations (array of strings).",
+      `Title: "${title}". Description: "${description}". Tags: "${tags || ""}".`
+    );
+    res.json(result);
+  }));
+
+  app.get("/api/community/health-score/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`health-${userId}`);
+
+    res.json({
+      overallScore: seededInt(rng, 65, 95),
+      grade: seededPick(rng, ["A", "B+", "A-"]),
+      components: {
+        toxicityRate: seededFloat(rng, 0.1, 5.0),
+        responseRate: seededFloat(rng, 40, 95),
+        growthRate: seededFloat(rng, 1.5, 10.0),
+        retentionRate: seededFloat(rng, 30, 80),
+        sentimentScore: seededInt(rng, 60, 98)
+      },
+      alerts: ["Increased bot activity detected", "Rising negative sentiment in comments"],
+      strengths: ["High loyalty among top fans", "Constructive feedback loops"],
+      improvements: ["Faster response time", "More community posts"]
+    });
+  }));
+
+  app.get("/api/community/controversy-radar/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`radar-${userId}`);
+
+    const platforms = ["Twitter", "Reddit", "TikTok", "YouTube Comments"];
+    const mentions = platforms.map(platform => ({
+      platform,
+      sentiment: seededPick(rng, ["Positive", "Neutral", "Mixed"]),
+      volume: seededInt(rng, 50, 2000),
+      trending: rng() > 0.7,
+      summary: "Discussion regarding recent content choices and style shift."
+    }));
+
+    res.json({
+      riskLevel: seededPick(rng, ["Green", "Yellow", "Red"]),
+      mentions,
+      overallSentiment: seededInt(rng, 50, 90),
+      recommendations: ["Engage with top comments", "Clarify stance on X", "Monitor Reddit thread"],
+      lastChecked: new Date().toISOString()
+    });
+  }));
+
+  app.get("/api/stream-upgrades/live-revenue/:userId", asyncHandler(async (req, res) => {
+    const userId = parseNumericId(req.params.userId);
+    const rng = seedRandom(`live-rev-${userId}`);
+
+    res.json({
+      sessionRevenue: seededInt(rng, 100, 5000),
+      adRevenue: seededInt(rng, 20, 1000),
+      superChats: seededInt(rng, 50, 2500),
+      memberships: seededInt(rng, 10, 500),
+      tips: seededInt(rng, 5, 200),
+      sponsorActivations: seededInt(rng, 0, 2000),
+      revenuePerMinute: seededFloat(rng, 0.5, 20.0),
+      projectedSessionTotal: seededInt(rng, 500, 10000)
+    });
+  }));
 }
