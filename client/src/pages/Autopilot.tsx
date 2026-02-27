@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense, useMemo, useCallback, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { safeArray } from "@/lib/safe-data";
@@ -23,7 +24,7 @@ import { StealthRing } from "@/components/StealthRing";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { PulseOrb } from "@/components/PulseOrb";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop } from "lucide-react";
+import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop, Rocket, Download, FileText, Share2, MessageSquare, Recycle, Shuffle, CheckCircle2, Clock, RefreshCw, AlertCircle, ThumbsUp, ThumbsDown, CalendarClock, DollarSign, Target, Radio, Sparkles, Brain } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 
 
@@ -497,6 +498,8 @@ export default function Autopilot() {
   const [activeTab, setActiveTab] = useState("overview");
   const [queueStatusFilter, setQueueStatusFilter] = useState("all");
   const [queuePage, setQueuePage] = useState(0);
+
+  const [, navigate] = useLocation();
 
   const statsQuery = useQuery<AutopilotStats>({
     queryKey: ["/api/autopilot/stats"],
@@ -1056,16 +1059,16 @@ export default function Autopilot() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {[
-                  { label: "Script Studio", desc: "Full AI scripts", icon: Activity, color: "hsl(265 80% 65%)", href: "/script-studio" },
+                  { label: "Script Studio", desc: "Full AI scripts", icon: FileText, color: "hsl(265 80% 65%)", href: "/script-studio" },
                   { label: "Viral Predictor", desc: "Pre-post scoring", icon: TrendingUp, color: "hsl(0 80% 60%)", href: "/viral-predictor" },
-                  { label: "Brand Deals", desc: "Sponsor CRM", icon: Bot, color: "hsl(45 90% 55%)", href: "/money/sponsors" },
-                  { label: "Growth Map", desc: "0→1M roadmap", icon: TrendingUp, color: "hsl(142 70% 50%)", href: "/growth" },
-                  { label: "AI Factory", desc: "20+ AI tools", icon: Bot, color: "hsl(220 80% 60%)", href: "/ai-factory" },
+                  { label: "Brand Deals", desc: "Sponsor CRM", icon: DollarSign, color: "hsl(45 90% 55%)", href: "/money/sponsors" },
+                  { label: "Growth Map", desc: "0→1M roadmap", icon: Target, color: "hsl(142 70% 50%)", href: "/growth" },
+                  { label: "AI Factory", desc: "20+ AI tools", icon: Brain, color: "hsl(220 80% 60%)", href: "/ai-factory" },
                   { label: "War Room", desc: "Threat detection", icon: Shield, color: "hsl(0 70% 55%)", href: "/war-room" },
-                  { label: "Go Live", desc: "Multi-stream", icon: Activity, color: "hsl(25 90% 55%)", href: "/stream" },
-                  { label: "Intelligence", desc: "Audience deep-dive", icon: Zap, color: "hsl(280 80% 65%)", href: "/intelligence" },
+                  { label: "Go Live", desc: "Multi-stream", icon: Radio, color: "hsl(25 90% 55%)", href: "/stream" },
+                  { label: "Intelligence", desc: "Audience deep-dive", icon: Sparkles, color: "hsl(280 80% 65%)", href: "/intelligence" },
                 ].map((item) => (
-                  <Button key={item.label} variant="outline" onClick={() => window.location.href = item.href}
+                    <Button key={item.label} variant="outline" onClick={() => navigate(item.href)}
                     data-testid={`godmode-launcher-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                     className="h-auto p-3 rounded-xl border border-border/20 bg-muted/10 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left relative overflow-hidden flex flex-col items-start">
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity" style={{ background: item.color }} />
@@ -1078,7 +1081,7 @@ export default function Autopilot() {
 
               <div className="border-t border-border/20 pt-4">
                 <div className="text-xs font-mono text-muted-foreground uppercase mb-3 flex items-center gap-2">
-                  <Activity className="h-3.5 w-3.5 text-emerald-400" /> AI Status — Real Time
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> AI Status — Real Time
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {[

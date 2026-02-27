@@ -118,8 +118,6 @@ export default function WarRoom() {
 
   if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" /></div>;
 
-  const rings = [20, 50, 80, 110, 140];
-
   return (
     <div className={`min-h-screen p-6 transition-colors duration-1000 ${hasActiveCrisis ? "bg-red-950/20 animated-gradient-bg" : "bg-background"}`} data-testid="page-war-room">
       <div className="max-w-[1600px] mx-auto space-y-4 relative z-10">
@@ -129,6 +127,18 @@ export default function WarRoom() {
             <span className="text-red-300 text-xs">All systems on high alert</span>
           </div>
         )}
+
+        <div className="grid md:grid-cols-2 gap-4 mb-4">
+          <div className="card-empire rounded-2xl p-4">
+            <div className="text-xs font-mono text-muted-foreground uppercase mb-3">Threat Detection</div>
+            <RadarScanner crisis={hasActiveCrisis} />
+            <div className="mt-4"><LiveSignalFeed /></div>
+          </div>
+          <div className="card-empire rounded-2xl p-4">
+            <div className="text-xs font-mono text-muted-foreground uppercase mb-3">Threat Level</div>
+            <ThreatLevelGauge level={threatLevel} />
+          </div>
+        </div>
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -160,41 +170,6 @@ export default function WarRoom() {
             <RefreshCw className={`w-4 h-4 mr-2 ${scanThreats.isPending ? "animate-spin" : ""}`} /> 
             {scanThreats.isPending ? "SCANNING SECTORS..." : "INITIATE THREAT SCAN"}
           </Button>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4 mb-4">
-          <div className="card-empire rounded-2xl p-4">
-            <div className="text-xs font-mono text-muted-foreground uppercase mb-3">Threat Detection</div>
-            <RadarScanner crisis={hasActiveCrisis} />
-            <div className="mt-4"><LiveSignalFeed /></div>
-          </div>
-          <div className="card-empire rounded-2xl p-4">
-            <div className="text-xs font-mono text-muted-foreground uppercase mb-3">Global Threat Level</div>
-            <div className="flex flex-col items-center justify-center h-full pb-8">
-              <div className="relative w-72 h-72">
-                <svg width="290" height="290" viewBox="0 0 290 290" className="absolute inset-0">
-                  {rings.map((ring, ri) => (
-                    <circle key={ri} cx="145" cy="145" r={ring} fill="none" stroke="hsl(265 80% 60% / 0.1)" strokeWidth="1" />
-                  ))}
-                  {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
-                    <line key={a} x1="145" y1="145" x2={145 + 140 * Math.cos(a * Math.PI / 180)} y2={145 + 140 * Math.sin(a * Math.PI / 180)} stroke="hsl(265 80% 60% / 0.05)" strokeWidth="1" />
-                  ))}
-                  <g className="radar-sweep" style={{ animation: 'radar-sweep 5s linear infinite', transformOrigin: '145px 145px' }}>
-                    <path d="M145,145 L145,5 A140,140 0 0,1 244,46 Z" fill="hsl(265 80% 60% / 0.1)" />
-                  </g>
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-5xl font-black italic tracking-tighter text-white mb-1">LVL {threatLevel}</div>
-                    <div className="text-[10px] font-mono text-primary animate-pulse tracking-widest">NEURAL ANALYZER</div>
-                  </div>
-                </div>
-              </div>
-              <div className="w-full max-w-xs mt-4">
-                <ThreatLevelGauge level={threatLevel} />
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* 3-Column Layout */}

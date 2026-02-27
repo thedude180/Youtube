@@ -11,6 +11,26 @@ import {
   Waves, ActivitySquare
 } from "lucide-react";
 
+const PulseWaveform = () => {
+  return (
+    <div className="h-32 bg-black/40 rounded-xl border border-primary/20 relative overflow-hidden mb-6" data-testid="widget-pulse-waveform">
+      <div className="absolute inset-0 flex items-center">
+        <svg width="100%" height="100%" viewBox="0 0 1000 100" preserveAspectRatio="none">
+          <path d="M0,50 Q25,0 50,50 T100,50 T150,50 T200,50 T250,50 T300,50 T350,50 T400,50 T450,50 T500,50 T550,50 T600,50 T650,50 T700,50 T750,50 T800,50 T850,50 T900,50 T950,50 T1000,50"
+            fill="none" stroke="hsl(var(--primary))" strokeWidth="1" opacity="0.3" />
+          <path d="M0,50 L50,50 L60,20 L75,80 L90,50 L140,50" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
+            style={{ animation: 'data-stream 2s linear infinite', strokeDasharray: '1000', strokeDashoffset: '1000' }} />
+        </svg>
+      </div>
+      <div className="absolute top-2 left-3 flex items-center gap-1.5">
+        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+        <span className="text-[10px] font-mono text-primary/70 uppercase">Sub-Neural Frequency</span>
+      </div>
+      <div className="absolute bottom-2 right-3 text-[10px] font-mono text-primary/40">124.8 MHz</div>
+    </div>
+  );
+};
+
 const NeuralPulse = () => {
   return (
     <div className="relative h-24 w-full overflow-hidden bg-black/20 rounded-lg border border-primary/10 flex items-center justify-center" data-testid="widget-neural-pulse">
@@ -206,6 +226,7 @@ export default function Heartbeat() {
                 </span>
               </div>
               <div className="w-full space-y-4">
+                <PulseWaveform />
                 <NeuralPulse />
                 <SystemUptimeGauge uptime={s.uptime || "0h"} />
               </div>

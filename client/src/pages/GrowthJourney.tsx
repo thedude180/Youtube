@@ -693,7 +693,7 @@ export default function GrowthJourney() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-4 relative pb-24">
+    <div className="p-6 max-w-7xl mx-auto space-y-4 relative pb-4">
       <GrowthPhaseHero phase={data.growthPhase} />
       <GrowthVelocityGauge progress={data.plateau?.avgGrowthRate ?? 68} />
 

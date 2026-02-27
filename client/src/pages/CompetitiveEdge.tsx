@@ -18,6 +18,7 @@ import {
   Play, Pause, Settings2, Star, Target, Eye, ThumbsUp, Video, Crown, Rocket,
   ChevronRight, Activity, Lock, Sparkles, Mail, UserPlus, Trash2, Loader2,
   Share2, ShieldCheck, Heart, MessageSquare, Flame, Globe, ZapOff,
+  Crosshair, Radio, HardDrive, Cpu, Terminal
 } from "lucide-react";
 
 const MatrixGrid = () => {
@@ -32,6 +33,55 @@ const MatrixGrid = () => {
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+const CompetitiveRadar = () => {
+  return (
+    <div className="relative w-full aspect-square max-w-[300px] mx-auto mb-8" data-testid="widget-competitive-radar">
+      <div className="absolute inset-0 rounded-full border border-primary/20 radar-sweep" />
+      <div className="absolute inset-0 rounded-full border border-primary/10 scale-75" />
+      <div className="absolute inset-0 rounded-full border border-primary/10 scale-50" />
+      <div className="absolute inset-0 rounded-full border border-primary/10 scale-25" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-full bg-primary/10" />
+      <div className="absolute top-1/2 left-0 -translate-y-1/2 w-full h-px bg-primary/10" />
+      {[
+        { x: '20%', y: '30%', label: 'Top Tier', color: 'bg-emerald-500' },
+        { x: '70%', y: '20%', label: 'Viral', color: 'bg-primary' },
+        { x: '40%', y: '60%', label: 'You', color: 'bg-white', pulse: true },
+        { x: '80%', y: '70%', label: 'Rising', color: 'bg-blue-400' },
+        { x: '15%', y: '75%', label: 'Legacy', color: 'bg-red-400' }
+      ].map((p, i) => (
+        <div key={i} className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1" style={{ left: p.x, top: p.y }}>
+          <div className={`w-2 h-2 rounded-full ${p.color} ${p.pulse ? 'animate-pulse glow-purple' : ''}`} />
+          <span className="text-[8px] font-mono text-muted-foreground uppercase whitespace-nowrap">{p.label}</span>
+        </div>
+      ))}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-primary/60">SCANNING SECTOR 7G</div>
+    </div>
+  );
+};
+
+const SignalStream = () => {
+  const [signals, setSignals] = useState<string[]>([]);
+  const phrases = ["SEO Boost detected", "Competitor uploaded", "Trend spike: AI", "CTR optimizing", "Retention peak", "Keyword match"];
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSignals(prev => [phrases[Math.floor(Math.random() * phrases.length)], ...prev.slice(0, 4)]);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="terminal bg-black/40 border border-primary/20 rounded-lg p-3 h-32 overflow-hidden" data-testid="widget-signal-stream">
+      {signals.map((s, i) => (
+        <div key={i} className="text-[10px] font-mono text-primary/80 animate-in fade-in slide-in-from-left-2">
+          <span className="text-primary/40 mr-2">[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
+          SIG_IN: {s}... <span className="text-emerald-400">OK</span>
+        </div>
+      ))}
     </div>
   );
 };
@@ -1517,85 +1567,139 @@ function MarketShareRadar() {
   );
 }
 
+function SecurityTab() {
+  return (
+    <Card data-testid="tab-security">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Shield className="h-4 w-4 text-primary" />
+          System Security
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
+          <div className="flex items-center gap-3">
+            <Lock className="h-4 w-4 text-emerald-500" />
+            <div className="text-sm">Neural Encryption</div>
+          </div>
+          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400">Active</Badge>
+        </div>
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <div className="text-sm">Platform Guardians</div>
+          </div>
+          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400">99.9% Reliable</Badge>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CompetitiveEdge() {
   usePageTitle("Competitive Edge - CreatorOS");
-  const [activeTab, setActiveTab] = useState("vod-loop");
-
-  const { data } = useQuery<any>({ queryKey: ["/api/analytics/cross-platform"] });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-4 relative pb-24">
-      <div className="flex flex-col gap-2 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center glow-purple">
-            <Zap className="h-6 w-6 text-primary" />
-          </div>
+    <div className="p-6 pb-24 max-w-7xl mx-auto space-y-8 page-enter" data-testid="page-competitive-edge">
+      <div className="relative mb-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-black tracking-tighter holographic-text uppercase">Competitive Edge</h1>
-            <p className="text-muted-foreground font-mono text-sm tracking-widest flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              NEURAL DOMINANCE ACTIVE
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 animate-pulse">ELITE SYSTEM</Badge>
+              <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                ENCRYPTED_LINK_ESTABLISHED
+              </div>
+            </div>
+            <h1 className="text-4xl font-extrabold tracking-tight holographic-text">Competitive Edge</h1>
+            <p className="text-muted-foreground mt-2 max-w-2xl">
+              Advanced intelligence tools to outpace the competition. Leverage AI-driven loops,
+              creator DNA matching, and cross-platform forensics.
             </p>
           </div>
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4 mb-6">
-        <CompetitorBattleBars />
-        <MarketShareRadar />
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-4 mb-4">
-        <div className="md:col-span-2 card-empire p-6 rounded-3xl relative overflow-hidden min-h-[300px]" data-testid="card-neural-matrix">
-          <MatrixGrid />
-          <div className="relative z-10">
-            <Badge variant="outline" className="mb-4 border-primary/30 text-primary font-mono bg-primary/5">
-              NEURAL NETWORK STATUS: OPTIMIZED
-            </Badge>
-            <h2 className="text-3xl font-bold mb-4 tracking-tight">AI Content Matrix</h2>
-            <p className="text-muted-foreground max-w-md mb-6">
-              Our proprietary neural network is analyzing 42,000+ data points across your connected platforms to ensure 100% brand alignment and maximum viral potential.
-            </p>
-            <PulseGrid />
-          </div>
-        </div>
-
-        <div className="card-empire p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between" data-testid="card-dna-blueprint">
-          <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold font-mono tracking-tighter uppercase">DNA Blueprint</h2>
-              <Dna className="h-5 w-5 text-primary animate-pulse" />
-            </div>
-            <DNAHelix />
-          </div>
-          <div className="pt-6 border-t border-border/20">
-            <div className="flex items-center justify-between text-xs font-mono mb-2">
-              <span className="text-muted-foreground">MATCH ACCURACY</span>
-              <span className="text-primary">98.4%</span>
-            </div>
-            <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
-              <div className="h-full bg-primary glow-purple w-[98.4%] transition-all duration-1000" />
+          <div className="flex gap-2">
+            <div className="text-right hidden sm:block">
+              <div className="text-[10px] font-mono text-muted-foreground uppercase">System Load</div>
+              <div className="flex gap-0.5 mt-1">
+                {[1,2,3,4,5,6,7,8].map(i => <div key={i} className={`w-1.5 h-3 rounded-sm ${i < 6 ? 'bg-primary/60' : 'bg-muted/30'}`} />)}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-muted/20 border border-border/30 p-1 mb-8" data-testid="edge-tabs">
-          <TabsTrigger value="vod-loop" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-vod-loop">VOD Loop</TabsTrigger>
-          <TabsTrigger value="autopilot" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-autopilot">Autopilot</TabsTrigger>
-          <TabsTrigger value="dna" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-dna">Creator DNA</TabsTrigger>
-          <TabsTrigger value="analytics" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="ab-testing" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-ab-testing">A/B Testing</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="card-empire overflow-hidden border-none shadow-none">
+            <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
+            <CardHeader className="relative pb-0">
+              <CardTitle className="text-sm font-mono uppercase tracking-widest text-primary/80 flex items-center gap-2">
+                <Crosshair className="h-4 w-4" />
+                Market Radar
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative pt-6">
+              <CompetitiveRadar />
+              <SignalStream />
+            </CardContent>
+          </Card>
 
-        <TabsContent value="vod-loop"><VodLoopTab /></TabsContent>
-        <TabsContent value="autopilot"><AutopilotLoopTab /></TabsContent>
-        <TabsContent value="dna"><CreatorDnaTab /></TabsContent>
-        <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
-        <TabsContent value="ab-testing"><AbTestingTab /></TabsContent>
-      </Tabs>
+          <Card className="card-empire border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-mono uppercase tracking-widest text-primary/80 flex items-center gap-2">
+                <HardDrive className="h-4 w-4" />
+                Hardware Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { label: 'Neural Core', value: 88, icon: Cpu },
+                { label: 'Signal Range', value: 94, icon: Radio },
+                { label: 'Sync Rate', value: 72, icon: RefreshCw }
+              ].map((m) => (
+                <div key={m.label} className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-mono uppercase">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <m.icon className="h-3 w-3" />
+                      {m.label}
+                    </span>
+                    <span className="text-primary">{m.value}%</span>
+                  </div>
+                  <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${m.value}%` }} />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-2">
+          <Tabs defaultValue="vod-loop" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-muted/20 p-1 border border-border/50 h-auto">
+              {[
+                { value: 'vod-loop', label: 'VOD Loop', icon: RefreshCw },
+                { value: 'autopilot-loop', label: 'Autopilot', icon: Zap },
+                { value: 'creator-dna', label: 'Creator DNA', icon: Dna },
+                { value: 'analytics', label: 'Analytics', icon: BarChart3 },
+                { value: 'security', label: 'Security', icon: Shield }
+              ].map((t) => (
+                <TabsTrigger key={t.value} value={t.value} className="flex flex-col gap-1 py-2 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all" data-testid={`tab-trigger-${t.value}`}>
+                  <t.icon className="h-4 w-4" />
+                  <span className="text-[10px] uppercase font-mono">{t.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <div className="mt-6">
+              <TabsContent value="vod-loop"><VodLoopTab /></TabsContent>
+              <TabsContent value="autopilot-loop"><AutopilotLoopTab /></TabsContent>
+              <TabsContent value="creator-dna"><CreatorDnaTab /></TabsContent>
+              <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+              <TabsContent value="security"><SecurityTab /></TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      </div>
     </div>
   );
 }

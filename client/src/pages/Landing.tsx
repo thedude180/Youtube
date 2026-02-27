@@ -526,11 +526,32 @@ export default function Landing() {
   ];
 
   const STATS = useMemo(() => [
-    { value: 832, label: t('landing.aiFeatures'), suffix: "" },
-    { value: 25, label: t('landing.platforms'), suffix: "+" },
-    { value: 11, label: t('landing.aiAgents'), suffix: "" },
-    { value: 99, label: t('landing.uptime'), suffix: ".9%" },
+    { value: 832, label: t('landing.aiFeatures'), suffix: "", desc: "Advanced algorithmic models" },
+    { value: 25, label: t('landing.platforms'), suffix: "+", desc: "Native platform integrations" },
+    { value: 11, label: t('landing.aiAgents'), suffix: "", desc: "Autonomous operational units" },
+    { value: 99, label: t('landing.uptime'), suffix: ".9%", desc: "Enterprise-grade reliability" },
   ], [t]);
+
+  const StatsShowcase = () => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 my-24" data-testid="section-stats-showcase">
+      {STATS.map((s, i) => (
+        <div key={s.label} className="card-empire rounded-2xl p-6 relative group overflow-hidden" data-testid={`stat-card-${s.label.toLowerCase().replace(/\s+/g, '-')}`}>
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Zap className="w-8 h-8 text-primary" />
+          </div>
+          <div className="relative z-10">
+            <div className="text-4xl md:text-5xl font-bold font-mono text-white mb-1 metric-display flex items-baseline gap-1">
+              <span className="count-up">{s.value}</span>
+              <span className="text-primary text-2xl">{s.suffix}</span>
+            </div>
+            <div className="text-xs font-mono uppercase tracking-wider text-primary/80 mb-2">{s.label}</div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">{s.desc}</p>
+          </div>
+          <div className="absolute bottom-0 left-0 h-1 bg-primary/30 group-hover:w-full transition-all duration-700" style={{ width: '20%' }} />
+        </div>
+      ))}
+    </div>
+  );
 
   const PipelineAnimation = () => (
     <div className="relative w-full h-[400px] flex items-center justify-center p-8 bg-black/40 rounded-3xl border border-white/5 overflow-hidden" data-testid="widget-pipeline-animation">
@@ -634,73 +655,83 @@ export default function Landing() {
         </div>
       )}
 
-      <section className="relative overflow-hidden" data-testid="section-hero" ref={heroRef}>
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.03] via-transparent to-background" aria-hidden="true" />
-        <FloatingOrb delay={0} size={400} x="10%" y="10%" />
-        <FloatingOrb delay={2} size={300} x="70%" y="20%" />
-        <FloatingOrb delay={4} size={250} x="40%" y="60%" />
+      <section className="relative overflow-hidden min-h-[90vh] flex items-center" data-testid="section-hero" ref={heroRef}>
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.05] via-transparent to-background" aria-hidden="true" />
+        <FloatingOrb delay={0} size={600} x="-10%" y="-10%" />
+        <FloatingOrb delay={2} size={500} x="60%" y="-5%" />
+        <FloatingOrb delay={4} size={400} x="30%" y="40%" />
         <ParticleCanvas />
 
-        <div className="relative py-24 sm:py-32 lg:py-44">
+        <div className="relative w-full py-20 lg:py-32">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="max-w-3xl">
-              <div className="slide-up-stagger" style={{ animationDelay: '0s' }}>
-                <Badge variant="secondary" className="mb-6 text-xs tracking-wide border-primary/20 bg-primary/5 backdrop-blur-sm" data-testid="badge-hero">
-                  <Sparkles className="w-3 h-3 mr-1.5 text-primary" />
-                  {t('landing.badge')}
-                </Badge>
-              </div>
+            <div className="text-center mb-16 relative">
+              {/* Headline */}
+              <div className="relative z-10 space-y-8">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm mb-4 animate-bounce">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-[10px] font-bold tracking-widest uppercase text-primary">Version 4.0 God-Tier AI Active</span>
+                </div>
+                
+                <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold tracking-tight leading-[1.1] mb-6">
+                  <span className="block text-white">The Only AI</span>
+                  <span className="holographic-text">Creator Empire</span>
+                </h1>
+                
+                <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+                  CreatorOS replaces your entire team with 11 autonomous AI agents. 
+                  <span className="text-white font-medium"> Manage, grow, and monetize </span> across 25+ platforms on 100% autopilot.
+                </p>
 
-              <h1 data-testid="text-hero-heading" className="slide-up-stagger font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold leading-[1.05] tracking-tight" style={{ animationDelay: '0.1s' }}>
-                {t('landing.heroTitle1')}
-                <br />
-                <span className="gradient-text-vivid text-glow">{t('landing.heroTitle2')}</span>
-                <br />
-                {t('landing.heroTitle3')}
-              </h1>
-
-              <p data-testid="text-hero-subtitle" className="slide-up-stagger mt-6 text-lg sm:text-xl text-muted-foreground leading-relaxed max-w-xl" style={{ animationDelay: '0.2s' }}>
-                {t('landing.heroSubtitle')}
-              </p>
-
-              <div className="slide-up-stagger mt-10 flex flex-col sm:flex-row gap-3" style={{ animationDelay: '0.3s' }}>
-                <Button data-testid="button-hero-get-started" size="lg" className="text-base glow border-glow-animated group" onClick={() => setShowAuthForm(true)}>
-                  {t('landing.getStartedFree')}
-                  <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
-                </Button>
-                <a href="/pricing">
-                  <Button data-testid="button-hero-view-pricing" variant="outline" size="lg" className="w-full sm:w-auto text-base backdrop-blur-sm">
-                    <Play className="h-3.5 w-3.5 mr-2" />
-                    {t('landing.seePlans')}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <Button 
+                    size="lg" 
+                    className="h-16 px-10 text-lg font-bold rounded-full empire-glow group relative overflow-hidden"
+                    onClick={() => window.location.href = '/dashboard'}
+                    data-testid="button-hero-primary"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      Initialize My Empire <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary via-purple-400 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   </Button>
-                </a>
-              </div>
+                  <Button 
+                    variant="outline" 
+                    size="lg" 
+                    className="h-16 px-10 text-lg font-bold rounded-full border-white/10 hover:bg-white/5 backdrop-blur-md transition-all group"
+                    onClick={() => {
+                      const el = document.getElementById('features');
+                      el?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    data-testid="button-hero-secondary"
+                  >
+                    Explore Features
+                  </Button>
+                </div>
 
-              <LiveStatsBar />
-
-              <div className="slide-up-stagger flex items-center gap-5 mt-8 flex-wrap" style={{ animationDelay: '0.4s' }}>
-                {[t('landing.fiveMinSetup'), t('landing.noCreditCard'), t('landing.cancelAnytime')].map((text) => (
-                  <span key={text} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                    {text}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl">
-              {STATS.map((stat, i) => {
-                const { count, ref } = useCountUp(stat.value, 2000 + i * 200);
-                return (
-                  <div key={stat.label} ref={ref} className="slide-up-stagger text-center" style={{ animationDelay: `${0.5 + i * 0.1}s` }} data-testid={`stat-hero-${stat.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                    <p className="text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display text-primary count-up">
-                      {count}{stat.suffix}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-1.5 font-medium uppercase tracking-wider">{stat.label}</p>
+                <div className="mt-16 flex items-center justify-center gap-8 opacity-50 grayscale hover:grayscale-0 transition-all duration-700 overflow-hidden py-4 border-y border-white/5">
+                  <div className="ticker-scroll flex items-center gap-12 text-sm font-mono whitespace-nowrap">
+                    <span>YOUTUBE PARTNER</span>
+                    <span>TWITCH VERIFIED</span>
+                    <span>TIKTOK SHOP READY</span>
+                    <span>X PREMIUM API</span>
+                    <span>DISCORD DEVELOPER</span>
+                    {/* Duplicate for seamless loop */}
+                    <span>YOUTUBE PARTNER</span>
+                    <span>TWITCH VERIFIED</span>
+                    <span>TIKTOK SHOP READY</span>
+                    <span>X PREMIUM API</span>
+                    <span>DISCORD DEVELOPER</span>
                   </div>
-                );
-              })}
+                </div>
+              </div>
             </div>
+
+            <StatsShowcase />
+
+            <LiveStatsBar />
+          </div>
+        </div>
+      </section>
 
             {/* God-Tier Autopilot Engine Visualization */}
       <section className="py-24 relative overflow-hidden bg-black/40" data-testid="section-autopilot-engine">
@@ -793,9 +824,6 @@ export default function Landing() {
       </section>
 
       <PlatformLogos />
-          </div>
-        </div>
-      </section>
 
       <VideoDemoMockup />
 

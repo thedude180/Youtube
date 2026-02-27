@@ -555,26 +555,26 @@ export default function Dashboard() {
       </section>
 
       <SectionErrorBoundary fallbackTitle="Growth impact chart failed to load">
-        <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-24 w-full rounded-lg" />}>
           <LazyGrowthImpactChart />
         </Suspense>
       </SectionErrorBoundary>
 
       <SectionErrorBoundary fallbackTitle="Growth trajectory failed to load">
-        <Suspense fallback={<Skeleton className="h-[500px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-28 w-full rounded-lg" />}>
           <LazyGrowthTrajectoryPredictor />
         </Suspense>
       </SectionErrorBoundary>
 
       <SectionErrorBoundary fallbackTitle="Channel growth timeline failed to load">
-        <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
           <LazyChannelGrowthTimeline />
         </Suspense>
       </SectionErrorBoundary>
 
       <section role="region" aria-label="Mission control - system health">
       <SectionErrorBoundary fallbackTitle="Mission Control failed to load">
-        <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
           <LazyMissionControl />
         </Suspense>
       </SectionErrorBoundary>
@@ -585,7 +585,7 @@ export default function Dashboard() {
       </section>
 
       <SectionErrorBoundary fallbackTitle="Anomaly detection failed to load">
-        <Suspense fallback={<Skeleton className="h-[200px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-16 w-full rounded-lg" />}>
           <LazyAnomalyDetector />
         </Suspense>
       </SectionErrorBoundary>
@@ -596,7 +596,7 @@ export default function Dashboard() {
 
       <section role="region" aria-label="Content verification">
       <SectionErrorBoundary fallbackTitle="Content Verification failed to load">
-        <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-20 w-full rounded-lg" />}>
           <LazyContentVerification />
         </Suspense>
       </SectionErrorBoundary>
@@ -604,7 +604,7 @@ export default function Dashboard() {
 
       <section role="region" aria-label="AI proof of work">
       <SectionErrorBoundary fallbackTitle="AI Work Log failed to load">
-        <Suspense fallback={<Skeleton className="h-[200px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-16 w-full rounded-lg" />}>
           <LazyAIProofOfWork />
         </Suspense>
       </SectionErrorBoundary>
@@ -624,7 +624,7 @@ export default function Dashboard() {
 
       <section role="region" aria-label="Competitor benchmarking">
       <SectionErrorBoundary fallbackTitle="Competitive Intelligence failed to load">
-        <Suspense fallback={<Skeleton className="h-[200px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-16 w-full rounded-lg" />}>
           <LazyCompetitorBenchmark />
         </Suspense>
       </SectionErrorBoundary>
@@ -632,7 +632,7 @@ export default function Dashboard() {
 
       <section role="region" aria-label="Performance vitals">
       <SectionErrorBoundary fallbackTitle="Performance vitals failed to load">
-        <Suspense fallback={<Skeleton className="h-[150px] w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-14 w-full rounded-lg" />}>
           <LazyPerformanceVitals />
         </Suspense>
       </SectionErrorBoundary>

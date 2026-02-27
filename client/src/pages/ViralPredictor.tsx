@@ -200,7 +200,7 @@ export default function ViralPredictor() {
 
           <div className="space-y-4">
             {predict.isPending && (
-              <div className="card-empire rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px]">
+              <div className="card-empire rounded-2xl p-5 flex flex-col items-center justify-center">
                 <div className="relative mb-4">
                   <div className="w-16 h-16 rounded-full border-2 border-primary/30 flex items-center justify-center">
                     <BarChart2 className="h-8 w-8 text-primary animate-pulse" />
@@ -213,7 +213,7 @@ export default function ViralPredictor() {
             )}
 
             {!predict.isPending && !result && (
-              <div className="card-empire rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px] text-center" data-testid="card-predictor-placeholder">
+              <div className="card-empire rounded-2xl p-5 flex flex-col items-center justify-center text-center" data-testid="card-predictor-placeholder">
                 <TrendingUp className="h-12 w-12 text-primary/30 mb-4" />
                 <p className="text-foreground/60 font-medium">Viral score will appear here</p>
                 <p className="text-sm text-muted-foreground mt-1">Enter your title and click Predict</p>

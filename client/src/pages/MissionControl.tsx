@@ -22,6 +22,59 @@ const STATUS_COLORS: Record<string, string> = {
   warning: "text-yellow-400", critical: "text-red-400", idle: "text-gray-400",
 };
 
+const OrbitalSystem = () => {
+  const rings = [
+    { radius: 60, speed: "8s", dir: "", items: [
+      { label: "Content", color: "hsl(265 80% 65%)" },
+      { label: "Revenue", color: "hsl(142 70% 50%)" },
+    ]},
+    { radius: 90, speed: "12s", dir: "reverse", items: [
+      { label: "Stream", color: "hsl(0 80% 60%)" },
+      { label: "Analytics", color: "hsl(200 80% 60%)" },
+      { label: "Social", color: "hsl(330 80% 60%)" },
+    ]},
+    { radius: 120, speed: "18s", dir: "", items: [
+      { label: "SEO", color: "hsl(45 90% 55%)" },
+      { label: "Ads", color: "hsl(210 80% 55%)" },
+      { label: "Growth", color: "hsl(160 80% 50%)" },
+      { label: "Safety", color: "hsl(0 80% 50%)" },
+    ]}
+  ];
+  return (
+    <div className="card-empire rounded-3xl p-8 flex items-center justify-center min-h-[400px] relative overflow-hidden" data-testid="widget-orbital-system">
+      <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
+      <div className="relative flex items-center justify-center" style={{ width: 290, height: 290 }}>
+        <svg width="290" height="290" viewBox="0 0 290 290" className="absolute inset-0">
+          {rings.map((ring, ri) => (
+            <circle key={ri} cx="145" cy="145" r={ring.radius} fill="none" stroke="hsl(265 80% 60% / 0.1)" strokeWidth="1" strokeDasharray="4 4" />
+          ))}
+        </svg>
+        <div className="z-10 w-20 h-20 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center glow-purple relative">
+          <div className="absolute inset-0 rounded-full animate-ping bg-primary/20 opacity-40" />
+          <Brain className="w-10 h-10 text-primary animate-pulse" />
+        </div>
+        {rings.map((ring, ri) => (
+          <div key={ri} className="absolute inset-0 pointer-events-none" style={{ animation: `radar-sweep ${ring.speed} linear infinite ${ring.dir === 'reverse' ? 'reverse' : ''}` }}>
+            {ring.items.map((item, ii) => {
+              const angle = (360 / ring.items.length) * ii;
+              const x = 145 + ring.radius * Math.cos(angle * Math.PI / 180);
+              const y = 145 + ring.radius * Math.sin(angle * Math.PI / 180);
+              return (
+                <div key={ii} className="absolute pointer-events-auto" style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}>
+                  <div className="group relative">
+                    <div className="w-3 h-3 rounded-full border border-white/20 shadow-lg transition-transform hover:scale-150" style={{ background: item.color, boxShadow: `0 0 10px ${item.color}` }} />
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded text-[9px] font-mono text-white border border-white/10">{item.label}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const SystemConsole = () => {
   const [lines, setLines] = useState<string[]>([]);
   const consoleMessages = [
@@ -84,51 +137,6 @@ const DeploymentStatus = () => {
     </div>
   );
 };
-
-function OrbitalSystem() {
-  const planets = [
-    { name: "Content", icon: Layout, color: "text-purple-400", orbit: "orbit-1", initialAngle: 0 },
-    { name: "Revenue", icon: Zap, color: "text-yellow-400", orbit: "orbit-1", initialAngle: 180 },
-    { name: "Streaming", icon: Radio, color: "text-blue-400", orbit: "orbit-2", initialAngle: 0 },
-    { name: "Analytics", icon: TrendingUp, color: "text-green-400", orbit: "orbit-2", initialAngle: 120 },
-    { name: "Security", icon: Shield, color: "text-red-400", orbit: "orbit-2", initialAngle: 240 },
-    { name: "AI", icon: Brain, color: "text-indigo-400", orbit: "orbit-3", initialAngle: 0 },
-    { name: "Autopilot", icon: Gauge, color: "text-orange-400", orbit: "orbit-3", initialAngle: 120 },
-    { name: "Community", icon: Users, color: "text-pink-400", orbit: "orbit-3", initialAngle: 240 },
-  ];
-
-  return (
-    <Card className="bg-gray-900/60 border-gray-700/30 overflow-hidden" data-testid="widget-orbital-system">
-      <CardContent className="p-8 flex items-center justify-center min-h-[400px]">
-        <div className="relative w-[400px] h-[400px] flex items-center justify-center">
-          {/* Center */}
-          <div className="absolute z-10 w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center glow-purple">
-            <Zap className="w-8 h-8 text-white animate-pulse" />
-          </div>
-
-          {/* Rings */}
-          <div className="absolute w-[160px] h-[160px] border border-white/5 rounded-full" />
-          <div className="absolute w-[240px] h-[240px] border border-white/5 rounded-full" />
-          <div className="absolute w-[320px] h-[320px] border border-white/5 rounded-full" />
-
-          {/* Planets */}
-          {planets.map((p) => (
-            <div
-              key={p.name}
-              className={`absolute flex flex-col items-center gap-1 ${p.orbit}`}
-              style={{ "--orbit-radius": p.orbit === "orbit-1" ? "80px" : p.orbit === "orbit-2" ? "120px" : "160px" } as any}
-            >
-              <div className={`p-2 rounded-full bg-gray-900 border border-gray-800 ${p.color} glow-purple`}>
-                <p.icon className="w-4 h-4" />
-              </div>
-              <span className="text-[10px] font-medium text-white/60 uppercase tracking-tighter">{p.name}</span>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 const MC_TELEMETRY = [
   "AI Engine ● Active — 847 tasks/hr",
@@ -325,7 +333,7 @@ export default function MissionControl() {
             <TelemetryFeed />
             <Card className="card-empire empire-glow border-0 overflow-hidden" data-testid="card-system-vitals">
               <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
-              <CardHeader className="py-3">
+              <CardHeader className="py-3 px-4 flex flex-row items-center justify-between gap-1 space-y-0">
                 <CardTitle className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
                   <Activity className="w-3 h-3 text-primary" /> SYSTEM VITALS
                 </CardTitle>
