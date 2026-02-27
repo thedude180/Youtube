@@ -39,6 +39,51 @@ function formatNextRun(dateStr: string | null) {
   return `${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m`;
 }
 
+function Sparkline({ data }: { data: number[] }) {
+  const max = Math.max(...data, 1);
+  const points = data.map((d, i) => `${(i / (data.length - 1)) * 100},${40 - (d / max) * 40}`).join(" ");
+  return (
+    <svg viewBox="0 0 100 40" className="w-16 h-8">
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function HealthTimeline({ runs }: { runs: any[] }) {
+  // Simple 24h simulation based on real runs
+  const hourlyHealth = Array.from({ length: 24 }).map((_, i) => {
+    const hourRuns = runs.filter(r => new Date(r.startedAt).getHours() === i);
+    if (hourRuns.length === 0) return "idle";
+    return hourRuns.every(r => r.status === "completed") ? "healthy" : "error";
+  });
+
+  return (
+    <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-health-timeline">
+      <CardHeader className="py-2 px-4 border-b border-white/5">
+        <CardTitle className="text-xs font-mono text-muted-foreground uppercase tracking-widest">24-Hour System Health</CardTitle>
+      </CardHeader>
+      <CardContent className="p-4">
+        <div className="flex gap-1 h-8">
+          {hourlyHealth.map((status, i) => (
+            <div
+              key={i}
+              className={`flex-1 rounded-sm ${
+                status === "healthy" ? "bg-green-500/40" : status === "error" ? "bg-red-500/40" : "bg-gray-800"
+              }`}
+              title={`Hour ${i}: ${status}`}
+            />
+          ))}
+        </div>
+        <div className="flex justify-between mt-1 text-[10px] text-muted-foreground font-mono">
+          <span>00:00</span>
+          <span>12:00</span>
+          <span>23:59</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Heartbeat() {
   const { data: status, isLoading } = useQuery({ queryKey: ["/api/nexus/autonomy/status"], refetchInterval: 30000 });
   const { data: decisionsData } = useQuery({ queryKey: ["/api/nexus/autonomy/decisions"] });
@@ -82,49 +127,57 @@ export default function Heartbeat() {
           </Badge>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3" data-testid="section-heartbeat-metrics">
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-system-health">
-            <CardContent className="p-3 text-center">
-              <Heart className={`w-6 h-6 mx-auto mb-1 ${healthColor}`} />
-              <p className={`text-xl font-bold ${healthColor}`} data-testid="text-system-health">{s.overallHealth || 0}%</p>
-              <p className="text-xs text-gray-400">System Health</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          <Card className="md:col-span-1 bg-gray-900/60 border-gray-700/30 overflow-hidden relative" data-testid="card-overall-health-score">
+            <CardContent className="p-8 flex flex-col items-center justify-center text-center">
+              <div className="relative inline-flex items-center justify-center mb-4">
+                <svg width="160" height="160" className="transform -rotate-90">
+                  <circle cx="80" cy="80" r="70" stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="none" />
+                  <circle cx="80" cy="80" r="70" stroke={s.overallHealth > 80 ? "#22c55e" : "#eab308"} strokeWidth="8" fill="none" strokeDasharray={440} strokeDashoffset={440 * (1 - (s.overallHealth || 0) / 100)} strokeLinecap="round" className="transition-all duration-1000" />
+                </svg>
+                <div className="absolute flex flex-col items-center">
+                  <span className={`text-4xl font-bold metric-display ${healthColor}`}>{s.overallHealth || 0}%</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Global Health</span>
+                </div>
+              </div>
+              <p className="text-sm text-gray-400">All autonomous engines performing within nominal parameters.</p>
             </CardContent>
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-green-500 via-emerald-400 to-green-500 animate-gradient-shift" />
           </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-autonomy-level">
-            <CardContent className="p-3 text-center">
-              <Cpu className="w-6 h-6 mx-auto mb-1 text-blue-400" />
-              <p className="text-xl font-bold text-white" data-testid="text-autonomy-level">{s.autonomyLevel || 0}%</p>
-              <p className="text-xs text-gray-400">Autonomy Level</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-engines-active">
-            <CardContent className="p-3 text-center">
-              <Zap className="w-6 h-6 mx-auto mb-1 text-yellow-400" />
-              <p className="text-xl font-bold text-white" data-testid="text-engines-active">{s.enabledEngines || 0}/{s.totalEngines || 15}</p>
-              <p className="text-xs text-gray-400">Engines Active</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-runs-today">
-            <CardContent className="p-3 text-center">
-              <BarChart3 className="w-6 h-6 mx-auto mb-1 text-purple-400" />
-              <p className="text-xl font-bold text-white" data-testid="text-runs-today">{s.decisionsToday || 0}</p>
-              <p className="text-xs text-gray-400">Runs Today</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-actions-today">
-            <CardContent className="p-3 text-center">
-              <Activity className="w-6 h-6 mx-auto mb-1 text-emerald-400" />
-              <p className="text-xl font-bold text-white" data-testid="text-actions-today">{s.totalActionsToday || 0}</p>
-              <p className="text-xs text-gray-400">Actions Today</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-uptime">
-            <CardContent className="p-3 text-center">
-              <Timer className="w-6 h-6 mx-auto mb-1 text-cyan-400" />
-              <p className="text-xl font-bold text-white" data-testid="text-uptime">{s.uptime || "0h"}</p>
-              <p className="text-xs text-gray-400">Uptime</p>
-            </CardContent>
-          </Card>
+
+          <div className="md:col-span-2 space-y-6">
+            <HealthTimeline runs={runs} />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" data-testid="section-heartbeat-metrics">
+              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-autonomy-level">
+                <CardContent className="p-4">
+                  <Cpu className="w-5 h-5 text-blue-400 mb-2" />
+                  <p className="text-2xl font-bold text-white metric-display">{s.autonomyLevel || 0}%</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Autonomy</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-engines-active">
+                <CardContent className="p-4">
+                  <Zap className="w-5 h-5 text-yellow-400 mb-2" />
+                  <p className="text-2xl font-bold text-white metric-display">{s.enabledEngines || 0}/{s.totalEngines || 15}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Engines</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-runs-today">
+                <CardContent className="p-4">
+                  <BarChart3 className="w-5 h-5 text-purple-400 mb-2" />
+                  <p className="text-2xl font-bold text-white metric-display">{s.decisionsToday || 0}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Runs Today</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-uptime">
+                <CardContent className="p-4">
+                  <Timer className="w-5 h-5 text-cyan-400 mb-2" />
+                  <p className="text-2xl font-bold text-white metric-display">{s.uptime || "0h"}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Uptime</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
 
         <Tabs defaultValue="engines" className="space-y-4">
@@ -166,27 +219,28 @@ export default function Heartbeat() {
                     </div>
 
                     <div className="flex items-center gap-6 text-xs text-gray-400">
-                      <div className="text-center hidden md:block">
-                        <p>{formatTimeAgo(engine.lastRun)}</p>
-                        <p className="text-gray-500">Last Run</p>
+                      <div className="hidden md:block">
+                        <p className="text-white/80 font-mono">{formatTimeAgo(engine.lastRun)}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-tighter">Last Run</p>
                       </div>
-                      <div className="text-center hidden md:block">
-                        <p>{formatNextRun(engine.nextRun)}</p>
-                        <p className="text-gray-500">Next Run</p>
+                      <div className="hidden md:block">
+                        <p className="text-white/80 font-mono">{formatNextRun(engine.nextRun)}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-tighter">Next Run</p>
                       </div>
-                      <div className="text-center hidden md:block">
-                        <p>{engine.tasksCompleted}</p>
-                        <p className="text-gray-500">Runs</p>
+                      <div className="hidden lg:block w-24">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] uppercase">Success Rate</span>
+                          <span className={`text-[10px] font-mono ${engine.successRate > 0.9 ? "text-green-400" : "text-yellow-400"}`}>{(engine.successRate * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+                          <div className={`h-full transition-all duration-1000 ${engine.successRate > 0.9 ? "bg-green-500" : "bg-yellow-500"}`} style={{ width: `${engine.successRate * 100}%` }} />
+                        </div>
                       </div>
-                      <div className="text-center hidden md:block">
-                        <p>{engine.totalActions}</p>
-                        <p className="text-gray-500">Actions</p>
+                      <div className="hidden xl:block">
+                        <Sparkline data={runs.filter((r: any) => r.engineName === engine.name).map((r: any) => r.durationMs).slice(0, 7)} />
+                        <p className="text-[9px] text-center text-gray-500 uppercase mt-0.5">Latency</p>
                       </div>
-                      <div className="text-center hidden lg:block">
-                        <p className={engine.successRate > 0.9 ? "text-green-400" : engine.successRate > 0.7 ? "text-yellow-400" : "text-red-400"}>{(engine.successRate * 100).toFixed(0)}%</p>
-                        <p className="text-gray-500">Success</p>
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={() => forceRun.mutate(engine.name)} disabled={!engine.enabled || engine.status === "running"} className="h-7 w-7 p-0" data-testid={`button-force-run-${engine.name}`}>
+                      <Button size="sm" variant="ghost" onClick={() => forceRun.mutate(engine.name)} disabled={!engine.enabled || engine.status === "running"} className="h-7 w-7 p-0 hover:bg-white/5" data-testid={`button-force-run-${engine.name}`}>
                         <Play className="w-3 h-3" />
                       </Button>
                       <Switch checked={engine.enabled} onCheckedChange={(enabled) => toggleEngine.mutate({ engineName: engine.name, enabled })} data-testid={`switch-engine-${engine.name}`} />

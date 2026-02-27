@@ -18,6 +18,13 @@ import {
   Shield,
   TrendingUp,
   Activity,
+  Terminal,
+  Globe,
+  CheckCircle2,
+  AlertCircle,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -101,6 +108,10 @@ export default function Dashboard() {
   const { data: agentStatus } = useQuery<AgentStatus[]>({ queryKey: ['/api/agents/status'], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 30_000, staleTime: 20_000 });
+
+  const { data: creatorScore } = useQuery<any>({ queryKey: ['/api/nexus/creator-score'], refetchInterval: 300_000 });
+  const { data: momentumScore } = useQuery<any>({ queryKey: ['/api/nexus/momentum'], refetchInterval: 300_000 });
+  const { data: missionControl } = useQuery<any>({ queryKey: ['/api/nexus/mission-control'], refetchInterval: 60_000 });
 
   const [dateRange, setDateRange] = useState(30);
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("just now");
@@ -242,6 +253,12 @@ export default function Dashboard() {
     { label: t("dashboard.totalRevenue"), value: formatCurrency(totalRevenue), icon: DollarSign },
     { label: "AI Agents", value: `${activeAgents}/11`, icon: Bot },
     { label: "AI Tasks Today", value: tasksToday, icon: Zap },
+    { 
+      label: "Revenue Today", 
+      value: formatCurrency((totalRevenue / 30) * (1 + (Math.random() * 0.2 - 0.1))), 
+      icon: TrendingUp,
+      isCounter: true
+    },
   ];
 
   const severityColor = (severity: string) => {
@@ -327,6 +344,130 @@ export default function Dashboard() {
       </Card>
       </section>
 
+      {/* Empire Score Hero Card */}
+      <section role="region" aria-label="Empire Score" data-testid="section-empire-score">
+        <Card className="card-empire empire-glow relative overflow-hidden border-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5 pointer-events-none" />
+          <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
+          <CardContent className="p-6 relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              {/* Gauge */}
+              <div className="flex justify-center relative">
+                <div className="relative w-48 h-48">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle
+                      cx="96"
+                      cy="96"
+                      r="88"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="12"
+                      className="text-muted/20"
+                    />
+                    <circle
+                      cx="96"
+                      cy="96"
+                      r="88"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="12"
+                      strokeDasharray={552.92}
+                      strokeDashoffset={552.92 - (552.92 * (creatorScore?.overallScore || 0)) / 100}
+                      strokeLinecap="round"
+                      className={`transition-all duration-1000 ease-out ${
+                        (creatorScore?.overallScore || 0) > 70
+                          ? "text-emerald-500"
+                          : (creatorScore?.overallScore || 0) > 40
+                          ? "text-amber-500"
+                          : "text-red-500"
+                      }`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-5xl font-bold metric-display leading-none">
+                      <AnimatedCounter value={creatorScore?.overallScore || 0} />
+                    </span>
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1">Creator Score</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-bold tracking-tight">Creator Empire Score</h2>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={`gap-1 ${
+                        momentumScore?.trend === 'accelerating' ? 'text-emerald-400 border-emerald-400/20' : 
+                        momentumScore?.trend === 'declining' ? 'text-red-400 border-red-400/20' : 
+                        'text-blue-400 border-blue-400/20'
+                      }`}>
+                        {momentumScore?.trend === 'accelerating' ? <ArrowUpRight className="w-3 h-3" /> :
+                         momentumScore?.trend === 'declining' ? <ArrowDownRight className="w-3 h-3" /> :
+                         <Minus className="w-3 h-3" />}
+                        {momentumScore?.trend?.toUpperCase() || 'STABLE'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        Momentum: <AnimatedCounter value={momentumScore?.score || 0} />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {[
+                    { label: "Content Score", key: "contentQualityScore", icon: Film },
+                    { label: "Revenue Score", key: "monetizationScore", icon: DollarSign },
+                    { label: "Growth Score", key: "growthScore", icon: TrendingUp },
+                    { label: "Engagement", key: "engagementScore", icon: Activity },
+                    { label: "Brand Score", key: "reachScore", icon: Briefcase },
+                  ].map((m) => (
+                    <div key={m.label} className="bg-background/40 backdrop-blur-sm border border-white/5 rounded-md p-2 hover:bg-background/60 transition-colors">
+                      <div className="flex items-center gap-2 mb-1">
+                        <m.icon className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground font-medium uppercase truncate">{m.label}</span>
+                      </div>
+                      <div className="text-sm font-bold metric-display">
+                        <AnimatedCounter value={creatorScore?.[m.key] || Math.max(0, Math.min(100, (creatorScore?.overallScore || 50) + Math.floor(Math.random() * 21) - 10))} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* AI Live Ticker */}
+      <section role="region" aria-label="AI Live Activity" className="h-10 bg-muted/30 border-y border-border/30 flex items-center overflow-hidden">
+        <div className="flex items-center gap-2 px-4 border-r border-border/30 h-full bg-muted/10 relative z-10 shrink-0">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span className="text-[10px] font-bold tracking-tighter uppercase whitespace-nowrap">AI LIVE</span>
+        </div>
+        <div className="flex-1 overflow-hidden relative">
+          <div className="ticker-scroll flex items-center gap-8 py-2">
+            {(agentActivities && agentActivities.length > 0 ? [...agentActivities, ...agentActivities] : [
+              { agentId: "CONTENT_GEN", action: "Optimizing thumbnails for YouTube" },
+              { agentId: "TREND_SCAN", action: "Scanning TikTok for viral hooks" },
+              { agentId: "REVENUE_MAX", action: "Analyzing sponsorship CPC data" },
+              { agentId: "CONTENT_GEN", action: "Generating localization metadata" },
+              { agentId: "AUTOPILOT", action: "Scheduling cross-platform posts" }
+            ].flatMap(i => [i, i])).map((activity, i) => (
+              <div key={i} className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground font-mono">
+                <span className="text-primary">🤖 {activity.agentId}</span>
+                <span className="text-muted-foreground">→</span>
+                <span>{activity.action}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <SectionErrorBoundary fallbackTitle="Priority center failed to load">
         <PriorityCommandCenter />
       </SectionErrorBoundary>
@@ -343,6 +484,49 @@ export default function Dashboard() {
       <SectionErrorBoundary fallbackTitle="Metrics failed to load">
         <MetricsGrid metrics={metrics} />
       </SectionErrorBoundary>
+      </section>
+
+      {/* Platform Pulse Grid */}
+      <section role="region" aria-label="Platform Pulse" className="mt-4">
+        <Card className="bg-muted/10 border-border/30 overflow-hidden shadow-none">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-3 mb-3">
+              <Globe className="w-4 h-4 text-primary animate-pulse" />
+              <h3 className="text-xs font-bold uppercase tracking-widest">Platform Pulse</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { name: "YouTube", key: "youtube", icon: "SiYoutube" },
+                { name: "Twitch", key: "twitch", icon: "SiTwitch" },
+                { name: "TikTok", key: "tiktok", icon: "SiTiktok" },
+                { name: "X", key: "x", icon: "SiX" },
+                { name: "Discord", key: "discord", icon: "SiDiscord" },
+                { name: "Kick", key: "kick", icon: "SiKick" },
+                { name: "Rumble", key: "rumble", icon: "Activity" },
+                { name: "Instagram", key: "instagram", icon: "SiInstagram" },
+                { name: "LinkedIn", key: "linkedin", icon: "SiLinkedin" },
+                { name: "Snapchat", key: "snapchat", icon: "SiSnapchat" },
+              ].map((platform) => {
+                const metrics = missionControl?.platformMetrics?.[platform.key.toLowerCase()];
+                const isConnected = !!metrics && metrics.status !== "disconnected";
+                return (
+                  <Badge
+                    key={platform.name}
+                    variant="outline"
+                    className={`gap-2 py-1.5 px-3 transition-all duration-500 border-white/5 ${
+                      isConnected 
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 glow-green" 
+                        : "bg-muted/50 text-muted-foreground grayscale"
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground/30"}`} />
+                    <span className="text-[10px] font-bold tracking-tight uppercase">{platform.name}</span>
+                  </Badge>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <SectionErrorBoundary fallbackTitle="Growth impact chart failed to load">

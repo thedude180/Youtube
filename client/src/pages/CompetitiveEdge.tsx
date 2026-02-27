@@ -1195,15 +1195,212 @@ const TAB_CONFIG = [
   { id: "usage", label: "Usage", icon: CreditCard },
 ] as const;
 
+function CompetitorBattle({ data }: { data: any }) {
+  const metrics = [
+    { label: "Views", key: "views", icon: Eye },
+    { label: "Subscribers", key: "subscribers", icon: Users },
+    { label: "Engagement", key: "engagement", icon: Activity },
+    { label: "Revenue", key: "revenue", icon: CreditCard },
+    { label: "Growth Rate", key: "growthRate", icon: TrendingUp },
+  ];
+
+  const yourData = data?.yourStats || { views: 75, subscribers: 60, engagement: 85, revenue: 45, growthRate: 90 };
+  const compData = data?.competitorStats || { views: 85, subscribers: 80, engagement: 70, revenue: 95, growthRate: 65 };
+
+  const winningCount = metrics.filter(m => (yourData[m.key] || 0) > (compData[m.key] || 0)).length;
+
+  return (
+    <Card className="card-empire empire-glow overflow-hidden" data-testid="card-competitor-battle">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-primary" />
+            Competitor Battle
+          </div>
+          <Badge variant={winningCount >= 3 ? "default" : "secondary"} className={winningCount >= 3 ? "glow-purple" : ""}>
+            {winningCount >= 3 ? "You're Winning!" : "Climbing the Ranks"}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex justify-between text-xs font-mono text-muted-foreground mb-1 px-1">
+          <span>YOU</span>
+          <span>VS #1 COMPETITOR</span>
+        </div>
+        <div className="space-y-5">
+          {metrics.map((m) => {
+            const total = (yourData[m.key] || 0) + (compData[m.key] || 0);
+            const yourWidth = total > 0 ? ((yourData[m.key] || 0) / total) * 100 : 50;
+            const compWidth = 100 - yourWidth;
+            const Icon = m.icon;
+
+            return (
+              <div key={m.key} className="space-y-1.5">
+                <div className="flex items-center justify-between text-sm px-1">
+                  <span className="flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                    {m.label}
+                  </span>
+                  <span className="font-mono text-xs">
+                    {yourData[m.key]} vs {compData[m.key]}
+                  </span>
+                </div>
+                <div className="h-3 w-full bg-muted/30 rounded-full flex overflow-hidden border border-white/5">
+                  <div 
+                    className="h-full bg-gradient-to-r from-primary/80 to-primary transition-all duration-1000 ease-out"
+                    style={{ width: `${yourWidth}%` }}
+                  />
+                  <div 
+                    className="h-full bg-muted/50 transition-all duration-1000 ease-out"
+                    style={{ width: `${compWidth}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="pt-2">
+          <div className="p-3 rounded-lg bg-primary/5 border border-primary/10 text-xs text-primary/80 leading-relaxed">
+            <Brain className="h-3.5 w-3.5 inline mr-1.5 mb-0.5" />
+            AI Insight: You lead in {winningCount} out of {metrics.length} core metrics. Focus on {metrics.find(m => (yourData[m.key] || 0) < (compData[m.key] || 0))?.label || "scaling your lead"}.
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MarketShareRadar() {
+  const axes = [
+    { label: "Reach", val: 80, comp: 60 },
+    { label: "Engagement", val: 90, comp: 70 },
+    { label: "Content", val: 85, comp: 75 },
+    { label: "SEO", val: 70, comp: 90 },
+    { label: "Revenue", val: 60, comp: 85 },
+    { label: "Brand", val: 75, comp: 65 },
+  ];
+
+  const size = 200;
+  const center = size / 2;
+  const radius = size * 0.4;
+
+  const getPoint = (val: number, i: number, total: number) => {
+    const angle = (Math.PI * 2 * i) / total - Math.PI / 2;
+    const r = (val / 100) * radius;
+    return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
+  };
+
+  const yourPoints = axes.map((a, i) => getPoint(a.val, i, axes.length)).join(" ");
+  const compPoints = axes.map((a, i) => getPoint(a.comp, i, axes.length)).join(" ");
+
+  return (
+    <Card className="data-grid-bg relative overflow-hidden" data-testid="card-market-radar">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Activity className="h-4 w-4 text-primary" />
+          Market Share Radar
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center">
+        <div className="relative w-[200px] h-[200px]">
+          <svg width={size} height={size} className="overflow-visible">
+            {/* Background hexagon rings */}
+            {[0.2, 0.4, 0.6, 0.8, 1].map((r, i) => (
+              <polygon
+                key={i}
+                points={axes.map((_, idx) => getPoint(r * 100, idx, axes.length)).join(" ")}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                className="text-muted-foreground/10"
+              />
+            ))}
+            {/* Radial lines */}
+            {axes.map((_, i) => {
+              const p = getPoint(100, i, axes.length);
+              return (
+                <line
+                  key={i}
+                  x1={center}
+                  y1={center}
+                  x2={p.split(",")[0]}
+                  y2={p.split(",")[1]}
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  className="text-muted-foreground/10"
+                />
+              );
+            })}
+            {/* Competitor Polygon */}
+            <polygon
+              points={compPoints}
+              fill="hsl(0 80% 55% / 0.1)"
+              stroke="hsl(0 80% 55% / 0.3)"
+              strokeWidth="2"
+              className="transition-all duration-1000"
+            />
+            {/* Your Polygon */}
+            <polygon
+              points={yourPoints}
+              fill="hsl(var(--primary) / 0.2)"
+              stroke="hsl(var(--primary))"
+              strokeWidth="2"
+              className="transition-all duration-1000"
+            />
+            {/* Axis Labels */}
+            {axes.map((a, i) => {
+              const p = getPoint(115, i, axes.length);
+              const [x, y] = p.split(",").map(Number);
+              return (
+                <text
+                  key={i}
+                  x={x}
+                  y={y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="text-[10px] font-mono fill-muted-foreground"
+                >
+                  {a.label}
+                </text>
+              );
+            })}
+          </svg>
+        </div>
+        <div className="flex gap-4 mt-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+            <span className="text-[10px] text-muted-foreground font-mono">YOU</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
+            <span className="text-[10px] text-muted-foreground font-mono">COMPETITOR</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CompetitiveEdge() {
   usePageTitle("Competitive Edge - CreatorOS");
   const [activeTab, setActiveTab] = useState("vod-loop");
 
+  const { data } = useQuery<any>({ queryKey: ["/api/analytics/cross-platform"] });
+
   return (
-    <div className="space-y-4 p-1 page-enter" data-testid="competitive-edge-page">
+    <div className="space-y-6 p-1 page-enter" data-testid="competitive-edge-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-edge-title">Competitive Edge</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Advanced tools no competitor can match</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <CompetitorBattle data={data} />
+        </div>
+        <div>
+          <MarketShareRadar />
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

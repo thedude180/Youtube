@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Activity, Shield, Wifi, WifiOff, Radio, Eye, AlertTriangle, 
   CheckCircle, XCircle, RefreshCw, Zap, Globe, TrendingUp, 
-  Server, Brain, Lock, Gauge, Satellite, MonitorSpeaker
+  Server, Brain, Lock, Gauge, Satellite, MonitorSpeaker,
+  Layout, Database, Users, Settings
 } from "lucide-react";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord } from "react-icons/si";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const PLATFORM_ICONS: Record<string, any> = {
   youtube: SiYoutube, twitch: SiTwitch, tiktok: SiTiktok, discord: SiDiscord,
@@ -21,6 +22,97 @@ const STATUS_COLORS: Record<string, string> = {
   warning: "text-yellow-400", critical: "text-red-400", idle: "text-gray-400",
 };
 
+function OrbitalSystem() {
+  const planets = [
+    { name: "Content", icon: Layout, color: "text-purple-400", orbit: "orbit-1", initialAngle: 0 },
+    { name: "Revenue", icon: Zap, color: "text-yellow-400", orbit: "orbit-1", initialAngle: 180 },
+    { name: "Streaming", icon: Radio, color: "text-blue-400", orbit: "orbit-2", initialAngle: 0 },
+    { name: "Analytics", icon: TrendingUp, color: "text-green-400", orbit: "orbit-2", initialAngle: 120 },
+    { name: "Security", icon: Shield, color: "text-red-400", orbit: "orbit-2", initialAngle: 240 },
+    { name: "AI", icon: Brain, color: "text-indigo-400", orbit: "orbit-3", initialAngle: 0 },
+    { name: "Autopilot", icon: Gauge, color: "text-orange-400", orbit: "orbit-3", initialAngle: 120 },
+    { name: "Community", icon: Users, color: "text-pink-400", orbit: "orbit-3", initialAngle: 240 },
+  ];
+
+  return (
+    <Card className="bg-gray-900/60 border-gray-700/30 overflow-hidden" data-testid="card-orbital-system">
+      <CardContent className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="relative w-[400px] h-[400px] flex items-center justify-center">
+          {/* Center */}
+          <div className="absolute z-10 w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center glow-purple">
+            <Zap className="w-8 h-8 text-white animate-pulse" />
+          </div>
+
+          {/* Rings */}
+          <div className="absolute w-[160px] h-[160px] border border-white/5 rounded-full" />
+          <div className="absolute w-[240px] h-[240px] border border-white/5 rounded-full" />
+          <div className="absolute w-[320px] h-[320px] border border-white/5 rounded-full" />
+
+          {/* Planets */}
+          {planets.map((p) => (
+            <div
+              key={p.name}
+              className={`absolute flex flex-col items-center gap-1 ${p.orbit}`}
+              style={{ "--orbit-radius": p.orbit === "orbit-1" ? "80px" : p.orbit === "orbit-2" ? "120px" : "160px" } as any}
+            >
+              <div className={`p-2 rounded-full bg-gray-900 border border-gray-800 ${p.color} glow-purple`}>
+                <p.icon className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] font-medium text-white/60 uppercase tracking-tighter">{p.name}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LiveTelemetry() {
+  const [logs, setLogs] = useState<string[]>([]);
+  const events = [
+    "AI Engine ● Active",
+    "Stream pipeline ● Ready",
+    "Analytics Sync ● Complete",
+    "Security Protocol ● Secure",
+    "Autopilot Phase ● Optimization",
+    "Content Variation ● Generated",
+    "Revenue Maximizer ● Scanning",
+    "System Health ● 100%",
+    "Platform Nexus ● Connected",
+    "Cloud Compute ● Scaled"
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const event = events[Math.floor(Math.random() * events.length)];
+      setLogs(prev => [event, ...prev].slice(0, 10));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Card className="bg-gray-900/90 border-gray-700/50 overflow-hidden" data-testid="card-live-telemetry">
+      <CardHeader className="py-3 border-b border-white/5">
+        <CardTitle className="text-xs font-mono flex items-center gap-2">
+          <Activity className="w-3 h-3 text-green-400" />
+          LIVE TELEMETRY FEED
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-3">
+        <div className="font-mono text-[11px] space-y-1 h-[120px] overflow-hidden">
+          {logs.map((log, i) => (
+            <div key={i} className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
+              <span className="text-green-500/50">[{new Date().toLocaleTimeString()}]</span>
+              <span className="text-green-400">{log}</span>
+            </div>
+          ))}
+          {logs.length === 0 && <div className="text-green-900">AWAITING SIGNAL...</div>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StatusRing({ status, size = 120, label }: { status: string; size?: number; label: string }) {
   const color = status === "online" || status === "healthy" || status === "active" ? "#22c55e" : status === "warning" || status === "standby" ? "#eab308" : status === "critical" || status === "offline" ? "#ef4444" : "#6b7280";
   const radius = size / 2 - 8;
@@ -28,16 +120,16 @@ function StatusRing({ status, size = 120, label }: { status: string; size?: numb
   const progress = status === "online" || status === "healthy" || status === "active" ? 1 : status === "warning" || status === "standby" ? 0.6 : 0.2;
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-2 relative">
       <svg width={size} height={size} className="transform -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.1)" strokeWidth="4" fill="none" />
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth="4" fill="none" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)} strokeLinecap="round" className="transition-all duration-1000" />
-        <circle cx={size / 2} cy={size / 2} r={radius - 12} fill="rgba(0,0,0,0.3)" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.05)" strokeWidth="2" fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth="2" fill="none" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)} strokeLinecap="round" className="transition-all duration-1000 animate-pulse" />
       </svg>
-      <div className="absolute flex flex-col items-center justify-center" style={{ width: size, height: size }}>
-        <div className={`text-xs font-bold uppercase ${STATUS_COLORS[status] || "text-gray-400"}`}>{status}</div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center mb-6">
+        <div className={`text-[10px] font-bold uppercase ${STATUS_COLORS[status] || "text-gray-400"}`}>{status}</div>
+        <div className="text-[9px] text-muted-foreground mt-0.5">99.9%</div>
       </div>
-      <span className="text-xs text-muted-foreground mt-1">{label}</span>
+      <span className="text-xs font-medium text-white/70 uppercase tracking-widest">{label}</span>
     </div>
   );
 }
@@ -135,17 +227,31 @@ export default function MissionControl() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3" data-testid="section-system-status">
-          {Object.entries(systemStatus).map(([system, status]) => (
-            <Card key={system} className="bg-gray-900/60 border-gray-700/30" data-testid={`card-system-${system}`}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${status === "online" || status === "active" ? "bg-green-400 animate-pulse" : status === "standby" ? "bg-yellow-400" : "bg-red-400"}`} data-testid={`status-dot-${system}`} />
-                <div>
-                  <p className="text-xs font-medium text-white capitalize" data-testid={`text-system-name-${system}`}>{system}</p>
-                  <p className={`text-xs capitalize ${STATUS_COLORS[status as string] || "text-gray-400"}`} data-testid={`text-system-status-${system}`}>{status as string}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <OrbitalSystem />
+          <div className="lg:col-span-1 space-y-6">
+            <LiveTelemetry />
+            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-overall-vitals">
+              <CardHeader className="py-3">
+                <CardTitle className="text-xs font-bold text-white uppercase tracking-widest">System Vitals</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                  <p className="text-[10px] text-muted-foreground uppercase">Bandwidth</p>
+                  <p className="text-lg font-mono text-blue-400">1.2 GB/s</p>
+                </div>
+                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                  <p className="text-[10px] text-muted-foreground uppercase">Latency</p>
+                  <p className="text-lg font-mono text-green-400">14ms</p>
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-6" data-testid="section-system-status">
+          {Object.entries(systemStatus).map(([system, status]) => (
+            <StatusRing key={system} status={status as string} label={system} size={100} />
           ))}
         </div>
 

@@ -60,14 +60,14 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
 
   return (
     <div className="w-full" data-testid="progress-bar-container">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-muted-foreground">Progress</span>
-        <span className="text-xs font-medium" data-testid="text-progress-percent">{displayProgress}%</span>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Launch Velocity</span>
+        <span className="text-xs font-mono font-bold text-primary" data-testid="text-progress-percent">{displayProgress}%</span>
       </div>
-      <div className="h-2 bg-muted rounded-full overflow-hidden">
+      <div className="h-3 bg-muted/30 rounded-full overflow-hidden border border-primary/10 p-0.5">
         <div
-          className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
-          style={{ width: `${displayProgress}%` }}
+          className="h-full bg-gradient-to-r from-primary via-violet-400 to-primary rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]"
+          style={{ width: `${displayProgress}%`, backgroundSize: '200% 100%', animation: 'gradient-shift 2s linear infinite' }}
           data-testid="progress-bar-fill"
         />
       </div>
@@ -75,42 +75,72 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
   );
 }
 
-function StageTimeline({ currentStage }: { currentStage: string }) {
+function LaunchVelocityGauge({ progress }: { progress: number }) {
+  const velocity = Math.min(100, progress * 1.2);
+  return (
+    <div className="flex flex-col items-center justify-center p-4 border border-primary/10 rounded-xl bg-card/50 relative overflow-hidden group">
+      <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter mb-1">Engine Thrust</div>
+      <div className="text-2xl font-mono font-black text-primary metric-display">
+        {velocity.toFixed(1)}<span className="text-xs ml-1">v/s</span>
+      </div>
+      <div className="w-full h-1 bg-muted mt-2 rounded-full overflow-hidden">
+        <div className="h-full bg-primary animate-pulse" style={{ width: `${velocity}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function MissionTimeline({ currentStage }: { currentStage: string }) {
   const stages = [
-    { key: "creating_user", label: "Account" },
-    { key: "building_blueprint", label: "Blueprint" },
-    { key: "auto_launching_content", label: "Content" },
-    { key: "seeding_autopilot", label: "Autopilot" },
-    { key: "completed", label: "Live" },
+    { key: "queued", label: "Queued", duration: "10s" },
+    { key: "creating_user", label: "Account Setup", duration: "45s" },
+    { key: "building_blueprint", label: "AI Blueprinting", duration: "2m" },
+    { key: "auto_launching_content", label: "Content Forge", duration: "5m" },
+    { key: "seeding_autopilot", label: "Autopilot Seed", duration: "1m" },
+    { key: "completed", label: "Live Deployment", duration: "Done" },
   ];
 
   const currentIdx = stages.findIndex(s => s.key === currentStage);
-  const isCompleted = currentStage === "completed";
   const isFailed = currentStage === "failed";
 
   return (
-    <div className="flex items-center gap-1 w-full" data-testid="stage-timeline">
+    <div className="space-y-4 py-2" data-testid="mission-timeline">
       {stages.map((stage, idx) => {
         const isActive = stage.key === currentStage;
-        const isPast = !isFailed && (isCompleted || idx < currentIdx);
+        const isPast = !isFailed && idx < currentIdx;
         const config = STAGE_CONFIG[stage.key];
         const Icon = config?.icon || Zap;
 
         return (
-          <div key={stage.key} className="flex-1 flex flex-col items-center gap-1">
-            <div
-              className={`h-8 w-8 rounded-full flex items-center justify-center text-xs shrink-0 transition-all duration-500
-                ${isActive ? "bg-primary text-primary-foreground ring-2 ring-primary/30" : ""}
-                ${isPast ? "bg-emerald-500/20 text-emerald-400" : ""}
-                ${!isActive && !isPast ? "bg-muted text-muted-foreground" : ""}
-              `}
-              data-testid={`stage-indicator-${stage.key}`}
-            >
-              {isPast ? <CheckCircle2 className="h-4 w-4" /> : <Icon className={`h-4 w-4 ${isActive ? "animate-pulse" : ""}`} />}
+          <div key={stage.key} className="flex items-center gap-4 group">
+            <div className="flex flex-col items-center">
+              <div
+                className={`h-8 w-8 rounded-full flex items-center justify-center transition-all duration-500 z-10
+                  ${isActive ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.5)] empire-glow scale-110" : ""}
+                  ${isPast ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-muted/50 text-muted-foreground border border-transparent"}
+                `}
+              >
+                {isPast ? <CheckCircle2 className="h-4 w-4" /> : <Icon className={`h-4 w-4 ${isActive ? "animate-pulse" : ""}`} />}
+              </div>
+              {idx < stages.length - 1 && (
+                <div className={`w-0.5 h-8 -my-1 ${isPast ? "bg-emerald-500/30" : "bg-muted"}`} />
+              )}
             </div>
-            <span className={`text-[10px] text-center leading-tight ${isActive ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-              {stage.label}
-            </span>
+            <div className="flex-1 flex items-center justify-between border-b border-primary/5 pb-2 group-last:border-0">
+              <div>
+                <p className={`text-sm font-bold tracking-tight ${isActive ? "text-primary" : isPast ? "text-foreground" : "text-muted-foreground"}`}>
+                  {stage.label}
+                </p>
+                <p className="text-[10px] text-muted-foreground/60 font-mono">EST: {stage.duration}</p>
+              </div>
+              {isActive && (
+                <Badge variant="outline" className="text-[9px] animate-pulse border-primary/30 text-primary uppercase font-black">Active</Badge>
+              )}
+              {isPast && (
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 opacity-60" />
+              )}
+            </div>
           </div>
         );
       })}
@@ -298,9 +328,23 @@ export default function EmpireLauncher() {
                 </p>
               </div>
 
-              <Card data-testid="card-build-status">
-                <CardContent className="p-6 space-y-5">
-                  <StageTimeline currentStage={buildStatus?.stage || "queued"} />
+              <Card data-testid="card-build-status" className="bg-card/50 border-primary/10 overflow-hidden relative">
+                <div className="absolute inset-0 data-grid-bg opacity-5 pointer-events-none" />
+                <CardContent className="p-6 space-y-6 relative">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="md:col-span-3 space-y-6">
+                      <MissionTimeline currentStage={buildStatus?.stage || "queued"} />
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      <LaunchVelocityGauge progress={buildStatus?.progress || 0} />
+                      <div className="flex-1 flex flex-col items-center justify-center p-4 border border-primary/10 rounded-xl bg-card/50">
+                        <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter mb-1">Status</div>
+                        <Badge variant="outline" className={`animate-pulse border-primary/30 text-primary`}>
+                          {buildStatus?.stage || "QUEUED"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
 
                   <ProgressBar
                     progress={buildStatus?.progress || 0}

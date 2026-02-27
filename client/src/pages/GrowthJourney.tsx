@@ -491,6 +491,101 @@ function ProgressToNextMilestone({ current, next, progress }: { current: Journey
   );
 }
 
+function GrowthPhaseHero({ phase }: { phase: JourneyData["growthPhase"] }) {
+  const { t } = useTranslation();
+  const phases = [
+    { name: "Seed", icon: Sprout, description: "Planting the foundations of your empire", color: "text-blue-400", bg: "bg-blue-400/10" },
+    { name: "Sprout", icon: TrendingUp, description: "Breaking through the noise and gaining traction", color: "text-cyan-400", bg: "bg-cyan-400/10" },
+    { name: "Scale", icon: Rocket, description: "Accelerating your reach to a global audience", color: "text-primary", bg: "bg-primary/10" },
+    { name: "Dominate", icon: Crown, description: "Establishing market leadership and authority", color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  ];
+
+  const currentPhase = phases.find(p => phase.currentPhase.includes(p.name)) || phases[0];
+  const Icon = currentPhase.icon;
+
+  return (
+    <Card className="card-empire empire-glow overflow-hidden relative" data-testid="card-growth-hero">
+      <div className="absolute top-0 right-0 p-8 opacity-10">
+        <Icon className="h-32 w-32" />
+      </div>
+      <CardContent className="p-8 flex flex-col md:flex-row items-center gap-8 relative z-10">
+        <div className={`h-24 w-24 rounded-2xl ${currentPhase.bg} flex items-center justify-center border border-white/5`}>
+          <Icon className={`h-12 w-12 ${currentPhase.color}`} />
+        </div>
+        <div className="text-center md:text-left space-y-2">
+          <Badge variant="outline" className={`mb-2 ${currentPhase.color} border-current/20`}>Current Phase</Badge>
+          <h2 className="text-3xl font-bold tracking-tight">{currentPhase.name} Phase</h2>
+          <p className="text-muted-foreground text-lg max-w-xl">{currentPhase.description}</p>
+          <div className="flex gap-4 pt-4">
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground uppercase tracking-wider font-mono">Confidence</span>
+              <span className="text-xl font-bold">{phase.confidence}%</span>
+            </div>
+            <div className="w-px h-10 bg-border" />
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground uppercase tracking-wider font-mono">Next Milestone</span>
+              <span className="text-xl font-bold">~{phase.estimatedDays || 14}d</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GrowthVelocityGauge({ progress }: { progress: number }) {
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (progress / 100) * (circumference / 2); // Half circle
+
+  return (
+    <Card className="data-grid-bg" data-testid="card-velocity-gauge">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          Growth Velocity
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center pb-6">
+        <div className="relative">
+          <svg width="120" height="70" className="rotate-[180deg]">
+            <circle
+              cx="60"
+              cy="10"
+              r={radius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="8"
+              strokeDasharray={`${circumference / 2} ${circumference / 2}`}
+              className="text-muted/30"
+            />
+            <circle
+              cx="60"
+              cy="10"
+              r={radius}
+              fill="none"
+              stroke={progress > 50 ? "hsl(var(--primary))" : "hsl(var(--destructive))"}
+              strokeWidth="8"
+              strokeDasharray={`${circumference / 2} ${circumference / 2}`}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              className="transition-all duration-1000"
+            />
+          </svg>
+          <div className="absolute top-[40px] left-1/2 -translate-x-1/2 text-center">
+            <span className="text-2xl font-bold metric-display">{progress}%</span>
+            <p className="text-[10px] text-muted-foreground uppercase font-mono">Velocity</p>
+          </div>
+        </div>
+        <div className="flex justify-between w-full mt-2 px-4">
+          <span className="text-[10px] text-muted-foreground font-mono">STABLE</span>
+          <span className="text-[10px] text-muted-foreground font-mono">OPTIMAL</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function GrowthJourney() {
   const { t } = useTranslation();
   usePageTitle("Growth Journey - Zero to #1");
@@ -540,16 +635,16 @@ export default function GrowthJourney() {
 
   return (
     <div className="space-y-6 p-1 page-enter" data-testid="growth-journey-page">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-journey-title">
-          {t('growth.title')}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {t('growth.personalRoadmap')}
-        </p>
-      </div>
+      <GrowthPhaseHero phase={data.growthPhase} />
 
-      <StatsOverview stats={data.stats} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <StatsOverview stats={data.stats} />
+        </div>
+        <div>
+          <GrowthVelocityGauge progress={data.progressToNext} />
+        </div>
+      </div>
 
       <ProgressToNextMilestone
         current={data.currentMilestone}

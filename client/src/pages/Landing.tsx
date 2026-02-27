@@ -6,6 +6,11 @@ import {
   Radio, Video, Layers, Target, Eye,
   RefreshCw, Clock, Award, ChevronRight,
 } from "lucide-react";
+import {
+  SiYoutube, SiTwitch, SiTiktok, SiX, SiDiscord,
+  SiInstagram, SiLinkedin, SiRumble, SiSnapchat,
+  SiPinterest, SiFacebook
+} from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +18,191 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { useToast } from "@/hooks/use-toast";
 import { AuthForm } from "@/components/AuthForm";
 import { useTranslation } from "react-i18next";
+
+function LiveStatsBar() {
+  const [stats, setStats] = useState({ creators: 142, tasks: 847, revenue: 12847 });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStats(prev => ({
+        creators: prev.creators + (Math.random() > 0.8 ? 1 : 0),
+        tasks: prev.tasks + Math.floor(Math.random() * 3),
+        revenue: prev.revenue + Math.floor(Math.random() * 5)
+      }));
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex justify-center mt-12 slide-up-stagger" style={{ animationDelay: '0.5s' }}>
+      <div className="inline-flex items-center gap-6 px-6 py-2.5 rounded-full bg-background/40 backdrop-blur-md border border-primary/20 shadow-xl shadow-primary/5 text-xs font-medium">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+          </span>
+          <span className="text-muted-foreground uppercase tracking-wider">Live</span>
+        </div>
+        <div className="h-4 w-px bg-border/50" />
+        <span className="text-foreground">{stats.creators} creators live</span>
+        <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+        <span className="text-foreground">{stats.tasks.toLocaleString()} tasks completed</span>
+        <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+        <span className="text-foreground">Revenue: ${stats.revenue.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
+function PlatformLogos() {
+  const { ref, inView } = useInView(0.1);
+  const platforms = [
+    { icon: SiYoutube, name: "YouTube" },
+    { icon: SiTwitch, name: "Twitch" },
+    { icon: SiTiktok, name: "TikTok" },
+    { icon: SiX, name: "X" },
+    { icon: SiDiscord, name: "Discord" },
+    { icon: SiInstagram, name: "Instagram" },
+    { icon: SiLinkedin, name: "LinkedIn" },
+    { icon: SiRumble, name: "Rumble" },
+    { icon: SiSnapchat, name: "Snapchat" },
+    { icon: SiPinterest, name: "Pinterest" },
+    { icon: SiFacebook, name: "Facebook" }
+  ];
+
+  return (
+    <div ref={ref} className={`mt-24 transition-all duration-1000 ${inView ? 'opacity-100' : 'opacity-0 translate-y-4'}`}>
+      <p className="text-center text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60 font-semibold mb-8">
+        Trusted across 25+ platforms
+      </p>
+      <div className="flex flex-wrap justify-center gap-8 md:gap-12 opacity-40 grayscale hover:grayscale-0 transition-all">
+        {platforms.map((P, i) => (
+          <P.icon key={i} className="w-5 h-5 hover:text-primary hover:scale-110 transition-all cursor-pointer" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VideoDemoMockup() {
+  return (
+    <section className="py-24 relative overflow-hidden">
+      <div className="max-w-5xl mx-auto px-4">
+        <div className="relative rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden group">
+          {/* Browser Header */}
+          <div className="h-10 bg-muted/30 border-b border-border/50 flex items-center px-4 gap-2">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500/50" />
+              <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
+              <div className="w-3 h-3 rounded-full bg-green-500/50" />
+            </div>
+            <div className="mx-auto w-64 h-5 bg-background/50 rounded text-[10px] flex items-center justify-center text-muted-foreground font-mono">
+              creator-os.app/dashboard
+            </div>
+          </div>
+          
+          {/* Content Area */}
+          <div className="aspect-video bg-background p-6 relative overflow-hidden">
+            <div className="absolute inset-0 data-grid-bg opacity-20" />
+            
+            <div className="relative z-10 grid grid-cols-3 gap-4 h-full">
+              {/* Sidebar Mock */}
+              <div className="col-span-1 border-r border-border/50 pr-4 space-y-4">
+                <div className="h-8 w-32 bg-primary/10 rounded" />
+                <div className="space-y-2">
+                  {[1,2,3,4,5].map(i => <div key={i} className="h-4 bg-muted/50 rounded w-full" />)}
+                </div>
+              </div>
+              
+              {/* Main Content Mock */}
+              <div className="col-span-2 space-y-6">
+                <div className="flex justify-between items-center">
+                  <div className="h-6 w-40 bg-muted rounded" />
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-mono text-emerald-500 uppercase">Live Stats</span>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {[1,2,3,4].map(i => (
+                    <div key={i} className="h-24 rounded-lg border border-border/50 bg-card/50 p-3 space-y-2 relative overflow-hidden">
+                      <div className="h-3 w-12 bg-muted rounded" />
+                      <div className="h-6 w-20 bg-primary/20 rounded" />
+                      {/* Animated lines */}
+                      <div className="absolute bottom-0 left-0 right-0 h-px bg-primary/30 animate-[scan-line_2s_linear_infinite]" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TrustBadges() {
+  const badges = [
+    { icon: Shield, text: "SOC 2 Compliant" },
+    { icon: Clock, text: "99.9% Uptime" },
+    { icon: Award, text: "GDPR Ready" },
+    { icon: Zap, text: "256-bit Encryption" }
+  ];
+
+  return (
+    <div className="flex flex-wrap justify-center gap-6 py-12 border-y border-border/30 bg-muted/5">
+      {badges.map((b, i) => (
+        <div key={i} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border/50 bg-background/50 backdrop-blur-sm">
+          <b.icon className="w-4 h-4 text-primary" />
+          <span className="text-xs font-medium text-muted-foreground">{b.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CTAUrgency() {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0);
+      const diff = midnight.getTime() - now.getTime();
+      
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setTimeLeft(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <section className="py-24 border-t border-border/30 bg-primary/[0.02]">
+      <div className="max-w-4xl mx-auto px-4 text-center">
+        <h2 className="text-3xl font-display font-bold mb-4">Ready to build your empire?</h2>
+        <p className="text-muted-foreground mb-8">Limited time: First month free for creators who start today.</p>
+        
+        <div className="flex flex-col items-center gap-6">
+          <Button size="lg" className="px-12 h-14 text-lg glow">
+            Start Your Free Month
+            <ArrowRight className="ml-2 w-5 h-5" />
+          </Button>
+          
+          <div className="flex items-center gap-3 text-sm font-mono text-primary">
+            <Clock className="w-4 h-4" />
+            <span>OFFER EXPIRES IN: {timeLeft}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function useCountUp(target: number, duration = 2000, startOnView = true) {
   const [count, setCount] = useState(0);
@@ -286,18 +476,24 @@ export default function Landing() {
       role: t('landing.youtubeAndTwitch'),
       quote: t('landing.gamingQuote'),
       avatar: "🎮",
+      subs: "287K",
+      revenue: "+47%"
     },
     {
       name: t('landing.techReviewer'),
       role: t('landing.multiPlatformCreator'),
       quote: t('landing.techQuote'),
       avatar: "💻",
+      subs: "1.2M",
+      revenue: "+82%"
     },
     {
       name: t('landing.varietyStreamer'),
       role: t('landing.fullTimeCreator'),
       quote: t('landing.varietyQuote'),
       avatar: "🎙️",
+      subs: "154K",
+      revenue: "+112%"
     },
   ], [t]);
 
@@ -422,6 +618,8 @@ export default function Landing() {
                 </a>
               </div>
 
+              <LiveStatsBar />
+
               <div className="slide-up-stagger flex items-center gap-5 mt-8 flex-wrap" style={{ animationDelay: '0.4s' }}>
                 {[t('landing.fiveMinSetup'), t('landing.noCreditCard'), t('landing.cancelAnytime')].map((text) => (
                   <span key={text} className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -445,9 +643,13 @@ export default function Landing() {
                 );
               })}
             </div>
+
+            <PlatformLogos />
           </div>
         </div>
       </section>
+
+      <VideoDemoMockup />
 
       <section className="py-20 sm:py-28 border-t border-border/30 relative overflow-hidden" data-testid="section-pipeline" ref={pipelineView.ref}>
         <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.02] to-transparent" aria-hidden="true" />
@@ -579,15 +781,32 @@ export default function Landing() {
             {TESTIMONIALS.map((testimonial, i) => (
               <Card key={testimonial.name} className="shine group hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-500" data-testid={`card-testimonial-${i}`}>
                 <CardContent className="p-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-lg ring-2 ring-primary/10">
-                      {testimonial.avatar}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{testimonial.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{testimonial.role}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-lg ring-2 ring-primary/10">
+                        {testimonial.avatar}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1">
+                          <p className="text-sm font-semibold">{testimonial.name}</p>
+                          <div className="h-3 w-3 rounded-full bg-primary flex items-center justify-center text-[6px] text-primary-foreground" title="Verified Creator">✓</div>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">{testimonial.role}</p>
+                      </div>
                     </div>
                   </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 py-2 border-y border-border/50">
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-primary">{(testimonial as any).subs}</p>
+                      <p className="text-[9px] uppercase tracking-tighter text-muted-foreground">Subscribers</p>
+                    </div>
+                    <div className="text-center border-l border-border/50">
+                      <p className="text-xs font-bold text-emerald-500">{(testimonial as any).revenue}</p>
+                      <p className="text-[9px] uppercase tracking-tighter text-muted-foreground">Revenue</p>
+                    </div>
+                  </div>
+
                   <p className="text-sm text-muted-foreground leading-relaxed italic">"{testimonial.quote}"</p>
                 </CardContent>
               </Card>
@@ -598,7 +817,8 @@ export default function Landing() {
 
       <section className="py-20 sm:py-28 border-t border-border/30 relative" data-testid="section-trust">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-14">
+          <TrustBadges />
+          <div className="text-center mb-14 mt-20">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('landing.platformCapabilities')}</p>
             <h2 className="text-3xl sm:text-4xl font-display font-bold">
               {t('landing.builtForScale')}
@@ -697,6 +917,8 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <CTAUrgency />
 
       <section className="py-24 sm:py-32 border-t border-border/30 relative overflow-hidden aurora-bg" data-testid="section-cta">
         <div className="absolute inset-0 grid-pattern opacity-20" aria-hidden="true" />

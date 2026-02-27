@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useMemo, useCallback } from "react";
+import { useState, lazy, Suspense, useMemo, useCallback, useEffect } from "react";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { safeArray } from "@/lib/safe-data";
@@ -22,6 +22,7 @@ import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { StealthRing } from "@/components/StealthRing";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { PulseOrb } from "@/components/PulseOrb";
+import { Progress } from "@/components/ui/progress";
 import {
   Rocket,
   Zap,
@@ -56,6 +57,10 @@ import {
   Square,
   AlertTriangle,
   RefreshCw,
+  Search,
+  FileText,
+  Settings,
+  Share2,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 
@@ -284,6 +289,138 @@ const QUEUE_STATUS_FILTERS = [
   { value: "published", label: "Published" },
   { value: "failed", label: "Failed" },
 ] as const;
+
+function PipelineFlowVisualizer({ currentPhase }: { currentPhase: string }) {
+  const phases = [
+    { id: "trigger", label: "Trigger", icon: Rocket },
+    { id: "fetch", label: "Fetch", icon: Download },
+    { id: "ai", label: "AI", icon: Bot },
+    { id: "format", label: "Format", icon: FileText },
+    { id: "optimize", label: "Optimize", icon: Zap },
+    { id: "schedule", label: "Schedule", icon: CalendarClock },
+    { id: "publish", label: "Publish", icon: Share2 },
+  ];
+
+  const currentIdx = phases.findIndex(p => p.id === currentPhase);
+
+  return (
+    <Card className="bg-card/50 border-primary/20 overflow-hidden relative">
+      <div className="absolute inset-0 data-grid-bg opacity-10 pointer-events-none" />
+      <CardContent className="p-6 relative">
+        <div className="flex items-center justify-between relative">
+          <svg className="absolute top-1/2 left-0 w-full h-1 -translate-y-1/2 -z-10 overflow-visible">
+            {phases.slice(0, -1).map((_, i) => (
+              <line
+                key={i}
+                x1={`${(i / (phases.length - 1)) * 100}%`}
+                y1="50%"
+                x2={`${((i + 1) / (phases.length - 1)) * 100}%`}
+                y2="50%"
+                className={`stroke-2 ${i < currentIdx ? 'stroke-primary' : 'stroke-muted'}`}
+                style={{
+                  strokeDasharray: "4 4",
+                  animation: i === currentIdx ? "ticker-scroll 10s linear infinite" : "none"
+                }}
+              />
+            ))}
+          </svg>
+          {phases.map((phase, idx) => {
+            const isActive = phase.id === currentPhase;
+            const isDone = idx < currentIdx;
+            const Icon = phase.icon;
+
+            return (
+              <div key={phase.id} className="flex flex-col items-center gap-2 relative z-10">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                    isActive
+                      ? "bg-primary border-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.5)] empire-glow"
+                      : isDone
+                      ? "bg-primary/20 border-primary text-primary"
+                      : "bg-muted border-muted text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {isActive && (
+                    <div className="absolute inset-0 rounded-full animate-pulse-ring border border-primary" />
+                  )}
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                    {phase.label}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground/60">
+                    {idx < currentIdx ? "Done" : isActive ? "Active" : "Pending"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LiveTasksWidget() {
+  const [tasks, setTasks] = useState([
+    { id: 1, name: "AI Video Analysis", progress: 0, speed: 2 },
+    { id: 2, name: "Generating Captions", progress: 0, speed: 1.5 },
+    { id: 3, name: "Optimizing for SEO", progress: 0, speed: 3 },
+  ]);
+
+  const [rotatingTask, setRotatingTask] = useState("Analyzing latest upload...");
+  const taskNames = ["Analyzing latest upload...", "Drafting TikTok responses...", "Recycling top performer...", "Formatting Discord announce..."];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTasks(prev => prev.map(t => ({
+        ...t,
+        progress: t.progress >= 100 ? 0 : t.progress + t.speed
+      })));
+    }, 100);
+
+    const rotateInterval = setInterval(() => {
+      setRotatingTask(prev => {
+        const idx = taskNames.indexOf(prev);
+        return taskNames[(idx + 1) % taskNames.length];
+      });
+    }, 3000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(rotateInterval);
+    };
+  }, []);
+
+  return (
+    <Card className="bg-muted/30 border-primary/10">
+      <CardHeader className="py-3 px-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary animate-pulse" />
+            Live Tasks
+          </CardTitle>
+          <div className="text-[10px] text-primary font-mono flex items-center gap-1">
+            <span className="live-dot" />
+            AI: {rotatingTask}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="py-0 px-4 pb-4 space-y-3">
+        {tasks.map(task => (
+          <div key={task.id} className="space-y-1">
+            <div className="flex justify-between text-[10px] text-muted-foreground uppercase font-medium">
+              <span>{task.name}</span>
+              <span>{Math.round(task.progress)}%</span>
+            </div>
+            <Progress value={task.progress} className="h-1 bg-primary/10" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Autopilot() {
   const { t } = useTranslation();
@@ -604,8 +741,18 @@ export default function Autopilot() {
   }
 
   return (
-    <div className="p-3 md:p-4 space-y-3 max-w-6xl mx-auto overflow-y-auto h-full page-enter">
+    <div className="p-3 md:p-4 space-y-4 max-w-6xl mx-auto overflow-y-auto h-full page-enter">
       <UpgradeTabGate requiredTier="pro" featureName="Autopilot" description="Automate your entire content workflow with AI-powered auto-clipping, smart scheduling, comment responses, and cross-platform posting.">
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="lg:col-span-2">
+          <PipelineFlowVisualizer currentPhase={stats?.recentActivity?.[0]?.phase || "ai"} />
+        </div>
+        <div>
+          <LiveTasksWidget />
+        </div>
+      </div>
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">

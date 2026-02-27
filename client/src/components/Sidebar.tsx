@@ -33,12 +33,14 @@ import {
   Siren,
   KanbanSquare,
   Heart,
+  Terminal,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -52,6 +54,8 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supportedLanguages } from "@/i18n";
 import i18n from "@/i18n";
+import { useQuery } from "@tanstack/react-query";
+import { Separator } from "@/components/ui/separator";
 
 const navLinks = [
   { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free", advancedOnly: false },
@@ -64,7 +68,7 @@ const navLinks = [
   { href: "/autopilot", labelKey: "nav.autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
   { href: "/ai-factory", labelKey: "nav.aiFactory", icon: Sparkles, minTier: "free", advancedOnly: false },
   { href: "/simulator", labelKey: "nav.simulator", icon: FlaskConical, minTier: "free", advancedOnly: false },
-  { href: "/ai-command", labelKey: "nav.aiCommand", icon: Sparkles, minTier: "free", advancedOnly: false },
+  { href: "/ai-command", labelKey: "nav.aiCommand", icon: Terminal, minTier: "free", advancedOnly: false },
   { href: "/war-room", labelKey: "nav.warRoom", icon: Siren, minTier: "pro", advancedOnly: false },
   { href: "/creator-hub", labelKey: "nav.creatorHub", icon: Network, minTier: "free", advancedOnly: false },
   { href: "/workspace", labelKey: "nav.workspace", icon: KanbanSquare, minTier: "free", advancedOnly: false },
@@ -100,6 +104,17 @@ export function AppSidebar() {
   const { tier, isPaidUser, isAdmin, hasTierAccess } = useUserProfile();
   const { t } = useTranslation();
 
+  const { data: dashStats } = useQuery<any>({ queryKey: ["/api/dashboard/stats"], refetchInterval: 60000, staleTime: 30000 });
+  const { data: agentStatus } = useQuery<any[]>({ queryKey: ["/api/agents/status"], refetchInterval: 60000 });
+  const { data: activities } = useQuery<any[]>({ 
+    queryKey: ["/api/agents/activities"], 
+    refetchInterval: 30000,
+    enabled: !!user 
+  });
+
+  const activeAgents = agentStatus?.filter(a => a.status === 'active' || a.status === 'working').length || 0;
+  const completedTasks = activities?.filter(a => a.status === 'completed').length || 0;
+
   const isActive = (href: string) =>
     href === "/" ? location === "/" : location.startsWith(href);
 
@@ -111,11 +126,25 @@ export function AppSidebar() {
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") || "Creator"
     : "Creator";
 
+  const formatCompactNumber = (num: number) => {
+    if (!num) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+  };
+
   return (
     <Sidebar>
-      <SidebarHeader className="p-3">
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shrink-0 glow-sm relative overflow-hidden group">
+      <SidebarHeader className="p-3 relative overflow-hidden">
+        <div 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+          style={{ 
+            backgroundImage: `radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)`,
+            backgroundSize: '12px 12px'
+          }} 
+        />
+        <div className="flex items-center gap-2.5 relative z-10">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shrink-0 glow-sm relative overflow-hidden group shadow-[0_0_15px_rgba(168,85,247,0.4)]">
             <div className="absolute inset-0 bg-gradient-to-br from-white/25 to-transparent opacity-80" />
             <Zap className="h-4 w-4 text-primary-foreground relative z-10 transition-transform group-hover:scale-110" />
           </div>
@@ -128,6 +157,30 @@ export function AppSidebar() {
                 {t("common.advanced")}
               </Badge>
             )}
+          </div>
+        </div>
+
+        <Separator className="my-3 opacity-50" />
+        
+        <div className="flex gap-1 flex-wrap px-1 relative z-10">
+          <div className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground flex items-center gap-1">
+            <Users className="w-2.5 h-2.5" />
+            <span className="text-foreground font-bold">{formatCompactNumber(dashStats?.subscriberCount)}</span>
+          </div>
+          <div className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground flex items-center gap-1">
+            <DollarSign className="w-2.5 h-2.5" />
+            <span className="text-foreground font-bold">${formatCompactNumber(dashStats?.totalRevenue)}</span>
+          </div>
+          <div className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground flex items-center gap-1">
+            <Bot className="w-2.5 h-2.5" />
+            <span className="text-foreground font-bold">{activeAgents}/11</span>
+          </div>
+          <div className="w-full mt-1.5 flex items-center gap-1.5">
+            <span className="text-[9px] text-emerald-400 animate-pulse flex items-center gap-1 font-bold tracking-wider">
+              <span className="h-1 w-1 rounded-full bg-emerald-400" />
+              LIVE
+            </span>
+            <div className="h-[1px] flex-1 bg-gradient-to-r from-emerald-400/20 to-transparent" />
           </div>
         </div>
       </SidebarHeader>
@@ -143,7 +196,12 @@ export function AppSidebar() {
                 const locked = !hasTierAccess(link.minTier);
                 return (
                   <SidebarMenuItem key={link.href}>
-                    <SidebarMenuButton asChild isActive={active} data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={active} 
+                      data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}
+                      className={active ? "border-l-2 border-primary rounded-none" : ""}
+                    >
                       <Link href={locked ? "/pricing" : link.href} onMouseEnter={() => !locked && prefetchForRoute(link.href)} aria-label={locked ? `${label} (locked)` : label} aria-current={active ? "page" : undefined}>
                         <Icon className={`h-4 w-4 ${locked ? "opacity-30" : ""} ${active ? "text-primary" : ""}`} />
                         <span className={locked ? "opacity-30" : ""}>{label}</span>
@@ -167,7 +225,12 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/access-codes")} data-testid="link-access-codes">
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={isActive("/access-codes")} 
+                    data-testid="link-access-codes"
+                    className={isActive("/access-codes") ? "border-l-2 border-primary rounded-none" : ""}
+                  >
                     <Link href="/access-codes" aria-label={t("nav.accessCodes")} aria-current={isActive("/access-codes") ? "page" : undefined}>
                       <KeyRound className="h-4 w-4" />
                       <span>{t("nav.accessCodes")}</span>
@@ -175,6 +238,28 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {user && (
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupContent className="px-2">
+              <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-medium text-muted-foreground">AI PERFORMANCE</span>
+                  <span className="text-[10px] font-mono text-primary">{completedTasks} TASKS</span>
+                </div>
+                <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all duration-1000" 
+                    style={{ width: `${Math.min((completedTasks / 20) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-1.5 leading-tight italic">
+                  Systems optimal. Agents active.
+                </p>
+              </div>
             </SidebarGroupContent>
           </SidebarGroup>
         )}

@@ -7,14 +7,50 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Brain, Mic, BookOpen, Sparkles, Shield, Bot, Settings, User,
-  Send, RefreshCw, GraduationCap, Calendar, FileText, Coffee
+  Send, RefreshCw, GraduationCap, Calendar, FileText, Coffee,
+  MoreHorizontal
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+
+function MessageBubble({ sender, text, isThinking }: { sender: "user" | "ai", text?: string, isThinking?: boolean }) {
+  return (
+    <div className={`flex ${sender === "user" ? "justify-end" : "justify-start"} mb-4`}>
+      <div className={`max-w-[80%] rounded-2xl px-4 py-2 relative ${
+        sender === "user" 
+          ? "bg-primary text-primary-foreground rounded-tr-none" 
+          : "bg-muted/50 border border-primary/20 text-foreground rounded-tl-none gradient-border"
+      }`}>
+        {sender === "ai" && (
+          <div className="absolute -top-6 left-0 text-[10px] font-bold text-primary flex items-center gap-1">
+            <Bot className="w-3 h-3" /> AI Assistant
+          </div>
+        )}
+        {isThinking ? (
+          <div className="flex gap-1 py-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" />
+          </div>
+        ) : (
+          <p className="text-sm leading-relaxed">{text}</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AICommand() {
   const [voiceCommand, setVoiceCommand] = useState("");
   const [aiName, setAiName] = useState("");
   const [aiPersonality, setAiPersonality] = useState("professional");
+  const [messages, setMessages] = useState<{ sender: "user" | "ai", text: string }[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, processVoiceCommand.isPending]);
 
   const { data: personalityConfig, isLoading } = useQuery({ queryKey: ["/api/nexus/ai-personality"] });
   const { data: learningData = [] } = useQuery({ queryKey: ["/api/nexus/ai-learning"] });
@@ -22,8 +58,15 @@ export default function AICommand() {
   const { data: failoverRules = [] } = useQuery({ queryKey: ["/api/nexus/failover-rules"] });
 
   const processVoiceCommand = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/nexus/voice-command", { command: voiceCommand }),
-    onSuccess: () => setVoiceCommand(""),
+    mutationFn: async () => {
+      const command = voiceCommand;
+      setVoiceCommand("");
+      setMessages(prev => [...prev, { sender: "user", text: command }]);
+      const res = await apiRequest("POST", "/api/nexus/voice-command", { command });
+      const data = await res.json();
+      setMessages(prev => [...prev, { sender: "ai", text: data.result }]);
+      return data;
+    },
   });
 
   const savePersonality = useMutation({
@@ -68,44 +111,75 @@ export default function AICommand() {
           </TabsList>
 
           <TabsContent value="voice">
-            <Card className="bg-gray-900/60 border-gray-700/30">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2"><Mic className="w-5 h-5 text-violet-400" /> Creator Command Voice</CardTitle>
+            <Card className="bg-gray-900/60 border-gray-700/30 overflow-hidden flex flex-col h-[600px]">
+              <CardHeader className="border-b border-gray-700/30">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Mic className="w-4 h-4 text-primary" />
+                  </div>
+                  Creator Command Center
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-gray-400">Tell {currentAiName} what to do in natural language. Examples: "Schedule my best clip from yesterday on TikTok at peak time" or "Generate a content calendar for next week".</p>
-                <div className="flex gap-3">
-                  <Input placeholder={`Tell ${currentAiName} what to do...`} value={voiceCommand} onChange={(e) => setVoiceCommand(e.target.value)} onKeyDown={(e) => e.key === "Enter" && voiceCommand && processVoiceCommand.mutate()} className="bg-gray-800/60 border-gray-700/30 text-white" data-testid="input-voice-command" />
-                  <Button onClick={() => processVoiceCommand.mutate()} disabled={processVoiceCommand.isPending || !voiceCommand} data-testid="button-send-command">
-                    <Send className={`w-4 h-4 ${processVoiceCommand.isPending ? "animate-spin" : ""}`} />
-                  </Button>
-                </div>
-                {processVoiceCommand.data && (
-                  <div className="p-4 rounded-lg bg-violet-900/20 border border-violet-500/20" data-testid="card-voice-result">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Bot className="w-4 h-4 text-violet-400" />
-                      <span className="text-sm font-medium text-violet-300">{currentAiName}</span>
+              <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-2">
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-60">
+                      <Bot className="w-12 h-12 text-primary animate-pulse" />
+                      <div>
+                        <p className="text-white font-medium">Hello, I'm {currentAiName}</p>
+                        <p className="text-xs text-gray-400 max-w-[240px] mt-1">Ready to manage your empire. Try one of the commands below.</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-white" data-testid="text-voice-result">{(processVoiceCommand.data as any)?.result}</p>
-                    <div className="flex gap-2 mt-2">
-                      <Badge variant="outline" className="text-xs border-violet-500/30">{(processVoiceCommand.data as any)?.parsedIntent}</Badge>
-                      <Badge variant="outline" className="text-xs border-blue-500/30">{(processVoiceCommand.data as any)?.action}</Badge>
+                  )}
+                  {messages.map((m, i) => (
+                    <MessageBubble key={i} sender={m.sender} text={m.text} />
+                  ))}
+                  {processVoiceCommand.isPending && (
+                    <MessageBubble sender="ai" isThinking />
+                  )}
+                </div>
+                
+                <div className="p-4 bg-gray-950/40 border-t border-gray-700/30 space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {[
+                      "What's my best content?",
+                      "Schedule next posts",
+                      "Analyze competitors",
+                      "Check shadowban",
+                      "Generate thumbnail",
+                      "Streaming ideas"
+                    ].map((suggestion, i) => (
+                      <button key={i} onClick={() => { setVoiceCommand(suggestion); }} className="p-2 text-center text-[10px] text-gray-400 bg-gray-800/20 rounded-lg border border-gray-700/20 hover:border-primary/50 hover:text-primary transition-all uppercase font-bold tracking-widest">
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative group">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-primary to-violet-600 rounded-lg blur opacity-30 group-focus-within:opacity-100 transition duration-500" />
+                    <div className="relative flex gap-2 bg-gray-900 rounded-lg p-1">
+                      <Input 
+                        placeholder={`Command ${currentAiName}...`} 
+                        value={voiceCommand} 
+                        onChange={(e) => setVoiceCommand(e.target.value)} 
+                        onKeyDown={(e) => e.key === "Enter" && voiceCommand && processVoiceCommand.mutate()} 
+                        className="bg-transparent border-none text-white focus-visible:ring-0" 
+                        data-testid="input-voice-command" 
+                      />
+                      <div className="flex items-center px-2 text-[10px] text-muted-foreground font-mono">
+                        {voiceCommand.length}/500
+                      </div>
+                      <Button 
+                        size="icon"
+                        className="shadow-[0_0_15px_rgba(var(--primary),0.4)] hover:shadow-[0_0_25px_rgba(var(--primary),0.6)] transition-shadow"
+                        onClick={() => processVoiceCommand.mutate()} 
+                        disabled={processVoiceCommand.isPending || !voiceCommand} 
+                        data-testid="button-send-command"
+                      >
+                        <Send className={`w-4 h-4 ${processVoiceCommand.isPending ? "animate-spin" : ""}`} />
+                      </Button>
                     </div>
                   </div>
-                )}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-4">
-                  {[
-                    "What's my best performing content this week?",
-                    "Schedule posts for the next 3 days",
-                    "Analyze my competitor's latest video",
-                    "Generate a thumbnail concept for my latest video",
-                    "Check if any of my platforms are shadow banned",
-                    "What should I stream about tonight?"
-                  ].map((suggestion, i) => (
-                    <button key={i} onClick={() => { setVoiceCommand(suggestion); }} className="p-2 text-left text-xs text-gray-400 bg-gray-800/40 rounded-lg border border-gray-700/20 hover:border-violet-500/30 hover:text-violet-300 transition-all" data-testid={`button-suggestion-${i}`}>
-                      "{suggestion}"
-                    </button>
-                  ))}
                 </div>
               </CardContent>
             </Card>

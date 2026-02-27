@@ -5,15 +5,36 @@ CreatorOS is a multi-platform content management and live streaming platform des
 
 ## User Preferences
 - Dark mode design with deep purple/blue tones
-- "God Tier" power-user aesthetic
+- "God Tier" power-user aesthetic — cinematic, data-dense, $10M SaaS feel
 - Emphasis on AI-powered automation
 - Multi-platform streaming focus (PS5 to 25 platforms)
 - "5-year-old simple" UI with big buttons and color-coded status
 - Exception-only notifications (AI handles everything silently unless issue arises)
 - Advanced Mode toggle (off by default) - reveals extra controls, detailed metrics, manual overrides
-- Streamlined navigation - consolidated from 22 sidebar items down to 5
 - Floating AI chat accessible from any page
 - No manual trigger buttons - everything runs autonomously in background
+
+## Visual Design System (index.css)
+- **New Keyframes**: radar-sweep, pulse-ring, data-stream, neon-flicker, scan-line, ticker-scroll, orbit, empire-glow, threat-pulse, gradient-shift, holographic
+- **Power Classes**: .card-empire (animated glow border), .neon-text, .holographic-text, .data-grid-bg, .terminal, .metric-display, .live-dot, .gradient-border, .ticker-scroll, .orbit-1/2/3, .animated-gradient-bg, .glow-purple/green/red/gold/blue
+
+## Page Features (Latest)
+- **Sidebar**: Live stats strip (subscribers, revenue, AI agents), "LIVE" indicator, AI performance widget, terminal icon for AI Command
+- **Dashboard**: Empire Score hero card (circular gauge), AI Live Ticker (scrolling activity feed), Platform Pulse Grid (10 platforms), Revenue Today counter
+- **WarRoom**: SVG Radar Scanner, 5-tier Threat Level Gauge, Live Signal Feed (rotating status), Crisis Mode with threat-pulse animation
+- **MissionControl**: Orbital system visualization (3 rings, 8 modules), Live Telemetry Feed terminal, SVG Status Ring gauges
+- **Heartbeat**: Overall Health Score gauge, 24-hour health timeline, engine sparklines, animated progress bars
+- **Autopilot**: Pipeline Flow Visualizer (7-phase node graph), Live Tasks widget with animated progress
+- **EmpireLauncher**: Mission Timeline vertical stages, Launch Velocity Gauge, gradient progress bar
+- **AICommand**: Chat interface with typing indicators, gradient border message bubbles, Quick Commands grid
+- **Landing**: Live Stats Bar (auto-incrementing counters), Platform Logos Grid, CSS Browser Mockup, Trust Badges, Enhanced Testimonials with growth stats, CTA countdown timer
+- **CompetitiveEdge**: Competitor Battle Bars, Market Share Radar (SVG pentagon)
+- **GrowthJourney**: Growth Phase Hero Card, Growth Velocity Gauge (speedometer SVG)
+- **AI Factory** (/ai-factory): 20 AI tools across 5 tabs (Title & Hooks, Content Strategy, Viral & Analytics, Distribution, Advanced)
+- **IntelligenceHub**: 8-tab audience analytics (Heatmap 7×24 grid, Demographics, Segments, Retention curve, Super Fans, Sentiment, Growth Intel)
+- **Community**: Health Score gauge, Super Fans leaderboard, Controversy Radar
+- **Money**: Sponsorships table, Merch Intelligence, Revenue Diversification
+- **CreatorHub**: Report Card (20 KPIs), Channel Valuation, Financials (burn rate)
 
 ## System Architecture
 CreatorOS is a full-stack application with an Express.js backend and a React/Vite frontend, using a multi-tenant PostgreSQL database.

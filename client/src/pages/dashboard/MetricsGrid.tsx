@@ -11,6 +11,7 @@ interface MetricItem {
   icon: LucideIcon;
   trend?: { current: number; previous: number };
   sparklineData?: number[];
+  isCounter?: boolean;
 }
 
 interface MetricsGridProps {
@@ -54,11 +55,11 @@ export default memo(function MetricsGrid({ metrics }: MetricsGridProps) {
   );
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
       {metrics.map((m, i) => {
         const Icon = m.icon;
         const numericValue = typeof m.value === "number" ? m.value : parseFloat(String(m.value).replace(/[^0-9.]/g, ""));
-        const isNumeric = !isNaN(numericValue) && typeof m.value === "number";
+        const isNumeric = !isNaN(numericValue) && (typeof m.value === "number" || m.isCounter);
         const prefix = typeof m.value === "string" && m.value.startsWith("$") ? "$" : "";
         const sparkData = sparklines[i];
         const gradient = METRIC_GRADIENTS[i % METRIC_GRADIENTS.length];
