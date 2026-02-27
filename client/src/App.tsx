@@ -721,34 +721,70 @@ function AppContent() {
         if (location === "/onboarding") {
           setLocation("/");
         }
-      } else {
-        Promise.all([
-          fetch("/api/user/profile", { credentials: "include" }).then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch("/api/linked-channels", { credentials: "include" }).then(r => r.ok ? r.json() : []).catch(() => []),
-        ]).then(([profile, channels]) => {
-          const hasOnboarded = profile?.onboardingCompleted;
-          const hasChannels = Array.isArray(channels) && channels.length > 0;
-          if (hasOnboarded || hasChannels) {
-            localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
-            setNeedsOnboarding(false);
-            if (!hasOnboarded && hasChannels) {
-              fetch("/api/user/profile", {
-                method: "PATCH",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ onboardingCompleted: true }),
-              }).catch(() => {});
-            }
-            if (location === "/onboarding") {
-              setLocation("/");
-            }
-          } else {
-            setNeedsOnboarding(true);
-          }
-        });
+        return;
       }
+
+      let settled = false;
+      const controller = new AbortController();
+
+      const safetyTimer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          controller.abort();
+          localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+          setNeedsOnboarding(false);
+        }
+      }, 5000);
+
+      const fetchWithTimeout = (url: string, opts: RequestInit) =>
+        fetch(url, { ...opts, signal: controller.signal })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null);
+
+      Promise.all([
+        fetchWithTimeout("/api/user/profile", { credentials: "include" }),
+        fetch("/api/linked-channels", { credentials: "include", signal: controller.signal })
+          .then(r => r.ok ? r.json() : [])
+          .catch(() => []),
+      ]).then(([profile, channels]) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(safetyTimer);
+        const hasOnboarded = profile?.onboardingCompleted;
+        const hasChannels = Array.isArray(channels) && channels.length > 0;
+        if (hasOnboarded || hasChannels) {
+          localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+          setNeedsOnboarding(false);
+          if (!hasOnboarded && hasChannels) {
+            fetch("/api/user/profile", {
+              method: "PATCH",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ onboardingCompleted: true }),
+            }).catch(() => {});
+          }
+          if (location === "/onboarding") {
+            setLocation("/");
+          }
+        } else {
+          setNeedsOnboarding(true);
+        }
+      }).catch(() => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(safetyTimer);
+          localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+          setNeedsOnboarding(false);
+        }
+      });
+
+      return () => {
+        settled = true;
+        clearTimeout(safetyTimer);
+        controller.abort();
+      };
     }
-  }, [isAuthenticated, user, location, setLocation]);
+  }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
     if (isAuthenticated && user && needsOnboarding === false) {
