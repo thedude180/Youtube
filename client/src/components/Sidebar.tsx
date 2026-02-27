@@ -1,8 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { prefetchForRoute } from "@/lib/prefetch";
 import {
   LayoutDashboard,
@@ -23,20 +23,14 @@ import {
   Globe,
   Check,
   TrendingUp,
-  Repeat,
-  Film,
-  Satellite,
   Brain,
-  Clapperboard,
-  FlaskConical,
-  Network,
-  Cpu,
   Siren,
-  KanbanSquare,
   Heart,
   Terminal,
   Calendar,
   FileText,
+  BarChart2,
+  Activity,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,38 +51,46 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supportedLanguages } from "@/i18n";
 import i18n from "@/i18n";
-import { useQuery } from "@tanstack/react-query";
-import { Separator } from "@/components/ui/separator";
 
-const navLinks = [
-  { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free", advancedOnly: false },
-  { href: "/hub", labelKey: "nav.hub", icon: Zap, minTier: "free", advancedOnly: false },
-  { href: "/mission-control", labelKey: "nav.missionControl", icon: Satellite, minTier: "free", advancedOnly: false },
-  { href: "/intelligence", labelKey: "nav.intelligence", icon: Brain, minTier: "free", advancedOnly: false },
-  { href: "/content-command", labelKey: "nav.contentCommand", icon: Clapperboard, minTier: "free", advancedOnly: false },
-  { href: "/growth", labelKey: "nav.zeroToOne", icon: TrendingUp, minTier: "free", advancedOnly: false },
-  { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free", advancedOnly: false },
-  { href: "/calendar", labelKey: "nav.calendar", icon: Calendar, minTier: "free", advancedOnly: false },
-  { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
-  { href: "/autopilot", labelKey: "nav.autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
-  { href: "/ai-factory", labelKey: "nav.aiFactory", icon: Sparkles, minTier: "free", advancedOnly: false },
-  { href: "/simulator", labelKey: "nav.simulator", icon: FlaskConical, minTier: "free", advancedOnly: false },
-  { href: "/ai-command", labelKey: "nav.aiCommand", icon: Terminal, minTier: "free", advancedOnly: false },
-  { href: "/war-room", labelKey: "nav.warRoom", icon: Siren, minTier: "pro", advancedOnly: false },
-  { href: "/creator-hub", labelKey: "nav.creatorHub", icon: Network, minTier: "free", advancedOnly: false },
-  { href: "/workspace", labelKey: "nav.workspace", icon: KanbanSquare, minTier: "free", advancedOnly: false },
-  { href: "/heartbeat", labelKey: "nav.heartbeat", icon: Heart, minTier: "free", advancedOnly: false },
-  { href: "/ai-matrix", labelKey: "nav.aiMatrix", icon: Cpu, minTier: "free", advancedOnly: false },
-  { href: "/script-studio", labelKey: "nav.scriptStudio", icon: FileText, minTier: "free", advancedOnly: false },
-  { href: "/viral-predictor", labelKey: "nav.viralPredictor", icon: TrendingUp, minTier: "free", advancedOnly: false },
-  { href: "/edge", labelKey: "nav.competitiveEdge", icon: Crown, minTier: "free", advancedOnly: true },
-  { href: "/stream-loop", labelKey: "nav.streamLoop", icon: Repeat, minTier: "pro", advancedOnly: true },
-  { href: "/vod-shorts-loop", labelKey: "nav.vodShorts", icon: Film, minTier: "pro", advancedOnly: true },
-  { href: "/empire", labelKey: "nav.empireLauncher", icon: Rocket, minTier: "free", advancedOnly: false },
-  { href: "/stealth", labelKey: "nav.aiStealth", icon: Bot, minTier: "free", advancedOnly: true },
-  { href: "/community", labelKey: "nav.community", icon: Users, minTier: "starter", advancedOnly: true },
-  { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free", advancedOnly: true },
-  { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free", advancedOnly: false },
+const NAV_GROUPS = [
+  {
+    label: "Create",
+    items: [
+      { href: "/", labelKey: "nav.home", icon: LayoutDashboard, minTier: "free" },
+      { href: "/hub", labelKey: "nav.hub", icon: Zap, minTier: "free" },
+      { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free" },
+      { href: "/calendar", labelKey: "nav.calendar", icon: Calendar, minTier: "free" },
+      { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube" },
+      { href: "/money", labelKey: "nav.money", icon: DollarSign, minTier: "free" },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      { href: "/autopilot", labelKey: "nav.autopilot", icon: Rocket, minTier: "pro" },
+      { href: "/ai-command", labelKey: "nav.aiCommand", icon: Terminal, minTier: "free" },
+      { href: "/script-studio", labelKey: "nav.scriptStudio", icon: FileText, minTier: "free" },
+      { href: "/ai-factory", labelKey: "nav.aiFactory", icon: Sparkles, minTier: "free" },
+      { href: "/viral-predictor", labelKey: "nav.viralPredictor", icon: TrendingUp, minTier: "free" },
+    ],
+  },
+  {
+    label: "Analyze",
+    items: [
+      { href: "/intelligence", labelKey: "nav.intelligence", icon: Brain, minTier: "free" },
+      { href: "/growth", labelKey: "nav.zeroToOne", icon: BarChart2, minTier: "free" },
+      { href: "/war-room", labelKey: "nav.warRoom", icon: Siren, minTier: "pro" },
+      { href: "/heartbeat", labelKey: "nav.heartbeat", icon: Activity, minTier: "free" },
+    ],
+  },
+  {
+    label: "More",
+    items: [
+      { href: "/community", labelKey: "nav.community", icon: Users, minTier: "starter" },
+      { href: "/mission-control", labelKey: "nav.missionControl", icon: Globe, minTier: "free" },
+      { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free" },
+    ],
+  },
 ];
 
 const TIER_BADGE_LABELS: Record<string, string> = {
@@ -108,21 +110,12 @@ const TIER_BADGE_COLORS: Record<string, string> = {
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, isLoading, logout } = useAuth();
-  const { isAdvanced } = useAdvancedMode();
   const { tier, isPaidUser, isAdmin, hasTierAccess } = useUserProfile();
   const { t } = useTranslation();
 
-  const { data: dashStats } = useQuery<any>({ queryKey: ["/api/dashboard/stats"], refetchInterval: 60000, staleTime: 30000 });
-  const { data: agentStatus } = useQuery<any[]>({ queryKey: ["/api/agents/status"], refetchInterval: 60000 });
-  const { data: activities } = useQuery<any[]>({ 
-    queryKey: ["/api/agents/activities"], 
-    refetchInterval: 30000,
-    enabled: !!user 
-  });
+  const { data: dashStats } = useQuery({ queryKey: ["/api/dashboard/stats"], refetchInterval: 60000, staleTime: 30000 });
   const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 60000 });
-
   const activeAgents = (agentActivities as any[])?.filter((a: any) => a.status === "running" || a.status === "active").length ?? 0;
-  const completedTasks = activities?.filter(a => a.status === 'completed').length || 0;
 
   const isActive = (href: string) =>
     href === "/" ? location === "/" : location.startsWith(href);
@@ -135,38 +128,16 @@ export function AppSidebar() {
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") || "Creator"
     : "Creator";
 
-  const formatCompactNumber = (num: number) => {
-    if (!num) return '0';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
-  };
-
   return (
     <Sidebar>
-      <SidebarHeader className="p-3 relative overflow-hidden">
-        <div 
-          className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-          style={{ 
-            backgroundImage: `radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)`,
-            backgroundSize: '12px 12px'
-          }} 
-        />
-        <div className="flex items-center gap-2.5 relative z-10">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shrink-0 glow-sm relative overflow-hidden group shadow-[0_0_15px_rgba(168,85,247,0.4)]">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/25 to-transparent opacity-80" />
-            <Zap className="h-4 w-4 text-primary-foreground relative z-10 transition-transform group-hover:scale-110" />
+      <SidebarHeader className="p-3">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+            <Zap className="h-4 w-4 text-primary-foreground" />
           </div>
-          <div className="flex flex-col">
-            <span data-testid="text-app-name" className="font-display font-bold text-sm tracking-tight" style={{ textShadow: '0 0 20px hsl(265 80% 60% / 0.6)' }}>
-              Creator<span className="text-primary">OS</span>
-            </span>
-            {isAdvanced && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 w-fit border-primary/30 text-primary/80">
-                {t("common.advanced")}
-              </Badge>
-            )}
-          </div>
+          <span data-testid="text-app-name" className="font-display font-bold text-sm tracking-tight" style={{ textShadow: '0 0 20px hsl(265 80% 60% / 0.6)' }}>
+            Creator<span className="text-primary">OS</span>
+          </span>
         </div>
 
         <div className="px-3 pb-2 mt-1 border-t border-border/20 pt-2">
@@ -188,48 +159,58 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent role="navigation" aria-label="Main navigation">
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navLinks.filter(link => !link.advancedOnly || isAdvanced).map((link) => {
-                const Icon = link.icon;
-                const active = isActive(link.href);
-                const label = t(link.labelKey);
-                const locked = !hasTierAccess(link.minTier);
-                return (
-                  <SidebarMenuItem key={link.href}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={active} 
-                      data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}
-                      className={active ? "border-l-2 border-primary rounded-none" : ""}
-                    >
-                      <Link href={locked ? "/pricing" : link.href} onMouseEnter={() => !locked && prefetchForRoute(link.href)} aria-label={locked ? `${label} (locked)` : label} aria-current={active ? "page" : undefined}>
-                        <Icon className={`h-4 w-4 ${locked ? "opacity-30" : ""} ${active ? "text-primary" : ""}`} />
-                        <span className={locked ? "opacity-30" : ""}>{label}</span>
-                        {locked && (
-                          <span className={`ml-auto flex items-center gap-0.5 text-[10px] font-semibold ${TIER_BADGE_COLORS[link.minTier] || "text-muted-foreground"}`}>
-                            <Lock className="w-2.5 h-2.5" />
-                            {TIER_BADGE_LABELS[link.minTier] || link.minTier}
-                          </span>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/50 px-2">
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((link) => {
+                  const Icon = link.icon;
+                  const active = isActive(link.href);
+                  const label = t(link.labelKey);
+                  const locked = !hasTierAccess(link.minTier);
+                  return (
+                    <SidebarMenuItem key={link.href}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={active}
+                        data-testid={`link-${label.toLowerCase().replace(/\s+/g, '-')}`}
+                        className={active ? "border-l-2 border-primary rounded-none" : ""}
+                      >
+                        <Link
+                          href={locked ? "/pricing" : link.href}
+                          onMouseEnter={() => !locked && prefetchForRoute(link.href)}
+                          aria-label={locked ? `${label} (locked)` : label}
+                          aria-current={active ? "page" : undefined}
+                        >
+                          <Icon className={`h-4 w-4 ${locked ? "opacity-30" : ""} ${active ? "text-primary" : ""}`} />
+                          <span className={locked ? "opacity-30" : ""}>{label}</span>
+                          {locked && (
+                            <span className={`ml-auto flex items-center gap-0.5 text-[10px] font-semibold ${TIER_BADGE_COLORS[link.minTier] || "text-muted-foreground"}`}>
+                              <Lock className="w-2.5 h-2.5" />
+                              {TIER_BADGE_LABELS[link.minTier] || link.minTier}
+                            </span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
         {isAdmin && (
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive("/access-codes")} 
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive("/access-codes")}
                     data-testid="link-access-codes"
                     className={isActive("/access-codes") ? "border-l-2 border-primary rounded-none" : ""}
                   >
@@ -244,23 +225,23 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {user && (
-          <SidebarGroup className="mt-auto hidden">
-            <SidebarGroupContent className="px-2">
-              <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-medium text-muted-foreground">AI PERFORMANCE</span>
-                  <span className="text-[10px] font-mono text-primary">{completedTasks} TASKS</span>
+        {user && !isPaidUser && (
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupContent>
+              <div className="mx-2 p-3 rounded-lg border border-primary/20 bg-primary/[0.03]">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-semibold">{t("common.unlockEverything")}</span>
                 </div>
-                <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all duration-1000" 
-                    style={{ width: `${Math.min((completedTasks / 20) * 100, 100)}%` }}
-                  />
-                </div>
-                <p className="text-[9px] text-muted-foreground mt-1.5 leading-tight italic">
-                  Systems optimal. Agents active.
+                <p className="text-[11px] text-muted-foreground mb-2.5 leading-relaxed">
+                  {t("common.unlockDescription")}
                 </p>
+                <Link href="/pricing">
+                  <Button variant="default" size="sm" className="w-full gap-1.5" data-testid="button-sidebar-upgrade" aria-label={t("common.viewPlans")}>
+                    {t("common.viewPlans")}
+                    <ArrowRight className="w-3 h-3" />
+                  </Button>
+                </Link>
               </div>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -278,31 +259,6 @@ export function AppSidebar() {
                 style={{ width: `${Math.min(100, (((agentActivities as any[])?.filter((a:any) => a.status === "completed").length ?? 0) / Math.max(1, (agentActivities as any[])?.length ?? 1)) * 100)}%` }} />
             </div>
           </div>
-        )}
-
-        {user && !isPaidUser && (
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <div className="mx-2 p-3 rounded-lg border-glow-animated bg-primary/[0.03] relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-xs font-semibold">{t("common.unlockEverything")}</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mb-2.5 leading-relaxed">
-                    {t("common.unlockDescription")}
-                  </p>
-                  <Link href="/pricing">
-                    <Button variant="default" size="sm" className="w-full gap-1.5 glow-sm group/btn" data-testid="button-sidebar-upgrade" aria-label={t("common.viewPlans")}>
-                      {t("common.viewPlans")}
-                      <ArrowRight className="w-3 h-3 transition-transform group-hover/btn:translate-x-0.5" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
         )}
       </SidebarContent>
 
@@ -362,8 +318,8 @@ export function AppSidebar() {
           </div>
         ) : (
           <div className="p-2">
-            <Button data-testid="button-login" variant="default" className="w-full glow-sm" onClick={() => { window.location.href = "/api/login"; }} aria-label="Sign in to your account">
-              <Zap className="h-4 w-4 mr-1.5" />
+            <Button data-testid="button-login" variant="default" className="w-full gap-1.5" onClick={() => { window.location.href = "/api/login"; }} aria-label="Sign in to your account">
+              <Zap className="h-4 w-4" />
               {t("auth.signIn")}
             </Button>
           </div>

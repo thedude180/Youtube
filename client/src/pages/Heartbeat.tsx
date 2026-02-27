@@ -177,7 +177,7 @@ export default function Heartbeat() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          <Card className="card-empire empire-glow md:col-span-1 overflow-hidden relative border-0" data-testid="card-overall-health-score" id="card-health-score">
+          <Card className="card-empire md:col-span-1 overflow-hidden relative border-0" data-testid="card-overall-health-score" id="card-health-score">
             <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
             <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
             <CardContent className="p-8 flex flex-col items-center justify-center text-center relative">

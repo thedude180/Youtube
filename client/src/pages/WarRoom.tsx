@@ -78,6 +78,7 @@ const SIGNALS = [
   "SEO ranking monitor... Stable",
   "Competitor activity... Detected",
 ];
+
 const LiveSignalFeed = () => {
   const [signals, setSignals] = useState<string[]>(SIGNALS.slice(0, 5));
   const idxRef = useRef(5);

@@ -532,6 +532,50 @@ export default function Landing() {
     { value: 99, label: t('landing.uptime'), suffix: ".9%" },
   ], [t]);
 
+  const PipelineAnimation = () => (
+    <div className="relative w-full h-[400px] flex items-center justify-center p-8 bg-black/40 rounded-3xl border border-white/5 overflow-hidden" data-testid="widget-pipeline-animation">
+      <div className="absolute inset-0 data-grid-bg opacity-10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-10" />
+      
+      <div className="relative z-20 flex flex-col md:flex-row items-center gap-12">
+        {STAGES.map((stage, i) => (
+          <div key={stage.name} className="relative flex flex-col items-center group">
+            {i < STAGES.length - 1 && (
+              <div className="hidden md:block absolute left-full top-10 w-12 h-px bg-gradient-to-r from-primary/50 to-transparent">
+                <div className="absolute top-0 left-0 h-full bg-primary shadow-[0_0_8px_primary] animate-[data-stream_2s_linear_infinite]" 
+                  style={{ animationDelay: `${i * 0.5}s`, width: '20px' }} />
+              </div>
+            )}
+            
+            <div className="w-20 h-20 rounded-2xl border border-white/10 flex items-center justify-center relative overflow-hidden bg-white/5 backdrop-blur-sm transition-all duration-500 group-hover:scale-110 group-hover:border-primary/50"
+              style={{ boxShadow: `0 0 20px ${stage.color}20` }} data-testid={`pipeline-stage-${i}`}>
+              <div className="absolute inset-0 scan-overlay opacity-20" />
+              <div className="text-2xl font-bold" style={{ color: stage.color }}>0{i+1}</div>
+              <div className="absolute bottom-0 left-0 right-0 h-1" style={{ background: stage.color }} />
+            </div>
+            
+            <div className="mt-4 text-center">
+              <div className="text-sm font-bold text-white uppercase tracking-wider">{stage.name}</div>
+              <div className="text-[10px] text-muted-foreground mt-1 font-mono">{stage.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* Floating data particles */}
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="absolute w-1 h-1 bg-primary rounded-full animate-pulse"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            boxShadow: '0 0 8px hsl(var(--primary))',
+            animationDelay: `${i * 0.7}s`,
+            opacity: 0.3
+          }} />
+      ))}
+    </div>
+  );
+
   useEffect(() => {
     const interval = setInterval(() => {
       setActivePipelineStep((prev) => (prev + 1) % PIPELINE_STEPS.length);
@@ -798,6 +842,33 @@ export default function Landing() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* Pipeline Visual Section */}
+      <section className="py-24 relative overflow-hidden bg-muted/5 border-y border-border/30" data-testid="section-pipeline-visual">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <Badge variant="outline" className="mb-4 px-4 py-1 border-primary/30 text-primary font-mono bg-primary/5 uppercase tracking-tighter">Live Transformation Pipeline</Badge>
+            <h2 className="text-3xl font-display font-bold mb-4">Watch your content evolve in real-time</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">From raw footage to viral global distribution across 25 platforms. Powered by 11 independent AI agent systems.</p>
+          </div>
+          
+          <PipelineAnimation />
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+            {[
+              { label: "Extraction Rate", value: "98.4%", color: "text-emerald-400" },
+              { label: "Sync Latency", value: "<1.2s", color: "text-blue-400" },
+              { label: "Viral Probability", value: "High", color: "text-purple-400" },
+              { label: "Global Reach", value: "Unlimited", color: "text-orange-400" },
+            ].map((m) => (
+              <div key={m.label} className="bg-background/40 backdrop-blur-sm border border-border/50 p-4 rounded-xl text-center">
+                <div className={`text-xl font-bold font-mono ${m.color}`}>{m.value}</div>
+                <div className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">{m.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>

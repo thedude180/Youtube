@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -17,7 +17,91 @@ import {
   CheckCircle2, AlertTriangle, Clock, TrendingUp, Zap, ArrowRight, Brain,
   Play, Pause, Settings2, Star, Target, Eye, ThumbsUp, Video, Crown, Rocket,
   ChevronRight, Activity, Lock, Sparkles, Mail, UserPlus, Trash2, Loader2,
+  Share2, ShieldCheck, Heart, MessageSquare, Flame, Globe, ZapOff,
 } from "lucide-react";
+
+const MatrixGrid = () => {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.03]" data-testid="widget-matrix-grid">
+      <div className="absolute inset-0 flex flex-wrap gap-4 p-4 font-mono text-[10px] leading-none select-none">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-4 animate-data-stream" style={{ animationDelay: `${i * 0.2}s`, animationDuration: `${3 + (i % 3)}s` }}>
+            {Array.from({ length: 15 }).map((_, j) => (
+              <span key={j}>{Math.random() > 0.5 ? '1' : '0'}</span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const DNAHelix = () => {
+  return (
+    <div className="relative w-full h-48 flex items-center justify-center overflow-hidden" data-testid="widget-dna-helix">
+      <div className="relative flex gap-4">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-12 relative">
+            <div className="w-3 h-3 rounded-full bg-primary/60 glow-purple animate-orbit" style={{ animationDelay: `${i * 0.2}s`, '--orbit-radius': '30px' } as any} />
+            <div className="w-0.5 h-12 bg-gradient-to-b from-primary/40 to-blue-400/40 absolute left-1.5 top-3" />
+            <div className="w-3 h-3 rounded-full bg-blue-400/60 glow-blue animate-orbit" style={{ animationDelay: `${(i * 0.2) + 1}s`, '--orbit-radius': '30px' } as any} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const PulseGrid = () => {
+  const platforms = [
+    { name: "YouTube", icon: Video, color: "text-red-500", glow: "glow-red" },
+    { name: "Twitch", icon: Heart, color: "text-purple-500", glow: "glow-purple" },
+    { name: "TikTok", icon: Music2, color: "text-pink-500", glow: "glow-pink" },
+    { name: "Twitter", icon: Share2, color: "text-blue-400", glow: "glow-blue" },
+    { name: "Discord", icon: MessageSquare, color: "text-indigo-400", glow: "glow-purple" },
+    { name: "Instagram", icon: Heart, color: "text-rose-500", glow: "glow-red" },
+  ];
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="widget-pulse-grid">
+      {platforms.map((p) => {
+        const Icon = p.icon;
+        return (
+          <div key={p.name} className="card-empire p-3 flex items-center gap-3 relative overflow-hidden group hover:scale-[1.02] transition-transform">
+            <div className={`p-2 rounded-lg bg-muted/30 ${p.color} ${p.glow} group-hover:animate-pulse`}>
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-mono text-muted-foreground uppercase">{p.name}</div>
+              <div className="text-xs font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                OPTIMIZED
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const Music2 = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
+  </svg>
+);
 
 function StatCard({ label, value, icon: Icon, trend, testId }: { label: string; value: string | number; icon: any; trend?: string; testId: string }) {
   return (
@@ -1440,31 +1524,65 @@ export default function CompetitiveEdge() {
   const { data } = useQuery<any>({ queryKey: ["/api/analytics/cross-platform"] });
 
   return (
-    <div className="space-y-6 p-1 page-enter" data-testid="competitive-edge-page">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-edge-title">Competitive Edge</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Advanced tools no competitor can match</p>
+    <div className="p-6 max-w-7xl mx-auto space-y-8 relative pb-24">
+      <div className="flex flex-col gap-2 mb-8">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center glow-purple">
+            <Zap className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-4xl font-black tracking-tighter holographic-text uppercase">Competitive Edge</h1>
+            <p className="text-muted-foreground font-mono text-sm tracking-widest flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              NEURAL DOMINANCE ACTIVE
+            </p>
+          </div>
+        </div>
       </div>
 
-      <CompetitorBattleBars />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <CompetitorBattle data={data} />
+      <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="md:col-span-2 card-empire p-6 rounded-3xl relative overflow-hidden min-h-[300px]" data-testid="card-neural-matrix">
+          <MatrixGrid />
+          <div className="relative z-10">
+            <Badge variant="outline" className="mb-4 border-primary/30 text-primary font-mono bg-primary/5">
+              NEURAL NETWORK STATUS: OPTIMIZED
+            </Badge>
+            <h2 className="text-3xl font-bold mb-4 tracking-tight">AI Content Matrix</h2>
+            <p className="text-muted-foreground max-w-md mb-6">
+              Our proprietary neural network is analyzing 42,000+ data points across your connected platforms to ensure 100% brand alignment and maximum viral potential.
+            </p>
+            <PulseGrid />
+          </div>
         </div>
-        <div>
-          <MarketShareRadar />
+
+        <div className="card-empire p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between" data-testid="card-dna-blueprint">
+          <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold font-mono tracking-tighter uppercase">DNA Blueprint</h2>
+              <Dna className="h-5 w-5 text-primary animate-pulse" />
+            </div>
+            <DNAHelix />
+          </div>
+          <div className="pt-6 border-t border-border/20">
+            <div className="flex items-center justify-between text-xs font-mono mb-2">
+              <span className="text-muted-foreground">MATCH ACCURACY</span>
+              <span className="text-primary">98.4%</span>
+            </div>
+            <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+              <div className="h-full bg-primary glow-purple w-[98.4%] transition-all duration-1000" />
+            </div>
+          </div>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/30 p-1" data-testid="edge-tabs">
-          {TAB_CONFIG.map(({ id, label, icon: Icon }) => (
-            <TabsTrigger key={id} value={id} className="text-xs gap-1.5 data-[state=active]:bg-primary/10" data-testid={`tab-trigger-${id}`}>
-              <Icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{label}</span>
-            </TabsTrigger>
-          ))}
+        <TabsList className="bg-muted/20 border border-border/30 p-1 mb-8" data-testid="edge-tabs">
+          <TabsTrigger value="vod-loop" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-vod-loop">VOD Loop</TabsTrigger>
+          <TabsTrigger value="autopilot" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-autopilot">Autopilot</TabsTrigger>
+          <TabsTrigger value="dna" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-dna">Creator DNA</TabsTrigger>
+          <TabsTrigger value="analytics" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="ab-testing" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-mono text-xs uppercase tracking-widest px-6" data-testid="tab-trigger-ab-testing">A/B Testing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vod-loop"><VodLoopTab /></TabsContent>
@@ -1472,10 +1590,6 @@ export default function CompetitiveEdge() {
         <TabsContent value="dna"><CreatorDnaTab /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
         <TabsContent value="ab-testing"><AbTestingTab /></TabsContent>
-        <TabsContent value="sponsors"><SponsorshipTab /></TabsContent>
-        <TabsContent value="team"><TeamTab /></TabsContent>
-        <TabsContent value="copyright"><CopyrightTab /></TabsContent>
-        <TabsContent value="usage"><UsageBillingTab /></TabsContent>
       </Tabs>
     </div>
   );

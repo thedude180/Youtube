@@ -339,14 +339,7 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono text-emerald-400 animate-pulse">● FULL AUTONOMY</span>
-              <div className="flex gap-1">
-                {["Content","Growth","Revenue","Security"].map((label) => (
-                  <div key={label} className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-emerald-500/10 text-emerald-400/80 border border-emerald-500/20" data-testid={`agent-pill-${label.toLowerCase()}`}>{label}</div>
-                ))}
-              </div>
-            </div>
+            <span className="text-[10px] font-mono text-emerald-400 animate-pulse">● FULL AUTONOMY</span>
           </div>
         </div>
       </div>
@@ -453,49 +446,6 @@ export default function Dashboard() {
       </SectionErrorBoundary>
       </section>
 
-      {/* Platform Pulse Grid */}
-      <section role="region" aria-label="Platform Pulse" className="mt-4">
-        <Card className="bg-muted/10 border-border/30 overflow-hidden shadow-none">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-3 mb-3">
-              <Globe className="w-4 h-4 text-primary animate-pulse" />
-              <h3 className="text-xs font-bold uppercase tracking-widest">Platform Pulse</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { name: "YouTube", key: "youtube", icon: "SiYoutube" },
-                { name: "Twitch", key: "twitch", icon: "SiTwitch" },
-                { name: "TikTok", key: "tiktok", icon: "SiTiktok" },
-                { name: "X", key: "x", icon: "SiX" },
-                { name: "Discord", key: "discord", icon: "SiDiscord" },
-                { name: "Kick", key: "kick", icon: "SiKick" },
-                { name: "Rumble", key: "rumble", icon: "Activity" },
-                { name: "Instagram", key: "instagram", icon: "SiInstagram" },
-                { name: "LinkedIn", key: "linkedin", icon: "SiLinkedin" },
-                { name: "Snapchat", key: "snapchat", icon: "SiSnapchat" },
-              ].map((platform) => {
-                const metrics = missionControl?.platformMetrics?.[platform.key.toLowerCase()];
-                const isConnected = !!metrics && metrics.status !== "disconnected";
-                return (
-                  <Badge
-                    key={platform.name}
-                    variant="outline"
-                    className={`gap-2 py-1.5 px-3 transition-all duration-500 border-white/5 ${
-                      isConnected 
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 glow-green" 
-                        : "bg-muted/50 text-muted-foreground grayscale"
-                    }`}
-                  >
-                    <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground/30"}`} />
-                    <span className="text-[10px] font-bold tracking-tight uppercase">{platform.name}</span>
-                  </Badge>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
       {/* Creator Rank + Quick Actions */}
       <section role="region" aria-label="Creator Rank and Quick Actions" data-testid="section-rank-actions">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -573,27 +523,6 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </section>
-
-      <section role="region" aria-label="God Mode Power Panel" data-testid="section-god-mode-panel" className="mb-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "Script Studio", desc: "AI-written full scripts", emoji: "📝", href: "/script-studio", color: "hsl(265 80% 65%)" },
-            { label: "Viral Predictor", desc: "Score before you post", emoji: "🔥", href: "/viral-predictor", color: "hsl(0 80% 60%)" },
-            { label: "Revenue Intel", desc: "Brand deals & sponsors", emoji: "💰", href: "/money/sponsors", color: "hsl(45 90% 55%)" },
-            { label: "Growth Journey", desc: "0→1M roadmap", emoji: "🚀", href: "/growth", color: "hsl(142 70% 50%)" },
-          ].map((item) => (
-            <button key={item.label} onClick={() => navigateTo(item.href)}
-              data-testid={`god-mode-card-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-              className="text-left p-3 rounded-xl border border-border/20 bg-muted/10 hover:border-primary/40 hover:bg-primary/5 transition-all group relative overflow-hidden">
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity" style={{ background: item.color }} />
-              <div className="text-xl mb-1.5">{item.emoji}</div>
-              <div className="text-xs font-bold text-foreground">{item.label}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
-              <div className="absolute bottom-2 right-2 w-1.5 h-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: item.color }} />
-            </button>
-          ))}
         </div>
       </section>
 

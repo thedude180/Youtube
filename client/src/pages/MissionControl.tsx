@@ -323,7 +323,7 @@ export default function MissionControl() {
           </div>
           <div className="lg:col-span-1 space-y-4">
             <TelemetryFeed />
-            <Card className="card-empire border-0 overflow-hidden" data-testid="card-system-vitals">
+            <Card className="card-empire empire-glow border-0 overflow-hidden" data-testid="card-system-vitals">
               <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
               <CardHeader className="py-3">
                 <CardTitle className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">

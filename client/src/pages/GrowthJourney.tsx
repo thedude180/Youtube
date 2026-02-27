@@ -28,7 +28,66 @@ import {
   Video,
   AlertTriangle,
   ChevronRight,
+  ShieldAlert,
+  ZapOff,
+  Activity,
+  Globe,
 } from "lucide-react";
+
+const ParticleField = () => {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden" data-testid="widget-particle-field">
+      {Array.from({ length: 15 }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute w-1 h-1 bg-primary/20 rounded-full animate-pulse"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 3}s`,
+            animationDuration: `${2 + Math.random() * 2}s`
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+const PathNode = ({ active, completed, label, icon: Icon, delay }: { active?: boolean; completed?: boolean; label: string; icon: any; delay: number }) => {
+  return (
+    <div className="flex flex-col items-center gap-2 relative z-10 group" data-testid={`node-${label.toLowerCase()}`}>
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-700 ${
+        completed ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' :
+        active ? 'bg-primary/20 border-primary text-primary glow-purple scale-110' :
+        'bg-muted/30 border-border/50 text-muted-foreground opacity-40'
+      }`} style={{ animation: active ? 'pulse 2s infinite' : 'none', animationDelay: `${delay}s` }}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <span className={`text-[10px] font-mono uppercase tracking-tighter ${active ? 'text-primary' : 'text-muted-foreground'}`}>{label}</span>
+    </div>
+  );
+};
+
+const TrajectoryChart = () => {
+  return (
+    <div className="relative w-full h-32 flex items-end gap-1 px-2" data-testid="widget-trajectory-chart">
+      {Array.from({ length: 24 }).map((_, i) => {
+        const height = 20 + Math.random() * 80;
+        const isFuture = i > 16;
+        return (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
+            <div
+              className={`w-full rounded-t-sm transition-all duration-1000 ${isFuture ? 'bg-primary/20 border-t border-primary/40 border-dashed' : 'bg-primary/60'}`}
+              style={{ height: `${height}%`, transitionDelay: `${i * 50}s` }}
+            />
+            {i % 6 === 0 && <span className="text-[8px] font-mono text-muted-foreground">M{i/6 + 1}</span>}
+          </div>
+        );
+      })}
+      <div className="absolute top-0 left-0 right-0 border-t border-primary/20 border-dashed translate-y-8" />
+    </div>
+  );
+};
 
 const ICON_MAP: Record<string, typeof Star> = {
   seedling: Sprout,
@@ -602,17 +661,14 @@ export default function GrowthJourney() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-1" data-testid="growth-journey-loading">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-96" />
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-[200px] w-full rounded-2xl" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 w-full" />)}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Skeleton className="h-80 rounded-xl" />
-          <Skeleton className="h-80 rounded-xl lg:col-span-2" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-[400px] md:col-span-2" />
+          <Skeleton className="h-[400px]" />
         </div>
       </div>
     );
@@ -620,7 +676,7 @@ export default function GrowthJourney() {
 
   if (isError || !data) {
     return (
-      <div className="space-y-6 p-1" data-testid="growth-journey-error">
+      <div className="space-y-6 p-6" data-testid="growth-journey-error">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('growth.title')}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{t('growth.personalRoadmap')}</p>
@@ -637,51 +693,65 @@ export default function GrowthJourney() {
   }
 
   return (
-    <div className="space-y-6 p-1 page-enter" data-testid="growth-journey-page">
+    <div className="p-6 max-w-7xl mx-auto space-y-8 relative pb-24">
       <GrowthPhaseHero phase={data.growthPhase} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <StatsOverview stats={data.stats} />
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-black tracking-tighter holographic-text uppercase">Empire Vitality</h2>
+          <Badge variant="outline" className="font-mono text-[10px] border-emerald-500/30 text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
+            LIVE TRAJECTORY
+          </Badge>
         </div>
-        <div>
-          <GrowthVelocityGauge progress={data.progressToNext} />
-        </div>
+        <StatsOverview stats={data.stats} />
       </div>
 
-      <ProgressToNextMilestone
-        current={data.currentMilestone}
-        next={data.nextMilestone}
-        progress={data.progressToNext}
-      />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="space-y-4">
-          <Card data-testid="card-milestone-ladder">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Crown className="h-4 w-4 text-primary" />
-                {t('growth.milestoneLadder')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MilestoneLadder
-                milestones={data.milestones}
-                currentSubs={data.stats.totalSubscribers}
-                progressToNext={data.progressToNext}
-              />
-            </CardContent>
-          </Card>
+        <div className="lg:col-span-2 space-y-6">
+          <div className="card-empire p-6 rounded-3xl relative overflow-hidden" data-testid="card-growth-path">
+            <ParticleField />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold tracking-tight">Growth Path</h3>
+                  <p className="text-xs text-muted-foreground font-mono">NEURAL PROJECTION ACTIVE</p>
+                </div>
+                <Globe className="h-5 w-5 text-primary animate-spin-slow" />
+              </div>
 
-          <GrowthPhaseCard phase={data.growthPhase} plateau={data.plateau} />
-        </div>
+              <div className="flex items-center justify-between px-4 relative">
+                <div className="absolute top-6 left-8 right-8 h-0.5 bg-gradient-to-r from-emerald-500/50 via-primary/50 to-muted/30" />
+                <PathNode completed label="Seed" icon={Sprout} delay={0.1} />
+                <PathNode active label="Sprout" icon={TrendingUp} delay={0.3} />
+                <PathNode label="Scale" icon={Rocket} delay={0.5} />
+                <PathNode label="Dominate" icon={Crown} delay={0.7} />
+              </div>
 
-        <div className="lg:col-span-2 space-y-4">
-          <DailyActionsCard actions={data.dailyActions} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AchievementsCard achievements={data.achievements} />
+              <div className="mt-12 pt-8 border-t border-border/20">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-mono text-muted-foreground">PREDICTED TRAJECTORY (90 DAYS)</span>
+                  <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">AI MODEL: CREATOR-OS-V4</Badge>
+                </div>
+                <TrajectoryChart />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <DailyActionsCard actions={data.dailyActions} />
             <RoadmapCard roadmap={data.roadmap} skillProgress={data.skillProgress} />
           </div>
+        </div>
+
+        <div className="space-y-6">
+          <ProgressToNextMilestone
+            current={data.currentMilestone}
+            next={data.nextMilestone}
+            progress={data.progressToNext}
+          />
+          <GrowthPhaseCard phase={data.growthPhase} plateau={data.plateau} />
+          <AchievementsCard achievements={data.achievements} />
         </div>
       </div>
     </div>

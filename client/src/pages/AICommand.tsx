@@ -9,7 +9,7 @@ import {
   Brain, Mic, BookOpen, Sparkles, Shield, Bot, Settings, User,
   Send, RefreshCw, GraduationCap, Calendar, FileText, Coffee,
   MoreHorizontal, Zap, TrendingUp, DollarSign, Target, Radio,
-  CheckCircle2, Clock
+  CheckCircle2, Clock, LayoutPanelTop
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -122,7 +122,10 @@ export default function AICommand() {
 
         <Tabs defaultValue="voice" className="space-y-4">
           <TabsList className="bg-gray-900/60 border border-gray-700/30 p-1 flex-wrap">
-            <TabsTrigger value="godmode" data-testid="tab-godmode">⚡ God Mode</TabsTrigger>
+            <TabsTrigger value="godmode" data-testid="tab-godmode">
+              <Zap className="h-3 w-3 mr-1" />
+              God Mode
+            </TabsTrigger>
             <TabsTrigger value="voice" data-testid="tab-voice">Command Voice</TabsTrigger>
             <TabsTrigger value="personality" data-testid="tab-personality">AI Personality</TabsTrigger>
             <TabsTrigger value="briefing" data-testid="tab-briefing">Daily Briefing</TabsTrigger>
@@ -147,27 +150,27 @@ export default function AICommand() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                  {[
-                    { label: "Script Studio", desc: "Full AI scripts", icon: FileText, color: "hsl(265 80% 65%)", href: "/script-studio" },
-                    { label: "Viral Predictor", desc: "Pre-post scoring", icon: TrendingUp, color: "hsl(0 80% 60%)", href: "/viral-predictor" },
-                    { label: "Brand Deals", desc: "Sponsor CRM", icon: DollarSign, color: "hsl(45 90% 55%)", href: "/money/sponsors" },
-                    { label: "Growth Map", desc: "0→1M roadmap", icon: Target, color: "hsl(142 70% 50%)", href: "/growth" },
-                    { label: "AI Factory", desc: "20+ AI tools", icon: Brain, color: "hsl(220 80% 60%)", href: "/ai-factory" },
-                    { label: "War Room", desc: "Threat detection", icon: Shield, color: "hsl(0 70% 55%)", href: "/war-room" },
-                    { label: "Go Live", desc: "Multi-stream", icon: Radio, color: "hsl(25 90% 55%)", href: "/stream" },
-                    { label: "Intelligence", desc: "Audience deep-dive", icon: Sparkles, color: "hsl(280 80% 65%)", href: "/intelligence" },
-                  ].map((item) => (
-                    <button key={item.label} onClick={() => navigate(item.href)}
-                      data-testid={`godmode-launcher-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-                      className="p-3 rounded-xl border border-border/20 bg-muted/10 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left relative overflow-hidden">
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity" style={{ background: item.color }} />
-                      <item.icon className="w-5 h-5 mb-2" style={{ color: item.color }} />
-                      <div className="text-xs font-bold text-foreground">{item.label}</div>
-                      <div className="text-[10px] text-muted-foreground">{item.desc}</div>
-                    </button>
-                  ))}
-                </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: "Script Studio", desc: "Full AI scripts", icon: FileText, color: "hsl(265 80% 65%)", href: "/script-studio" },
+                      { label: "Viral Predictor", desc: "Pre-post scoring", icon: TrendingUp, color: "hsl(0 80% 60%)", href: "/viral-predictor" },
+                      { label: "Brand Deals", desc: "Sponsor CRM", icon: DollarSign, color: "hsl(45 90% 55%)", href: "/money/sponsors" },
+                      { label: "Growth Map", desc: "0→1M roadmap", icon: Target, color: "hsl(142 70% 50%)", href: "/growth" },
+                      { label: "AI Factory", desc: "20+ AI tools", icon: Brain, color: "hsl(220 80% 60%)", href: "/ai-factory" },
+                      { label: "War Room", desc: "Threat detection", icon: Shield, color: "hsl(0 70% 55%)", href: "/war-room" },
+                      { label: "Go Live", desc: "Multi-stream", icon: Radio, color: "hsl(25 90% 55%)", href: "/stream" },
+                      { label: "Intelligence", desc: "Audience deep-dive", icon: Sparkles, color: "hsl(280 80% 65%)", href: "/intelligence" },
+                    ].map((item) => (
+                      <Button key={item.label} variant="outline" onClick={() => navigate(item.href)}
+                        data-testid={`godmode-launcher-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                        className="h-auto p-3 rounded-xl border border-border/20 bg-muted/10 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left relative overflow-hidden flex flex-col items-start">
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity" style={{ background: item.color }} />
+                        <item.icon className="w-5 h-5 mb-2" style={{ color: item.color }} />
+                        <div className="text-xs font-bold text-foreground">{item.label}</div>
+                        <div className="text-[10px] text-muted-foreground">{item.desc}</div>
+                      </Button>
+                    ))}
+                  </div>
 
                 <div className="border-t border-border/20 pt-4">
                   <div className="text-xs font-mono text-muted-foreground uppercase mb-3 flex items-center gap-2">
