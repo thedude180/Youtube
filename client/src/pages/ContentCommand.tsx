@@ -63,7 +63,7 @@ export default function ContentCommand() {
           </TabsList>
 
           <TabsContent value="scripts" className="space-y-4">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><PenTool className="w-5 h-5 text-blue-400" /> AI Script Writer</CardTitle>
               </CardHeader>
@@ -84,7 +84,7 @@ export default function ContentCommand() {
               </CardContent>
             </Card>
             {(scripts as any[]).length === 0 && (
-              <Card className="bg-gray-900/60 border-gray-700/30">
+              <Card className="card-empire border-0">
                 <CardContent className="py-12 text-center">
                   <FileText className="w-12 h-12 text-blue-400 mx-auto mb-3 opacity-60" />
                   <p className="text-gray-300 font-medium">No Scripts Generated Yet</p>
@@ -125,7 +125,7 @@ export default function ContentCommand() {
           </TabsContent>
 
           <TabsContent value="atomizer" className="space-y-4">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Split className="w-5 h-5 text-cyan-400" /> Cross-Platform Content Atomizer</CardTitle>
               </CardHeader>
@@ -145,7 +145,7 @@ export default function ContentCommand() {
               </CardContent>
             </Card>
             {(atomizerJobs as any[]).length === 0 && (
-              <Card className="bg-gray-900/60 border-gray-700/30">
+              <Card className="card-empire border-0">
                 <CardContent className="py-12 text-center">
                   <Split className="w-12 h-12 text-cyan-400 mx-auto mb-3 opacity-60" />
                   <p className="text-gray-300 font-medium">No Atomized Content Yet</p>
@@ -180,7 +180,7 @@ export default function ContentCommand() {
           </TabsContent>
 
           <TabsContent value="hooks">
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-hook-analyzer">
+            <Card className="card-empire border-0" data-testid="card-hook-analyzer">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-400" /> Hook Analyzer</CardTitle>
               </CardHeader>
@@ -212,7 +212,7 @@ export default function ContentCommand() {
           </TabsContent>
 
           <TabsContent value="thumbnails">
-            <Card className="bg-gray-900/60 border-gray-700/30" data-testid="card-thumbnail-tests">
+            <Card className="card-empire border-0" data-testid="card-thumbnail-tests">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Image className="w-5 h-5 text-pink-400" /> Thumbnail A/B Testing</CardTitle>
               </CardHeader>
@@ -249,7 +249,7 @@ export default function ContentCommand() {
           </TabsContent>
 
           <TabsContent value="empire">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Globe className="w-5 h-5 text-purple-400" /> Content Empire Map</CardTitle>
               </CardHeader>
@@ -288,7 +288,7 @@ export default function ContentCommand() {
           </TabsContent>
 
           <TabsContent value="seo">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><FlaskConical className="w-5 h-5 text-emerald-400" /> Hashtag & SEO Laboratory</CardTitle>
               </CardHeader>
@@ -317,7 +317,7 @@ export default function ContentCommand() {
           </TabsContent>
 
           <TabsContent value="viral">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Zap className="w-5 h-5 text-orange-400" /> Viral Chain Reaction Tracker</CardTitle>
               </CardHeader>

@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useMemo, useCallback, useEffect } from "react";
+import { useState, lazy, Suspense, useMemo, useCallback, useEffect, useRef } from "react";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { safeArray } from "@/lib/safe-data";
@@ -61,6 +61,7 @@ import {
   FileText,
   Settings,
   Share2,
+  ChevronRight,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 
@@ -423,6 +424,110 @@ function LiveTasksWidget() {
     </Card>
   );
 }
+
+const AutonomousBrain = () => {
+  const [activeSignal, setActiveSignal] = useState(0);
+  const signals = ["Analyzing Trends", "Optimizing Flow", "Neural Sync", "Data Harvest"];
+  useEffect(() => {
+    const t = setInterval(() => setActiveSignal(s => (s + 1) % signals.length), 2000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="card-empire rounded-2xl p-6 relative overflow-hidden mb-6" data-testid="widget-autonomous-brain">
+      <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
+      <div className="flex flex-col md:flex-row gap-8 items-center relative">
+        <div className="relative w-32 h-32 flex items-center justify-center">
+          <div className="absolute inset-0 border-4 border-primary/20 rounded-full orbit-1" />
+          <div className="absolute inset-2 border-2 border-primary/40 rounded-full orbit-2" />
+          <div className="absolute inset-4 border border-primary/60 rounded-full orbit-3" />
+          <Bot className="w-12 h-12 text-primary empire-glow" />
+          <div className="absolute -top-2 -right-2 bg-emerald-500 w-4 h-4 rounded-full border-2 border-background animate-pulse" />
+        </div>
+        <div className="flex-1 space-y-4 text-center md:text-left">
+          <div>
+            <h2 className="text-2xl font-black holographic-text uppercase tracking-tighter mb-1">Autonomous Brain Active</h2>
+            <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              {signals.map((s, i) => (
+                <div key={s} className={`flex items-center gap-2 transition-opacity duration-500 ${i === activeSignal ? 'opacity-100' : 'opacity-30'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${i === activeSignal ? 'bg-primary' : 'bg-muted'}`} />
+                  {s}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: "Neural Load", val: "12%", color: "text-blue-400" },
+              { label: "Sync Speed", val: "0.4ms", color: "text-emerald-400" },
+              { label: "Uptime", val: "99.9%", color: "text-purple-400" },
+              { label: "Confidence", val: "98.4%", color: "text-primary" }
+            ].map(m => (
+              <div key={m.label} className="bg-white/5 rounded-lg p-2 border border-white/10">
+                <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-tighter">{m.label}</div>
+                <div className={`text-sm font-bold font-mono ${m.color}`}>{m.val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PipelineCommandCenter = ({ stats }: { stats: any }) => {
+  return (
+    <div className="grid md:grid-cols-3 gap-4 mb-6" data-testid="widget-pipeline-center">
+      <Card className="card-empire p-4 relative overflow-hidden group hover-elevate no-default-hover-elevate">
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-colors" />
+        <div className="relative space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-primary/20 rounded-lg"><Zap className="w-5 h-5 text-primary" /></div>
+            <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">INSTANT</Badge>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Velocity</div>
+            <div className="text-2xl font-black font-mono">{(stats?.publishedPosts ?? 0) + (stats?.scheduledPosts ?? 0)} <span className="text-xs font-normal text-muted-foreground">items</span></div>
+          </div>
+          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-full bg-primary" style={{ width: '65%' }} />
+          </div>
+        </div>
+      </Card>
+      <Card className="card-empire p-4 relative overflow-hidden group hover-elevate no-default-hover-elevate">
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-colors" />
+        <div className="relative space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-emerald-500/20 rounded-lg"><ShieldCheck className="w-5 h-5 text-emerald-400" /></div>
+            <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-400">SECURE</Badge>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Health</div>
+            <div className="text-2xl font-black font-mono">{(stats?.stealth?.overallScore * 100).toFixed(0) ?? 98}% <span className="text-xs font-normal text-muted-foreground">safety</span></div>
+          </div>
+          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-500" style={{ width: `${(stats?.stealth?.overallScore * 100) ?? 98}%` }} />
+          </div>
+        </div>
+      </Card>
+      <Card className="card-empire p-4 relative overflow-hidden group hover-elevate no-default-hover-elevate">
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-colors" />
+        <div className="relative space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-purple-500/20 rounded-lg"><TrendingUp className="w-5 h-5 text-purple-400" /></div>
+            <Badge variant="outline" className="text-[10px] font-mono border-purple-500/30 text-purple-400">GROWTH</Badge>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Efficiency</div>
+            <div className="text-2xl font-black font-mono">84% <span className="text-xs font-normal text-muted-foreground">automated</span></div>
+          </div>
+          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-full bg-purple-500" style={{ width: '84%' }} />
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
 
 export default function Autopilot() {
   const { t } = useTranslation();

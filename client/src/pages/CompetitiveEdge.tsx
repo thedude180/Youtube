@@ -21,15 +21,23 @@ import {
 
 function StatCard({ label, value, icon: Icon, trend, testId }: { label: string; value: string | number; icon: any; trend?: string; testId: string }) {
   return (
-    <Card data-testid={testId}>
-      <CardContent className="p-4">
+    <Card data-testid={testId} className="card-empire transition-all duration-300 hover:scale-[1.02]">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <CardContent className="p-4 relative">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="text-xl font-bold mt-0.5">{value}</p>
-            {trend && <p className="text-xs text-emerald-400 mt-0.5">{trend}</p>}
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">{label}</p>
+            <p className="text-2xl font-bold mt-1 metric-display holographic-text">{value}</p>
+            {trend && (
+              <div className="flex items-center gap-1 mt-1">
+                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                <p className="text-[10px] font-mono text-emerald-400">{trend}</p>
+              </div>
+            )}
           </div>
-          <Icon className="h-5 w-5 text-primary/60" />
+          <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
+            <Icon className="h-5 w-5 text-primary" />
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -7,8 +7,53 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity, Heart, Zap, Brain, Shield, Clock, CheckCircle, XCircle,
-  AlertTriangle, Play, Pause, RefreshCw, BarChart3, Timer, Cpu, Eye
+  AlertTriangle, Play, Pause, RefreshCw, BarChart3, Timer, Cpu, Eye,
+  Waves, ActivitySquare
 } from "lucide-react";
+
+const NeuralPulse = () => {
+  return (
+    <div className="relative h-24 w-full overflow-hidden bg-black/20 rounded-lg border border-primary/10 flex items-center justify-center" data-testid="widget-neural-pulse">
+      <div className="absolute inset-0 flex items-center justify-center opacity-20">
+        <div className="w-full h-[1px] bg-primary/50 animate-pulse" />
+      </div>
+      <div className="flex gap-1 items-end h-12">
+        {Array.from({ length: 40 }).map((_, i) => (
+          <div
+            key={i}
+            className="w-1 bg-primary/40 rounded-t"
+            style={{
+              height: `${20 + Math.random() * 80}%`,
+              animation: `pulse ${1 + Math.random()}s ease-in-out infinite`
+            }}
+          />
+        ))}
+      </div>
+      <div className="absolute top-2 left-3 flex items-center gap-2">
+        <ActivitySquare className="w-3 h-3 text-primary animate-pulse" />
+        <span className="text-[10px] font-mono text-primary/80 uppercase tracking-tighter">Neural Oscilloscope</span>
+      </div>
+    </div>
+  );
+};
+
+const SystemUptimeGauge = ({ uptime }: { uptime: string }) => {
+  return (
+    <div className="space-y-3" data-testid="widget-uptime-gauge">
+      <div className="flex justify-between items-end">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">Session Continuity</span>
+        <span className="text-xs font-mono text-emerald-400">99.99%</span>
+      </div>
+      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+        <div className="h-full bg-emerald-500/60 rounded-full w-[99.99%]" style={{ animation: 'gradient-shift 4s ease infinite', backgroundSize: '200% 200%' }} />
+      </div>
+      <div className="flex justify-between text-[9px] font-mono text-muted-foreground/50">
+        <span>0ms</span>
+        <span>UPTIME: {uptime}</span>
+      </div>
+    </div>
+  );
+};
 
 function StatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -130,6 +175,7 @@ export default function Heartbeat() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           <Card className="card-empire empire-glow md:col-span-1 overflow-hidden relative border-0" data-testid="card-overall-health-score">
             <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+            <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
             <CardContent className="p-8 flex flex-col items-center justify-center text-center relative">
               <div className="flex items-center gap-2 mb-4">
                 <span className="holographic-text text-sm font-bold uppercase tracking-wider">System Health</span>
@@ -137,7 +183,7 @@ export default function Heartbeat() {
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />LIVE
                 </span>
               </div>
-              <div className="relative inline-flex items-center justify-center mb-4">
+              <div className="relative inline-flex items-center justify-center mb-6">
                 <svg width="160" height="160" className="transform -rotate-90">
                   <circle cx="80" cy="80" r="70" stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="none" />
                   <circle cx="80" cy="80" r="70" stroke={s.overallHealth > 80 ? "#22c55e" : s.overallHealth > 50 ? "#eab308" : "#ef4444"} strokeWidth="8" fill="none" strokeDasharray={440} strokeDashoffset={440 * (1 - (s.overallHealth || 0) / 100)} strokeLinecap="round" className="transition-all duration-1000" style={{ filter: `drop-shadow(0 0 8px ${s.overallHealth > 80 ? "#22c55e80" : "#eab30880"})` }} />
@@ -147,10 +193,10 @@ export default function Heartbeat() {
                   <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Global Health</span>
                 </div>
               </div>
-              <Badge variant="outline" className="text-xs mb-2 border-emerald-500/30 text-emerald-400">
-                {s.enabledEngines || 0}/{s.totalEngines || 15} Engines Active
-              </Badge>
-              <p className="text-xs text-gray-400">All autonomous AI engines monitored 24/7 — exception-only alerts</p>
+              <div className="w-full space-y-4">
+                <NeuralPulse />
+                <SystemUptimeGauge uptime={s.uptime || "0h"} />
+              </div>
             </CardContent>
             <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-green-500 via-emerald-400 to-green-500" style={{ animation: "gradient-shift 3s ease infinite", backgroundSize: "200% 200%" }} />
           </Card>

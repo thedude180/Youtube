@@ -115,8 +115,9 @@ export function AppSidebar() {
     refetchInterval: 30000,
     enabled: !!user 
   });
+  const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 60000 });
 
-  const activeAgents = agentStatus?.filter(a => a.status === 'active' || a.status === 'working').length || 0;
+  const activeAgents = (agentActivities as any[])?.filter((a: any) => a.status === "running" || a.status === "active").length ?? 0;
   const completedTasks = activities?.filter(a => a.status === 'completed').length || 0;
 
   const isActive = (href: string) =>
@@ -153,7 +154,7 @@ export function AppSidebar() {
             <Zap className="h-4 w-4 text-primary-foreground relative z-10 transition-transform group-hover:scale-110" />
           </div>
           <div className="flex flex-col">
-            <span data-testid="text-app-name" className="font-display font-bold text-sm tracking-tight">
+            <span data-testid="text-app-name" className="font-display font-bold text-sm tracking-tight" style={{ textShadow: '0 0 20px hsl(265 80% 60% / 0.6)' }}>
               Creator<span className="text-primary">OS</span>
             </span>
             {isAdvanced && (
@@ -164,27 +165,20 @@ export function AppSidebar() {
           </div>
         </div>
 
-        <Separator className="my-3 opacity-50" />
-        
-        <div className="flex gap-1 flex-wrap px-1 relative z-10">
-          <div className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground flex items-center gap-1">
-            <Users className="w-2.5 h-2.5" />
-            <span className="text-foreground font-bold">{formatCompactNumber(dashStats?.subscriberCount)}</span>
-          </div>
-          <div className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground flex items-center gap-1">
-            <DollarSign className="w-2.5 h-2.5" />
-            <span className="text-foreground font-bold">${formatCompactNumber(dashStats?.totalRevenue)}</span>
-          </div>
-          <div className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground flex items-center gap-1">
-            <Bot className="w-2.5 h-2.5" />
-            <span className="text-foreground font-bold">{activeAgents}/11</span>
-          </div>
-          <div className="w-full mt-1.5 flex items-center gap-1.5">
-            <span className="text-[9px] text-emerald-400 animate-pulse flex items-center gap-1 font-bold tracking-wider">
-              <span className="h-1 w-1 rounded-full bg-emerald-400" />
-              LIVE
+        <div className="px-3 pb-2 mt-1 border-t border-border/20 pt-2">
+          <div className="flex gap-1 flex-wrap">
+            <span data-testid="stat-sidebar-subscribers" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
+              👁 {(dashStats as any)?.subscriberCount ? ((dashStats as any).subscriberCount > 1000 ? ((dashStats as any).subscriberCount/1000).toFixed(1)+'K' : (dashStats as any).subscriberCount) : '—'}
             </span>
-            <div className="h-[1px] flex-1 bg-gradient-to-r from-emerald-400/20 to-transparent" />
+            <span data-testid="stat-sidebar-revenue" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
+              💰 ${(dashStats as any)?.totalRevenue?.toFixed(0) ?? '—'}
+            </span>
+            <span data-testid="stat-sidebar-agents" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
+              🤖 {activeAgents}/11
+            </span>
+          </div>
+          <div className="mt-1">
+            <span className="text-[9px] text-emerald-400 animate-pulse">● LIVE</span>
           </div>
         </div>
       </SidebarHeader>
@@ -247,7 +241,7 @@ export function AppSidebar() {
         )}
 
         {user && (
-          <SidebarGroup className="mt-auto">
+          <SidebarGroup className="mt-auto hidden">
             <SidebarGroupContent className="px-2">
               <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
                 <div className="flex items-center justify-between mb-1.5">
@@ -266,6 +260,20 @@ export function AppSidebar() {
               </div>
             </SidebarGroupContent>
           </SidebarGroup>
+        )}
+
+        {user && (
+          <div className="px-3 py-2 border-t border-border/20" data-testid="widget-ai-performance">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1 font-mono">AI Performance</div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] text-muted-foreground">Tasks Done</span>
+              <span className="text-[11px] font-mono text-primary">{(agentActivities as any[])?.filter((a:any) => a.status === "completed").length ?? 0}</span>
+            </div>
+            <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
+              <div className="h-full bg-primary/60 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min(100, (((agentActivities as any[])?.filter((a:any) => a.status === "completed").length ?? 0) / Math.max(1, (agentActivities as any[])?.length ?? 1)) * 100)}%` }} />
+            </div>
+          </div>
         )}
 
         {user && !isPaidUser && (

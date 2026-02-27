@@ -7,7 +7,7 @@ import {
   Activity, Shield, Wifi, WifiOff, Radio, Eye, AlertTriangle, 
   CheckCircle, XCircle, RefreshCw, Zap, Globe, TrendingUp, 
   Server, Brain, Lock, Gauge, Satellite, MonitorSpeaker,
-  Layout, Database, Users, Settings
+  Layout, Database, Users, Settings, Terminal, ZapOff
 } from "lucide-react";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord } from "react-icons/si";
 import { useState, useEffect } from "react";
@@ -20,6 +20,67 @@ const STATUS_COLORS: Record<string, string> = {
   online: "text-green-400", standby: "text-yellow-400", offline: "text-red-400",
   connected: "text-green-400", active: "text-green-400", healthy: "text-green-400",
   warning: "text-yellow-400", critical: "text-red-400", idle: "text-gray-400",
+};
+
+const SystemConsole = () => {
+  const [lines, setLines] = useState<string[]>([]);
+  const consoleMessages = [
+    "Initializing neural uplink...",
+    "Syncing creator DNA metrics...",
+    "Platform handshakes: [OK]",
+    "Neural weights optimized.",
+    "Bypassing algorithm throttles...",
+    "Sentiment analysis: POSITIVE",
+    "Revenue paths clear.",
+    "System redundancy: 100%",
+    "Growth trajectory: EXPONENTIAL",
+    "Security lattice: ACTIVE"
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLines(prev => [consoleMessages[Math.floor(Math.random() * consoleMessages.length)], ...prev].slice(0, 6));
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="terminal bg-black/40 rounded-lg p-3 border border-primary/20" data-testid="widget-system-console">
+      <div className="flex items-center gap-2 mb-2 text-[10px] text-primary uppercase font-mono tracking-tighter">
+        <Terminal className="w-3 h-3" /> System Console
+      </div>
+      <div className="space-y-1">
+        {lines.map((l, i) => (
+          <div key={i} className="text-[10px] font-mono text-emerald-400/80 animate-in fade-in slide-in-from-left-2 duration-500">
+            <span className="opacity-50 mr-2">{'>'}</span> {l}
+          </div>
+        ))}
+        {lines.length === 0 && <div className="text-[10px] font-mono text-emerald-900">AWAITING SYSTEM UPLINK...</div>}
+      </div>
+    </div>
+  );
+};
+
+const DeploymentStatus = () => {
+  const deployments = [
+    { name: "US-EAST", status: "active", latency: "12ms" },
+    { name: "EU-WEST", status: "active", latency: "48ms" },
+    { name: "ASIA-SE", status: "standby", latency: "112ms" }
+  ];
+  return (
+    <div className="space-y-2" data-testid="widget-deployment-status">
+      <div className="text-[10px] text-muted-foreground uppercase font-mono">Edge Deployments</div>
+      {deployments.map(d => (
+        <div key={d.name} className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/5">
+          <div className="flex items-center gap-2">
+            <div className={`w-1 h-1 rounded-full ${d.status === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400'}`} />
+            <span className="text-[10px] font-mono text-white/80">{d.name}</span>
+          </div>
+          <span className="text-[10px] font-mono text-muted-foreground">{d.latency}</span>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 function OrbitalSystem() {
@@ -227,23 +288,32 @@ export default function MissionControl() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <OrbitalSystem />
-          <div className="lg:col-span-1 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
+            <OrbitalSystem />
+          </div>
+          <div className="lg:col-span-1 space-y-4">
             <LiveTelemetry />
-            <Card className="card-empire border-0" data-testid="card-overall-vitals">
+            <Card className="card-empire border-0 overflow-hidden" data-testid="card-system-vitals">
+              <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
               <CardHeader className="py-3">
-                <CardTitle className="text-xs font-bold text-white uppercase tracking-widest">System Vitals</CardTitle>
+                <CardTitle className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                  <Activity className="w-3 h-3 text-primary" /> SYSTEM VITALS
+                </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 grid grid-cols-2 gap-4">
-                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
-                  <p className="text-[10px] text-muted-foreground uppercase">Bandwidth</p>
-                  <p className="text-lg font-mono text-blue-400">1.2 GB/s</p>
+              <CardContent className="p-4 space-y-4 relative">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 rounded bg-black/40 border border-white/5">
+                    <p className="text-[9px] text-muted-foreground uppercase font-mono">Uplink</p>
+                    <p className="text-sm font-mono text-blue-400">1.2 GB/s</p>
+                  </div>
+                  <div className="p-2 rounded bg-black/40 border border-white/5">
+                    <p className="text-[9px] text-muted-foreground uppercase font-mono">Ping</p>
+                    <p className="text-sm font-mono text-emerald-400">14ms</p>
+                  </div>
                 </div>
-                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
-                  <p className="text-[10px] text-muted-foreground uppercase">Latency</p>
-                  <p className="text-lg font-mono text-green-400">14ms</p>
-                </div>
+                <SystemConsole />
+                <DeploymentStatus />
               </CardContent>
             </Card>
           </div>

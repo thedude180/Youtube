@@ -60,7 +60,7 @@ export default function Workspace() {
           </TabsList>
 
           <TabsContent value="inbox">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Inbox className="w-5 h-5 text-blue-400" /> Team Inbox</CardTitle>
               </CardHeader>
@@ -97,7 +97,7 @@ export default function Workspace() {
           </TabsContent>
 
           <TabsContent value="assets">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><FolderOpen className="w-5 h-5 text-amber-400" /> Asset Library</CardTitle>
               </CardHeader>
@@ -140,7 +140,7 @@ export default function Workspace() {
           </TabsContent>
 
           <TabsContent value="reports">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><FileBarChart className="w-5 h-5 text-indigo-400" /> Custom Report Builder</CardTitle>
               </CardHeader>
@@ -172,7 +172,7 @@ export default function Workspace() {
           </TabsContent>
 
           <TabsContent value="email">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Mail className="w-5 h-5 text-cyan-400" /> Email List Builder</CardTitle>
               </CardHeader>
@@ -203,7 +203,7 @@ export default function Workspace() {
           </TabsContent>
 
           <TabsContent value="discord">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><Bot className="w-5 h-5 text-indigo-400" /> Discord Bot Manager</CardTitle>
               </CardHeader>
@@ -234,7 +234,7 @@ export default function Workspace() {
           </TabsContent>
 
           <TabsContent value="merch">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-pink-400" /> Merch Store</CardTitle>
               </CardHeader>
@@ -263,7 +263,7 @@ export default function Workspace() {
           </TabsContent>
 
           <TabsContent value="tips">
-            <Card className="bg-gray-900/60 border-gray-700/30">
+            <Card className="card-empire border-0">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-white flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-400" /> Tips & Donations</CardTitle>

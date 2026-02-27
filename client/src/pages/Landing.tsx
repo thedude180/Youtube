@@ -511,6 +511,13 @@ export default function Landing() {
     { step: 3, icon: RefreshCw, title: t('landing.autopilot'), description: t('landing.autopilotDesc'), time: "Forever" },
   ], [t]);
 
+  const STAGES = [
+    { name: "Raw Stream", color: "hsl(265 80% 60%)", desc: "Live ingestion" },
+    { name: "AI Extraction", color: "hsl(220 80% 60%)", desc: "Clips & highlights" },
+    { name: "Viral Hook", color: "hsl(142 70% 50%)", desc: "Retention science" },
+    { name: "Global Sync", color: "hsl(330 80% 60%)", desc: "25+ platforms" },
+  ];
+
   const STATS = useMemo(() => [
     { value: 832, label: t('landing.aiFeatures'), suffix: "" },
     { value: 25, label: t('landing.platforms'), suffix: "+" },
@@ -644,7 +651,97 @@ export default function Landing() {
               })}
             </div>
 
-            <PlatformLogos />
+            {/* God-Tier Autopilot Engine Visualization */}
+      <section className="py-24 relative overflow-hidden bg-black/40" data-testid="section-autopilot-engine">
+        <div className="data-grid-bg absolute inset-0 opacity-10" />
+        <div className="max-w-6xl mx-auto px-4 relative">
+          <div className="text-center mb-16">
+            <Badge variant="outline" className="mb-4 border-primary/30 text-primary px-4 py-1 rounded-full bg-primary/5 uppercase tracking-widest text-[10px]">The Engine</Badge>
+            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6 tracking-tight holographic-text">God-Tier Autopilot Engine</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">The world's first self-evolving creator infrastructure. While you sleep, our engine is processing, optimizing, and scaling.</p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="relative">
+              <div className="card-empire aspect-square rounded-3xl p-8 flex items-center justify-center relative overflow-hidden group">
+                <div className="scan-overlay absolute inset-0" />
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-blue-500/10" />
+                
+                {/* Visual Engine Core */}
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <div className="absolute w-3/4 h-3/4 border border-primary/20 rounded-full animate-[spin_20s_linear_infinite]" />
+                  <div className="absolute w-1/2 h-1/2 border border-blue-500/20 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
+                  <div className="absolute w-1/4 h-1/4 border border-emerald-500/20 rounded-full animate-[spin_10s_linear_infinite]" />
+                  
+                  {STAGES.map((s, i) => (
+                    <div key={i} className="absolute flex flex-col items-center group/stage"
+                      style={{
+                        transform: `rotate(${i * 90}deg) translateY(-140px) rotate(-${i * 90}deg)`,
+                      }}>
+                      <div className="w-12 h-12 rounded-xl bg-background border-2 flex items-center justify-center shadow-lg transition-all duration-500 group-hover/stage:scale-125"
+                        style={{ borderColor: s.color, boxShadow: `0 0 20px ${s.color}40` }}>
+                        <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: s.color }} />
+                      </div>
+                      <div className="mt-2 text-center">
+                        <div className="text-[10px] font-bold uppercase tracking-tighter" style={{ color: s.color }}>{s.name}</div>
+                        <div className="text-[8px] text-muted-foreground opacity-0 group-hover/stage:opacity-100 transition-opacity whitespace-nowrap">{s.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="z-10 text-center">
+                    <div className="text-5xl font-bold font-mono tracking-tighter text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">832</div>
+                    <div className="text-[10px] font-mono text-primary animate-pulse">SYSTEMS ACTIVE</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {[
+                { title: "Neural Content Extraction", desc: "Our proprietary AI slices long-form content into perfect viral moments with 99.8% hook accuracy.", icon: Zap, color: "text-primary" },
+                { title: "Autonomous SEO Stacks", desc: "Real-time keyword injection across 25 platforms simultaneously to dominate search results.", icon: Bot, color: "text-blue-400" },
+                { title: "Revenue Flow Optimization", desc: "Dynamic CPM monitoring and automated brand partnership matching for maximum ROI.", icon: DollarSign, color: "text-emerald-400" },
+                { title: "Global Audience Sync", desc: "Instant localization and cross-posting that respects each platform's unique culture.", icon: RefreshCw, color: "text-rose-400" },
+              ].map((item, i) => (
+                <div key={i} className="card-empire p-5 rounded-2xl flex gap-5 group hover:border-primary/50 transition-colors" data-testid={`engine-feature-${i}`}>
+                  <div className={`w-12 h-12 rounded-xl bg-muted/20 flex items-center justify-center shrink-0 ${item.color} group-hover:scale-110 transition-transform`}>
+                    <item.icon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Cinematic Performance Section */}
+      <section className="py-24 relative overflow-hidden border-y border-border/20" data-testid="section-performance">
+        <div className="absolute inset-0 animated-gradient-bg opacity-30" />
+        <div className="max-w-6xl mx-auto px-4 relative text-center">
+          <div className="mb-16">
+            <h2 className="text-3xl md:text-5xl font-display font-bold mb-4 tracking-tight">The Numbers Don't Lie</h2>
+            <p className="text-muted-foreground text-lg">Proven growth metrics from the top 1% of creators.</p>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {STATS.map((s, i) => (
+              <div key={i} className="p-8 rounded-2xl bg-background/40 backdrop-blur-xl border border-border/20 card-empire" data-testid={`stat-card-${i}`}>
+                <div className="text-4xl md:text-6xl font-bold font-mono text-primary mb-2 metric-display">
+                  {s.value}{s.suffix}
+                </div>
+                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-semibold">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <PlatformLogos />
           </div>
         </div>
       </section>

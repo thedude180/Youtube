@@ -317,13 +317,16 @@ function StatsOverview({ stats }: { stats: JourneyData["stats"] }) {
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <Card key={item.label}>
-            <CardContent className="p-3 text-center">
-              <Icon className={`h-5 w-5 mx-auto mb-1.5 ${item.color}`} />
-              <p className="text-lg font-bold" data-testid={`stat-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
+          <Card key={item.label} className="card-empire hover:scale-105 transition-all duration-300">
+            <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+            <CardContent className="p-4 text-center relative">
+              <div className={`w-10 h-10 rounded-full bg-muted/20 mx-auto mb-2 flex items-center justify-center border border-border/20 ${item.color.replace('text-', 'bg-').replace('400', '400/10')}`}>
+                <Icon className={`h-5 w-5 ${item.color} empire-glow`} />
+              </div>
+              <p className="text-2xl font-bold metric-display holographic-text" data-testid={`stat-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
                 {item.value}
               </p>
-              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono mt-1">{item.label}</p>
             </CardContent>
           </Card>
         );

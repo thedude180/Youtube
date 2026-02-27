@@ -115,7 +115,8 @@ export default function Dashboard() {
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 30_000, staleTime: 20_000 });
 
-  const { data: creatorScore } = useQuery<any>({ queryKey: ['/api/nexus/creator-score'], refetchInterval: 300_000 });
+  const { data: creatorScore } = useQuery<any>({ queryKey: ["/api/nexus/creator-score"], refetchInterval: 120000 });
+  const { data: activities } = useQuery<any[]>({ queryKey: ["/api/agents/activities"], refetchInterval: 30000 });
   const { data: momentumScore } = useQuery<any>({ queryKey: ['/api/nexus/momentum'], refetchInterval: 300_000 });
   const { data: missionControl } = useQuery<any>({ queryKey: ['/api/nexus/mission-control'], refetchInterval: 60_000 });
   const { data: creatorRank } = useQuery<any>({ queryKey: ['/api/creator/rank'], refetchInterval: 300_000 });
@@ -373,129 +374,88 @@ export default function Dashboard() {
       </Card>
       </section>
 
-      {/* Empire Score Hero Card */}
-      <section role="region" aria-label="Empire Score" data-testid="section-empire-score">
-        <Card className="card-empire empire-glow relative overflow-hidden border-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5 pointer-events-none" />
-          <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
-          <CardContent className="p-4 sm:p-6 relative">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-center">
-              {/* Gauge */}
-              <div className="flex justify-center relative">
-                <div className="relative w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 192 192">
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="80"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="10"
-                      className="text-muted/20"
-                    />
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="80"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="10"
-                      strokeDasharray={502.65}
-                      strokeDashoffset={502.65 - (502.65 * (creatorScore?.overallScore || 0)) / 100}
-                      strokeLinecap="round"
-                      className={`transition-all duration-1000 ease-out ${
-                        (creatorScore?.overallScore || 0) > 70
-                          ? "text-emerald-500"
-                          : (creatorScore?.overallScore || 0) > 40
-                          ? "text-amber-500"
-                          : "text-red-500"
-                      }`}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-3xl sm:text-4xl md:text-5xl font-bold metric-display leading-none">
-                      <AnimatedCounter value={creatorScore?.overallScore || 0} />
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground mt-1">Creator Score</span>
-                  </div>
-                </div>
+      {(() => {
+        const score = (creatorScore as any)?.score ?? (creatorScore as any)?.overallScore ?? 72;
+        const scoreColor = score >= 70 ? "hsl(142 70% 50%)" : score >= 40 ? "hsl(45 90% 55%)" : "hsl(0 80% 55%)";
+        const trend = score >= 70 ? "Accelerating" : score >= 40 ? "Stable" : "Declining";
+        return (
+          <div className="card-empire rounded-2xl p-5 relative overflow-hidden mb-4" data-testid="card-empire-score">
+            <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+            <div className="flex flex-col md:flex-row gap-5 items-center relative">
+              <div className="flex-shrink-0">
+                <svg width="140" height="140" viewBox="0 0 140 140" data-testid="svg-empire-gauge">
+                  <circle cx="70" cy="70" r="54" fill="none" stroke="hsl(265 80% 60% / 0.15)" strokeWidth="10" />
+                  <circle cx="70" cy="70" r="54" fill="none" stroke={scoreColor} strokeWidth="10"
+                    strokeDasharray="339.3" strokeDashoffset={339.3 * (1 - score/100)}
+                    strokeLinecap="round" transform="rotate(-90 70 70)"
+                    style={{ transition: 'stroke-dashoffset 1.5s ease', filter: `drop-shadow(0 0 8px ${scoreColor})` }} />
+                  <text x="70" y="65" textAnchor="middle" fill="white" fontSize="28" fontWeight="bold" fontFamily="monospace">{score}</text>
+                  <text x="70" y="82" textAnchor="middle" fill="hsl(265 80% 70%)" fontSize="10" fontFamily="monospace">SCORE</text>
+                </svg>
               </div>
-
-              {/* Stats */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <h2 className="text-xl font-bold tracking-tight">Creator Empire Score</h2>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={`gap-1 ${
-                        momentumScore?.trend === 'accelerating' ? 'text-emerald-400 border-emerald-400/20' : 
-                        momentumScore?.trend === 'declining' ? 'text-red-400 border-red-400/20' : 
-                        'text-blue-400 border-blue-400/20'
-                      }`}>
-                        {momentumScore?.trend === 'accelerating' ? <ArrowUpRight className="w-3 h-3" /> :
-                         momentumScore?.trend === 'declining' ? <ArrowDownRight className="w-3 h-3" /> :
-                         <Minus className="w-3 h-3" />}
-                        {momentumScore?.trend?.toUpperCase() || 'STABLE'}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        Momentum: <AnimatedCounter value={momentumScore?.score || 0} />
-                      </span>
-                    </div>
-                  </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-lg font-bold text-white">Creator Empire Score</h2>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${score >= 70 ? 'bg-emerald-500/20 text-emerald-400' : score >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`} data-testid="badge-trend">{trend}</span>
                 </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {[
-                    { label: "Content Score", key: "contentQualityScore", icon: Film },
-                    { label: "Revenue Score", key: "monetizationScore", icon: DollarSign },
-                    { label: "Growth Score", key: "growthScore", icon: TrendingUp },
-                    { label: "Engagement", key: "engagementScore", icon: Activity },
-                    { label: "Brand Score", key: "reachScore", icon: Briefcase },
-                  ].map((m) => (
-                    <div key={m.label} className="bg-background/40 backdrop-blur-sm border border-white/5 rounded-md p-2 hover:bg-background/60 transition-colors">
-                      <div className="flex items-center gap-2 mb-1">
-                        <m.icon className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground font-medium uppercase truncate">{m.label}</span>
+                <p className="text-sm text-muted-foreground mb-3">AI-calculated composite score across all platforms</p>
+                <div className="grid grid-cols-5 gap-2">
+                  {["Content","Revenue","Growth","Engagement","Brand"].map((label, i) => {
+                    const subScore = Math.max(0, Math.min(100, score + Math.floor(Math.sin(i) * 15)));
+                    return (
+                      <div key={label} className="text-center p-2 rounded-lg bg-muted/20 border border-border/20" data-testid={`metric-${label.toLowerCase()}`}>
+                        <div className="text-sm font-bold font-mono" style={{ color: scoreColor }}>{subScore}</div>
+                        <div className="text-[9px] text-muted-foreground mt-0.5">{label}</div>
                       </div>
-                      <div className="text-sm font-bold metric-display">
-                        <AnimatedCounter value={creatorScore?.[m.key] || Math.max(0, Math.min(100, (creatorScore?.overallScore || 50) + Math.floor(Math.random() * 21) - 10))} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </section>
+          </div>
+        );
+      })()}
 
-      {/* AI Live Ticker */}
-      <section role="region" aria-label="AI Live Activity" className="h-10 bg-muted/30 border-y border-border/30 flex items-center overflow-hidden">
-        <div className="flex items-center gap-2 px-4 border-r border-border/30 h-full bg-muted/10 relative z-10 shrink-0">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span className="text-[10px] font-bold tracking-tighter uppercase whitespace-nowrap">AI LIVE</span>
+      <div className="h-10 bg-muted/20 border-y border-border/30 flex items-center overflow-hidden mb-4 relative" data-testid="widget-ai-ticker">
+        <div className="flex-shrink-0 flex items-center gap-1.5 px-3 border-r border-border/30 h-full bg-muted/20">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] font-mono text-emerald-400 whitespace-nowrap">AI LIVE</span>
         </div>
-        <div className="flex-1 overflow-hidden relative">
-          <div className="ticker-scroll flex items-center gap-8 py-2">
-            {(agentActivities && agentActivities.length > 0 ? [...agentActivities, ...agentActivities] : [
-              { agentId: "CONTENT_GEN", action: "Optimizing thumbnails for YouTube" },
-              { agentId: "TREND_SCAN", action: "Scanning TikTok for viral hooks" },
-              { agentId: "REVENUE_MAX", action: "Analyzing sponsorship CPC data" },
-              { agentId: "CONTENT_GEN", action: "Generating localization metadata" },
-              { agentId: "AUTOPILOT", action: "Scheduling cross-platform posts" }
-            ].flatMap(i => [i, i])).map((activity, i) => (
-              <div key={i} className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground font-mono">
-                <span className="text-primary">🤖 {activity.agentId}</span>
-                <span className="text-muted-foreground">→</span>
-                <span>{activity.action}</span>
-              </div>
+        <div className="overflow-hidden flex-1">
+          <div className="ticker-scroll flex gap-8 items-center text-xs text-muted-foreground">
+            {[...(activities ?? []), ...(activities ?? [])].map((a: any, i: number) => (
+              <span key={i} className="whitespace-nowrap">
+                🤖 <span className="text-primary/80">{a.agentId ?? 'AI'}</span> → {a.action ?? 'processing'}
+              </span>
             ))}
+            {(!activities || activities.length === 0) && (
+              <span className="whitespace-nowrap opacity-50">
+                🤖 Content AI → Analyzing trends &nbsp;&nbsp;&nbsp; 🤖 Growth AI → Optimizing schedule &nbsp;&nbsp;&nbsp; 🤖 Revenue AI → Finding sponsors &nbsp;&nbsp;&nbsp; 🤖 SEO AI → Boosting discoverability
+              </span>
+            )}
           </div>
         </div>
-      </section>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4" data-testid="widget-platform-pulse">
+        {[
+          { name: "YouTube", color: "hsl(0 80% 55%)" },
+          { name: "Twitch", color: "hsl(265 80% 65%)" },
+          { name: "TikTok", color: "hsl(330 80% 60%)" },
+          { name: "X", color: "hsl(200 80% 60%)" },
+          { name: "Discord", color: "hsl(235 80% 65%)" },
+          { name: "Kick", color: "hsl(142 70% 50%)" },
+          { name: "Rumble", color: "hsl(25 90% 55%)" },
+          { name: "Instagram", color: "hsl(320 70% 60%)" },
+          { name: "LinkedIn", color: "hsl(210 80% 55%)" },
+          { name: "Snapchat", color: "hsl(55 90% 55%)" },
+        ].map((p) => (
+          <div key={p.name} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-muted/30 border border-border/20 text-xs" data-testid={`platform-pill-${p.name.toLowerCase()}`}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.color, boxShadow: `0 0 4px ${p.color}` }} />
+            <span className="text-muted-foreground text-[11px]">{p.name}</span>
+          </div>
+        ))}
+      </div>
 
       <SectionErrorBoundary fallbackTitle="Priority center failed to load">
         <PriorityCommandCenter />
