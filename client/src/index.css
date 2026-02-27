@@ -1148,5 +1148,193 @@ a, button, [role="button"] {
     animation: gradient-shift 12s ease infinite;
   }
 
+/* ============================================================
+   MOBILE GOD-MODE UTILITIES
+   ============================================================ */
+
+/* iOS momentum scrolling everywhere */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Better mobile text rendering */
+@media (max-width: 767px) {
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Bigger tap targets on mobile */
+  button, [role="button"], a {
+    min-height: 36px;
+  }
+
+  /* Better mobile card spacing */
+  .mobile-card {
+    padding: 0.75rem !important;
+  }
+
+  /* Ensure smooth momentum scrolling */
+  .overflow-auto, .overflow-y-auto, main {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Scale down massive headings on mobile */
+  .text-5xl { font-size: 2rem !important; }
+  .text-6xl { font-size: 2.25rem !important; }
+  .text-7xl { font-size: 2.5rem !important; }
+}
+
+/* Mobile-optimized metric display */
+@media (max-width: 479px) {
+  .metric-display {
+    font-size: 1.25rem;
+  }
+}
+
+/* Cinematic bottom nav glow effect for active items */
+.mobile-nav-active-glow {
+  box-shadow: 0 0 20px hsl(265 80% 60% / 0.4), 0 0 40px hsl(265 80% 60% / 0.2);
+}
+
+/* Pull-to-refresh visual hint */
+.pull-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+}
+
+/* Touch-safe scroll containers */
+.touch-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.touch-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Swipeable cards */
+.swipe-card {
+  touch-action: pan-y;
+  user-select: none;
+}
+
+/* Mobile-safe padding utilities for bottom nav */
+.pb-nav {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+.mb-nav {
+  margin-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Compact table on mobile */
+@media (max-width: 640px) {
+  .mobile-compact-table td,
+  .mobile-compact-table th {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Full-width tabs on mobile — globally applied */
+@media (max-width: 640px) {
+  [role="tablist"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex-wrap: nowrap;
+  }
+  [role="tablist"]::-webkit-scrollbar {
+    display: none;
+  }
+  [role="tab"] {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .mobile-full-tabs [role="tablist"] {
+    width: 100%;
+  }
+}
+
+/* God Mode Badge */
+.god-mode-badge {
+  background: linear-gradient(135deg, hsl(265 80% 60%), hsl(220 80% 60%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Floating action button (mobile) */
+.fab {
+  position: fixed;
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  right: 1rem;
+  z-index: 45;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, hsl(265 80% 60%), hsl(230 80% 55%));
+  box-shadow: 0 4px 20px hsl(265 80% 60% / 0.4), 0 0 0 1px hsl(265 80% 80% / 0.1);
+  color: white;
+  transition: all 0.2s;
+}
+.fab:active {
+  transform: scale(0.92);
+}
+@media (min-width: 768px) {
+  .fab {
+    display: none;
+  }
+}
+
+/* Mobile hero text scale */
+@media (max-width: 479px) {
+  .hero-title {
+    font-size: 1.75rem;
+    line-height: 1.2;
+  }
+  .hero-subtitle {
+    font-size: 0.875rem;
+  }
+}
+
+/* Responsive grid helpers */
+.grid-mobile-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+@media (min-width: 480px) {
+  .grid-mobile-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* God-tier mobile status bar */
+.mobile-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid hsl(265 60% 50% / 0.2);
+  background: hsl(265 80% 60% / 0.1);
+  color: hsl(265 80% 75%);
+}
+
 [dir="rtl"] .translate-x-0\.5 { --tw-translate-x: -0.125rem; }
 [dir="rtl"] .group-hover\/btn\:translate-x-0\.5 { --tw-translate-x: -0.125rem; }

@@ -306,8 +306,9 @@ function PipelineFlowVisualizer({ currentPhase }: { currentPhase: string }) {
   return (
     <Card className="bg-card/50 border-primary/20 overflow-hidden relative">
       <div className="absolute inset-0 data-grid-bg opacity-10 pointer-events-none" />
-      <CardContent className="p-6 relative">
-        <div className="flex items-center justify-between relative">
+      <CardContent className="p-4 sm:p-6 relative">
+        <div className="overflow-x-auto touch-scroll -mx-1 px-1 pb-2">
+        <div className="flex items-center justify-between relative min-w-[420px]">
           <svg className="absolute top-1/2 left-0 w-full h-1 -translate-y-1/2 -z-10 overflow-visible">
             {phases.slice(0, -1).map((_, i) => (
               <line
@@ -356,6 +357,7 @@ function PipelineFlowVisualizer({ currentPhase }: { currentPhase: string }) {
               </div>
             );
           })}
+        </div>
         </div>
       </CardContent>
     </Card>

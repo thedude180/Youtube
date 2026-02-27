@@ -11,12 +11,26 @@ CreatorOS is a multi-platform content management and live streaming platform des
 - "5-year-old simple" UI with big buttons and color-coded status
 - Exception-only notifications (AI handles everything silently unless issue arises)
 - Advanced Mode toggle (off by default) - reveals extra controls, detailed metrics, manual overrides
-- Floating AI chat accessible from any page
+- Floating AI chat accessible from any page (+ mobile FAB)
 - No manual trigger buttons - everything runs autonomously in background
+- Full mobile god-mode optimization: scrollable tabs, responsive gauges, cinematic bottom nav, touch targets
+
+## Mobile Architecture
+- **Bottom Nav**: 5-item cinematic nav (Hub/Autopilot/Plan/Revenue/AI) with glowing active indicator, glassmorphism bg, safe area support
+- **Mobile FAB**: Floating purple AI chat button above bottom nav (`.fab` class), hidden on desktop
+- **Global Tab Scrolling**: All `[role="tablist"]` elements scroll horizontally on mobile via global CSS
+- **Touch Targets**: 36px min-height globally on mobile, tap highlight removed
+- **Pipeline Visualizer**: Horizontally scrollable on mobile (`min-w-[420px]` + `touch-scroll`)
+- **Empire Score Gauge**: Responsive sizing `w-32 h-32 sm:w-40 md:w-48` with SVG viewBox
+- **iOS Scroll**: `-webkit-overflow-scrolling: touch` on all overflow containers
+- **Safe Areas**: `env(safe-area-inset-bottom)` for bottom nav and FAB positioning
+- **Mobile CSS Classes**: `.fab`, `.touch-scroll`, `.pb-nav`, `.mb-nav`, `.mobile-status-pill`, `.god-mode-badge`
+- **Theme Toggle**: Now visible on mobile (removed `hidden sm:inline-flex` wrapper)
 
 ## Visual Design System (index.css)
 - **New Keyframes**: radar-sweep, pulse-ring, data-stream, neon-flicker, scan-line, ticker-scroll, orbit, empire-glow, threat-pulse, gradient-shift, holographic
 - **Power Classes**: .card-empire (animated glow border), .neon-text, .holographic-text, .data-grid-bg, .terminal, .metric-display, .live-dot, .gradient-border, .ticker-scroll, .orbit-1/2/3, .animated-gradient-bg, .glow-purple/green/red/gold/blue
+- **Mobile Utilities**: .fab, .touch-scroll, .pb-nav, .mb-nav, .mobile-status-pill, .god-mode-badge, .swipe-card
 
 ## Page Features (Latest)
 - **Sidebar**: Live stats strip (subscribers, revenue, AI agents), "LIVE" indicator, AI performance widget, terminal icon for AI Command

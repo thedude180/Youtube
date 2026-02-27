@@ -300,7 +300,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-5xl mx-auto page-enter">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 max-w-5xl mx-auto page-enter">
       <div className="flex items-start justify-between gap-4 flex-wrap animate-in">
         <div>
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">
@@ -378,30 +378,30 @@ export default function Dashboard() {
         <Card className="card-empire empire-glow relative overflow-hidden border-0">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5 pointer-events-none" />
           <div className="data-grid-bg absolute inset-0 opacity-10 pointer-events-none" />
-          <CardContent className="p-6 relative">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          <CardContent className="p-4 sm:p-6 relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-center">
               {/* Gauge */}
               <div className="flex justify-center relative">
-                <div className="relative w-48 h-48">
-                  <svg className="w-full h-full transform -rotate-90">
+                <div className="relative w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 192 192">
                     <circle
                       cx="96"
                       cy="96"
-                      r="88"
+                      r="80"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="12"
+                      strokeWidth="10"
                       className="text-muted/20"
                     />
                     <circle
                       cx="96"
                       cy="96"
-                      r="88"
+                      r="80"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="12"
-                      strokeDasharray={552.92}
-                      strokeDashoffset={552.92 - (552.92 * (creatorScore?.overallScore || 0)) / 100}
+                      strokeWidth="10"
+                      strokeDasharray={502.65}
+                      strokeDashoffset={502.65 - (502.65 * (creatorScore?.overallScore || 0)) / 100}
                       strokeLinecap="round"
                       className={`transition-all duration-1000 ease-out ${
                         (creatorScore?.overallScore || 0) > 70
@@ -413,10 +413,10 @@ export default function Dashboard() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-5xl font-bold metric-display leading-none">
+                    <span className="text-3xl sm:text-4xl md:text-5xl font-bold metric-display leading-none">
                       <AnimatedCounter value={creatorScore?.overallScore || 0} />
                     </span>
-                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1">Creator Score</span>
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground mt-1">Creator Score</span>
                   </div>
                 </div>
               </div>

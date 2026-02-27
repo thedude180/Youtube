@@ -19,7 +19,7 @@ import { useLoginSync } from "@/hooks/use-login-sync";
 import { AdaptiveProvider } from "@/hooks/use-adaptive";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon, Maximize, Minimize, Clock } from "lucide-react";
+import { Loader2, Zap, Sun, Moon, Gauge, Search, Keyboard, ChevronRight, LayoutDashboard, Video, Radio, DollarSign, Settings as SettingsIcon, Maximize, Minimize, Clock, Rocket, CalendarDays, Bot, TrendingUp as TrendingUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
@@ -469,11 +469,11 @@ function RouteBreadcrumb() {
 }
 
 const MOBILE_NAV_ITEMS = [
-  { href: "/", icon: LayoutDashboard, label: "Home" },
-  { href: "/content", icon: Video, label: "Content" },
-  { href: "/stream", icon: Radio, label: "Live" },
-  { href: "/money", icon: DollarSign, label: "Money" },
-  { href: "/settings", icon: SettingsIcon, label: "Settings" },
+  { href: "/", icon: LayoutDashboard, label: "Hub" },
+  { href: "/autopilot", icon: Rocket, label: "Autopilot" },
+  { href: "/calendar", icon: CalendarDays, label: "Plan" },
+  { href: "/money", icon: DollarSign, label: "Revenue" },
+  { href: "/ai-matrix", icon: Bot, label: "AI" },
 ];
 
 function MobileBottomNav() {
@@ -483,10 +483,17 @@ function MobileBottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/30 bg-background/60 backdrop-blur-2xl safe-area-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 safe-area-bottom"
       data-testid="nav-mobile-bottom"
+      style={{
+        background: "linear-gradient(to top, hsl(230 25% 4% / 0.97), hsl(230 25% 5% / 0.90))",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        borderTop: "1px solid hsl(265 60% 50% / 0.15)",
+        boxShadow: "0 -4px 32px hsl(265 80% 60% / 0.08), 0 -1px 0 hsl(265 60% 50% / 0.08)",
+      }}
     >
-      <div className="flex items-center justify-around h-14">
+      <div className="flex items-center justify-around h-16">
         {MOBILE_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -494,16 +501,28 @@ function MobileBottomNav() {
             <button
               key={item.href}
               onClick={() => setLocation(item.href)}
-              className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all ${
-                active ? "text-primary" : "text-muted-foreground"
-              }`}
+              className="relative flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200 active:scale-95 select-none"
+              style={{ color: active ? "hsl(265 80% 72%)" : "hsl(220 12% 50%)" }}
               data-testid={`button-mobile-nav-${item.label.toLowerCase()}`}
               aria-label={`Navigate to ${item.label}`}
               aria-current={active ? "page" : undefined}
             >
-              {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary" />}
-              <Icon className="h-5 w-5" />
-              <span className="text-[10px] font-medium">{item.label}</span>
+              {active && (
+                <span
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2px] rounded-full"
+                  style={{ background: "hsl(265 80% 70%)", boxShadow: "0 0 10px hsl(265 80% 70% / 0.8), 0 0 20px hsl(265 80% 70% / 0.4)" }}
+                />
+              )}
+              <div
+                className="relative flex items-center justify-center w-10 h-9 rounded-xl transition-all duration-200"
+                style={active ? {
+                  background: "hsl(265 80% 60% / 0.15)",
+                  boxShadow: "0 0 16px hsl(265 80% 60% / 0.25), inset 0 1px 0 hsl(265 80% 80% / 0.1)",
+                } : {}}
+              >
+                <Icon className={`h-[18px] w-[18px] transition-all duration-200 ${active ? "scale-110" : ""}`} strokeWidth={active ? 2.5 : 2} />
+              </div>
+              <span className={`text-[9px] font-bold tracking-wide uppercase ${active ? "opacity-100" : "opacity-60"}`}>{item.label}</span>
             </button>
           );
         })}
@@ -645,7 +664,7 @@ function AuthenticatedApp() {
               </Tooltip>
               {!isFocusMode && <HeaderClock />}
               {!isFocusMode && <span className="hidden sm:inline-flex"><AdvancedToggle /></span>}
-              {!isFocusMode && <span className="hidden sm:inline-flex"><ThemeToggle /></span>}
+              {!isFocusMode && <ThemeToggle />}
               {!isFocusMode && <NotificationBell />}
             </div>
           </header>
@@ -659,6 +678,15 @@ function AuthenticatedApp() {
           <MobileBottomNav />
         </div>
       </div>
+      <button
+        className="fab"
+        onClick={handleOpenChat}
+        data-testid="button-mobile-ai-chat"
+        aria-label="Open AI Chat"
+        title="Ask AI anything"
+      >
+        <Bot className="h-6 w-6" />
+      </button>
       <Suspense fallback={null}>
         <FloatingChat externalOpen={chatOpen} onExternalClose={() => setChatOpen(false)} />
       </Suspense>
