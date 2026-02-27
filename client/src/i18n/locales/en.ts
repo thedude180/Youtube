@@ -29,6 +29,8 @@ export default {
       accessCodes: "Access Codes",
       calendar: "Calendar",
       aiMatrix: "AI Matrix",
+      scriptStudio: "Script Studio",
+      viralPredictor: "Viral Predictor",
     },
     common: {
       loading: "Loading...",

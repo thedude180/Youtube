@@ -36,6 +36,7 @@ import {
   Heart,
   Terminal,
   Calendar,
+  FileText,
 } from "lucide-react";
 import {
   Sidebar,
@@ -78,6 +79,8 @@ const navLinks = [
   { href: "/workspace", labelKey: "nav.workspace", icon: KanbanSquare, minTier: "free", advancedOnly: false },
   { href: "/heartbeat", labelKey: "nav.heartbeat", icon: Heart, minTier: "free", advancedOnly: false },
   { href: "/ai-matrix", labelKey: "nav.aiMatrix", icon: Cpu, minTier: "free", advancedOnly: false },
+  { href: "/script-studio", labelKey: "nav.scriptStudio", icon: FileText, minTier: "free", advancedOnly: false },
+  { href: "/viral-predictor", labelKey: "nav.viralPredictor", icon: TrendingUp, minTier: "free", advancedOnly: false },
   { href: "/edge", labelKey: "nav.competitiveEdge", icon: Crown, minTier: "free", advancedOnly: true },
   { href: "/stream-loop", labelKey: "nav.streamLoop", icon: Repeat, minTier: "pro", advancedOnly: true },
   { href: "/vod-shorts-loop", labelKey: "nav.vodShorts", icon: Film, minTier: "pro", advancedOnly: true },

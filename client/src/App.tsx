@@ -72,6 +72,8 @@ const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ defa
 const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
 const FloatingChat = lazyRetry(() => import("@/components/FloatingChat"));
 const Hub = lazyRetry(() => import("@/pages/Hub"));
+const ScriptStudio = lazyRetry(() => import("@/pages/ScriptStudio"));
+const ViralPredictor = lazyRetry(() => import("@/pages/ViralPredictor"));
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import CookieConsent from "@/components/CookieConsent";
 import { CreatorModeProvider } from "@/hooks/use-creator-mode";
@@ -109,6 +111,8 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/stealth": { title: "AI Stealth", description: "Human behavior simulation and AI detection evasion for authentic content posting." },
   "/empire": { title: "Empire Launcher", description: "Launch and scale your content empire with AI-powered multi-platform growth strategies." },
   "/money": { title: "Money", description: "Revenue tracking, expense management, tax estimates, sponsorships, and financial AI insights." },
+  "/script-studio": { title: "AI Script Studio", description: "Full AI-generated scripts with hooks, B-roll notes, chapter markers and viral optimization." },
+  "/viral-predictor": { title: "Viral Predictor", description: "AI scores your content before you post — predict views, engagement and viral potential." },
   "/community": { title: "Community", description: "Polls, giveaways, challenges, loyalty programs, and superfan management tools." },
   "/hub": { title: "Creator Hub", description: "AI-powered content mode and live stream command center — the heart of your creator operation." },
   "/settings": { title: "Settings", description: "Profile, brand, integrations, automation rules, security, and account preferences." },
@@ -193,6 +197,8 @@ function Router() {
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
       <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>
       <Route path="/empire">{() => <SectionErrorBoundary fallbackTitle="Empire Launcher failed to load"><EmpireLauncher /></SectionErrorBoundary>}</Route>
+      <Route path="/script-studio">{() => <SectionErrorBoundary fallbackTitle="Script Studio failed to load"><ScriptStudio /></SectionErrorBoundary>}</Route>
+      <Route path="/viral-predictor">{() => <SectionErrorBoundary fallbackTitle="Viral Predictor failed to load"><ViralPredictor /></SectionErrorBoundary>}</Route>
       <Route path="/hub">{() => <SectionErrorBoundary fallbackTitle="Hub failed to load"><Hub /></SectionErrorBoundary>}</Route>
 
       <Route path="/ai">{() => <Redirect to="/" />}</Route>

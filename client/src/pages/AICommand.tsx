@@ -8,9 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Brain, Mic, BookOpen, Sparkles, Shield, Bot, Settings, User,
   Send, RefreshCw, GraduationCap, Calendar, FileText, Coffee,
-  MoreHorizontal
+  MoreHorizontal, Zap, TrendingUp, DollarSign, Target, Radio,
+  CheckCircle2, Clock
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 
 function TypingIndicator() {
   return (
@@ -61,6 +63,7 @@ export default function AICommand() {
   const [aiPersonality, setAiPersonality] = useState("professional");
   const [messages, setMessages] = useState<{ sender: "user" | "ai", text: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -119,12 +122,78 @@ export default function AICommand() {
 
         <Tabs defaultValue="voice" className="space-y-4">
           <TabsList className="bg-gray-900/60 border border-gray-700/30 p-1 flex-wrap">
+            <TabsTrigger value="godmode" data-testid="tab-godmode">⚡ God Mode</TabsTrigger>
             <TabsTrigger value="voice" data-testid="tab-voice">Command Voice</TabsTrigger>
             <TabsTrigger value="personality" data-testid="tab-personality">AI Personality</TabsTrigger>
             <TabsTrigger value="briefing" data-testid="tab-briefing">Daily Briefing</TabsTrigger>
             <TabsTrigger value="learning" data-testid="tab-learning">AI Learning</TabsTrigger>
             <TabsTrigger value="defense" data-testid="tab-defense">Defense Systems</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="godmode">
+            <div className="space-y-4" data-testid="section-god-mode">
+              <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
+                <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+                <div className="relative flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center" style={{ boxShadow: "0 0 20px hsl(265 80% 60% / 0.4)" }}>
+                    <Zap className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold holographic-text text-lg">God Mode Control Panel</h2>
+                    <p className="text-xs text-muted-foreground">Every AI tool in one place — launch anything instantly</p>
+                  </div>
+                  <div className="ml-auto">
+                    <span className="text-[10px] font-mono text-emerald-400 animate-pulse">● ALL SYSTEMS ONLINE</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { label: "Script Studio", desc: "Full AI scripts", icon: FileText, color: "hsl(265 80% 65%)", href: "/script-studio" },
+                    { label: "Viral Predictor", desc: "Pre-post scoring", icon: TrendingUp, color: "hsl(0 80% 60%)", href: "/viral-predictor" },
+                    { label: "Brand Deals", desc: "Sponsor CRM", icon: DollarSign, color: "hsl(45 90% 55%)", href: "/money/sponsors" },
+                    { label: "Growth Map", desc: "0→1M roadmap", icon: Target, color: "hsl(142 70% 50%)", href: "/growth" },
+                    { label: "AI Factory", desc: "20+ AI tools", icon: Brain, color: "hsl(220 80% 60%)", href: "/ai-factory" },
+                    { label: "War Room", desc: "Threat detection", icon: Shield, color: "hsl(0 70% 55%)", href: "/war-room" },
+                    { label: "Go Live", desc: "Multi-stream", icon: Radio, color: "hsl(25 90% 55%)", href: "/stream" },
+                    { label: "Intelligence", desc: "Audience deep-dive", icon: Sparkles, color: "hsl(280 80% 65%)", href: "/intelligence" },
+                  ].map((item) => (
+                    <button key={item.label} onClick={() => navigate(item.href)}
+                      data-testid={`godmode-launcher-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                      className="p-3 rounded-xl border border-border/20 bg-muted/10 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left relative overflow-hidden">
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity" style={{ background: item.color }} />
+                      <item.icon className="w-5 h-5 mb-2" style={{ color: item.color }} />
+                      <div className="text-xs font-bold text-foreground">{item.label}</div>
+                      <div className="text-[10px] text-muted-foreground">{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="border-t border-border/20 pt-4">
+                  <div className="text-xs font-mono text-muted-foreground uppercase mb-3 flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> AI Status — Real Time
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {[
+                      { label: "Content AI", status: "Active", color: "hsl(142 70% 50%)" },
+                      { label: "Revenue AI", status: "Active", color: "hsl(142 70% 50%)" },
+                      { label: "Growth AI", status: "Running", color: "hsl(45 90% 55%)" },
+                      { label: "Security AI", status: "Standby", color: "hsl(200 80% 60%)" },
+                    ].map((agent) => (
+                      <div key={agent.label} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20 border border-border/10"
+                        data-testid={`agent-status-${agent.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: agent.color, boxShadow: `0 0 6px ${agent.color}` }} />
+                        <div>
+                          <div className="text-[10px] font-medium text-foreground">{agent.label}</div>
+                          <div className="text-[9px] font-mono" style={{ color: agent.color }}>{agent.status}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
 
           <TabsContent value="voice">
             <Card className="bg-gray-900/60 border-gray-700/30 overflow-hidden flex flex-col h-[600px]">

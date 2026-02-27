@@ -574,8 +574,8 @@ export default function Dashboard() {
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { label: "Fill Calendar", icon: Zap, bgColor: "bg-primary/10", iconColor: "text-primary", onClick: () => fillCalendarMutation.mutate() },
-                  { label: "Gen Titles", icon: Sparkles, bgColor: "bg-purple-500/10", iconColor: "text-purple-400", onClick: () => { apiRequest("POST", "/api/ai/title-generator", {}).catch(() => {}); } },
-                  { label: "Analyze", icon: BarChart2, bgColor: "bg-blue-500/10", iconColor: "text-blue-400", onClick: () => { apiRequest("POST", "/api/ai/competitive-analysis", {}).catch(() => {}); } },
+                  { label: "Script Studio", icon: Terminal, bgColor: "bg-purple-500/10", iconColor: "text-purple-400", onClick: () => navigateTo("/script-studio") },
+                  { label: "Viral Score", icon: TrendingUp, bgColor: "bg-blue-500/10", iconColor: "text-blue-400", onClick: () => navigateTo("/viral-predictor") },
                   { label: "Calc Score", icon: Target, bgColor: "bg-emerald-500/10", iconColor: "text-emerald-400", onClick: () => { apiRequest("POST", "/api/nexus/creator-score/calculate", {}).then(() => queryClient.invalidateQueries({ queryKey: ['/api/creator/rank'] })).catch(() => {}); } },
                   { label: "Intelligence", icon: Activity, bgColor: "bg-amber-500/10", iconColor: "text-amber-400", onClick: () => navigateTo("/intelligence") },
                   { label: "AI Matrix", icon: NetworkIcon, bgColor: "bg-cyan-500/10", iconColor: "text-cyan-400", onClick: () => navigateTo("/ai-matrix") },
@@ -595,6 +595,27 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      </section>
+
+      <section role="region" aria-label="God Mode Power Panel" data-testid="section-god-mode-panel" className="mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: "Script Studio", desc: "AI-written full scripts", emoji: "📝", href: "/script-studio", color: "hsl(265 80% 65%)" },
+            { label: "Viral Predictor", desc: "Score before you post", emoji: "🔥", href: "/viral-predictor", color: "hsl(0 80% 60%)" },
+            { label: "Revenue Intel", desc: "Brand deals & sponsors", emoji: "💰", href: "/money/sponsors", color: "hsl(45 90% 55%)" },
+            { label: "Growth Journey", desc: "0→1M roadmap", emoji: "🚀", href: "/growth", color: "hsl(142 70% 50%)" },
+          ].map((item) => (
+            <button key={item.label} onClick={() => navigateTo(item.href)}
+              data-testid={`god-mode-card-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+              className="text-left p-3 rounded-xl border border-border/20 bg-muted/10 hover:border-primary/40 hover:bg-primary/5 transition-all group relative overflow-hidden">
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity" style={{ background: item.color }} />
+              <div className="text-xl mb-1.5">{item.emoji}</div>
+              <div className="text-xs font-bold text-foreground">{item.label}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+              <div className="absolute bottom-2 right-2 w-1.5 h-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: item.color }} />
+            </button>
+          ))}
         </div>
       </section>
 
