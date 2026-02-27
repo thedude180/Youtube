@@ -27,7 +27,7 @@ import {
   DollarSign, Plus, TrendingUp, CalendarDays, Receipt, ShieldCheck, Trash2, Tag,
   Calculator, FileText, AlertTriangle, CheckCircle2, Building2,
   CreditCard, Link2, Copy, Upload,
-  Briefcase, Target, Sparkles, Handshake, ChevronDown, ChevronUp, Mail, Users, Eye,
+  Briefcase, Target, Sparkles, Handshake, ChevronDown, ChevronUp, ChevronRight, Mail, Users, Eye,
   Loader2, Activity, Zap, TrendingDown, Layers
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";

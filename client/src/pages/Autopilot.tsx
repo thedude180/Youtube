@@ -24,7 +24,7 @@ import { StealthRing } from "@/components/StealthRing";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { PulseOrb } from "@/components/PulseOrb";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop, Rocket, Download, FileText, Share2, MessageSquare, Recycle, Shuffle, CheckCircle2, Clock, RefreshCw, AlertCircle, ThumbsUp, ThumbsDown, CalendarClock, DollarSign, Target, Radio, Sparkles, Brain } from "lucide-react";
+import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop, Rocket, Download, FileText, Share2, MessageSquare, Recycle, Shuffle, CheckCircle2, Clock, RefreshCw, AlertCircle, AlertTriangle, ThumbsUp, ThumbsDown, CalendarClock, DollarSign, Target, Radio, Sparkles, Brain, Pause, Play, Eye, Send } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 
 
