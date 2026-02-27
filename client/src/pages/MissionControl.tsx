@@ -174,43 +174,6 @@ function TelemetryFeed() {
   );
 }
 
-function LiveTelemetry_UNUSED() {
-  const [logs, setLogs] = useState<string[]>([]);
-  const events = [
-    "AI Engine ● Active",
-    "Stream pipeline ● Ready",
-  ];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLogs(prev => [events[prev.length % events.length], ...prev].slice(0, 10));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <Card className="bg-gray-900/90 border-gray-700/50 overflow-hidden" data-testid="card-live-telemetry">
-      <CardHeader className="py-3 border-b border-white/5">
-        <CardTitle className="text-xs font-mono flex items-center gap-2">
-          <Activity className="w-3 h-3 text-green-400" />
-          LIVE TELEMETRY FEED
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-3">
-        <div className="font-mono text-[11px] space-y-1 h-[120px] overflow-hidden">
-          {logs.map((log, i) => (
-            <div key={i} className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
-              <span className="text-green-500/50">[{new Date().toLocaleTimeString()}]</span>
-              <span className="text-green-400">{log}</span>
-            </div>
-          ))}
-          {logs.length === 0 && <div className="text-green-900">AWAITING SIGNAL...</div>}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function StatusRing({ status, size = 120, label }: { status: string; size?: number; label: string }) {
   const color = status === "online" || status === "healthy" || status === "active" ? "#22c55e" : status === "warning" || status === "standby" ? "#eab308" : status === "critical" || status === "offline" ? "#ef4444" : "#6b7280";
   const radius = size / 2 - 8;

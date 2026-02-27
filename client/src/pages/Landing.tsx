@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "wouter";
 import {
   Zap, ArrowRight, Bot, DollarSign, BarChart3,
   Monitor, CheckCircle2, Link2, Cpu, TrendingUp,
@@ -166,6 +167,7 @@ function TrustBadges() {
 }
 
 function CTAUrgency() {
+  const [, navigate] = useLocation();
   const calcTime = () => {
     const now = new Date();
     const midnight = new Date();
@@ -202,7 +204,7 @@ function CTAUrgency() {
           ))}
         </div>
         
-        <Button size="lg" className="px-12 h-14 text-lg glow" data-testid="button-cta-urgency" onClick={() => window.location.href = '/dashboard'}>
+        <Button size="lg" className="px-12 h-14 text-lg glow" data-testid="button-cta-urgency" onClick={() => navigate('/dashboard')}>
           Start Your Free Month
           <ArrowRight className="ml-2 w-5 h-5" />
         </Button>
@@ -393,6 +395,7 @@ function FloatingOrb({ delay, size, x, y }: { delay: number; size: number; x: st
 
 export default function Landing() {
   const { t } = useTranslation();
+  const [, navigate] = useLocation();
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [activePipelineStep, setActivePipelineStep] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -686,7 +689,7 @@ export default function Landing() {
                   <Button 
                     size="lg" 
                     className="h-16 px-10 text-lg font-bold rounded-full empire-glow group relative overflow-hidden"
-                    onClick={() => window.location.href = '/dashboard'}
+                    onClick={() => navigate('/dashboard')}
                     data-testid="button-hero-primary"
                   >
                     <span className="relative z-10 flex items-center gap-2">
