@@ -204,7 +204,7 @@ function CTAUrgency() {
           ))}
         </div>
         
-        <Button size="lg" className="px-12 h-14 text-lg glow" data-testid="button-cta-urgency" onClick={() => navigate('/dashboard')}>
+        <Button size="lg" className="px-12 h-14 text-lg glow" data-testid="button-cta-urgency" onClick={() => navigate('/')}>
           Start Your Free Month
           <ArrowRight className="ml-2 w-5 h-5" />
         </Button>
@@ -689,7 +689,7 @@ export default function Landing() {
                   <Button 
                     size="lg" 
                     className="h-16 px-10 text-lg font-bold rounded-full empire-glow group relative overflow-hidden"
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => navigate('/')}
                     data-testid="button-hero-primary"
                   >
                     <span className="relative z-10 flex items-center gap-2">
