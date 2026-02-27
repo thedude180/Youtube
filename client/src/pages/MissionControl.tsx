@@ -36,10 +36,12 @@ const SystemConsole = () => {
     "Growth trajectory: EXPONENTIAL",
     "Security lattice: ACTIVE"
   ];
+  const msgIdxRef = useRef(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setLines(prev => [consoleMessages[Math.floor(Math.random() * consoleMessages.length)], ...prev].slice(0, 6));
+      setLines(prev => [consoleMessages[msgIdxRef.current % consoleMessages.length], ...prev].slice(0, 6));
+      msgIdxRef.current += 1;
     }, 4000);
     return () => clearInterval(interval);
   }, []);
@@ -96,7 +98,7 @@ function OrbitalSystem() {
   ];
 
   return (
-    <Card className="bg-gray-900/60 border-gray-700/30 overflow-hidden" data-testid="card-orbital-system">
+    <Card className="bg-gray-900/60 border-gray-700/30 overflow-hidden" data-testid="widget-orbital-system">
       <CardContent className="p-8 flex items-center justify-center min-h-[400px]">
         <div className="relative w-[400px] h-[400px] flex items-center justify-center">
           {/* Center */}
@@ -164,25 +166,16 @@ function TelemetryFeed() {
   );
 }
 
-function LiveTelemetry() {
+function LiveTelemetry_UNUSED() {
   const [logs, setLogs] = useState<string[]>([]);
   const events = [
     "AI Engine ● Active",
     "Stream pipeline ● Ready",
-    "Analytics Sync ● Complete",
-    "Security Protocol ● Secure",
-    "Autopilot Phase ● Optimization",
-    "Content Variation ● Generated",
-    "Revenue Maximizer ● Scanning",
-    "System Health ● 100%",
-    "Platform Nexus ● Connected",
-    "Cloud Compute ● Scaled"
   ];
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const event = events[Math.floor(Math.random() * events.length)];
-      setLogs(prev => [event, ...prev].slice(0, 10));
+      setLogs(prev => [events[prev.length % events.length], ...prev].slice(0, 10));
     }, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -329,7 +322,7 @@ export default function MissionControl() {
             <OrbitalSystem />
           </div>
           <div className="lg:col-span-1 space-y-4">
-            <LiveTelemetry />
+            <TelemetryFeed />
             <Card className="card-empire border-0 overflow-hidden" data-testid="card-system-vitals">
               <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
               <CardHeader className="py-3">
@@ -352,25 +345,6 @@ export default function MissionControl() {
                 <DeploymentStatus />
               </CardContent>
             </Card>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4 mb-6">
-          <div className="card-empire rounded-2xl p-4">
-            <div className="text-xs font-mono text-muted-foreground uppercase mb-2">AI Telemetry Stream</div>
-            <TelemetryFeed />
-          </div>
-          <div className="card-empire rounded-2xl p-4">
-            <div className="text-xs font-mono text-muted-foreground uppercase mb-2">System Orbital View</div>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {Object.entries(systemStatus).map(([system, status]) => (
-                <div key={system} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-muted/20 border border-border/20"
-                  data-testid={`orbital-pill-${system}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${(status === 'online' || status === 'active' || status === 'healthy') ? 'bg-emerald-400 animate-pulse' : status === 'standby' ? 'bg-yellow-400' : 'bg-red-400'}`} />
-                  <span className="text-[11px] font-mono text-muted-foreground capitalize">{system}</span>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
 

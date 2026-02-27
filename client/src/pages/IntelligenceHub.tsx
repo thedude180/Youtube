@@ -275,7 +275,7 @@ export default function IntelligenceHub() {
                     </div>
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, dIdx) => {
                       const dayData = Array.from({ length: 24 }).map((_, hIdx) =>
-                        heatmap?.find(h => h.day === day && h.hour === hIdx)?.intensity || Math.floor(Math.random() * 60 + (dIdx === 1 || dIdx === 3 ? 20 : 0))
+                        heatmap?.find(h => h.day === day && h.hour === hIdx)?.intensity || Math.floor(((dIdx * 24 + hIdx) * 37 % 60) + (dIdx === 1 || dIdx === 3 ? 20 : 0))
                       );
                       const peak = dayData.indexOf(Math.max(...dayData));
                       return (

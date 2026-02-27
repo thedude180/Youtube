@@ -479,9 +479,9 @@ function StreamModePanel() {
           <h3 className="text-xs font-mono uppercase text-muted-foreground mb-3 relative">Quick Actions</h3>
           <div className="space-y-2 relative">
             {[
-              { label: "Clip This Moment", icon: Scissors, color: "hsl(265 80% 65%)", action: () => setLocation("/stream") },
+              { label: "Clip This Moment", icon: Scissors, color: "hsl(265 80% 65%)", action: () => setLocation("/autopilot") },
               { label: "Raid Finder", icon: Users, color: "hsl(200 80% 60%)", action: () => setLocation("/stream") },
-              { label: "Stream Analytics", icon: BarChart3, color: "hsl(142 70% 50%)", action: () => setLocation("/stream") },
+              { label: "Stream Analytics", icon: BarChart3, color: "hsl(142 70% 50%)", action: () => setLocation("/mission-control") },
               { label: "Go to Stream Center", icon: Radio, color: "hsl(0 80% 55%)", action: () => setLocation("/stream") },
             ].map(({ label, icon: Icon, color, action }) => (
               <Button

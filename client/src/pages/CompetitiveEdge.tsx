@@ -1346,7 +1346,7 @@ function MarketShareRadar() {
   const compPoints = axes.map((a, i) => getPoint(a.comp, i, axes.length)).join(" ");
 
   return (
-    <Card className="data-grid-bg relative overflow-hidden" data-testid="card-market-radar">
+    <Card className="data-grid-bg relative overflow-hidden" data-testid="widget-market-radar">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />

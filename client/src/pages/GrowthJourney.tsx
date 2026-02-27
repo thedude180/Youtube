@@ -507,7 +507,7 @@ function GrowthPhaseHero({ phase }: { phase: JourneyData["growthPhase"] }) {
   const Icon = currentPhase.icon;
 
   return (
-    <Card className="card-empire empire-glow overflow-hidden relative" data-testid="card-growth-hero">
+    <Card className="card-empire empire-glow overflow-hidden relative" data-testid="card-growth-phase-hero">
       <div className="absolute top-0 right-0 p-8 opacity-10">
         <Icon className="h-32 w-32" />
       </div>
@@ -516,7 +516,7 @@ function GrowthPhaseHero({ phase }: { phase: JourneyData["growthPhase"] }) {
           <Icon className={`h-12 w-12 ${currentPhase.color}`} />
         </div>
         <div className="text-center md:text-left space-y-2">
-          <Badge variant="outline" className={`mb-2 ${currentPhase.color} border-current/20`}>Current Phase</Badge>
+          <Badge variant="outline" className={`mb-2 ${currentPhase.color} border-current/20`} data-testid="badge-growth-phase">Current Phase</Badge>
           <h2 className="text-3xl font-bold tracking-tight">{currentPhase.name} Phase</h2>
           <p className="text-muted-foreground text-lg max-w-xl">{currentPhase.description}</p>
           <div className="flex gap-4 pt-4">
@@ -542,7 +542,7 @@ function GrowthVelocityGauge({ progress }: { progress: number }) {
   const offset = circumference - (progress / 100) * (circumference / 2); // Half circle
 
   return (
-    <Card className="data-grid-bg" data-testid="card-velocity-gauge">
+    <Card className="data-grid-bg" data-testid="widget-growth-velocity">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
@@ -581,8 +581,8 @@ function GrowthVelocityGauge({ progress }: { progress: number }) {
           </div>
         </div>
         <div className="flex justify-between w-full mt-2 px-4">
-          <span className="text-[10px] text-muted-foreground font-mono">STABLE</span>
-          <span className="text-[10px] text-muted-foreground font-mono">OPTIMAL</span>
+          <span className="text-[10px] text-muted-foreground font-mono" data-testid="stat-current-rate">NOW: {progress}%</span>
+          <span className="text-[10px] text-muted-foreground font-mono" data-testid="stat-target-rate">TARGET: 85%</span>
         </div>
       </CardContent>
     </Card>

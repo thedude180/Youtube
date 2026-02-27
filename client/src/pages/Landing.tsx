@@ -34,7 +34,7 @@ function LiveStatsBar() {
   }, []);
 
   return (
-    <div className="flex justify-center mt-12 slide-up-stagger" style={{ animationDelay: '0.5s' }}>
+    <div className="flex justify-center mt-12 slide-up-stagger" data-testid="widget-live-stats-bar" style={{ animationDelay: '0.5s' }}>
       <div className="inline-flex items-center gap-6 px-6 py-2.5 rounded-full bg-background/40 backdrop-blur-md border border-primary/20 shadow-xl shadow-primary/5 text-xs font-medium">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
@@ -71,13 +71,13 @@ function PlatformLogos() {
   ];
 
   return (
-    <div ref={ref} className={`mt-24 transition-all duration-1000 ${inView ? 'opacity-100' : 'opacity-0 translate-y-4'}`}>
+    <div ref={ref} className={`mt-24 transition-all duration-1000 ${inView ? 'opacity-100' : 'opacity-0 translate-y-4'}`} data-testid="section-platform-logos">
       <p className="text-center text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60 font-semibold mb-8">
         Trusted across 25+ platforms
       </p>
       <div className="flex flex-wrap justify-center gap-8 md:gap-12 opacity-40 grayscale hover:grayscale-0 transition-all">
         {platforms.map((P, i) => (
-          <P.icon key={i} className="w-5 h-5 hover:text-primary hover:scale-110 transition-all cursor-pointer" />
+          <P.icon key={i} className="w-5 h-5 hover:text-primary hover:scale-110 transition-all cursor-pointer" data-testid={`logo-platform-${i}`} />
         ))}
       </div>
     </div>
@@ -151,11 +151,13 @@ function TrustBadges() {
     { icon: Zap, text: "256-bit Encryption" }
   ];
 
+  const badgeEmojis = ["🔒", "⏱", "🛡", "🔐"];
   return (
-    <div className="flex flex-wrap justify-center gap-6 py-12 border-y border-border/30 bg-muted/5">
+    <div className="flex flex-wrap justify-center gap-6 py-12 border-y border-border/30 bg-muted/5" data-testid="section-trust-badges">
       {badges.map((b, i) => (
-        <div key={i} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border/50 bg-background/50 backdrop-blur-sm">
-          <b.icon className="w-4 h-4 text-primary" />
+        <div key={i} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border/50 bg-background/50 backdrop-blur-sm"
+          data-testid={`badge-trust-${b.text.toLowerCase().replace(/[\s.%]+/g, '-')}`}>
+          <span className="text-base">{badgeEmojis[i]}</span>
           <span className="text-xs font-medium text-muted-foreground">{b.text}</span>
         </div>
       ))}
@@ -164,41 +166,46 @@ function TrustBadges() {
 }
 
 function CTAUrgency() {
-  const [timeLeft, setTimeLeft] = useState("");
+  const calcTime = () => {
+    const now = new Date();
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    const diff = midnight.getTime() - now.getTime();
+    return {
+      h: Math.floor(diff / (1000 * 60 * 60)),
+      m: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+      s: Math.floor((diff % (1000 * 60)) / 1000),
+    };
+  };
+  const [timeLeft, setTimeLeft] = useState(calcTime);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      const midnight = new Date();
-      midnight.setHours(24, 0, 0, 0);
-      const diff = midnight.getTime() - now.getTime();
-      
-      const h = Math.floor(diff / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
-      
-      setTimeLeft(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
-    }, 1000);
+    const timer = setInterval(() => setTimeLeft(calcTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   return (
-    <section className="py-24 border-t border-border/30 bg-primary/[0.02]">
+    <section className="py-24 border-t border-border/30 bg-primary/[0.02]" data-testid="section-cta-urgency">
       <div className="max-w-4xl mx-auto px-4 text-center">
         <h2 className="text-3xl font-display font-bold mb-4">Ready to build your empire?</h2>
-        <p className="text-muted-foreground mb-8">Limited time: First month free for creators who start today.</p>
-        
-        <div className="flex flex-col items-center gap-6">
-          <Button size="lg" className="px-12 h-14 text-lg glow">
-            Start Your Free Month
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
-          
-          <div className="flex items-center gap-3 text-sm font-mono text-primary">
-            <Clock className="w-4 h-4" />
-            <span>OFFER EXPIRES IN: {timeLeft}</span>
-          </div>
+        <p className="text-muted-foreground mb-6">Limited time: First month free for creators who start today.</p>
+
+        <div className="flex justify-center gap-3 mb-8">
+          {[{ val: timeLeft.h, label: "HRS" }, { val: timeLeft.m, label: "MIN" }, { val: timeLeft.s, label: "SEC" }].map(({ val, label }, i) => (
+            <div key={label} className="flex flex-col items-center">
+              {i > 0 && <span className="absolute mt-1 text-xl text-primary/40 font-mono -ml-4">:</span>}
+              <div className="w-16 h-16 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
+                <span className="text-2xl font-bold font-mono text-white metric-display">{String(val).padStart(2, '0')}</span>
+              </div>
+              <span className="text-[9px] text-muted-foreground font-mono mt-1 uppercase">{label}</span>
+            </div>
+          ))}
         </div>
+        
+        <Button size="lg" className="px-12 h-14 text-lg glow" data-testid="button-cta-urgency" onClick={() => window.location.href = '/dashboard'}>
+          Start Your Free Month
+          <ArrowRight className="ml-2 w-5 h-5" />
+        </Button>
       </div>
     </section>
   );

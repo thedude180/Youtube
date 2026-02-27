@@ -18,16 +18,20 @@ const NeuralPulse = () => {
         <div className="w-full h-[1px] bg-primary/50 animate-pulse" />
       </div>
       <div className="flex gap-1 items-end h-12">
-        {Array.from({ length: 40 }).map((_, i) => (
-          <div
-            key={i}
-            className="w-1 bg-primary/40 rounded-t"
-            style={{
-              height: `${20 + Math.random() * 80}%`,
-              animation: `pulse ${1 + Math.random()}s ease-in-out infinite`
-            }}
-          />
-        ))}
+        {Array.from({ length: 40 }).map((_, i) => {
+          const seed = ((i * 7 + 13) * 31) % 100;
+          const seed2 = ((i * 11 + 7) * 17) % 100;
+          return (
+            <div
+              key={i}
+              className="w-1 bg-primary/40 rounded-t"
+              style={{
+                height: `${20 + seed * 0.8}%`,
+                animation: `pulse ${1 + seed2 * 0.01}s ease-in-out infinite`
+              }}
+            />
+          );
+        })}
       </div>
       <div className="absolute top-2 left-3 flex items-center gap-2">
         <ActivitySquare className="w-3 h-3 text-primary animate-pulse" />

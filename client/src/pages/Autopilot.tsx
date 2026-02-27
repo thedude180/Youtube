@@ -305,7 +305,7 @@ function PipelineFlowVisualizer({ currentPhase }: { currentPhase: string }) {
   const currentIdx = phases.findIndex(p => p.id === currentPhase);
 
   return (
-    <Card className="bg-card/50 border-primary/20 overflow-hidden relative">
+    <Card className="bg-card/50 border-primary/20 overflow-hidden relative" data-testid="widget-pipeline-visualizer">
       <div className="absolute inset-0 data-grid-bg opacity-10 pointer-events-none" />
       <CardContent className="p-4 sm:p-6 relative">
         <div className="overflow-x-auto touch-scroll -mx-1 px-1 pb-2">
@@ -332,7 +332,7 @@ function PipelineFlowVisualizer({ currentPhase }: { currentPhase: string }) {
             const Icon = phase.icon;
 
             return (
-              <div key={phase.id} className="flex flex-col items-center gap-2 relative z-10">
+              <div key={phase.id} className="flex flex-col items-center gap-2 relative z-10" data-testid={`pipeline-node-${phase.id}`}>
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
                     isActive
