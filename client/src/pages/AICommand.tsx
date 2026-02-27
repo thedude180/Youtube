@@ -12,6 +12,22 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-2 p-3" data-testid="widget-typing-indicator">
+      <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+        <span className="text-xs">🤖</span>
+      </div>
+      <div className="flex gap-1 items-center px-3 py-2 rounded-2xl bg-muted/30 border border-border/20">
+        {[0,1,2].map(i => (
+          <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+            style={{ animationDelay: `${i * 0.2}s` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MessageBubble({ sender, text, isThinking }: { sender: "user" | "ai", text?: string, isThinking?: boolean }) {
   return (
     <div className={`flex ${sender === "user" ? "justify-end" : "justify-start"} mb-4`}>
@@ -135,7 +151,7 @@ export default function AICommand() {
                     <MessageBubble key={i} sender={m.sender} text={m.text} />
                   ))}
                   {processVoiceCommand.isPending && (
-                    <MessageBubble sender="ai" isThinking />
+                    <TypingIndicator />
                   )}
                 </div>
                 

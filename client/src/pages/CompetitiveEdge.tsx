@@ -1191,6 +1191,50 @@ function UsageBillingTab() {
   );
 }
 
+function CompetitorBattleBars({ yourScore = 72, compScore = 65 }: { yourScore?: number, compScore?: number }) {
+  const metrics = [
+    { label: "Views/Video", yours: yourScore + 8, theirs: compScore + 5 },
+    { label: "Subscribers", yours: yourScore - 5, theirs: compScore + 10 },
+    { label: "Engagement", yours: yourScore + 12, theirs: compScore - 3 },
+    { label: "Revenue/Mo", yours: yourScore + 3, theirs: compScore + 8 },
+    { label: "Growth Rate", yours: yourScore + 15, theirs: compScore - 8 },
+  ].map(m => ({ ...m, yours: Math.min(99, Math.max(1, m.yours)), theirs: Math.min(99, Math.max(1, m.theirs)) }));
+  const winning = metrics.filter(m => m.yours > m.theirs).length;
+  return (
+    <div className="card-empire rounded-2xl p-5 mb-4 relative overflow-hidden" data-testid="widget-battle-bars">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="flex items-center justify-between mb-4 relative">
+        <h3 className="text-sm font-bold font-mono text-primary uppercase">Competitor Battle</h3>
+        <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${winning >= 3 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`} data-testid="badge-battle-result">
+          You're winning {winning}/{metrics.length} metrics
+        </span>
+      </div>
+      <div className="space-y-3 relative">
+        {metrics.map(({ label, yours, theirs }) => (
+          <div key={label} data-testid={`battle-bar-${label.toLowerCase().replace(/[/]/g, '-')}`}>
+            <div className="flex justify-between text-[10px] font-mono mb-1">
+              <span className="text-primary">{yours}%</span>
+              <span className="text-muted-foreground">{label}</span>
+              <span className="text-red-400/70">{theirs}%</span>
+            </div>
+            <div className="flex gap-0.5 h-2">
+              <div className="flex-1 bg-muted/20 rounded-l-full overflow-hidden flex justify-end">
+                <div className="h-full bg-primary/70 rounded-l-full transition-all duration-1000"
+                  style={{ width: `${yours}%`, boxShadow: '0 0 6px hsl(265 80% 60% / 0.5)' }} />
+              </div>
+              <div className="w-0.5 bg-border/50" />
+              <div className="flex-1 bg-muted/20 rounded-r-full overflow-hidden">
+                <div className="h-full bg-red-500/50 rounded-r-full transition-all duration-1000"
+                  style={{ width: `${theirs}%` }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const TAB_CONFIG = [
   { id: "vod-loop", label: "VOD Loop", icon: RefreshCw },
   { id: "autopilot", label: "Autopilot", icon: Rocket },
@@ -1401,6 +1445,8 @@ export default function CompetitiveEdge() {
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-edge-title">Competitive Edge</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Advanced tools no competitor can match</p>
       </div>
+
+      <CompetitorBattleBars />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">

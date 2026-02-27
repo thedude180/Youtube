@@ -173,7 +173,7 @@ export default function Heartbeat() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          <Card className="card-empire empire-glow md:col-span-1 overflow-hidden relative border-0" data-testid="card-overall-health-score">
+          <Card className="card-empire empire-glow md:col-span-1 overflow-hidden relative border-0" data-testid="card-overall-health-score" id="card-health-score">
             <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
             <div className="scan-overlay absolute inset-0 opacity-10 pointer-events-none" />
             <CardContent className="p-8 flex flex-col items-center justify-center text-center relative">
@@ -184,7 +184,7 @@ export default function Heartbeat() {
                 </span>
               </div>
               <div className="relative inline-flex items-center justify-center mb-6">
-                <svg width="160" height="160" className="transform -rotate-90">
+                <svg width="160" height="160" className="transform -rotate-90" data-testid="svg-health-gauge">
                   <circle cx="80" cy="80" r="70" stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="none" />
                   <circle cx="80" cy="80" r="70" stroke={s.overallHealth > 80 ? "#22c55e" : s.overallHealth > 50 ? "#eab308" : "#ef4444"} strokeWidth="8" fill="none" strokeDasharray={440} strokeDashoffset={440 * (1 - (s.overallHealth || 0) / 100)} strokeLinecap="round" className="transition-all duration-1000" style={{ filter: `drop-shadow(0 0 8px ${s.overallHealth > 80 ? "#22c55e80" : "#eab30880"})` }} />
                 </svg>
@@ -192,6 +192,14 @@ export default function Heartbeat() {
                   <span className={`text-4xl font-bold metric-display ${healthColor}`}>{s.overallHealth || 0}%</span>
                   <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Global Health</span>
                 </div>
+              </div>
+              <div className="flex gap-2 mb-3 flex-wrap justify-center">
+                <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400" data-testid="badge-healthy">
+                  {engines.filter((e: any) => e.status === 'running' || e.status === 'idle' || e.status === 'completed').length} Healthy
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-red-500/20 text-red-400" data-testid="badge-unhealthy">
+                  {engines.filter((e: any) => e.status === 'error' || e.status === 'disabled').length} Issues
+                </span>
               </div>
               <div className="w-full space-y-4">
                 <NeuralPulse />

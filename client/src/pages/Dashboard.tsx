@@ -285,7 +285,7 @@ export default function Dashboard() {
     { label: "AI Tasks Today", value: tasksToday, icon: Zap },
     { 
       label: "Revenue Today", 
-      value: formatCurrency((totalRevenue / 30) * (1 + (Math.random() * 0.2 - 0.1))), 
+      value: formatCurrency((totalRevenue / 30) * (1 + (new Date().getDate() % 10) * 0.01)), 
       icon: TrendingUp,
       isCounter: true
     },

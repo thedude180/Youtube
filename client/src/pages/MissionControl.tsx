@@ -10,7 +10,7 @@ import {
   Layout, Database, Users, Settings, Terminal, ZapOff
 } from "lucide-react";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord } from "react-icons/si";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const PLATFORM_ICONS: Record<string, any> = {
   youtube: SiYoutube, twitch: SiTwitch, tiktok: SiTiktok, discord: SiDiscord,
@@ -125,6 +125,42 @@ function OrbitalSystem() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+const MC_TELEMETRY = [
+  "AI Engine ● Active — 847 tasks/hr",
+  "Stream Pipeline ● Ready — 0 errors",
+  "Content Loop ● Running — next: 14m",
+  "Autopilot ● Online — 7 phases active",
+  "Security Sentinel ● Green — 0 threats",
+  "Revenue Engine ● Syncing — +$284 today",
+  "Community AI ● Monitoring — 12K signals",
+  "SEO Optimizer ● Running — 94 keywords",
+];
+
+function TelemetryFeed() {
+  const [items, setItems] = useState(MC_TELEMETRY.slice(0, 5));
+  const idxRef = useRef(5);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setItems(prev => [MC_TELEMETRY[idxRef.current % MC_TELEMETRY.length], ...prev.slice(0, 4)]);
+      idxRef.current += 1;
+    }, 4000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="terminal bg-black/60 border border-primary/20 rounded-lg p-3" data-testid="widget-telemetry-feed">
+      <div className="text-[10px] text-primary/60 font-mono uppercase mb-2 flex items-center gap-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        Live Telemetry
+      </div>
+      {items.map((item, i) => (
+        <div key={i} className="text-[11px] font-mono py-0.5 transition-all" style={{ opacity: 1 - i * 0.18, color: 'hsl(142 70% 60%)' }}>
+          <span className="text-primary/40 mr-1">{'>'}</span>{item}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -316,6 +352,25 @@ export default function MissionControl() {
                 <DeploymentStatus />
               </CardContent>
             </Card>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <div className="card-empire rounded-2xl p-4">
+            <div className="text-xs font-mono text-muted-foreground uppercase mb-2">AI Telemetry Stream</div>
+            <TelemetryFeed />
+          </div>
+          <div className="card-empire rounded-2xl p-4">
+            <div className="text-xs font-mono text-muted-foreground uppercase mb-2">System Orbital View</div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {Object.entries(systemStatus).map(([system, status]) => (
+                <div key={system} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-muted/20 border border-border/20"
+                  data-testid={`orbital-pill-${system}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${(status === 'online' || status === 'active' || status === 'healthy') ? 'bg-emerald-400 animate-pulse' : status === 'standby' ? 'bg-yellow-400' : 'bg-red-400'}`} />
+                  <span className="text-[11px] font-mono text-muted-foreground capitalize">{system}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
