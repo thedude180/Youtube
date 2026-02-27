@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useMemo } from "react";
 import {
@@ -33,8 +34,254 @@ import {
   ZapOff,
   Activity,
   Globe,
-  Compass
+  Compass,
+  Brain,
+  Calendar,
+  Crosshair,
+  Layers,
+  BarChart2,
+  ChevronUp
 } from "lucide-react";
+
+type BeastCoachData = {
+  currentTier: { id: string; label: string; range: string; threshold: number; max: number; color: string; icon: string; description: string; index: number };
+  nextTier: { id: string; label: string; range: string; color: string; icon: string; index: number };
+  tierProgress: number;
+  tiers: Array<{ id: string; label: string; range: string; color: string; icon: string; description: string; achieved: boolean; current: boolean }>;
+  beastBenchmarks: Array<{ label: string; beast: number; yours: number; unit: string }>;
+  coachMessage: string;
+  powerMoves: Array<{ move: string; impact: string; timeframe: string; category: string }>;
+  weeklyPlan: Array<{ day: string; focus: string; action: string }>;
+  stats: { totalSubs: number; totalViews: number; totalVideos: number; platformCount: number };
+};
+
+function BeastLevelMeter({ data }: { data: BeastCoachData }) {
+  const { currentTier, nextTier, tierProgress, tiers } = data;
+  return (
+    <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="card-beast-level-meter">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{currentTier.icon}</span>
+              <h2 className="text-lg font-bold holographic-text">Beast Level Meter</h2>
+            </div>
+            <p className="text-xs text-muted-foreground font-mono mt-0.5">Your path from beginner to Mr. Beast — {currentTier.range}</p>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold font-mono" style={{ color: currentTier.color }} data-testid="stat-tier-progress">{tierProgress}%</div>
+            <div className="text-[10px] text-muted-foreground font-mono">to {nextTier.label}</div>
+          </div>
+        </div>
+
+        <div className="flex gap-1.5 mb-3">
+          {tiers.map((tier, i) => (
+            <div key={tier.id} className="flex-1 flex flex-col gap-1" data-testid={`tier-segment-${tier.id}`}>
+              <div className="h-8 rounded-md flex items-center justify-center text-base transition-all duration-500 relative overflow-hidden"
+                style={{
+                  background: tier.achieved ? `${tier.color}22` : 'hsl(265 20% 10%)',
+                  border: `1px solid ${tier.achieved ? tier.color + '44' : 'hsl(265 20% 20%)'}`,
+                  boxShadow: tier.current ? `0 0 16px ${tier.color}66` : 'none',
+                }}>
+                {tier.current && (
+                  <div className="absolute inset-0 animate-pulse opacity-20" style={{ background: tier.color }} />
+                )}
+                <span className={tier.achieved ? '' : 'opacity-30'}>{tier.icon}</span>
+              </div>
+              <div className="text-[8px] font-mono text-center truncate" style={{ color: tier.achieved ? tier.color : 'hsl(265 20% 40%)' }}>{tier.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative h-2 bg-muted/20 rounded-full overflow-hidden mb-3">
+          <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-1000"
+            style={{
+              width: `${((currentTier.index / (tiers.length - 1)) * 100) + (tierProgress / (tiers.length - 1))}%`,
+              background: `linear-gradient(90deg, hsl(220 60% 55%), ${currentTier.color})`,
+              boxShadow: `0 0 8px ${currentTier.color}`,
+            }} />
+        </div>
+
+        <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+          <span>🌱 Starter</span>
+          <span>📈 Rising</span>
+          <span>✨ Creator</span>
+          <span>⚡ Influencer</span>
+          <span>👑 Authority</span>
+          <span>🦁 Legend</span>
+        </div>
+
+        <div className="mt-4 p-3 rounded-xl bg-muted/10 border border-border/20">
+          <div className="flex items-center gap-2 mb-2">
+            <BarChart2 className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[10px] font-mono text-muted-foreground uppercase">vs. Mr. Beast Benchmarks</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {data.beastBenchmarks.map((b) => {
+              const pct = b.beast > 0 ? Math.min(100, Math.round((b.yours / b.beast) * 100)) : 0;
+              const fmtNum = (n: number) => n >= 1000000 ? (n/1000000).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'K' : String(n);
+              return (
+                <div key={b.label} className="space-y-1" data-testid={`benchmark-${b.label.toLowerCase().replace(/\W+/g,'-')}`}>
+                  <div className="flex justify-between text-[9px] font-mono">
+                    <span className="text-muted-foreground">{b.label}</span>
+                    <span className="text-primary">{fmtNum(b.yours)} / {fmtNum(b.beast)}</span>
+                  </div>
+                  <div className="h-1 bg-muted/20 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-1000"
+                      style={{ width: `${pct}%`, background: pct >= 50 ? 'hsl(142 70% 50%)' : pct >= 20 ? 'hsl(45 90% 55%)' : 'hsl(265 80% 60%)' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AICoachPanel({ data }: { data: BeastCoachData }) {
+  const { currentTier, coachMessage, weeklyPlan } = data;
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+  const todayPlan = weeklyPlan.find(d => d.day === today) || weeklyPlan[0];
+  return (
+    <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="card-ai-coach-panel">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="relative">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: `${currentTier.color}22`, border: `1px solid ${currentTier.color}44` }}>
+            <Brain className="w-4 h-4" style={{ color: currentTier.color }} />
+          </div>
+          <div>
+            <div className="text-sm font-bold">Your AI Growth Coach</div>
+            <div className="text-[10px] font-mono text-muted-foreground">Personalized for {currentTier.label} tier creators</div>
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-mono text-emerald-400">LIVE</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl p-4 border mb-4 relative" style={{ background: `${currentTier.color}08`, borderColor: `${currentTier.color}22` }}>
+          <div className="text-[10px] font-mono mb-2 flex items-center gap-1" style={{ color: currentTier.color }}>
+            <Sparkles className="w-3 h-3" /> Coach Message
+          </div>
+          <p className="text-sm text-foreground leading-relaxed" data-testid="text-coach-message">{coachMessage || "Loading your personalized coaching…"}</p>
+        </div>
+
+        {todayPlan && (
+          <div className="rounded-xl p-3 border border-primary/20 bg-primary/5" data-testid="card-todays-mission">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Crosshair className="w-3.5 h-3.5 text-primary" />
+              <span className="text-[10px] font-mono text-primary uppercase">Today's Mission — {todayPlan.day}</span>
+              <Badge variant="outline" className="text-[9px] ml-auto border-primary/30 text-primary font-mono">{todayPlan.focus}</Badge>
+            </div>
+            <p className="text-sm text-foreground font-medium">{todayPlan.action}</p>
+          </div>
+        )}
+
+        {weeklyPlan.length > 0 && (
+          <div className="mt-3" data-testid="widget-weekly-plan">
+            <div className="flex items-center gap-2 mb-2">
+              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-[10px] font-mono text-muted-foreground uppercase">7-Day Sprint Plan</span>
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {weeklyPlan.map((d, i) => {
+                const isToday = d.day === today;
+                return (
+                  <div key={i} className="flex flex-col items-center gap-1 p-1.5 rounded-lg cursor-default"
+                    style={{ background: isToday ? `${currentTier.color}18` : 'hsl(265 20% 8%)', border: `1px solid ${isToday ? currentTier.color + '44' : 'hsl(265 20% 15%)'}` }}
+                    data-testid={`sprint-day-${d.day.toLowerCase()}`}
+                    title={d.action}>
+                    <span className="text-[9px] font-mono font-bold" style={{ color: isToday ? currentTier.color : 'hsl(265 40% 50%)' }}>{d.day}</span>
+                    <span className="text-[8px] text-muted-foreground text-center leading-tight truncate w-full text-center">{d.focus}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const CATEGORY_META: Record<string, { color: string; icon: string }> = {
+  content:      { color: "hsl(265 80% 65%)", icon: "🎬" },
+  distribution: { color: "hsl(200 70% 55%)", icon: "📡" },
+  monetization: { color: "hsl(142 70% 50%)", icon: "💰" },
+  community:    { color: "hsl(45 90% 55%)",  icon: "🤝" },
+  optimization: { color: "hsl(25 90% 60%)",  icon: "⚙️" },
+  seo:          { color: "hsl(320 70% 60%)", icon: "🔍" },
+  growth:       { color: "hsl(0 80% 60%)",   icon: "📈" },
+};
+
+function PowerMovesCard({ data }: { data: BeastCoachData }) {
+  const { powerMoves, currentTier, nextTier } = data;
+  return (
+    <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="card-power-moves">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-bold uppercase font-mono tracking-wider">Power Moves</h3>
+          </div>
+          <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground">
+            <ChevronUp className="w-3 h-3 text-emerald-400" />
+            <span>{currentTier.label}</span>
+            <ArrowRight className="w-3 h-3" />
+            <span style={{ color: nextTier.color }}>{nextTier.label}</span>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">Your 3 highest-leverage actions to level up fastest — AI-selected for your exact stage.</p>
+        <div className="space-y-3">
+          {(powerMoves.length > 0 ? powerMoves : [
+            { move: "Find your best-performing video format", impact: "2-5x view count", timeframe: "4 weeks", category: "content" },
+            { move: "Post consistently 3x per week", impact: "+50% subscriber growth", timeframe: "30 days", category: "content" },
+            { move: "Collaborate with creators at your tier", impact: "+1K-5K new subs", timeframe: "3 weeks", category: "distribution" },
+          ]).map((pm, i) => {
+            const meta = CATEGORY_META[pm.category] || { color: "hsl(265 80% 65%)", icon: "⚡" };
+            return (
+              <div key={i} className="rounded-xl p-3.5 border transition-all duration-300 hover:scale-[1.01]"
+                style={{ background: `${meta.color}08`, borderColor: `${meta.color}25` }}
+                data-testid={`power-move-${i}`}>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-base"
+                    style={{ background: `${meta.color}18`, border: `1px solid ${meta.color}40` }}>
+                    {meta.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-mono font-bold uppercase" style={{ color: meta.color }}>#{i+1} {pm.category}</span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground mb-1.5">{pm.move}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-mono"
+                        style={{ background: `${meta.color}15`, color: meta.color, border: `1px solid ${meta.color}30` }}>
+                        📈 {pm.impact}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-muted/30 text-muted-foreground border border-border/30">
+                        ⏱ {pm.timeframe}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border/20 flex items-center gap-2">
+          <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-[10px] font-mono text-muted-foreground">AI updates your power moves based on your growth data every 5 minutes</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function GrowthStatsStrip() {
   const stats = useMemo(() => [
@@ -697,6 +944,13 @@ export default function GrowthJourney() {
     retry: 2,
   });
 
+  const { data: beastData, isLoading: beastLoading } = useQuery<BeastCoachData>({
+    queryKey: ["/api/growth/beast-coach"],
+    staleTime: 300_000,
+    refetchInterval: 300_000,
+    retry: 1,
+  });
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -732,6 +986,32 @@ export default function GrowthJourney() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-4 relative pb-4">
+      <div className="flex items-center gap-3 mb-2">
+        <div>
+          <h1 className="text-2xl font-black holographic-text uppercase tracking-tight">Creator Powerhouse</h1>
+          <p className="text-xs text-muted-foreground font-mono mt-0.5">AI-powered path from beginner to Mr. Beast level — every stage covered</p>
+        </div>
+        <Badge className="ml-auto bg-primary/20 text-primary border border-primary/40 font-mono text-[10px] flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          AI COACHING ACTIVE
+        </Badge>
+      </div>
+
+      {beastLoading ? (
+        <div className="grid md:grid-cols-2 gap-4">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      ) : beastData ? (
+        <>
+          <BeastLevelMeter data={beastData} />
+          <div className="grid md:grid-cols-2 gap-4">
+            <AICoachPanel data={beastData} />
+            <PowerMovesCard data={beastData} />
+          </div>
+        </>
+      ) : null}
+
       <GrowthStatsStrip />
       <GrowthPhaseHero phase={data.growthPhase} />
       <GrowthVelocityGauge progress={data.plateau?.avgGrowthRate ?? 68} />

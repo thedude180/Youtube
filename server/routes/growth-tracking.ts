@@ -575,6 +575,108 @@ Return JSON: {"actions":[{"action":"specific action","priority":"high|medium|low
 
     res.json(result);
   }));
+
+  app.get("/api/growth/beast-coach", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const result = await cached(`beast-coach:${userId}`, 300, async () => {
+      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+      const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
+      const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
+      const totalVideos = userChannels.reduce((s, c) => s + (c.videoCount || 0), 0);
+      const platformCount = userChannels.length;
+
+      const TIERS = [
+        { id: "starter",    label: "Starter",    range: "0 – 1K subs",    threshold: 0,         max: 1000,      color: "hsl(220 60% 55%)",  icon: "🌱", description: "Building your foundation" },
+        { id: "rising",     label: "Rising",     range: "1K – 10K subs",  threshold: 1000,      max: 10000,     color: "hsl(200 70% 55%)",  icon: "📈", description: "Breaking through the noise" },
+        { id: "creator",    label: "Creator",    range: "10K – 100K subs",threshold: 10000,     max: 100000,    color: "hsl(265 80% 65%)",  icon: "✨", description: "Establishing your brand" },
+        { id: "influencer", label: "Influencer", range: "100K – 1M subs", threshold: 100000,    max: 1000000,   color: "hsl(45 90% 55%)",   icon: "⚡", description: "Scaling into authority" },
+        { id: "authority",  label: "Authority",  range: "1M – 10M subs",  threshold: 1000000,   max: 10000000,  color: "hsl(142 70% 50%)",  icon: "👑", description: "Dominating your niche" },
+        { id: "legend",     label: "Legend",     range: "10M+ subs",      threshold: 10000000,  max: 100000000, color: "hsl(25 90% 60%)",   icon: "🦁", description: "Mr. Beast level empire" },
+      ];
+
+      let currentTierIdx = 0;
+      for (let i = TIERS.length - 1; i >= 0; i--) {
+        if (totalSubs >= TIERS[i].threshold) { currentTierIdx = i; break; }
+      }
+      const currentTier = TIERS[currentTierIdx];
+      const nextTier = TIERS[Math.min(currentTierIdx + 1, TIERS.length - 1)];
+      const tierProgress = currentTierIdx === TIERS.length - 1 ? 100 :
+        Math.min(99, Math.round(((totalSubs - currentTier.threshold) / (nextTier.threshold - currentTier.threshold)) * 100));
+
+      const BEAST_BENCHMARKS = [
+        { label: "Uploads/Week", beast: 3, yours: Math.min(3, totalVideos > 0 ? Math.round(totalVideos / Math.max(1, 52)) : 0), unit: "videos" },
+        { label: "Avg Views/Video", beast: 50000000, yours: totalViews > 0 && totalVideos > 0 ? Math.round(totalViews / totalVideos) : 0, unit: "views" },
+        { label: "Subscriber Count", beast: 300000000, yours: totalSubs, unit: "subs" },
+        { label: "Platforms Active", beast: 8, yours: Math.max(1, platformCount), unit: "platforms" },
+      ];
+
+      let powerMoves: { move: string; impact: string; timeframe: string; category: string }[] = [];
+      let coachMessage = "";
+      let weeklyPlan: { day: string; focus: string; action: string }[] = [];
+
+      try {
+        const openai = getOpenAIClient();
+        const prompt = `You are a world-class creator coach who has helped channels grow from 0 to millions. You are coaching a creator with ${totalSubs.toLocaleString()} subscribers, ${totalViews.toLocaleString()} total views, and ${totalVideos} videos across ${platformCount} platform(s). They are in the "${currentTier.label}" tier (${currentTier.range}). Their next level is "${nextTier.label}" (${nextTier.range}).
+
+Generate a JSON response with:
+1. "coachMessage": A 2-3 sentence personalized coaching message that is direct, motivating, and specific to their EXACT stage. Reference their actual numbers. Sound like a mentor who has seen it all.
+2. "powerMoves": An array of exactly 3 objects: { "move": "specific action title", "impact": "what this will achieve in numbers", "timeframe": "when to see results", "category": "content|distribution|monetization|community|optimization" }. These should be the 3 HIGHEST LEVERAGE moves for someone at their exact tier (${currentTier.label}) to jump to ${nextTier.label}. Be specific — no generic advice.
+3. "weeklyPlan": An array of 7 objects: { "day": "Mon/Tue/Wed/Thu/Fri/Sat/Sun", "focus": "one-word theme", "action": "one specific thing to do today" }. This is a 7-day sprint plan for this creator.
+
+Return ONLY valid JSON.`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 900,
+          temperature: 0.85,
+          response_format: { type: "json_object" },
+        });
+
+        const parsed = JSON.parse(completion.choices[0]?.message?.content || "{}");
+        coachMessage = parsed.coachMessage || "";
+        powerMoves = Array.isArray(parsed.powerMoves) ? parsed.powerMoves.slice(0, 3) : [];
+        weeklyPlan = Array.isArray(parsed.weeklyPlan) ? parsed.weeklyPlan.slice(0, 7) : [];
+      } catch (err: any) {
+        logger.warn("Beast coach AI failed, using fallback", { error: err.message });
+        coachMessage = totalSubs === 0
+          ? "Every legend started at zero. Your first 1K subscribers is a game of consistency — post your first 10 videos and study which 3 performed best. That data is your playbook."
+          : totalSubs < 10000
+          ? `At ${totalSubs.toLocaleString()} subs you're in the most critical phase. The gap between here and 10K is won by doubling down on your 2-3 best performing formats and posting 3x per week minimum.`
+          : `You're in the ${currentTier.label} tier — this is where most creators plateau. The ones who break through focus ruthlessly on community, collaboration, and one viral format that defines their channel.`;
+        powerMoves = [
+          { move: "Identify your #1 viral format", impact: "2-5x average view count", timeframe: "4-6 weeks", category: "content" },
+          { move: "Post 3x per week for 30 days straight", impact: "+40-60% subscriber growth", timeframe: "30 days", category: "content" },
+          { move: "Collab with 2 creators at your tier", impact: "+500-5000 new subs per collab", timeframe: "2-4 weeks", category: "distribution" },
+        ];
+        weeklyPlan = [
+          { day: "Mon", focus: "Research", action: "Study your 3 best videos — what made them succeed?" },
+          { day: "Tue", focus: "Script", action: "Write a video script based on your top-performing topic" },
+          { day: "Wed", focus: "Film", action: "Record and edit your highest-priority video" },
+          { day: "Thu", focus: "Optimize", action: "Update titles/thumbnails on your 5 lowest-performing videos" },
+          { day: "Fri", focus: "Publish", action: "Upload with optimized title, thumbnail, and description" },
+          { day: "Sat", focus: "Community", action: "Reply to every comment and engage with 10 similar creators" },
+          { day: "Sun", focus: "Plan", action: "Plan next week's content calendar and analyze this week's data" },
+        ];
+      }
+
+      return {
+        currentTier: { ...currentTier, index: currentTierIdx },
+        nextTier: { ...nextTier, index: Math.min(currentTierIdx + 1, TIERS.length - 1) },
+        tierProgress,
+        tiers: TIERS.map((t, i) => ({ ...t, achieved: i <= currentTierIdx, current: i === currentTierIdx })),
+        beastBenchmarks: BEAST_BENCHMARKS,
+        coachMessage,
+        powerMoves,
+        weeklyPlan,
+        stats: { totalSubs, totalViews, totalVideos, platformCount },
+      };
+    });
+
+    res.json(result);
+  }));
 }
 
 function computeGrowthRates(values: number[]): number[] {

@@ -1,7 +1,13 @@
 # CreatorOS - YouTube Team In A Box
 
 ## Overview
-CreatorOS is a multi-platform content management and live streaming platform designed to automate and optimize a creator's online presence across major platforms like YouTube, Twitch, Kick, TikTok, X, and Discord. It offers AI-powered insights, compliance checks, growth strategies, and content optimization, functioning as a "YouTube Team In A Box" to manage end-to-end business operations. The platform aims to provide near-100% automated growth and revenue maximization for online creators, adapting automatically to various content categories.
+CreatorOS is the #1 AI-powered creator platform that takes any creator from absolute beginner to Mr. Beast level — regardless of starting stage. It functions as a "YouTube Team In A Box" managing multi-platform content, live streaming automation, AI-driven growth coaching, and full business operations across YouTube, Twitch, Kick, TikTok, X, Discord, and 20+ more platforms. The platform provides near-100% automated growth and revenue maximization, with stage-aware AI coaching that evolves as the creator grows.
+
+## Creator Powerhouse System (GrowthJourney — /growth)
+- **Beast Level Meter**: 6-tier progression ladder (Starter→Rising→Creator→Influencer→Authority→Legend) showing exact position from 0 to Mr. Beast level with animated glow indicators and vs. Beast benchmarks
+- **AI Coach Panel**: Personalized AI coaching message based on exact subscriber count + stage, today's mission, 7-day weekly sprint plan grid (Mon–Sun)
+- **Power Moves Card**: 3 highest-leverage AI-selected actions for fastest growth at current tier with impact estimates and timeframes
+- **Beast Coach API**: `GET /api/growth/beast-coach` — AI generates stage-specific coaching, power moves, weekly plan, and Mr. Beast benchmark comparisons; 5-min cache
 
 ## User Preferences
 - Dark mode design with deep purple/blue tones
