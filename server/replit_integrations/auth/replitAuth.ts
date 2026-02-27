@@ -42,7 +42,7 @@ export function getSession() {
       maxAge: sessionTtl,
       path: "/",
     },
-    name: "sid",
+    name: isProduction ? "__Secure-sid" : "sid",
   });
 }
 

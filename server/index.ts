@@ -157,7 +157,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com", "https://api.stripe.com", "wss:", "ws:"],
+      connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com", "https://api.stripe.com"],
       frameSrc: ["'self'", "https://accounts.google.com", "https://js.stripe.com", "https://checkout.stripe.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
@@ -271,6 +271,35 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+const authRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const AUTH_RATE_LIMIT = 20;
+const AUTH_RATE_WINDOW = 60_000;
+
+app.use(["/api/login", "/api/callback"], (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip || req.socket.remoteAddress || "anon";
+  const now = Date.now();
+  let entry = authRateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > AUTH_RATE_WINDOW) {
+    entry = { count: 0, windowStart: now };
+    authRateLimitMap.set(ip, entry);
+  }
+  entry.count++;
+  if (entry.count > AUTH_RATE_LIMIT) {
+    return res.status(429).json({ error: "too_many_requests", message: "Too many auth attempts. Please wait before trying again." });
+  }
+  next();
+});
+
+app.get("/.well-known/security.txt", (_req: Request, res: Response) => {
+  res.type("text/plain").send([
+    "Contact: mailto:security@creatoroshq.com",
+    "Expires: 2027-01-01T00:00:00.000Z",
+    "Preferred-Languages: en",
+    "Policy: https://creatoroshq.com/security",
+    "Canonical: https://creatoroshq.com/.well-known/security.txt",
+  ].join("\n"));
+});
+
 const globalRateLimitMap = new Map<string, { count: number; windowStart: number }>();
 registerMap("globalRateLimit", globalRateLimitMap, 1000);
 const GLOBAL_RATE_LIMIT = 300;
@@ -282,6 +311,12 @@ registerCleanup("globalRateLimit", () => {
   const now = Date.now();
   for (const [key, entry] of globalRateLimitMap) {
     if (now - entry.windowStart > GLOBAL_RATE_WINDOW) globalRateLimitMap.delete(key);
+  }
+}, 30_000);
+registerCleanup("authRateLimit", () => {
+  const now = Date.now();
+  for (const [key, entry] of authRateLimitMap) {
+    if (now - entry.windowStart > AUTH_RATE_WINDOW) authRateLimitMap.delete(key);
   }
 }, 30_000);
 
@@ -481,67 +516,26 @@ app.get("/api/health", async (_req, res) => {
       uptime,
       uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
       timestamp: new Date().toISOString(),
-      database: {
-        status: "healthy",
-        connected: true,
-        latencyMs: dbLatencyMs,
-        pool: {
-          total: pool.totalCount,
-          idle: pool.idleCount,
-          waiting: pool.waitingCount,
-          saturated: pool.waitingCount > 0,
-        },
-      },
-      memory,
-      performance: {
-        recentSlowRequests: recentSlowCount,
-        dbLatencyOk: dbLatencyMs < 1000,
-        memoryOk: memHealthy,
-        poolOk: poolHealthy,
-      },
-      security: {
-        csrfTokensActive: csrfTokens.size,
-        rateLimitEntriesActive: globalRateLimitMap.size,
-        hardeningActive: true,
-      },
+      database: { status: dbHealthy ? "healthy" : "degraded", connected: true },
+      memory: { heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
+      hardened: true,
     });
   } catch (err) {
-    // Always return 200 so the Replit workflow runner never kills us for a "503 unhealthy"
-    // response during DB warm-up. The 'status' field in the JSON body tells monitoring tools
-    // whether the DB is healthy without causing the runner to SIGTERM the process.
     res.status(200).json({
       status: "degraded",
       uptime,
       uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
       timestamp: new Date().toISOString(),
-      database: {
-        status: "unhealthy",
-        connected: false,
-        error: "Database connectivity check failed",
-        pool: {
-          total: pool.totalCount,
-          idle: pool.idleCount,
-          waiting: pool.waitingCount,
-          saturated: pool.waitingCount > 0,
-        },
-      },
-      memory,
-      performance: {
-        recentSlowRequests: recentSlowCount,
-        dbLatencyOk: false,
-        memoryOk: memory.heapUsed < 900,
-        poolOk: pool.waitingCount < 10,
-      },
-      security: {
-        csrfTokensActive: csrfTokens.size,
-        rateLimitEntriesActive: globalRateLimitMap.size,
-        hardeningActive: true,
-      },
+      database: { status: "unhealthy", connected: false },
+      memory: { heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
+      hardened: true,
     });
   }
 });
 
-app.get("/api/resilience", async (_req: Request, res: Response) => {
+app.get("/api/resilience", async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
   try {
     res.json(getResilienceStatus());
   } catch {
@@ -549,7 +543,15 @@ app.get("/api/resilience", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/verify", async (_req: Request, res: Response) => {
+app.get("/api/verify", async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.role !== "admin") return res.status(403).json({ error: "Admin access required" });
+  } catch {
+    return res.status(403).json({ error: "Admin access required" });
+  }
   const checks: Record<string, { status: string; latencyMs?: number; detail?: string }> = {};
   const start = Date.now();
 
