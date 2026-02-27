@@ -1447,6 +1447,64 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
+  app.get("/api/calendar/horizon", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const now = new Date();
+    const items = await db.select({
+      id: autopilotQueue.id,
+      targetPlatform: autopilotQueue.targetPlatform,
+      type: autopilotQueue.type,
+      caption: autopilotQueue.caption,
+      content: autopilotQueue.content,
+      status: autopilotQueue.status,
+      scheduledAt: autopilotQueue.scheduledAt,
+    })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      isNotNull(autopilotQueue.scheduledAt),
+      gte(autopilotQueue.scheduledAt, now),
+    ))
+    .orderBy(desc(autopilotQueue.scheduledAt));
+
+    if (items.length === 0) {
+      return res.json({ totalItems: 0, furthestDate: null, daysAhead: 0, byPlatform: {}, pendingApproval: [] });
+    }
+
+    const furthestDate = items[0].scheduledAt!;
+    const daysAhead = Math.ceil((furthestDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const byPlatform: Record<string, number> = {};
+    for (const item of items) {
+      const plat = item.targetPlatform || "other";
+      byPlatform[plat] = (byPlatform[plat] || 0) + 1;
+    }
+    const pendingApproval = items
+      .filter(item => item.status === "pending")
+      .slice(0, 20)
+      .map(item => ({
+        id: item.id,
+        platform: item.targetPlatform,
+        type: item.type,
+        title: item.caption || (item.content ? item.content.slice(0, 80) : null) || "AI-Generated Post",
+        scheduledAt: item.scheduledAt,
+      }));
+    res.json({ totalItems: items.length, furthestDate, daysAhead, byPlatform, pendingApproval });
+  }));
+
+  app.patch("/api/calendar/approve/:id", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const id = parseNumericId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    const { action } = req.body;
+    const newStatus = action === "approve" ? "scheduled" : "cancelled";
+    await db.update(autopilotQueue)
+      .set({ status: newStatus })
+      .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)));
+    res.json({ success: true, status: newStatus });
+  }));
+
   app.get("/api/keywords/insights", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

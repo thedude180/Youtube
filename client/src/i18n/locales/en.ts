@@ -26,6 +26,7 @@ export default {
       aiStealth: "AI Stealth",
       community: "Community",
       accessCodes: "Access Codes",
+      calendar: "Calendar",
     },
     common: {
       loading: "Loading...",

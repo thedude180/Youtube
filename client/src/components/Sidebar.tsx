@@ -34,6 +34,7 @@ import {
   KanbanSquare,
   Heart,
   Terminal,
+  Calendar,
 } from "lucide-react";
 import {
   Sidebar,
@@ -64,6 +65,7 @@ const navLinks = [
   { href: "/content-command", labelKey: "nav.contentCommand", icon: Clapperboard, minTier: "free", advancedOnly: false },
   { href: "/growth", labelKey: "nav.zeroToOne", icon: TrendingUp, minTier: "free", advancedOnly: false },
   { href: "/content", labelKey: "nav.content", icon: Video, minTier: "free", advancedOnly: false },
+  { href: "/calendar", labelKey: "nav.calendar", icon: Calendar, minTier: "free", advancedOnly: false },
   { href: "/stream", labelKey: "nav.goLive", icon: Radio, minTier: "youtube", advancedOnly: false },
   { href: "/autopilot", labelKey: "nav.autopilot", icon: Rocket, minTier: "pro", advancedOnly: false },
   { href: "/ai-factory", labelKey: "nav.aiFactory", icon: Sparkles, minTier: "free", advancedOnly: false },

@@ -61,6 +61,7 @@ const Simulator = lazyRetry(() => import("@/pages/Simulator"));
 const CreatorHub = lazyRetry(() => import("@/pages/CreatorHub"));
 const AIFactory = lazyRetry(() => import("@/pages/AIFactory"));
 const AICommand = lazyRetry(() => import("@/pages/AICommand"));
+const CalendarPage = lazyRetry(() => import("@/pages/CalendarPage"));
 const WarRoom = lazyRetry(() => import("@/pages/WarRoom"));
 const Workspace = lazyRetry(() => import("@/pages/Workspace"));
 const Heartbeat = lazyRetry(() => import("@/pages/Heartbeat"));
@@ -90,6 +91,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/content-command": { title: "Content Command", description: "AI script generation, content atomization, hook analysis, SEO lab, and viral chain tracking." },
   "/growth": { title: "Zero to #1", description: "Your AI-powered roadmap from beginner to top creator with daily actions and milestone tracking." },
   "/content": { title: "Content", description: "Manage your video library, content ideas, SEO, scripts, thumbnails, and publishing calendar." },
+  "/calendar": { title: "Content Calendar", description: "AI-powered content calendar with planning horizon, approval queue, and multi-platform scheduling." },
   "/stream": { title: "Go Live", description: "Multi-platform streaming center with AI chat bots, raid strategy, and real-time analytics." },
   "/autopilot": { title: "Autopilot", description: "Fully autonomous content clipping, scheduling, comment response, and cross-platform posting." },
   "/simulator": { title: "Simulator", description: "What-if scenarios, time machine projections, momentum tracking, and revenue attribution analysis." },
@@ -156,6 +158,7 @@ function Router() {
       <Route path="/">{() => <SectionErrorBoundary fallbackTitle="Dashboard failed to load"><Dashboard /></SectionErrorBoundary>}</Route>
       <Route path="/content">{() => <SectionErrorBoundary fallbackTitle="Content failed to load"><Content /></SectionErrorBoundary>}</Route>
       <Route path="/content/:tab">{() => <SectionErrorBoundary fallbackTitle="Content failed to load"><Content /></SectionErrorBoundary>}</Route>
+      <Route path="/calendar">{() => <SectionErrorBoundary fallbackTitle="Calendar failed to load"><CalendarPage /></SectionErrorBoundary>}</Route>
       <Route path="/settings">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
       <Route path="/settings/:tab">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
       <Route path="/stream">{() => <SectionErrorBoundary fallbackTitle="Stream Center failed to load"><StreamCenter /></SectionErrorBoundary>}</Route>
