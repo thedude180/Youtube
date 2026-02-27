@@ -197,6 +197,7 @@ function Router() {
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
       <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>
       <Route path="/empire">{() => <SectionErrorBoundary fallbackTitle="Empire Launcher failed to load"><EmpireLauncher /></SectionErrorBoundary>}</Route>
+      <Route path="/ai-command">{() => <SectionErrorBoundary fallbackTitle="AI Command failed to load"><AICommand /></SectionErrorBoundary>}</Route>
       <Route path="/script-studio">{() => <SectionErrorBoundary fallbackTitle="Script Studio failed to load"><ScriptStudio /></SectionErrorBoundary>}</Route>
       <Route path="/viral-predictor">{() => <SectionErrorBoundary fallbackTitle="Viral Predictor failed to load"><ViralPredictor /></SectionErrorBoundary>}</Route>
       <Route path="/hub">{() => <SectionErrorBoundary fallbackTitle="Hub failed to load"><Hub /></SectionErrorBoundary>}</Route>

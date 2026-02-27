@@ -65,17 +65,6 @@ export default function AICommand() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, processVoiceCommand.isPending]);
-
-  const { data: personalityConfig, isLoading } = useQuery({ queryKey: ["/api/nexus/ai-personality"] });
-  const { data: learningData = [] } = useQuery({ queryKey: ["/api/nexus/ai-learning"] });
-  const { data: balanceScore } = useQuery({ queryKey: ["/api/nexus/balance-score"] });
-  const { data: failoverRules = [] } = useQuery({ queryKey: ["/api/nexus/failover-rules"] });
-
   const processVoiceCommand = useMutation({
     mutationFn: async () => {
       const command = voiceCommand;
@@ -87,6 +76,17 @@ export default function AICommand() {
       return data;
     },
   });
+
+  const { data: personalityConfig, isLoading } = useQuery({ queryKey: ["/api/nexus/ai-personality"] });
+  const { data: learningData = [] } = useQuery({ queryKey: ["/api/nexus/ai-learning"] });
+  const { data: balanceScore } = useQuery({ queryKey: ["/api/nexus/balance-score"] });
+  const { data: failoverRules = [] } = useQuery({ queryKey: ["/api/nexus/failover-rules"] });
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, processVoiceCommand.isPending]);
 
   const savePersonality = useMutation({
     mutationFn: () => apiRequest("POST", "/api/nexus/ai-personality", { 
