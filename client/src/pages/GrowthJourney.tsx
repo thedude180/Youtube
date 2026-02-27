@@ -693,7 +693,7 @@ export default function GrowthJourney() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8 relative pb-24">
+    <div className="p-6 max-w-7xl mx-auto space-y-4 relative pb-24">
       <GrowthPhaseHero phase={data.growthPhase} />
       <GrowthVelocityGauge progress={data.plateau?.avgGrowthRate ?? 68} />
 
@@ -709,7 +709,7 @@ export default function GrowthJourney() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
           <div className="card-empire p-6 rounded-3xl relative overflow-hidden" data-testid="card-growth-path">
             <ParticleField />
             <div className="relative z-10">

@@ -1524,7 +1524,7 @@ export default function CompetitiveEdge() {
   const { data } = useQuery<any>({ queryKey: ["/api/analytics/cross-platform"] });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8 relative pb-24">
+    <div className="p-6 max-w-7xl mx-auto space-y-4 relative pb-24">
       <div className="flex flex-col gap-2 mb-8">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center glow-purple">
@@ -1545,7 +1545,7 @@ export default function CompetitiveEdge() {
         <MarketShareRadar />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
+      <div className="grid md:grid-cols-3 gap-4 mb-4">
         <div className="md:col-span-2 card-empire p-6 rounded-3xl relative overflow-hidden min-h-[300px]" data-testid="card-neural-matrix">
           <MatrixGrid />
           <div className="relative z-10">

@@ -122,7 +122,7 @@ export default function WarRoom() {
 
   return (
     <div className={`min-h-screen p-6 transition-colors duration-1000 ${hasActiveCrisis ? "bg-red-950/20 animated-gradient-bg" : "bg-background"}`} data-testid="page-war-room">
-      <div className="max-w-[1600px] mx-auto space-y-8 relative z-10">
+      <div className="max-w-[1600px] mx-auto space-y-4 relative z-10">
         {hasActiveCrisis && (
           <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 mb-4 threat-pulse flex items-center gap-2" data-testid="banner-crisis-mode">
             <span className="text-red-400 font-bold font-mono animate-pulse text-sm">⚠ CRISIS MODE ACTIVE</span>
@@ -247,7 +247,7 @@ export default function WarRoom() {
           </div>
 
           {/* Center Column: Main Control */}
-          <div className="lg:col-span-9 space-y-8">
+          <div className="lg:col-span-9 space-y-4">
             <div className="space-y-4">
               <h2 className={`text-xl font-bold flex items-center gap-2 ${hasActiveCrisis ? "text-red-400" : "text-muted-foreground"}`}>
                 <AlertTriangle className={hasActiveCrisis ? "animate-pulse" : ""} /> 

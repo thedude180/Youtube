@@ -159,9 +159,9 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent role="navigation" aria-label="Main navigation">
-        {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/50 px-2">
+        {NAV_GROUPS.map((group, gi) => (
+          <SidebarGroup key={group.label} className={gi > 0 ? "pt-0" : ""}>
+            <SidebarGroupLabel className="text-[9px] uppercase tracking-widest text-muted-foreground/30 px-2 h-5 mt-1">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
