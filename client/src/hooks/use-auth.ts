@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import type { User } from "@shared/models/auth";
 
 async function fetchUser(): Promise<User | null> {
@@ -27,8 +28,22 @@ export function useAuth() {
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
     retry: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 4 * 60 * 1000,
   });
+
+  const wasAuthenticated = useRef(false);
+  useEffect(() => {
+    if (!isLoading) {
+      if (user) {
+        wasAuthenticated.current = true;
+      } else if (wasAuthenticated.current) {
+        wasAuthenticated.current = false;
+        const event = new CustomEvent("session-expired");
+        window.dispatchEvent(event);
+      }
+    }
+  }, [user, isLoading]);
 
   const logoutMutation = useMutation({
     mutationFn: logout,

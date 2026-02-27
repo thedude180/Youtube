@@ -33,9 +33,6 @@ function handleSessionExpired() {
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    if (res.status === 401) {
-      handleSessionExpired();
-    }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
@@ -119,8 +116,9 @@ export function getQueryFn<T>({ on401: unauthorizedBehavior }: {
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
-    onError: (error) => {
-      if (error.message?.startsWith("401:")) {
+    onError: (error, query) => {
+      const key = Array.isArray(query.queryKey) ? query.queryKey[0] : query.queryKey;
+      if (error.message?.startsWith("401:") && key === "/api/auth/user") {
         handleSessionExpired();
       }
     },
@@ -130,9 +128,6 @@ export const queryClient = new QueryClient({
     onSuccess: () => { stopProgress(); },
     onError: (error) => {
       stopProgress();
-      if (error.message?.startsWith("401:")) {
-        handleSessionExpired();
-      }
     },
   }),
   defaultOptions: {
