@@ -1540,6 +1540,11 @@ export default function CompetitiveEdge() {
         </div>
       </div>
 
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        <CompetitorBattleBars />
+        <MarketShareRadar />
+      </div>
+
       <div className="grid md:grid-cols-3 gap-6 mb-8">
         <div className="md:col-span-2 card-empire p-6 rounded-3xl relative overflow-hidden min-h-[300px]" data-testid="card-neural-matrix">
           <MatrixGrid />

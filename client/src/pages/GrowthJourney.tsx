@@ -695,6 +695,7 @@ export default function GrowthJourney() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 relative pb-24">
       <GrowthPhaseHero phase={data.growthPhase} />
+      <GrowthVelocityGauge progress={data.plateau?.avgGrowthRate ?? 68} />
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
