@@ -25,7 +25,7 @@ export default {
       streamLoop: "Stream Loop",
       vodShorts: "VOD & Shorts",
       aiStealth: "AI Stealth",
-      community: "Community",
+      community: "Community", legalTax: "Legal & Tax",
       accessCodes: "Access Codes",
       calendar: "Calendar",
       aiMatrix: "AI Matrix",

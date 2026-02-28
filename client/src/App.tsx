@@ -66,6 +66,7 @@ const WarRoom = lazyRetry(() => import("@/pages/WarRoom"));
 const AIMatrix = lazyRetry(() => import("@/pages/AIMatrix"));
 const Workspace = lazyRetry(() => import("@/pages/Workspace"));
 const Heartbeat = lazyRetry(() => import("@/pages/Heartbeat"));
+const LegalTaxTeam = lazyRetry(() => import("@/pages/LegalTaxTeam"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -196,6 +197,7 @@ function Router() {
       <Route path="/ai-matrix">{() => <SectionErrorBoundary fallbackTitle="AI Matrix failed to load"><AIMatrix /></SectionErrorBoundary>}</Route>
       <Route path="/workspace">{() => <SectionErrorBoundary fallbackTitle="Workspace failed to load"><Workspace /></SectionErrorBoundary>}</Route>
       <Route path="/heartbeat">{() => <SectionErrorBoundary fallbackTitle="Heartbeat failed to load"><Heartbeat /></SectionErrorBoundary>}</Route>
+      <Route path="/legal-tax">{() => <SectionErrorBoundary fallbackTitle="Legal & Tax Team failed to load"><LegalTaxTeam /></SectionErrorBoundary>}</Route>
       <Route path="/empire">{() => <SectionErrorBoundary fallbackTitle="Empire Launcher failed to load"><EmpireLauncher /></SectionErrorBoundary>}</Route>
       <Route path="/ai-command">{() => <SectionErrorBoundary fallbackTitle="AI Command failed to load"><AICommand /></SectionErrorBoundary>}</Route>
       <Route path="/script-studio">{() => <SectionErrorBoundary fallbackTitle="Script Studio failed to load"><ScriptStudio /></SectionErrorBoundary>}</Route>
