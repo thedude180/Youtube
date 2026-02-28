@@ -164,6 +164,48 @@ export async function registerPlatformRoutes(app: Express) {
     return res.status(500).json({ error: "An internal error occurred. Please try again." });
   }
 
+  app.get("/api/youtube/my-channel", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const userChannels = await storage.getChannelsByUser(userId);
+      const ytChannel = userChannels.find((c: any) => c.platform === "youtube");
+      if (!ytChannel) return res.json({ connected: false });
+      const pd = (ytChannel.platformData as any) || {};
+      res.json({
+        connected: true,
+        channelId: ytChannel.channelId,
+        channelName: ytChannel.channelName,
+        subscriberCount: ytChannel.subscriberCount,
+        videoCount: ytChannel.videoCount,
+        viewCount: ytChannel.viewCount,
+        thumbnailUrl: pd.thumbnailUrl ?? null,
+        uploadsPlaylistId: pd.uploadsPlaylistId ?? null,
+        description: pd.description ?? "",
+        customUrl: pd.customUrl ?? "",
+        country: pd.country ?? "",
+        publishedAt: pd.publishedAt ?? "",
+        lastSyncAt: ytChannel.lastSyncAt,
+        hasToken: !!ytChannel.accessToken,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to load channel info" });
+    }
+  });
+
+  app.post("/api/youtube/sync-channel-info", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { refreshYouTubeChannelInfo } = await import("../google-auth");
+      const result = await refreshYouTubeChannelInfo(userId);
+      if (!result.success) return res.status(400).json({ error: result.error });
+      res.json(result);
+    } catch (err: any) {
+      handleYouTubeError(res, err);
+    }
+  });
+
   app.get("/api/youtube/channel/:channelId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

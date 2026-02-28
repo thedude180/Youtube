@@ -215,6 +215,15 @@ async function autoConnectYouTubeFromGoogle(
       return { hasChannel: !existingYt ? false : true };
     }
 
+    const uploadsPlaylistId = ytChannel.contentDetails?.relatedPlaylists?.uploads || null;
+    const thumbnailUrl = ytChannel.snippet?.thumbnails?.high?.url
+      || ytChannel.snippet?.thumbnails?.medium?.url
+      || ytChannel.snippet?.thumbnails?.default?.url
+      || null;
+    const subCount = parseInt(ytChannel.statistics?.subscriberCount || "0", 10);
+    const vidCount = parseInt(ytChannel.statistics?.videoCount || "0", 10);
+    const viewCount = parseInt(ytChannel.statistics?.viewCount || "0", 10);
+
     const channelData = {
       userId,
       platform: "youtube" as const,
@@ -223,6 +232,18 @@ async function autoConnectYouTubeFromGoogle(
       accessToken: accessToken,
       refreshToken: refreshToken || null,
       tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+      subscriberCount: subCount,
+      videoCount: vidCount,
+      viewCount: viewCount,
+      platformData: {
+        uploadsPlaylistId,
+        thumbnailUrl,
+        description: ytChannel.snippet?.description || "",
+        customUrl: ytChannel.snippet?.customUrl || "",
+        publishedAt: ytChannel.snippet?.publishedAt || "",
+        country: ytChannel.snippet?.country || "",
+      },
+      lastSyncAt: new Date(),
       settings: {
         preset: "normal" as const,
         autoUpload: false,
@@ -239,6 +260,10 @@ async function autoConnectYouTubeFromGoogle(
         channelId: channelData.channelId,
         accessToken: channelData.accessToken,
         tokenExpiresAt: channelData.tokenExpiresAt,
+        subscriberCount: subCount,
+        videoCount: vidCount,
+        viewCount: viewCount,
+        platformData: channelData.platformData,
         lastSyncAt: new Date(),
       };
       if (refreshToken) {
@@ -285,4 +310,40 @@ async function autoConnectYouTubeFromGoogle(
     }
     return { hasChannel: !!existingYt, error: error.message };
   }
+}
+
+export async function refreshYouTubeChannelInfo(userId: string): Promise<{
+  success: boolean;
+  channelName?: string;
+  channelId?: string;
+  subscriberCount?: number;
+  videoCount?: number;
+  uploadsPlaylistId?: string | null;
+  thumbnailUrl?: string | null;
+  error?: string;
+}> {
+  const userChannels = await storage.getChannelsByUser(userId);
+  const ytChannel = userChannels.find((c: any) => c.platform === "youtube");
+  if (!ytChannel?.accessToken) {
+    return { success: false, error: "No YouTube channel connected" };
+  }
+  const result = await autoConnectYouTubeFromGoogle(
+    userId,
+    ytChannel.accessToken,
+    ytChannel.refreshToken || ""
+  );
+  if ((result as any).error && !(result as any).hasChannel) {
+    return { success: false, error: (result as any).error };
+  }
+  const yt = (result as any).ytChannel;
+  const updated = await storage.getChannelsByUser(userId).then((cs: any[]) => cs.find((c: any) => c.platform === "youtube"));
+  return {
+    success: true,
+    channelName: yt?.title || updated?.channelName,
+    channelId: yt?.id || updated?.channelId,
+    subscriberCount: yt?.subscriberCount ? parseInt(yt.subscriberCount, 10) : updated?.subscriberCount,
+    videoCount: yt?.videoCount ? parseInt(yt.videoCount, 10) : updated?.videoCount,
+    uploadsPlaylistId: (updated?.platformData as any)?.uploadsPlaylistId ?? null,
+    thumbnailUrl: (updated?.platformData as any)?.thumbnailUrl ?? null,
+  };
 }
