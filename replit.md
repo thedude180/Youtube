@@ -1,7 +1,7 @@
 # CreatorOS - YouTube Team In A Box
 
 ## Overview
-CreatorOS is the #1 AI-powered creator platform designed to empower creators from beginners to top-tier influencers. It acts as a "YouTube Team In A Box," offering multi-platform content management, live streaming automation, AI-driven growth coaching, and full business operations across major social media platforms. The platform aims for near-100% automated growth and revenue maximization, with AI coaching that adapts to the creator's progression.
+CreatorOS is an AI-powered creator platform designed for content creators, offering multi-platform content management, live streaming automation, AI-driven growth coaching, and comprehensive business operations across major social media platforms. The platform aims for near-100% automated growth and revenue maximization, providing adaptive AI coaching.
 
 ## User Preferences
 - Dark mode design with deep purple/blue tones
@@ -20,26 +20,32 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 
 ### Frontend
 - **Technology**: React + Vite, Tailwind CSS, shadcn/ui.
-- **UI/UX Decisions**: Dark theme, consolidated tabbed pages, notification bell, Advanced Mode toggle, content calendar, floating AI chat, command palette, keyboard shortcuts, rich empty states. Mobile optimization includes a cinematic bottom navigation, responsive components, and global scrolling for tabbed elements.
+- **UI/UX Decisions**: Dark theme, consolidated tabbed pages, notification bell, Advanced Mode toggle, content calendar, floating AI chat, command palette, keyboard shortcuts, rich empty states. Mobile optimization includes cinematic bottom navigation and responsive components.
 - **Features**: Internationalization (12 languages with RTL support), robust SEO features (dynamic hreflang, Open Graph, JSON-LD), accessibility standards (ARIA roles, keyboard navigation), and performance optimizations (lazy loading, code splitting, PWA support).
 - **Core Visuals**: Custom keyframes and power classes create a "God Tier" aesthetic with animated glows, neon effects, data-grid backgrounds, and holographic elements.
 
 ### Backend
 - **Technology**: Express.js with Drizzle ORM and PostgreSQL.
 - **Architecture**: Domain-based route modularization.
-- **Security**: Comprehensive measures including Helmet, rate limiting, CSRF protection, API key authentication, subscription tier enforcement, and an AI Security Sentinel with prompt injection detection and replay attack prevention.
+- **Security**: Helmet, rate limiting, CSRF protection, API key authentication, subscription tier enforcement, and an AI Security Sentinel for prompt injection detection and replay attack prevention.
 - **AI Integration**: Primarily uses OpenAI (gpt-5-mini) for AI functionalities.
-- **Core Engines**: A suite of AI-powered engines drives the platform:
+- **Core Engines**:
     - **Growth Journey System**: AI-generated daily actions and personalized roadmaps.
     - **Competitive Edge Suite**: VOD optimizer, Autopilot (7-phase pipeline), Creator DNA & Brand Voice, Cross-Platform Analytics, A/B Testing, Sponsorship Marketplace.
-    - **Content Loop Engine**: Manages content generation, scheduling 1 long-form and 3 shorts daily until footage is exhausted, filling the calendar in a single run.
+    - **Content Loop Engine**: Manages content generation and scheduling.
     - **Autopilot Engine**: Auto-Clip & Post, Smart Schedule, AI Comment Responder, Discord Announcements, Content Recycler.
-    - **Human Behavior & AI Humanizer Engines**: Simulate realistic posting to evade AI detectors.
+    - **Human Behavior & AI Humanizer Engines**: Simulate realistic posting.
     - **Autonomy Controller**: Orchestrates all AI engines.
     - **AI Team Engine**: Three autonomous AI agents (Editor, Moderator, Analyst) collaborate via a shared task queue.
     - **Conversational AI Co-Pilot**: Context-aware AI assistant with tool-calling.
-- **System Hardening**: Centralized OpenAI client with telemetry, retry logic, caching, structured logging, Zod validation. Includes DB-backed cron locks, external service health checks, and a self-healing core for autonomous failure detection and recovery.
-- **Platform Policy Tracker**: Monitors 7 platforms for policy changes, updates `complianceRules`, and enforces limits before publishing.
+    - **Content Automation System**: Includes a YouTube Upload Watcher and Historical Content Sweep for automated content ingestion and repurposing.
+    - **Content Consistency Agent**: Analyzes upload cadence, fills calendar gaps, and audits videos for SEO issues.
+    - **Auto Agent Orchestrator**: Manages background agent sessions for all paid users.
+    - **Team Ops God Mode**: Orchestrates a 41-agent company via `server/team-orchestration.ts`.
+    - **God-Level Business AI Exec Team**: 9 autonomous AI executives for business functions.
+    - **Legal & Tax AI Agent Command Center**: 18 autonomous AI agents for legal and tax auditing.
+- **System Hardening**: Centralized OpenAI client with telemetry, retry logic, caching, structured logging, Zod validation, DB-backed cron locks, external service health checks, and a self-healing core.
+- **Platform Policy Tracker**: Monitors 7 platforms for policy changes and enforces compliance.
 
 ### Authentication & Authorization
 - **Authentication**: Replit Auth (OIDC-based).
@@ -47,7 +53,7 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **Subscription & Access**: Multi-tier subscription model with role-based access.
 
 ### Notification & Feedback Systems
-- **Notification Engine**: Exception-only model, alerting only on critical issues (e.g., 3+ consecutive engine failures, security threats, platform bans).
+- **Notification Engine**: Exception-only model, alerting only on critical issues.
 - **AI Feedback Processor**: Analyzes user feedback.
 
 ## External Dependencies
@@ -59,28 +65,3 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **YouTube Data API v3**: YouTube integration.
 - **Stripe**: Payment processing and subscription management.
 - **node-cron**: Background task scheduling.
-
-## Key Development Notes
-- **CompetitiveEdge route**: `/edge` (NOT `/competitive-edge`)
-- **Autopilot.tsx icon imports**: All lucide icons must be explicitly imported. Previously missing: `Youtube` (use `SiYoutube` from react-icons/si instead), `Wifi`, `WifiOff`, `ExternalLink`, `Fingerprint`, `Share`, `Square`, `SquareCheck`. When adding new icon usages, always add to the import line.
-- **Production workflow**: Runs pre-built `dist/` files — must run `npx vite build` AND restart workflow after any frontend changes
-- **Testing admin OIDC**: `[OIDC] Configure next login with {sub: "7210ff92-76dd-4d0a-80bb-9eb5be27508b", email: "thedude180@gmail.com"}` then navigate `/api/login`
-- **T001-T008 visual upgrades**: All implemented and e2e verified — Empire Score, AI Ticker, Platform Pulse (Dashboard), Radar/Threat/Signal (WarRoom), Pipeline/LiveTasks (Autopilot), Phase Hero/Velocity (Growth), BattleBars/MarketRadar (CompetitiveEdge), Orbital/Telemetry (MissionControl), Health Gauge/Timeline (Heartbeat), Live Stats/Logos/Trust/CTA (Landing)
-- **Team Ops God Mode**: Full 41-agent company orchestration at `/team-ops` ("Company Command Center"). Engine: `server/team-orchestration.ts` (runCompanyCycle, getCompanyStatus, getCompanyCrossTeamFeed, COMPANY_ORG, COMPANY_DEPARTMENTS, 7-phase PHASE_PROMPTS). Routes: `GET /api/team-ops/org`, `GET /api/team-ops/status`, `GET /api/team-ops/feed`, `POST /api/team-ops/run-cycle` in `server/routes/team-ops.ts`. Frontend: 3-department columns, PhasePipeline animation, live cross-team feed, handoff map. Sidebar nav: Users icon at `nav.teamOps`. All 12 locale files updated.
-- **God-Level Business AI Exec Team**: 9 autonomous AI executives at `/business-agents` — CFO (Elena Marchetti, Wharton MBA/CFA), CMO (David Park), CSO (Alicia Foster, HBS), Revenue Architect (Ryan Torres), BD Head (Isabella Romano, $500M+ deals), CGO (Kai Nakamura, K-factor/AARRR), COO (Morgan Hayes), Brand Architect (Zoe Sterling), Investor Relations (Marcus Chen, Stanford GSB). Each has god-level system prompts baked with real financial models, marketing science, strategy frameworks, growth loop engineering. Engine: `server/business-agent-engine.ts`. Routes: `POST /api/business-agents/run-all`, `POST /api/business-agents/:agentId/run`, `GET /api/business-agents/status`, `GET /api/business-agents/activities`, `POST /api/business-agents/chat`. Sidebar nav: Briefcase icon at `nav.businessAgents`. All 12 locale files updated.
-- **Legal & Tax AI Agent Command Center**: Full page at `/legal-tax` — 18 autonomous AI agents: 9 legal (legal-copyright, legal-contracts, legal-dmca, legal-corporate, legal-privacy, legal-employment, legal-defamation, legal-music, legal-international) + 9 tax (tax-self-employment, tax-deductions, tax-structure, tax-income, tax-international, tax-crypto, tax-state, tax-retirement, tax-audit). Each agent runs background autonomous audits via OpenAI, logs findings to `ai_agent_activities` table, and can be triggered individually or as a full audit. Advisors also support direct chat consultation. Engine: `server/legal-tax-agent-engine.ts`. Routes: `POST /api/legal-tax/agents/run-all`, `POST /api/legal-tax/agents/:agentId/run`, `GET /api/legal-tax/agents/status`, `GET /api/legal-tax/agents/activities`, `POST /api/legal-tax/chat`, `GET /api/legal-tax/advisors`. Sidebar nav item at Scale icon. All 12 locale files updated.
-- **CompetitiveEdge testids updated**: `CompetitorBattleBars` uses `widget-battle-bars` (was `widget-competitor-battle`); `MarketShareRadar` uses `widget-market-radar` (was `widget-market-share-radar`) — enhanced with 5-metric battle format and hex radar chart
-- **API endpoints added**: `/api/competitive-edge/insights`, `/api/seo/scores/me`, `/api/seo/rankings/me`, `/api/seo/opportunities/me` — all use `requireAuth` and return user-specific data
-- **Dashboard stats enhanced**: `getStats()` now returns `subscriberCount` (sum from channels table); `StatsResponse` type updated accordingly
-- **MissionControl orbit items**: orbit-item-* testids added to each orbital dot for e2e testing
-- **Heartbeat timeline bars**: `data-testid="timeline-bar-${i}"` added to 24-hour timeline bars
-- **IntelligenceHub demographics fix**: `/api/audience/demographics/:userId` returns `gender` as an object `{male, female, other}`. IntelligenceHub normalizes this to array format `[{type, percentage}]` in the component before rendering. The raw API shape must NOT be changed — only the frontend normalization handles the conversion.
-- **Auto Agent Orchestrator**: `server/services/agent-orchestrator.ts` — set-and-forget background agent system. On server start (T+30s), `bootstrapAllUserSessions()` loads ALL paid users from DB and arms their agent sessions automatically — no login required. On login, `initializeUserSystems` refreshes/restarts the session. Tier mapping: free=core_engines_only, youtube/starter=+ai_team(3-4h), pro=+business_agents(6h), ultimate=+all(ai_team 1h, business_agents 4h, legal_tax 6h, team_ops 8h). Session status API: `GET /api/user/agent-session`. Staggered startup (3s per user for bootstrap, 20/40/60/90s for first runs) prevents server hammering.
-- **Full AI YouTube Team (14 agents)**: All agents have real human personas: Jordan Blake (Owner/ex-MrBeast), Priya Sharma (Admin/ex-Google), Tomás Rivera (Research Lead), Nia Okafor (Scriptwriter/Emmy-nom), Kenji Watanabe (Editor/Netflix), Sofia Vasquez (Thumbnail Artist), Arjun Mehta (SEO Manager/ex-Google), Zara Ibrahim (Shorts Specialist), Marcus Wilson (Social Media/ex-Warner Bros), Leila Santos (Moderator), Derek Cho (Brand Manager/ex-CAA), Rachel Novak (Revenue/Premium), Dr. Danielle Pierce (Analyst/PhD MIT), Alex Morgan (Growth Specialist). Engine: `server/ai-team-engine.ts`. Human emails like jordan@creatoros.ai.
-- **Content Automation System (NEW)**: Two autonomous content engines with UI panel in Autopilot ("Content Intelligence Hub"):
-  - **YouTube Upload Watcher** (`server/services/youtube-upload-watcher.ts`): Polls every 30min for new regular uploads (non-stream), auto-ingests to DB, triggers shorts pipeline + repurpose. Bootstrapped at T+35s on server start for all paid users with YouTube channels. Init per-user on login via `initUploadWatcherForUser(userId)`. Quota guard (skip if remaining < 50).
-  - **Historical Content Sweep** (`server/services/content-sweep.ts`): 3-phase sweep — Phase 1: `syncYouTubeVideosToLibrary`, Phase 2: `startShortsPipeline`, Phase 3: `repurposeVideo` on all unprocessed videos (batch of 3, 5s delay, quota guard at <200). User-cancellable. State: idle/syncing/clipping/repurposing/complete/error/cancelled.
-  - **API routes** (`server/routes/content-automation.ts`): `GET /api/content-automation/status`, `POST /api/content-automation/sweep/start`, `POST /api/content-automation/sweep/cancel`, `GET /api/content-automation/upload-watcher/status`.
-  - **Autopilot UI panel** (`data-testid="content-intelligence-hub"`): Shows upload watcher status (active dot, scans, uploads found, last scan time) + sweep card (phase badge, progress bar, stats, Start/Cancel button). Polls every 15s.
-  - **Content Consistency Agent** (`server/services/content-consistency-agent.ts`): Runs every 4h for all paid tiers. (1) Analyzes upload cadence (last 90 days) to detect posting frequency. (2) Scans next 14 days for calendar gaps vs cadence — auto-schedules eligible videos into gaps. (3) Audits all videos older than 7 days for SEO issues (weak titles, no tags, thin descriptions, not repurposed). (4) Calls OpenAI to generate improved title/description/tags for each issue, stores as `metadata.aiSuggestions`. (5) Logs all activity to `ai_agent_activities`. Bootstrap at T+40s on server start. API: `GET /api/content-automation/consistency/status`, `POST /api/content-automation/consistency/run`, `POST /api/content-automation/consistency/apply/:videoId`. UI widget: `data-testid="widget-consistency-agent"` — shows cadence/week, gaps filled, AI suggestions count, last/next audit time, AI recommendation queue with one-click Apply buttons.
-- **T001-T008 visual upgrades**: All implemented and e2e verified — Empire Score, AI Ticker, Platform Pulse (Dashboard), Radar/Threat/Signal (WarRoom), Pipeline/LiveTasks (Autopilot), Phase Hero/Velocity (Growth), BattleBars/MarketRadar (CompetitiveEdge), Orbital/Telemetry (MissionControl), Health Gauge/Timeline (Heartbeat), Live Stats/Logos/Trust/CTA (Landing)
