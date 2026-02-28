@@ -5549,3 +5549,28 @@ export type AutonomyEngineConfig = typeof autonomyEngineConfig.$inferSelect;
 export const insertAiDecisionLogSchema = createInsertSchema(aiDecisionLog).omit({ id: true });
 export type InsertAiDecisionLog = z.infer<typeof insertAiDecisionLogSchema>;
 export type AiDecisionLog = typeof aiDecisionLog.$inferSelect;
+
+export const vodAutopilotConfig = pgTable("vod_autopilot_config", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  enabled: boolean("enabled").notNull().default(false),
+  maxLongFormPerDay: integer("max_long_form_per_day").notNull().default(1),
+  maxShortsPerDay: integer("max_shorts_per_day").notNull().default(3),
+  targetPlatforms: text("target_platforms").array().notNull().default(["youtube"]),
+  minHoursBetweenUploads: integer("min_hours_between_uploads").notNull().default(2),
+  maxHoursBetweenUploads: integer("max_hours_between_uploads").notNull().default(8),
+  cycleIntervalHours: integer("cycle_interval_hours").notNull().default(6),
+  lastCycleAt: timestamp("last_cycle_at"),
+  nextCycleAt: timestamp("next_cycle_at"),
+  totalLongFormUploaded: integer("total_long_form_uploaded").notNull().default(0),
+  totalShortsUploaded: integer("total_shorts_uploaded").notNull().default(0),
+  totalCyclesRun: integer("total_cycles_run").notNull().default(0),
+  currentStatus: text("current_status").notNull().default("idle"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertVodAutopilotConfigSchema = createInsertSchema(vodAutopilotConfig).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertVodAutopilotConfig = z.infer<typeof insertVodAutopilotConfigSchema>;
+export type VodAutopilotConfig = typeof vodAutopilotConfig.$inferSelect;

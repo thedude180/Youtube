@@ -807,6 +807,7 @@ httpServer.listen(
     delay(280_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
     delay(300_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
     delay(320_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
+    delay(325_000, () => import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(err => logger.error("VOD Continuous Engine init failed", { error: String(err) })));
     delay(340_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
     delay(360_000, () => startCleanupCoordinator());
     delay(380_000, () => startResilienceWatchdog());
