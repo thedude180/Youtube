@@ -745,9 +745,10 @@ httpServer.listen(
     const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
 
     delay(30_000, () => {
-      import("./services/agent-orchestrator")
-        .then(m => m.bootstrapAllUserSessions())
-        .catch(err => logger.error("Agent orchestrator bootstrap failed", { error: String(err) }));
+      import("./services/agent-orchestrator").then(m => {
+        m.bootstrapAllUserSessions().catch(err => logger.error("Agent bootstrap failed", { error: String(err) }));
+        m.startWatchdog();
+      }).catch(err => logger.error("Agent orchestrator failed to load", { error: String(err) }));
     });
 
     delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
