@@ -3,30 +3,7 @@ import { channels } from "@shared/schema";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
 import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
-
-async function checkYoutubeLiveViaRSS(youtubeChannelId: string): Promise<{ isLive: boolean; title: string | null; videoId: string | null }> {
-  try {
-    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`;
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(7000),
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; CreatorOS/1.0)" },
-    });
-    if (!res.ok) return { isLive: false, title: null, videoId: null };
-    const xml = await res.text();
-    const isLive = xml.includes("<yt:liveBroadcastContent>live</yt:liveBroadcastContent>");
-    let title: string | null = null;
-    let videoId: string | null = null;
-    if (isLive) {
-      const titleMatch = xml.match(/<entry>[\s\S]*?<title>([\s\S]*?)<\/title>/);
-      title = titleMatch?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1").trim() ?? null;
-      const vidMatch = xml.match(/<yt:videoId>(.*?)<\/yt:videoId>/);
-      videoId = vidMatch?.[1]?.trim() ?? null;
-    }
-    return { isLive, title, videoId };
-  } catch {
-    return { isLive: false, title: null, videoId: null };
-  }
-}
+import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 
 interface DetectedBroadcast {
   platform: string;
@@ -120,20 +97,20 @@ async function checkYouTubeLive(channelRow: any): Promise<DetectedBroadcast[]> {
   // RSS fallback: zero-quota check via YouTube Atom feed
   if (channelRow.channelId) {
     try {
-      const rss = await checkYoutubeLiveViaRSS(channelRow.channelId);
-      if (rss.isLive) {
-        console.log(`[LiveDetection] RSS detected live stream for channel ${channelRow.channelId}: ${rss.title}`);
+      const check = await detectYouTubeLiveFromChannel(channelRow.channelId);
+      if (check.isLive) {
+        console.log(`[LiveDetection] Watch-page detected live stream for channel ${channelRow.channelId}: ${check.title} (${check.videoId})`);
         return [{
           platform: "youtube",
-          broadcastId: rss.videoId || `rss_live_${Date.now()}`,
-          title: rss.title || "YouTube Live Stream",
-          description: "Detected via RSS feed",
+          broadcastId: check.videoId || `live_${Date.now()}`,
+          title: check.title || "YouTube Live Stream",
+          description: "Detected via watch-page check",
           startedAt: new Date().toISOString(),
           viewerCount: undefined,
         }];
       }
     } catch (rssErr) {
-      console.error(`[LiveDetection] RSS fallback failed for channel ${channelRow.channelId}:`, rssErr);
+      console.error(`[LiveDetection] Watch-page fallback failed for channel ${channelRow.channelId}:`, rssErr);
     }
   }
 

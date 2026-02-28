@@ -18,14 +18,11 @@ import { pauseForLive, resumeAfterStream } from "../backlog-manager";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 import { sendSSEEvent } from "./events";
 import { getQuotaStatus } from "../services/youtube-quota-tracker";
+import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 
-async function checkYouTubeLiveViaRSS(channelId: string): Promise<boolean> {
-  try {
-    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { "User-Agent": "Mozilla/5.0" } });
-    if (!res.ok) return false;
-    return (await res.text()).includes("<yt:liveBroadcastContent>live</yt:liveBroadcastContent>");
-  } catch { return false; }
+async function checkYouTubeLiveViaWatchPage(channelId: string): Promise<boolean> {
+  const result = await detectYouTubeLiveFromChannel(channelId);
+  return result.isLive;
 }
 
 
@@ -705,7 +702,7 @@ export function registerStreamRoutes(app: Express) {
           broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
         } else if (ytChannel.channelId) {
           detectionMethod = "rss";
-          const isLive = await checkYouTubeLiveViaRSS(ytChannel.channelId);
+          const isLive = await checkYouTubeLiveViaWatchPage(ytChannel.channelId);
           if (isLive) broadcasts = [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }];
         }
         const streamList = await storage.getStreams(userId);
@@ -747,7 +744,7 @@ export function registerStreamRoutes(app: Express) {
         detectionMethod = "api";
       } else if (ytChannel.channelId) {
         detectionMethod = "rss";
-        const isLive = await checkYouTubeLiveViaRSS(ytChannel.channelId);
+        const isLive = await checkYouTubeLiveViaWatchPage(ytChannel.channelId);
         if (isLive) broadcasts = [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }];
       }
 

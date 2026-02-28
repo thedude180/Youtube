@@ -6,6 +6,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { fireAgentEvent } from "./agent-events";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
+import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 
 const logger = {
   info: (msg: string, meta?: any) => console.log(`[stream-agent] ${msg}`, meta ?? ""),
@@ -95,29 +96,6 @@ Response: just the prompt, no extra text, under 15 words.`;
   }
 }
 
-async function checkYoutubeLiveViaRSS(youtubeChannelId: string): Promise<{ isLive: boolean; title: string | null }> {
-  try {
-    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`;
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(7000),
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; CreatorOS/1.0)" },
-    });
-    if (!res.ok) return { isLive: false, title: null };
-    const xml = await res.text();
-    // YouTube Atom feed includes <yt:liveBroadcastContent>live</yt:liveBroadcastContent>
-    // for currently-live streams as the first entry
-    const isLive = xml.includes("<yt:liveBroadcastContent>live</yt:liveBroadcastContent>");
-    let title: string | null = null;
-    if (isLive) {
-      const titleMatch = xml.match(/<entry>[\s\S]*?<title>([\s\S]*?)<\/title>/);
-      title = titleMatch?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1").trim() ?? null;
-    }
-    return { isLive, title };
-  } catch {
-    return { isLive: false, title: null };
-  }
-}
-
 async function checkAndEngageStream(userId: string): Promise<void> {
   const state = getOrCreateState(userId);
   if (!state.enabled) return;
@@ -158,19 +136,19 @@ async function checkAndEngageStream(userId: string): Promise<void> {
             logger.warn(`[${userId}] YouTube quota low (${quota.remaining}) — using RSS fallback for live detection`);
           }
 
-          // RSS fallback: zero-quota check using YouTube Atom feed (yt:liveBroadcastContent)
+          // Watch-page fallback: zero-quota — checks RSS feed for recent videos, then confirms "isLive":true on watch page
           if (!detectedLive && ytChannel.channelId) {
             try {
-              const rssResult = await checkYoutubeLiveViaRSS(ytChannel.channelId);
-              if (rssResult.isLive) {
+              const check = await detectYouTubeLiveFromChannel(ytChannel.channelId);
+              if (check.isLive) {
                 detectedLive = true;
-                broadcastTitle = rssResult.title || broadcastTitle || "Live Stream";
-                logger.info(`[${userId}] Live detected via RSS feed — channelId: ${ytChannel.channelId}, title: ${broadcastTitle}`);
+                broadcastTitle = check.title || broadcastTitle || "Live Stream";
+                logger.info(`[${userId}] Live detected via watch-page check — videoId: ${check.videoId}, title: ${broadcastTitle}`);
               } else {
-                logger.info(`[${userId}] RSS check: channel ${ytChannel.channelId} is not live`);
+                logger.info(`[${userId}] Watch-page check: channel ${ytChannel.channelId} is not live`);
               }
-            } catch (rssErr: any) {
-              logger.warn(`[${userId}] RSS fallback failed: ${rssErr.message}`);
+            } catch (checkErr: any) {
+              logger.warn(`[${userId}] Watch-page fallback failed: ${checkErr.message}`);
             }
           }
 
