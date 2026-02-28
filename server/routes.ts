@@ -33,6 +33,7 @@ import { registerAutonomyRoutes } from "./routes/autonomy";
 import { registerLoopRoutes } from "./routes/loops";
 import { registerNexusRoutes } from "./routes/nexus";
 import { registerLegalTaxRoutes } from "./routes/legal-tax";
+import { registerBusinessAgentRoutes } from "./routes/business-agents";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -213,6 +214,7 @@ export async function registerRoutes(
   registerLoopRoutes(app);
   registerNexusRoutes(app);
   registerLegalTaxRoutes(app);
+  registerBusinessAgentRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {

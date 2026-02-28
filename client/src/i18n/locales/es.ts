@@ -24,7 +24,7 @@ export default {
       streamLoop: "Bucle de Stream",
       vodShorts: "VOD y Shorts",
       aiStealth: "IA Sigilosa",
-      community: "Comunidad", legalTax: "Legal & Tax",
+      community: "Comunidad", legalTax: "Legal & Tax", businessAgents: "Business AI",
       accessCodes: "Códigos de Acceso",
     },
     common: {

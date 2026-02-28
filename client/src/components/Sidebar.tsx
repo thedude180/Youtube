@@ -32,6 +32,7 @@ import {
   BarChart2,
   Activity,
   Scale,
+  Briefcase,
 } from "lucide-react";
 import {
   Sidebar,
@@ -90,6 +91,7 @@ const NAV_GROUPS = [
       { href: "/community", labelKey: "nav.community", icon: Users, minTier: "starter" },
       { href: "/mission-control", labelKey: "nav.missionControl", icon: Globe, minTier: "free" },
       { href: "/legal-tax", labelKey: "nav.legalTax", icon: Scale, minTier: "free" },
+      { href: "/business-agents", labelKey: "nav.businessAgents", icon: Briefcase, minTier: "free" },
       { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free" },
     ],
   },
