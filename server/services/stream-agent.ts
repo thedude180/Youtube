@@ -95,24 +95,26 @@ Response: just the prompt, no extra text, under 15 words.`;
   }
 }
 
-async function checkYoutubeLiveViaEmbed(youtubeChannelId: string): Promise<{ isLive: boolean; videoId: string | null }> {
+async function checkYoutubeLiveViaRSS(youtubeChannelId: string): Promise<{ isLive: boolean; title: string | null }> {
   try {
-    const url = `https://www.youtube.com/embed/live_stream?channel=${youtubeChannelId}`;
+    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`;
     const res = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(7000),
       headers: { "User-Agent": "Mozilla/5.0 (compatible; CreatorOS/1.0)" },
     });
-    const finalUrl = res.url;
-    const text = await res.text();
-    const videoIdMatch = finalUrl.match(/embed\/([A-Za-z0-9_-]{11})/);
-    const videoId = videoIdMatch?.[1] ?? null;
-    const isLiveFromUrl = videoId !== null && !finalUrl.includes("live_stream");
-    const isLiveFromBody = text.includes('"isLiveBroadcast"') || text.includes('"liveBroadcastDetails"');
-    return { isLive: isLiveFromUrl || isLiveFromBody, videoId: isLiveFromUrl ? videoId : null };
+    if (!res.ok) return { isLive: false, title: null };
+    const xml = await res.text();
+    // YouTube Atom feed includes <yt:liveBroadcastContent>live</yt:liveBroadcastContent>
+    // for currently-live streams as the first entry
+    const isLive = xml.includes("<yt:liveBroadcastContent>live</yt:liveBroadcastContent>");
+    let title: string | null = null;
+    if (isLive) {
+      const titleMatch = xml.match(/<entry>[\s\S]*?<title>([\s\S]*?)<\/title>/);
+      title = titleMatch?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1").trim() ?? null;
+    }
+    return { isLive, title };
   } catch {
-    return { isLive: false, videoId: null };
+    return { isLive: false, title: null };
   }
 }
 
@@ -156,14 +158,16 @@ async function checkAndEngageStream(userId: string): Promise<void> {
             logger.warn(`[${userId}] YouTube quota low (${quota.remaining}) — using RSS fallback for live detection`);
           }
 
-          // RSS/embed fallback: zero-quota check using public YouTube embed URL
+          // RSS fallback: zero-quota check using YouTube Atom feed (yt:liveBroadcastContent)
           if (!detectedLive && ytChannel.channelId) {
             try {
-              const embedResult = await checkYoutubeLiveViaEmbed(ytChannel.channelId);
-              if (embedResult.isLive) {
+              const rssResult = await checkYoutubeLiveViaRSS(ytChannel.channelId);
+              if (rssResult.isLive) {
                 detectedLive = true;
-                broadcastTitle = broadcastTitle || (embedResult.videoId ? `Live Stream (${embedResult.videoId})` : "Live Stream");
-                logger.info(`[${userId}] Live detected via RSS/embed fallback — channelId: ${ytChannel.channelId}`);
+                broadcastTitle = rssResult.title || broadcastTitle || "Live Stream";
+                logger.info(`[${userId}] Live detected via RSS feed — channelId: ${ytChannel.channelId}, title: ${broadcastTitle}`);
+              } else {
+                logger.info(`[${userId}] RSS check: channel ${ytChannel.channelId} is not live`);
               }
             } catch (rssErr: any) {
               logger.warn(`[${userId}] RSS fallback failed: ${rssErr.message}`);

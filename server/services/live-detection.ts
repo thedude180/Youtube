@@ -2,6 +2,31 @@ import { db } from "../db";
 import { channels } from "@shared/schema";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
+import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
+
+async function checkYoutubeLiveViaRSS(youtubeChannelId: string): Promise<{ isLive: boolean; title: string | null; videoId: string | null }> {
+  try {
+    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`;
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(7000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; CreatorOS/1.0)" },
+    });
+    if (!res.ok) return { isLive: false, title: null, videoId: null };
+    const xml = await res.text();
+    const isLive = xml.includes("<yt:liveBroadcastContent>live</yt:liveBroadcastContent>");
+    let title: string | null = null;
+    let videoId: string | null = null;
+    if (isLive) {
+      const titleMatch = xml.match(/<entry>[\s\S]*?<title>([\s\S]*?)<\/title>/);
+      title = titleMatch?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1").trim() ?? null;
+      const vidMatch = xml.match(/<yt:videoId>(.*?)<\/yt:videoId>/);
+      videoId = vidMatch?.[1]?.trim() ?? null;
+    }
+    return { isLive, title, videoId };
+  } catch {
+    return { isLive: false, title: null, videoId: null };
+  }
+}
 
 interface DetectedBroadcast {
   platform: string;
@@ -64,23 +89,55 @@ async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
 }
 
 async function checkYouTubeLive(channelRow: any): Promise<DetectedBroadcast[]> {
-  try {
-    const { checkYouTubeLiveBroadcasts } = await import("../youtube");
-    const broadcasts = await checkYouTubeLiveBroadcasts(channelRow.id);
-    return broadcasts
-      .filter((b: any) => b.status === "active" || b.status === "live")
-      .map((b: any) => ({
-        platform: "youtube",
-        broadcastId: b.broadcastId,
-        title: b.title || "YouTube Stream",
-        description: b.description || "Live on YouTube",
-        startedAt: b.startedAt || b.scheduledStartTime,
-        viewerCount: undefined,
-      }));
-  } catch (err) {
-    console.error(`[LiveDetection] YouTube check failed for channel ${channelRow.id}:`, err);
-    return [];
+  const userId = channelRow.userId;
+
+  // Try YouTube API if quota is available
+  const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+  if (quota.remaining > 5) {
+    try {
+      const { checkYouTubeLiveBroadcasts } = await import("../youtube");
+      const broadcasts = await checkYouTubeLiveBroadcasts(channelRow.id);
+      await trackQuotaUsage(userId, "list", 1).catch(() => {});
+      const active = broadcasts.filter((b: any) => b.status === "active" || b.status === "live");
+      if (active.length > 0) {
+        return active.map((b: any) => ({
+          platform: "youtube",
+          broadcastId: b.broadcastId,
+          title: b.title || "YouTube Stream",
+          description: b.description || "Live on YouTube",
+          startedAt: b.startedAt || b.scheduledStartTime,
+          viewerCount: undefined,
+        }));
+      }
+      // API succeeded but no live stream — still check RSS to be sure
+    } catch (err) {
+      console.error(`[LiveDetection] YouTube API check failed for channel ${channelRow.id}:`, err);
+    }
+  } else {
+    console.warn(`[LiveDetection] YouTube quota low (${quota.remaining}) for ${userId} — using RSS fallback`);
   }
+
+  // RSS fallback: zero-quota check via YouTube Atom feed
+  if (channelRow.channelId) {
+    try {
+      const rss = await checkYoutubeLiveViaRSS(channelRow.channelId);
+      if (rss.isLive) {
+        console.log(`[LiveDetection] RSS detected live stream for channel ${channelRow.channelId}: ${rss.title}`);
+        return [{
+          platform: "youtube",
+          broadcastId: rss.videoId || `rss_live_${Date.now()}`,
+          title: rss.title || "YouTube Live Stream",
+          description: "Detected via RSS feed",
+          startedAt: new Date().toISOString(),
+          viewerCount: undefined,
+        }];
+      }
+    } catch (rssErr) {
+      console.error(`[LiveDetection] RSS fallback failed for channel ${channelRow.channelId}:`, rssErr);
+    }
+  }
+
+  return [];
 }
 
 async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast[]> {
