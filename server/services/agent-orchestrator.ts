@@ -182,7 +182,20 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
     logger.info(`[${userId}] Session armed — tier: ${tier}, agents: [${agentsStarted.join(", ")}]`);
   }
 
+  try {
+    const { initUploadWatcherForUser } = await import("./youtube-upload-watcher");
+    await initUploadWatcherForUser(userId);
+  } catch (err: any) {
+    logger.warn(`[${userId}] Upload watcher init failed: ${err.message}`);
+  }
+
   return { tier, agentsStarted };
+}
+
+export async function initializeUserSystems(userId: string): Promise<void> {
+  try { await startUserAgentSession(userId, 0); } catch (err: any) {
+    logger.warn(`[${userId}] initializeUserSystems failed: ${err.message}`);
+  }
 }
 
 export function stopUserAgentSession(userId: string): void {

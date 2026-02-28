@@ -751,6 +751,12 @@ httpServer.listen(
       }).catch(err => logger.error("Agent orchestrator failed to load", { error: String(err) }));
     });
 
+    delay(35_000, () => {
+      import("./services/youtube-upload-watcher").then(m => {
+        m.bootstrapUploadWatchers().catch(err => logger.error("Upload watcher bootstrap failed", { error: String(err) }));
+      }).catch(err => logger.error("Upload watcher failed to load", { error: String(err) }));
+    });
+
     delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
 
     const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");

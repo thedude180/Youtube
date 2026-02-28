@@ -701,6 +701,19 @@ export default function Autopilot() {
   const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 60000 });
   const activeAgents = (agentActivities as any[])?.filter((a: any) => a.status === "running" || a.status === "active").length ?? 0;
 
+  const { data: contentAutomation, refetch: refetchAutomation } = useQuery<any>({
+    queryKey: ["/api/content-automation/status"],
+    refetchInterval: 15000,
+  });
+  const sweepMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/content-automation/sweep/start"),
+    onSuccess: () => { refetchAutomation(); },
+  });
+  const cancelSweepMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/content-automation/sweep/cancel"),
+    onSuccess: () => { refetchAutomation(); },
+  });
+
   const activateMutation = useMutation({
     mutationFn: async (reseed?: boolean) => {
       const res = await apiRequest("POST", "/api/autopilot/activate", { reseed: reseed || false });
@@ -977,6 +990,131 @@ export default function Autopilot() {
     <div className="p-3 md:p-4 space-y-4 max-w-6xl mx-auto overflow-y-auto h-full page-enter">
       <PipelineVisualizer activePhase={2} />
       <LiveTasksWidget />
+
+      <div className="card-empire rounded-2xl p-5 mb-4 relative overflow-hidden" data-testid="content-intelligence-hub">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold font-mono text-primary uppercase tracking-wider">Content Intelligence Hub</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Autonomous pipeline — monitors and reworks all channel content</p>
+            </div>
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">AUTO</span>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-border/30 bg-muted/10 p-4" data-testid="card-upload-watcher">
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`w-2 h-2 rounded-full ${(contentAutomation as any)?.uploadWatcher?.active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40'}`} data-testid="dot-upload-watcher-status" />
+                <span className="text-xs font-mono font-bold text-foreground">New Upload Watcher</span>
+              </div>
+              <div className="space-y-1.5 text-[11px] text-muted-foreground font-mono">
+                <div className="flex justify-between">
+                  <span>Status</span>
+                  <span className={(contentAutomation as any)?.uploadWatcher?.active ? 'text-emerald-400' : 'text-muted-foreground'} data-testid="text-upload-watcher-status">
+                    {(contentAutomation as any)?.uploadWatcher?.active ? 'WATCHING' : 'INACTIVE'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Scans run</span>
+                  <span className="text-foreground" data-testid="text-upload-scans">{(contentAutomation as any)?.uploadWatcher?.scansCompleted ?? 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Uploads found</span>
+                  <span className="text-primary" data-testid="text-uploads-found">{(contentAutomation as any)?.uploadWatcher?.totalUploadsFound ?? 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Last scan</span>
+                  <span className="text-foreground truncate max-w-[120px]" data-testid="text-last-scan">
+                    {(contentAutomation as any)?.uploadWatcher?.lastScanAt
+                      ? new Date((contentAutomation as any).uploadWatcher.lastScanAt).toLocaleTimeString()
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/30 bg-muted/10 p-4" data-testid="card-content-sweep">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    ['syncing','clipping','repurposing'].includes((contentAutomation as any)?.sweep?.phase)
+                      ? 'bg-primary animate-pulse'
+                      : (contentAutomation as any)?.sweep?.phase === 'complete'
+                      ? 'bg-emerald-400'
+                      : 'bg-muted-foreground/40'
+                  }`} />
+                  <span className="text-xs font-mono font-bold text-foreground">Historical Sweep</span>
+                </div>
+                <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded" style={{
+                  background: (contentAutomation as any)?.sweep?.phase === 'complete' ? 'hsl(142 70% 50% / 0.2)' :
+                              ['syncing','clipping','repurposing'].includes((contentAutomation as any)?.sweep?.phase) ? 'hsl(265 80% 60% / 0.2)' : 'hsl(265 20% 30% / 0.3)',
+                  color: (contentAutomation as any)?.sweep?.phase === 'complete' ? 'hsl(142 70% 50%)' :
+                         ['syncing','clipping','repurposing'].includes((contentAutomation as any)?.sweep?.phase) ? 'hsl(265 80% 65%)' : 'hsl(265 40% 60%)',
+                }} data-testid="badge-sweep-phase">
+                  {(contentAutomation as any)?.sweep?.phase?.toUpperCase() ?? 'IDLE'}
+                </span>
+              </div>
+
+              {['syncing','clipping','repurposing'].includes((contentAutomation as any)?.sweep?.phase) && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-[10px] text-muted-foreground font-mono mb-1">
+                    <span>Phase: {(contentAutomation as any)?.sweep?.phase}</span>
+                    <span data-testid="text-sweep-progress">{(contentAutomation as any)?.sweep?.videosRepurposed ?? 0} / {(contentAutomation as any)?.sweep?.videosTotal ?? '?'}</span>
+                  </div>
+                  <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary/70 rounded-full transition-all duration-1000"
+                      style={{ width: `${Math.min(100, (((contentAutomation as any)?.sweep?.videosRepurposed ?? 0) / Math.max(1, (contentAutomation as any)?.sweep?.videosTotal ?? 1)) * 100)}%`,
+                        boxShadow: '0 0 6px hsl(265 80% 60% / 0.5)' }} />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5 text-[11px] text-muted-foreground font-mono mb-3">
+                <div className="flex justify-between">
+                  <span>Videos synced</span>
+                  <span className="text-foreground" data-testid="text-videos-synced">{(contentAutomation as any)?.sweep?.videosSynced ?? 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Clips generated</span>
+                  <span className="text-primary" data-testid="text-videos-clipped">{(contentAutomation as any)?.sweep?.videosClipped ?? 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Posts repurposed</span>
+                  <span className="text-emerald-400" data-testid="text-videos-repurposed">{(contentAutomation as any)?.sweep?.videosRepurposed ?? 0}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {['syncing','clipping','repurposing'].includes((contentAutomation as any)?.sweep?.phase) ? (
+                  <button
+                    className="flex-1 text-xs py-1.5 rounded-lg border border-red-500/40 bg-red-500/10 text-red-400 font-mono hover:bg-red-500/20 transition-colors"
+                    onClick={() => cancelSweepMutation.mutate()}
+                    disabled={cancelSweepMutation.isPending}
+                    data-testid="button-cancel-sweep">
+                    Cancel Sweep
+                  </button>
+                ) : (
+                  <button
+                    className="flex-1 text-xs py-1.5 rounded-lg border border-primary/40 bg-primary/10 text-primary font-mono hover:bg-primary/20 transition-colors"
+                    style={{ boxShadow: '0 0 10px hsl(265 80% 60% / 0.2)' }}
+                    onClick={() => sweepMutation.mutate()}
+                    disabled={sweepMutation.isPending}
+                    data-testid="button-start-sweep">
+                    {sweepMutation.isPending ? 'Starting...' : (contentAutomation as any)?.sweep?.phase === 'complete' ? 'Run Again' : 'Start Sweep'}
+                  </button>
+                )}
+              </div>
+              {(contentAutomation as any)?.sweep?.lastError && (
+                <p className="text-[10px] text-red-400 font-mono mt-2 truncate" data-testid="text-sweep-error">
+                  Error: {(contentAutomation as any).sweep.lastError}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <UpgradeTabGate requiredTier="pro" featureName="Autopilot" description="Automate your entire content workflow with AI-powered auto-clipping, smart scheduling, comment responses, and cross-platform posting.">
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
