@@ -173,3 +173,25 @@ export function getAllSessionsInfo(): { userId: string; tier: string; agentsRunn
     startedAt: s.startedAt.toISOString(),
   }));
 }
+
+export async function bootstrapAllUserSessions(): Promise<void> {
+  try {
+    const allUsers = await storage.getAllUsers();
+    const eligibleUsers = allUsers.filter((u: any) => u.tier && u.tier !== "free");
+
+    logger.info(`[Bootstrap] Arming agent sessions — ${eligibleUsers.length} paid users of ${allUsers.length} total`);
+
+    for (let i = 0; i < eligibleUsers.length; i++) {
+      const user = eligibleUsers[i];
+      setTimeout(async () => {
+        try {
+          await startUserAgentSession(user.id);
+        } catch (err: any) {
+          logger.warn(`[Bootstrap] Session failed for user ${user.id}: ${err.message}`);
+        }
+      }, i * 3000);
+    }
+  } catch (err: any) {
+    logger.error(`[Bootstrap] Failed to load users from DB: ${err.message}`);
+  }
+}
