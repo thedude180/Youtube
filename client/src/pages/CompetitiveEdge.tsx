@@ -140,7 +140,7 @@ function CompetitiveStatsStrip() {
       </div>
       <div className="ml-auto shrink-0 relative flex items-center gap-1.5">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[10px] text-emerald-400 font-mono">SCANNING COMPETITORS</span>
+        <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-tighter">SCANNING COMPETITORS</span>
       </div>
     </div>
   );

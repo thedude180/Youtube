@@ -24,7 +24,7 @@ import { StealthRing } from "@/components/StealthRing";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { PulseOrb } from "@/components/PulseOrb";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop, Rocket, Download, FileText, Share2, MessageSquare, Recycle, Shuffle, CheckCircle2, Clock, RefreshCw, AlertCircle, AlertTriangle, ThumbsUp, ThumbsDown, CalendarClock, DollarSign, Target, Radio, Sparkles, Brain, Pause, Play, Eye, Send, Check, Wifi, WifiOff, ExternalLink, Fingerprint, Share, Square, SquareCheck } from "lucide-react";
+import { Zap, Activity, Bot, Shield, ShieldCheck, ShieldAlert, TrendingUp, Search, Calendar, ChevronRight, LayoutPanelTop, Rocket, Download, FileText, Share2, MessageSquare, Recycle, Shuffle, CheckCircle2, Clock, RefreshCw, AlertCircle, AlertTriangle, ThumbsUp, ThumbsDown, CalendarClock, DollarSign, Target, Radio, Sparkles, Brain, Pause, Play, Eye, Send, Check, Wifi, WifiOff, ExternalLink, Fingerprint, Share, Square, SquareCheck, Terminal } from "lucide-react";
 import { SiDiscord, SiYoutube } from "react-icons/si";
 
 const PIPELINE_NODES = [
@@ -143,7 +143,7 @@ const FEATURES = [
     id: "auto-clip",
     label: "Auto-Clip & Post",
     description: "AI creates unique posts for all 6 platforms when you upload a video",
-    icon: Zap,
+    icon: Terminal,
     color: "text-yellow-500",
   },
   {
@@ -697,6 +697,10 @@ export default function Autopilot() {
     staleTime: 20_000,
   });
 
+  const { data: dashStats } = useQuery({ queryKey: ["/api/dashboard/stats"], refetchInterval: 60000, staleTime: 30000 });
+  const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 60000 });
+  const activeAgents = (agentActivities as any[])?.filter((a: any) => a.status === "running" || a.status === "active").length ?? 0;
+
   const activateMutation = useMutation({
     mutationFn: async (reseed?: boolean) => {
       const res = await apiRequest("POST", "/api/autopilot/activate", { reseed: reseed || false });
@@ -882,7 +886,6 @@ export default function Autopilot() {
   const [previewItemId, setPreviewItemId] = useState<number | null>(null);
 
   const stats = statsQuery.data;
-  const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 30000 });
   const rawQueue = useMemo(() => queueQuery.data || [], [queueQuery.data]);
   const queue = useMemo(() => {
     const filtered = queueStatusFilter === "all"
@@ -988,15 +991,27 @@ export default function Autopilot() {
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
-              <Rocket className="w-7 h-7 text-primary" style={{ filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))" }} />
+              <Rocket className="w-7 h-7 text-primary" style={{ filter: "drop-shadow(0-0-8px-hsl(265-80%-60% / 0.6))" }} />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-0.5">
-                <h1 data-testid="text-autopilot-title" className="text-xl font-display font-extrabold holographic-text">Autopilot</h1>
+                <h1 data-testid="text-autopilot-title" className="text-xl font-display font-extrabold holographic-text" style={{ textShadow: '0 0 20px hsl(265 80% 60% / 0.6)' }}>Autopilot</h1>
                 <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1" data-testid="badge-active-features" aria-live="polite">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   {activeFeatureCount}/7 Active
                 </Badge>
+                <div className="flex gap-1 flex-wrap ml-1">
+                  <span data-testid="stat-sidebar-subscribers" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
+                    👁 {(dashStats as any)?.subscriberCount ? ((dashStats as any).subscriberCount > 1000 ? ((dashStats as any).subscriberCount/1000).toFixed(1)+'K' : (dashStats as any).subscriberCount) : '—'}
+                  </span>
+                  <span data-testid="stat-sidebar-revenue" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
+                    💰 ${(dashStats as any)?.totalRevenue?.toFixed(0) ?? '—'}
+                  </span>
+                  <span data-testid="stat-sidebar-agents" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
+                    🤖 {activeAgents}/11
+                  </span>
+                  <span className="text-[9px] text-emerald-400 animate-pulse self-center ml-1">● LIVE</span>
+                </div>
                 <Badge className="bg-primary/15 text-primary border border-primary/30 text-[10px]">
                   Full Throttle
                 </Badge>

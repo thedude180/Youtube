@@ -7,7 +7,9 @@ import {
   Activity, Shield, Wifi, WifiOff, Radio, Eye, AlertTriangle, 
   CheckCircle, XCircle, RefreshCw, Zap, Globe, TrendingUp, 
   Server, Brain, Lock, Gauge, Satellite, MonitorSpeaker,
-  Layout, Database, Users, Settings, Terminal, ZapOff
+  Layout, Database, Users, Settings, Terminal, ZapOff,
+  Search, MessageSquare, Share2, ShieldCheck, BarChart3,
+  Cpu, Rocket, Disc
 } from "lucide-react";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord } from "react-icons/si";
 import { useState, useEffect, useRef } from "react";
@@ -25,19 +27,19 @@ const STATUS_COLORS: Record<string, string> = {
 const OrbitalSystem = () => {
   const rings = [
     { radius: 60, speed: "8s", dir: "", items: [
-      { label: "Content", color: "hsl(265 80% 65%)" },
-      { label: "Revenue", color: "hsl(142 70% 50%)" },
+      { label: "Content", color: "hsl(265 80% 65%)", icon: Layout },
+      { label: "Revenue", color: "hsl(142 70% 50%)", icon: Zap },
     ]},
     { radius: 90, speed: "12s", dir: "reverse", items: [
-      { label: "Stream", color: "hsl(0 80% 60%)" },
-      { label: "Analytics", color: "hsl(200 80% 60%)" },
-      { label: "Social", color: "hsl(330 80% 60%)" },
+      { label: "Stream", color: "hsl(0 80% 60%)", icon: Radio },
+      { label: "Analytics", color: "hsl(200 80% 60%)", icon: BarChart3 },
+      { label: "Social", color: "hsl(330 80% 60%)", icon: Share2 },
     ]},
     { radius: 120, speed: "18s", dir: "", items: [
-      { label: "SEO", color: "hsl(45 90% 55%)" },
-      { label: "Ads", color: "hsl(210 80% 55%)" },
-      { label: "Growth", color: "hsl(160 80% 50%)" },
-      { label: "Safety", color: "hsl(0 80% 50%)" },
+      { label: "SEO", color: "hsl(45 90% 55%)", icon: Search },
+      { label: "Ads", color: "hsl(210 80% 55%)", icon: Globe },
+      { label: "Growth", color: "hsl(160 80% 50%)", icon: TrendingUp },
+      { label: "Safety", color: "hsl(0 80% 50%)", icon: ShieldCheck },
     ]}
   ];
   return (
@@ -62,8 +64,11 @@ const OrbitalSystem = () => {
               return (
                 <div key={ii} className="absolute pointer-events-auto" style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }} data-testid={`orbit-item-${item.label.toLowerCase()}`}>
                   <div className="group relative">
-                    <div className="w-3 h-3 rounded-full border border-white/20 shadow-lg transition-transform hover:scale-150" style={{ background: item.color, boxShadow: `0 0 10px ${item.color}` }} />
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded text-[9px] font-mono text-white border border-white/10">{item.label}</div>
+                    <div className="w-8 h-8 rounded-full border border-white/20 shadow-lg transition-transform hover:scale-125 flex items-center justify-center overflow-hidden" style={{ background: item.color, boxShadow: `0 0 15px ${item.color}` }}>
+                      <item.icon className="w-4 h-4 text-white" />
+                      <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded text-[9px] font-mono text-white border border-white/10">{item.label}</div>
                   </div>
                 </div>
               );

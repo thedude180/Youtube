@@ -154,7 +154,7 @@ export function AppSidebar() {
               💰 ${(dashStats as any)?.totalRevenue?.toFixed(0) ?? '—'}
             </span>
             <span data-testid="stat-sidebar-agents" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
-              🤖 {activeAgents}/14
+              🤖 {activeAgents}/11
             </span>
           </div>
           <div className="mt-1">
@@ -261,7 +261,7 @@ export function AppSidebar() {
             </div>
             <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
               <div className="h-full bg-primary/60 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.min(100, (((agentActivities as any[])?.filter((a:any) => a.status === "completed").length ?? 0) / Math.max(1, (agentActivities as any[])?.length ?? 1)) * 100)}%` }} />
+                style={{ width: `${Math.min(100, (activeAgents / 11) * 100)}%` }} />
             </div>
           </div>
         )}

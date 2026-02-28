@@ -4,7 +4,7 @@ import {
   Zap, ArrowRight, Bot, DollarSign, BarChart3,
   Monitor, CheckCircle2, Link2, Cpu, TrendingUp,
   Brain, Calendar, Shield, Sparkles, Play,
-  Radio, Video, Layers, Target, Eye,
+  Radio, Video, Layers, Target, Eye, Users, Globe,
   RefreshCw, Clock, Award, ChevronRight,
   TrendingDown, Minus, ArrowUpRight
 } from "lucide-react";
@@ -542,7 +542,7 @@ export default function Landing() {
           </div>
           <div className="relative z-10">
             <div className="text-4xl md:text-5xl font-bold font-mono text-white mb-1 metric-display flex items-baseline gap-1">
-              <span className="count-up">{s.value}</span>
+              <span className="count-up" style={{ animation: `count-up 1s ease-out forwards ${i * 200}ms` }}>{s.value}</span>
               <span className="text-primary text-2xl">{s.suffix}</span>
             </div>
             <div className="text-xs font-mono uppercase tracking-wider text-primary/80 mb-2">{s.label}</div>
@@ -689,6 +689,23 @@ export default function Landing() {
   const pricingView = useInView(0.1);
   const howItWorksView = useInView(0.1);
 
+  const StatStrip = () => (
+    <div className="flex flex-wrap justify-center gap-4 mb-8" data-testid="widget-stat-strip">
+      {[
+        { label: "Active Creators", value: "142,831", icon: Users },
+        { label: "AI Tasks/Hour", value: "84,290", icon: Zap },
+        { label: "Creator Revenue", value: "$12.8M", icon: DollarSign },
+        { label: "Global Reach", value: "1.2B", icon: Globe },
+      ].map((stat) => (
+        <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/20 border border-border/20">
+          <stat.icon className="w-3 h-3 text-primary" />
+          <span className="text-[10px] font-mono text-muted-foreground uppercase">{stat.label}:</span>
+          <span className="text-[10px] font-mono text-white font-bold">{stat.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="border-b border-border/30 sticky top-0 z-50 bg-background/60 backdrop-blur-2xl">
@@ -747,6 +764,8 @@ export default function Landing() {
                   <span className="block text-white">The Only AI</span>
                   <span className="holographic-text">Creator Empire</span>
                 </h1>
+                
+                <StatStrip />
                 
                 <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
                   CreatorOS replaces your entire team with 11 autonomous AI agents. 

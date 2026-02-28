@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity, Heart, Zap, Brain, Shield, Clock, CheckCircle, XCircle,
   AlertTriangle, Play, Pause, RefreshCw, BarChart3, Timer, Cpu, Eye,
-  Waves, ActivitySquare
+  Waves, ActivitySquare, Terminal, Search, ZapOff, ShieldCheck,
+  Disc, Rocket
 } from "lucide-react";
 
 const PulseWaveform = () => {
@@ -154,6 +155,13 @@ function HealthTimeline({ runs }: { runs: any[] }) {
   );
 }
 
+const VitalSign = ({ label, value, color }: { label: string, value: string, color: string }) => (
+  <div className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/5" data-testid={`vital-sign-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+    <span className="text-[10px] font-mono text-muted-foreground uppercase">{label}</span>
+    <span className="text-[11px] font-mono font-bold" style={{ color }}>{value}</span>
+  </div>
+);
+
 export default function Heartbeat() {
   const { data: status, isLoading } = useQuery({ queryKey: ["/api/nexus/autonomy/status"], refetchInterval: 30000 });
   const { data: decisionsData } = useQuery({ queryKey: ["/api/nexus/autonomy/decisions"] });
@@ -233,8 +241,14 @@ export default function Heartbeat() {
                   {engines.filter((e: any) => e.status === 'error' || e.status === 'disabled').length} Issues
                 </span>
               </div>
-              <div className="w-full space-y-4">
+                <div className="w-full space-y-4">
                 <PulseWaveform />
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <VitalSign label="Sub-Neural" value="124.8 MHz" color="hsl(265 80% 60%)" />
+                  <VitalSign label="Neural Load" value="84%" color="hsl(142 70% 50%)" />
+                  <VitalSign label="Uplink" value="1.2 GB/s" color="hsl(200 80% 60%)" />
+                  <VitalSign label="Ping" value="14ms" color="hsl(160 80% 50%)" />
+                </div>
                 <NeuralPulse />
                 <SystemUptimeGauge uptime={s.uptime || "0h"} />
               </div>
