@@ -31,36 +31,42 @@ const TIER_CAPABILITIES: Record<string, {
   runBusinessAgents: boolean; businessAgentIntervalMs: number;
   runLegalTaxAgents: boolean; legalTaxIntervalMs: number;
   runTeamOps: boolean; teamOpsIntervalMs: number;
+  runConsistencyAgent: boolean;
 }> = {
   free: {
     runAITeam: false, aiTeamIntervalMs: 0,
     runBusinessAgents: false, businessAgentIntervalMs: 0,
     runLegalTaxAgents: false, legalTaxIntervalMs: 0,
     runTeamOps: false, teamOpsIntervalMs: 0,
+    runConsistencyAgent: false,
   },
   youtube: {
     runAITeam: true, aiTeamIntervalMs: 4 * 60 * 60 * 1000,
     runBusinessAgents: false, businessAgentIntervalMs: 0,
     runLegalTaxAgents: false, legalTaxIntervalMs: 0,
     runTeamOps: false, teamOpsIntervalMs: 0,
+    runConsistencyAgent: true,
   },
   starter: {
     runAITeam: true, aiTeamIntervalMs: 3 * 60 * 60 * 1000,
     runBusinessAgents: false, businessAgentIntervalMs: 0,
     runLegalTaxAgents: false, legalTaxIntervalMs: 0,
     runTeamOps: false, teamOpsIntervalMs: 0,
+    runConsistencyAgent: true,
   },
   pro: {
     runAITeam: true, aiTeamIntervalMs: 2 * 60 * 60 * 1000,
     runBusinessAgents: true, businessAgentIntervalMs: 6 * 60 * 60 * 1000,
     runLegalTaxAgents: false, legalTaxIntervalMs: 0,
     runTeamOps: false, teamOpsIntervalMs: 0,
+    runConsistencyAgent: true,
   },
   ultimate: {
     runAITeam: true, aiTeamIntervalMs: 60 * 60 * 1000,
     runBusinessAgents: true, businessAgentIntervalMs: 4 * 60 * 60 * 1000,
     runLegalTaxAgents: true, legalTaxIntervalMs: 6 * 60 * 60 * 1000,
     runTeamOps: true, teamOpsIntervalMs: 8 * 60 * 60 * 1000,
+    runConsistencyAgent: true,
   },
 };
 
@@ -187,6 +193,15 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
     await initUploadWatcherForUser(userId);
   } catch (err: any) {
     logger.warn(`[${userId}] Upload watcher init failed: ${err.message}`);
+  }
+
+  if (caps.runConsistencyAgent) {
+    try {
+      const { initConsistencyAgentForUser } = await import("./content-consistency-agent");
+      await initConsistencyAgentForUser(userId);
+    } catch (err: any) {
+      logger.warn(`[${userId}] Consistency agent init failed: ${err.message}`);
+    }
   }
 
   return { tier, agentsStarted };

@@ -757,6 +757,12 @@ httpServer.listen(
       }).catch(err => logger.error("Upload watcher failed to load", { error: String(err) }));
     });
 
+    delay(40_000, () => {
+      import("./services/content-consistency-agent").then(m => {
+        m.bootstrapConsistencyAgents().catch(err => logger.error("Consistency agent bootstrap failed", { error: String(err) }));
+      }).catch(err => logger.error("Consistency agent failed to load", { error: String(err) }));
+    });
+
     delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
 
     const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");

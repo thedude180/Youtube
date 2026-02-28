@@ -713,6 +713,14 @@ export default function Autopilot() {
     mutationFn: () => apiRequest("POST", "/api/content-automation/sweep/cancel"),
     onSuccess: () => { refetchAutomation(); },
   });
+  const runConsistencyMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/content-automation/consistency/run"),
+    onSuccess: () => { refetchAutomation(); },
+  });
+  const applyAISuggestionMutation = useMutation({
+    mutationFn: (videoId: number) => apiRequest("POST", `/api/content-automation/consistency/apply/${videoId}`),
+    onSuccess: () => { refetchAutomation(); },
+  });
 
   const activateMutation = useMutation({
     mutationFn: async (reseed?: boolean) => {
@@ -1112,6 +1120,110 @@ export default function Autopilot() {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Content Consistency Agent */}
+      <div className="card-empire rounded-2xl p-5 mb-4 relative overflow-hidden" data-testid="widget-consistency-agent">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold font-mono text-primary uppercase tracking-wider">Content Consistency Agent</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Runs every 4h — detects upload gaps, fills your calendar, audits every video for SEO</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${(contentAutomation as any)?.consistencyAgent?.active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/30'}`} data-testid="dot-consistency-status" />
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30">4H CYCLE</span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3 mb-4">
+            <div className="rounded-xl border border-border/30 bg-muted/10 p-3 text-center">
+              <div className="text-2xl font-black font-mono text-primary" data-testid="stat-cadence">
+                {(contentAutomation as any)?.consistencyAgent?.lastRunStats?.cadencePerWeek ?? '—'}
+              </div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">uploads / week</div>
+            </div>
+            <div className="rounded-xl border border-border/30 bg-muted/10 p-3 text-center">
+              <div className="text-2xl font-black font-mono text-amber-400" data-testid="stat-gaps-filled">
+                {(contentAutomation as any)?.consistencyAgent?.lastRunStats?.gapsFilled ?? '—'}
+              </div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">gaps filled</div>
+            </div>
+            <div className="rounded-xl border border-border/30 bg-muted/10 p-3 text-center">
+              <div className="text-2xl font-black font-mono text-emerald-400" data-testid="stat-suggestions">
+                {(contentAutomation as any)?.consistencyAgent?.pendingRecommendations ?? '—'}
+              </div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">AI suggestions</div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 text-[11px] text-muted-foreground font-mono mb-4">
+            <div className="flex justify-between">
+              <span>Last audit</span>
+              <span className="text-foreground" data-testid="text-consistency-last-run">
+                {(contentAutomation as any)?.consistencyAgent?.lastRunAt
+                  ? new Date((contentAutomation as any).consistencyAgent.lastRunAt).toLocaleString()
+                  : 'Not yet run'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Next audit</span>
+              <span className="text-foreground" data-testid="text-consistency-next-run">
+                {(contentAutomation as any)?.consistencyAgent?.nextRunAt
+                  ? new Date((contentAutomation as any).consistencyAgent.nextRunAt).toLocaleString()
+                  : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Videos audited</span>
+              <span className="text-foreground">{(contentAutomation as any)?.consistencyAgent?.lastRunStats?.videosAudited ?? 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>SEO issues found</span>
+              <span className="text-amber-400">{(contentAutomation as any)?.consistencyAgent?.lastRunStats?.seoIssuesFound ?? 0}</span>
+            </div>
+          </div>
+
+          {((contentAutomation as any)?.consistencyAgent?.recommendations?.length ?? 0) > 0 && (
+            <div className="mb-4" data-testid="section-recommendations">
+              <p className="text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-wider mb-2">AI Optimization Queue</p>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {((contentAutomation as any)?.consistencyAgent?.recommendations ?? []).map((rec: any, i: number) => (
+                  <div key={rec.videoId} className="flex items-start justify-between gap-2 rounded-lg border border-border/20 bg-muted/5 p-2.5" data-testid={`rec-item-${rec.videoId}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-mono text-foreground truncate">{rec.title || `Video ${rec.videoId}`}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{rec.suggestion}</p>
+                      {rec.aiTitle && (
+                        <p className="text-[10px] text-primary mt-0.5 truncate">AI title: {rec.aiTitle}</p>
+                      )}
+                    </div>
+                    {rec.aiTitle && (
+                      <button
+                        className="shrink-0 text-[10px] px-2 py-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono hover:bg-emerald-500/20 transition-colors"
+                        onClick={() => applyAISuggestionMutation.mutate(rec.videoId)}
+                        disabled={applyAISuggestionMutation.isPending}
+                        data-testid={`button-apply-${rec.videoId}`}>
+                        Apply
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            className="w-full text-xs py-2 rounded-lg border border-primary/30 bg-primary/10 text-primary font-mono hover:bg-primary/20 transition-colors"
+            style={{ boxShadow: '0 0 8px hsl(265 80% 60% / 0.15)' }}
+            onClick={() => runConsistencyMutation.mutate()}
+            disabled={runConsistencyMutation.isPending || (contentAutomation as any)?.consistencyAgent?.isRunning}
+            data-testid="button-run-consistency">
+            {runConsistencyMutation.isPending || (contentAutomation as any)?.consistencyAgent?.isRunning
+              ? 'Auditing Channel...'
+              : 'Run Audit Now'}
+          </button>
         </div>
       </div>
 
