@@ -1,6 +1,11 @@
 import type { Express, Request, Response } from "express";
 import { getOpenAIClient } from "../lib/openai";
 import { getUserId } from "./helpers";
+import { storage } from "../storage";
+import {
+  LEGAL_AGENTS, TAX_AGENTS, ALL_LEGAL_TAX_AGENTS,
+  runLegalTaxAgentCycle, runSingleLegalTaxAgent,
+} from "../legal-tax-agent-engine";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -171,17 +176,95 @@ export function registerLegalTaxRoutes(app: Express) {
 
     res.json({
       legal: Object.entries(LEGAL_ADVISORS).map(([id, a]) => ({
-        id,
-        name: a.name,
-        title: a.title,
-        specialty: a.specialty,
+        id, name: a.name, title: a.title, specialty: a.specialty,
       })),
       tax: Object.entries(TAX_ADVISORS).map(([id, a]) => ({
-        id,
-        name: a.name,
-        title: a.title,
-        specialty: a.specialty,
+        id, name: a.name, title: a.title, specialty: a.specialty,
       })),
     });
+  });
+
+  app.get("/api/legal-tax/agents/status", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const agentIds = Object.keys(ALL_LEGAL_TAX_AGENTS);
+    const recentActivities = await storage.getAgentActivities(userId, undefined, 200);
+    const legalTaxActivities = recentActivities.filter(a => agentIds.includes(a.agentId));
+
+    const agentStatus = agentIds.map(agentId => {
+      const agent = ALL_LEGAL_TAX_AGENTS[agentId];
+      const activities = legalTaxActivities.filter(a => a.agentId === agentId);
+      const lastCompleted = activities.find(a => a.status === "completed");
+      const isRunning = activities.find(a => a.status === "running" &&
+        a.createdAt && (Date.now() - new Date(a.createdAt).getTime()) < 120000);
+
+      return {
+        agentId,
+        name: agent.name,
+        title: agent.title,
+        specialty: agent.specialty,
+        color: agent.color,
+        emoji: agent.emoji,
+        taskDescription: agent.taskDescription,
+        type: agentId.startsWith("legal") ? "legal" : "tax",
+        status: isRunning ? "running" : lastCompleted ? "idle" : "standby",
+        lastRun: lastCompleted?.createdAt ?? null,
+        lastFinding: lastCompleted?.details?.description ?? null,
+        activityCount: activities.filter(a => a.status === "completed").length,
+      };
+    });
+
+    res.json(agentStatus);
+  });
+
+  app.get("/api/legal-tax/agents/activities", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const agentIds = Object.keys(ALL_LEGAL_TAX_AGENTS);
+    const allActivities = await storage.getAgentActivities(userId, undefined, 300);
+    const legalTaxActivities = allActivities
+      .filter(a => agentIds.includes(a.agentId) && a.status === "completed")
+      .slice(0, 50);
+
+    res.json(legalTaxActivities);
+  });
+
+  app.get("/api/legal-tax/agents/:agentId/activities", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const { agentId } = req.params;
+    if (!ALL_LEGAL_TAX_AGENTS[agentId]) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const activities = await storage.getAgentActivities(userId, agentId, 10);
+    const completed = activities.filter(a => a.status === "completed");
+    res.json(completed);
+  });
+
+  app.post("/api/legal-tax/agents/run-all", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const { type } = req.body;
+    res.json({ message: "Agent cycle started", type: type ?? "all" });
+    runLegalTaxAgentCycle(userId, type).catch(() => {});
+  });
+
+  app.post("/api/legal-tax/agents/:agentId/run", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const { agentId } = req.params;
+    const found = await runSingleLegalTaxAgent(userId, agentId);
+    if (!found) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    res.json({ message: "Agent task queued", agentId });
   });
 }

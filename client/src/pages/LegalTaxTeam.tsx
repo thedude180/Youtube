@@ -1,21 +1,21 @@
 import { useState, useRef, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import {
   Scale, DollarSign, MessageSquare, Send, Loader2,
   Shield, FileText, Globe, Building2, Lock, Users, Music, AlertTriangle,
   Calculator, Receipt, PiggyBank, MapPin, Bitcoin,
-  Briefcase, X, Search, Star, Zap, CheckCircle2, TrendingUp,
-  Clock, Award, ChevronRight,
+  Briefcase, X, Star, Zap, CheckCircle2, TrendingUp,
+  Clock, Play, RefreshCw, Activity, Terminal,
 } from "lucide-react";
 
 const LEGAL_ADVISORS = [
   {
     id: "copyright-ip",
+    agentId: "legal-copyright",
     name: "Victoria Chen",
     initials: "VC",
     title: "Copyright & IP Attorney",
@@ -35,6 +35,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "contract-deals",
+    agentId: "legal-contracts",
     name: "Marcus Webb",
     initials: "MW",
     title: "Contract & Deal Attorney",
@@ -54,6 +55,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "dmca-platform",
+    agentId: "legal-dmca",
     name: "Dr. Aisha Okonkwo",
     initials: "AO",
     title: "DMCA & Platform Law Expert",
@@ -73,6 +75,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "business-corporate",
+    agentId: "legal-corporate",
     name: "James Thornton",
     initials: "JT",
     title: "Business & Corporate Attorney",
@@ -92,6 +95,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "privacy-data",
+    agentId: "legal-privacy",
     name: "Sofia Reyes",
     initials: "SR",
     title: "Privacy & Data Law Attorney",
@@ -111,6 +115,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "employment-creator",
+    agentId: "legal-employment",
     name: "Derek Morgan",
     initials: "DM",
     title: "Employment & Creator Economy Attorney",
@@ -130,6 +135,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "defamation-reputation",
+    agentId: "legal-defamation",
     name: "Claire Fontaine",
     initials: "CF",
     title: "Defamation & Reputation Attorney",
@@ -149,6 +155,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "music-licensing",
+    agentId: "legal-music",
     name: "Andre Baptiste",
     initials: "AB",
     title: "Music Licensing & Publishing Attorney",
@@ -168,6 +175,7 @@ const LEGAL_ADVISORS = [
   },
   {
     id: "international-law",
+    agentId: "legal-international",
     name: "Yuki Tanaka",
     initials: "YT",
     title: "International & Cross-Border Attorney",
@@ -190,6 +198,7 @@ const LEGAL_ADVISORS = [
 const TAX_ADVISORS = [
   {
     id: "self-employment",
+    agentId: "tax-self-employment",
     name: "Robert Kaufman",
     initials: "RK",
     title: "Self-Employment Tax Specialist",
@@ -209,6 +218,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "business-deductions",
+    agentId: "tax-deductions",
     name: "Patricia Hollis",
     initials: "PH",
     title: "Business Deductions Expert",
@@ -228,6 +238,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "business-structure-tax",
+    agentId: "tax-structure",
     name: "Nathan Cross",
     initials: "NC",
     title: "Business Structure & Entity Tax Advisor",
@@ -247,6 +258,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "creator-income",
+    agentId: "tax-income",
     name: "Michelle Tran",
     initials: "MT",
     title: "Creator Income & Revenue Tax Advisor",
@@ -266,6 +278,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "international-tax",
+    agentId: "tax-international",
     name: "Dr. Ivan Petrov",
     initials: "IP",
     title: "International Tax Advisor",
@@ -285,6 +298,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "crypto-digital",
+    agentId: "tax-crypto",
     name: "Zara Kim",
     initials: "ZK",
     title: "Crypto & Digital Asset Tax Advisor",
@@ -304,6 +318,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "state-local",
+    agentId: "tax-state",
     name: "Thomas Briggs",
     initials: "TB",
     title: "State & Local Tax Advisor",
@@ -323,6 +338,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "retirement-planning",
+    agentId: "tax-retirement",
     name: "Sandra Osei",
     initials: "SO",
     title: "Retirement & Tax Planning Advisor",
@@ -342,6 +358,7 @@ const TAX_ADVISORS = [
   },
   {
     id: "audit-defense",
+    agentId: "tax-audit",
     name: "Frank Delgado",
     initials: "FD",
     title: "Audit Defense & IRS Representation",
@@ -416,7 +433,6 @@ function AdvisorChat({ advisor, type, onClose }: { advisor: any; type: "legal" |
   };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
-
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handleKey);
@@ -442,91 +458,59 @@ function AdvisorChat({ advisor, type, onClose }: { advisor: any; type: "legal" |
         }}
       >
         <div className="scan-overlay absolute inset-0 pointer-events-none z-0 rounded-2xl" />
-
         <div className="relative z-10 flex items-center gap-3 p-4 border-b border-border/20 flex-shrink-0"
           style={{ background: `linear-gradient(135deg, ${advisor.glow}18, ${advisor.glow}08)` }}>
           <div className="relative flex-shrink-0">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white text-base"
-              style={{ background: `linear-gradient(135deg, ${advisor.color}, ${advisor.glow}cc)`, boxShadow: `0 0 20px ${advisor.glow}60` }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm"
+              style={{ background: `linear-gradient(135deg, ${advisor.bg}, ${advisor.glow}22)`, border: `2px solid ${advisor.border}`, boxShadow: `0 0 12px ${advisor.glow}`, color: advisor.color }}>
               {advisor.initials}
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-black"
-              style={{ boxShadow: "0 0 6px hsl(142 70% 50%)" }} />
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-background" style={{ boxShadow: "0 0 6px hsl(142 70% 50% / 0.8)" }} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-white" data-testid="chat-advisor-name">{advisor.name}</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-                style={{ background: `${advisor.color}20`, color: advisor.color, border: `1px solid ${advisor.color}40` }}>
-                {advisor.credentials?.[0] ?? "Expert"}
-              </span>
+              <span className="font-bold text-white text-sm" data-testid="chat-advisor-name">{advisor.name}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: `${advisor.glow}20`, color: advisor.color }}>AI AGENT</span>
+              <span className="text-[10px] text-emerald-400 animate-pulse">● ONLINE</span>
             </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-muted-foreground">{advisor.title}</span>
-              <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-              <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Online
-              </span>
-            </div>
+            <div className="text-xs text-muted-foreground">{advisor.title}</div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-0.5">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3 h-3" fill={i < Math.floor(advisor.rating) ? advisor.color : "transparent"} stroke={advisor.color} strokeWidth="1.5" />
-              ))}
-            </div>
-            <button
-              onClick={onClose}
-              className="ml-2 w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
-              data-testid="button-close-advisor-chat"
-            >
-              <X className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
+          <button onClick={onClose} className="flex-shrink-0 w-8 h-8 rounded-full bg-muted/30 hover:bg-muted/50 flex items-center justify-center transition-colors" data-testid="button-close-advisor-chat">
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className="relative z-10 flex-1 overflow-y-auto p-4 space-y-3" style={{ minHeight: 280 }} data-testid="chat-messages">
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`} data-testid={`chat-message-${i}`}>
-              {msg.role === "advisor" && (
-                <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
-                  style={{ background: `linear-gradient(135deg, ${advisor.color}cc, ${advisor.glow}88)`, boxShadow: `0 0 10px ${advisor.glow}40` }}>
+        <div className="relative z-10 flex-1 overflow-y-auto p-4 space-y-3 min-h-0" data-testid="chat-messages">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex gap-2 ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+              {m.role === "advisor" && (
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-1"
+                  style={{ background: `${advisor.glow}20`, border: `1px solid ${advisor.border}`, color: advisor.color }}>
                   {advisor.initials}
                 </div>
               )}
-              <div className="flex flex-col gap-1 max-w-[80%]">
-                <div className={`px-4 py-2.5 text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "rounded-2xl rounded-tr-sm text-white"
-                    : "rounded-2xl rounded-tl-sm text-foreground"
-                }`} style={msg.role === "user" ? {
-                  background: "linear-gradient(135deg, hsl(265 80% 40%), hsl(265 80% 30%))",
-                  border: "1px solid hsl(265 80% 60% / 0.3)",
-                  boxShadow: "0 0 20px hsl(265 80% 60% / 0.15)",
-                } : {
-                  background: "hsl(230 22% 14%)",
-                  border: "1px solid hsl(265 80% 60% / 0.1)",
-                }}>
-                  {msg.content}
-                </div>
-                <span className={`text-[10px] text-muted-foreground/50 font-mono ${msg.role === "user" ? "text-right" : "text-left"}`}>
-                  {formatTime(msg.timestamp)}
-                </span>
+              <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                m.role === "user"
+                  ? "rounded-tr-sm text-white"
+                  : "rounded-tl-sm text-foreground/90"
+              }`} style={m.role === "user"
+                ? { background: "linear-gradient(135deg, hsl(265 80% 50%), hsl(265 80% 40%))", boxShadow: "0 0 10px hsl(265 80% 60% / 0.3)" }
+                : { background: "hsl(230 20% 12%)", border: "1px solid hsl(265 30% 20%)" }}>
+                {m.content}
+                <div className={`text-[9px] mt-1 ${m.role === "user" ? "text-white/40 text-right" : "text-muted-foreground/40"}`}>{formatTime(m.timestamp)}</div>
               </div>
             </div>
           ))}
           {chatMutation.isPending && (
-            <div className="flex gap-2.5 items-start" data-testid="chat-typing-indicator">
-              <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
-                style={{ background: `linear-gradient(135deg, ${advisor.color}cc, ${advisor.glow}88)` }}>
+            <div className="flex gap-2" data-testid="chat-typing-indicator">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
+                style={{ background: `${advisor.glow}20`, border: `1px solid ${advisor.border}`, color: advisor.color }}>
                 {advisor.initials}
               </div>
-              <div className="px-4 py-3 rounded-2xl rounded-tl-sm flex gap-1.5 items-center"
-                style={{ background: "hsl(230 22% 14%)", border: "1px solid hsl(265 80% 60% / 0.1)" }}>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="w-2 h-2 rounded-full"
-                    style={{ background: advisor.color, animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`, opacity: 0.8 }} />
+              <div className="flex items-center gap-1 px-4 py-3 rounded-2xl rounded-tl-sm" style={{ background: "hsl(230 20% 12%)", border: "1px solid hsl(265 30% 20%)" }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: advisor.color, animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
                 ))}
               </div>
             </div>
@@ -534,373 +518,479 @@ function AdvisorChat({ advisor, type, onClose }: { advisor: any; type: "legal" |
           <div ref={bottomRef} />
         </div>
 
-        {messages.length === 1 && suggestions.length > 0 && (
-          <div className="relative z-10 px-4 pb-2" data-testid="chat-suggestions">
-            <div className="text-[10px] text-muted-foreground/50 font-mono uppercase mb-1.5">Suggested questions</div>
-            <div className="flex flex-wrap gap-1.5">
-              {suggestions.map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendMessage(q)}
-                  className="text-[11px] px-3 py-1.5 rounded-full border text-left transition-all hover:scale-105"
-                  style={{ borderColor: `${advisor.color}40`, color: advisor.color, background: `${advisor.color}10` }}
-                  data-testid={`suggestion-${i}`}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+        {messages.length === 1 && (
+          <div className="relative z-10 px-4 pb-2 flex gap-2 flex-wrap" data-testid="chat-suggestions">
+            {suggestions.map((s, i) => (
+              <button key={i} onClick={() => sendMessage(s)}
+                className="text-[11px] px-3 py-1.5 rounded-full border transition-all duration-200 hover:scale-105 text-left"
+                style={{ background: `${advisor.glow}10`, borderColor: advisor.border, color: advisor.color }}
+                data-testid={`suggestion-${i}`}>
+                {s}
+              </button>
+            ))}
           </div>
         )}
 
-        <div className="relative z-10 p-3 border-t flex gap-2 items-end flex-shrink-0" style={{ borderColor: `${advisor.color}20` }}>
-          <Textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={`Ask ${advisor.name.split(" ")[0]} anything... (Enter to send)`}
-            className="resize-none text-sm min-h-[44px] max-h-32 flex-1 bg-white/5 border-white/10 focus:border-primary/50"
-            rows={1}
-            data-testid="input-advisor-question"
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-          />
-          <Button
-            onClick={() => sendMessage()}
-            disabled={!input.trim() || chatMutation.isPending}
-            size="icon"
-            className="h-11 w-11 flex-shrink-0 rounded-xl transition-all"
-            style={{
-              background: `linear-gradient(135deg, ${advisor.color}, ${advisor.glow}cc)`,
-              boxShadow: input.trim() ? `0 0 20px ${advisor.glow}60` : "none",
-            }}
-            data-testid="button-send-message"
-          >
-            {chatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
-        </div>
-
-        <div className="relative z-10 px-4 pb-3 flex items-center justify-center gap-3 text-[10px] text-muted-foreground/40 font-mono flex-shrink-0">
-          <span className="flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> Confidential</span>
-          <span>•</span>
-          <span>Educational guidance only — not legal/tax advice</span>
-          <span>•</span>
-          <span className="flex items-center gap-1"><Shield className="w-2.5 h-2.5" /> 256-bit encrypted</span>
+        <div className="relative z-10 p-4 border-t border-border/20 flex-shrink-0">
+          <div className="flex gap-2 items-end">
+            <Textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder={`Ask ${advisor.name.split(" ")[0]} anything...`}
+              className="flex-1 min-h-[44px] max-h-28 resize-none bg-muted/20 border-border/30 text-sm"
+              data-testid="input-advisor-question"
+            />
+            <Button
+              onClick={() => sendMessage()}
+              disabled={!input.trim() || chatMutation.isPending}
+              className="h-11 w-11 p-0 flex-shrink-0"
+              style={{ background: `linear-gradient(135deg, ${advisor.color}, hsl(265 80% 50%))`, boxShadow: `0 0 15px ${advisor.glow}` }}
+              data-testid="button-send-message"
+            >
+              {chatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-[9px] text-muted-foreground/40 flex items-center gap-1"><Shield className="w-2.5 h-2.5" /> Confidential</span>
+            <span className="text-[9px] text-muted-foreground/40 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> 256-bit Encrypted</span>
+            <span className="text-[9px] text-muted-foreground/30">For educational purposes only</span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function AdvisorCard({ advisor, type, onSelect }: { advisor: any; type: "legal" | "tax"; onSelect: (a: any, t: "legal" | "tax") => void }) {
+function AgentStatusBadge({ status }: { status: string }) {
+  if (status === "running") {
+    return (
+      <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-mono bg-primary/20 text-primary border border-primary/30" data-testid="badge-agent-status-running">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+        RUNNING
+      </span>
+    );
+  }
+  if (status === "idle") {
+    return (
+      <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" data-testid="badge-agent-status-idle">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        ACTIVE
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-mono bg-muted/40 text-muted-foreground border border-border/30" data-testid="badge-agent-status-standby">
+      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60" />
+      STANDBY
+    </span>
+  );
+}
+
+function AgentCard({ advisor, type, agentStatus, onChat, onRun, isRunningNow }: {
+  advisor: any; type: "legal" | "tax";
+  agentStatus?: any; onChat: () => void; onRun: () => void; isRunningNow: boolean;
+}) {
   const Icon = advisor.icon;
-  const stars = Math.floor(advisor.rating);
+  const status = agentStatus?.status ?? "standby";
+  const lastFinding = agentStatus?.lastFinding;
+  const activityCount = agentStatus?.activityCount ?? 0;
+  const lastRun = agentStatus?.lastRun;
+
+  const timeAgo = (dt: string | null) => {
+    if (!dt) return "Never";
+    const diff = (Date.now() - new Date(dt).getTime()) / 1000;
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
   return (
     <div
-      className="group relative rounded-2xl cursor-pointer transition-all duration-300 overflow-hidden"
-      style={{ background: "linear-gradient(135deg, hsl(230 22% 9%), hsl(260 25% 11%))", border: `1px solid ${advisor.border}` }}
-      onClick={() => onSelect(advisor, type)}
+      className="relative rounded-2xl p-4 overflow-hidden transition-all duration-300 hover:scale-[1.01] group"
+      style={{
+        background: `linear-gradient(135deg, hsl(230 22% 9%) 0%, hsl(260 25% 12%) 100%)`,
+        border: `1px solid ${status === "running" ? advisor.color + "66" : advisor.border}`,
+        boxShadow: status === "running"
+          ? `0 0 24px ${advisor.glow}, 0 8px 32px hsl(265 80% 60% / 0.1)`
+          : `0 8px 32px hsl(265 80% 60% / 0.06)`,
+      }}
       data-testid={`card-advisor-${advisor.id}`}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 40px ${advisor.glow}35, 0 0 0 1px ${advisor.glow}20`; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; (e.currentTarget as HTMLDivElement).style.transform = "none"; }}
     >
-      <div className="data-grid-bg absolute inset-0 opacity-[0.03] pointer-events-none" />
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"
-        style={{ background: `radial-gradient(circle at 50% 0%, ${advisor.glow}12, transparent 70%)` }} />
-
-      <div className="relative p-4">
-        <div className="flex items-start gap-3 mb-3">
-          <div className="relative flex-shrink-0">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white text-sm transition-all group-hover:scale-105"
-              style={{
-                background: `linear-gradient(135deg, ${advisor.color}30, ${advisor.glow}15)`,
-                border: `1.5px solid ${advisor.color}50`,
-                boxShadow: `0 0 15px ${advisor.glow}30`,
-              }}>
-              <Icon className="w-5 h-5" style={{ color: advisor.color }} />
-            </div>
-            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-black"
-              style={{ boxShadow: "0 0 6px hsl(142 70% 50%)" }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-white text-sm leading-tight" data-testid={`advisor-name-${advisor.id}`}>{advisor.name}</div>
-            <div className="text-[11px] mt-0.5 font-medium" style={{ color: advisor.color }}>{advisor.title}</div>
-            <div className="flex items-center gap-1 mt-1">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-2.5 h-2.5" fill={i < stars ? advisor.color : "transparent"} stroke={advisor.color} strokeWidth="1.5" />
-              ))}
-              <span className="text-[10px] font-mono ml-0.5" style={{ color: advisor.color }}>{advisor.rating}</span>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-1.5 mb-3">
-          <div className="px-2 py-1.5 rounded-lg text-center" style={{ background: `${advisor.color}08`, border: `1px solid ${advisor.color}15` }}>
-            <div className="text-[11px] font-bold font-mono" style={{ color: advisor.color }}>{advisor.experience}</div>
-            <div className="text-[9px] text-muted-foreground/60">Experience</div>
-          </div>
-          <div className="px-2 py-1.5 rounded-lg text-center" style={{ background: `${advisor.color}08`, border: `1px solid ${advisor.color}15` }}>
-            <div className="text-[11px] font-bold font-mono truncate" style={{ color: advisor.color }}>{advisor.cases}</div>
-            <div className="text-[9px] text-muted-foreground/60">Track Record</div>
-          </div>
-        </div>
-
-        <div className="mb-2.5">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] font-mono text-muted-foreground/50 uppercase">Expertise</span>
-            <span className="text-[10px] font-mono font-bold" style={{ color: advisor.color }}>{advisor.expertise}%</span>
-          </div>
-          <div className="h-1 rounded-full overflow-hidden" style={{ background: `${advisor.color}18` }}>
-            <div className="h-full rounded-full transition-all duration-1000"
-              style={{ width: `${advisor.expertise}%`, background: `linear-gradient(90deg, ${advisor.color}80, ${advisor.color})`, boxShadow: `0 0 6px ${advisor.glow}` }} />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1 mb-3">
-          {advisor.tags.map((tag: string) => (
-            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded font-mono transition-all"
-              style={{ background: `${advisor.color}12`, color: advisor.color, border: `1px solid ${advisor.color}25` }}>
-              {tag}
-            </span>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between pt-2.5 border-t" style={{ borderColor: `${advisor.color}15` }}>
-          <span className="text-[11px] text-muted-foreground/50">{advisor.credentials?.[0]}</span>
-          <div className="flex items-center gap-1.5 text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ color: advisor.color }}>
-            <MessageSquare className="w-3 h-3" />
-            Consult Now
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HeroBanner({ activeTab }: { activeTab: "legal" | "tax" }) {
-  const [consultations, setConsultations] = useState(14847);
-  const [liveNow, setLiveNow] = useState(3);
-  useEffect(() => {
-    const t = setInterval(() => {
-      setConsultations(p => p + Math.floor(Math.random() * 3));
-      setLiveNow(Math.floor(Math.random() * 4) + 2);
-    }, 4000);
-    return () => clearInterval(t);
-  }, []);
-
-  const isLegal = activeTab === "legal";
-  const primaryColor = isLegal ? "hsl(265 80% 65%)" : "hsl(45 90% 55%)";
-  const glowColor = isLegal ? "hsl(265 80% 65% / 0.4)" : "hsl(45 90% 55% / 0.4)";
-
-  return (
-    <div className="card-empire rounded-2xl relative overflow-hidden mb-4" data-testid="hero-banner">
-      <div className="data-grid-bg absolute inset-0 opacity-[0.04] pointer-events-none" />
-      <div className="scan-overlay absolute inset-0 pointer-events-none rounded-2xl" />
-      <div className="absolute inset-0 pointer-events-none rounded-2xl"
-        style={{ background: `radial-gradient(ellipse at 70% 50%, ${glowColor}15, transparent 70%)` }} />
-
-      <div className="relative p-5 md:p-7">
-        <div className="flex flex-col md:flex-row gap-6 items-start">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-full"
-                style={{ background: `${primaryColor}15`, color: primaryColor, border: `1px solid ${primaryColor}30` }}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: primaryColor }} />
-                {liveNow} advisors online now
-              </span>
-              <span className="text-[11px] font-mono text-muted-foreground/60 bg-muted/30 px-2 py-0.5 rounded-full">
-                24/7 Available
-              </span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-2 holographic-text leading-tight" data-testid="page-title">
-              {isLegal ? "World-Class Legal Team" : "World-Class Tax Advisory Team"}
-            </h1>
-            <p className="text-sm text-muted-foreground mb-4 max-w-xl leading-relaxed">
-              {isLegal
-                ? "Elite AI-powered attorneys covering every area of creator law. Get instant legal guidance from specialists who know the creator economy inside out."
-                : "Elite AI-powered CPAs and tax advisors covering every creator tax scenario. Stop overpaying — get strategies that actually work for your income structure."}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {(isLegal ? [
-                { icon: Lock, label: "Confidential", color: "hsl(265 80% 65%)" },
-                { icon: CheckCircle2, label: "Creator-Specialized", color: "hsl(142 70% 50%)" },
-                { icon: Zap, label: "Instant Answers", color: "hsl(45 90% 55%)" },
-                { icon: Award, label: "Top 1% Experts", color: "hsl(200 80% 60%)" },
-              ] : [
-                { icon: Shield, label: "IRS-Ready", color: "hsl(265 80% 65%)" },
-                { icon: TrendingUp, label: "Tax Minimization", color: "hsl(142 70% 50%)" },
-                { icon: CheckCircle2, label: "All 50 States", color: "hsl(45 90% 55%)" },
-                { icon: Award, label: "Avg $12K Saved", color: "hsl(200 80% 60%)" },
-              ]).map(({ icon: Icon, label, color }) => (
-                <span key={label} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg font-medium"
-                  style={{ background: `${color}12`, color, border: `1px solid ${color}25` }}>
-                  <Icon className="w-3 h-3" />
-                  {label}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 md:flex md:flex-col md:items-end">
-            {[
-              { value: consultations.toLocaleString(), label: "Consultations", color: primaryColor, testid: "stat-consultations" },
-              { value: isLegal ? "9" : "9", label: "Expert Advisors", color: "hsl(142 70% 50%)", testid: "stat-advisor-count" },
-              { value: "98%", label: "Satisfaction", color: "hsl(45 90% 55%)", testid: "stat-satisfaction" },
-            ].map(({ value, label, color, testid }) => (
-              <div key={label} className="text-center md:text-right" data-testid={testid}>
-                <div className="text-xl md:text-2xl font-bold font-mono" style={{ color, textShadow: `0 0 20px ${color}60` }}>{value}</div>
-                <div className="text-[10px] text-muted-foreground/60">{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SearchBar({ query, onChange }: { query: string; onChange: (q: string) => void }) {
-  return (
-    <div className="relative mb-4" data-testid="search-bar">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-      <Input
-        value={query}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Search advisors by name, specialty, or expertise..."
-        className="pl-9 bg-muted/20 border-border/20 focus:border-primary/40 text-sm h-10"
-        data-testid="input-search-advisors"
-      />
-      {query && (
-        <button onClick={() => onChange("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-          <X className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" />
-        </button>
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none data-grid-bg" />
+      {status === "running" && (
+        <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
+          background: `radial-gradient(ellipse at top left, ${advisor.glow}10 0%, transparent 70%)`,
+          animation: "empire-glow 2s ease-in-out infinite",
+        }} />
       )}
-    </div>
-  );
-}
 
-function TrustStrip() {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4" data-testid="trust-strip">
-      {[
-        { icon: Lock, label: "Attorney-Client Style Confidentiality", sub: "All sessions private" },
-        { icon: Shield, label: "256-bit Encryption", sub: "Enterprise-grade security" },
-        { icon: Award, label: "Top 1% Experts", sub: "Vetted & specialized" },
-        { icon: Clock, label: "24/7 Availability", sub: "No appointments needed" },
-      ].map(({ icon: Icon, label, sub }, i) => (
-        <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-muted/10 border border-border/15" data-testid={`trust-badge-${i}`}>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-primary/10 flex-shrink-0">
-            <Icon className="w-3.5 h-3.5 text-primary" />
+      <div className="relative flex items-start gap-3">
+        <div className="relative flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm"
+            style={{ background: `linear-gradient(135deg, ${advisor.bg}, ${advisor.glow}15)`, border: `2px solid ${advisor.border}`, boxShadow: `0 0 12px ${advisor.glow}60`, color: advisor.color }}>
+            <Icon className="w-5 h-5" />
           </div>
-          <div>
-            <div className="text-[11px] font-semibold text-white/80 leading-tight">{label}</div>
-            <div className="text-[10px] text-muted-foreground/50">{sub}</div>
+          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${status === "running" ? "animate-pulse" : ""}`}
+            style={{ background: status === "running" ? advisor.color : status === "idle" ? "hsl(142 70% 50%)" : "hsl(220 10% 40%)" }} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="font-bold text-white text-sm leading-tight" data-testid={`advisor-name-${advisor.id}`}>{advisor.name}</div>
+              <div className="text-[11px] text-muted-foreground">{advisor.title}</div>
+            </div>
+            <AgentStatusBadge status={status} />
+          </div>
+
+          <div className="flex items-center gap-2 mt-1.5">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} className="w-2.5 h-2.5" fill={i < Math.floor(advisor.rating) ? advisor.color : "transparent"} style={{ color: advisor.color }} />
+            ))}
+            <span className="text-[10px] font-mono text-muted-foreground">{advisor.rating}</span>
+            <span className="text-[10px] text-muted-foreground/50">·</span>
+            <span className="text-[10px] text-muted-foreground">{activityCount} scans</span>
+            {lastRun && (
+              <>
+                <span className="text-[10px] text-muted-foreground/50">·</span>
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" />{timeAgo(lastRun)}
+                </span>
+              </>
+            )}
           </div>
         </div>
-      ))}
+      </div>
+
+      {lastFinding && (
+        <div className="relative mt-3 rounded-lg p-2.5 border border-border/20 bg-black/30" data-testid={`agent-finding-${advisor.id}`}>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Terminal className="w-2.5 h-2.5 text-primary/60" />
+            <span className="text-[9px] font-mono text-primary/60 uppercase">Last Finding</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{lastFinding}</p>
+        </div>
+      )}
+
+      {!lastFinding && (
+        <div className="relative mt-3 rounded-lg p-2.5 border border-dashed border-border/20 bg-muted/5">
+          <p className="text-[11px] text-muted-foreground/50 italic text-center">No autonomous scan yet — run agent to begin monitoring</p>
+        </div>
+      )}
+
+      <div className="flex gap-2 mt-3">
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 h-8 text-xs gap-1.5 border-border/30 hover:bg-muted/20"
+          onClick={onRun}
+          disabled={isRunningNow || status === "running"}
+          data-testid={`button-run-agent-${advisor.id}`}
+        >
+          {(isRunningNow || status === "running") ? (
+            <><Loader2 className="w-3 h-3 animate-spin" />Scanning...</>
+          ) : (
+            <><Play className="w-3 h-3" />Run Scan</>
+          )}
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1 h-8 text-xs gap-1.5"
+          onClick={onChat}
+          style={{ background: `linear-gradient(135deg, ${advisor.glow}40, ${advisor.glow}20)`, border: `1px solid ${advisor.border}`, color: advisor.color }}
+          data-testid={`button-chat-advisor-${advisor.id}`}
+        >
+          <MessageSquare className="w-3 h-3" />
+          Chat
+        </Button>
+      </div>
     </div>
   );
 }
 
 export default function LegalTaxTeam() {
-  const [activeChat, setActiveChat] = useState<{ advisor: any; type: "legal" | "tax" } | null>(null);
   const [activeTab, setActiveTab] = useState<"legal" | "tax">("legal");
-  const [search, setSearch] = useState("");
+  const [chatAdvisor, setChatAdvisor] = useState<{ advisor: any; type: "legal" | "tax" } | null>(null);
+  const [runningAgents, setRunningAgents] = useState<Set<string>>(new Set());
+  const [consultCount, setConsultCount] = useState(14847);
+  const [runAllPending, setRunAllPending] = useState(false);
+
+  const { data: agentStatuses, refetch: refetchStatuses } = useQuery<any[]>({
+    queryKey: ["/api/legal-tax/agents/status"],
+    refetchInterval: 20000,
+  });
+
+  const { data: agentActivities, refetch: refetchActivities } = useQuery<any[]>({
+    queryKey: ["/api/legal-tax/agents/activities"],
+    refetchInterval: 15000,
+  });
+
+  useEffect(() => {
+    const t = setInterval(() => setConsultCount(p => p + Math.floor(Math.random() * 2)), 8000);
+    return () => clearInterval(t);
+  }, []);
+
+  const runAgentMutation = useMutation({
+    mutationFn: (agentId: string) => apiRequest("POST", `/api/legal-tax/agents/${agentId}/run`, {}),
+    onMutate: (agentId) => setRunningAgents(prev => new Set(prev).add(agentId)),
+    onSettled: (_, __, agentId) => {
+      setRunningAgents(prev => { const s = new Set(prev); s.delete(agentId); return s; });
+      setTimeout(() => { refetchStatuses(); refetchActivities(); }, 3000);
+    },
+  });
+
+  const runAllMutation = useMutation({
+    mutationFn: (type: "legal" | "tax" | "all") => apiRequest("POST", "/api/legal-tax/agents/run-all", { type }),
+    onMutate: () => setRunAllPending(true),
+    onSettled: () => {
+      setTimeout(() => { refetchStatuses(); refetchActivities(); }, 4000);
+      setTimeout(() => setRunAllPending(false), 6000);
+    },
+  });
+
+  const getAgentStatus = (agentId: string) =>
+    (agentStatuses as any[])?.find((s: any) => s.agentId === agentId);
+
+  const legalStatuses = (agentStatuses as any[])?.filter(s => s.type === "legal") ?? [];
+  const taxStatuses = (agentStatuses as any[])?.filter(s => s.type === "tax") ?? [];
+  const activeCount = (agentStatuses as any[])?.filter(s => s.status === "idle" || s.status === "running").length ?? 0;
+  const totalScans = (agentStatuses as any[])?.reduce((sum, s) => sum + (s.activityCount ?? 0), 0) ?? 0;
+  const recentActivities = (agentActivities as any[])?.slice(0, 20) ?? [];
+
+  const agentIdForActivity = (agentId: string) => {
+    const all = [...LEGAL_ADVISORS, ...TAX_ADVISORS];
+    return all.find(a => a.agentId === agentId);
+  };
+
+  const timeAgo = (dt: string | null) => {
+    if (!dt) return "—";
+    const diff = (Date.now() - new Date(dt).getTime()) / 1000;
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
 
   const currentAdvisors = activeTab === "legal" ? LEGAL_ADVISORS : TAX_ADVISORS;
-  const filteredAdvisors = search
-    ? currentAdvisors.filter(a =>
-        a.name.toLowerCase().includes(search.toLowerCase()) ||
-        a.title.toLowerCase().includes(search.toLowerCase()) ||
-        a.specialty.toLowerCase().includes(search.toLowerCase()) ||
-        a.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
-      )
-    : currentAdvisors;
 
   return (
-    <div className="p-3 lg:p-4 space-y-0 max-w-6xl mx-auto page-enter" data-testid="page-legal-tax-team">
-      <div className="flex gap-1 p-1 rounded-xl bg-muted/20 border border-border/20 mb-4" data-testid="tab-switcher">
-        {(["legal", "tax"] as const).map((tab) => {
-          const isActive = activeTab === tab;
-          const isLegal = tab === "legal";
-          return (
+    <div className="min-h-screen animated-gradient-bg relative pb-nav">
+      <div className="scan-overlay absolute inset-0 pointer-events-none z-0" />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+        <div className="relative rounded-2xl overflow-hidden" data-testid="hero-banner"
+          style={{ background: "linear-gradient(135deg, hsl(230 25% 7%) 0%, hsl(265 30% 10%) 50%, hsl(230 25% 7%) 100%)", border: "1px solid hsl(265 60% 40% / 0.3)" }}>
+          <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, hsl(265 80% 60% / 0.12) 0%, transparent 60%)" }} />
+
+          <div className="relative p-5 md:p-8">
+            <div className="flex flex-col md:flex-row md:items-center gap-6">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono border" style={{ background: "hsl(265 80% 60% / 0.15)", borderColor: "hsl(265 80% 60% / 0.4)", color: "hsl(265 80% 70%)" }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    AI AGENT COMMAND CENTER
+                  </div>
+                  <span className="text-[11px] text-emerald-400 animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    {activeCount}/18 AGENTS ACTIVE
+                  </span>
+                </div>
+                <h1 className="text-2xl md:text-3xl font-bold holographic-text mb-2" data-testid="page-title">
+                  {activeTab === "legal" ? "Legal Defense AI Team" : "Tax Strategy AI Team"}
+                </h1>
+                <p className="text-sm text-muted-foreground max-w-xl">
+                  18 autonomous AI agents — 9 world-class legal advisors + 9 elite tax strategists — running background audits, monitoring your compliance, and available 24/7 for direct consultation.
+                </p>
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <Button
+                    size="sm"
+                    onClick={() => runAllMutation.mutate(activeTab)}
+                    disabled={runAllPending}
+                    className="gap-2 font-mono text-xs"
+                    style={{ background: "linear-gradient(135deg, hsl(265 80% 50%), hsl(265 80% 40%))", boxShadow: "0 0 20px hsl(265 80% 60% / 0.4)" }}
+                    data-testid="button-run-all-agents"
+                  >
+                    {runAllPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                    Run Full {activeTab === "legal" ? "Legal" : "Tax"} Audit
+                  </Button>
+                  <Button
+                    size="sm" variant="outline"
+                    onClick={() => runAllMutation.mutate("all")}
+                    disabled={runAllPending}
+                    className="gap-2 font-mono text-xs border-border/30"
+                    data-testid="button-run-all-18"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Run All 18 Agents
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 flex-shrink-0">
+                {[
+                  { label: "Consultations", value: consultCount.toLocaleString(), icon: MessageSquare, color: "hsl(265 80% 65%)", testid: "stat-consultations" },
+                  { label: "Agents Active", value: `${activeCount}/18`, icon: Activity, color: "hsl(142 70% 50%)", testid: "stat-advisor-count" },
+                  { label: "Satisfaction", value: "98%", icon: Star, color: "hsl(45 90% 55%)", testid: "stat-satisfaction" },
+                ].map(stat => (
+                  <div key={stat.label} className="text-center p-3 rounded-xl border border-border/20 bg-black/20" data-testid={stat.testid}>
+                    <stat.icon className="w-4 h-4 mx-auto mb-1" style={{ color: stat.color }} />
+                    <div className="text-lg font-bold font-mono" style={{ color: stat.color }}>{stat.value}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-4" data-testid="trust-strip">
+              {[
+                { icon: "🔒", label: "Attorney-Client Confidentiality" },
+                { icon: "🛡", label: "256-bit Encrypted" },
+                { icon: "⚖️", label: "Top 1% AI Advisors" },
+                { icon: "⚡", label: "24/7 Availability" },
+              ].map((b, i) => (
+                <span key={b.label} className="flex items-center gap-1.5 text-[11px] text-muted-foreground px-2.5 py-1 rounded-full border border-border/20 bg-muted/10" data-testid={`trust-badge-${i}`}>
+                  <span>{b.icon}</span>{b.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          {(["legal", "tax"] as const).map(tab => (
             <button
               key={tab}
-              onClick={() => { setActiveTab(tab); setSearch(""); }}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200"
-              style={isActive ? {
-                background: isLegal ? "hsl(265 80% 60% / 0.2)" : "hsl(45 90% 55% / 0.15)",
-                color: isLegal ? "hsl(265 80% 70%)" : "hsl(45 90% 65%)",
-                border: `1px solid ${isLegal ? "hsl(265 80% 60% / 0.4)" : "hsl(45 90% 55% / 0.4)"}`,
-                boxShadow: `0 0 20px ${isLegal ? "hsl(265 80% 60% / 0.2)" : "hsl(45 90% 55% / 0.2)"}`,
-              } : { color: "hsl(0 0% 50%)" }}
+              onClick={() => setActiveTab(tab)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-mono text-sm font-bold transition-all duration-300"
+              style={activeTab === tab ? {
+                background: "linear-gradient(135deg, hsl(265 80% 50%), hsl(265 80% 40%))",
+                color: "white", boxShadow: "0 0 20px hsl(265 80% 60% / 0.4)",
+              } : {
+                background: "hsl(230 22% 10%)", color: "hsl(265 40% 60%)",
+                border: "1px solid hsl(265 30% 20%)",
+              }}
               data-testid={`tab-${tab}`}
             >
-              {isLegal ? <Scale className="w-4 h-4" /> : <Calculator className="w-4 h-4" />}
-              {isLegal ? "Legal Team" : "Tax Team"}
-              <Badge variant="secondary" className="text-[10px] ml-0.5 h-5 px-1.5">
-                {isLegal ? LEGAL_ADVISORS.length : TAX_ADVISORS.length}
-              </Badge>
+              {tab === "legal" ? <Scale className="w-4 h-4" /> : <Calculator className="w-4 h-4" />}
+              {tab === "legal" ? "Legal Defense Team" : "Tax Strategy Team"}
+              <span className="text-xs opacity-70">(9)</span>
             </button>
-          );
-        })}
-      </div>
-
-      <HeroBanner activeTab={activeTab} />
-      <TrustStrip />
-      <SearchBar query={search} onChange={setSearch} />
-
-      {filteredAdvisors.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground" data-testid="no-results">
-          <Search className="w-10 h-10 mx-auto mb-3 opacity-20" />
-          <p>No advisors match "{search}"</p>
-          <button onClick={() => setSearch("")} className="text-primary text-sm mt-2 hover:underline">Clear search</button>
-        </div>
-      ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4" data-testid={`section-${activeTab}-team`}>
-          {filteredAdvisors.map((advisor) => (
-            <AdvisorCard
-              key={advisor.id}
-              advisor={advisor}
-              type={activeTab}
-              onSelect={(adv, type) => setActiveChat({ advisor: adv, type })}
-            />
           ))}
         </div>
-      )}
 
-      <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="section-bottom-cta">
-        <div className="data-grid-bg absolute inset-0 opacity-[0.03] pointer-events-none" />
-        <div className="relative flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            <h3 className="font-bold text-white mb-1">Need a specific specialist?</h3>
-            <p className="text-sm text-muted-foreground">Every advisor is available right now — just click any card to start a consultation.</p>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-mono text-muted-foreground uppercase tracking-wider">
+                {activeTab === "legal" ? "Legal" : "Tax"} AI Agents — Autonomous Monitoring
+              </h2>
+              <span className="text-[10px] font-mono text-primary/60">
+                {activeTab === "legal" ? legalStatuses.filter(s => s.activityCount > 0).length : taxStatuses.filter(s => s.activityCount > 0).length} scanned
+              </span>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              {currentAdvisors.map(advisor => (
+                <AgentCard
+                  key={advisor.id}
+                  advisor={advisor}
+                  type={activeTab}
+                  agentStatus={getAgentStatus(advisor.agentId)}
+                  onChat={() => setChatAdvisor({ advisor, type: activeTab })}
+                  onRun={() => runAgentMutation.mutate(advisor.agentId)}
+                  isRunningNow={runningAgents.has(advisor.agentId)}
+                />
+              ))}
+            </div>
           </div>
-          <div className="flex gap-3 flex-wrap justify-center">
-            {[
-              { value: `${LEGAL_ADVISORS.length + TAX_ADVISORS.length}`, label: "Total Advisors", color: "hsl(265 80% 65%)", testid: "stat-advisors" },
-              { value: "18+", label: "Specialty Areas", color: "hsl(142 70% 50%)", testid: "stat-areas" },
-              { value: "24/7", label: "Always On", color: "hsl(45 90% 55%)", testid: "stat-availability" },
-            ].map(({ value, label, color, testid }) => (
-              <div key={label} className="text-center px-4 py-2 rounded-xl border" style={{ borderColor: `${color}25`, background: `${color}08` }} data-testid={testid}>
-                <div className="text-xl font-bold font-mono" style={{ color }}>{value}</div>
-                <div className="text-[10px] text-muted-foreground/60">{label}</div>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border/20 bg-black/40 overflow-hidden" data-testid="widget-agent-activity-feed">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <span className="text-xs font-mono text-primary/80 uppercase">Live Agent Feed</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground font-mono">{recentActivities.length} events</span>
               </div>
-            ))}
+
+              <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
+                {recentActivities.length === 0 && (
+                  <div className="text-center py-8">
+                    <Activity className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground/50">No agent activity yet</p>
+                    <p className="text-[10px] text-muted-foreground/30 mt-1">Run any agent to start monitoring</p>
+                  </div>
+                )}
+                {recentActivities.map((activity: any, i: number) => {
+                  const adv = agentIdForActivity(activity.agentId);
+                  return (
+                    <div key={activity.id ?? i} className="flex gap-2.5 p-2 rounded-lg bg-muted/10 border border-border/10" data-testid={`activity-item-${i}`}>
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5"
+                        style={{ background: `${adv?.glow ?? "hsl(265 80% 60% / 0.2)"}20`, border: `1px solid ${adv?.border ?? "hsl(265 30% 30%)"}`, color: adv?.color ?? "hsl(265 80% 65%)" }}>
+                        {adv?.initials ?? "AI"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[10px] font-mono font-bold" style={{ color: adv?.color ?? "hsl(265 80% 65%)" }}>
+                            {adv?.name?.split(" ")[0] ?? activity.agentId}
+                          </span>
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                          <span className="text-[9px] text-muted-foreground/50">{timeAgo(activity.createdAt)}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
+                          {(activity.details as any)?.description ?? activity.action}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/20 bg-black/30 p-4" data-testid="widget-audit-summary">
+              <div className="text-xs font-mono text-muted-foreground uppercase mb-3">Audit Summary</div>
+              <div className="space-y-2">
+                {[
+                  { label: "Total Scans Run", value: totalScans.toString(), color: "hsl(265 80% 65%)" },
+                  { label: "Agents Activated", value: `${activeCount}/18`, color: "hsl(142 70% 50%)" },
+                  { label: "Legal Agents", value: `${legalStatuses.filter(s => s.activityCount > 0).length}/9`, color: "hsl(200 80% 60%)" },
+                  { label: "Tax Agents", value: `${taxStatuses.filter(s => s.activityCount > 0).length}/9`, color: "hsl(45 90% 55%)" },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center justify-between py-1 border-b border-border/10 last:border-0">
+                    <span className="text-[11px] text-muted-foreground">{item.label}</span>
+                    <span className="text-[11px] font-mono font-bold" style={{ color: item.color }}>{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/20 bg-black/30 p-4" data-testid="section-bottom-cta">
+              <div className="text-center">
+                <div className="text-2xl font-bold font-mono holographic-text mb-1" data-testid="stat-advisors">18</div>
+                <div className="text-xs text-muted-foreground mb-0.5">Total AI Advisors</div>
+                <div className="text-xs font-mono text-emerald-400" data-testid="stat-availability">24/7 Available</div>
+                <div className="mt-3 flex flex-wrap gap-2 justify-center">
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-muted/20 border border-border/20 text-muted-foreground">9 Legal Experts</span>
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-muted/20 border border-border/20 text-muted-foreground">9 Tax Advisors</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground/50 mt-2">For educational purposes only. Consult a licensed professional for your specific situation.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-2 py-3 text-[10px] text-muted-foreground/40 font-mono" data-testid="disclaimer-footer">
-        <AlertTriangle className="w-3 h-3" />
-        Educational guidance only. Not attorney-client privilege or professional advice. Consult a licensed attorney/CPA for your specific situation.
-      </div>
-
-      {activeChat && (
+      {chatAdvisor && (
         <AdvisorChat
-          advisor={activeChat.advisor}
-          type={activeChat.type}
-          onClose={() => setActiveChat(null)}
+          advisor={chatAdvisor.advisor}
+          type={chatAdvisor.type}
+          onClose={() => setChatAdvisor(null)}
         />
       )}
     </div>
