@@ -60,7 +60,7 @@ const OrbitalSystem = () => {
               const x = 145 + ring.radius * Math.cos(angle * Math.PI / 180);
               const y = 145 + ring.radius * Math.sin(angle * Math.PI / 180);
               return (
-                <div key={ii} className="absolute pointer-events-auto" style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}>
+                <div key={ii} className="absolute pointer-events-auto" style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }} data-testid={`orbit-item-${item.label.toLowerCase()}`}>
                   <div className="group relative">
                     <div className="w-3 h-3 rounded-full border border-white/20 shadow-lg transition-transform hover:scale-150" style={{ background: item.color, boxShadow: `0 0 10px ${item.color}` }} />
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded text-[9px] font-mono text-white border border-white/10">{item.label}</div>

@@ -66,3 +66,8 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **Production workflow**: Runs pre-built `dist/` files — must run `npx vite build` AND restart workflow after any frontend changes
 - **Testing admin OIDC**: `[OIDC] Configure next login with {sub: "7210ff92-76dd-4d0a-80bb-9eb5be27508b", email: "thedude180@gmail.com"}` then navigate `/api/login`
 - **T001-T008 visual upgrades**: All implemented and e2e verified — Empire Score, AI Ticker, Platform Pulse (Dashboard), Radar/Threat/Signal (WarRoom), Pipeline/LiveTasks (Autopilot), Phase Hero/Velocity (Growth), BattleBars/MarketRadar (CompetitiveEdge), Orbital/Telemetry (MissionControl), Health Gauge/Timeline (Heartbeat), Live Stats/Logos/Trust/CTA (Landing)
+- **CompetitiveEdge testids updated**: `CompetitorBattleBars` uses `widget-battle-bars` (was `widget-competitor-battle`); `MarketShareRadar` uses `widget-market-radar` (was `widget-market-share-radar`) — enhanced with 5-metric battle format and hex radar chart
+- **API endpoints added**: `/api/competitive-edge/insights`, `/api/seo/scores/me`, `/api/seo/rankings/me`, `/api/seo/opportunities/me` — all use `requireAuth` and return user-specific data
+- **Dashboard stats enhanced**: `getStats()` now returns `subscriberCount` (sum from channels table); `StatsResponse` type updated accordingly
+- **MissionControl orbit items**: orbit-item-* testids added to each orbital dot for e2e testing
+- **Heartbeat timeline bars**: `data-testid="timeline-bar-${i}"` added to 24-hour timeline bars

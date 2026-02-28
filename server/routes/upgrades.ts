@@ -1542,6 +1542,59 @@ export function registerUpgradeRoutes(app: Express) {
   // SEO & DISCOVERY ROUTES (/api/seo/)
   // ═══════════════════════════════════════════════════════
 
+  app.get("/api/seo/scores/me", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    req.params.userId = userId;
+    try {
+      const userVideos = await storage.getVideosByUser(userId);
+      const scores = userVideos.map(v => {
+        const meta = v.metadata as any || {};
+        const title = v.title || "";
+        const desc = (meta.description || meta.optimizedDescription || "") as string;
+        const tags = (meta.tags || meta.optimizedTags || []) as string[];
+        const titleScore = Math.min(100, Math.max(0, (title.length >= 30 && title.length <= 70 ? 40 : title.length >= 20 ? 25 : 10) + (title.match(/[A-Z]/) ? 10 : 0) + (/[0-9]/.test(title) ? 10 : 0) + (title.includes("|") || title.includes("-") || title.includes(":") ? 10 : 0) + (title.length > 0 ? 20 : 0) + (title.split(/\s+/).length >= 5 ? 10 : 0)));
+        const descriptionScore = Math.min(100, Math.max(0, (desc.length >= 200 ? 35 : desc.length >= 100 ? 25 : desc.length > 0 ? 10 : 0) + (desc.includes("http") ? 10 : 0) + (desc.includes("#") ? 10 : 0) + (/\d:\d{2}/.test(desc) ? 15 : 0) + (desc.split(/\n/).length >= 5 ? 15 : 0) + (desc.length >= 500 ? 15 : 0)));
+        const tagScore = Math.min(100, Math.max(0, (tags.length >= 10 ? 40 : tags.length >= 5 ? 25 : tags.length > 0 ? 10 : 0) + (tags.some(t => t.split(/\s+/).length >= 2) ? 20 : 0) + (tags.length <= 30 ? 15 : 5) + (tags.join(" ").length >= 100 ? 15 : 5) + (tags.length > 0 ? 10 : 0)));
+        const thumbnailScore = Math.min(100, Math.max(0, (meta.thumbnailUrl ? 40 : 0) + (meta.thumbnailOptimized ? 30 : 0) + (meta.thumbnailCtr && meta.thumbnailCtr >= 4 ? 30 : meta.thumbnailCtr && meta.thumbnailCtr >= 2 ? 15 : 0)));
+        const seoScore = meta.seoScore || Math.round((titleScore + descriptionScore + tagScore + thumbnailScore) / 4);
+        return { videoId: v.id, title: v.title, seoScore, titleScore, descriptionScore, tagScore, thumbnailScore };
+      });
+      const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b.seoScore, 0) / scores.length) : 0;
+      res.json({ scores, averageScore: avgScore, totalVideos: scores.length });
+    } catch (error: any) { res.status(500).json({ error: "An internal error occurred. Please try again." }); }
+  }));
+
+  app.get("/api/seo/rankings/me", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const rng = seedRandom(userId + "rankings");
+      const keywords = ["tutorial", "best settings", "pro tips", "beginner guide", "highlights", "tips", "tricks", "content creation", "editing tips", "thumbnail design"];
+      const rankings = keywords.map(kw => ({ keyword: kw, position: seededInt(rng, 1, 100), previousPosition: seededInt(rng, 1, 100), searchVolume: seededInt(rng, 1000, 100000), competition: seededPick(rng, ["low", "medium", "high"]), trend: seededPick(rng, ["up", "down", "stable"]) }));
+      res.json({ rankings, trackedKeywords: rankings.length, avgPosition: Math.round(rankings.reduce((a, b) => a + b.position, 0) / rankings.length) });
+    } catch (error: any) { res.status(500).json({ error: "An internal error occurred. Please try again." }); }
+  }));
+
+  app.get("/api/seo/opportunities/me", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const rng = seedRandom(userId + "opportunities");
+      res.json({
+        opportunities: [
+          { type: "Missing Tags", severity: "high", affectedVideos: seededInt(rng, 5, 30), potentialImpact: "+15% search visibility", action: "Add relevant tags to untagged videos" },
+          { type: "Short Descriptions", severity: "medium", affectedVideos: seededInt(rng, 3, 20), potentialImpact: "+10% CTR", action: "Expand descriptions to 200+ words" },
+          { type: "No End Screens", severity: "medium", affectedVideos: seededInt(rng, 2, 15), potentialImpact: "+5% session time", action: "Add end screens to all videos" },
+          { type: "Weak Titles", severity: "high", affectedVideos: seededInt(rng, 3, 12), potentialImpact: "+20% CTR", action: "Optimize titles with power words" },
+          { type: "Missing Chapters", severity: "low", affectedVideos: seededInt(rng, 5, 25), potentialImpact: "+8% retention", action: "Add timestamp chapters to long videos" },
+        ],
+        totalOpportunities: 5,
+        estimatedOverallImpact: "+12% organic growth",
+      });
+    } catch (error: any) { res.status(500).json({ error: "An internal error occurred. Please try again." }); }
+  }));
+
   app.get("/api/seo/scores/:userId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -2087,7 +2140,7 @@ export function registerUpgradeRoutes(app: Express) {
   // ═══════════════════════════════════════════════════════
 
   app.get("/api/creator/report-card/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`report-card-${userId}`);
     
     const kpiNames = [
@@ -2117,7 +2170,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/creator/valuation/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`valuation-${userId}`);
     const baseVal = seededInt(rng, 50000, 2000000);
 
@@ -2147,7 +2200,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/creator/burn-rate/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`burn-rate-${userId}`);
     const rev = seededInt(rng, 10000, 50000);
     const exp = seededInt(rng, 4000, 15000);
@@ -2178,7 +2231,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/monetization/sponsorship-opportunities/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`sponsorships-${userId}`);
     
     const brands = ["NordVPN", "Skillshare", "Ridge Wallet", "Audible", "SquareSpace", "BetterHelp", "Factor", "HelloFresh"];
@@ -2199,7 +2252,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/monetization/merch-predictor/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`merch-${userId}`);
 
     const viralMoments = [
@@ -2221,7 +2274,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/monetization/revenue-diversification/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`diversify-${userId}`);
 
     const sources = ["AdSense", "Sponsorships", "Merch", "Memberships", "Affiliate", "Consulting", "Digital Products"];
@@ -2252,7 +2305,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/community/health-score/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`health-${userId}`);
 
     res.json({
@@ -2272,7 +2325,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/community/controversy-radar/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`radar-${userId}`);
 
     const platforms = ["Twitter", "Reddit", "TikTok", "YouTube Comments"];
@@ -2294,7 +2347,7 @@ export function registerUpgradeRoutes(app: Express) {
   }));
 
   app.get("/api/stream-upgrades/live-revenue/:userId", asyncHandler(async (req, res) => {
-    const userId = parseNumericId(req.params.userId);
+    const userId = req.params.userId;
     const rng = seedRandom(`live-rev-${userId}`);
 
     res.json({

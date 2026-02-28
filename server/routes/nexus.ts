@@ -10,9 +10,9 @@ import {
   contentEmpireNodes, audienceOverlaps, sentimentTimeline, seoLabExperiments, cohortAnalysis,
   teamInboxMessages, assetLibrary, customReports, emailLists, emailSubscribers,
   discordBotConfig, merchStoreItems, tipDonations, growthCelebrations, contentLifeBalance,
-  platformFailoverRules, scriptGenerations
+  platformFailoverRules, scriptGenerations, videos, revenueRecords, channels
 } from "@shared/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, sum, count } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { getAutonomyStatus, getAutonomyDecisionLog, getRecentRuns, toggleEngine, forceRunEngine } from "../autonomy-controller";
 

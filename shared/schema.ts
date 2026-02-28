@@ -2175,6 +2175,7 @@ export type StatsResponse = {
   totalRevenue: number;
   activeAgents: number;
   scheduledItems: number;
+  subscriberCount: number;
 };
 
 // === ACCESS CODES (Affiliate Program) ===

@@ -1222,6 +1222,9 @@ export class DatabaseStorage implements IStorage {
     const agentCount = (await db.select({ count: sql<number>`count(distinct agent_id)` }).from(aiAgentActivities))[0].count;
     const scheduledCount = (await db.select({ count: sql<number>`count(*)` }).from(scheduleItems).where(eq(scheduleItems.status, 'scheduled')))[0].count;
 
+    const subCountRow = await db.select({ total: sql<number>`coalesce(sum(subscriber_count), 0)` }).from(channels);
+    const subscriberCount = Number(subCountRow[0]?.total || 0);
+
     return {
       totalVideos: Number(totalVideos),
       activeJobs: Number(activeJobs),
@@ -1233,6 +1236,7 @@ export class DatabaseStorage implements IStorage {
       totalRevenue,
       activeAgents: Number(agentCount),
       scheduledItems: Number(scheduledCount),
+      subscriberCount,
     };
   }
   async getAiResults(userId: string, featureKey?: string): Promise<AiResult[]> {

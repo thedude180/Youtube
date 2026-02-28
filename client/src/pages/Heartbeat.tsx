@@ -136,6 +136,7 @@ function HealthTimeline({ runs }: { runs: any[] }) {
           {hourlyHealth.map((status, i) => (
             <div
               key={i}
+              data-testid={`timeline-bar-${i}`}
               className={`flex-1 rounded-sm ${
                 status === "healthy" ? "bg-green-500/40" : status === "error" ? "bg-red-500/40" : "bg-gray-800"
               }`}
