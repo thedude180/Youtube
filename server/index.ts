@@ -345,7 +345,9 @@ registerCleanup("authRateLimit", () => {
 
 app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
   if (req.path === "/health" || req.path === "/stripe/webhook") return next();
+  if (!process.env.REPLIT_DEPLOYMENT && req.path.startsWith("/__test/")) return next();
   const ip = req.ip || req.socket.remoteAddress || "anon";
+  if (!process.env.REPLIT_DEPLOYMENT && (ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1")) return next();
 
   try {
     const lockStatus = await checkAccountLock(ip);

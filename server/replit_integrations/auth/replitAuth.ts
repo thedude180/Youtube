@@ -27,7 +27,7 @@ export function getSession() {
     ttl: sessionTtl,
     tableName: "sessions",
   });
-  const isProduction = !!process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
+  const isDeployed = !!process.env.REPLIT_DEPLOYMENT;
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
@@ -37,12 +37,12 @@ export function getSession() {
     proxy: true,
     cookie: {
       httpOnly: true,
-      secure: isProduction,
+      secure: isDeployed,
       sameSite: "lax",
       maxAge: sessionTtl,
       path: "/",
     },
-    name: isProduction ? "__Secure-sid" : "sid",
+    name: isDeployed ? "__Secure-sid" : "sid",
   });
 }
 

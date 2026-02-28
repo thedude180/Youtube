@@ -37,6 +37,7 @@ import { registerBusinessAgentRoutes } from "./routes/business-agents";
 import { registerTeamOpsRoutes } from "./routes/team-ops";
 import { registerContentAutomationRoutes } from "./routes/content-automation";
 import { registerStreamAgentRoutes } from "./routes/stream-agent";
+import { registerTestAuthRoutes } from "./routes/test-auth";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -153,6 +154,9 @@ export async function registerRoutes(
     "/api/health", "/api/verify", "/api/vitals", "/api/events",
   ]);
   const PUBLIC_API_PREFIXES = ["/api/auth", "/api/stripe"];
+  if (!process.env.REPLIT_DEPLOYMENT) {
+    PUBLIC_API_PREFIXES.push("/api/__test");
+  }
 
   app.use("/api", (req: any, res, next) => {
     const fullPath = `/api${req.path}`;
@@ -221,6 +225,7 @@ export async function registerRoutes(
   registerTeamOpsRoutes(app);
   registerContentAutomationRoutes(app);
   registerStreamAgentRoutes(app);
+  registerTestAuthRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {
