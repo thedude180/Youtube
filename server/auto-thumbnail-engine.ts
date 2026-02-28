@@ -4,6 +4,7 @@ import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
+import { getQuotaStatus, trackQuotaUsage } from "./services/youtube-quota-tracker";
 
 const logger = createLogger("auto-thumbnail");
 const openai = getOpenAIClient();
@@ -113,6 +114,13 @@ async function generateAndUploadThumbnail(
 export async function runAutoThumbnailForUser(userId: string): Promise<number> {
   let generated = 0;
   try {
+    // thumbnails.set costs 50 quota units — skip if quota is too low
+    const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+    if (quota.remaining < 100) {
+      logger.warn("Auto-thumbnail skipped — quota too low", { userId, remaining: quota.remaining });
+      return 0;
+    }
+
     const ytChannels = await db.select().from(channels)
       .where(and(
         eq(channels.platform, "youtube"),

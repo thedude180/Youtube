@@ -4,6 +4,8 @@ import { streams } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { fireAgentEvent } from "./agent-events";
+import { checkYouTubeLiveBroadcasts } from "../youtube";
+import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
 
 const logger = {
   info: (msg: string, meta?: any) => console.log(`[stream-agent] ${msg}`, meta ?? ""),
@@ -93,6 +95,27 @@ Response: just the prompt, no extra text, under 15 words.`;
   }
 }
 
+async function checkYoutubeLiveViaEmbed(youtubeChannelId: string): Promise<{ isLive: boolean; videoId: string | null }> {
+  try {
+    const url = `https://www.youtube.com/embed/live_stream?channel=${youtubeChannelId}`;
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(6000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; CreatorOS/1.0)" },
+    });
+    const finalUrl = res.url;
+    const text = await res.text();
+    const videoIdMatch = finalUrl.match(/embed\/([A-Za-z0-9_-]{11})/);
+    const videoId = videoIdMatch?.[1] ?? null;
+    const isLiveFromUrl = videoId !== null && !finalUrl.includes("live_stream");
+    const isLiveFromBody = text.includes('"isLiveBroadcast"') || text.includes('"liveBroadcastDetails"');
+    return { isLive: isLiveFromUrl || isLiveFromBody, videoId: isLiveFromUrl ? videoId : null };
+  } catch {
+    return { isLive: false, videoId: null };
+  }
+}
+
 async function checkAndEngageStream(userId: string): Promise<void> {
   const state = getOrCreateState(userId);
   if (!state.enabled) return;
@@ -100,8 +123,75 @@ async function checkAndEngageStream(userId: string): Promise<void> {
   try {
     state.lastCheckedAt = new Date();
 
+    // Check internal DB for streams marked live
     const userStreams = await storage.getStreams(userId);
-    const liveStream = userStreams.find(s => s.status === "live");
+    let liveStream = userStreams.find(s => s.status === "live");
+
+    // If no DB stream is live, check YouTube — API first (if quota available), then RSS fallback
+    if (!liveStream) {
+      try {
+        const userChannels = await storage.getChannelsByUser(userId);
+        const ytChannel = (userChannels as any[]).find((c: any) => c.platform === "youtube" && c.accessToken);
+        if (ytChannel) {
+          let broadcastTitle: string | null = null;
+          let detectedLive = false;
+
+          // Try YouTube API first (costs 1 quota unit) — only if > 5 units remaining
+          const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+          if (quota.remaining > 5) {
+            try {
+              const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
+              await trackQuotaUsage(userId, "list", 1);
+              const activeBroadcast = broadcasts.find((b: any) =>
+                b.status === "live" || b.status === "liveStarting" || b.status === "testing"
+              );
+              if (activeBroadcast) {
+                detectedLive = true;
+                broadcastTitle = activeBroadcast.title;
+              }
+            } catch (apiErr: any) {
+              logger.warn(`[${userId}] YouTube API live check failed — trying RSS fallback: ${apiErr.message}`);
+            }
+          } else {
+            logger.warn(`[${userId}] YouTube quota low (${quota.remaining}) — using RSS fallback for live detection`);
+          }
+
+          // RSS/embed fallback: zero-quota check using public YouTube embed URL
+          if (!detectedLive && ytChannel.channelId) {
+            try {
+              const embedResult = await checkYoutubeLiveViaEmbed(ytChannel.channelId);
+              if (embedResult.isLive) {
+                detectedLive = true;
+                broadcastTitle = broadcastTitle || (embedResult.videoId ? `Live Stream (${embedResult.videoId})` : "Live Stream");
+                logger.info(`[${userId}] Live detected via RSS/embed fallback — channelId: ${ytChannel.channelId}`);
+              }
+            } catch (rssErr: any) {
+              logger.warn(`[${userId}] RSS fallback failed: ${rssErr.message}`);
+            }
+          }
+
+          if (detectedLive) {
+            const existingStream = userStreams.find((s: any) => s.status === "live");
+            if (existingStream) {
+              liveStream = existingStream;
+            } else {
+              const newStream = await storage.createStream({
+                userId,
+                title: broadcastTitle || "Live Stream",
+                description: "",
+                status: "live",
+                platforms: ["youtube"],
+                startedAt: new Date(),
+              });
+              liveStream = newStream;
+              logger.info(`[${userId}] Auto-detected and created stream record: ${broadcastTitle}`);
+            }
+          }
+        }
+      } catch (ytErr: any) {
+        logger.warn(`[${userId}] Live detection error: ${ytErr.message}`);
+      }
+    }
 
     if (liveStream) {
       const wasOffline = !state.isLive;
@@ -110,7 +200,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
       state.streamTitle = liveStream.title;
       state.platform = Array.isArray(liveStream.platforms) && liveStream.platforms.length > 0
         ? (liveStream.platforms as string[])[0]
-        : "multi-platform";
+        : "youtube";
       state.streamStartedAt = liveStream.startedAt || state.streamStartedAt;
       state.postStreamPhase = null;
 

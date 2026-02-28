@@ -257,9 +257,9 @@ async function runCycle(userId: string) {
     await db.update(vodAutopilotConfig).set({
       lastCycleAt: new Date(),
       nextCycleAt,
-      totalCyclesRun: sql`${vodAutopilotConfig.totalCyclesRun} + 1`,
-      totalLongFormUploaded: sql`${vodAutopilotConfig.totalLongFormUploaded} + ${longFormQueued}`,
-      totalShortsUploaded: sql`${vodAutopilotConfig.totalShortsUploaded} + ${shortsQueued}`,
+      totalCyclesRun: (cfg.totalCyclesRun ?? 0) + 1,
+      totalLongFormUploaded: (cfg.totalLongFormUploaded ?? 0) + longFormQueued,
+      totalShortsUploaded: (cfg.totalShortsUploaded ?? 0) + shortsQueued,
       currentStatus: "idle",
       lastError: null,
       updatedAt: new Date(),
