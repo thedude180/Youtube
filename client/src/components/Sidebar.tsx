@@ -151,7 +151,7 @@ export function AppSidebar() {
               💰 ${(dashStats as any)?.totalRevenue?.toFixed(0) ?? '—'}
             </span>
             <span data-testid="stat-sidebar-agents" className="text-[10px] font-mono bg-muted/50 rounded px-1.5 py-0.5 text-muted-foreground">
-              🤖 {activeAgents}/11
+              🤖 {activeAgents}/14
             </span>
           </div>
           <div className="mt-1">

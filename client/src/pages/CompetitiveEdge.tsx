@@ -18,7 +18,8 @@ import {
   Play, Pause, Settings2, Star, Target, Eye, ThumbsUp, Video, Crown, Rocket,
   ChevronRight, Activity, Lock, Sparkles, Mail, UserPlus, Trash2, Loader2,
   Share2, ShieldCheck, Heart, MessageSquare, Flame, Globe, ZapOff,
-  Crosshair, Radio, HardDrive, Cpu, Terminal, Search
+  Crosshair, Radio, HardDrive, Cpu, Terminal, Search,
+  FileText, Image, Scissors, Palette, Megaphone, Microscope, DollarSign
 } from "lucide-react";
 
 const CompetitorBattleBars = ({ yourScore = 72, compScore = 65 }: { yourScore?: number, compScore?: number }) => {
@@ -889,10 +890,21 @@ function SponsorshipTab() {
   );
 }
 
-const AGENT_META: Record<string, { icon: any; color: string; bgColor: string; borderColor: string }> = {
-  "ai-editor": { icon: Video, color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/30" },
-  "ai-moderator": { icon: Users, color: "text-green-400", bgColor: "bg-green-500/10", borderColor: "border-green-500/30" },
-  "ai-analyst": { icon: BarChart3, color: "text-purple-400", bgColor: "bg-purple-500/10", borderColor: "border-purple-500/30" },
+const AGENT_META: Record<string, { icon: any; color: string; bgColor: string; borderColor: string; role: string }> = {
+  "ai-owner":               { icon: Crown,       color: "text-yellow-400",  bgColor: "bg-yellow-500/10",  borderColor: "border-yellow-500/30",  role: "Strategic Commander" },
+  "ai-admin":               { icon: Shield,       color: "text-red-400",    bgColor: "bg-red-500/10",     borderColor: "border-red-500/30",     role: "Platform Administrator" },
+  "ai-research-lead":       { icon: Microscope,   color: "text-cyan-400",   bgColor: "bg-cyan-500/10",    borderColor: "border-cyan-500/30",    role: "Trend & Research" },
+  "ai-scriptwriter":        { icon: FileText,     color: "text-orange-400", bgColor: "bg-orange-500/10",  borderColor: "border-orange-500/30",  role: "Script & Narrative" },
+  "ai-editor":              { icon: Video,        color: "text-blue-400",   bgColor: "bg-blue-500/10",    borderColor: "border-blue-500/30",    role: "Video Editor" },
+  "ai-thumbnail-artist":    { icon: Palette,      color: "text-pink-400",   bgColor: "bg-pink-500/10",    borderColor: "border-pink-500/30",    role: "Thumbnail & CTR" },
+  "ai-seo-manager":         { icon: Search,       color: "text-sky-400",    bgColor: "bg-sky-500/10",     borderColor: "border-sky-500/30",     role: "SEO & Discoverability" },
+  "ai-shorts-specialist":   { icon: Scissors,     color: "text-violet-400", bgColor: "bg-violet-500/10",  borderColor: "border-violet-500/30",  role: "Shorts & Clips" },
+  "ai-social-media-manager":{ icon: Megaphone,    color: "text-rose-400",   bgColor: "bg-rose-500/10",    borderColor: "border-rose-500/30",    role: "Cross-Platform" },
+  "ai-moderator":           { icon: Users,        color: "text-green-400",  bgColor: "bg-green-500/10",   borderColor: "border-green-500/30",   role: "Community Manager" },
+  "ai-brand-manager":       { icon: Handshake,    color: "text-amber-400",  bgColor: "bg-amber-500/10",   borderColor: "border-amber-500/30",   role: "Brand & Sponsorships" },
+  "ai-premium":             { icon: DollarSign,   color: "text-emerald-400",bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/30", role: "Revenue Optimizer" },
+  "ai-analyst":             { icon: BarChart3,    color: "text-purple-400", bgColor: "bg-purple-500/10",  borderColor: "border-purple-500/30",  role: "Data & Analytics" },
+  "ai-user":                { icon: Target,       color: "text-indigo-400", bgColor: "bg-indigo-500/10",  borderColor: "border-indigo-500/30",  role: "Growth Specialist" },
 };
 
 const STATUS_META: Record<string, { label: string; color: string; dotColor: string }> = {
@@ -1039,7 +1051,7 @@ function TeamTab() {
                             {agent.name}
                             <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/30 text-primary ml-1">AI</Badge>
                           </p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{agent.role}</p>
+                          <p className="text-[10px] text-muted-foreground capitalize">{meta.role || agent.role}</p>
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{agent.personality}</p>
@@ -1068,42 +1080,37 @@ function TeamTab() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <ArrowRight className="h-4 w-4 text-primary" />
-                Team Collaboration Flow
+                Full YouTube Team — 14 AI Agents
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-center gap-2 py-3 flex-wrap">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                  <BarChart3 className="h-4 w-4 text-purple-400" />
-                  <span className="text-xs font-medium">Analyst</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-[9px] text-muted-foreground">insights</span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <Video className="h-4 w-4 text-blue-400" />
-                  <span className="text-xs font-medium">Editor</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-[9px] text-muted-foreground">content</span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <Users className="h-4 w-4 text-green-400" />
-                  <span className="text-xs font-medium">Moderator</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <ArrowRight className="h-4 w-4 text-muted-foreground rotate-180" />
-                  <span className="text-[9px] text-muted-foreground">feedback</span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                  <BarChart3 className="h-4 w-4 text-purple-400" />
-                  <span className="text-xs font-medium">Analyst</span>
-                </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Strategy Layer", agents: ["ai-owner", "ai-admin", "ai-research-lead"], color: "border-yellow-500/30 bg-yellow-500/5" },
+                  { label: "Content Layer", agents: ["ai-scriptwriter", "ai-editor", "ai-thumbnail-artist", "ai-shorts-specialist"], color: "border-blue-500/30 bg-blue-500/5" },
+                  { label: "Distribution Layer", agents: ["ai-seo-manager", "ai-social-media-manager", "ai-moderator"], color: "border-green-500/30 bg-green-500/5" },
+                  { label: "Revenue Layer", agents: ["ai-brand-manager", "ai-premium", "ai-analyst", "ai-user"], color: "border-emerald-500/30 bg-emerald-500/5" },
+                ].map((group) => (
+                  <div key={group.label} className={`rounded-lg border p-3 ${group.color}`} data-testid={`layer-${group.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <div className="text-[10px] font-mono text-muted-foreground uppercase mb-2">{group.label}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.agents.map((agentType) => {
+                        const m = AGENT_META[agentType];
+                        if (!m) return null;
+                        const Icon = m.icon;
+                        return (
+                          <div key={agentType} className={`flex items-center gap-1.5 px-2 py-1 rounded-full ${m.bgColor} border ${m.borderColor}`}>
+                            <Icon className={`h-3 w-3 ${m.color}`} />
+                            <span className="text-[10px] font-mono">{m.role}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <p className="text-xs text-muted-foreground text-center mt-1">
-                Agents autonomously hand off tasks to each other — the Analyst feeds data to the Editor, who creates content for the Moderator to promote, with feedback looping back
+              <p className="text-xs text-muted-foreground text-center mt-3">
+                All 14 agents run autonomously, hand off tasks to each other, and operate 24/7 as your complete YouTube team
               </p>
             </CardContent>
           </Card>
