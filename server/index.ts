@@ -763,6 +763,12 @@ httpServer.listen(
       }).catch(err => logger.error("Consistency agent failed to load", { error: String(err) }));
     });
 
+    delay(45_000, () => {
+      import("./services/stream-agent").then(m => {
+        m.bootstrapStreamAgents().catch(err => logger.error("Stream agent bootstrap failed", { error: String(err) }));
+      }).catch(err => logger.error("Stream agent failed to load", { error: String(err) }));
+    });
+
     delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
 
     const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");

@@ -65,3 +65,8 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 - **YouTube Data API v3**: YouTube integration.
 - **Stripe**: Payment processing and subscription management.
 - **node-cron**: Background task scheduling.
+
+## Recent Features
+- **Stream Agent** (`server/services/stream-agent.ts`): Autonomous hands-free streaming assistant. Polls every 2 min for live status. When live: responds to chat in creator's voice, moderates, generates AI engagement prompts every 10 min. When stream ends: triggers full VOD clip+distribute pipeline. Keeps 20-entry action log. API: GET/POST `/api/stream-agent/status|start|stop`. Bootstrapped at T+45s. UI panel (`data-testid="stream-agent-card"`) at top of `/stream` page.
+- **Empire Mode** (`client/src/pages/Autopilot.tsx`): Single "Activate Empire" button (`data-testid="button-activate-empire"`) that chains autopilot + sweep + consistency agent. ON state shows 4 green checkmark status lines. `data-testid="empire-switch"`.
+- **Content Automation System**: Upload Watcher (30min polls, new uploads → clips + repurpose), Historical Content Sweep (3-phase: sync→clip→repurpose), Content Consistency Agent (every 4h, audits SEO + fills calendar gaps). Routes under `/api/content-automation/*`.

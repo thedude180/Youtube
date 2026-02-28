@@ -36,6 +36,7 @@ import { registerLegalTaxRoutes } from "./routes/legal-tax";
 import { registerBusinessAgentRoutes } from "./routes/business-agents";
 import { registerTeamOpsRoutes } from "./routes/team-ops";
 import { registerContentAutomationRoutes } from "./routes/content-automation";
+import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -219,6 +220,7 @@ export async function registerRoutes(
   registerBusinessAgentRoutes(app);
   registerTeamOpsRoutes(app);
   registerContentAutomationRoutes(app);
+  registerStreamAgentRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {

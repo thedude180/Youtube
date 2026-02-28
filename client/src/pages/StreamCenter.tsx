@@ -627,6 +627,21 @@ export default function StreamCenter() {
     refetchInterval: ytLivePoll,
   });
 
+  const { data: streamAgent, refetch: refetchAgent } = useQuery<any>({
+    queryKey: ["/api/stream-agent/status"],
+    refetchInterval: 10_000,
+  });
+
+  const startAgentMutation = useMutation({
+    mutationFn: async () => { const res = await apiRequest("POST", "/api/stream-agent/start", {}); return res.json(); },
+    onSuccess: () => { refetchAgent(); },
+  });
+
+  const stopAgentMutation = useMutation({
+    mutationFn: async () => { const res = await apiRequest("POST", "/api/stream-agent/stop", {}); return res.json(); },
+    onSuccess: () => { refetchAgent(); },
+  });
+
   const detectLive = useMutation({
     mutationFn: async () => { const res = await apiRequest("POST", "/api/youtube/detect-live", {}); return res.json(); },
     onSuccess: (data) => {
@@ -722,6 +737,108 @@ export default function StreamCenter() {
 
   return (
     <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto page-enter">
+      {/* ─── Stream Agent ─── */}
+      <div className="card-empire rounded-2xl overflow-hidden" data-testid="stream-agent-card">
+        {streamAgent?.enabled ? (
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-4 w-4">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-60 ${streamAgent?.isLive ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                  <span className={`relative inline-flex rounded-full h-4 w-4 ${streamAgent?.isLive ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                </span>
+                <div>
+                  <p className="text-base font-bold text-foreground" data-testid="text-agent-status">
+                    {streamAgent?.isLive ? `LIVE on ${(streamAgent?.platform || 'stream')?.toUpperCase()}` : 'Stream Agent Ready'}
+                  </p>
+                  {streamAgent?.isLive && streamAgent?.streamTitle && (
+                    <p className="text-xs text-muted-foreground truncate max-w-xs" data-testid="text-stream-title">{streamAgent.streamTitle}</p>
+                  )}
+                  {!streamAgent?.isLive && (
+                    <p className="text-xs text-muted-foreground">Watching for your stream to start</p>
+                  )}
+                </div>
+              </div>
+              <button
+                className="text-xs px-3 py-1.5 rounded-lg border border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                onClick={() => stopAgentMutation.mutate()}
+                disabled={stopAgentMutation.isPending}
+                data-testid="button-stop-agent">
+                Pause Agent
+              </button>
+            </div>
+
+            {streamAgent?.isLive && (
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="rounded-xl bg-muted/20 border border-border/20 p-3 text-center">
+                  <p className="text-lg font-bold text-foreground" data-testid="text-viewer-count">{streamAgent?.viewerCount ?? 0}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Viewers</p>
+                </div>
+                <div className="rounded-xl bg-muted/20 border border-border/20 p-3 text-center">
+                  <p className="text-lg font-bold text-primary" data-testid="text-chat-handled">{streamAgent?.chatMessagesHandled ?? 0}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Chat handled</p>
+                </div>
+                <div className="rounded-xl bg-muted/20 border border-border/20 p-3 text-center">
+                  <p className={`text-lg font-bold ${streamAgent?.chatSentiment === 'positive' ? 'text-emerald-400' : streamAgent?.chatSentiment === 'negative' ? 'text-red-400' : 'text-foreground'}`}
+                    data-testid="text-chat-sentiment">
+                    {streamAgent?.chatSentiment === 'positive' ? 'Hype' : streamAgent?.chatSentiment === 'negative' ? 'Rough' : 'Chill'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Vibe</p>
+                </div>
+              </div>
+            )}
+
+            {((streamAgent?.actionsLog as any[]) || []).length > 0 && (
+              <div className="rounded-xl bg-muted/10 border border-border/20 p-3" data-testid="section-action-log">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono mb-2">Agent Activity</p>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {((streamAgent?.actionsLog as any[]) || []).map((entry: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2" data-testid={`action-log-${i}`}>
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 mt-1.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-foreground font-medium">{entry.action}</p>
+                        {entry.detail && <p className="text-[10px] text-muted-foreground truncate">{entry.detail}</p>}
+                      </div>
+                      <p className="text-[9px] text-muted-foreground/50 shrink-0">
+                        {new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {streamAgent?.postStreamPhase && (
+              <div className="mt-3 rounded-xl bg-primary/10 border border-primary/20 p-3" data-testid="section-post-stream">
+                <p className="text-sm text-primary font-medium">
+                  {streamAgent.postStreamPhase === 'complete'
+                    ? 'Stream processed — clips scheduled across all platforms'
+                    : 'Processing your stream...'}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-8 flex flex-col items-center text-center">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+              <span className="text-2xl">🎮</span>
+            </div>
+            <h3 className="text-lg font-bold text-foreground mb-2">Stream Agent</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mb-5">
+              Activate once — then just play your game. The agent responds to chat in your voice, boosts viewer engagement, moderates automatically, and clips every highlight the moment your stream ends.
+            </p>
+            <button
+              className="w-full max-w-xs py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-60"
+              style={{ boxShadow: '0 0 24px hsl(265 80% 60% / 0.35)' }}
+              onClick={() => startAgentMutation.mutate()}
+              disabled={startAgentMutation.isPending}
+              data-testid="button-start-agent">
+              {startAgentMutation.isPending ? 'Starting...' : 'Activate Stream Agent'}
+            </button>
+          </div>
+        )}
+      </div>
+
       <UpgradeTabGate requiredTier="youtube" featureName="Stream Center" description="Go live across multiple platforms simultaneously with AI-powered stream optimization, chat management, and post-stream analytics.">
       {/* Stream Center Hero */}
       <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
