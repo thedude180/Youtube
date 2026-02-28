@@ -240,6 +240,15 @@ export async function refreshChannelStats(channelId: number): Promise<void> {
 }
 
 export async function refreshAllUserChannelStats(userId: string): Promise<void> {
+  try {
+    const { getQuotaStatus, trackQuotaUsage } = await import("./services/youtube-quota-tracker");
+    const quota = await getQuotaStatus(userId);
+    if (quota.remaining < 10) {
+      console.warn(`[YouTube] Skipping channel stats refresh for ${userId} — quota too low (${quota.remaining})`);
+      return;
+    }
+    await trackQuotaUsage(userId, "list", 1);
+  } catch {}
   const userChannels = await storage.getChannelsByUser(userId);
 
   const ytChannels = userChannels.filter(c => c.platform === "youtube" && c.accessToken);

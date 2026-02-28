@@ -23,9 +23,15 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
     }
 
     try {
-      const { refreshAllUserChannelStats } = await import("../youtube");
-      await refreshAllUserChannelStats(userId);
-      results.channelStats = "refreshed";
+      const { getQuotaStatus } = await import("./youtube-quota-tracker");
+      const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+      if (quota.remaining >= 10) {
+        const { refreshAllUserChannelStats } = await import("../youtube");
+        await refreshAllUserChannelStats(userId);
+        results.channelStats = "refreshed";
+      } else {
+        results.channelStats = "skipped_low_quota";
+      }
     } catch (err) {
       console.error(`[PostLoginInit] Channel stats refresh failed for ${userId}:`, err);
       results.channelStats = "error";
@@ -85,16 +91,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       results.autopilot = "inactive";
     }
 
-    try {
-      const { runMultiPlatformLiveDetection } = await import("./live-detection");
-      setTimeout(async () => {
-        try { await runMultiPlatformLiveDetection(); } catch (e) { console.error(`[PostLoginInit] Live detection failed for ${userId}:`, e); }
-      }, 3000);
-      results.liveDetection = "triggered";
-    } catch (err) {
-      console.error(`[PostLoginInit] Live detection trigger failed for ${userId}:`, err);
-      results.liveDetection = "error";
-    }
+    results.liveDetection = "scheduled";
 
     try {
       const { evaluateRules } = await import("../automation-engine");
