@@ -37,39 +37,6 @@ const PIPELINE_NODES = [
   { id: "publish", label: "Publish", icon: "🚀" },
 ];
 
-const PipelineVisualizerComp = ({ activePhase = 2 }: { activePhase?: number }) => (
-  <div className="card-empire rounded-2xl p-4 mb-4 relative overflow-hidden" data-testid="widget-pipeline-visualizer">
-    <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
-    <div className="text-xs font-mono text-muted-foreground mb-3 flex items-center gap-2">
-      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-      AUTOPILOT PIPELINE — 7-PHASE ENGINE
-    </div>
-    <div className="flex items-center gap-1 overflow-x-auto touch-scroll pb-2">
-      {PIPELINE_NODES.map((node, i) => (
-        <div key={node.id} className="flex items-center gap-1 flex-shrink-0">
-          <div className="flex flex-col items-center gap-1 relative" data-testid={`pipeline-node-${node.id}`}>
-            {i === activePhase && (
-              <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ background: 'hsl(265 80% 60%)' }} />
-            )}
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all duration-500 ${
-              i < activePhase ? 'border-emerald-500 bg-emerald-500/20' :
-              i === activePhase ? 'border-primary bg-primary/20' :
-              'border-border/30 bg-muted/20'
-            }`} style={{ boxShadow: i === activePhase ? '0 0 20px hsl(265 80% 60% / 0.5)' : 'none' }}>
-              {i < activePhase ? '✓' : node.icon}
-            </div>
-            <span className={`text-[9px] font-mono whitespace-nowrap ${i === activePhase ? 'text-primary' : i < activePhase ? 'text-emerald-400' : 'text-muted-foreground'}`}>{node.label}</span>
-          </div>
-          {i < PIPELINE_NODES.length - 1 && (
-            <div className={`flex-shrink-0 h-0.5 w-6 ${i < activePhase ? 'bg-emerald-500' : 'bg-border/30'}`}
-              style={{ boxShadow: i < activePhase ? '0 0 4px hsl(142 70% 50%)' : 'none' }} />
-          )}
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
 const LiveTasksWidgetComp = () => {
   const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 30000 });
   return (
@@ -342,7 +309,7 @@ function PipelineFlowVisualizer({ currentPhase }: { currentPhase: string }) {
   const currentIdx = phases.findIndex(p => p.id === currentPhase);
 
   return (
-    <Card className="bg-card/50 border-primary/20 overflow-hidden relative" data-testid="widget-pipeline-visualizer">
+    <Card className="bg-card/50 border-primary/20 overflow-hidden relative" data-testid="widget-pipeline-flow-visualizer">
       <div className="absolute inset-0 data-grid-bg opacity-10 pointer-events-none" />
       <CardContent className="p-4 sm:p-6 relative">
         <div className="overflow-x-auto touch-scroll -mx-1 px-1 pb-2">

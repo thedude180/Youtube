@@ -885,7 +885,7 @@ function GrowthPhaseHero({ phase }: { phase: JourneyData["growthPhase"] }) {
           <Icon className={`h-12 w-12 ${currentPhase.color}`} />
         </div>
         <div className="text-center md:text-left space-y-2">
-          <Badge variant="outline" className={`mb-2 ${currentPhase.color} border-current/20`} data-testid="badge-growth-phase">Current Phase</Badge>
+          <Badge variant="outline" className={`mb-2 ${currentPhase.color} border-current/20`} data-testid="badge-growth-phase">{currentPhase.name}</Badge>
           <h2 className="text-3xl font-bold tracking-tight">{currentPhase.name} Phase</h2>
           <p className="text-muted-foreground text-lg max-w-xl">{currentPhase.description}</p>
           <div className="flex gap-4 pt-4">
