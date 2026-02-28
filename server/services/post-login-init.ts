@@ -137,6 +137,15 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       results.tierRecommendation = "error";
     }
 
+    try {
+      const { startUserAgentSession } = await import("./agent-orchestrator");
+      const session = await startUserAgentSession(userId);
+      results.agentSession = `started:${session.tier}:${session.agentsStarted.join("+") || "core"}`;
+    } catch (err) {
+      console.error(`[PostLoginInit] Agent session start failed for ${userId}:`, err);
+      results.agentSession = "error";
+    }
+
   } catch (err) {
     console.error(`[PostLoginInit] Critical error for ${userId}:`, err);
     results.critical = "error";

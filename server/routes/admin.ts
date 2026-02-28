@@ -99,6 +99,17 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.get("/api/user/agent-session", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getSessionInfo } = await import("../services/agent-orchestrator");
+      res.json(getSessionInfo(userId));
+    } catch (err: any) {
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
   app.get("/api/admin/access-codes", async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
