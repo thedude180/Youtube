@@ -34,6 +34,7 @@ import { registerLoopRoutes } from "./routes/loops";
 import { registerNexusRoutes } from "./routes/nexus";
 import { registerLegalTaxRoutes } from "./routes/legal-tax";
 import { registerBusinessAgentRoutes } from "./routes/business-agents";
+import { registerTeamOpsRoutes } from "./routes/team-ops";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -215,6 +216,7 @@ export async function registerRoutes(
   registerNexusRoutes(app);
   registerLegalTaxRoutes(app);
   registerBusinessAgentRoutes(app);
+  registerTeamOpsRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {

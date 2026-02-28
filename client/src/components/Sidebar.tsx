@@ -92,6 +92,7 @@ const NAV_GROUPS = [
       { href: "/mission-control", labelKey: "nav.missionControl", icon: Globe, minTier: "free" },
       { href: "/legal-tax", labelKey: "nav.legalTax", icon: Scale, minTier: "free" },
       { href: "/business-agents", labelKey: "nav.businessAgents", icon: Briefcase, minTier: "free" },
+      { href: "/team-ops", labelKey: "nav.teamOps", icon: Users, minTier: "free" },
       { href: "/settings", labelKey: "nav.settings", icon: Settings, minTier: "free" },
     ],
   },
