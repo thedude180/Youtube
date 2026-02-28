@@ -38,6 +38,7 @@ import { registerTeamOpsRoutes } from "./routes/team-ops";
 import { registerContentAutomationRoutes } from "./routes/content-automation";
 import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { registerTestAuthRoutes } from "./routes/test-auth";
+import { registerCopyrightGuardianRoutes } from "./routes/copyright-guardian";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -225,6 +226,7 @@ export async function registerRoutes(
   registerTeamOpsRoutes(app);
   registerContentAutomationRoutes(app);
   registerStreamAgentRoutes(app);
+  registerCopyrightGuardianRoutes(app);
   registerTestAuthRoutes(app);
 
   const vitalsBuffer: any[] = [];

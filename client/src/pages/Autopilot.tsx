@@ -713,6 +713,27 @@ export default function Autopilot() {
     mutationFn: () => apiRequest("POST", "/api/content-automation/sweep/cancel"),
     onSuccess: () => { refetchAutomation(); },
   });
+
+  const { data: copyrightStatus, refetch: refetchCopyright } = useQuery<any>({
+    queryKey: ["/api/copyright-guardian/status"],
+    refetchInterval: 20000,
+  });
+  const { data: copyrightIssues, refetch: refetchCopyrightIssues } = useQuery<any>({
+    queryKey: ["/api/copyright-guardian/issues"],
+    refetchInterval: 30000,
+  });
+  const copyrightScanMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/copyright-guardian/scan"),
+    onSuccess: () => { refetchCopyright(); refetchCopyrightIssues(); },
+  });
+  const copyrightApplyMutation = useMutation({
+    mutationFn: (videoId: number) => apiRequest("POST", `/api/copyright-guardian/apply/${videoId}`),
+    onSuccess: () => { refetchCopyright(); refetchCopyrightIssues(); toast({ title: "Fix applied", description: "Video metadata updated safely" }); },
+  });
+  const copyrightDismissMutation = useMutation({
+    mutationFn: (videoId: number) => apiRequest("POST", `/api/copyright-guardian/dismiss/${videoId}`),
+    onSuccess: () => { refetchCopyrightIssues(); },
+  });
   const runConsistencyMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/content-automation/consistency/run"),
     onSuccess: () => { refetchAutomation(); },
@@ -1243,6 +1264,121 @@ export default function Autopilot() {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ─── Copyright Guardian Agent ─── */}
+      <div className="card-empire rounded-2xl p-5 relative overflow-hidden mb-4" data-testid="copyright-guardian-panel">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold font-mono text-primary uppercase tracking-wider">Copyright Guardian</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">AI agent that scans, rewrites and shields every video from copyright claims</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${(copyrightStatus as any)?.active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/30'}`} data-testid="dot-copyright-status" />
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">GOD MODE</span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3 mb-4">
+            <div className="rounded-xl border border-border/30 bg-muted/10 p-3 text-center">
+              <div className="text-2xl font-black text-foreground font-mono" data-testid="text-copyright-total-scanned">{(copyrightStatus as any)?.scannedVideos ?? 0}</div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">Videos Scanned</div>
+            </div>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center">
+              <div className="text-2xl font-black text-amber-400 font-mono" data-testid="text-copyright-issues">{(copyrightStatus as any)?.issuesFound ?? 0}</div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">Issues Found</div>
+            </div>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+              <div className="text-2xl font-black text-emerald-400 font-mono" data-testid="text-copyright-fixed">{(copyrightStatus as any)?.autoFixed ?? 0}</div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">Auto-Fixed</div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono">
+              <span>Status: <span className="text-foreground" data-testid="text-copyright-phase">{(copyrightStatus as any)?.phase?.toUpperCase() ?? 'IDLE'}</span></span>
+              {(copyrightStatus as any)?.lastScanAt && (
+                <span>Last scan: {new Date((copyrightStatus as any).lastScanAt).toLocaleTimeString()}</span>
+              )}
+              {(copyrightStatus as any)?.flaggedForReview > 0 && (
+                <span className="text-amber-400" data-testid="text-copyright-review-count">{(copyrightStatus as any).flaggedForReview} need review</span>
+              )}
+            </div>
+            <button
+              className="text-xs py-1.5 px-3 rounded-lg border border-primary/40 bg-primary/10 text-primary font-mono hover:bg-primary/20 transition-colors disabled:opacity-50"
+              style={{ boxShadow: '0 0 8px hsl(265 80% 60% / 0.15)' }}
+              onClick={() => copyrightScanMutation.mutate()}
+              disabled={copyrightScanMutation.isPending || (copyrightStatus as any)?.phase === 'scanning' || (copyrightStatus as any)?.phase === 'fixing'}
+              data-testid="button-copyright-scan">
+              {copyrightScanMutation.isPending || (copyrightStatus as any)?.phase === 'scanning' || (copyrightStatus as any)?.phase === 'fixing'
+                ? 'Scanning...'
+                : 'Run Deep Scan'}
+            </button>
+          </div>
+
+          {((copyrightIssues as any)?.issues ?? []).filter((i: any) => i.status === 'review_needed' || i.status === 'pending').length > 0 && (
+            <div className="space-y-2 mt-3" data-testid="list-copyright-issues">
+              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-2">Needs Your Review</p>
+              {((copyrightIssues as any)?.issues ?? [])
+                .filter((i: any) => i.status === 'review_needed' || i.status === 'pending')
+                .slice(0, 3)
+                .map((issue: any) => (
+                  <div key={issue.videoId} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3" data-testid={`copyright-issue-${issue.videoId}`}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-mono font-bold text-foreground truncate" data-testid={`copyright-title-${issue.videoId}`}>{issue.title}</p>
+                        <p className="text-[10px] text-amber-400 font-mono mt-0.5">Risk: {issue.riskLevel?.toUpperCase()}</p>
+                      </div>
+                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded shrink-0 ${
+                        issue.riskLevel === 'critical' ? 'bg-red-500/20 text-red-400' :
+                        issue.riskLevel === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                        'bg-amber-500/20 text-amber-400'
+                      }`}>{issue.riskLevel?.toUpperCase()}</span>
+                    </div>
+                    {issue.fixedTitle && (
+                      <p className="text-[10px] text-muted-foreground font-mono mb-2">
+                        Suggested: <span className="text-emerald-400">{issue.fixedTitle}</span>
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      {issue.fixedTitle && (
+                        <button
+                          className="flex-1 text-[10px] py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono hover:bg-emerald-500/20 transition-colors"
+                          onClick={() => copyrightApplyMutation.mutate(issue.videoId)}
+                          disabled={copyrightApplyMutation.isPending}
+                          data-testid={`button-apply-fix-${issue.videoId}`}>
+                          Apply Fix
+                        </button>
+                      )}
+                      <button
+                        className="text-[10px] py-1 px-2 rounded border border-border/40 text-muted-foreground font-mono hover:text-foreground transition-colors"
+                        onClick={() => copyrightDismissMutation.mutate(issue.videoId)}
+                        disabled={copyrightDismissMutation.isPending}
+                        data-testid={`button-dismiss-${issue.videoId}`}>
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {((copyrightIssues as any)?.issues ?? []).filter((i: any) => i.status === 'fixed').length > 0 && (
+            <div className="mt-3 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5" data-testid="copyright-fixed-summary">
+              <p className="text-[11px] font-mono text-emerald-400">
+                {((copyrightIssues as any)?.issues ?? []).filter((i: any) => i.status === 'fixed').length} videos automatically protected
+              </p>
+            </div>
+          )}
+
+          {(copyrightStatus as any)?.lastError && (
+            <p className="text-[10px] text-red-400 font-mono mt-2" data-testid="text-copyright-error">
+              Error: {(copyrightStatus as any).lastError}
+            </p>
+          )}
         </div>
       </div>
 

@@ -771,6 +771,12 @@ httpServer.listen(
       }).catch(err => logger.error("Stream agent failed to load", { error: String(err) }));
     });
 
+    delay(50_000, () => {
+      import("./services/copyright-guardian").then(m => {
+        m.bootstrapCopyrightGuardians().catch(err => logger.error("Copyright guardian bootstrap failed", { error: String(err) }));
+      }).catch(err => logger.error("Copyright guardian failed to load", { error: String(err) }));
+    });
+
     delay(5_000, () => {
       import("./services/agent-events").then(m => {
         m.wireAgentCoordination().catch(err => logger.error("Agent coordination wiring failed", { error: String(err) }));

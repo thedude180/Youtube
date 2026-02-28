@@ -212,6 +212,13 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
   }
 
   try {
+    const { initCopyrightGuardianForUser } = await import("./copyright-guardian");
+    await initCopyrightGuardianForUser(userId);
+  } catch (err: any) {
+    logger.warn(`[${userId}] Copyright guardian init failed: ${err.message}`);
+  }
+
+  try {
     const { fireAgentEvent } = await import("./agent-events");
     fireAgentEvent("agent.session.started", userId, { tier, agentsStarted });
   } catch {}
