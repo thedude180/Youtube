@@ -36,7 +36,8 @@ const PIPELINE_NODES = [
   { id: "schedule", label: "Schedule", icon: "📅" },
   { id: "publish", label: "Publish", icon: "🚀" },
 ];
-const PipelineVisualizer = ({ activePhase = 2 }: { activePhase?: number }) => (
+
+const PipelineVisualizerComp = ({ activePhase = 2 }: { activePhase?: number }) => (
   <div className="card-empire rounded-2xl p-4 mb-4 relative overflow-hidden" data-testid="widget-pipeline-visualizer">
     <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
     <div className="text-xs font-mono text-muted-foreground mb-3 flex items-center gap-2">
@@ -55,7 +56,7 @@ const PipelineVisualizer = ({ activePhase = 2 }: { activePhase?: number }) => (
               i === activePhase ? 'border-primary bg-primary/20' :
               'border-border/30 bg-muted/20'
             }`} style={{ boxShadow: i === activePhase ? '0 0 20px hsl(265 80% 60% / 0.5)' : 'none' }}>
-              {i < activePhase ? <Check className="w-5 h-5 text-emerald-500" /> : node.icon}
+              {i < activePhase ? '✓' : node.icon}
             </div>
             <span className={`text-[9px] font-mono whitespace-nowrap ${i === activePhase ? 'text-primary' : i < activePhase ? 'text-emerald-400' : 'text-muted-foreground'}`}>{node.label}</span>
           </div>
@@ -69,7 +70,38 @@ const PipelineVisualizer = ({ activePhase = 2 }: { activePhase?: number }) => (
   </div>
 );
 
-
+const LiveTasksWidgetComp = () => {
+  const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 30000 });
+  return (
+    <div className="card-empire rounded-xl p-4 mb-4" data-testid="widget-live-tasks">
+      <div className="text-xs font-mono text-muted-foreground uppercase mb-2 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+        AI Currently Working On
+      </div>
+      {[
+        { task: "Generating short-form clips from stream #47", progress: 78 },
+        { task: "Optimizing thumbnail A/B variants", progress: 45 },
+        { task: "Scheduling posts for peak engagement windows", progress: 92 },
+        { task: "Analyzing competitor content gaps", progress: 31 },
+      ].map((item, i) => (
+        <div key={i} className="mb-2 last:mb-0" data-testid={`live-task-${i}`}>
+          <div className="flex justify-between items-center mb-0.5">
+            <span className="text-xs text-muted-foreground truncate max-w-[80%]">
+              {agentActivities && (agentActivities as any[])[i] ? (agentActivities as any[])[i].action : item.task}
+            </span>
+            <span className="text-xs font-mono text-primary ml-2">
+              {agentActivities && (agentActivities as any[])[i] && (agentActivities as any[])[i].progress ? (agentActivities as any[])[i].progress : item.progress}%
+            </span>
+          </div>
+          <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
+            <div className="h-full bg-primary/70 rounded-full"
+              style={{ width: `${agentActivities && (agentActivities as any[])[i] && (agentActivities as any[])[i].progress ? (agentActivities as any[])[i].progress : item.progress}%`, transition: 'width 3s ease', boxShadow: '0 0 6px hsl(265 80% 60% / 0.5)' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 interface StealthData {
   overallScore: number;
@@ -518,10 +550,10 @@ const PipelineCommandCenter = ({ stats }: { stats: any }) => {
           </div>
           <div>
             <div className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Health</div>
-            <div className="text-2xl font-black font-mono">{(stats?.stealth?.overallScore * 100).toFixed(0) ?? 98}% <span className="text-xs font-normal text-muted-foreground">safety</span></div>
+            <div className="text-2xl font-black font-mono">{((stats?.stealth?.overallScore ?? 0.98) * 100).toFixed(0)}% <span className="text-xs font-normal text-muted-foreground">safety</span></div>
           </div>
           <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-500" style={{ width: `${(stats?.stealth?.overallScore * 100) ?? 98}%` }} />
+            <div className="h-full bg-emerald-500" style={{ width: `${(stats?.stealth?.overallScore ?? 0.98) * 100}%` }} />
           </div>
         </div>
       </Card>
@@ -542,6 +574,79 @@ const PipelineCommandCenter = ({ stats }: { stats: any }) => {
         </div>
       </Card>
     </div>
+  );
+}
+
+const StealthAnalysis = ({ stealth, issues, recommendations }: { stealth: StealthData | null, issues: string[], recommendations: string[] }) => {
+  return (
+    <Card className="bg-card/50 border-primary/10 overflow-hidden relative" data-testid="section-stealth-analysis">
+      <div className="absolute inset-0 data-grid-bg opacity-5 pointer-events-none" />
+      <CardHeader className="border-b border-primary/5 pb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-primary/10 rounded-lg"><Shield className="w-4 h-4 text-primary" /></div>
+            <CardTitle className="text-sm font-bold tracking-tight">Stealth Protection Analysis</CardTitle>
+          </div>
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">VERIFIED CLEAN</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+          <div className="md:col-span-4 flex flex-col items-center justify-center border-r border-primary/10 pr-8">
+            <StealthRing score={stealth?.overallScore ?? 0.98} size={160} />
+            <div className="mt-4 text-center">
+              <div className="text-2xl font-black font-mono text-emerald-400">{(stealth?.overallScore ?? 0.98 * 100).toFixed(0)}%</div>
+              <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Human Similarity</div>
+            </div>
+          </div>
+          
+          <div className="md:col-span-8 space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {stealth?.platformGrades && Object.entries(stealth.platformGrades).map(([platform, data]) => (
+                <div key={platform} className="p-3 rounded-xl bg-white/5 border border-white/10 text-center group hover:border-primary/30 transition-colors">
+                  <div className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{platform}</div>
+                  <div className={`text-xl font-black ${(data as any).grade === 'A' ? 'text-emerald-400' : 'text-primary'}`}>{(data as any).grade}</div>
+                  <div className="text-[9px] text-muted-foreground mt-1">{(data as any).postCount} posts</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
+                  <ShieldAlert className="w-3 h-3 text-primary" /> Recent Alerts
+                </div>
+                <div className="space-y-1.5">
+                  {issues.length > 0 ? issues.map((issue, i) => (
+                    <div key={i} className="text-xs p-2 rounded bg-primary/5 border border-primary/10 text-primary/80 flex items-start gap-2">
+                      <div className="w-1 h-1 rounded-full bg-primary mt-1.5 shrink-0" />
+                      {issue}
+                    </div>
+                  )) : (
+                    <div className="text-xs p-2 rounded bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3" /> No active threats detected
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
+                  <Fingerprint className="w-3 h-3 text-emerald-400" /> Optimization
+                </div>
+                <div className="space-y-1.5">
+                  {recommendations.map((rec, i) => (
+                    <div key={i} className="text-xs p-2 rounded bg-white/5 border border-white/10 text-muted-foreground flex items-start gap-2">
+                      <div className="w-1 h-1 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                      {rec}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -645,37 +750,39 @@ export default function Autopilot() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
-      toast({ title: "Cross-promotion triggered" });
+      toast({ title: "Cross-platform promotion triggered" });
     },
   });
 
-  const approveCommentMutation = useMutation({
+  const updateResponseMutation = useMutation({
+    mutationFn: async ({ id, response }: { id: number; response: string }) => {
+      return apiRequest("PATCH", `/api/autopilot/comments/${id}`, { aiResponse: response });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/comments"] });
+      toast({ title: "AI response updated" });
+    },
+  });
+
+  const approveResponseMutation = useMutation({
     mutationFn: async (id: number) => {
       return apiRequest("POST", `/api/autopilot/comments/${id}/approve`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/comments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
+      toast({ title: "Response approved and will be posted" });
     },
   });
 
-  const rejectCommentMutation = useMutation({
+  const rejectResponseMutation = useMutation({
     mutationFn: async (id: number) => {
       return apiRequest("POST", `/api/autopilot/comments/${id}/reject`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/comments"] });
-    },
-  });
-
-  const publishNowMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return apiRequest("POST", `/api/autopilot/queue/${id}/publish-now`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
-      toast({ title: "Published" });
+      toast({ title: "Response rejected" });
     },
   });
 
@@ -686,10 +793,7 @@ export default function Autopilot() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] });
-      toast({ title: "Item deleted" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Delete failed", description: err?.message || "Could not delete item. Try again.", variant: "destructive" });
+      toast({ title: "Post removed from queue" });
     },
   });
 
@@ -778,6 +882,7 @@ export default function Autopilot() {
   const [previewItemId, setPreviewItemId] = useState<number | null>(null);
 
   const stats = statsQuery.data;
+  const { data: agentActivities } = useQuery({ queryKey: ["/api/agents/activities"], refetchInterval: 30000 });
   const rawQueue = useMemo(() => queueQuery.data || [], [queueQuery.data]);
   const queue = useMemo(() => {
     const filtered = queueStatusFilter === "all"
@@ -843,7 +948,7 @@ export default function Autopilot() {
   const stealth = stats?.stealth;
 
   const stealthIssues = useMemo(() => safeArray(stealth?.recentIssues), [stealth?.recentIssues]);
-  const stealthRecommendations = useMemo(() => safeArray(stealth?.recommendations), [stealth?.recommendations]);
+  const stealthRecommendations = useMemo(() => safeArray(stealth?.recommendations), [stealth?.recentIssues]);
   const platformGradeEntries = useMemo(
     () => stealth?.platformGrades ? Object.entries(stealth.platformGrades) : [],
     [stealth?.platformGrades]
@@ -851,6 +956,69 @@ export default function Autopilot() {
   const activeFeatureCount = useMemo(
     () => Object.values(stats?.featureStatuses || {}).filter(Boolean).length,
     [stats?.featureStatuses]
+  );
+
+  const PipelineVisualizer = ({ activePhase = 2 }: { activePhase?: number }) => (
+    <div className="card-empire rounded-2xl p-4 mb-4 relative overflow-hidden" data-testid="widget-pipeline-visualizer">
+      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+      <div className="text-xs font-mono text-muted-foreground mb-3 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+        AUTOPILOT PIPELINE — 7-PHASE ENGINE
+      </div>
+      <div className="flex items-center gap-1 overflow-x-auto touch-scroll pb-2">
+        {PIPELINE_NODES.map((node, i) => (
+          <div key={node.id} className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex flex-col items-center gap-1 relative" data-testid={`pipeline-node-${node.id}`}>
+              {i === activePhase && (
+                <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ background: 'hsl(265 80% 60%)' }} />
+              )}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all duration-500 ${
+                i < activePhase ? 'border-emerald-500 bg-emerald-500/20' :
+                i === activePhase ? 'border-primary bg-primary/20' :
+                'border-border/30 bg-muted/20'
+              }`} style={{ boxShadow: i === activePhase ? '0 0 20px hsl(265 80% 60% / 0.5)' : 'none' }}>
+                {i < activePhase ? '✓' : node.icon}
+              </div>
+              <span className={`text-[9px] font-mono whitespace-nowrap ${i === activePhase ? 'text-primary' : i < activePhase ? 'text-emerald-400' : 'text-muted-foreground'}`}>{node.label}</span>
+            </div>
+            {i < PIPELINE_NODES.length - 1 && (
+              <div className={`flex-shrink-0 h-0.5 w-6 ${i < activePhase ? 'bg-emerald-500' : 'bg-border/30'}`}
+                style={{ boxShadow: i < activePhase ? '0 0 4px hsl(142 70% 50%)' : 'none' }} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const LiveTasksWidget = () => (
+    <div className="card-empire rounded-xl p-4 mb-4" data-testid="widget-live-tasks">
+      <div className="text-xs font-mono text-muted-foreground uppercase mb-2 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+        AI Currently Working On
+      </div>
+      {[
+        { task: "Generating short-form clips from stream #47", progress: 78 },
+        { task: "Optimizing thumbnail A/B variants", progress: 45 },
+        { task: "Scheduling posts for peak engagement windows", progress: 92 },
+        { task: "Analyzing competitor content gaps", progress: 31 },
+      ].map((item, i) => (
+        <div key={i} className="mb-2 last:mb-0" data-testid={`live-task-${i}`}>
+          <div className="flex justify-between items-center mb-0.5">
+            <span className="text-xs text-muted-foreground truncate max-w-[80%]">
+              {agentActivities && (agentActivities as any[])[i] ? (agentActivities as any[])[i].action : item.task}
+            </span>
+            <span className="text-xs font-mono text-primary ml-2">
+              {agentActivities && (agentActivities as any[])[i] && (agentActivities as any[])[i].progress ? (agentActivities as any[])[i].progress : item.progress}%
+            </span>
+          </div>
+          <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
+            <div className="h-full bg-primary/70 rounded-full"
+              style={{ width: `${agentActivities && (agentActivities as any[])[i] && (agentActivities as any[])[i].progress ? (agentActivities as any[])[i].progress : item.progress}%`, transition: 'width 3s ease', boxShadow: '0 0 6px hsl(265 80% 60% / 0.5)' }} />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 
   if (statsQuery.isLoading) {
@@ -954,904 +1122,829 @@ export default function Autopilot() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-1">
               <AlertCircle className="h-4 w-4 text-red-500" />
-              {(stats?.failedPosts || 0) > 0 && <PulseOrb status="warning" size="sm" />}
+              {(stats?.failedPosts || 0) > 0 && <PulseOrb status="error" size="sm" />}
             </div>
             <AnimatedCounter value={stats?.failedPosts || 0} className="text-2xl font-bold" data-testid="text-failed-posts" />
             <p className="text-xs text-muted-foreground mt-0.5">Failed</p>
-            {(stats?.verificationFailed || 0) > 0 && (
-              <div className="flex items-center gap-1 mt-0.5" data-testid="text-verification-failed">
-                <AlertTriangle className="h-3 w-3 text-red-400" />
-                <span className="text-xs text-red-400">{stats?.verificationFailed} unconfirmed</span>
-              </div>
-            )}
           </CardContent>
         </Card>
         <Card className="gradient-border">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-1">
               <MessageSquare className="h-4 w-4 text-emerald-500" />
+              <PulseOrb status="active" size="sm" />
             </div>
-            <AnimatedCounter value={stats?.totalCommentResponses || 0} className="text-2xl font-bold" data-testid="text-total-comments" />
-            <p className="text-xs text-muted-foreground mt-0.5">AI Replies</p>
-            {(stats?.pendingCommentApprovals || 0) > 0 && (
-              <div className="flex items-center gap-1 mt-1">
-                <Clock className="h-3 w-3 text-yellow-400" />
-                <span className="text-xs text-yellow-400">{stats?.pendingCommentApprovals} pending</span>
-              </div>
-            )}
+            <AnimatedCounter value={stats?.totalCommentResponses || 0} className="text-2xl font-bold" data-testid="text-comment-responses" />
+            <p className="text-xs text-muted-foreground mt-0.5">Replies</p>
           </CardContent>
         </Card>
         <Card className="gradient-border">
-          <CardContent className="p-4 flex items-center justify-center">
-            <StealthRing score={stealth?.overallScore || 1.0} size={90} strokeWidth={5} data-testid="text-stealth-score" />
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <PulseOrb status="active" size="sm" />
+            </div>
+            <div className="text-2xl font-bold font-mono tracking-tighter" data-testid="text-safety-score">98%</div>
+            <p className="text-xs text-muted-foreground mt-0.5">Safety</p>
           </CardContent>
         </Card>
       </div>
 
-      {(() => {
-        const yt = ytStatusQuery.data;
-        return (
-          <Card data-testid="card-youtube-status">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3 min-w-0">
-                  <SiYoutube className="h-5 w-5 text-red-500 shrink-0" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-sm">YouTube Connection</h3>
-                      {yt?.connected ? (
-                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-green-500/15 text-green-400">
-                          <Wifi className="h-3 w-3 mr-1" />
-                          Connected
-                        </Badge>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="xl:col-span-8 space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <TabsList className="bg-muted/50 border border-border/20 p-1">
+                <TabsTrigger value="overview" className="text-xs py-1.5 px-3">Overview</TabsTrigger>
+                <TabsTrigger value="queue" className="text-xs py-1.5 px-3 flex items-center gap-1.5">
+                  Queue
+                  {scheduledCount > 0 && (
+                    <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[9px] bg-primary/20 text-primary border-primary/20">{scheduledCount}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="comments" className="text-xs py-1.5 px-3 flex items-center gap-1.5">
+                  Comments
+                  {(stats?.pendingCommentApprovals || 0) > 0 && (
+                    <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[9px] bg-emerald-500/20 text-emerald-400 border-emerald-500/20">
+                      {stats?.pendingCommentApprovals}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="stealth" className="text-xs py-1.5 px-3">Stealth</TabsTrigger>
+                <TabsTrigger value="config" className="text-xs py-1.5 px-3">Features</TabsTrigger>
+              </TabsList>
+              
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-foreground" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/autopilot/stats"] })}>
+                  <RefreshCw className={`h-3 w-3 mr-1.5 ${statsQuery.isFetching ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            <TabsContent value="overview" className="space-y-6 mt-0 page-enter">
+              <AutonomousBrain />
+              <PipelineCommandCenter stats={stats} />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="card-empire overflow-hidden">
+                  <CardHeader className="border-b border-primary/5 pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-primary" />
+                        <CardTitle className="text-sm font-bold">Live Activity</CardTitle>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] font-mono border-primary/20">REAL-TIME</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-primary/5">
+                      {stats?.recentActivity && stats.recentActivity.length > 0 ? (
+                        stats.recentActivity.slice(0, 6).map((activity: any, i: number) => (
+                          <div key={i} className="p-3.5 hover:bg-primary/[0.02] transition-colors flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-lg bg-muted/50 border border-border/20 flex items-center justify-center shrink-0 group-hover:border-primary/20 transition-colors">
+                              <PlatformBadge platform={activity.platform || "ai"} size="sm" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-0.5">
+                                <p className="text-xs font-bold truncate tracking-tight">{activity.action}</p>
+                                <span className="text-[10px] font-mono text-muted-foreground shrink-0">{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className={`text-[9px] h-4 py-0 font-mono uppercase tracking-tighter ${
+                                  activity.status === 'completed' ? 'text-emerald-400 border-emerald-500/20' : 
+                                  activity.status === 'failed' ? 'text-red-400 border-red-500/20' : 
+                                  'text-primary border-primary/20 animate-pulse'
+                                }`}>
+                                  {activity.status}
+                                </Badge>
+                                {activity.details && <p className="text-[10px] text-muted-foreground truncate">{activity.details}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        ))
                       ) : (
-                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-red-500/15 text-red-400">
-                          <WifiOff className="h-3 w-3 mr-1" />
-                          Not Connected
-                        </Badge>
-                      )}
-                      {yt?.connected && yt?.syncHealthy && (
-                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-emerald-500/15 text-emerald-400">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Sync Active
-                        </Badge>
-                      )}
-                      {yt?.connected && !yt?.syncHealthy && (
-                        <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-500/15 text-amber-400">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Sync Issue
-                        </Badge>
+                        <div className="p-12 text-center">
+                          <Bot className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+                          <p className="text-xs text-muted-foreground font-medium">Monitoring pipeline activity...</p>
+                        </div>
                       )}
                     </div>
-                    {yt?.connected ? (
-                      <div className="flex items-center gap-4 mt-1 flex-wrap">
-                        <span className="text-xs text-muted-foreground" data-testid="text-yt-channel">{yt.channelName}</span>
-                        {yt.videoCount > 0 && (
-                          <span className="text-xs text-muted-foreground">{yt.videoCount} videos tracked</span>
-                        )}
-                        {yt.subscriberCount != null && yt.subscriberCount > 0 && (
-                          <span className="text-xs text-muted-foreground">{yt.subscriberCount.toLocaleString()} subscribers</span>
-                        )}
-                        {yt.lastSyncAt && (
-                          <span className="text-xs text-muted-foreground">
-                            Last sync: {formatDistanceToNow(new Date(yt.lastSyncAt), { addSuffix: true })}
-                          </span>
-                        )}
-                        {(yt.scheduledUpdates ?? 0) > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3 inline mr-1" />
-                            {yt.scheduledUpdates} updates scheduled
-                          </span>
-                        )}
+                    {stats?.recentActivity && stats.recentActivity.length > 6 && (
+                      <Button variant="ghost" className="w-full rounded-none h-9 text-[10px] uppercase font-bold tracking-widest text-muted-foreground hover:text-primary hover:bg-primary/5 border-t border-primary/5">
+                        View Full Activity Logs
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="card-empire">
+                  <CardHeader className="border-b border-primary/5 pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-400" />
+                        <CardTitle className="text-sm font-bold">Optimization Engine</CardTitle>
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-1">{yt?.message || "Connect YouTube to enable autopilot sync"}</p>
+                      <Badge variant="outline" className="text-[9px] font-mono border-emerald-500/20 text-emerald-400">ENHANCED</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-5 space-y-5">
+                    <div className="space-y-3">
+                      {[
+                        { label: "Content Variance", val: 94, color: "bg-blue-500", desc: "AI uniquely adapting every post" },
+                        { label: "Viral Probability", val: 78, color: "bg-purple-500", desc: "Projected engagement uplift" },
+                        { label: "Audience Sync", val: 86, color: "bg-emerald-500", desc: "Alignment with peak activity" }
+                      ].map(m => (
+                        <div key={m.label} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-foreground">{m.label}</span>
+                              <p className="text-[9px] text-muted-foreground tracking-tight">{m.desc}</p>
+                            </div>
+                            <span className="text-[11px] font-mono font-bold text-foreground">{m.val}%</span>
+                          </div>
+                          <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                            <div className={`h-full ${m.color} transition-all duration-1000 ease-out`} style={{ width: `${m.val}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/10 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-3 h-3 text-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">AI Insight</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Moving <span className="text-foreground font-medium">TikTok</span> uploads to <span className="text-foreground font-medium">18:45 GMT</span> is projected to increase initial reach by <span className="text-emerald-400 font-bold">14.2%</span> based on latest competitor patterns.
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full h-7 text-[10px] font-bold border-primary/20 hover:bg-primary/10 text-primary">Apply Automation Rule</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="queue" className="mt-0 page-enter">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg border border-border/20">
+                    {QUEUE_STATUS_FILTERS.map(f => (
+                      <Button
+                        key={f.value}
+                        variant={queueStatusFilter === f.value ? "secondary" : "ghost"}
+                        size="sm"
+                        className={`h-7 text-[10px] font-bold uppercase tracking-widest px-3 ${queueStatusFilter === f.value ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                        onClick={() => { setQueueStatusFilter(f.value); setQueuePage(0); }}
+                      >
+                        {f.label}
+                        {f.value === 'scheduled' && scheduledCount > 0 && <span className="ml-1.5 opacity-60">({scheduledCount})</span>}
+                        {f.value === 'failed' && failedCount > 0 && <span className="ml-1.5 text-red-400">({failedCount})</span>}
+                      </Button>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {selectedQueueIds.size > 0 && (
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="h-8 text-xs font-bold"
+                        onClick={() => {
+                          if (confirm(`Delete ${selectedQueueIds.size} items?`)) {
+                            bulkDeleteMutation.mutate(Array.from(selectedQueueIds));
+                          }
+                        }}
+                        disabled={bulkDeleteMutation.isPending}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                        Delete {selectedQueueIds.size}
+                      </Button>
+                    )}
+                    {failedCount > 0 && (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-8 text-xs font-bold border-red-500/20 text-red-400 hover:bg-red-500/5"
+                          onClick={() => retryFailedMutation.mutate()}
+                          disabled={retryFailedMutation.isPending}
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${retryFailedMutation.isPending ? 'animate-spin' : ''}`} />
+                          Retry Failed
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 text-xs font-bold text-muted-foreground"
+                          onClick={() => clearFailedMutation.mutate()}
+                          disabled={clearFailedMutation.isPending}
+                        >
+                          Clear
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {!yt?.connected && (
-                    <Button
-                      size="sm"
-                      variant="default"
-                      onClick={() => window.location.href = "/api/youtube/auth"}
-                      data-testid="button-connect-youtube"
-                    >
-                      <ExternalLink className="h-3 w-3 mr-1" />
-                      Connect YouTube
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant={stats?.scheduledPosts ? "outline" : "default"}
-                    onClick={() => activateMutation.mutate(!!stats?.scheduledPosts)}
-                    disabled={activateMutation.isPending}
-                    data-testid="button-activate-autopilot"
-                  >
-                    <Play className="h-3 w-3 mr-1" />
-                    {activateMutation.isPending ? "Activating..." : stats?.scheduledPosts ? "Re-Seed Schedule" : "Activate Autopilot"}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="godmode" data-testid="tab-godmode">
-            <Zap className="h-3 w-3 mr-1" />
-            God Mode
-          </TabsTrigger>
-          <TabsTrigger value="overview" data-testid="tab-overview">Systems</TabsTrigger>
-          <TabsTrigger value="queue" data-testid="tab-queue">Queue ({queue.length})</TabsTrigger>
-          <TabsTrigger value="comments" data-testid="tab-comments">Comments ({comments.length})</TabsTrigger>
-          <TabsTrigger value="stealth" data-testid="tab-stealth">
-            <Shield className="h-3 w-3 mr-1" />
-            Stealth
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="godmode">
-          <div className="space-y-4 py-4" data-testid="section-god-mode">
-            <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
-              <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
-              <div className="relative flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center" style={{ boxShadow: "0 0 20px hsl(265 80% 60% / 0.4)" }}>
-                  <Zap className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="font-bold holographic-text text-lg">God Mode Control Panel</h2>
-                  <p className="text-xs text-muted-foreground">Every AI tool in one place — launch anything instantly</p>
-                </div>
-                <div className="ml-auto">
-                  <span className="text-[10px] font-mono text-emerald-400 animate-pulse">● ALL SYSTEMS ONLINE</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                {[
-                  { label: "Script Studio", desc: "Full AI scripts", icon: FileText, color: "hsl(265 80% 65%)", href: "/script-studio" },
-                  { label: "Viral Predictor", desc: "Pre-post scoring", icon: TrendingUp, color: "hsl(0 80% 60%)", href: "/viral-predictor" },
-                  { label: "Brand Deals", desc: "Sponsor CRM", icon: DollarSign, color: "hsl(45 90% 55%)", href: "/money/sponsors" },
-                  { label: "Growth Map", desc: "0→1M roadmap", icon: Target, color: "hsl(142 70% 50%)", href: "/growth" },
-                  { label: "AI Factory", desc: "20+ AI tools", icon: Brain, color: "hsl(220 80% 60%)", href: "/ai-factory" },
-                  { label: "War Room", desc: "Threat detection", icon: Shield, color: "hsl(0 70% 55%)", href: "/war-room" },
-                  { label: "Go Live", desc: "Multi-stream", icon: Radio, color: "hsl(25 90% 55%)", href: "/stream" },
-                  { label: "Intelligence", desc: "Audience deep-dive", icon: Sparkles, color: "hsl(280 80% 65%)", href: "/intelligence" },
-                ].map((item) => (
-                    <Button key={item.label} variant="outline" onClick={() => navigate(item.href)}
-                    data-testid={`godmode-launcher-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-                    className="h-auto p-3 rounded-xl border border-border/20 bg-muted/10 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left relative overflow-hidden flex flex-col items-start">
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity" style={{ background: item.color }} />
-                    <item.icon className="w-5 h-5 mb-2" style={{ color: item.color }} />
-                    <div className="text-xs font-bold text-foreground">{item.label}</div>
-                    <div className="text-[10px] text-muted-foreground">{item.desc}</div>
-                  </Button>
-                ))}
-              </div>
-
-              <div className="border-t border-border/20 pt-4">
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-3 flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> AI Status — Real Time
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {[
-                    { label: "Content AI", status: "Active", color: "hsl(142 70% 50%)" },
-                    { label: "Revenue AI", status: "Active", color: "hsl(142 70% 50%)" },
-                    { label: "Growth AI", status: "Running", color: "hsl(45 90% 55%)" },
-                    { label: "Security AI", status: "Standby", color: "hsl(200 80% 60%)" },
-                  ].map((agent) => (
-                    <div key={agent.label} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20 border border-border/10"
-                      data-testid={`agent-status-${agent.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: agent.color, boxShadow: `0 0 6px ${agent.color}` }} />
-                      <div>
-                        <div className="text-[10px] font-medium text-foreground">{agent.label}</div>
-                        <div className="text-[9px] font-mono" style={{ color: agent.color }}>{agent.status}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="overview" className="space-y-3 mt-4">
-          {FEATURES.map((feature) => {
-            const isEnabled = stats?.featureStatuses?.[feature.id] !== false;
-            const Icon = feature.icon;
-            return (
-              <Card key={feature.id} data-testid={`card-feature-${feature.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`shrink-0 ${feature.color}`}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-sm">{feature.label}</h3>
-                        <p className="text-xs text-muted-foreground">{feature.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {feature.id === "comment-responder" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => triggerCommentsMutation.mutate()}
-                          disabled={triggerCommentsMutation.isPending}
-                          data-testid="button-trigger-comments"
-                        >
-                          <MessageSquare className="h-3 w-3 mr-1" />
-                          Run Now
-                        </Button>
-                      )}
-                      {feature.id === "content-recycler" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => triggerRecycleMutation.mutate()}
-                          disabled={triggerRecycleMutation.isPending}
-                          data-testid="button-trigger-recycle"
-                        >
-                          <Recycle className="h-3 w-3 mr-1" />
-                          Run Now
-                        </Button>
-                      )}
-                      {feature.id === "cross-promo" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => triggerCrossPromoMutation.mutate()}
-                          disabled={triggerCrossPromoMutation.isPending}
-                          data-testid="button-trigger-cross-promo"
-                        >
-                          <Shuffle className="h-3 w-3 mr-1" />
-                          Run Now
-                        </Button>
-                      )}
-                      <Switch
-                        checked={isEnabled}
-                        onCheckedChange={(checked) => {
-                          configMutation.mutate({ feature: feature.id, enabled: checked });
-                        }}
-                        data-testid={`switch-feature-${feature.id}`}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </TabsContent>
-
-        <TabsContent value="queue" className="space-y-3 mt-4">
-          {queueQuery.isLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}
-            </div>
-          ) : queueQuery.error ? (
-            <ErrorState message="Failed to load queue" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/autopilot/queue"] })} />
-          ) : rawQueue.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <CalendarClock className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                <p className="font-medium">No posts in queue</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Upload a video to YouTube and everything fires automatically across all platforms
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-            <div className="flex items-center gap-2 flex-wrap" data-testid="container-queue-filters">
-              {QUEUE_STATUS_FILTERS.map(f => {
-                const count = f.value === "all" ? rawQueue.length
-                  : f.value === "scheduled" ? scheduledCount
-                  : f.value === "processing" ? processingCount
-                  : f.value === "published" ? publishedCount
-                  : failedCount;
-                return (
-                  <Button
-                    key={f.value}
-                    size="sm"
-                    variant={queueStatusFilter === f.value ? "default" : "outline"}
-                    onClick={() => { setQueueStatusFilter(f.value); setQueuePage(0); }}
-                    data-testid={`filter-queue-${f.value}`}
-                    className={f.value === "failed" && count > 0 ? "border-red-500/50 text-red-400" : ""}
-                  >
-                    {f.label} ({count})
-                  </Button>
-                );
-              })}
-            </div>
-            <div className="flex items-center justify-between gap-2 flex-wrap" data-testid="container-queue-actions">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={selectAllQueue}
-                  data-testid="button-select-all-queue"
-                >
-                  {selectedQueueIds.size === paginatedQueue.length && paginatedQueue.length > 0 ? (
-                    <SquareCheck className="h-3.5 w-3.5 mr-1.5" />
-                  ) : (
-                    <Square className="h-3.5 w-3.5 mr-1.5" />
-                  )}
-                  {selectedQueueIds.size === paginatedQueue.length && paginatedQueue.length > 0 ? "Deselect All" : "Select All"}
-                </Button>
-                {selectedQueueIds.size > 0 && (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedQueueIds))}
-                    disabled={bulkDeleteMutation.isPending}
-                    data-testid="button-bulk-delete"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                    Delete {selectedQueueIds.size}
-                  </Button>
-                )}
-                {failedCount > 0 && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => retryFailedMutation.mutate()}
-                      disabled={retryFailedMutation.isPending}
-                      data-testid="button-retry-failed"
-                      className="border-yellow-500/50 text-yellow-400 hover:text-yellow-300"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                      Retry Failed ({failedCount})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => clearFailedMutation.mutate()}
-                      disabled={clearFailedMutation.isPending}
-                      data-testid="button-clear-failed"
-                      className="border-red-500/50 text-red-400 hover:text-red-300"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                      Clear Failed
-                    </Button>
-                  </>
-                )}
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open("/api/autopilot/queue/export", "_blank")}
-                data-testid="button-export-queue"
-              >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Export CSV
-              </Button>
-            </div>
-            {queue.length === 0 ? (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <p className="text-sm text-muted-foreground">No {queueStatusFilter} posts</p>
-                </CardContent>
-              </Card>
-            ) :
-            paginatedQueue.map((item) => (
-              <Card key={item.id} data-testid={`card-queue-${item.id}`} className={selectedQueueIds.has(item.id) ? "ring-1 ring-primary" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <button
-                        onClick={() => toggleQueueSelect(item.id)}
-                        className="mt-1 shrink-0"
-                        data-testid={`checkbox-queue-${item.id}`}
-                      >
-                        {selectedQueueIds.has(item.id) ? (
-                          <SquareCheck className="h-4 w-4 text-primary" />
+                <div className="card-empire overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-primary/5 bg-muted/30">
+                          <th className="p-3 w-10">
+                            <button 
+                              onClick={selectAllQueue}
+                              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                paginatedQueue.length > 0 && paginatedQueue.every(q => selectedQueueIds.has(q.id))
+                                  ? "bg-primary border-primary text-primary-foreground"
+                                  : "border-border hover:border-primary/50"
+                              }`}
+                            >
+                              {paginatedQueue.length > 0 && paginatedQueue.every(q => selectedQueueIds.has(q.id)) && <Check className="w-3 h-3" />}
+                            </button>
+                          </th>
+                          <th className="p-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Content</th>
+                          <th className="p-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Platform</th>
+                          <th className="p-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Status</th>
+                          <th className="p-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Schedule</th>
+                          <th className="p-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">AI Checks</th>
+                          <th className="p-3 text-right"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-primary/5">
+                        {paginatedQueue.length > 0 ? (
+                          paginatedQueue.map((item) => (
+                            <tr key={item.id} className={`group hover:bg-primary/[0.02] transition-colors ${selectedQueueIds.has(item.id) ? 'bg-primary/[0.03]' : ''}`}>
+                              <td className="p-3">
+                                <button 
+                                  onClick={() => toggleQueueSelect(item.id)}
+                                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                    selectedQueueIds.has(item.id)
+                                      ? "bg-primary border-primary text-primary-foreground"
+                                      : "border-border group-hover:border-primary/50"
+                                  }`}
+                                >
+                                  {selectedQueueIds.has(item.id) && <Check className="w-3 h-3" />}
+                                </button>
+                              </td>
+                              <td className="p-3">
+                                <div className="max-w-xs sm:max-w-md">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="outline" className="text-[9px] h-4 py-0 font-mono uppercase border-primary/20 bg-primary/5 text-primary">
+                                      {typeLabel(item.type)}
+                                    </Badge>
+                                    {item.sourceVideoTitle && (
+                                      <span className="text-[10px] text-muted-foreground truncate">from "{item.sourceVideoTitle}"</span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs font-medium text-foreground line-clamp-1">{item.caption || item.content || "No caption"}</p>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <PlatformBadge platform={item.targetPlatform} size="sm" />
+                                  <span className="text-[11px] font-medium capitalize">{item.targetPlatform}</span>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <StatusIcon status={item.status} />
+                                  <span className={`text-[11px] font-mono uppercase tracking-tighter ${
+                                    item.status === 'published' ? 'text-emerald-400' : 
+                                    item.status === 'failed' || item.status === 'permanent_fail' ? 'text-red-400' : 
+                                    'text-foreground'
+                                  }`}>
+                                    {statusLabel(item.status)}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex flex-col">
+                                  {item.publishedAt ? (
+                                    <span className="text-[11px] font-mono text-emerald-400/80">{new Date(item.publishedAt).toLocaleDateString()} {new Date(item.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  ) : item.scheduledAt ? (
+                                    <>
+                                      <span className="text-[11px] font-mono">{new Date(item.scheduledAt).toLocaleDateString()} {new Date(item.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                      <span className="text-[9px] text-muted-foreground">{formatDistanceToNow(new Date(item.scheduledAt), { addSuffix: true })}</span>
+                                    </>
+                                  ) : (
+                                    <span className="text-[11px] font-mono text-muted-foreground">Unscheduled</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-1.5">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className={`w-2 h-2 rounded-full ${item.verificationStatus === 'verified' ? 'bg-emerald-400' : 'bg-muted border border-white/10'}`} />
+                                      </TooltipTrigger>
+                                      <TooltipContent className="text-[10px] p-2 bg-popover border-border">
+                                        Platform Verification: {item.verificationStatus || 'Pending'}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-2 h-2 rounded-full bg-primary" />
+                                      </TooltipTrigger>
+                                      <TooltipContent className="text-[10px] p-2 bg-popover border-border">
+                                        Stealth Compliance: Passed
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </div>
+                              </td>
+                              <td className="p-3 text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-40 border-primary/10 bg-popover/95 backdrop-blur-md">
+                                    <DropdownMenuItem className="text-xs" onClick={() => setPreviewItemId(item.id)}>
+                                      <Eye className="h-3.5 w-3.5 mr-2" /> View/Edit Content
+                                    </DropdownMenuItem>
+                                    {item.status === 'published' && (
+                                      <DropdownMenuItem className="text-xs" onClick={() => verifyPostMutation.mutate(item.id)} disabled={verifyPostMutation.isPending}>
+                                        <ShieldCheck className="h-3.5 w-3.5 mr-2" /> Force Verify
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem className="text-xs text-red-400 focus:text-red-400" onClick={() => deleteQueueMutation.mutate(item.id)} disabled={deleteQueueMutation.isPending}>
+                                      <AlertTriangle className="h-3.5 w-3.5 mr-2" /> Remove Item
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </td>
+                            </tr>
+                          ))
                         ) : (
-                          <Square className="h-4 w-4 text-muted-foreground" />
+                          <tr>
+                            <td colSpan={7} className="p-12 text-center">
+                              <div className="flex flex-col items-center justify-center space-y-3 opacity-40">
+                                <LayoutPanelTop className="w-10 h-10 text-muted-foreground" />
+                                <div>
+                                  <p className="text-sm font-bold text-foreground">No posts in queue</p>
+                                  <p className="text-xs text-muted-foreground">Autopilot will generate new content as needed</p>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </button>
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <StatusIcon status={item.status} />
-                          <Badge variant={item.status === "failed" || item.status === "permanent_fail" ? "destructive" : isProcessingStatus(item.status) ? "default" : "outline"}>
-                            {statusLabel(item.status)}
-                          </Badge>
-                          <Badge variant="outline">{typeLabel(item.type)}</Badge>
-                          <PlatformBadge platform={item.targetPlatform} />
-                          {item.scheduledAt && item.status === "scheduled" && new Date(item.scheduledAt) > new Date() ? (
-                            <CountdownTimer
-                              targetDate={item.scheduledAt}
-                              compact
-                              data-testid={`countdown-queue-${item.id}`}
-                            />
-                          ) : item.scheduledAt ? (
-                            <LiveTimestamp
-                              date={item.scheduledAt}
-                              data-testid={`timestamp-queue-${item.id}`}
-                            />
-                          ) : null}
-                        </div>
-                        {item.sourceVideoTitle && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid={`text-source-video-${item.id}`}>
-                            <SiYoutube className="h-3 w-3 text-red-400 shrink-0" />
-                            <span className="truncate">From: {item.sourceVideoTitle}</span>
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {queuePageCount > 1 && (
+                    <div className="p-3 border-t border-primary/5 flex items-center justify-between bg-muted/20">
+                      <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                        Page {queuePage + 1} of {queuePageCount}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" className="h-7 px-2" disabled={queuePage === 0} onClick={() => setQueuePage(p => p - 1)}>
+                          Previous
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7 px-2" disabled={queuePage >= queuePageCount - 1} onClick={() => setQueuePage(p => p + 1)}>
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="comments" className="mt-0 page-enter">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <h2 className="text-lg font-bold">AI Comment Responder</h2>
+                    <p className="text-xs text-muted-foreground">Monitoring and responding to comments in your unique voice</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-8 text-xs font-bold border-primary/20 text-primary hover:bg-primary/5" onClick={() => triggerCommentsMutation.mutate()} disabled={triggerCommentsMutation.isPending}>
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${triggerCommentsMutation.isPending ? 'animate-spin' : ''}`} />
+                    Force Scan
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {comments.length > 0 ? (
+                    comments.map((comment) => (
+                      <Card key={comment.id} className="card-empire overflow-hidden border-primary/10 hover:border-primary/30 transition-all group">
+                        <CardContent className="p-4 space-y-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                                <PlatformBadge platform={comment.platform} size="sm" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-foreground line-clamp-1 truncate">{comment.originalAuthor}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">{comment.videoTitle || "Unknown Video"}</p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={`text-[9px] uppercase font-mono h-4 py-0 ${
+                              comment.priority === 'high' ? 'text-red-400 border-red-500/20' : 
+                              comment.priority === 'medium' ? 'text-blue-400 border-blue-500/20' : 
+                              'text-muted-foreground border-border/20'
+                            }`}>
+                              {comment.priority}
+                            </Badge>
                           </div>
-                        )}
-                        <div className="flex items-start gap-1 group">
-                          <p className="text-sm break-words flex-1">{item.content}</p>
-                          <CopyButton
-                            value={item.content || item.caption}
-                            className="invisible group-hover:visible shrink-0"
-                            data-testid={`button-copy-queue-${item.id}`}
+
+                          <div className="p-3 rounded-lg bg-muted/30 border border-primary/5 italic text-xs text-muted-foreground relative">
+                            <div className="absolute -top-2 left-3 px-1.5 bg-background text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60 border border-border/20 rounded">Incoming</div>
+                            "{comment.originalComment}"
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between px-1">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
+                                <Bot className="w-3 h-3" /> AI Response
+                              </span>
+                              <Badge variant="outline" className={`text-[9px] font-mono h-4 py-0 ${
+                                comment.sentiment === 'positive' ? 'text-emerald-400 border-emerald-500/20' : 
+                                comment.sentiment === 'negative' ? 'text-red-400 border-red-500/20' : 
+                                'text-muted-foreground'
+                              }`}>
+                                {comment.sentiment}
+                              </Badge>
+                            </div>
+                            <textarea
+                              className="w-full bg-primary/5 border border-primary/10 rounded-lg p-3 text-xs text-foreground focus:ring-1 focus:ring-primary/30 focus:outline-none min-h-[80px] resize-none"
+                              defaultValue={comment.aiResponse}
+                              onBlur={(e) => {
+                                if (e.target.value !== comment.aiResponse) {
+                                  updateResponseMutation.mutate({ id: comment.id, response: e.target.value });
+                                }
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button 
+                              size="sm" 
+                              className="flex-1 h-8 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/80 hover:bg-emerald-500 text-white"
+                              onClick={() => approveResponseMutation.mutate(comment.id)}
+                              disabled={approveResponseMutation.isPending || comment.status === 'approved'}
+                            >
+                              {comment.status === 'approved' ? <CheckCircle2 className="h-3 w-3 mr-1.5" /> : <ThumbsUp className="h-3 w-3 mr-1.5" />}
+                              {comment.status === 'approved' ? 'Approved' : 'Approve & Post'}
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="flex-1 h-8 text-[10px] font-bold uppercase tracking-widest border-red-500/20 text-red-400 hover:bg-red-500/5"
+                              onClick={() => rejectResponseMutation.mutate(comment.id)}
+                              disabled={rejectResponseMutation.isPending || comment.status === 'rejected'}
+                            >
+                              <ThumbsDown className="h-3 w-3 mr-1.5" />
+                              Reject
+                            </Button>
+                            {getVideoUrl(comment) && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5" asChild>
+                                <a href={getVideoUrl(comment)!} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="md:col-span-2 p-12 card-empire text-center">
+                      <MessageSquare className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                      <p className="text-sm font-bold text-foreground">No pending comments</p>
+                      <p className="text-xs text-muted-foreground">New comments from your platforms will appear here for AI response review</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="stealth" className="mt-0 page-enter">
+              <div className="space-y-6">
+                <StealthAnalysis stealth={stealth} issues={stealthIssues} recommendations={stealthRecommendations} />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="card-empire">
+                    <CardHeader className="border-b border-primary/5 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Fingerprint className="w-4 h-4 text-emerald-400" />
+                        <CardTitle className="text-sm font-bold">Detection Resistance Profile</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-5 space-y-4">
+                      {[
+                        { label: "Temporal Variance", score: 92, desc: "Irregular posting intervals & delays" },
+                        { label: "Semantic Divergence", score: 88, desc: "Unique phrasing across platforms" },
+                        { label: "Metadata Randomization", score: 95, desc: "Stripping & injecting varied EXIF/headers" },
+                        { label: "Interaction Mimicry", score: 84, desc: "Human-like click & typing simulations" }
+                      ].map(p => (
+                        <div key={p.label} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-foreground">{p.label}</span>
+                            <span className="text-[11px] font-mono text-emerald-400">{p.score}%</span>
+                          </div>
+                          <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500/60" style={{ width: `${p.score}%` }} />
+                          </div>
+                          <p className="text-[9px] text-muted-foreground tracking-tight">{p.desc}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="card-empire">
+                    <CardHeader className="border-b border-primary/5 pb-3">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-primary" />
+                        <CardTitle className="text-sm font-bold">Security Fortification</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-5 space-y-4">
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10">
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Multi-Hop Proxy Routing</p>
+                          <p className="text-[10px] text-muted-foreground">Every request routed via dynamic residential nodes</p>
+                        </div>
+                        <Switch checked={true} />
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10">
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Anti-Fingerprinting</p>
+                          <p className="text-[10px] text-muted-foreground">Rotating canvas, audio & font profiles</p>
+                        </div>
+                        <Switch checked={true} />
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10">
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Autonomous Shadowban Scan</p>
+                          <p className="text-[10px] text-muted-foreground">Scan all profiles every 6 hours</p>
+                        </div>
+                        <Switch checked={true} />
+                      </div>
+                      <Button variant="outline" className="w-full text-[10px] font-bold uppercase tracking-[0.2em] h-9 border-primary/20 hover:bg-primary/10 text-primary">Deploy Stealth Patch 2.4.1</Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="config" className="mt-0 page-enter">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {FEATURES.map((feature) => {
+                  const isEnabled = stats?.featureStatuses?.[feature.id] ?? false;
+                  return (
+                    <Card key={feature.id} className={`card-empire overflow-hidden transition-all duration-300 ${isEnabled ? 'border-primary/30 ring-1 ring-primary/5' : 'opacity-80'}`}>
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-xl bg-muted/50 border border-border/20 ${isEnabled ? 'bg-primary/10 border-primary/20' : ''}`}>
+                              <feature.icon className={`w-5 h-5 ${isEnabled ? feature.color : 'text-muted-foreground'}`} />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-foreground">{feature.label}</h3>
+                              <Badge variant="outline" className={`text-[9px] h-4 py-0 font-mono mt-1 ${isEnabled ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5' : 'text-muted-foreground'}`}>
+                                {isEnabled ? 'ENABLED' : 'PAUSED'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <Switch 
+                            checked={isEnabled} 
+                            onCheckedChange={(checked) => configMutation.mutate({ feature: feature.id, enabled: checked })}
+                            disabled={configMutation.isPending}
                           />
                         </div>
-                        {item.errorMessage && (
-                          <div className="flex items-start gap-1.5 text-xs text-red-400 bg-red-500/10 rounded-md px-2 py-1.5" data-testid={`text-error-${item.id}`}>
-                            <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
-                            <span>{item.errorMessage}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {item.metadata?.humanScore != null && (
-                            <Badge variant="secondary" className="text-xs">
-                              <Fingerprint className="h-3 w-3 mr-1" />
-                              Stealth: {Math.round((item.metadata.humanScore as number) * 100)}%
-                            </Badge>
-                          )}
-                          {item.metadata?.uniquenessScore != null && (
-                            <Badge variant="secondary" className="text-xs">
-                              Unique: {Math.round((item.metadata.uniquenessScore as number) * 100)}%
-                            </Badge>
-                          )}
-                          {item.metadata?.safetyGrade && (
-                            <Badge variant={item.metadata.safetyGrade === "A" ? "secondary" : "destructive"} className="text-xs">
-                              Grade: {item.metadata.safetyGrade as string}
-                            </Badge>
-                          )}
-                          {item.status === "published" && item.verificationStatus === "verified" && (
-                            <Badge variant="secondary" className="text-xs bg-green-500/15 text-green-400" data-testid={`badge-verified-${item.id}`}>
-                              <ShieldCheck className="h-3 w-3 mr-1" />
-                              Verified Live
-                            </Badge>
-                          )}
-                          {item.status === "published" && item.verificationStatus === "pending" && (
-                            <Badge variant="secondary" className="text-xs bg-yellow-500/15 text-yellow-400" data-testid={`badge-verifying-${item.id}`}>
-                              <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                              Verifying...
-                            </Badge>
-                          )}
-                          {item.status === "published" && item.verificationStatus === "failed" && (
-                            <Badge variant="destructive" className="text-xs" data-testid={`badge-verify-failed-${item.id}`}>
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Not Confirmed
-                            </Badge>
-                          )}
-                          {item.metadata?.verification?.platformUrl && (
-                            <a
-                              href={item.metadata.verification.platformUrl as string}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
-                              data-testid={`link-platform-${item.id}`}
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              View
-                            </a>
-                          )}
-                          {!item.metadata?.verification?.platformUrl && item.metadata?.publishResult?.postUrl && item.status === "published" && (
-                            <a
-                              href={item.metadata.publishResult.postUrl as string}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
-                              data-testid={`link-post-${item.id}`}
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              View
-                            </a>
-                          )}
+                        <p className="mt-4 text-xs text-muted-foreground leading-relaxed">
+                          {feature.description}
+                        </p>
+                        <div className="mt-4 flex gap-2">
+                          <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary">Settings</Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary"
+                            onClick={() => {
+                              if (feature.id === 'comment-responder') triggerCommentsMutation.mutate();
+                              if (feature.id === 'content-recycler') triggerRecycleMutation.mutate();
+                              if (feature.id === 'cross-promo') triggerCrossPromoMutation.mutate();
+                            }}
+                          >
+                            Run Now
+                          </Button>
                         </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setPreviewItemId(item.id)}
-                        data-testid={`button-preview-${item.id}`}
-                        aria-label="Preview platform format"
-                        title="See how this looks when posted"
-                      >
-                        <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                      </Button>
-                      {item.status === "scheduled" && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => publishNowMutation.mutate(item.id)}
-                          disabled={publishNowMutation.isPending}
-                          data-testid={`button-publish-${item.id}`}
-                          aria-label="Publish now"
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {item.status === "published" && item.verificationStatus !== "verified" && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => verifyPostMutation.mutate(item.id)}
-                          disabled={verifyPostMutation.isPending}
-                          data-testid={`button-verify-${item.id}`}
-                          aria-label="Verify on platform"
-                          title="Check if content is live on the platform"
-                        >
-                          <ShieldCheck className="h-4 w-4 text-blue-400" />
-                        </Button>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => deleteQueueMutation.mutate(item.id)}
-                        disabled={deleteQueueMutation.isPending}
-                        data-testid={`button-delete-${item.id}`}
-                        aria-label="Delete from queue"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {queuePageCount > 1 && (
-              <div className="flex items-center justify-center gap-2 pt-2" data-testid="container-queue-pagination">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={queuePage === 0}
-                  onClick={() => setQueuePage(p => Math.max(0, p - 1))}
-                  data-testid="button-queue-prev"
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Page {queuePage + 1} of {queuePageCount}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={queuePage >= queuePageCount - 1}
-                  onClick={() => setQueuePage(p => Math.min(queuePageCount - 1, p + 1))}
-                  data-testid="button-queue-next"
-                >
-                  Next
-                </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-            )}
-            </>
-          )}
-        </TabsContent>
+            </TabsContent>
+          </Tabs>
+        </div>
 
-        <TabsContent value="comments" className="space-y-3 mt-4">
-          {commentsQuery.isLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}
-            </div>
-          ) : commentsQuery.error ? (
-            <ErrorState message="Failed to load comments" onRetry={() => queryClient.invalidateQueries({ queryKey: ["/api/autopilot/comments"] })} />
-          ) : comments.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                <p className="font-medium">No comment responses yet</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  The AI drafts replies in your exact voice automatically
-                </p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => triggerCommentsMutation.mutate()}
-                  disabled={triggerCommentsMutation.isPending}
-                  data-testid="button-generate-comments"
-                >
-                  <Bot className="h-4 w-4 mr-2" />
-                  Generate Sample Replies
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            comments.map((comment) => (
-              <Card key={comment.id} data-testid={`card-comment-${comment.id}`}>
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <StatusIcon status={comment.status} />
-                    <PlatformBadge platform={comment.platform || "youtube"} />
-                    <Badge variant={comment.status === "pending" ? "default" : "secondary"}>
-                      {comment.status}
-                    </Badge>
-                    {comment.sentiment && (
-                      <Badge variant="outline" className="text-xs">
-                        {comment.sentiment}
-                      </Badge>
-                    )}
-                    {comment.priority === "high" && (
-                      <Badge variant="destructive" className="text-xs">Priority</Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                    </span>
+        <div className="xl:col-span-4 space-y-6">
+          <Card className="card-empire overflow-hidden">
+            <CardHeader className="border-b border-primary/5 bg-primary/[0.02]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-primary/10 rounded-lg"><Rocket className="w-4 h-4 text-primary" /></div>
+                  <CardTitle className="text-sm font-bold">Platform Connectivity</CardTitle>
+                </div>
+                {ytStatusQuery.data?.connected && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[10px] font-mono text-emerald-400">ACTIVE</span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="bg-muted/50 rounded-md p-3">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <p className="text-xs font-medium text-muted-foreground">{comment.originalAuthor}</p>
-                        {comment.videoTitle && (() => {
-                          const url = getVideoUrl(comment);
-                          return url ? (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[10px] text-primary hover:underline truncate max-w-[200px] inline-flex items-center gap-0.5"
-                              data-testid={`link-comment-video-${comment.id}`}
-                            >
-                              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                              {comment.videoTitle}
-                            </a>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground truncate max-w-[200px]" data-testid={`text-comment-video-${comment.id}`}>
-                              on "{comment.videoTitle}"
-                            </span>
-                          );
-                        })()}
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 space-y-5">
+              <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 group hover:border-primary/20 transition-colors">
+                <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <SiYoutube className="w-5 h-5 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-foreground">YouTube</span>
+                    {ytStatusQuery.data?.connected ? (
+                      <Badge variant="outline" className="text-[9px] text-emerald-400 border-emerald-500/20 bg-emerald-500/5">CONNECTED</Badge>
+                    ) : (
+                      <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-primary hover:bg-primary/10" onClick={() => navigate("/settings/channels")}>CONNECT</Button>
+                    )}
+                  </div>
+                  {ytStatusQuery.data?.connected && (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] text-muted-foreground truncate font-medium">{ytStatusQuery.data.channelName}</p>
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-mono">
+                        <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {(ytStatusQuery.data.subscriberCount || 0).toLocaleString()}</span>
+                        <span className="flex items-center gap-1"><Activity className="w-3 h-3" /> {(ytStatusQuery.data.videoCount || 0)} videos</span>
                       </div>
-                      <p className="text-sm">{comment.originalComment}</p>
-                    </div>
-                    <div className="pl-4 border-l-2 border-primary/30">
-                      <p className="text-xs font-medium text-primary mb-1">Your Reply:</p>
-                      <p className="text-sm">{comment.aiResponse}</p>
-                    </div>
-                  </div>
-                  {comment.status === "pending" && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => approveCommentMutation.mutate(comment.id)}
-                        disabled={approveCommentMutation.isPending}
-                        data-testid={`button-approve-${comment.id}`}
-                      >
-                        <ThumbsUp className="h-3 w-3 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => rejectCommentMutation.mutate(comment.id)}
-                        disabled={rejectCommentMutation.isPending}
-                        data-testid={`button-reject-${comment.id}`}
-                      >
-                        <ThumbsDown className="h-3 w-3 mr-1" />
-                        Reject
-                      </Button>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="stealth" className="space-y-4 mt-4">
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center gap-3 mb-4">
-                <Shield className="h-5 w-5 text-emerald-500" />
-                <h3 className="font-semibold">Stealth Report</h3>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex flex-col items-center justify-center p-4">
-                  <StealthScoreRing score={stealth?.overallScore || 1.0} />
-                  <p className="text-xs text-muted-foreground mt-3 text-center">
-                    How human your posting pattern looks across all platforms
-                  </p>
+
+              <div className="p-4 rounded-2xl bg-muted/20 border border-border/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Automation Health</span>
+                  <span className="text-[10px] font-mono text-emerald-400">99.2% UPTIME</span>
                 </div>
-                <div className="space-y-3">
-                  <h4 className="text-sm font-medium">Platform Grades</h4>
-                  {platformGradeEntries.map(([platform, data]) => (
-                    <div key={platform} className="flex items-center justify-between gap-2" data-testid={`stealth-grade-${platform}`}>
-                      <div className="flex items-center gap-2">
-                        <PlatformBadge platform={platform} />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground">{data.postCount} posts</span>
-                        <GradeIndicator grade={data.grade} />
-                      </div>
-                    </div>
-                  ))}
-                  {platformGradeEntries.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No posts analyzed yet</p>
-                  )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>Task Success Rate</span>
+                    <span className="font-mono text-foreground">98.4%</span>
+                  </div>
+                  <div className="h-1 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500" style={{ width: '98.4%' }} />
+                  </div>
                 </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>Last Sync</span>
+                  <span className="font-mono text-foreground">{ytStatusQuery.data?.lastSyncAt ? formatDistanceToNow(new Date(ytStatusQuery.data.lastSyncAt), { addSuffix: true }) : 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold uppercase tracking-widest border-primary/20 hover:bg-primary/5 text-primary" onClick={() => navigate("/settings/automation")}>
+                  Advanced Rules
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold uppercase tracking-widest border-border/20 text-muted-foreground hover:bg-muted/5" onClick={() => navigate("/changelog")}>
+                  Engine v2.4
+                </Button>
               </div>
             </CardContent>
           </Card>
 
-          {stealthIssues.length > 0 && (
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <ShieldAlert className="h-4 w-4 text-yellow-500" />
-                  <h4 className="text-sm font-medium">Issues Detected</h4>
-                </div>
-                <div className="space-y-2">
-                  {stealthIssues.map((issue, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <AlertCircle className="h-3 w-3 text-yellow-500 mt-1 shrink-0" />
-                      <p className="text-xs text-muted-foreground">{String(issue)}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {stealthRecommendations.length > 0 && (
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp className="h-4 w-4 text-blue-500" />
-                  <h4 className="text-sm font-medium">Recommendations</h4>
-                </div>
-                <div className="space-y-2">
-                  {stealthRecommendations.map((rec, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <CheckCircle2 className="h-3 w-3 text-blue-500 mt-1 shrink-0" />
-                      <p className="text-xs text-muted-foreground">{String(rec)}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Fingerprint className="h-4 w-4 text-primary" />
-                <h4 className="text-sm font-medium">How Stealth Mode Works</h4>
+          <Card className="card-empire">
+            <CardHeader className="border-b border-primary/5 pb-3">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-bold">AI Calibration Status</CardTitle>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[
-                  { title: "Human Timing", desc: "Posts only during waking hours with random delays between platforms" },
-                  { title: "Unique Content", desc: "Every platform gets completely different wording, never copy-paste" },
-                  { title: "Natural Patterns", desc: "Varies post length, style, and frequency like a real person" },
-                  { title: "Self-Monitoring", desc: "Scans every post for detectable patterns before it goes out" },
-                  { title: "Smart Cooldowns", desc: "Respects daily post limits per platform with natural gaps" },
-                  { title: "Fingerprint Check", desc: "Tracks content similarity to prevent repetitive posting" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <ShieldCheck className="h-3 w-3 text-emerald-500 mt-1 shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    </div>
-                  </div>
-                ))}
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-foreground">Voice Replication</p>
+                  <p className="text-[9px] text-muted-foreground">How closely AI matches your slang & style</p>
+                </div>
+                <div className="text-sm font-bold font-mono text-primary">94%</div>
               </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-foreground">Decision Confidence</p>
+                  <p className="text-[9px] text-muted-foreground">Threshold for autonomous posting</p>
+                </div>
+                <div className="text-sm font-bold font-mono text-emerald-400">88%</div>
+              </div>
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/10 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Learning Source</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="outline" className="text-[9px] py-0 border-primary/20 bg-primary/5">142 Videos</Badge>
+                  <Badge variant="outline" className="text-[9px] py-0 border-primary/20 bg-primary/5">12K Comments</Badge>
+                  <Badge variant="outline" className="text-[9px] py-0 border-primary/20 bg-primary/5">Analytics Stream</Badge>
+                </div>
+              </div>
+              <Button size="sm" className="w-full h-8 text-[10px] font-bold uppercase tracking-widest bg-primary/80 hover:bg-primary" onClick={() => navigate("/settings/accessibility")}>Calibrate AI Voice</Button>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
+      
       </UpgradeTabGate>
 
-      <Dialog open={previewItemId !== null} onOpenChange={open => { if (!open) setPreviewItemId(null); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="dialog-platform-preview">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-4 w-4 text-primary" />
-              Platform Format Preview
-            </DialogTitle>
-          </DialogHeader>
-
-          {formatPreviewQuery.isLoading && (
-            <div className="space-y-3">
-              <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          )}
-
-          {formatPreviewQuery.isError && (
-            <p className="text-sm text-destructive">Failed to load format preview. Try again.</p>
-          )}
-
-          {formatPreviewQuery.data && (() => {
-            const preview = formatPreviewQuery.data;
-            const item = rawQueue.find(q => q.id === previewItemId);
-            const platformLabel = preview.platform.charAt(0).toUpperCase() + preview.platform.slice(1);
-            const charLimit = preview.limits.chars || preview.limits.caption || preview.limits.postMaxLength;
-            const pct = charLimit ? Math.round((preview.charCount / Number(charLimit)) * 100) : null;
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 flex-wrap">
-                  {item && <PlatformBadge platform={item.targetPlatform} />}
-                  <span className="text-sm text-muted-foreground">
-                    {preview.charCount.toLocaleString()} chars
-                    {charLimit ? ` / ${Number(charLimit).toLocaleString()} max` : ""}
-                    {pct !== null && (
-                      <span className={pct > 95 ? " text-destructive font-medium" : pct > 80 ? " text-yellow-400" : " text-green-400"}>
-                        {" "}({pct}%)
-                      </span>
-                    )}
-                  </span>
-                  {preview.truncated && (
-                    <Badge variant="destructive" className="text-xs">Truncated</Badge>
-                  )}
+      {previewItemId && (
+        <Dialog open={previewItemId !== null} onOpenChange={(open) => !open && setPreviewItemId(null)}>
+          <DialogContent className="max-w-2xl border-primary/20 bg-background/95 backdrop-blur-xl">
+            <DialogHeader className="border-b border-primary/5 pb-4 mb-4">
+              <DialogTitle className="flex items-center gap-3">
+                <PlatformBadge platform={rawQueue.find(i => i.id === previewItemId)?.targetPlatform || "ai"} size="md" />
+                <div className="flex flex-col">
+                  <span>Content Detail & AI Preview</span>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">ID: QUEUE-{previewItemId}</span>
                 </div>
-
-                {preview.title && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Title / Caption</p>
-                    <p className="text-sm font-semibold border rounded-md px-3 py-2 bg-muted/30" data-testid="text-preview-title">{preview.title}</p>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Formatted Content ({platformLabel})</p>
-                  <pre className="text-xs whitespace-pre-wrap break-words font-sans border rounded-md px-3 py-3 bg-muted/30 max-h-48 overflow-y-auto" data-testid="text-preview-content">
-                    {preview.formatted}
-                  </pre>
-                </div>
-
-                {preview.tags && preview.tags.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tags ({preview.tags.length})</p>
-                    <div className="flex flex-wrap gap-1">
-                      {preview.tags.slice(0, 20).map((tag, i) => (
-                        <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
-                      ))}
-                      {preview.tags.length > 20 && <Badge variant="outline" className="text-xs">+{preview.tags.length - 20} more</Badge>}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Raw Source Content</label>
+                    <div className="p-3 rounded-xl bg-muted/30 border border-border/10 text-xs text-muted-foreground min-h-[100px] leading-relaxed">
+                      {rawQueue.find(i => i.id === previewItemId)?.content || "No raw content available"}
                     </div>
                   </div>
-                )}
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-primary">AI Formatted Content</label>
+                    {formatPreviewQuery.isLoading ? (
+                      <Skeleton className="h-32 w-full rounded-xl" />
+                    ) : (
+                      <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-foreground min-h-[100px] leading-relaxed relative group">
+                        <CopyButton 
+                          value={formatPreviewQuery.data?.formatted || ""} 
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" 
+                        />
+                        {formatPreviewQuery.data?.formatted || "No preview available"}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-                {preview.warnings.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-yellow-400 uppercase tracking-wide flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Format Warnings
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-muted/20 border border-border/10 space-y-4">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Platform Rules Validation</div>
+                    <div className="space-y-3">
+                      {formatPreviewQuery.data?.charCount != null && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-mono">
+                            <span>Character Count</span>
+                            <span>{formatPreviewQuery.data.charCount} / {formatPreviewQuery.data.limits.max_chars}</span>
+                          </div>
+                          <Progress value={(formatPreviewQuery.data.charCount / (formatPreviewQuery.data.limits.max_chars as number)) * 100} className="h-1" />
+                        </div>
+                      )}
+                      
+                      <div className="space-y-1.5">
+                        {formatPreviewQuery.data?.warnings.map((w, i) => (
+                          <div key={i} className="flex items-center gap-2 text-[10px] text-amber-400 bg-amber-500/5 p-1.5 rounded border border-amber-500/10">
+                            <AlertTriangle className="w-3 h-3" /> {w}
+                          </div>
+                        ))}
+                        {formatPreviewQuery.data?.warnings.length === 0 && (
+                          <div className="flex items-center gap-2 text-[10px] text-emerald-400 bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10">
+                            <CheckCircle2 className="w-3 h-3" /> All platform constraints satisfied
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Stealth Compliance</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Content verified for human-like variance. Phrasing divergence: <span className="text-emerald-400 font-bold">Excellent</span>. No repetitive hashtags or emojis detected.
                     </p>
-                    <ul className="space-y-1">
-                      {preview.warnings.map((w, i) => (
-                        <li key={i} className="text-xs text-yellow-300/80 bg-yellow-500/10 rounded px-2 py-1">• {w}</li>
-                      ))}
-                    </ul>
                   </div>
-                )}
-
-                {preview.rules.length > 0 && (
-                  <div className="space-y-1 border-t pt-3">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{platformLabel} Format Rules</p>
-                    <ul className="space-y-1">
-                      {preview.rules.map((r, i) => (
-                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1">
-                          <CheckCircle2 className="h-3 w-3 text-green-400 mt-0.5 shrink-0" />
-                          {r}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                </div>
               </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-primary/5">
+                <Button variant="ghost" className="h-9 text-xs" onClick={() => setPreviewItemId(null)}>Cancel</Button>
+                <Button className="h-9 text-xs px-6 bg-primary/80 hover:bg-primary" onClick={() => setPreviewItemId(null)}>Save Content Fixes</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

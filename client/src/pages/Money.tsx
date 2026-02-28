@@ -231,6 +231,37 @@ export default function Money() {
         </div>
       </div>
 
+      {/* AI Revenue Advisor - T007 */}
+      <div className="card-empire rounded-xl p-4 mb-4 border border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden" data-testid="widget-revenue-advisor">
+        <div className="absolute top-0 right-0 p-2 opacity-10">
+          <Sparkles className="w-12 h-12 text-emerald-400" />
+        </div>
+        <div className="flex items-start gap-3 relative">
+          <div className="mt-1 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+            <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-emerald-400 mb-1 flex items-center gap-2">
+              AI REVENUE ADVISOR
+              <Badge variant="outline" className="text-[8px] h-4 border-emerald-500/30 text-emerald-400">OPTIMIZING</Badge>
+            </h3>
+            <p className="text-xs text-emerald-100/80 leading-relaxed max-w-2xl">
+              "Your RPM on YouTube is 12% lower than the niche average. I recommend shifting your call-to-action to your membership site in the first 2 minutes of your next 3 videos to capture high-intent viewers."
+            </p>
+            <div className="flex gap-4 mt-3">
+              <div className="flex flex-col">
+                <span className="text-[9px] text-emerald-400/60 uppercase font-mono">Projected Lift</span>
+                <span className="text-sm font-bold text-emerald-400">+$1,420/mo</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] text-emerald-400/60 uppercase font-mono">Confidence</span>
+                <span className="text-sm font-bold text-emerald-400">94%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)}>
         <TabsList data-testid="tab-bar">
           <TabsTrigger value="revenue" data-testid="tab-revenue" aria-label="Revenue tab">

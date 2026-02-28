@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Sprout,
   Footprints,
@@ -43,6 +43,30 @@ import {
   ChevronUp
 } from "lucide-react";
 
+const GrowthMilestoneConfetti = ({ active }: { active: boolean }) => {
+  const [particles, setParticles] = useState<any[]>([]);
+  useEffect(() => {
+    if (active) {
+      setParticles(Array.from({ length: 20 }).map((_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 4 + 2,
+        color: ['hsl(265 80% 60%)', 'hsl(142 70% 50%)', 'hsl(45 90% 55%)'][Math.floor(Math.random() * 3)]
+      })));
+    }
+  }, [active]);
+  if (!active) return null;
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {particles.map(p => (
+        <div key={p.id} className="absolute rounded-full animate-ping opacity-40"
+          style={{ left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size, background: p.color, animationDuration: `${Math.random() * 2 + 1}s` }} />
+      ))}
+    </div>
+  );
+};
+
 type BeastCoachData = {
   currentTier: { id: string; label: string; range: string; threshold: number; max: number; color: string; icon: string; description: string; index: number };
   nextTier: { id: string; label: string; range: string; color: string; icon: string; index: number };
@@ -75,7 +99,8 @@ function BeastLevelMeter({ data }: { data: BeastCoachData }) {
           </div>
         </div>
 
-        <div className="flex gap-1.5 mb-3">
+        <div className="flex gap-1.5 mb-3 relative">
+          <GrowthMilestoneConfetti active={tierProgress >= 100} />
           {tiers.map((tier, i) => (
             <div key={tier.id} className="flex-1 flex flex-col gap-1" data-testid={`tier-segment-${tier.id}`}>
               <div className="h-8 rounded-md flex items-center justify-center text-base transition-all duration-500 relative overflow-hidden"

@@ -56,6 +56,35 @@ const STAGE_CONFIG: Record<string, { label: string; icon: typeof Rocket; color: 
   failed: { label: "Build Failed", icon: AlertTriangle, color: "text-red-400" },
 };
 
+const MissionTimelineWidget = ({ stages, currentStage }: { stages: any[], currentStage: number }) => (
+  <div className="relative mb-4" data-testid="widget-mission-timeline">
+    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border/30" />
+    {stages.map((stage: any, i: number) => {
+      const isDone = i < currentStage;
+      const isActive = i === currentStage;
+      const color = isDone ? 'hsl(142 70% 50%)' : isActive ? 'hsl(265 80% 65%)' : 'hsl(265 20% 40%)';
+      return (
+        <div key={i} className="relative pl-10 pb-4" data-testid={`timeline-stage-${i}`}>
+          <div className="absolute left-2 w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px]"
+            style={{ borderColor: color, background: isDone ? 'hsl(142 70% 50% / 0.2)' : isActive ? 'hsl(265 80% 60% / 0.2)' : 'transparent',
+              boxShadow: isActive ? `0 0 12px ${color}` : 'none', top: 0 }}>
+            {isDone ? '✓' : isActive ? '◉' : '○'}
+          </div>
+          <div className={`rounded-lg p-3 border ${isActive ? 'border-primary/40 bg-primary/5' : 'border-border/20 bg-muted/10'}`}
+            style={{ boxShadow: isActive ? '0 0 20px hsl(265 80% 60% / 0.15)' : 'none' }}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium" style={{ color }}>{stage.name ?? stage.label ?? stage.phase ?? `Stage ${i+1}`}</span>
+              {isDone && <span className="text-[10px] text-emerald-400 font-mono">Complete</span>}
+              {isActive && <span className="text-[10px] text-primary font-mono animate-pulse">In Progress</span>}
+            </div>
+            {stage.description && <p className="text-xs text-muted-foreground mt-0.5">{stage.description}</p>}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
+
 function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
   const displayProgress = stage === "failed" ? 0 : Math.max(0, Math.min(100, progress));
 
@@ -325,6 +354,11 @@ export default function EmpireLauncher() {
                   </Card>
                 ))}
               </div>
+
+              <MissionTimelineWidget
+                stages={[{name:"Initialization"},{name:"Content Analysis"},{name:"Platform Setup"},{name:"AI Calibration"},{name:"Launch Ready"}]}
+                currentStage={0}
+              />
             </>
           ) : (
             <>
@@ -346,7 +380,7 @@ export default function EmpireLauncher() {
                 <CardContent className="p-6 space-y-6 relative">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="md:col-span-3 space-y-6">
-                      <MissionTimeline 
+                      <MissionTimelineWidget 
                         stages={[{name:"Initialization"},{name:"Content Analysis"},{name:"Platform Setup"},{name:"AI Calibration"},{name:"Launch Ready"}]} 
                         currentStage={buildStatus?.stage === "completed" ? 5 : buildStatus?.stage === "seeding_autopilot" ? 4 : buildStatus?.stage === "auto_launching_content" ? 3 : buildStatus?.stage === "building_blueprint" ? 2 : buildStatus?.stage === "creating_user" ? 1 : 0} 
                       />

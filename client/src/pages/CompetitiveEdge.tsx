@@ -21,6 +21,59 @@ import {
   Crosshair, Radio, HardDrive, Cpu, Terminal, Search
 } from "lucide-react";
 
+const CompetitorBattleBars = ({ yourScore = 72, compScore = 65 }: { yourScore?: number, compScore?: number }) => {
+  const metrics = [
+    { label: "Views/Video", yours: yourScore + 8, theirs: compScore + 5 },
+    { label: "Engagement", yours: yourScore - 4, theirs: compScore + 2 },
+    { label: "Retention", yours: yourScore + 12, theirs: compScore - 3 },
+    { label: "CTR", yours: yourScore + 2, theirs: compScore + 8 },
+  ];
+  return (
+    <div className="space-y-4" data-testid="widget-competitor-battle">
+      {metrics.map((m) => (
+        <div key={m.label} className="space-y-1.5">
+          <div className="flex justify-between text-[10px] font-mono text-muted-foreground uppercase">
+            <span>{m.label}</span>
+            <span className="text-primary">YOU VS THEM</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-2 bg-muted/20 rounded-full overflow-hidden flex">
+              <div className="h-full bg-primary/60 transition-all duration-1000" style={{ width: `${m.yours}%`, boxShadow: '0 0 8px hsl(265 80% 60% / 0.4)' }} />
+            </div>
+            <div className="text-[10px] font-mono font-bold w-8 text-right">{m.yours}%</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-2 bg-muted/20 rounded-full overflow-hidden flex">
+              <div className="h-full bg-red-500/40 transition-all duration-1000" style={{ width: `${m.theirs}%` }} />
+            </div>
+            <div className="text-[10px] font-mono font-bold w-8 text-right text-red-400">{m.theirs}%</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const MarketShareRadar = () => (
+  <div className="relative w-full aspect-square flex items-center justify-center" data-testid="widget-market-share-radar">
+    <div className="absolute inset-0 radar-sweep opacity-20" />
+    <svg width="160" height="160" viewBox="0 0 160 160">
+      <circle cx="80" cy="80" r="70" fill="none" stroke="hsl(265 80% 60% / 0.2)" strokeWidth="1" />
+      <circle cx="80" cy="80" r="45" fill="none" stroke="hsl(265 80% 60% / 0.1)" strokeWidth="1" />
+      <circle cx="80" cy="80" r="20" fill="none" stroke="hsl(265 80% 60% / 0.1)" strokeWidth="1" />
+      <path d="M80,20 L130,60 L120,110 L40,120 L30,70 Z" fill="hsl(265 80% 60% / 0.2)" stroke="hsl(265 80% 60%)" strokeWidth="2" />
+      <circle cx="80" cy="20" r="3" fill="hsl(265 80% 60%)" />
+      <circle cx="130" cy="60" r="3" fill="hsl(265 80% 60%)" />
+      <circle cx="120" cy="110" r="3" fill="hsl(265 80% 60%)" />
+      <circle cx="40" cy="120" r="3" fill="hsl(265 80% 60%)" />
+      <circle cx="30" cy="70" r="3" fill="hsl(265 80% 60%)" />
+    </svg>
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className="text-[10px] font-mono text-primary font-bold">12.4% SHARE</div>
+    </div>
+  </div>
+);
+
 function CompetitiveStatsStrip() {
   const { data: insights } = useQuery<any>({ queryKey: ["/api/competitive-edge/insights"] });
   const stats = useMemo(() => {
@@ -1364,49 +1417,6 @@ function UsageBillingTab() {
   );
 }
 
-function CompetitorBattleBars({ yourScore = 72, compScore = 65 }: { yourScore?: number, compScore?: number }) {
-  const metrics = [
-    { label: "Views/Video", yours: yourScore + 8, theirs: compScore + 5 },
-    { label: "Subscribers", yours: yourScore - 5, theirs: compScore + 10 },
-    { label: "Engagement", yours: yourScore + 12, theirs: compScore - 3 },
-    { label: "Revenue/Mo", yours: yourScore + 3, theirs: compScore + 8 },
-    { label: "Growth Rate", yours: yourScore + 15, theirs: compScore - 8 },
-  ].map(m => ({ ...m, yours: Math.min(99, Math.max(1, m.yours)), theirs: Math.min(99, Math.max(1, m.theirs)) }));
-  const winning = metrics.filter(m => m.yours > m.theirs).length;
-  return (
-    <div className="card-empire rounded-2xl p-5 mb-4 relative overflow-hidden" data-testid="widget-battle-bars">
-      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
-      <div className="flex items-center justify-between mb-4 relative">
-        <h3 className="text-sm font-bold font-mono text-primary uppercase">Competitor Battle</h3>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${winning >= 3 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`} data-testid="badge-battle-result">
-          You're winning {winning}/{metrics.length} metrics
-        </span>
-      </div>
-      <div className="space-y-3 relative">
-        {metrics.map(({ label, yours, theirs }) => (
-          <div key={label} data-testid={`battle-bar-${label.toLowerCase().replace(/[/]/g, '-')}`}>
-            <div className="flex justify-between text-[10px] font-mono mb-1">
-              <span className="text-primary">{yours}%</span>
-              <span className="text-muted-foreground">{label}</span>
-              <span className="text-red-400/70">{theirs}%</span>
-            </div>
-            <div className="flex gap-0.5 h-2">
-              <div className="flex-1 bg-muted/20 rounded-l-full overflow-hidden flex justify-end">
-                <div className="h-full bg-primary/70 rounded-l-full transition-all duration-1000"
-                  style={{ width: `${yours}%`, boxShadow: '0 0 6px hsl(265 80% 60% / 0.5)' }} />
-              </div>
-              <div className="w-0.5 bg-border/50" />
-              <div className="flex-1 bg-muted/20 rounded-r-full overflow-hidden">
-                <div className="h-full bg-red-500/50 rounded-r-full transition-all duration-1000"
-                  style={{ width: `${theirs}%` }} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 const TAB_CONFIG = [
   { id: "vod-loop", label: "VOD Loop", icon: RefreshCw },
@@ -1495,116 +1505,6 @@ function CompetitorBattle({ data }: { data: any }) {
   );
 }
 
-function MarketShareRadar() {
-  const axes = [
-    { label: "Reach", val: 80, comp: 60 },
-    { label: "Engagement", val: 90, comp: 70 },
-    { label: "Content", val: 85, comp: 75 },
-    { label: "SEO", val: 70, comp: 90 },
-    { label: "Revenue", val: 60, comp: 85 },
-    { label: "Brand", val: 75, comp: 65 },
-  ];
-
-  const size = 200;
-  const center = size / 2;
-  const radius = size * 0.4;
-
-  const getPoint = (val: number, i: number, total: number) => {
-    const angle = (Math.PI * 2 * i) / total - Math.PI / 2;
-    const r = (val / 100) * radius;
-    return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
-  };
-
-  const yourPoints = axes.map((a, i) => getPoint(a.val, i, axes.length)).join(" ");
-  const compPoints = axes.map((a, i) => getPoint(a.comp, i, axes.length)).join(" ");
-
-  return (
-    <Card className="data-grid-bg relative overflow-hidden" data-testid="widget-market-radar">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Activity className="h-4 w-4 text-primary" />
-          Market Share Radar
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center">
-        <div className="relative w-[200px] h-[200px]">
-          <svg width={size} height={size} className="overflow-visible">
-            {/* Background hexagon rings */}
-            {[0.2, 0.4, 0.6, 0.8, 1].map((r, i) => (
-              <polygon
-                key={i}
-                points={axes.map((_, idx) => getPoint(r * 100, idx, axes.length)).join(" ")}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                className="text-muted-foreground/10"
-              />
-            ))}
-            {/* Radial lines */}
-            {axes.map((_, i) => {
-              const p = getPoint(100, i, axes.length);
-              return (
-                <line
-                  key={i}
-                  x1={center}
-                  y1={center}
-                  x2={p.split(",")[0]}
-                  y2={p.split(",")[1]}
-                  stroke="currentColor"
-                  strokeWidth="1"
-                  className="text-muted-foreground/10"
-                />
-              );
-            })}
-            {/* Competitor Polygon */}
-            <polygon
-              points={compPoints}
-              fill="hsl(0 80% 55% / 0.1)"
-              stroke="hsl(0 80% 55% / 0.3)"
-              strokeWidth="2"
-              className="transition-all duration-1000"
-            />
-            {/* Your Polygon */}
-            <polygon
-              points={yourPoints}
-              fill="hsl(var(--primary) / 0.2)"
-              stroke="hsl(var(--primary))"
-              strokeWidth="2"
-              className="transition-all duration-1000"
-            />
-            {/* Axis Labels */}
-            {axes.map((a, i) => {
-              const p = getPoint(115, i, axes.length);
-              const [x, y] = p.split(",").map(Number);
-              return (
-                <text
-                  key={i}
-                  x={x}
-                  y={y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="text-[10px] font-mono fill-muted-foreground"
-                >
-                  {a.label}
-                </text>
-              );
-            })}
-          </svg>
-        </div>
-        <div className="flex gap-4 mt-4">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-            <span className="text-[10px] text-muted-foreground font-mono">YOU</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
-            <span className="text-[10px] text-muted-foreground font-mono">COMPETITOR</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function SecurityTab() {
   return (
@@ -1669,8 +1569,16 @@ export default function CompetitiveEdge() {
 
       <CompetitiveStatsStrip />
 
-      <CompetitorBattleBars />
-      <MarketShareRadar />
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <Card className="card-empire p-6">
+          <div className="text-xs font-mono text-muted-foreground uppercase mb-4">Competitor Analysis</div>
+          <CompetitorBattleBars />
+        </Card>
+        <Card className="card-empire p-6">
+          <div className="text-xs font-mono text-muted-foreground uppercase mb-4">Market Presence</div>
+          <MarketShareRadar />
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-6">
