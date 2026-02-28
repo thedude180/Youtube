@@ -3,6 +3,7 @@ import { db } from "../db";
 import { streams } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
+import { fireAgentEvent } from "./agent-events";
 
 const logger = {
   info: (msg: string, meta?: any) => console.log(`[stream-agent] ${msg}`, meta ?? ""),
@@ -118,6 +119,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
         logAction(state, "AI chat responder active", "Responding to viewers in your voice");
         logAction(state, "Chat moderation enabled", "Watching for toxic content");
         logAction(state, "Viewer monitoring started", "Tracking engagement in real time");
+        fireAgentEvent("stream.started", userId, { platform: state.platform, streamTitle: state.streamTitle });
       }
 
       const nowMs = Date.now();
@@ -148,6 +150,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
       if (state.isLive) {
         state.isLive = false;
         state.postStreamPhase = "processing";
+        fireAgentEvent("stream.ended", userId, { platform: state.platform, streamTitle: state.streamTitle });
         logAction(state, "Stream ended", "Post-stream pipeline started automatically");
         logAction(state, "Clipping best moments", "AI scanning VOD for highlights");
         logAction(state, "Scheduling to all platforms", "Clips will post at peak times");
@@ -255,20 +258,19 @@ export function notifyStreamAgentChatMessage(userId: string, sentiment: "positiv
 export async function bootstrapStreamAgents(): Promise<void> {
   logger.info("Bootstrapping stream agents for all paid users");
   try {
-    const users = await storage.getAllUsersWithTier(["starter", "pro", "ultimate"]);
-    let count = 0;
-    for (const user of users) {
+    const allUsers = await storage.getAllUsers();
+    const paidUsers = allUsers.filter((u: any) => u.tier && u.tier !== "free");
+    logger.info(`Starting stream agents for ${paidUsers.length} paid users`);
+    for (let i = 0; i < paidUsers.length; i++) {
+      const user = paidUsers[i];
       setTimeout(async () => {
         try {
           await startStreamAgent(user.id);
-          count++;
         } catch (err: any) {
           logger.warn(`Bootstrap failed for ${user.id}: ${err.message}`);
         }
-      }, count * 3000);
-      count++;
+      }, i * 3000);
     }
-    logger.info(`Bootstrapped stream agents for ${count} users`);
   } catch (err: any) {
     logger.error("Bootstrap failed", err);
   }

@@ -204,6 +204,18 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
     }
   }
 
+  try {
+    const { initStreamAgentForUser } = await import("./stream-agent");
+    await initStreamAgentForUser(userId);
+  } catch (err: any) {
+    logger.warn(`[${userId}] Stream agent init failed: ${err.message}`);
+  }
+
+  try {
+    const { fireAgentEvent } = await import("./agent-events");
+    fireAgentEvent("agent.session.started", userId, { tier, agentsStarted });
+  } catch {}
+
   return { tier, agentsStarted };
 }
 

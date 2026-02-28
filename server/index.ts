@@ -769,6 +769,12 @@ httpServer.listen(
       }).catch(err => logger.error("Stream agent failed to load", { error: String(err) }));
     });
 
+    delay(5_000, () => {
+      import("./services/agent-events").then(m => {
+        m.wireAgentCoordination().catch(err => logger.error("Agent coordination wiring failed", { error: String(err) }));
+      }).catch(err => logger.error("Agent events failed to load", { error: String(err) }));
+    });
+
     delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
 
     const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");

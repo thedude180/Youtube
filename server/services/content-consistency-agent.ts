@@ -440,6 +440,16 @@ export async function triggerManualRun(userId: string): Promise<{ started: boole
   return { started: true };
 }
 
+export async function runConsistencyCheckForUser(userId: string): Promise<void> {
+  const state = getOrInitState(userId);
+  if (state.isRunning) return;
+  try {
+    await runConsistencyCheck(userId);
+  } catch (err: any) {
+    logger.warn(`[consistency-agent] On-demand check failed for ${userId}: ${err.message}`);
+  }
+}
+
 export async function bootstrapConsistencyAgents(): Promise<void> {
   try {
     const allUsers = await storage.getAllUsers();

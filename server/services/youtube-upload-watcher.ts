@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { trackQuotaUsage, getQuotaStatus } from "./youtube-quota-tracker";
+import { fireAgentEvent } from "./agent-events";
 
 const logger = createLogger("upload-watcher");
 
@@ -266,6 +267,22 @@ export async function bootstrapUploadWatchers(): Promise<void> {
     }
   } catch (err: any) {
     logger.error(`[upload-watcher] Bootstrap DB error: ${err.message}`);
+  }
+}
+
+export async function scanUserNow(userId: string): Promise<void> {
+  const session = watcherSessions.get(userId);
+  if (!session) return;
+  try {
+    const result = await scanUserForNewUploads(userId);
+    session.lastNewUploads = result.newUploads;
+    session.totalUploadsFound += result.newUploads;
+    session.scansCompleted++;
+    session.lastScanAt = new Date();
+    logger.info(`[${userId}] On-demand scan: ${result.newUploads} new uploads`);
+  } catch (err: any) {
+    session.lastError = err.message;
+    logger.warn(`[${userId}] On-demand scan failed: ${err.message}`);
   }
 }
 

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, sql, inArray, ne } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray, ne } from "drizzle-orm";
 import { teamMembers, teamActivityLog, aiAgentTasks, videos, channels, users } from "@shared/schema";
 import type { AiAgentTask, TeamMember } from "@shared/schema";
 import { getOpenAIClient } from "./lib/openai";
@@ -818,10 +818,12 @@ export async function provisionAiAgents(ownerId: string): Promise<TeamMember[]> 
 
 async function getChannelContext(ownerId: string): Promise<string> {
   const [channel] = await db.select().from(channels).where(eq(channels.userId, ownerId)).limit(1);
-  const recentVideos = await db.select().from(videos)
-    .where(eq(videos.userId, ownerId))
-    .orderBy(desc(videos.publishedAt))
-    .limit(5);
+  const recentVideos = channel
+    ? await db.select().from(videos)
+        .where(eq(videos.channelId, channel.id))
+        .orderBy(desc(videos.publishedAt))
+        .limit(5)
+    : [];
 
   if (!channel && recentVideos.length === 0) {
     return "No channel or videos found yet. The creator is just getting started.";
@@ -929,7 +931,7 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
 export async function processTaskQueue(ownerId: string): Promise<{ processed: number; handoffs: number }> {
   const queuedTasks = await db.select().from(aiAgentTasks)
     .where(and(eq(aiAgentTasks.ownerId, ownerId), eq(aiAgentTasks.status, "queued")))
-    .orderBy(aiAgentTasks.priority, aiAgentTasks.scheduledAt)
+    .orderBy(asc(aiAgentTasks.priority), asc(aiAgentTasks.scheduledAt))
     .limit(5);
 
   let processed = 0;
@@ -1040,22 +1042,18 @@ export async function runTeamCycle(ownerId: string): Promise<{ tasks: AiAgentTas
       "Channel Performance Deep Dive — Data Brief for Team", base, 1);
     await enqueueAgentTask(ownerId, "ai-research-lead", "content_brief",
       "Trend Intelligence Report — Top Video Opportunities This Week", base, 1);
-
     await enqueueAgentTask(ownerId, "ai-owner", "weekly_brief",
       "Weekly Content Brief — Strategy for All Agents", base, 2);
-
     await enqueueAgentTask(ownerId, "ai-scriptwriter", "full_script_writing",
       "Script & Hook Engineering — Based on Research Lead Brief", base, 3);
     await enqueueAgentTask(ownerId, "ai-seo-manager", "full_seo_package",
       "YouTube SEO Package — Titles, Keywords, Description Template", base, 3);
-
     await enqueueAgentTask(ownerId, "ai-editor", "post_production_brief",
       "Post-Production Direction — Pacing, B-Roll, Chapter Strategy", base, 4);
     await enqueueAgentTask(ownerId, "ai-thumbnail-artist", "thumbnail_concept",
       "High-CTR Thumbnail Concepts & A/B Variants", base, 4);
     await enqueueAgentTask(ownerId, "ai-shorts-specialist", "full_shorts_strategy",
       "Shorts Clip Strategy — Viral Moments & Hook Engineering", base, 4);
-
     await enqueueAgentTask(ownerId, "ai-social-media-manager", "distribution_plan",
       "Cross-Platform Distribution Plan — All Channels", base, 5);
     await enqueueAgentTask(ownerId, "ai-moderator", "community_strategy",
@@ -1064,7 +1062,6 @@ export async function runTeamCycle(ownerId: string): Promise<{ tasks: AiAgentTas
       "Sponsorship Pipeline Audit — Brand Opportunities & Rate Card", base, 5);
     await enqueueAgentTask(ownerId, "ai-premium", "revenue_audit",
       "Revenue Stack Audit — Monetization Optimization Report", base, 5);
-
     await enqueueAgentTask(ownerId, "ai-user", "growth_audit",
       "Creator Growth Audit — Feature Adoption & Bottleneck Analysis", base, 6);
     await enqueueAgentTask(ownerId, "ai-admin", "health_audit",
@@ -1080,6 +1077,7 @@ export async function runTeamCycle(ownerId: string): Promise<{ tasks: AiAgentTas
 
   return { tasks: recentTasks, processed, handoffs };
 }
+
 
 export async function getAgentStatus(ownerId: string): Promise<{
   agents: Array<{
