@@ -298,7 +298,7 @@ export default function Dashboard() {
           <h1 data-testid="text-page-title" className="text-2xl font-display font-bold">
             {greeting()}, <span className="gradient-text-vivid">{userName}</span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your AI command center — everything runs autonomously</p>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Your AI team is running your channel right now — you just create</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-last-updated" aria-live="polite">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px] shadow-emerald-400/50 animate-pulse" />
@@ -327,7 +327,7 @@ export default function Dashboard() {
               <div>
                 <div className="flex items-center gap-2">
                   <p data-testid="text-ai-status" className="text-sm font-bold holographic-text">
-                    AUTONOMOUS — AI running at full power
+                    Your AI team is working right now
                   </p>
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                     <Activity className="h-2.5 w-2.5 mr-0.5" />
@@ -335,11 +335,11 @@ export default function Dashboard() {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground" data-testid="text-tasks-today">
-                  <AnimatedCounter value={tasksToday} className="font-medium text-emerald-400" /> task{tasksToday !== 1 ? "s" : ""} completed today — <span className="text-primary/70 font-mono text-[10px]">zero human intervention required</span>
+                  <AnimatedCounter value={tasksToday} className="font-medium text-emerald-400" /> thing{tasksToday !== 1 ? "s" : ""} done today — <span className="text-primary/70 font-mono text-[10px]">you didn't have to do any of it</span>
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-mono text-emerald-400 animate-pulse">● FULL AUTONOMY</span>
+            <span className="text-[10px] font-mono text-emerald-400 animate-pulse">● ON</span>
           </div>
         </div>
       </div>

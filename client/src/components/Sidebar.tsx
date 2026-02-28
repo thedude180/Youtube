@@ -67,7 +67,7 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "AI",
+    label: "AI Tools",
     items: [
       { href: "/autopilot", labelKey: "nav.autopilot", icon: Rocket, minTier: "pro" },
       { href: "/ai-command", labelKey: "nav.aiCommand", icon: Terminal, minTier: "free" },
@@ -77,7 +77,7 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "Analyze",
+    label: "Track",
     items: [
       { href: "/intelligence", labelKey: "nav.intelligence", icon: Brain, minTier: "free" },
       { href: "/growth", labelKey: "nav.zeroToOne", icon: BarChart2, minTier: "free" },

@@ -468,11 +468,11 @@ function RouteBreadcrumb() {
 }
 
 const MOBILE_NAV_ITEMS = [
-  { href: "/", icon: LayoutDashboard, label: "Hub" },
-  { href: "/autopilot", icon: Rocket, label: "Autopilot" },
-  { href: "/calendar", icon: CalendarDays, label: "Plan" },
-  { href: "/money", icon: DollarSign, label: "Revenue" },
-  { href: "/ai-matrix", icon: Bot, label: "AI" },
+  { href: "/", icon: LayoutDashboard, label: "Home" },
+  { href: "/autopilot", icon: Rocket, label: "AI Team" },
+  { href: "/calendar", icon: CalendarDays, label: "Schedule" },
+  { href: "/money", icon: DollarSign, label: "Money" },
+  { href: "/ai-matrix", icon: Bot, label: "Ask AI" },
 ];
 
 function MobileBottomNav() {
