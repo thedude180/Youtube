@@ -617,6 +617,39 @@ const StealthAnalysis = ({ stealth, issues, recommendations }: { stealth: Stealt
   );
 };
 
+const PipelineVisualizer = ({ activePhase = 2 }: { activePhase?: number }) => (
+  <div className="card-empire rounded-2xl p-4 mb-4 relative overflow-hidden" data-testid="widget-pipeline-visualizer">
+    <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+    <div className="text-xs font-mono text-muted-foreground mb-3 flex items-center gap-2">
+      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+      AUTOPILOT PIPELINE — 7-PHASE ENGINE
+    </div>
+    <div className="flex items-center gap-1 overflow-x-auto touch-scroll pb-2">
+      {PIPELINE_NODES.map((node, i) => (
+        <div key={node.id} className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex flex-col items-center gap-1 relative" data-testid={`pipeline-node-${node.id}`}>
+            {i === activePhase && (
+              <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ background: 'hsl(265 80% 60%)' }} />
+            )}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all duration-500 ${
+              i < activePhase ? 'border-emerald-500 bg-emerald-500/20' :
+              i === activePhase ? 'border-primary bg-primary/20' :
+              'border-border/30 bg-muted/20'
+            }`} style={{ boxShadow: i === activePhase ? '0 0 20px hsl(265 80% 60% / 0.5)' : 'none' }}>
+              {i < activePhase ? '✓' : node.icon}
+            </div>
+            <span className={`text-[9px] font-mono whitespace-nowrap ${i === activePhase ? 'text-primary' : i < activePhase ? 'text-emerald-400' : 'text-muted-foreground'}`}>{node.label}</span>
+          </div>
+          {i < PIPELINE_NODES.length - 1 && (
+            <div className={`flex-shrink-0 h-0.5 w-6 ${i < activePhase ? 'bg-emerald-500' : 'bg-border/30'}`}
+              style={{ boxShadow: i < activePhase ? '0 0 4px hsl(142 70% 50%)' : 'none' }} />
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 export default function Autopilot() {
   const { t } = useTranslation();
   usePageTitle(t("automation.title"));
@@ -923,69 +956,6 @@ export default function Autopilot() {
   const activeFeatureCount = useMemo(
     () => Object.values(stats?.featureStatuses || {}).filter(Boolean).length,
     [stats?.featureStatuses]
-  );
-
-  const PipelineVisualizer = ({ activePhase = 2 }: { activePhase?: number }) => (
-    <div className="card-empire rounded-2xl p-4 mb-4 relative overflow-hidden" data-testid="widget-pipeline-visualizer">
-      <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
-      <div className="text-xs font-mono text-muted-foreground mb-3 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-        AUTOPILOT PIPELINE — 7-PHASE ENGINE
-      </div>
-      <div className="flex items-center gap-1 overflow-x-auto touch-scroll pb-2">
-        {PIPELINE_NODES.map((node, i) => (
-          <div key={node.id} className="flex items-center gap-1 flex-shrink-0">
-            <div className="flex flex-col items-center gap-1 relative" data-testid={`pipeline-node-${node.id}`}>
-              {i === activePhase && (
-                <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ background: 'hsl(265 80% 60%)' }} />
-              )}
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all duration-500 ${
-                i < activePhase ? 'border-emerald-500 bg-emerald-500/20' :
-                i === activePhase ? 'border-primary bg-primary/20' :
-                'border-border/30 bg-muted/20'
-              }`} style={{ boxShadow: i === activePhase ? '0 0 20px hsl(265 80% 60% / 0.5)' : 'none' }}>
-                {i < activePhase ? '✓' : node.icon}
-              </div>
-              <span className={`text-[9px] font-mono whitespace-nowrap ${i === activePhase ? 'text-primary' : i < activePhase ? 'text-emerald-400' : 'text-muted-foreground'}`}>{node.label}</span>
-            </div>
-            {i < PIPELINE_NODES.length - 1 && (
-              <div className={`flex-shrink-0 h-0.5 w-6 ${i < activePhase ? 'bg-emerald-500' : 'bg-border/30'}`}
-                style={{ boxShadow: i < activePhase ? '0 0 4px hsl(142 70% 50%)' : 'none' }} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const LiveTasksWidget = () => (
-    <div className="card-empire rounded-xl p-4 mb-4" data-testid="widget-live-tasks">
-      <div className="text-xs font-mono text-muted-foreground uppercase mb-2 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-        AI Currently Working On
-      </div>
-      {[
-        { task: "Generating short-form clips from stream #47", progress: 78 },
-        { task: "Optimizing thumbnail A/B variants", progress: 45 },
-        { task: "Scheduling posts for peak engagement windows", progress: 92 },
-        { task: "Analyzing competitor content gaps", progress: 31 },
-      ].map((item, i) => (
-        <div key={i} className="mb-2 last:mb-0" data-testid={`live-task-${i}`}>
-          <div className="flex justify-between items-center mb-0.5">
-            <span className="text-xs text-muted-foreground truncate max-w-[80%]">
-              {agentActivities && (agentActivities as any[])[i] ? (agentActivities as any[])[i].action : item.task}
-            </span>
-            <span className="text-xs font-mono text-primary ml-2">
-              {agentActivities && (agentActivities as any[])[i] && (agentActivities as any[])[i].progress ? (agentActivities as any[])[i].progress : item.progress}%
-            </span>
-          </div>
-          <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
-            <div className="h-full bg-primary/70 rounded-full"
-              style={{ width: `${agentActivities && (agentActivities as any[])[i] && (agentActivities as any[])[i].progress ? (agentActivities as any[])[i].progress : item.progress}%`, transition: 'width 3s ease', boxShadow: '0 0 6px hsl(265 80% 60% / 0.5)' }} />
-          </div>
-        </div>
-      ))}
-    </div>
   );
 
   if (statsQuery.isLoading) {
