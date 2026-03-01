@@ -21,26 +21,25 @@ const getOidcConfig = memoize(
 export function getSession() {
   const sessionTtl = 30 * 24 * 60 * 60 * 1000; // 30 days — returning users with same email stay logged in
   const pgStore = connectPg(session);
-  const rawStore = new pgStore({
+  const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
     ttl: sessionTtl,
     tableName: "sessions",
   });
 
-  // Wrap store to handle DB errors gracefully during startup connection-pool rush.
-  // Without this, express-session calls next(err) which becomes a 500 for every
-  // authenticated API request while the pool is warming up.
-  const sessionStore = Object.create(rawStore) as typeof rawStore;
-  (sessionStore as any).get = (sid: string, cb: (err: any, session?: any) => void) => {
-    rawStore.get(sid, (err: any, session: any) => {
+  // Patch get() on the store instance directly so all other methods (touch, set,
+  // destroy) keep their original `this` and pass native-class checks.
+  // This prevents express-session from calling next(err) — which becomes a 500 —
+  // when the connection pool is briefly exhausted during startup.
+  const originalGet = sessionStore.get.bind(sessionStore);
+  sessionStore.get = (sid: string, cb: (err: any, session?: any) => void) => {
+    originalGet(sid, (err: any, sess: any) => {
       if (err) {
-        // Treat any store read error as "no session" — user will just need to re-auth
-        // if their cookie was valid, rather than getting a hard 500.
-        console.warn(`[Session] Store read error (session cleared): ${String(err).substring(0, 120)}`);
+        console.warn(`[Session] Store read error (treated as no-session): ${String(err).substring(0, 120)}`);
         return cb(null, null);
       }
-      cb(null, session);
+      cb(null, sess);
     });
   };
 
