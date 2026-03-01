@@ -1047,6 +1047,7 @@ export default function StreamCenter() {
         </div>
       </div>
 
+      <CollapsibleToolbox title="AI Advisor & Reports" toolCount={5}>
       <Card data-testid="card-ai-stream-recs" className="card-empire border-0 relative overflow-hidden">
         <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 relative">
@@ -1529,6 +1530,7 @@ export default function StreamCenter() {
           )}
         </CardContent>
       </Card>
+      </CollapsibleToolbox>
 
       <CollapsibleToolbox title="Stream Upgrades" toolCount={5}>
         <Suspense fallback={<Skeleton className="h-48 w-full" />}>
