@@ -18,6 +18,7 @@ import { pauseForLive, resumeAfterStream } from "../backlog-manager";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 import { sendSSEEvent } from "./events";
 import { getQuotaStatus } from "../services/youtube-quota-tracker";
+import { fireAgentEvent } from "../services/agent-events";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 
 async function checkYouTubeLiveViaWatchPage(channelId: string): Promise<boolean> {
@@ -398,6 +399,12 @@ export function registerStreamRoutes(app: Express) {
       const updatedStream = await storage.updateStream(stream.id, {
         status: 'ended',
         endedAt,
+      });
+
+      fireAgentEvent("stream.ended", userId, {
+        platform: (stream.platforms as string[])?.[0] || "youtube",
+        streamTitle: stream.title,
+        streamId: stream.id,
       });
 
       resumeFromStream(userId, stream.id).catch(err =>
