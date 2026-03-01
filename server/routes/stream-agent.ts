@@ -9,19 +9,31 @@ import {
 
 export function registerStreamAgentRoutes(app: Express): void {
   app.get("/api/stream-agent/status", isAuthenticated, async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    res.json(getStreamAgentStatus(userId));
+    try {
+      const userId = getUserId(req);
+      res.json(getStreamAgentStatus(userId));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post("/api/stream-agent/start", isAuthenticated, async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    const result = await startStreamAgent(userId);
-    res.json(result);
+    try {
+      const userId = getUserId(req);
+      const result = await startStreamAgent(userId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post("/api/stream-agent/stop", isAuthenticated, async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    stopStreamAgent(userId);
-    res.json({ stopped: true });
+    try {
+      const userId = getUserId(req);
+      stopStreamAgent(userId);
+      res.json({ stopped: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 }

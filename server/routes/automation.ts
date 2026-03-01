@@ -11,8 +11,9 @@ import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 
 function verifyWebhookSignature(req: any, secret: string): boolean {
+  if (!secret) return false;
   const signature = req.headers["x-webhook-signature"] as string | undefined;
-  if (!signature || !secret) return true;
+  if (!signature) return false;
   const hmac = crypto.createHmac("sha256", secret).update(JSON.stringify(req.body)).digest("hex");
   const sigBuf = Buffer.from(signature);
   const hmacBuf = Buffer.from(hmac);

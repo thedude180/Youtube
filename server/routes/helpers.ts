@@ -33,7 +33,7 @@ export function asyncHandler(fn: AsyncHandler) {
 }
 
 export function getUserId(req: Request): string {
-  return (req.user as AuthenticatedUser)?.claims?.sub;
+  return ((req.user as AuthenticatedUser)?.claims?.sub ?? "") as string;
 }
 
 export function requireAuth(req: Request, res: Response): string | null {
@@ -41,7 +41,12 @@ export function requireAuth(req: Request, res: Response): string | null {
     res.sendStatus(401);
     return null;
   }
-  return getUserId(req);
+  const userId = getUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: "Invalid session — please log in again" });
+    return null;
+  }
+  return userId;
 }
 
 export function requireAdmin(req: Request, res: Response): string | null {

@@ -3,6 +3,29 @@ import OpenAI from "openai";
 let _client: OpenAI | null = null;
 let _trackedClient: OpenAI | null = null;
 
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+
+async function withRetry<T>(fn: () => Promise<T>, endpoint: string): Promise<T> {
+  let lastErr: any;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const status = err?.status ?? err?.statusCode ?? 0;
+      const isRetryable = RETRYABLE_STATUS_CODES.has(status) || err?.code === "ECONNRESET" || err?.code === "ETIMEDOUT";
+      if (!isRetryable || attempt === MAX_RETRIES) throw err;
+      const retryAfterMs = err?.headers?.["retry-after"]
+        ? parseInt(err.headers["retry-after"]) * 1000
+        : BASE_DELAY_MS * Math.pow(2, attempt);
+      await new Promise(r => setTimeout(r, retryAfterMs));
+    }
+  }
+  throw lastErr;
+}
+
 export function getOpenAIClient(): OpenAI {
   if (!_trackedClient) {
     const baseClient = getRawOpenAIClient();
@@ -13,7 +36,7 @@ export function getOpenAIClient(): OpenAI {
       const endpoint = params?.model || "unknown";
       const isStreaming = params?.stream === true;
       try {
-        const result = await originalCreate(params, ...args);
+        const result = await withRetry(() => originalCreate(params, ...args), endpoint);
         const latency = Date.now() - start;
         if (isStreaming) {
           trackAICall(endpoint, 0, 0, latency);
