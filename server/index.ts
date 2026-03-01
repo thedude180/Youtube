@@ -758,21 +758,32 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 // ── BIND PORT FIRST — ensures the workflow health-check passes before the
 // async route registration (setupAuth OIDC discovery, DB queries) completes.
 // Express queues requests; routes registered after listen() still work.
-// reusePort: true allows server/prestart.cjs (loaded via --require) to also
-// bind this port instantly so Replit's health check gets a 200 in <100ms even
-// while this 4MB bundle is still parsing.
+//
+// TCP HANDLE INHERITANCE: prestart.cjs (loaded via --require) binds port 5000
+// in <100ms and stores the raw TCP handle in global.__replitPreServerHandle.
+// We inherit that handle here so the socket is NEVER closed — zero downtime,
+// no EADDRINUSE. Falls back to a normal bind when no prestart handle exists
+// (e.g., local dev without --require).
 const port = parseInt(process.env.PORT || "5000", 10);
-httpServer.listen(
-  { port, host: "0.0.0.0", reusePort: true },
-  () => {
-    process.stderr.write(`[Server] listening on port ${port}\n`);
 
-    // Close the lightweight pre-start server now that Express has taken over.
-    const preServer = (global as any).__replitPreServer;
-    if (preServer) {
-      preServer.close();
+const preHandle = (global as any).__replitPreServerHandle;
+const listenArg: any = preHandle
+  ? preHandle
+  : { port, host: "0.0.0.0" };
+
+httpServer.listen(
+  listenArg,
+  () => {
+    process.stderr.write(`[Server] listening on port ${port}${preHandle ? " (inherited prestart handle)" : ""}\n`);
+
+    // Clean up prestart references — Express is now the sole owner.
+    if ((global as any).__replitPreServerHandle) {
+      delete (global as any).__replitPreServerHandle;
+    }
+    if ((global as any).__replitPreServer) {
+      try { (global as any).__replitPreServer.close(); } catch {}
       delete (global as any).__replitPreServer;
-      process.stderr.write(`[Server] pre-start server closed — Express is sole handler\n`);
+      process.stderr.write(`[Server] prestart server closed — Express is sole handler\n`);
     }
 
     // ── CRITICAL: listen callback must return IMMEDIATELY ─────────────────────

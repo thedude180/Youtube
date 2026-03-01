@@ -307,6 +307,12 @@ function extractAndSanitizeJSON(raw: string): string | null {
   // Step 2: remove JS-style // and /* */ comments
   json = json.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
+  // Step 2.5: fix AI apostrophe confusion — AI sometimes outputs a double-quote
+  // where an apostrophe belongs (e.g. Don"t → Don't, Won"t → Won't).
+  // A double-quote surrounded by word characters is never valid JSON structure,
+  // so safely replace it with an apostrophe.
+  json = json.replace(/(\w)"(\w)/g, "$1'$2");
+
   // Step 3: single-quoted string values → double-quoted
   // (handles 'value' → "value" — property names are handled below)
   json = json.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
