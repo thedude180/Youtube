@@ -8,7 +8,7 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
   TrendingUp, Download, Loader2, Settings2, Crown, KeyRound, UsersRound,
   CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText,
 } from "lucide-react";
-import { SiYoutube, SiTwitch, SiTiktok, SiDiscord } from "react-icons/si";
+import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble } from "react-icons/si";
 import { SiX } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,7 @@ const defaultNotificationPrefs: NotificationPrefs = {
 
 function GeneralTab() {
   const { user, logout, isLoggingOut } = useAuth();
+  const [, setLocation] = useLocation();
   const { data: channels } = useChannels();
   const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
     queryKey: ["/api/oauth/status"],
@@ -311,12 +312,13 @@ function GeneralTab() {
         <CardContent className="p-3 space-y-3">
           {(() => {
             const FOCUSED_PLATFORMS = [
-              { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true },
-              { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false },
-              { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false },
-              { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false },
-              { key: "x", label: "X", color: "#1DA1F2", Icon: SiX, isYouTube: false },
-              { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false },
+              { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true, streamKeyOnly: false },
+              { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
+              { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
+              { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false, streamKeyOnly: false },
+              { key: "x", label: "X", color: "#1DA1F2", Icon: SiX, isYouTube: false, streamKeyOnly: false },
+              { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false, streamKeyOnly: false },
+              { key: "rumble", label: "Rumble", color: "#85C742", Icon: SiRumble, isYouTube: false, streamKeyOnly: true },
             ];
             const connectedSet = new Set((channels || []).map((c: any) => c.platform));
             const unconnected = FOCUSED_PLATFORMS.filter(p => !connectedSet.has(p.key));
@@ -471,6 +473,23 @@ function GeneralTab() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {unconnected.map(p => {
                       const canOAuth = p.isYouTube || oauthStatus?.[p.key]?.configured;
+                      if (p.streamKeyOnly) {
+                        return (
+                          <Button
+                            key={p.key}
+                            data-testid={`button-connect-${p.key}`}
+                            aria-label={`Set up ${p.label}`}
+                            className="w-full justify-start"
+                            variant="outline"
+                            style={{ borderColor: p.color === "#000000" ? "#555" : p.color, color: p.color === "#000000" ? "#ccc" : p.color }}
+                            onClick={() => setLocation("/content")}
+                          >
+                            <p.Icon className="h-4 w-4 mr-2" />
+                            Set up {p.label}
+                            <ExternalLink className="h-3 w-3 ml-auto opacity-60" />
+                          </Button>
+                        );
+                      }
                       return (
                         <Button
                           key={p.key}
