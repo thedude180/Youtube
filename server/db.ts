@@ -13,9 +13,9 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 10,                      // keep headroom — Replit Postgres handles ~25 total
+  max: 15,                      // raised from 10 — Replit Postgres handles ~25 total; extra headroom for burst
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 30_000, // 30 s — handles burst at startup
+  connectionTimeoutMillis: 15_000, // 15 s — fail fast so withRetry can try a fresh connection sooner
   allowExitOnIdle: true,
   statement_timeout: 30_000,
   query_timeout: 30_000,
@@ -57,6 +57,11 @@ const TRANSIENT_DB_ERRORS = [
   "could not connect to server",
   "the database system is starting up",
   "the database system is shutting down",
+  "timeout exceeded when trying to connect",
+  "Query read timeout",
+  "query_timeout",
+  "statement_timeout",
+  "connection timeout",
 ];
 
 function isTransientDbError(msg: string): boolean {

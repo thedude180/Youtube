@@ -210,6 +210,10 @@ export function checkDbPool(): { healthy: boolean; total: number; idle: number; 
 export function startResilienceWatchdog(): void {
   if (watchdogInterval) return;
   serverStartTime = Date.now();
+  // Reset tick baseline to now so the first detectEventLoopStall() call measures
+  // from watchdog-start, not from module-load — prevents a false-positive "stall"
+  // that would otherwise show the full startup time as a stall.
+  lastHealthCheckMs = Date.now();
   watchdogInterval = setInterval(runWatchdog, 30_000);
 }
 

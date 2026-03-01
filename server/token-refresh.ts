@@ -50,8 +50,14 @@ async function refreshGoogleToken(currentRefreshToken: string): Promise<RefreshR
       refreshToken: data.refresh_token || currentRefreshToken,
       expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : undefined,
     };
-  } catch (e) {
-    console.error("[TokenRefresh:google] Error:", e);
+  } catch (e: any) {
+    const isAbort = e?.name === "AbortError" || String(e).includes("AbortError");
+    const isNetwork = e?.code === "ECONNRESET" || e?.code === "ECONNREFUSED" || String(e).includes("fetch failed");
+    if (isAbort || isNetwork) {
+      console.warn(`[TokenRefresh:google] Transient network error: ${String(e).substring(0, 100)}`);
+    } else {
+      console.error("[TokenRefresh:google] Error:", e);
+    }
     return { success: false, error: String(e) };
   }
 }
@@ -125,8 +131,14 @@ async function refreshTokenOnce(platform: Platform, currentRefreshToken: string)
       refreshToken: data.refresh_token || currentRefreshToken,
       expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : undefined,
     };
-  } catch (e) {
-    console.error(`[TokenRefresh:${platform}] Error:`, e);
+  } catch (e: any) {
+    const isAbort = e?.name === "AbortError" || String(e).includes("AbortError");
+    const isNetwork = e?.code === "ECONNRESET" || e?.code === "ECONNREFUSED" || String(e).includes("fetch failed");
+    if (isAbort || isNetwork) {
+      console.warn(`[TokenRefresh:${platform}] Transient network error: ${String(e).substring(0, 100)}`);
+    } else {
+      console.error(`[TokenRefresh:${platform}] Error:`, e);
+    }
     return { success: false, error: String(e) };
   }
 }
