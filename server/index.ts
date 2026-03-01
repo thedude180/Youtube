@@ -758,11 +758,22 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 // ── BIND PORT FIRST — ensures the workflow health-check passes before the
 // async route registration (setupAuth OIDC discovery, DB queries) completes.
 // Express queues requests; routes registered after listen() still work.
+// reusePort: true allows server/prestart.cjs (loaded via --require) to also
+// bind this port instantly so Replit's health check gets a 200 in <100ms even
+// while this 4MB bundle is still parsing.
 const port = parseInt(process.env.PORT || "5000", 10);
 httpServer.listen(
-  { port, host: "0.0.0.0" },
+  { port, host: "0.0.0.0", reusePort: true },
   () => {
     process.stderr.write(`[Server] listening on port ${port}\n`);
+
+    // Close the lightweight pre-start server now that Express has taken over.
+    const preServer = (global as any).__replitPreServer;
+    if (preServer) {
+      preServer.close();
+      delete (global as any).__replitPreServer;
+      process.stderr.write(`[Server] pre-start server closed — Express is sole handler\n`);
+    }
 
     // ── CRITICAL: listen callback must return IMMEDIATELY ─────────────────────
     // Replit's health check fires as soon as port 5000 opens and must receive
