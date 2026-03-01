@@ -195,6 +195,13 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
     logger.warn(`[${userId}] Upload watcher init failed: ${err.message}`);
   }
 
+  try {
+    const { initVodWatcherForUser } = await import("./youtube-vod-watcher");
+    await initVodWatcherForUser(userId);
+  } catch (err: any) {
+    logger.warn(`[${userId}] VOD watcher init failed: ${err.message}`);
+  }
+
   if (caps.runConsistencyAgent) {
     try {
       const { initConsistencyAgentForUser } = await import("./content-consistency-agent");

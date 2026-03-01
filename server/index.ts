@@ -859,6 +859,12 @@ httpServer.listen(
       }).catch(err => logger.error("Upload watcher failed to load", { error: String(err) }));
     });
 
+    delay(42_000, () => {
+      import("./services/youtube-vod-watcher").then(m => {
+        m.bootstrapVodWatchers().catch(err => logger.error("VOD watcher bootstrap failed", { error: String(err) }));
+      }).catch(err => logger.error("VOD watcher failed to load", { error: String(err) }));
+    });
+
     delay(45_000, () => {
       import("./services/content-consistency-agent").then(m => {
         m.bootstrapConsistencyAgents().catch(err => logger.error("Consistency agent bootstrap failed", { error: String(err) }));
