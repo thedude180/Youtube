@@ -39,6 +39,7 @@ import { registerContentAutomationRoutes } from "./routes/content-automation";
 import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { registerTestAuthRoutes } from "./routes/test-auth";
 import { registerCopyrightGuardianRoutes } from "./routes/copyright-guardian";
+import { registerMultistreamRoutes } from "./routes/multistream";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -227,6 +228,7 @@ export async function registerRoutes(
   registerContentAutomationRoutes(app);
   registerStreamAgentRoutes(app);
   registerCopyrightGuardianRoutes(app);
+  registerMultistreamRoutes(app);
   registerTestAuthRoutes(app);
 
   const vitalsBuffer: any[] = [];

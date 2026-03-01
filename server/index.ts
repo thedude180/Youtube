@@ -783,6 +783,12 @@ httpServer.listen(
       }).catch(err => logger.error("Agent events failed to load", { error: String(err) }));
     });
 
+    delay(55_000, () => {
+      import("./services/multistream-engine").then(m => {
+        m.wireMultistreamEvents();
+      }).catch(err => logger.error("Multistream engine failed to load", { error: String(err) }));
+    });
+
     delay(2_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
 
     const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
