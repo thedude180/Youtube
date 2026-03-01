@@ -637,6 +637,12 @@ export default function StreamCenter() {
     refetchInterval: 8_000,
   });
 
+  const { data: relayDestData } = useQuery<any>({
+    queryKey: ["/api/multistream/destinations"],
+    refetchInterval: 30_000,
+  });
+  const relayDests: any[] = relayDestData?.destinations ?? [];
+
   const startRelayMutation = useMutation({
     mutationFn: async (videoId: string) => { const res = await apiRequest("POST", "/api/multistream/start", { videoId }); return res.json(); },
     onSuccess: () => { refetchMultistream(); toast({ title: "Multi-stream relay started", description: "FFmpeg is relaying your stream to all configured platforms" }); },
@@ -922,32 +928,45 @@ export default function StreamCenter() {
             </span>
           </div>
 
-          {multistreamStatus?.destinations?.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4" data-testid="section-relay-destinations">
-              {multistreamStatus.destinations.map((dest: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg bg-muted/20 border border-border/20 px-3 py-2" data-testid={`dest-relay-${dest.platform}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dest.active ? 'bg-emerald-400 animate-pulse' : dest.error ? 'bg-red-400' : 'bg-muted-foreground/40'}`} />
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-mono font-bold text-foreground truncate">{dest.label}</p>
-                    {dest.error && <p className="text-[9px] text-red-400 truncate">{dest.error}</p>}
-                    {!dest.error && <p className="text-[9px] text-muted-foreground">{dest.active ? 'Streaming' : 'Connecting...'}</p>}
-                  </div>
+          {/* Destination grid — shows configured platforms always, live status when relaying */}
+          {(() => {
+            const activeDests: any[] = multistreamStatus?.relaying ? (multistreamStatus.destinations ?? []) : [];
+            const displayDests = activeDests.length > 0 ? activeDests : relayDests;
+            const isLiveState = multistreamStatus?.relaying;
+            if (displayDests.length === 0) {
+              return (
+                <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 mb-4 text-xs text-amber-400 font-mono" data-testid="text-relay-no-dests">
+                  No relay destinations configured — add Kick, Rumble, or Twitch stream keys in the destinations panel below
                 </div>
-              ))}
-            </div>
-          )}
-
-          {multistreamStatus?.destinations?.length === 0 && !multistreamStatus?.relaying && (
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 mb-4 text-xs text-amber-400 font-mono" data-testid="text-relay-no-dests">
-              No secondary destinations configured — add Kick, Rumble, or Twitch stream keys in Settings or the destinations panel below
-            </div>
-          )}
+              );
+            }
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4" data-testid="section-relay-destinations">
+                {displayDests.map((dest: any, i: number) => {
+                  const isActive = isLiveState && dest.active;
+                  const hasError = isLiveState && dest.error;
+                  const isConfigured = dest.configured !== false;
+                  return (
+                    <div key={i} className="flex items-center gap-2 rounded-lg bg-muted/20 border border-border/20 px-3 py-2" data-testid={`dest-relay-${dest.platform}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-400 animate-pulse' : hasError ? 'bg-red-400' : isConfigured ? 'bg-primary/60' : 'bg-muted-foreground/30'}`} />
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-mono font-bold text-foreground truncate">{dest.label}</p>
+                        {hasError && <p className="text-[9px] text-red-400 truncate">{dest.error}</p>}
+                        {!hasError && isLiveState && <p className="text-[9px] text-emerald-400">{isActive ? 'Streaming' : 'Connecting...'}</p>}
+                        {!isLiveState && <p className="text-[9px] text-muted-foreground">{isConfigured ? 'Ready' : 'Not configured'}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {multistreamStatus?.error && (
             <p className="text-[11px] text-red-400 font-mono mb-3 truncate" data-testid="text-relay-error">Error: {multistreamStatus.error}</p>
           )}
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {multistreamStatus?.relaying ? (
               <button
                 className="px-4 py-2 text-xs font-mono rounded-lg border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
@@ -962,21 +981,24 @@ export default function StreamCenter() {
                 style={{ boxShadow: '0 0 10px hsl(265 80% 60% / 0.2)' }}
                 onClick={() => {
                   const videoId = streamAgent?.videoId || ytLiveStatus?.videoId;
-                  if (!videoId) { toast({ title: "No live stream detected", description: "Start streaming on YouTube first, then activate the relay", variant: "destructive" }); return; }
+                  if (!videoId) {
+                    toast({ title: "No live stream detected", description: "Start streaming on YouTube first — the relay auto-starts, or click once you're live", variant: "destructive" });
+                    return;
+                  }
                   startRelayMutation.mutate(videoId);
                 }}
                 disabled={startRelayMutation.isPending}
                 data-testid="button-start-relay">
-                {startRelayMutation.isPending ? 'Starting relay...' : 'Start Relay'}
+                {startRelayMutation.isPending ? 'Starting relay...' : streamAgent?.isLive ? 'Start Relay Now' : 'Start Relay'}
               </button>
             )}
             {multistreamStatus?.startedAt && (
               <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-relay-started-at">
-                {multistreamStatus.relaying ? 'Since ' : 'Stopped '}{new Date(multistreamStatus.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {multistreamStatus.relaying ? 'Since ' : 'Stopped at '}{new Date(multistreamStatus.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
-            <span className="text-[10px] text-muted-foreground font-mono ml-auto" data-testid="text-relay-auto-note">
-              Auto-starts when stream is detected live
+            <span className="text-[10px] text-muted-foreground/60 font-mono ml-auto" data-testid="text-relay-auto-note">
+              {streamAgent?.videoId ? `Detected: ${streamAgent.videoId}` : 'Watching for live stream...'}
             </span>
           </div>
         </div>

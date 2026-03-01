@@ -27,6 +27,7 @@ interface StreamAgentState {
   platform: string | null;
   streamTitle: string | null;
   streamId: number | null;
+  videoId: string | null;
   streamStartedAt: Date | null;
   viewerCount: number;
   viewerPeak: number;
@@ -52,6 +53,7 @@ function getOrCreateState(userId: string): StreamAgentState {
       platform: null,
       streamTitle: null,
       streamId: null,
+      videoId: null,
       streamStartedAt: null,
       viewerCount: 0,
       viewerPeak: 0,
@@ -106,6 +108,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
     // Check internal DB for streams marked live
     const userStreams = await storage.getStreams(userId);
     let liveStream = userStreams.find(s => s.status === "live");
+    let detectedVideoId: string | null = null;
 
     // If no DB stream is live, check YouTube — API first (if quota available), then RSS fallback
     if (!liveStream) {
@@ -128,6 +131,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
               if (activeBroadcast) {
                 detectedLive = true;
                 broadcastTitle = activeBroadcast.title;
+                detectedVideoId = activeBroadcast.videoId || activeBroadcast.id || null;
               }
             } catch (apiErr: any) {
               logger.warn(`[${userId}] YouTube API live check failed — trying RSS fallback: ${apiErr.message}`);
@@ -143,6 +147,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
               if (check.isLive) {
                 detectedLive = true;
                 broadcastTitle = check.title || broadcastTitle || "Live Stream";
+                detectedVideoId = check.videoId || null;
                 logger.info(`[${userId}] Live detected via watch-page check — videoId: ${check.videoId}, title: ${broadcastTitle}`);
               } else {
                 logger.info(`[${userId}] Watch-page check: channel ${ytChannel.channelId} is not live`);
@@ -185,13 +190,18 @@ async function checkAndEngageStream(userId: string): Promise<void> {
         : "youtube";
       state.streamStartedAt = liveStream.startedAt || state.streamStartedAt;
       state.postStreamPhase = null;
+      if (detectedVideoId) state.videoId = detectedVideoId;
 
       if (wasOffline) {
         logAction(state, "You went live!", `Detected on ${state.platform}`);
         logAction(state, "AI chat responder active", "Responding to viewers in your voice");
         logAction(state, "Chat moderation enabled", "Watching for toxic content");
         logAction(state, "Viewer monitoring started", "Tracking engagement in real time");
-        fireAgentEvent("stream.started", userId, { platform: state.platform, streamTitle: state.streamTitle });
+        fireAgentEvent("stream.started", userId, {
+          platform: state.platform,
+          streamTitle: state.streamTitle,
+          videoId: state.videoId,
+        });
       }
 
       const nowMs = Date.now();
@@ -307,6 +317,7 @@ export function getStreamAgentStatus(userId: string) {
     isLive: state.isLive,
     platform: state.platform,
     streamTitle: state.streamTitle,
+    videoId: state.videoId,
     streamStartedAt: state.streamStartedAt,
     viewerCount: state.viewerCount,
     viewerPeak: state.viewerPeak,

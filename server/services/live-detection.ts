@@ -279,6 +279,14 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(e => console.warn("[LiveDetection] Go-live announcements failed", e?.message));
     createPipelineForStream(userId, broadcast.title, "live").catch(e => console.warn("[LiveDetection] Pipeline creation failed", e?.message));
     onStreamDetected(userId, stream).catch(e => console.warn("[LiveDetection] Trend detection failed", e?.message));
+
+    import("./agent-events").then(({ fireAgentEvent }) => {
+      fireAgentEvent("stream.started", userId, {
+        platform: broadcast.platform,
+        videoId: broadcast.broadcastId,
+        streamTitle: broadcast.title,
+      });
+    }).catch(() => {});
   } catch (err) {
     console.error(`[LiveDetection] Pipeline trigger error for ${broadcast.platform}:`, err);
   }

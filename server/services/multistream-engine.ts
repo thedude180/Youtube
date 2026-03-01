@@ -152,12 +152,19 @@ export async function startMultistream(userId: string, videoId: string, autoStar
     proc.stderr?.on("data", (chunk: Buffer) => {
       const line = chunk.toString();
       state.bytesSent += chunk.length;
-      for (const dest of state.destinations) {
-        if (line.includes(dest.rtmpUrl) && line.includes("error")) {
-          dest.error = line.slice(0, 120);
-        } else if (line.includes("frame=") || line.includes("speed=")) {
+      const isProgress = line.includes("frame=") || line.includes("speed=") || line.includes("bitrate=");
+      if (isProgress) {
+        for (const dest of state.destinations) {
           dest.active = true;
           dest.error = null;
+        }
+      } else {
+        const lowerLine = line.toLowerCase();
+        const isConnError = lowerLine.includes("connection refused") || lowerLine.includes("connection timed out") || lowerLine.includes("broken pipe") || lowerLine.includes("no route to host");
+        if (isConnError) {
+          for (const dest of state.destinations) {
+            if (!dest.active) dest.error = line.trim().slice(0, 100);
+          }
         }
       }
     });
@@ -230,6 +237,34 @@ export function getAllMultistreamStatuses() {
     userId: uid,
     status: getMultistreamStatus(uid),
   }));
+}
+
+export async function getConfiguredDestinations(userId: string): Promise<{ platform: string; label: string; configured: boolean; source: "db" | "env" }[]> {
+  const results: { platform: string; label: string; configured: boolean; source: "db" | "env" }[] = [];
+
+  const dbDests = await db.select().from(streamDestinations).where(eq(streamDestinations.userId, userId));
+  for (const d of dbDests) {
+    results.push({
+      platform: d.platform,
+      label: d.label || d.platform,
+      configured: !!(d.streamKey || d.rtmpUrl),
+      source: "db",
+    });
+  }
+
+  for (const [platform, envCfg] of Object.entries(ENV_KEYS)) {
+    const alreadyInDb = dbDests.some(d => d.platform === platform);
+    if (alreadyInDb) continue;
+    const streamKey = process.env[envCfg.keyKey];
+    results.push({
+      platform,
+      label: platform.charAt(0).toUpperCase() + platform.slice(1),
+      configured: !!streamKey,
+      source: "env",
+    });
+  }
+
+  return results;
 }
 
 export function wireMultistreamEvents(): void {

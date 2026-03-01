@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { isAuthenticated } from "../replit_integrations/auth/replitAuth";
 import { getUserId } from "./helpers";
-import { startMultistream, stopMultistream, getMultistreamStatus } from "../services/multistream-engine";
+import { startMultistream, stopMultistream, getMultistreamStatus, getConfiguredDestinations } from "../services/multistream-engine";
 
 export function registerMultistreamRoutes(app: Express): void {
   app.get("/api/multistream/status", isAuthenticated, (req: Request, res: Response) => {
@@ -10,12 +10,23 @@ export function registerMultistreamRoutes(app: Express): void {
     res.json(getMultistreamStatus(userId));
   });
 
+  app.get("/api/multistream/destinations", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const dests = await getConfiguredDestinations(userId);
+      res.json({ destinations: dests });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/multistream/start", isAuthenticated, async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { videoId } = req.body;
     if (!videoId || typeof videoId !== "string") {
-      return res.status(400).json({ error: "videoId is required" });
+      return res.status(400).json({ error: "videoId is required — stream must be live on YouTube first" });
     }
     try {
       const result = await startMultistream(userId, videoId, false);
