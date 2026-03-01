@@ -707,7 +707,12 @@ export default function Autopilot() {
   });
   const sweepMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/content-automation/sweep/start"),
-    onSuccess: () => { refetchAutomation(); },
+    onSuccess: (data: any) => {
+      refetchAutomation();
+      if (data && !data.started) {
+        toast({ title: "Cannot start sweep", description: data.message || "Check your channel connection", variant: "destructive" });
+      }
+    },
   });
   const cancelSweepMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/content-automation/sweep/cancel"),

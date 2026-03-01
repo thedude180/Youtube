@@ -146,6 +146,7 @@ export async function startContentSweep(userId: string): Promise<{ started: bool
   const userChannels = await storage.getChannelsByUser(userId);
   const hasYouTube = userChannels.some((c: any) => c.platform === "youtube" && c.accessToken);
   if (!hasYouTube) {
+    state.lastError = "No YouTube channel connected — connect your channel in Settings first";
     return { started: false, message: "No YouTube channel connected — connect your channel first" };
   }
 
