@@ -864,6 +864,12 @@ httpServer.listen(
       }).catch(err => logger.error("Copyright guardian failed to load", { error: String(err) }));
     });
 
+    delay(58_000, () => {
+      import("./services/tiktok-clip-autopublisher").then(m => {
+        m.bootstrapTikTokAutopublishers().catch(err => logger.error("TikTok autopublisher bootstrap failed", { error: String(err) }));
+      }).catch(err => logger.error("TikTok autopublisher failed to load", { error: String(err) }));
+    });
+
     delay(60_000, () => {
       import("./services/multistream-engine").then(m => {
         m.wireMultistreamEvents();

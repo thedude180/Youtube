@@ -226,6 +226,13 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
   }
 
   try {
+    const { initTikTokAutopublisherForUser } = await import("./tiktok-clip-autopublisher");
+    await initTikTokAutopublisherForUser(userId);
+  } catch (err: any) {
+    logger.warn(`[${userId}] TikTok autopublisher init failed: ${err.message}`);
+  }
+
+  try {
     const { fireAgentEvent } = await import("./agent-events");
     fireAgentEvent("agent.session.started", userId, { tier, agentsStarted });
   } catch {}

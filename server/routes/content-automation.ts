@@ -4,6 +4,7 @@ import { getUserId } from "./helpers";
 import { getUploadWatcherStatus } from "../services/youtube-upload-watcher";
 import { startContentSweep, cancelContentSweep, getContentSweepStatus } from "../services/content-sweep";
 import { getConsistencyAgentStatus, applyAISuggestion, triggerManualRun } from "../services/content-consistency-agent";
+import { getTikTokAutopublisherStatus } from "../services/tiktok-clip-autopublisher";
 
 export function registerContentAutomationRoutes(app: Express): void {
   app.get("/api/content-automation/status", isAuthenticated, async (req: Request, res: Response) => {
@@ -14,6 +15,7 @@ export function registerContentAutomationRoutes(app: Express): void {
         uploadWatcher: getUploadWatcherStatus(userId),
         sweep: getContentSweepStatus(userId),
         consistencyAgent: getConsistencyAgentStatus(userId),
+        tiktokAutopublisher: getTikTokAutopublisherStatus(userId),
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
