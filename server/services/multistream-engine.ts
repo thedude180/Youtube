@@ -22,6 +22,7 @@ const ENV_KEYS: Record<string, { urlKey?: string; keyKey: string }> = {
   kick:   { urlKey: "KICK_STREAM_URL",   keyKey: "KICK_STREAM_KEY" },
   rumble: { urlKey: "RUMBLE_STREAM_URL", keyKey: "RUMBLE_STREAM_KEY" },
   twitch: { keyKey: "TWITCH_STREAM_KEY" },
+  tiktok: { urlKey: "TIKTOK_STREAM_URL", keyKey: "TIKTOK_STREAM_KEY" },
 };
 
 interface DestinationStatus {
