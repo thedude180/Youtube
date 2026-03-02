@@ -2266,9 +2266,9 @@ export default function Autopilot() {
                         <div className="space-y-1">
                           <div className="flex justify-between text-[10px] font-mono">
                             <span>Character Count</span>
-                            <span>{formatPreviewQuery.data.charCount} / {formatPreviewQuery.data.limits.max_chars}</span>
+                            <span>{formatPreviewQuery.data.charCount} / {formatPreviewQuery.data?.limits?.max_chars ?? '∞'}</span>
                           </div>
-                          <Progress value={(formatPreviewQuery.data.charCount / (formatPreviewQuery.data.limits.max_chars as number)) * 100} className="h-1" />
+                          <Progress value={formatPreviewQuery.data?.limits?.max_chars ? (formatPreviewQuery.data.charCount / (formatPreviewQuery.data.limits.max_chars as number)) * 100 : 0} className="h-1" />
                         </div>
                       )}
                       
