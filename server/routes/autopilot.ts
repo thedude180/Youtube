@@ -885,6 +885,11 @@ export function registerAutopilotRoutes(app: Express) {
           startDate: now.toISOString(),
         });
       }
+
+      try {
+        const { fireAgentEvent } = await import("../services/agent-events");
+        fireAgentEvent("empire.activated", userId, { seeded });
+      } catch {}
     } catch (err) {
       console.error("[Autopilot] Activation error:", err);
       if (!res.headersSent) res.status(500).json({ error: "Failed to activate autopilot" });

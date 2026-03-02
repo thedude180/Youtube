@@ -129,6 +129,14 @@ async function runSweep(userId: string): Promise<void> {
     state.phase = "complete";
     state.completedAt = new Date();
     logger.info(`[${userId}] Content sweep complete — ${state.videosRepurposed} videos repurposed`);
+    try {
+      const { fireAgentEvent } = await import("./agent-events");
+      fireAgentEvent("sweep.completed", userId, {
+        videosSynced: state.videosSynced,
+        videosClipped: state.videosClipped,
+        videosRepurposed: state.videosRepurposed,
+      });
+    } catch {}
   } catch (err: any) {
     state.phase = "error";
     state.lastError = err.message;

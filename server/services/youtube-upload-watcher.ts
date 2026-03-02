@@ -165,6 +165,10 @@ async function scanUserForNewUploads(userId: string): Promise<{ newUploads: numb
         logger.warn(`[${userId}] Repurpose failed for video ${videoId}: ${err.message}`);
       }
     }
+
+    for (const videoId of createdVideoIds) {
+      fireAgentEvent("upload.detected", userId, { videoId, count: createdVideoIds.length });
+    }
   }
 
   return { newUploads: trulyNew.length, scanned: videoIds.length };

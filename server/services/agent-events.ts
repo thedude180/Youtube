@@ -118,6 +118,19 @@ export async function wireAgentCoordination(): Promise<void> {
     }
   });
 
+  // When sweep completes → immediately trigger TikTok autopublisher for new clips
+  onAgentEvent("sweep.completed", async (event) => {
+    logger.info(`Sweep completed for ${event.userId.slice(0, 8)} — triggering TikTok autopublisher`);
+    setTimeout(async () => {
+      try {
+        const { startTikTokAutopublisher } = await import("./tiktok-clip-autopublisher");
+        await startTikTokAutopublisher(event.userId);
+      } catch (err: any) {
+        logger.warn(`Sweep-triggered TikTok autopublisher failed: ${err.message}`);
+      }
+    }, 30_000); // 30s delay for clip processing to complete
+  });
+
   // When an agent session starts → log it
   onAgentEvent("agent.session.started", async (event) => {
     logger.info(`Agent session started for ${event.userId.slice(0, 8)} — tier: ${event.payload?.tier}`);
