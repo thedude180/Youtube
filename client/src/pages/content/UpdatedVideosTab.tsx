@@ -8,7 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ExternalLink, CheckCircle2, FileText, Hash, Type,
   Loader2, ArrowRight, Clock, Copy, Search, Zap,
-  Send, RefreshCw, Scissors,
+  Send, RefreshCw, Scissors, Image, Sparkles, Film,
+  ChevronDown, ChevronUp, Filter,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { formatDistanceToNow } from "date-fns";
@@ -51,26 +52,49 @@ interface PipelineEntry {
   createdAt: string;
 }
 
-const FIELD_ICONS: Record<string, typeof Type> = {
-  title: Type,
-  description: FileText,
-  tags: Hash,
-};
+type ChangeKind = "seo" | "thumbnail" | "seo_and_thumbnail" | "unknown";
+type FilterType = "all" | "seo" | "thumbnail" | "content";
 
-const FIELD_LABELS: Record<string, string> = {
-  title: "Title",
-  description: "Description",
-  tags: "Tags",
-};
+function classifyEntries(entries: UpdateHistoryEntry[]): ChangeKind {
+  const fields = new Set(entries.map(e => e.field));
+  const hasSeo = fields.has("title") || fields.has("description") || fields.has("tags");
+  const hasThumb = fields.has("thumbnail") || fields.has("thumbnailUrl");
+  if (hasSeo && hasThumb) return "seo_and_thumbnail";
+  if (hasThumb) return "thumbnail";
+  if (hasSeo) return "seo";
+  return "unknown";
+}
 
-const STEP_LABELS: Record<string, string> = {
-  analyze: "Analyzing",
-  title: "Optimizing Title",
-  description: "Optimizing Description",
-  tags: "Optimizing Tags",
-  thumbnail: "Generating Thumbnail",
-  seo: "SEO Optimization",
-  review: "Final Review",
+const KIND_CONFIG: Record<ChangeKind, {
+  label: string;
+  badgeClass: string;
+  icon: typeof Type;
+  dot: string;
+}> = {
+  seo: {
+    label: "SEO Updated",
+    badgeClass: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    icon: Sparkles,
+    dot: "bg-blue-400",
+  },
+  thumbnail: {
+    label: "Thumbnail Updated",
+    badgeClass: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    icon: Image,
+    dot: "bg-orange-400",
+  },
+  seo_and_thumbnail: {
+    label: "SEO + Thumbnail",
+    badgeClass: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+    icon: Sparkles,
+    dot: "bg-purple-400",
+  },
+  unknown: {
+    label: "AI Optimized",
+    badgeClass: "bg-muted text-muted-foreground border-border/30",
+    icon: Zap,
+    dot: "bg-muted-foreground",
+  },
 };
 
 function formatTags(value: string | null): string {
@@ -102,123 +126,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function VideoUpdateCard({ videoId, entries }: { videoId: string; entries: UpdateHistoryEntry[] }) {
-  const [expanded, setExpanded] = useState(true);
-  const latestDate = entries[0]?.createdAt;
-  const studioUrl = entries[0]?.youtubeStudioUrl;
-  const isPending = videoId.startsWith("pending-") || videoId.startsWith("local-") || videoId.startsWith("pipeline-");
-
-  const titleEntry = entries.find(e => e.field === "title");
-  const descEntry = entries.find(e => e.field === "description");
-  const tagsEntry = entries.find(e => e.field === "tags");
-
-  const currentTitle = titleEntry?.newValue || entries[0]?.videoTitle || "Untitled";
-
-  return (
-    <Card data-testid={`card-update-history-${videoId}`}>
-      <CardContent className="p-4">
-        <div
-          className="flex items-center justify-between gap-3 flex-wrap cursor-pointer"
-          onClick={() => setExpanded(!expanded)}
-          data-testid={`button-expand-${videoId}`}
-        >
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <SiYoutube className="h-5 w-5 text-red-500 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-semibold text-sm" data-testid={`text-video-title-${videoId}`}>
-                  {currentTitle}
-                </p>
-                <CopyButton text={currentTitle} label="Title" />
-              </div>
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                {latestDate && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
-                  </span>
-                )}
-                <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/30">
-                  AI Optimized
-                </Badge>
-                {isPending && (
-                  <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/30">
-                    Not on YouTube yet
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {studioUrl && (
-              <a
-                href={studioUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                data-testid={`link-studio-${videoId}`}
-              >
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                  YouTube Studio
-                </Button>
-              </a>
-            )}
-            {!studioUrl && !isPending && (
-              <a
-                href={`https://studio.youtube.com/channel/videos`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                data-testid={`link-studio-search-${videoId}`}
-              >
-                <Button variant="outline" size="sm">
-                  <Search className="h-3.5 w-3.5 mr-1.5" />
-                  Find in Studio
-                </Button>
-              </a>
-            )}
-          </div>
-        </div>
-
-        {expanded && (
-          <div className="mt-4 space-y-3 border-t pt-3" data-testid={`section-changes-${videoId}`}>
-            {titleEntry && (
-              <ChangeRow
-                icon={Type}
-                label="Title"
-                oldValue={titleEntry.oldValue}
-                newValue={titleEntry.newValue}
-                field="title"
-              />
-            )}
-
-            {descEntry && (
-              <ChangeRow
-                icon={FileText}
-                label="Description"
-                oldValue={descEntry.oldValue}
-                newValue={descEntry.newValue}
-                field="description"
-              />
-            )}
-
-            {tagsEntry && (
-              <ChangeRow
-                icon={Hash}
-                label="Tags"
-                oldValue={tagsEntry.oldValue}
-                newValue={tagsEntry.newValue}
-                field="tags"
-              />
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 function ChangeRow({ icon: Icon, label, oldValue, newValue, field }: {
   icon: typeof Type;
   label: string;
@@ -236,11 +143,10 @@ function ChangeRow({ icon: Icon, label, oldValue, newValue, field }: {
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-
       {field === "description" ? (
         <div className="space-y-2">
           <div className="rounded-md border border-red-500/20 bg-red-500/5 p-2.5">
-            <p className="text-[10px] font-medium text-red-400 mb-1 uppercase tracking-wide">Original</p>
+            <p className="text-[10px] font-medium text-red-400 mb-1 uppercase tracking-wide">Before</p>
             <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
               {displayOld.length > 400 ? displayOld.slice(0, 400) + "..." : displayOld}
             </p>
@@ -255,7 +161,7 @@ function ChangeRow({ icon: Icon, label, oldValue, newValue, field }: {
       ) : (
         <div className="flex items-start gap-2 flex-wrap">
           <div className="rounded-md border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 flex-1 min-w-0">
-            <p className="text-[10px] font-medium text-red-400 mb-0.5 uppercase tracking-wide">Original</p>
+            <p className="text-[10px] font-medium text-red-400 mb-0.5 uppercase tracking-wide">Before</p>
             <p className="text-xs text-muted-foreground break-words">{displayOld}</p>
           </div>
           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-4" />
@@ -269,6 +175,105 @@ function ChangeRow({ icon: Icon, label, oldValue, newValue, field }: {
   );
 }
 
+function VideoUpdateCard({ videoId, entries }: { videoId: string; entries: UpdateHistoryEntry[] }) {
+  const [expanded, setExpanded] = useState(true);
+  const latestDate = entries[0]?.createdAt;
+  const studioUrl = entries[0]?.youtubeStudioUrl;
+  const isPending = videoId.startsWith("pending-") || videoId.startsWith("local-") || videoId.startsWith("pipeline-");
+
+  const titleEntry = entries.find(e => e.field === "title");
+  const descEntry = entries.find(e => e.field === "description");
+  const tagsEntry = entries.find(e => e.field === "tags");
+  const thumbEntry = entries.find(e => e.field === "thumbnail" || e.field === "thumbnailUrl");
+
+  const currentTitle = titleEntry?.newValue || entries[0]?.videoTitle || "Untitled";
+  const kind = classifyEntries(entries);
+  const cfg = KIND_CONFIG[kind];
+  const KindIcon = cfg.icon;
+
+  return (
+    <Card data-testid={`card-update-history-${videoId}`} className="border-border/50">
+      <CardContent className="p-4">
+        <div
+          className="flex items-start justify-between gap-3 flex-wrap cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+          data-testid={`button-expand-${videoId}`}
+        >
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className="relative shrink-0 mt-0.5">
+              <SiYoutube className="h-5 w-5 text-red-500" />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${cfg.dot} border border-background`} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-sm" data-testid={`text-video-title-${videoId}`}>
+                  {currentTitle}
+                </p>
+                <CopyButton text={currentTitle} label="Title" />
+              </div>
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                {latestDate && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
+                  </span>
+                )}
+                <Badge variant="outline" className={`text-xs flex items-center gap-1 ${cfg.badgeClass}`} data-testid={`badge-change-kind-${videoId}`}>
+                  <KindIcon className="h-3 w-3" />
+                  {cfg.label}
+                </Badge>
+                {isPending && (
+                  <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/30">
+                    Not on YouTube yet
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {studioUrl && (
+              <a href={studioUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} data-testid={`link-studio-${videoId}`}>
+                <Button variant="outline" size="sm">
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  YouTube Studio
+                </Button>
+              </a>
+            )}
+            {!studioUrl && !isPending && (
+              <a href="https://studio.youtube.com/channel/videos" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} data-testid={`link-studio-search-${videoId}`}>
+                <Button variant="outline" size="sm">
+                  <Search className="h-3.5 w-3.5 mr-1.5" />
+                  Find in Studio
+                </Button>
+              </a>
+            )}
+            {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </div>
+        </div>
+
+        {expanded && (
+          <div className="mt-4 space-y-3 border-t border-border/40 pt-3" data-testid={`section-changes-${videoId}`}>
+            {titleEntry && <ChangeRow icon={Type} label="Title" oldValue={titleEntry.oldValue} newValue={titleEntry.newValue} field="title" />}
+            {descEntry && <ChangeRow icon={FileText} label="Description" oldValue={descEntry.oldValue} newValue={descEntry.newValue} field="description" />}
+            {tagsEntry && <ChangeRow icon={Hash} label="Tags" oldValue={tagsEntry.oldValue} newValue={tagsEntry.newValue} field="tags" />}
+            {thumbEntry && (
+              <div className="space-y-1.5" data-testid={`change-row-thumbnail`}>
+                <div className="flex items-center gap-1.5">
+                  <Image className="h-3.5 w-3.5 text-orange-400" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Thumbnail</span>
+                </div>
+                <div className="rounded-md border border-orange-500/20 bg-orange-500/5 px-2.5 py-2 text-xs text-muted-foreground">
+                  New AI-generated thumbnail applied
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 const TYPE_ICONS: Record<string, typeof Zap> = {
   "auto-clip": Scissors,
   "cross-promo": Send,
@@ -276,10 +281,12 @@ const TYPE_ICONS: Record<string, typeof Zap> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  "auto-clip": "AI Auto-Clip",
+  "auto-clip": "AI Clips Extracted",
   "cross-promo": "Cross-Platform Post",
   "content-recycle": "Content Recycled",
 };
+
+const CONTENT_EDIT_TYPES = ["auto-clip", "content-recycle"];
 
 const STATUS_STYLES: Record<string, string> = {
   published: "bg-green-500/10 text-green-400 border-green-500/20",
@@ -288,79 +295,94 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
 };
 
-function GroupedActivitySummary({ entries }: { entries: AutopilotEntry[] }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, { type: string; platform: string; entries: AutopilotEntry[] }>();
-    for (const e of entries) {
-      const key = `${e.type}::${e.targetPlatform}`;
-      if (!map.has(key)) map.set(key, { type: e.type, platform: e.targetPlatform, entries: [] });
-      map.get(key)!.entries.push(e);
-    }
-    return Array.from(map.values()).sort((a, b) => b.entries.length - a.entries.length);
-  }, [entries]);
-
-  const INITIAL_SHOW = 5;
-  const visible = expanded ? grouped : grouped.slice(0, INITIAL_SHOW);
-  const hasMore = grouped.length > INITIAL_SHOW;
+function ContentEditCard({ type, platform, entries }: { type: string; platform: string; entries: AutopilotEntry[] }) {
+  const Icon = TYPE_ICONS[type] || Film;
+  const label = TYPE_LABELS[type] || type;
+  const latestStatus = entries[0]?.status || "scheduled";
+  const statusStyle = STATUS_STYLES[latestStatus] || "bg-muted text-muted-foreground";
+  const latestDate = entries[0]?.createdAt;
 
   return (
-    <div className="space-y-1.5" data-testid="section-grouped-activity">
-      {visible.map(({ type, platform, entries: groupEntries }) => {
-        const Icon = TYPE_ICONS[type] || Zap;
-        const label = TYPE_LABELS[type] || type;
-        const latestStatus = groupEntries[0]?.status || "scheduled";
-        const statusStyle = STATUS_STYLES[latestStatus] || "bg-muted text-muted-foreground";
-        const latestDate = groupEntries[0]?.createdAt;
-        return (
-          <div
-            key={`${type}-${platform}`}
-            className="flex items-center gap-3 p-2.5 rounded-lg border border-border/50 bg-card/50"
-            data-testid={`activity-group-${type}-${platform}`}
-          >
-            <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-              <Icon className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate">{label}</span>
-                {groupEntries.length > 1 && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">×{groupEntries.length}</Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[11px] text-muted-foreground capitalize">{platform}</span>
-                {latestDate && (
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
-                  </span>
-                )}
-              </div>
-            </div>
-            <Badge variant="outline" className={`text-[10px] shrink-0 ${statusStyle}`}>
-              {latestStatus}
-            </Badge>
-          </div>
-        );
-      })}
-      {hasMore && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full text-xs text-muted-foreground"
-          onClick={() => setExpanded(!expanded)}
-          data-testid="button-toggle-activity"
-        >
-          {expanded ? "Show less" : `Show ${grouped.length - INITIAL_SHOW} more`}
-        </Button>
-      )}
+    <div
+      className="flex items-center gap-3 p-3 rounded-xl border border-primary/20 bg-primary/5"
+      data-testid={`activity-group-${type}-${platform}`}
+    >
+      <div className="h-8 w-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold">{label}</span>
+          {entries.length > 1 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">x{entries.length}</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <span className="text-[11px] text-muted-foreground capitalize">{platform}</span>
+          {latestDate && (
+            <span className="text-[11px] text-muted-foreground">
+              {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
+            </span>
+          )}
+        </div>
+      </div>
+      <Badge variant="outline" className={`text-[10px] shrink-0 ${statusStyle}`}>{latestStatus}</Badge>
     </div>
   );
 }
 
+function CrossPlatformCard({ type, platform, entries }: { type: string; platform: string; entries: AutopilotEntry[] }) {
+  const Icon = TYPE_ICONS[type] || Send;
+  const label = TYPE_LABELS[type] || type;
+  const latestStatus = entries[0]?.status || "scheduled";
+  const statusStyle = STATUS_STYLES[latestStatus] || "bg-muted text-muted-foreground";
+  const latestDate = entries[0]?.createdAt;
+
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card/40"
+      data-testid={`activity-group-${type}-${platform}`}
+    >
+      <div className="h-8 w-8 rounded-lg bg-muted/40 flex items-center justify-center shrink-0">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{label}</span>
+          {entries.length > 1 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">x{entries.length}</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-muted-foreground capitalize">{platform}</span>
+          {latestDate && (
+            <span className="text-[11px] text-muted-foreground">
+              {formatDistanceToNow(new Date(latestDate), { addSuffix: true })}
+            </span>
+          )}
+        </div>
+      </div>
+      <Badge variant="outline" className={`text-[10px] shrink-0 ${statusStyle}`}>{latestStatus}</Badge>
+    </div>
+  );
+}
+
+const STEP_LABELS: Record<string, string> = {
+  analyze: "Analyzing",
+  title: "Optimizing Title",
+  description: "Optimizing Description",
+  tags: "Optimizing Tags",
+  thumbnail: "Generating Thumbnail",
+  seo: "SEO Optimization",
+  review: "Final Review",
+};
+
 function UpdatedVideosTab() {
   const pollInterval = useAdaptiveInterval(10000);
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [showAllSeo, setShowAllSeo] = useState(false);
+  const [showAllContent, setShowAllContent] = useState(false);
+
   const { data: updateHistory, isLoading: historyLoading } = useQuery<UpdateHistoryEntry[]>({
     queryKey: ["/api/videos/update-history"],
     retry: 1,
@@ -379,32 +401,56 @@ function UpdatedVideosTab() {
 
   const isLoading = historyLoading && procLoading;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2].map((i) => (
-          <Skeleton key={i} className="h-40 w-full" />
-        ))}
-      </div>
-    );
-  }
-
   const safeHistory = safeArray<UpdateHistoryEntry>(updateHistory);
-  const grouped = new Map<string, UpdateHistoryEntry[]>();
-  for (const entry of safeHistory) {
-    const key = entry.youtubeVideoId;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key)!.push(entry);
-  }
+  const safeActivity = safeArray<AutopilotEntry>(autopilotActivity);
 
-  const updatedVideos = Array.from(grouped.entries())
-    .sort(([, a], [, b]) => {
+  const grouped = useMemo(() => {
+    const map = new Map<string, UpdateHistoryEntry[]>();
+    for (const entry of safeHistory) {
+      const key = entry.youtubeVideoId;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(entry);
+    }
+    return Array.from(map.entries()).sort(([, a], [, b]) => {
       const dateA = a[0]?.createdAt ? new Date(a[0].createdAt).getTime() : 0;
       const dateB = b[0]?.createdAt ? new Date(b[0].createdAt).getTime() : 0;
       return dateB - dateA;
     });
+  }, [safeHistory]);
+
+  const groupedActivity = useMemo(() => {
+    const map = new Map<string, { type: string; platform: string; entries: AutopilotEntry[] }>();
+    for (const e of safeActivity) {
+      const key = `${e.type}::${e.targetPlatform}`;
+      if (!map.has(key)) map.set(key, { type: e.type, platform: e.targetPlatform, entries: [] });
+      map.get(key)!.entries.push(e);
+    }
+    return Array.from(map.values()).sort((a, b) => b.entries.length - a.entries.length);
+  }, [safeActivity]);
+
+  const contentEdits = useMemo(() => groupedActivity.filter(g => CONTENT_EDIT_TYPES.includes(g.type)), [groupedActivity]);
+  const crossPlatform = useMemo(() => groupedActivity.filter(g => !CONTENT_EDIT_TYPES.includes(g.type)), [groupedActivity]);
+
+  const seoVideos = useMemo(() => {
+    if (filter === "content") return [];
+    if (filter === "thumbnail") return grouped.filter(([, e]) => classifyEntries(e) === "thumbnail" || classifyEntries(e) === "seo_and_thumbnail");
+    if (filter === "seo") return grouped.filter(([, e]) => classifyEntries(e) === "seo" || classifyEntries(e) === "seo_and_thumbnail");
+    return grouped;
+  }, [grouped, filter]);
 
   const processingEntries = safeArray<PipelineEntry>(processing).filter(p => p.status === "queued" || p.status === "processing");
+
+  const SHOW_LIMIT = 5;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map(i => <Skeleton key={i} className="h-40 w-full" />)}
+      </div>
+    );
+  }
+
+  const hasAnything = grouped.length > 0 || groupedActivity.length > 0 || processingEntries.length > 0;
 
   return (
     <div className="space-y-6">
@@ -412,20 +458,18 @@ function UpdatedVideosTab() {
         <section data-testid="section-processing-videos">
           <div className="flex items-center gap-2 mb-3">
             <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />
-            <h3 className="font-semibold text-sm">Being Worked On</h3>
+            <h3 className="font-semibold text-sm">Being Worked On Now</h3>
             <Badge variant="secondary" className="text-xs">{processingEntries.length}</Badge>
           </div>
           <div className="space-y-2">
-            {processingEntries.map((entry) => (
+            {processingEntries.map(entry => (
               <Card key={entry.id} data-testid={`card-processing-video-${entry.id}`}>
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <Loader2 className="h-4 w-4 text-yellow-500 animate-spin shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate" data-testid={`text-processing-title-${entry.id}`}>
-                          {entry.videoTitle}
-                        </p>
+                        <p className="font-medium text-sm truncate" data-testid={`text-processing-title-${entry.id}`}>{entry.videoTitle}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <Badge variant="outline" className="text-xs">
                             {STEP_LABELS[entry.currentStep] || entry.currentStep}
@@ -449,32 +493,112 @@ function UpdatedVideosTab() {
         </section>
       )}
 
-      <section data-testid="section-update-history">
-        <div className="flex items-center gap-2 mb-3">
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-          <h3 className="font-semibold text-sm">What Changed</h3>
-          <Badge variant="secondary" className="text-xs">
-            {updatedVideos.length > 0
-              ? `${updatedVideos.length} video${updatedVideos.length !== 1 ? "s" : ""}`
-              : `${safeArray(autopilotActivity).length} actions`}
-          </Badge>
+      {hasAnything && (
+        <div className="flex items-center gap-2 flex-wrap" data-testid="filter-bar-change-type">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="text-xs text-muted-foreground font-mono uppercase tracking-wide">Filter:</span>
+          {(["all", "seo", "thumbnail", "content"] as FilterType[]).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`text-[11px] font-mono px-2.5 py-1 rounded-full border transition-colors ${
+                filter === f
+                  ? "bg-primary/20 border-primary/50 text-primary"
+                  : "border-border/40 text-muted-foreground hover:border-border hover:text-foreground"
+              }`}
+              data-testid={`filter-${f}`}
+            >
+              {f === "all" ? "All Changes" : f === "seo" ? "SEO" : f === "thumbnail" ? "Thumbnail" : "App Edits"}
+            </button>
+          ))}
         </div>
-        {updatedVideos.length > 0 ? (
+      )}
+
+      {(filter === "all" || filter === "seo" || filter === "thumbnail") && seoVideos.length > 0 && (
+        <section data-testid="section-metadata-updates">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-blue-400" />
+              <h3 className="font-semibold text-sm">SEO {"&"} Thumbnail Updates</h3>
+            </div>
+            <Badge variant="secondary" className="text-xs">{seoVideos.length}</Badge>
+            <span className="text-[10px] text-muted-foreground font-mono ml-1">original video untouched</span>
+          </div>
           <div className="space-y-3">
-            {(updatedVideos as [string, UpdateHistoryEntry[]][]).map(([videoId, entries]) => (
+            {(showAllSeo ? seoVideos : seoVideos.slice(0, SHOW_LIMIT)).map(([videoId, entries]) => (
               <VideoUpdateCard key={videoId} videoId={videoId} entries={entries} />
             ))}
           </div>
-        ) : safeArray(autopilotActivity).length > 0 ? (
-          <GroupedActivitySummary entries={safeArray<AutopilotEntry>(autopilotActivity)} />
-        ) : (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">No activity yet. When CreatorOS optimizes your videos or posts content, you'll see every change here.</p>
-            </CardContent>
-          </Card>
-        )}
-      </section>
+          {seoVideos.length > SHOW_LIMIT && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-2 text-xs text-muted-foreground"
+              onClick={() => setShowAllSeo(!showAllSeo)}
+              data-testid="button-toggle-seo-videos"
+            >
+              {showAllSeo ? <><ChevronUp className="h-3.5 w-3.5 mr-1" />Show less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" />Show {seoVideos.length - SHOW_LIMIT} more</>}
+            </Button>
+          )}
+        </section>
+      )}
+
+      {(filter === "all" || filter === "content") && contentEdits.length > 0 && (
+        <section data-testid="section-content-edits">
+          <div className="flex items-center gap-2 mb-3">
+            <Film className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Edited by CreatorOS</h3>
+            <Badge variant="secondary" className="text-xs">{contentEdits.reduce((n, g) => n + g.entries.length, 0)}</Badge>
+            <span className="text-[10px] text-muted-foreground font-mono ml-1">clips cut, content repurposed</span>
+          </div>
+          <div className="space-y-2">
+            {(showAllContent ? contentEdits : contentEdits.slice(0, SHOW_LIMIT)).map(({ type, platform, entries }) => (
+              <ContentEditCard key={`${type}-${platform}`} type={type} platform={platform} entries={entries} />
+            ))}
+          </div>
+          {contentEdits.length > SHOW_LIMIT && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-2 text-xs text-muted-foreground"
+              onClick={() => setShowAllContent(!showAllContent)}
+              data-testid="button-toggle-content-edits"
+            >
+              {showAllContent ? <><ChevronUp className="h-3.5 w-3.5 mr-1" />Show less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" />Show {contentEdits.length - SHOW_LIMIT} more</>}
+            </Button>
+          )}
+        </section>
+      )}
+
+      {(filter === "all") && crossPlatform.length > 0 && (
+        <section data-testid="section-cross-platform">
+          <div className="flex items-center gap-2 mb-3">
+            <Send className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold text-sm">Cross-Platform Posts</h3>
+            <Badge variant="secondary" className="text-xs">{crossPlatform.reduce((n, g) => n + g.entries.length, 0)}</Badge>
+          </div>
+          <div className="space-y-2">
+            {crossPlatform.slice(0, SHOW_LIMIT).map(({ type, platform, entries }) => (
+              <CrossPlatformCard key={`${type}-${platform}`} type={type} platform={platform} entries={entries} />
+            ))}
+            {crossPlatform.length > SHOW_LIMIT && (
+              <p className="text-xs text-muted-foreground text-center py-1">
+                +{crossPlatform.length - SHOW_LIMIT} more
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {!hasAnything && (
+        <Card data-testid="card-no-activity">
+          <CardContent className="p-6 text-center">
+            <CheckCircle2 className="h-8 w-8 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No activity yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">When CreatorOS updates your video SEO, generates thumbnails, or cuts clips, you will see every change here — separated by type.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
