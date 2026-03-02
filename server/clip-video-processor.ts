@@ -26,6 +26,20 @@ function getYouTubeUrl(youtubeId: string): string {
   return `https://www.youtube.com/watch?v=${youtubeId}`;
 }
 
+const YTDL_STREAM_TIMEOUT_MS = 5 * 60 * 1000;
+
+function pipelineWithTimeout(stream: NodeJS.ReadableStream, dest: NodeJS.WritableStream, timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      (stream as any).destroy?.();
+      reject(new Error(`Download stream timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
+    pipeline(stream as any, dest as any)
+      .then(() => { clearTimeout(timer); resolve(); })
+      .catch((err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
 async function downloadWithYtdlCore(youtubeId: string, outputPath: string): Promise<boolean> {
   try {
     const ytdl = (await import("@distube/ytdl-core")).default;
@@ -55,15 +69,15 @@ async function downloadWithYtdlCore(youtubeId: string, outputPath: string): Prom
         if (!audioFormat) {
           logger.warn("No audio format found, downloading video-only", { youtubeId });
           const stream = ytdl.downloadFromInfo(info, { format: videoOnly });
-          await pipeline(stream, fs.createWriteStream(outputPath));
+          await pipelineWithTimeout(stream, fs.createWriteStream(outputPath), YTDL_STREAM_TIMEOUT_MS);
           return fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000;
         }
 
         const videoStream = ytdl.downloadFromInfo(info, { format: videoOnly });
-        await pipeline(videoStream, fs.createWriteStream(videoPath));
+        await pipelineWithTimeout(videoStream, fs.createWriteStream(videoPath), YTDL_STREAM_TIMEOUT_MS);
 
         const audioStream = ytdl.downloadFromInfo(info, { format: audioFormat });
-        await pipeline(audioStream, fs.createWriteStream(audioPath));
+        await pipelineWithTimeout(audioStream, fs.createWriteStream(audioPath), YTDL_STREAM_TIMEOUT_MS);
 
         await execFileAsync("ffmpeg", [
           "-y", "-i", videoPath, "-i", audioPath,
@@ -83,7 +97,7 @@ async function downloadWithYtdlCore(youtubeId: string, outputPath: string): Prom
 
     logger.info("Downloading with ytdl-core", { youtubeId, itag: format.itag, quality: format.qualityLabel });
     const stream = ytdl.downloadFromInfo(info, { format });
-    await pipeline(stream, fs.createWriteStream(outputPath));
+    await pipelineWithTimeout(stream, fs.createWriteStream(outputPath), YTDL_STREAM_TIMEOUT_MS);
 
     return fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000;
   } catch (err: any) {
@@ -382,7 +396,7 @@ export async function processClipForTikTok(
   }
 
   try {
-    const sourcePath = await downloadSourceVideo(youtubeId);
+    const sourcePath = await downloadSourceVideo(youtubeId, userId);
     const clipPath = await cutClipFromVideo(sourcePath, startTime, endTime, clipId);
     const stats = fs.statSync(clipPath);
 
@@ -436,7 +450,7 @@ export async function processClipForYouTubeShorts(
   }
 
   try {
-    const sourcePath = await downloadSourceVideo(youtubeId);
+    const sourcePath = await downloadSourceVideo(youtubeId, userId);
     const clipPath = await cutClipFromVideo(sourcePath, startTime, endTime, clipId);
 
     const { channels } = await import("@shared/schema");

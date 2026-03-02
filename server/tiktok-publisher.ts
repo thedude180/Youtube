@@ -170,6 +170,18 @@ async function initializeVideoUpload(
   }
 }
 
+const CHUNK_UPLOAD_TIMEOUT_MS = 3 * 60 * 1000;
+
+async function readFileChunk(filePath: string, start: number, length: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const stream = fs.createReadStream(filePath, { start, end: start + length - 1 });
+    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+
 async function uploadVideoChunks(
   uploadUrl: string,
   filePath: string,
@@ -181,24 +193,40 @@ async function uploadVideoChunks(
   for (let i = 0; i < totalChunks; i++) {
     const start = i * chunkSize;
     const end = Math.min(start + chunkSize, fileSize);
-    const chunk = fs.readFileSync(filePath).subarray(start, end);
+    const chunkLength = end - start;
+
+    let chunk: Buffer;
+    try {
+      chunk = await readFileChunk(filePath, start, chunkLength);
+    } catch (err: any) {
+      return { success: false, error: `Failed to read chunk ${i + 1}: ${err.message}` };
+    }
 
     try {
       await withRetry(async () => {
-        const res = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "video/mp4",
-            "Content-Range": `bytes ${start}-${end - 1}/${fileSize}`,
-            "Content-Length": String(chunk.length),
-          },
-          body: chunk,
-        });
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), CHUNK_UPLOAD_TIMEOUT_MS);
+        try {
+          const res = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "video/mp4",
+              "Content-Range": `bytes ${start}-${end - 1}/${fileSize}`,
+              "Content-Length": String(chunkLength),
+            },
+            body: chunk,
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
 
-        if (!res.ok && res.status !== 201 && res.status !== 206) {
-          const errText = await res.text().catch(() => "");
-          const err: any = new Error(`Chunk ${i + 1}/${totalChunks} upload failed (${res.status}): ${errText.substring(0, 200)}`);
-          err.status = res.status;
+          if (!res.ok && res.status !== 201 && res.status !== 206) {
+            const errText = await res.text().catch(() => "");
+            const err: any = new Error(`Chunk ${i + 1}/${totalChunks} upload failed (${res.status}): ${errText.substring(0, 200)}`);
+            err.status = res.status;
+            throw err;
+          }
+        } catch (err) {
+          clearTimeout(timer);
           throw err;
         }
       }, `TikTok chunk ${i + 1}/${totalChunks}`, {
@@ -206,7 +234,7 @@ async function uploadVideoChunks(
         retryOn: (error) => error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT',
       });
 
-      logger.info("TikTok chunk uploaded", { chunk: i + 1, total: totalChunks, bytes: chunk.length });
+      logger.info("TikTok chunk uploaded", { chunk: i + 1, total: totalChunks, bytes: chunkLength });
     } catch (err: any) {
       return { success: false, error: err.message || `Chunk ${i + 1} upload error` };
     }
