@@ -321,7 +321,7 @@ registerCleanup("dualPipelineProcess", () => {
   withRetry(() => autoSpawnMissingVodPipelines(), "dual-pipeline-autospawn").catch(err =>
     console.error("[DualPipeline] Auto-spawn VOD check error:", String(err).substring(0, 120))
   );
-}, 60_000);
+}, 5 * 60_000);
 
 async function runStreamPipelineStep(
   stepId: string,
