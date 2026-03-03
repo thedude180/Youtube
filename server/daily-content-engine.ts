@@ -418,25 +418,30 @@ Return ONLY valid JSON:
       ],
       temperature: 0.85,
       max_tokens: 2000,
+      response_format: { type: "json_object" },
     });
 
     const text = response.choices[0]?.message?.content?.trim() || "";
-    const sanitized = extractAndSanitizeJSON(text);
-    if (!sanitized) {
-      logger.error("AI returned non-JSON content plan", { text: text.substring(0, 200) });
-      return null;
-    }
 
     let plan: ContentPlan;
     try {
-      plan = JSON.parse(sanitized) as ContentPlan;
-    } catch (parseErr: any) {
-      logger.error("AI JSON parse failed after sanitization", {
-        batchNumber,
-        error: parseErr.message,
-        snippet: sanitized.substring(0, 300),
-      });
-      return null;
+      plan = JSON.parse(text) as ContentPlan;
+    } catch {
+      const sanitized = extractAndSanitizeJSON(text);
+      if (!sanitized) {
+        logger.error("AI returned non-JSON content plan", { text: text.substring(0, 200) });
+        return null;
+      }
+      try {
+        plan = JSON.parse(sanitized) as ContentPlan;
+      } catch (parseErr: any) {
+        logger.error("AI JSON parse failed after sanitization", {
+          batchNumber,
+          error: parseErr.message,
+          snippet: sanitized.substring(0, 300),
+        });
+        return null;
+      }
     }
     if (!plan.longForm?.title || !plan.shorts || plan.shorts.length === 0) {
       logger.error("AI content plan missing required fields");

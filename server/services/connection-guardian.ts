@@ -6,8 +6,8 @@ import { storage } from "../storage";
 
 let guardianInterval: ReturnType<typeof setInterval> | null = null;
 let fastRecoveryInterval: ReturnType<typeof setInterval> | null = null;
-const GUARDIAN_CYCLE_MS = 3 * 60 * 1000;
-const FAST_RECOVERY_CYCLE_MS = 30 * 1000;
+const GUARDIAN_CYCLE_MS = 15 * 60 * 1000;
+const FAST_RECOVERY_CYCLE_MS = 5 * 60 * 1000;
 const TOKEN_PREEMPTIVE_BUFFER_MS = 2 * 60 * 60 * 1000;
 
 async function verifyConnectionAlive(platform: string, accessToken: string): Promise<boolean> {

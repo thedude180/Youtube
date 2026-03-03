@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, asc, sql, inArray, ne } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray, ne, lt } from "drizzle-orm";
 import { teamMembers, teamActivityLog, aiAgentTasks, videos, channels, users } from "@shared/schema";
 import type { AiAgentTask, TeamMember } from "@shared/schema";
 import { getOpenAIClient } from "./lib/openai";
@@ -1000,10 +1000,28 @@ export async function processTaskQueue(ownerId: string): Promise<{ processed: nu
 
       processed++;
     } catch (err: any) {
-      logger.error("Agent task failed", { taskId: task.id, error: err.message });
-      await db.update(aiAgentTasks)
-        .set({ status: "failed", result: { error: err.message }, completedAt: new Date() })
-        .where(eq(aiAgentTasks.id, task.id));
+      const msg: string = err.message || "";
+      const isTransient = msg.includes("Connection terminated") ||
+        msg.includes("connection timeout") ||
+        msg.includes("ECONNRESET") ||
+        msg.includes("Query read timeout") ||
+        msg.includes("timeout exceeded when trying to connect");
+
+      if (isTransient) {
+        logger.warn(`Agent task ${task.id} hit transient DB error — requeueing for retry`, { error: msg.substring(0, 100) });
+        try {
+          await db.update(aiAgentTasks)
+            .set({ status: "queued", startedAt: null })
+            .where(eq(aiAgentTasks.id, task.id));
+        } catch {}
+      } else {
+        logger.error("Agent task failed", { taskId: task.id, error: msg });
+        try {
+          await db.update(aiAgentTasks)
+            .set({ status: "failed", result: { error: msg }, completedAt: new Date() })
+            .where(eq(aiAgentTasks.id, task.id));
+        } catch {}
+      }
     }
   }
 
@@ -1027,6 +1045,17 @@ export async function enqueueAgentTask(ownerId: string, agentRole: string, taskT
 export async function runTeamCycle(ownerId: string): Promise<{ tasks: AiAgentTask[]; processed: number; handoffs: number }> {
   const agents = await provisionAiAgents(ownerId);
   if (agents.length === 0) return { tasks: [], processed: 0, handoffs: 0 };
+
+  try {
+    const stuckCutoff = new Date(Date.now() - 10 * 60 * 1000);
+    await db.update(aiAgentTasks)
+      .set({ status: "queued", startedAt: null })
+      .where(and(
+        eq(aiAgentTasks.ownerId, ownerId),
+        eq(aiAgentTasks.status, "in_progress"),
+        lt(aiAgentTasks.startedAt, stuckCutoff),
+      ));
+  } catch {}
 
   const channelCtx = await getChannelContext(ownerId);
 
