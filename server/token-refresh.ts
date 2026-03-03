@@ -209,6 +209,9 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
 
     for (const ch of allExpiring) {
       if (!ch.refreshToken || !ch.platform) continue;
+      const pd = (ch.platformData || {}) as any;
+      const reconnectFailures = pd._reconnectFailures || 0;
+      if (pd._connectionStatus === "expired" && reconnectFailures >= 5) continue;
 
       const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
 

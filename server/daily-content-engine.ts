@@ -380,6 +380,12 @@ RULES:
 - Each batch must feel like a FRESH standalone video — unique angle, unique title
 - CRITICAL: Long-form structure — strong hook in first 3 seconds, chapter breaks with re-hooks every 5-8 minutes, curiosity loops throughout, strong end-screen CTA.
 
+CRITICAL JSON RULES — YOU MUST FOLLOW THESE OR THE RESPONSE WILL BE REJECTED:
+- NEVER use literal double-quote characters (") inside any JSON string value
+- Game titles like Battlefield 6, PS5, etc. must NOT be wrapped in double quotes within descriptions or titles
+- For apostrophes in words (don't, won't, player's), always use a real apostrophe (') never a double-quote (")
+- All string values must be valid JSON — no unescaped special characters
+
 Return ONLY valid JSON:
 {
   "longForm": {
