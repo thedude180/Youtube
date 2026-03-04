@@ -323,6 +323,8 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
       const youtubeId = meta.youtubeId;
       if (!youtubeId || !video.channelId) continue;
 
+      if (meta.autoThumbnailFailed) continue;
+
       const lastRefresh = meta.thumbnailRefreshedAt ? new Date(meta.thumbnailRefreshedAt) : null;
       if (lastRefresh && lastRefresh > cooldownCutoff) continue;
 

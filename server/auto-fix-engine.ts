@@ -103,6 +103,7 @@ const CONFIG_PATTERNS = [
   "webhook URL", "not supported", "missing config",
   "no channel", "not configured", "setup required",
   "no matching clip found", "streaming only",
+  "creditsdepleted", "credits to fulfill", "does not have any credits",
 ];
 
 export function classifyFailure(errorMessage: string, platform?: string): FailureCategory {
