@@ -175,7 +175,7 @@ export async function handleCallback(code: string, userId: string) {
   };
 }
 
-async function getAuthenticatedClient(channelId: number) {
+export async function getAuthenticatedClient(channelId: number) {
   const channel = await storage.getChannel(channelId);
   if (!channel || !channel.accessToken) {
     throw new Error("Channel not connected or missing access token");

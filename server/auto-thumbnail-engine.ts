@@ -105,8 +105,21 @@ async function generateAndUploadThumbnail(
     sendSSEEvent(userId, "content-update", { type: "thumbnail_generated", videoId: videoDbId });
 
     return true;
-  } catch (err) {
-    logger.error("Auto-thumbnail generation failed", { videoDbId, error: String(err) });
+  } catch (err: any) {
+    const errMsg = String(err);
+    const isNotFound = errMsg.includes("cannot be found") || errMsg.includes("videoId") && errMsg.includes("not found") || errMsg.includes("404");
+    if (isNotFound) {
+      try {
+        const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
+        const existMeta = (row?.metadata as any) || {};
+        await db.update(videos).set({
+          metadata: { ...existMeta, autoThumbnailGenerated: true, autoThumbnailFailed: "video_not_found_on_youtube" },
+        }).where(eq(videos.id, videoDbId));
+        logger.warn("Auto-thumbnail permanently skipped — video not found on YouTube", { videoDbId, youtubeId });
+      } catch {}
+    } else {
+      logger.error("Auto-thumbnail generation failed", { videoDbId, error: errMsg });
+    }
     return false;
   }
 }

@@ -372,6 +372,8 @@ async function isVideoInPlaylist(playlistId: number, videoId: number): Promise<b
   return existing.length > 0;
 }
 
+const PLAYLIST_BATCH_LIMIT = 20;
+
 export async function organizePlaylistsForUser(userId: string): Promise<{ assigned: number; playlistsCreated: number }> {
   let assigned = 0;
   let playlistsCreated = 0;
@@ -392,11 +394,14 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
     const beforeCount = existingPlaylistsBefore.length;
 
     for (const channel of ytChannels) {
+      if (assigned >= PLAYLIST_BATCH_LIMIT) break;
       const channelVids = await db.select().from(videos)
         .where(eq(videos.channelId, channel.id))
-        .orderBy(desc(videos.createdAt));
+        .orderBy(desc(videos.createdAt))
+        .limit(PLAYLIST_BATCH_LIMIT * 2);
 
       for (const video of channelVids) {
+        if (assigned >= PLAYLIST_BATCH_LIMIT) break;
         const meta = (video.metadata as any) || {};
         const youtubeId = meta.youtubeId;
         if (!youtubeId) continue;
