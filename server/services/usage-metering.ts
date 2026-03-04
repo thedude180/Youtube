@@ -25,7 +25,7 @@ export async function trackUsage(userId: string, metricType: string, increment: 
 
     const { storage } = await import("../storage");
     const user = await storage.getUser(userId);
-    const tier = (user as any)?.subscriptionTier || "free";
+    const tier = (user as any)?.tier || (user as any)?.subscriptionTier || 'free';
     const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
     const limit = limits[metricType] || 999999;
 
@@ -56,7 +56,7 @@ export async function getUsageSummary(userId: string): Promise<Record<string, { 
     
     const { storage } = await import("../storage");
     const user = await storage.getUser(userId);
-    const tier = (user as any)?.subscriptionTier || "free";
+    const tier = (user as any)?.tier || (user as any)?.subscriptionTier || 'free';
     const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
     
     const summary: Record<string, { current: number; limit: number; percentage: number }> = {};

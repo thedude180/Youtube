@@ -64,7 +64,7 @@ export async function registerPlatformRoutes(app: Express) {
       aiGenerate: z.boolean().optional(),
       scheduledFor: z.string().optional(),
       metadata: z.record(z.unknown()).optional(),
-    }).passthrough();
+    });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
@@ -387,7 +387,7 @@ export async function registerPlatformRoutes(app: Express) {
       status: z.string().optional(),
       tier: z.string().optional(),
       metadata: z.record(z.unknown()).optional(),
-    }).passthrough();
+    });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });

@@ -30,6 +30,7 @@ export function useLoginSync() {
     const pollStatus = async (attempt: number): Promise<void> => {
       if (attempt >= MAX_POLL_ATTEMPTS) {
         setSyncStatus("complete");
+        syncTriggered.current = false;
         queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         queryClient.invalidateQueries({ queryKey: ["/api/revenue"] });
@@ -42,12 +43,14 @@ export function useLoginSync() {
         const statusRes = await fetch("/api/sync/status", { credentials: "include" });
         if (!statusRes.ok) {
           setSyncStatus("complete");
+          syncTriggered.current = false;
           return;
         }
 
         const statusData = await statusRes.json();
         if (statusData.status === "complete") {
           setSyncStatus("complete");
+          syncTriggered.current = false;
           queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
           queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
           queryClient.invalidateQueries({ queryKey: ["/api/revenue"] });
@@ -63,6 +66,7 @@ export function useLoginSync() {
         return pollStatus(attempt + 1);
       } catch {
         setSyncStatus("complete");
+        syncTriggered.current = false;
       }
     };
 
@@ -72,6 +76,7 @@ export function useLoginSync() {
 
         if (!res.ok) {
           setSyncStatus("error");
+          syncTriggered.current = false;
           return;
         }
 
@@ -88,6 +93,7 @@ export function useLoginSync() {
         await pollStatus(0);
       } catch (err) {
         setSyncStatus("error");
+        syncTriggered.current = false;
         console.error("[LoginSync] Failed:", err);
       }
     };

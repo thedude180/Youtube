@@ -1,8 +1,8 @@
 import { db } from "../db";
-import { users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { users, billingDunningRecords, billingPausedSubscriptions, billingPromoApplications, billingPromoUsage, billingTrialRecords, billingInvoices } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import { storage } from "../storage";
-import { registerMap } from "./resilience-core";
 
 interface PaymentFailure {
   customerId: string;
@@ -13,70 +13,24 @@ interface PaymentFailure {
   userId?: string;
 }
 
-interface DunningRecord {
-  userId: string;
-  reason: string;
-  startedAt: Date;
-  stage: "warning" | "reminder" | "final_warning" | "downgraded";
-  lastNotifiedAt: Date;
-  originalTier: string;
-}
-
-interface PausedSubscription {
-  userId: string;
-  pausedAt: Date;
-  reason?: string;
-  originalTier: string;
-}
-
 interface PromoCode {
   code: string;
   discountPercent: number;
   maxUses: number;
-  currentUses: number;
   expiresAt: Date;
   applicableTiers: string[];
 }
 
-interface TrialRecord {
-  userId: string;
-  tier: string;
-  startedAt: Date;
-  endsAt: Date;
-  ended: boolean;
-}
-
-interface InvoiceRecord {
-  id: string;
-  userId: string;
-  amount: number;
-  status: string;
-  description: string;
-  createdAt: Date;
-}
-
 const paymentFailures = new Map<string, PaymentFailure>();
-registerMap("paymentFailures", paymentFailures, 200);
-const dunningRecords = new Map<string, DunningRecord>();
-registerMap("dunningRecords", dunningRecords, 200);
-const pausedSubscriptions = new Map<string, PausedSubscription>();
-registerMap("pausedSubscriptions", pausedSubscriptions, 200);
-const trialRecords = new Map<string, TrialRecord>();
-registerMap("trialRecords", trialRecords, 200);
-const trialHistory = new Set<string>();
-const invoiceStore = new Map<string, InvoiceRecord[]>();
-registerMap("invoiceStore", invoiceStore, 500);
-const appliedPromos = new Map<string, string>();
-registerMap("appliedPromos", appliedPromos, 200);
 
 const GRACE_PERIOD_DAYS = 3;
 const DEFAULT_TRIAL_DAYS = 14;
 const DEFAULT_TRIAL_TIER = "starter";
 
 const promoCodes: PromoCode[] = [
-  { code: "CREATOR20", discountPercent: 20, maxUses: 100, currentUses: 0, expiresAt: new Date("2027-01-01"), applicableTiers: ["starter", "pro", "ultimate"] },
-  { code: "LAUNCH50", discountPercent: 50, maxUses: 50, currentUses: 0, expiresAt: new Date("2026-06-01"), applicableTiers: ["starter", "pro"] },
-  { code: "FRIEND10", discountPercent: 10, maxUses: 500, currentUses: 0, expiresAt: new Date("2027-12-31"), applicableTiers: ["youtube", "starter", "pro", "ultimate"] },
+  { code: "CREATOR20", discountPercent: 20, maxUses: 100, expiresAt: new Date("2027-01-01"), applicableTiers: ["starter", "pro", "ultimate"] },
+  { code: "LAUNCH50", discountPercent: 50, maxUses: 50, expiresAt: new Date("2026-06-01"), applicableTiers: ["starter", "pro"] },
+  { code: "FRIEND10", discountPercent: 10, maxUses: 500, expiresAt: new Date("2027-12-31"), applicableTiers: ["youtube", "starter", "pro", "ultimate"] },
 ];
 
 const MONTHLY_PRICES: Record<string, number> = { youtube: 999, starter: 4999, pro: 9999, ultimate: 14999 };
@@ -88,6 +42,30 @@ async function findUserByCustomerId(customerId: string): Promise<string | null> 
   } catch (error) {
     console.error("[Stripe Hardening] findUserByCustomerId error:", error);
     return null;
+  }
+}
+
+async function getPromoCurrentUses(code: string): Promise<number> {
+  try {
+    const [row] = await db.select({ currentUses: billingPromoUsage.currentUses })
+      .from(billingPromoUsage).where(eq(billingPromoUsage.promoCode, code.toUpperCase())).limit(1);
+    return row?.currentUses ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function incrementPromoUses(code: string): Promise<void> {
+  const upper = code.toUpperCase();
+  try {
+    await db.insert(billingPromoUsage)
+      .values({ promoCode: upper, currentUses: 1, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: billingPromoUsage.promoCode,
+        set: { currentUses: sql`${billingPromoUsage.currentUses} + 1`, updatedAt: new Date() },
+      });
+  } catch (err) {
+    console.error("[StripeHardening] incrementPromoUses error:", err);
   }
 }
 
@@ -142,18 +120,23 @@ export async function handlePaymentSucceeded(customerId: string, invoiceId: stri
         metadata: { source: "billing" },
       });
 
-      const existing = invoiceStore.get(userId) || [];
-      existing.push({ id: invoiceId, userId, amount: 0, status: "paid", description: "Subscription payment", createdAt: new Date() });
-      invoiceStore.set(userId, existing);
+      try {
+        await db.insert(billingInvoices)
+          .values({ invoiceId, userId, amount: 0, status: "paid", description: "Subscription payment", createdAt: new Date() })
+          .onConflictDoNothing();
+      } catch (e) {
+        console.error("[StripeHardening] invoice insert error:", e);
+      }
     }
   } catch (err) {
     console.error("[StripeHardening] handlePaymentSucceeded error:", err);
   }
 }
 
-export async function checkDunningStatus(userId: string): Promise<DunningRecord | null> {
+export async function checkDunningStatus(userId: string): Promise<typeof billingDunningRecords.$inferSelect | null> {
   try {
-    return dunningRecords.get(userId) || null;
+    const [record] = await db.select().from(billingDunningRecords).where(eq(billingDunningRecords.userId, userId)).limit(1);
+    return record || null;
   } catch (error) {
     console.error("[Stripe Hardening] checkDunningStatus error:", error);
     return null;
@@ -162,12 +145,13 @@ export async function checkDunningStatus(userId: string): Promise<DunningRecord 
 
 export async function startDunning(userId: string, reason: string): Promise<void> {
   try {
-    if (dunningRecords.has(userId)) return;
+    const existing = await checkDunningStatus(userId);
+    if (existing) return;
     const user = await storage.getUser(userId);
-    dunningRecords.set(userId, {
+    await db.insert(billingDunningRecords).values({
       userId, reason, startedAt: new Date(), stage: "warning",
       lastNotifiedAt: new Date(), originalTier: user?.tier || "free",
-    });
+    }).onConflictDoNothing();
     await storage.createNotification({
       userId, type: "dunning_started", severity: "warning",
       title: "Payment Issue Detected",
@@ -181,9 +165,9 @@ export async function startDunning(userId: string, reason: string): Promise<void
 
 export async function endDunning(userId: string, resolved: boolean): Promise<void> {
   try {
-    const record = dunningRecords.get(userId);
+    const record = await checkDunningStatus(userId);
     if (!record) return;
-    dunningRecords.delete(userId);
+    await db.delete(billingDunningRecords).where(eq(billingDunningRecords.userId, userId));
 
     if (resolved) {
       await storage.createNotification({
@@ -210,9 +194,10 @@ export async function pauseSubscription(userId: string, reason?: string): Promis
   try {
     const user = await storage.getUser(userId);
     if (!user || user.tier === "free") return { success: false, message: "No active subscription to pause" };
-    if (pausedSubscriptions.has(userId)) return { success: false, message: "Subscription already paused" };
+    const [existing] = await db.select().from(billingPausedSubscriptions).where(eq(billingPausedSubscriptions.userId, userId)).limit(1);
+    if (existing) return { success: false, message: "Subscription already paused" };
 
-    pausedSubscriptions.set(userId, { userId, pausedAt: new Date(), reason, originalTier: user.tier || "free" });
+    await db.insert(billingPausedSubscriptions).values({ userId, pausedAt: new Date(), reason: reason || null, originalTier: user.tier || "free" });
     await storage.createNotification({
       userId, type: "subscription_paused", severity: "info",
       title: "Subscription Paused",
@@ -228,10 +213,10 @@ export async function pauseSubscription(userId: string, reason?: string): Promis
 
 export async function resumeSubscription(userId: string): Promise<{ success: boolean; message: string }> {
   try {
-    const paused = pausedSubscriptions.get(userId);
+    const [paused] = await db.select().from(billingPausedSubscriptions).where(eq(billingPausedSubscriptions.userId, userId)).limit(1);
     if (!paused) return { success: false, message: "No paused subscription found" };
 
-    pausedSubscriptions.delete(userId);
+    await db.delete(billingPausedSubscriptions).where(eq(billingPausedSubscriptions.userId, userId));
     await storage.createNotification({
       userId, type: "subscription_resumed", severity: "info",
       title: "Subscription Resumed",
@@ -251,9 +236,9 @@ export async function getSubscriptionStatus(userId: string): Promise<{
 }> {
   try {
     const user = await storage.getUser(userId);
-    const dunning = dunningRecords.get(userId);
-    const paused = pausedSubscriptions.get(userId);
-    const trial = trialRecords.get(userId);
+    const dunning = await checkDunningStatus(userId);
+    const [paused] = await db.select().from(billingPausedSubscriptions).where(eq(billingPausedSubscriptions.userId, userId)).limit(1);
+    const [trial] = await db.select().from(billingTrialRecords).where(eq(billingTrialRecords.userId, userId)).limit(1);
     const isTrialActive = trial && !trial.ended && trial.endsAt > new Date();
 
     return {
@@ -279,12 +264,23 @@ export async function isSubscriptionActive(userId: string): Promise<boolean> {
   }
 }
 
-export async function validatePromoCode(code: string): Promise<{ valid: boolean; discountPercent?: number; applicableTiers?: string[]; message: string }> {
+export async function validatePromoCode(code: string, userId?: string): Promise<{ valid: boolean; discountPercent?: number; applicableTiers?: string[]; message: string }> {
   try {
     const promo = promoCodes.find(p => p.code.toUpperCase() === code.toUpperCase());
     if (!promo) return { valid: false, message: "Invalid promo code" };
-    if (promo.currentUses >= promo.maxUses) return { valid: false, message: "Promo code has reached maximum uses" };
     if (new Date() > promo.expiresAt) return { valid: false, message: "Promo code has expired" };
+
+    const currentUses = await getPromoCurrentUses(promo.code);
+    if (currentUses >= promo.maxUses) return { valid: false, message: "Promo code has reached maximum uses" };
+
+    if (userId) {
+      const user = await storage.getUser(userId);
+      const userTier = user?.tier || "free";
+      if (userTier !== "free" && !promo.applicableTiers.includes(userTier)) {
+        return { valid: false, message: `Promo code not applicable to your current tier (${userTier})` };
+      }
+    }
+
     return { valid: true, discountPercent: promo.discountPercent, applicableTiers: promo.applicableTiers, message: "Promo code is valid" };
   } catch (error) {
     console.error("[Stripe Hardening] validatePromoCode error:", error);
@@ -294,13 +290,25 @@ export async function validatePromoCode(code: string): Promise<{ valid: boolean;
 
 export async function applyPromoCode(userId: string, code: string): Promise<{ success: boolean; discountPercent?: number; message: string }> {
   try {
-    if (appliedPromos.has(userId)) return { success: false, message: "You have already used a promo code" };
-    const validation = await validatePromoCode(code);
+    const [existing] = await db.select().from(billingPromoApplications).where(eq(billingPromoApplications.userId, userId)).limit(1);
+    if (existing) return { success: false, message: "You have already used a promo code" };
+
+    const validation = await validatePromoCode(code, userId);
     if (!validation.valid) return { success: false, message: validation.message };
 
     const promo = promoCodes.find(p => p.code.toUpperCase() === code.toUpperCase())!;
-    promo.currentUses++;
-    appliedPromos.set(userId, code.toUpperCase());
+
+    try {
+      await db.insert(billingPromoApplications).values({
+        userId, promoCode: promo.code, appliedAt: new Date(), discountPercent: promo.discountPercent,
+      }).onConflictDoNothing();
+    } catch (e: any) {
+      if (e.code === "23505") return { success: false, message: "You have already used a promo code" };
+      throw e;
+    }
+
+    await incrementPromoUses(promo.code);
+
     await storage.createNotification({
       userId, type: "promo_applied", severity: "info",
       title: "Promo Code Applied",
@@ -314,10 +322,14 @@ export async function applyPromoCode(userId: string, code: string): Promise<{ su
   }
 }
 
-export async function getActivePromoCodes(): Promise<PromoCode[]> {
+export async function getActivePromoCodes(): Promise<(PromoCode & { currentUses: number })[]> {
   try {
     const now = new Date();
-    return promoCodes.filter(p => p.currentUses < p.maxUses && now < p.expiresAt);
+    const active = promoCodes.filter(p => now < p.expiresAt);
+    return await Promise.all(active.map(async (p) => ({
+      ...p,
+      currentUses: await getPromoCurrentUses(p.code),
+    })));
   } catch (error) {
     console.error("[Stripe Hardening] getActivePromoCodes error:", error);
     return [];
@@ -326,20 +338,27 @@ export async function getActivePromoCodes(): Promise<PromoCode[]> {
 
 export async function startFreeTrial(userId: string, tier: string = DEFAULT_TRIAL_TIER, durationDays: number = DEFAULT_TRIAL_DAYS): Promise<{ success: boolean; message: string; endsAt?: Date }> {
   try {
-    if (trialHistory.has(userId)) return { success: false, message: "You have already used your free trial" };
+    const [existingTrial] = await db.select().from(billingTrialRecords).where(eq(billingTrialRecords.userId, userId)).limit(1);
+    if (existingTrial) return { success: false, message: "You have already used your free trial" };
+
     const user = await storage.getUser(userId);
     if (user && user.tier !== "free") return { success: false, message: "You already have an active subscription" };
 
     const now = new Date();
     const endsAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-    trialRecords.set(userId, { userId, tier, startedAt: now, endsAt, ended: false });
-    trialHistory.add(userId);
 
-    await storage.updateUserRole(userId, "premium", tier);
+    try {
+      await db.insert(billingTrialRecords).values({ userId, tier, startedAt: now, endsAt, ended: false }).onConflictDoNothing();
+    } catch (e: any) {
+      if (e.code === "23505") return { success: false, message: "You have already used your free trial" };
+      throw e;
+    }
+
+    await storage.updateUserRole(userId, "user", tier);
     await storage.createNotification({
       userId, type: "trial_started", severity: "info",
       title: "Free Trial Started",
-      message: `Your ${durationDays}-day free trial of the ${tier} tier has started. Enjoy full access!`,
+      message: `Your ${durationDays}-day free trial of the ${tier} plan has started. Enjoy full access!`,
       metadata: { source: "billing" },
     });
     return { success: true, message: `${durationDays}-day trial started`, endsAt };
@@ -351,7 +370,7 @@ export async function startFreeTrial(userId: string, tier: string = DEFAULT_TRIA
 
 export async function checkTrialStatus(userId: string): Promise<{ inTrial: boolean; daysRemaining?: number; tier?: string; endsAt?: Date }> {
   try {
-    const trial = trialRecords.get(userId);
+    const [trial] = await db.select().from(billingTrialRecords).where(eq(billingTrialRecords.userId, userId)).limit(1);
     if (!trial || trial.ended) return { inTrial: false };
     const now = new Date();
     if (now > trial.endsAt) {
@@ -368,9 +387,9 @@ export async function checkTrialStatus(userId: string): Promise<{ inTrial: boole
 
 export async function endTrial(userId: string): Promise<void> {
   try {
-    const trial = trialRecords.get(userId);
+    const [trial] = await db.select().from(billingTrialRecords).where(eq(billingTrialRecords.userId, userId)).limit(1);
     if (!trial || trial.ended) return;
-    trial.ended = true;
+    await db.update(billingTrialRecords).set({ ended: true }).where(eq(billingTrialRecords.userId, userId));
     await storage.updateUserRole(userId, "user", "free");
     await storage.createNotification({
       userId, type: "trial_ended", severity: "warning",
@@ -384,12 +403,17 @@ export async function endTrial(userId: string): Promise<void> {
 }
 
 export async function hasUsedTrial(userId: string): Promise<boolean> {
-  return trialHistory.has(userId);
+  try {
+    const [trial] = await db.select({ id: billingTrialRecords.id }).from(billingTrialRecords).where(eq(billingTrialRecords.userId, userId)).limit(1);
+    return !!trial;
+  } catch {
+    return false;
+  }
 }
 
-export async function getInvoiceHistory(userId: string): Promise<InvoiceRecord[]> {
+export async function getInvoiceHistory(userId: string): Promise<typeof billingInvoices.$inferSelect[]> {
   try {
-    return invoiceStore.get(userId) || [];
+    return await db.select().from(billingInvoices).where(eq(billingInvoices.userId, userId));
   } catch (error) {
     console.error("[Stripe Hardening] getInvoiceHistory error:", error);
     return [];
@@ -398,8 +422,8 @@ export async function getInvoiceHistory(userId: string): Promise<InvoiceRecord[]
 
 export async function getNextBillingDate(userId: string): Promise<Date | null> {
   try {
-    const invoices = invoiceStore.get(userId);
-    if (!invoices || invoices.length === 0) return null;
+    const invoices = await db.select().from(billingInvoices).where(eq(billingInvoices.userId, userId));
+    if (!invoices.length) return null;
     const last = invoices[invoices.length - 1];
     const next = new Date(last.createdAt);
     next.setMonth(next.getMonth() + 1);
@@ -412,7 +436,7 @@ export async function getNextBillingDate(userId: string): Promise<Date | null> {
 
 export async function getLifetimeSpend(userId: string): Promise<number> {
   try {
-    const invoices = invoiceStore.get(userId) || [];
+    const invoices = await db.select().from(billingInvoices).where(eq(billingInvoices.userId, userId));
     return invoices.reduce((sum, inv) => sum + inv.amount, 0);
   } catch (error) {
     console.error("[Stripe Hardening] getLifetimeSpend error:", error);

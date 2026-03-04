@@ -16,6 +16,15 @@ import {
 } from "../monetization-engine";
 import { syncAllRevenue, syncPlatformRevenue } from "../revenue-sync-engine";
 
+function getAppBaseUrl(req: any): string {
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL.replace(/\/$/, '');
+  const domains = process.env.REPLIT_DOMAINS?.split(',')[0];
+  if (domains) return `https://${domains}`;
+  const host = req.headers['x-forwarded-host'] || req.headers['host'] || 'localhost:5000';
+  const proto = req.headers['x-forwarded-proto'] || 'http';
+  return `${proto}://${host}`;
+}
+
 export function registerMoneyRoutes(app: Express) {
   app.post("/api/stripe/create-checkout-session", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
@@ -38,7 +47,7 @@ export function registerMoneyRoutes(app: Express) {
         await storage.updateUserStripeInfo(userId, { stripeCustomerId: customerId });
       }
 
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const baseUrl = getAppBaseUrl(req);
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ["card"],
@@ -120,7 +129,7 @@ export function registerMoneyRoutes(app: Express) {
       if (!user?.stripeCustomerId) return res.status(400).json({ error: "No subscription found" });
 
       const stripe = await getUncachableStripeClient();
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const baseUrl = getAppBaseUrl(req);
       const session = await stripe.billingPortal.sessions.create({
         customer: user.stripeCustomerId,
         return_url: `${baseUrl}/settings`,
@@ -235,7 +244,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/stripe/payments", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireAdmin(req, res);
     if (!userId) return;
     try {
       const result = await db.execute(
@@ -252,7 +261,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/stripe/balance", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireAdmin(req, res);
     if (!userId) return;
     try {
       const stripe = await getUncachableStripeClient();

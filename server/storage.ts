@@ -80,7 +80,7 @@ export interface IStorage {
   deleteChannel(id: number): Promise<void>;
 
   getVideos(): Promise<Video[]>;
-  getVideosByUser(userId: string): Promise<Video[]>;
+  getVideosByUser(userId: string, page?: number, limit?: number): Promise<Video[]>;
   getVideo(id: number): Promise<Video | undefined>;
   createVideo(video: InsertVideo): Promise<Video>;
   updateVideo(id: number, updates: UpdateVideoRequest): Promise<Video>;
@@ -396,12 +396,14 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(videos).orderBy(desc(videos.createdAt));
   }
 
-  async getVideosByUser(userId: string): Promise<Video[]> {
+  async getVideosByUser(userId: string, page = 1, limit = 50): Promise<Video[]> {
     const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
     if (userChannels.length === 0) return [];
     const channelIds = userChannels.map(c => c.id);
     return await db.select().from(videos)
       .where(inArray(videos.channelId, channelIds))
+      .limit(Math.min(limit, 100))
+      .offset((page - 1) * Math.min(limit, 100))
       .orderBy(desc(videos.createdAt));
   }
 

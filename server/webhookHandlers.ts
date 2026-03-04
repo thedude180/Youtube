@@ -13,14 +13,17 @@ async function checkAndRecordWebhookEvent(eventId: string, source: string, event
   if (existing.length > 0 && existing[0].processed) {
     return false;
   }
-  if (existing.length === 0) {
+  
+  try {
     await db.insert(webhookEvents).values({
       userId: 'system',
       source: `${source}:${eventId}`,
       eventType,
       payload,
       processed: false,
-    });
+    }).onConflictDoNothing();
+  } catch (err: any) {
+    if (err.code !== '23505') throw err;
   }
   return true;
 }

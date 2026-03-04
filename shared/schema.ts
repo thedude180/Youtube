@@ -5574,3 +5574,55 @@ export const vodAutopilotConfig = pgTable("vod_autopilot_config", {
 export const insertVodAutopilotConfigSchema = createInsertSchema(vodAutopilotConfig).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertVodAutopilotConfig = z.infer<typeof insertVodAutopilotConfigSchema>;
 export type VodAutopilotConfig = typeof vodAutopilotConfig.$inferSelect;
+
+export const billingDunningRecords = pgTable("billing_dunning_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  reason: text("reason").notNull(),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  stage: text("stage").notNull().default("warning"),
+  lastNotifiedAt: timestamp("last_notified_at").notNull().defaultNow(),
+  originalTier: text("original_tier").notNull().default("free"),
+});
+
+export const billingPausedSubscriptions = pgTable("billing_paused_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  pausedAt: timestamp("paused_at").notNull().defaultNow(),
+  reason: text("reason"),
+  originalTier: text("original_tier").notNull().default("free"),
+});
+
+export const billingPromoApplications = pgTable("billing_promo_applications", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  promoCode: text("promo_code").notNull(),
+  appliedAt: timestamp("applied_at").notNull().defaultNow(),
+  discountPercent: integer("discount_percent").notNull().default(0),
+});
+
+export const billingPromoUsage = pgTable("billing_promo_usage", {
+  id: serial("id").primaryKey(),
+  promoCode: text("promo_code").notNull().unique(),
+  currentUses: integer("current_uses").notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const billingTrialRecords = pgTable("billing_trial_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  tier: text("tier").notNull().default("starter"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  endsAt: timestamp("ends_at").notNull(),
+  ended: boolean("ended").notNull().default(false),
+});
+
+export const billingInvoices = pgTable("billing_invoices", {
+  id: serial("id").primaryKey(),
+  invoiceId: text("invoice_id").notNull().unique(),
+  userId: text("user_id").notNull(),
+  amount: integer("amount").notNull().default(0),
+  status: text("status").notNull().default("paid"),
+  description: text("description").notNull().default("Subscription payment"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

@@ -15,6 +15,31 @@ let lastSyncTime: string | null = null;
 let isSyncing = false;
 let isAuthenticated = false;
 
+const _onOnline = () => {
+  if (stabilityCheckInterval) clearInterval(stabilityCheckInterval);
+  stabilityCheckInterval = setInterval(async () => {
+    const stable = await checkStability();
+    if (stable) {
+      setStatus('online');
+      if (stabilityCheckInterval) {
+        clearInterval(stabilityCheckInterval);
+        stabilityCheckInterval = null;
+      }
+    } else {
+      setStatus('unstable');
+    }
+  }, 3000);
+};
+
+const _onOffline = () => setStatus('offline');
+
+const _onVisibility = () => {
+  if (document.visibilityState === 'visible') {
+    runDueAutomations();
+    if (currentStatus === 'online') syncQueue();
+  }
+};
+
 function setStatus(s: ConnectionStatus) {
   if (s !== currentStatus) {
     currentStatus = s;
@@ -108,10 +133,7 @@ async function runDueAutomations() {
     for (const task of due) {
       try {
         if (currentStatus === 'online') {
-          await fetch(`/api/automation/run/${task.id}`, {
-            method: 'POST',
-            credentials: 'include',
-          }).catch(() => {});
+          await apiRequest('POST', `/api/automation/run/${task.id}`).catch(() => {});
         } else {
           await offlineStore.queueAction({
             method: 'POST',
@@ -174,25 +196,8 @@ export const offlineEngine = {
   },
 
   start() {
-    window.addEventListener('online', () => {
-      if (stabilityCheckInterval) clearInterval(stabilityCheckInterval);
-      stabilityCheckInterval = setInterval(async () => {
-        const stable = await checkStability();
-        if (stable) {
-          setStatus('online');
-          if (stabilityCheckInterval) {
-            clearInterval(stabilityCheckInterval);
-            stabilityCheckInterval = null;
-          }
-        } else {
-          setStatus('unstable');
-        }
-      }, 3000);
-    });
-
-    window.addEventListener('offline', () => {
-      setStatus('offline');
-    });
+    window.addEventListener('online', _onOnline);
+    window.addEventListener('offline', _onOffline);
 
     automationInterval = setInterval(runDueAutomations, 60_000);
 
@@ -200,12 +205,7 @@ export const offlineEngine = {
       if (currentStatus === 'online') syncQueue();
     }, 30_000);
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        runDueAutomations();
-        if (currentStatus === 'online') syncQueue();
-      }
-    });
+    document.addEventListener('visibilitychange', _onVisibility);
 
     offlineStore.getSetting('lastSyncTime').then(v => {
       if (v) lastSyncTime = v as string;
@@ -213,6 +213,10 @@ export const offlineEngine = {
   },
 
   stop() {
+    window.removeEventListener('online', _onOnline);
+    window.removeEventListener('offline', _onOffline);
+    document.removeEventListener('visibilitychange', _onVisibility);
+
     if (automationInterval) { clearInterval(automationInterval); automationInterval = null; }
     if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
     if (stabilityCheckInterval) { clearInterval(stabilityCheckInterval); stabilityCheckInterval = null; }

@@ -1,10 +1,13 @@
 import crypto from "crypto";
+import nacl from 'tweetnacl';
 import { trackSecurityEvent } from "../security-engine";
 
 interface VerificationResult {
   valid: boolean;
   error?: string;
 }
+
+const isProd = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
 
 export function verifyHmacSignature(
   payload: string | Buffer,
@@ -15,9 +18,14 @@ export function verifyHmacSignature(
 ): VerificationResult {
   try {
     const data = typeof payload === "string" ? payload : payload.toString("utf8");
-    const expected = crypto.createHmac(algorithm, secret).update(data).digest(encoding);
-    const valid = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-    return { valid };
+    const expectedBuf = crypto.createHmac(algorithm, secret).update(data).digest();
+    const sigBuf = encoding === 'base64' ? Buffer.from(signature, 'base64') : Buffer.from(signature, 'hex');
+
+    if (sigBuf.length !== expectedBuf.length) {
+      return { valid: false, error: 'signature_length_mismatch' };
+    }
+
+    return { valid: crypto.timingSafeEqual(sigBuf, expectedBuf) };
   } catch (error: any) {
     return { valid: false, error: error.message };
   }
@@ -25,7 +33,13 @@ export function verifyHmacSignature(
 
 export function verifyYouTubeWebhook(body: string, hubSignature: string): VerificationResult {
   const secret = process.env.YOUTUBE_WEBHOOK_SECRET;
-  if (!secret) return { valid: true };
+  if (!secret) {
+    if (isProd) {
+      console.error('[WebhookVerify] MISSING YOUTUBE_WEBHOOK_SECRET IN PRODUCTION — blocking request');
+      return { valid: false, error: 'webhook_secret_not_configured' };
+    }
+    return { valid: true };
+  }
   if (!hubSignature) return { valid: false, error: "Missing X-Hub-Signature header" };
   const [algo, sig] = hubSignature.split("=");
   return verifyHmacSignature(body, sig, secret, algo || "sha1", "hex");
@@ -33,41 +47,61 @@ export function verifyYouTubeWebhook(body: string, hubSignature: string): Verifi
 
 export function verifyTwitchWebhook(body: string, messageId: string, timestamp: string, signature: string): VerificationResult {
   const secret = process.env.TWITCH_WEBHOOK_SECRET;
-  if (!secret) return { valid: true };
+  if (!secret) {
+    if (isProd) {
+      console.error('[WebhookVerify] MISSING TWITCH_WEBHOOK_SECRET IN PRODUCTION — blocking request');
+      return { valid: false, error: 'webhook_secret_not_configured' };
+    }
+    return { valid: true };
+  }
   if (!signature) return { valid: false, error: "Missing Twitch-Eventsub-Message-Signature" };
   const hmacMessage = messageId + timestamp + body;
-  const expectedSig = "sha256=" + crypto.createHmac("sha256", secret).update(hmacMessage).digest("hex");
+  const expectedBuf = crypto.createHmac("sha256", secret).update(hmacMessage).digest();
+  
   try {
-    const valid = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig));
+    const sigStr = signature.startsWith("sha256=") ? signature.substring(7) : signature;
+    const sigBuf = Buffer.from(sigStr, "hex");
+
+    if (sigBuf.length !== expectedBuf.length) {
+      return { valid: false, error: "Signature length mismatch" };
+    }
+
+    const valid = crypto.timingSafeEqual(sigBuf, expectedBuf);
     return { valid };
-  } catch {
-    return { valid: false, error: "Signature length mismatch" };
+  } catch (error: any) {
+    return { valid: false, error: error.message || "Signature verification failed" };
   }
 }
 
 export function verifyKickWebhook(body: string, signature: string): VerificationResult {
   const secret = process.env.KICK_WEBHOOK_SECRET;
-  if (!secret) return { valid: true };
+  if (!secret) {
+    if (isProd) {
+      console.error('[WebhookVerify] MISSING KICK_WEBHOOK_SECRET IN PRODUCTION — blocking request');
+      return { valid: false, error: 'webhook_secret_not_configured' };
+    }
+    return { valid: true };
+  }
   if (!signature) return { valid: false, error: "Missing webhook signature" };
   return verifyHmacSignature(body, signature, secret, "sha256", "hex");
 }
 
 export function verifyDiscordWebhook(body: string, signature: string, timestamp: string): VerificationResult {
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
-  if (!publicKey) return { valid: true };
+  if (!publicKey) {
+    if (isProd) {
+      console.error('[WebhookVerify] MISSING DISCORD_PUBLIC_KEY IN PRODUCTION — blocking request');
+      return { valid: false, error: 'webhook_secret_not_configured' };
+    }
+    return { valid: true };
+  }
   if (!signature || !timestamp) return { valid: false, error: "Missing signature/timestamp" };
   try {
-    const message = Buffer.from(timestamp + body);
-    const sigBuf = Buffer.from(signature, "hex");
-    const keyBuf = Buffer.from(publicKey, "hex");
-    
-    // Discord provides a raw 32-byte Ed25519 public key.
-    // crypto.verify with {format: "der", type: "spki"} expects a DER-encoded SPKI key.
-    // We prepend the Ed25519 SPKI header: 302a300506032b6570032100
-    const spkiHeader = Buffer.from("302a300506032b6570032100", "hex");
-    const spkiKey = Buffer.concat([spkiHeader, keyBuf]);
-    
-    const valid = crypto.verify(null, message, { key: spkiKey, format: "der", type: "spki" }, sigBuf);
+    const valid = nacl.sign.detached.verify(
+      Buffer.from(timestamp + body),
+      Buffer.from(signature, 'hex'),
+      Buffer.from(publicKey, 'hex')
+    );
     return { valid };
   } catch (error: any) {
     return { valid: false, error: error.message };

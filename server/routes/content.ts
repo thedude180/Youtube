@@ -125,7 +125,14 @@ export function registerContentRoutes(app: Express) {
     try {
       const existing = await storage.getChannel(id);
       if (!existing || existing.userId !== userId) return res.status(404).json({ error: "Not found" });
-      const channelUpdateSchema = z.object({}).passthrough();
+      const channelUpdateSchema = z.object({
+        channelName: z.string().min(1).max(200).optional(),
+        description: z.string().max(2000).optional(),
+        avatarUrl: z.string().url().optional().nullable(),
+        bannerUrl: z.string().url().optional().nullable(),
+        streamKey: z.string().max(500).optional().nullable(),
+        metadata: z.record(z.unknown()).optional(),
+      });
       const parsed = channelUpdateSchema.parse(req.body);
       const channel = await storage.updateChannel(id, parsed);
       await storage.createAuditLog({
@@ -166,9 +173,7 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
-    const offset = (page - 1) * limit;
-    const allVideos = await storage.getVideosByUser(userId);
-    const paginated = allVideos.slice(offset, offset + limit);
+    const paginated = await storage.getVideosByUser(userId, page, limit);
     res.json(paginated);
   }));
 
@@ -329,6 +334,10 @@ export function registerContentRoutes(app: Express) {
     if (videoId === null) return;
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
+
+    // FIX 6 — Video GET IDOR
+    if (video.userId && video.userId !== userId) return res.status(403).json({ error: 'Not authorized' });
+
     if (video.channelId) {
       const channel = await storage.getChannel(video.channelId);
       if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
@@ -350,7 +359,7 @@ export function registerContentRoutes(app: Express) {
       channelId: z.number().optional(),
       scheduledFor: z.string().optional().nullable(),
       metadata: z.record(z.unknown()).optional(),
-    }).passthrough();
+    });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });

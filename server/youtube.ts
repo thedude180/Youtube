@@ -86,9 +86,9 @@ export async function handleCallback(code: string, userId: string) {
   const existingChannels = await storage.getChannelsByUser(userId);
   const existingYt = existingChannels.find(c => c.platform === "youtube");
 
-  const subCount = ytChannel.statistics?.subscriberCount ? Number(ytChannel.statistics.subscriberCount) : null;
-  const vidCount = ytChannel.statistics?.videoCount ? Number(ytChannel.statistics.videoCount) : null;
-  const vwCount = ytChannel.statistics?.viewCount ? Number(ytChannel.statistics.viewCount) : null;
+  const subCount = ytChannel.statistics?.subscriberCount != null ? Number(ytChannel.statistics.subscriberCount) : null;
+  const vidCount = ytChannel.statistics?.videoCount != null ? Number(ytChannel.statistics.videoCount) : null;
+  const vwCount = ytChannel.statistics?.viewCount != null ? Number(ytChannel.statistics.viewCount) : null;
 
   const channelData = {
     userId,
@@ -188,14 +188,20 @@ export async function getAuthenticatedClient(channelId: number) {
     expiry_date: channel.tokenExpiresAt ? channel.tokenExpiresAt.getTime() : undefined,
   });
 
-  oauth2Client.on("tokens", async (tokens) => {
-    const updateData: any = {};
-    if (tokens.access_token) updateData.accessToken = tokens.access_token;
-    if (tokens.refresh_token) updateData.refreshToken = tokens.refresh_token;
-    if (tokens.expiry_date) updateData.tokenExpiresAt = new Date(tokens.expiry_date);
-    if (Object.keys(updateData).length > 0) {
-      await storage.updateChannel(channelId, updateData);
-    }
+  oauth2Client.on("tokens", (tokens) => {
+    (async () => {
+      try {
+        const updateData: any = {};
+        if (tokens.access_token) updateData.accessToken = tokens.access_token;
+        if (tokens.refresh_token) updateData.refreshToken = tokens.refresh_token;
+        if (tokens.expiry_date) updateData.tokenExpiresAt = new Date(tokens.expiry_date);
+        if (Object.keys(updateData).length > 0) {
+          await storage.updateChannel(channelId, updateData);
+        }
+      } catch (err) {
+        console.error('[YouTube] Token persist failed:', err);
+      }
+    })();
   });
 
   return { oauth2Client, channel };
@@ -230,9 +236,9 @@ export async function refreshChannelStats(channelId: number): Promise<void> {
   try {
     const info = await fetchYouTubeChannelInfo(channelId);
     const updates: any = { lastSyncAt: new Date() };
-    if (info.subscriberCount) updates.subscriberCount = Number(info.subscriberCount);
-    if (info.videoCount) updates.videoCount = Number(info.videoCount);
-    if (info.viewCount) updates.viewCount = Number(info.viewCount);
+    if (info.subscriberCount != null) updates.subscriberCount = Number(info.subscriberCount);
+    if (info.videoCount != null) updates.videoCount = Number(info.videoCount);
+    if (info.viewCount != null) updates.viewCount = Number(info.viewCount);
     await storage.updateChannel(channelId, updates);
   } catch (err) {
     console.error(`[YouTube] Failed to refresh stats for channel ${channelId}:`, err);

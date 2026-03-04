@@ -143,9 +143,17 @@ async function callAI(systemPrompt: string, userPrompt: string): Promise<any> {
       ],
       response_format: { type: "json_object" },
     });
-    return JSON.parse(response.choices[0].message.content || "{}");
+    
+    const content = response?.choices?.[0]?.message?.content;
+    if (!content) return {};
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.error('[Upgrades] Failed to parse AI response');
+      return {};
+    }
   } catch (error: any) {
-    console.error("[Upgrades] AI call or parse failed:", error);
+    console.error("[Upgrades] AI call failed:", error);
     return {};
   }
 }
