@@ -60,10 +60,17 @@ export function verifyDiscordWebhook(body: string, signature: string, timestamp:
     const message = Buffer.from(timestamp + body);
     const sigBuf = Buffer.from(signature, "hex");
     const keyBuf = Buffer.from(publicKey, "hex");
-    const valid = crypto.verify(null, message, { key: keyBuf, format: "der", type: "spki" }, sigBuf);
+    
+    // Discord provides a raw 32-byte Ed25519 public key.
+    // crypto.verify with {format: "der", type: "spki"} expects a DER-encoded SPKI key.
+    // We prepend the Ed25519 SPKI header: 302a300506032b6570032100
+    const spkiHeader = Buffer.from("302a300506032b6570032100", "hex");
+    const spkiKey = Buffer.concat([spkiHeader, keyBuf]);
+    
+    const valid = crypto.verify(null, message, { key: spkiKey, format: "der", type: "spki" }, sigBuf);
     return { valid };
-  } catch {
-    return { valid: true };
+  } catch (error: any) {
+    return { valid: false, error: error.message };
   }
 }
 

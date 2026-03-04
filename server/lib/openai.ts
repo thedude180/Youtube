@@ -17,8 +17,9 @@ async function withRetry<T>(fn: () => Promise<T>, endpoint: string): Promise<T> 
       const status = err?.status ?? err?.statusCode ?? 0;
       const isRetryable = RETRYABLE_STATUS_CODES.has(status) || err?.code === "ECONNRESET" || err?.code === "ETIMEDOUT";
       if (!isRetryable || attempt === MAX_RETRIES) throw err;
-      const retryAfterMs = err?.headers?.["retry-after"]
-        ? parseInt(err.headers["retry-after"]) * 1000
+      const rawRetryAfter = parseInt(err?.headers?.["retry-after"] ?? "");
+      const retryAfterMs = !isNaN(rawRetryAfter)
+        ? rawRetryAfter * 1000
         : BASE_DELAY_MS * Math.pow(2, attempt);
       await new Promise(r => setTimeout(r, retryAfterMs));
     }

@@ -177,6 +177,8 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     try {
       const input = api.videos.create.input.parse(req.body);
+      // Force userId to authenticated user to prevent IDOR
+      (input as any).userId = userId;
       const video = await storage.createVideo(input);
       await storage.createAuditLog({
         userId,
@@ -356,6 +358,12 @@ export function registerContentRoutes(app: Express) {
     try {
       const existingVideo = await storage.getVideo(vidId);
       if (!existingVideo) return res.status(404).json({ message: "Video not found" });
+
+      // Primary ownership guard
+      if (existingVideo.userId && existingVideo.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
       if (existingVideo.channelId) {
         const channel = await storage.getChannel(existingVideo.channelId);
         if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
@@ -382,6 +390,12 @@ export function registerContentRoutes(app: Express) {
     if (delId === null) return;
     const video = await storage.getVideo(delId);
     if (!video) return res.status(404).json({ message: "Video not found" });
+
+    // Primary ownership guard
+    if (video.userId && video.userId !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
     if (video.channelId) {
       const channel = await storage.getChannel(video.channelId);
       if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });

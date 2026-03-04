@@ -134,18 +134,18 @@ const shortsStrategySchema = z.object({
 }).passthrough();
 
 async function callAI(systemPrompt: string, userPrompt: string): Promise<any> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: { type: "json_object" },
-  });
   try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+    });
     return JSON.parse(response.choices[0].message.content || "{}");
-  } catch {
-    console.error("[Upgrades] Failed to parse AI response");
+  } catch (error: any) {
+    console.error("[Upgrades] AI call or parse failed:", error);
     return {};
   }
 }

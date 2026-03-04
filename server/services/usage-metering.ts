@@ -41,7 +41,7 @@ export async function trackUsage(userId: string, metricType: string, increment: 
     }
   } catch (e) {
     console.error("[UsageMetering] Error:", e);
-    return { allowed: true, current: 0, limit: 999999 };
+    return { allowed: false, current: 0, limit: 0 };
   }
 }
 

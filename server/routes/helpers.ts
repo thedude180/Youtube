@@ -137,7 +137,7 @@ const endpointLimits = new Map<string, Map<string, { count: number; resetAt: num
 export function rateLimitEndpoint(maxRequests: number = 10, windowMs: number = 60000) {
   return (req: any, res: any, next: any) => {
     const key = `${req.path}`;
-    const userId = req.headers["x-replit-user-id"] || req.ip;
+    const userId = (req as any).user?.claims?.sub || req.ip;
     if (!endpointLimits.has(key)) endpointLimits.set(key, new Map());
     const users = endpointLimits.get(key)!;
     const now = Date.now();

@@ -1,4 +1,5 @@
 import { offlineStore } from './offline-store';
+import { apiRequest } from '@/lib/queryClient';
 
 type ConnectionStatus = 'online' | 'offline' | 'unstable';
 type StatusListener = (status: ConnectionStatus) => void;
@@ -60,12 +61,7 @@ async function syncQueue() {
       if ((currentStatus as string) === 'offline') break;
       try {
         await offlineStore.updateQueueItem(item.id!, { status: 'syncing' });
-        const res = await fetch(item.url, {
-          method: item.method,
-          headers: item.body ? { 'Content-Type': 'application/json' } : {},
-          body: item.body ? JSON.stringify(item.body) : undefined,
-          credentials: 'include',
-        });
+        const res = await apiRequest(item.method as any, item.url, item.body || undefined);
         if (res.ok) {
           await offlineStore.updateQueueItem(item.id!, { status: 'done' });
           synced++;

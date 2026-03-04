@@ -118,16 +118,21 @@ function makeAgentRunner(
   session: UserSession,
   runFn: () => Promise<void>
 ): () => void {
+  let isRunning = false;
   return async () => {
-    if (session.manuallyPaused) return;
+    if (session.manuallyPaused || isRunning) return;
     const health = session.health[agentName] || (session.health[agentName] = freshHealth());
     if (isInBackoff(health)) return;
+    
+    isRunning = true;
     try {
       await runFn();
       recordSuccess(health);
     } catch (err: any) {
       recordFailure(health, agentName, userId);
       logger.warn(`[${userId}] ${agentName} failed: ${err.message}`);
+    } finally {
+      isRunning = false;
     }
   };
 }

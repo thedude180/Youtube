@@ -113,7 +113,7 @@ function adjustPlatformVoice(text: string, platform: string): string {
           if ((shortened + s).length < 250) shortened += s.trim() + ". ";
           else break;
         }
-        return shortened.trim();
+        return shortened.trim() || text;
       }
       return text;
     default:

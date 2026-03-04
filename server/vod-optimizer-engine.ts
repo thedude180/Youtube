@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
-import { eq, and, desc, sql, gte, lte, lt, isNotNull, asc } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, lt, isNotNull, asc, inArray } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
@@ -38,12 +38,13 @@ async function findOptimizableVods(userId: string): Promise<any[]> {
   const minAge = new Date(Date.now() - MIN_AGE_DAYS * 86400000);
   const reOptCutoff = new Date(Date.now() - RE_OPTIMIZE_AFTER_DAYS * 86400000);
 
-  const allVids = await db.select().from(videos)
-    .where(lt(videos.createdAt, minAge))
+  const candidateVids = await db.select().from(videos)
+    .where(and(
+      lt(videos.createdAt, minAge),
+      inArray(videos.channelId, channelIds)
+    ))
     .orderBy(asc(videos.createdAt))
     .limit(50);
-
-  const candidateVids = allVids.filter(v => v.channelId !== null && channelIds.includes(v.channelId));
 
   const recentlyOptimized = await db.select({ sourceVideoId: autopilotQueue.sourceVideoId })
     .from(autopilotQueue)

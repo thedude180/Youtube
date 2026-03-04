@@ -271,10 +271,15 @@ export async function startStreamAgent(userId: string): Promise<{ started: boole
 
   await checkAndEngageStream(userId);
 
+  let isChecking = false;
   state.intervalHandle = setInterval(() => {
-    checkAndEngageStream(userId).catch(err =>
-      logger.error(`Interval check failed for ${userId}`, err)
-    );
+    if (isChecking) return;
+    isChecking = true;
+    checkAndEngageStream(userId)
+      .catch(err => logger.error(`Interval check failed for ${userId}`, err))
+      .finally(() => {
+        isChecking = false;
+      });
   }, 2 * 60 * 1000);
 
   logger.info(`Agent started for ${userId}`);
