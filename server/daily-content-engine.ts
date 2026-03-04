@@ -67,7 +67,14 @@ async function getNextAvailableDayOffset(userId: string): Promise<number> {
     .groupBy(sql`DATE(${autopilotQueue.scheduledAt})`)
     .having(sql`count(*) >= ${CORE_YOUTUBE_PER_DAY}`);
 
-  const filledDays = new Set(scheduledDays.map(r => r.scheduledDate));
+  // AUDIT FIX: Normalize scheduledDate to YYYY-MM-DD string regardless of whether Drizzle returns Date or string
+  const filledDays = new Set(
+    scheduledDays.map(r => {
+      const raw = r.scheduledDate;
+      if (!raw) return null;
+      return (raw instanceof Date ? raw : new Date(String(raw))).toISOString().split("T")[0];
+    }).filter(Boolean)
+  );
 
   for (let offset = MIN_DAY_OFFSET; offset < 365; offset++) {
     const checkDate = new Date(today.getTime() + offset * 86400000);
@@ -307,12 +314,6 @@ function extractAndSanitizeJSON(raw: string): string | null {
   // Step 2: remove JS-style // and /* */ comments
   json = json.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
-  // Step 2.5: fix AI apostrophe confusion — AI sometimes outputs a double-quote
-  // where an apostrophe belongs (e.g. Don"t → Don't, Won"t → Won't).
-  // A double-quote surrounded by word characters is never valid JSON structure,
-  // so safely replace it with an apostrophe.
-  json = json.replace(/(\w)"(\w)/g, "$1'$2");
-
   // Step 3: single-quoted string values → double-quoted
   // (handles 'value' → "value" — property names are handled below)
   json = json.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
@@ -433,6 +434,11 @@ Return ONLY valid JSON:
     try {
       plan = JSON.parse(text) as ContentPlan;
     } catch {
+      // AUDIT FIX: Log raw AI response when sanitization is triggered for diagnostic visibility
+      logger.warn("[DailyContent] Falling back to JSON sanitization — raw AI response did not parse cleanly", {
+        snippet: text.substring(0, 300),
+      });
+
       const sanitized = extractAndSanitizeJSON(text);
       if (!sanitized) {
         logger.error("AI returned non-JSON content plan", { text: text.substring(0, 200) });

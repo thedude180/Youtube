@@ -17,10 +17,20 @@ async function withRetry<T>(fn: () => Promise<T>, endpoint: string): Promise<T> 
       const status = err?.status ?? err?.statusCode ?? 0;
       const isRetryable = RETRYABLE_STATUS_CODES.has(status) || err?.code === "ECONNRESET" || err?.code === "ETIMEDOUT";
       if (!isRetryable || attempt === MAX_RETRIES) throw err;
-      const rawRetryAfter = parseInt(err?.headers?.["retry-after"] ?? "");
-      const retryAfterMs = !isNaN(rawRetryAfter)
-        ? rawRetryAfter * 1000
-        : BASE_DELAY_MS * Math.pow(2, attempt);
+      // AUDIT FIX: Handle HTTP-date format in retry-after header, not just integer seconds
+      const rawRetryAfter = err?.headers?.["retry-after"];
+      let retryAfterMs = BASE_DELAY_MS * Math.pow(2, attempt);
+      if (rawRetryAfter) {
+        const secs = parseInt(rawRetryAfter, 10);
+        if (!isNaN(secs)) {
+          retryAfterMs = Math.min(secs * 1000, 60_000);
+        } else {
+          const parsed = new Date(rawRetryAfter);
+          if (!isNaN(parsed.getTime())) {
+            retryAfterMs = Math.min(Math.max(parsed.getTime() - Date.now(), 0), 60_000);
+          }
+        }
+      }
       await new Promise(r => setTimeout(r, retryAfterMs));
     }
   }

@@ -38,6 +38,7 @@ async function findOptimizableVods(userId: string): Promise<any[]> {
   const minAge = new Date(Date.now() - MIN_AGE_DAYS * 86400000);
   const reOptCutoff = new Date(Date.now() - RE_OPTIMIZE_AFTER_DAYS * 86400000);
 
+  // AUDIT FIX: VOD optimizer channel filter verification pushed to DB query
   const candidateVids = await db.select().from(videos)
     .where(and(
       lt(videos.createdAt, minAge),

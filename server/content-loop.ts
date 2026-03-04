@@ -61,9 +61,9 @@ function scheduleNext(userId: string, delayMs: number) {
 
 export function onLivestreamDetected(userId: string, streamId: number) {
   const state = getState(userId);
+  state.interrupted = true;
   state.phase = "livestream";
   state.activeStreamId = streamId;
-  state.interrupted = true;
   state.consecutiveNoWork = 0;
   state.backoffMs = MIN_DELAY_MS;
 
@@ -198,12 +198,16 @@ const VOD_OPTIMIZE_BUDGET_MS   = 600_000; // 10 minutes
 
 async function runStreamExhaustBatch(userId: string): Promise<{ didWork: boolean; exhausted: boolean }> {
   try {
+    const state = getState(userId);
     const { runSingleBatchForUser } = await import("./daily-content-engine");
     let anyWork = false;
     let lastExhausted = false;
     const startMs = Date.now();
 
     while (true) {
+      // AUDIT FIX: Check interrupted flag at each batch boundary for cooperative cancellation
+      if (state.interrupted) { state.interrupted = false; return { didWork: anyWork, exhausted: lastExhausted }; }
+
       if (Date.now() - startMs > STREAM_EXHAUST_BUDGET_MS) {
         logger.info("Stream exhaust time budget reached, deferring remainder to next cycle", { userId, elapsedMs: Date.now() - startMs });
         break;
@@ -231,12 +235,16 @@ async function runStreamExhaustBatch(userId: string): Promise<{ didWork: boolean
 
 async function runVodOptimizeBatch(userId: string): Promise<{ didWork: boolean; allDone: boolean }> {
   try {
+    const state = getState(userId);
     const { runSingleVodBatchForUser } = await import("./vod-optimizer-engine");
     let anyWork = false;
     let lastAllDone = false;
     const startMs = Date.now();
 
     while (true) {
+      // AUDIT FIX: Check interrupted flag at each batch boundary for cooperative cancellation
+      if (state.interrupted) { state.interrupted = false; return { didWork: anyWork, allDone: lastAllDone }; }
+
       if (Date.now() - startMs > VOD_OPTIMIZE_BUDGET_MS) {
         logger.info("VOD optimize time budget reached, deferring remainder to next cycle", { userId, elapsedMs: Date.now() - startMs });
         break;
@@ -308,6 +316,9 @@ async function runLoopIteration(userId: string) {
 
       const { didWork, exhausted } = await runStreamExhaustBatch(userId);
 
+      // AUDIT FIX: Check interrupted flag at each batch boundary for cooperative cancellation
+      if (state.interrupted) { state.interrupted = false; return; }
+
       if (didWork) {
         state.consecutiveNoWork = 0;
         state.backoffMs = POST_BATCH_DELAY_MS;
@@ -344,6 +355,9 @@ async function runLoopIteration(userId: string) {
     if (hasVodWork) {
       const { didWork, allDone } = await runVodOptimizeBatch(userId);
 
+      // AUDIT FIX: Check interrupted flag at each batch boundary for cooperative cancellation
+      if (state.interrupted) { state.interrupted = false; return; }
+
       if (didWork) {
         state.consecutiveNoWork = 0;
         state.backoffMs = POST_BATCH_DELAY_MS * 2;
@@ -375,6 +389,9 @@ async function runLoopIteration(userId: string) {
     sendSSEEvent(userId, "content-loop", { phase: "thumbnail-gen" });
 
     const { didWork } = await runThumbnailBatch(userId);
+
+    // AUDIT FIX: Check interrupted flag at each batch boundary for cooperative cancellation
+    if (state.interrupted) { state.interrupted = false; return; }
 
     const newStreamContent = await checkAnyWorkRemaining(userId);
     if (newStreamContent) {

@@ -44,6 +44,17 @@ interface StreamAgentState {
 
 const agentStates = new Map<string, StreamAgentState>();
 
+// AUDIT FIX: Prune agentStates entries for users inactive for >7 days to prevent unbounded Map growth
+function cleanupStaleStates(): void {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  for (const [userId, state] of agentStates) {
+    if (!state.enabled && state.lastCheckedAt && state.lastCheckedAt.getTime() < cutoff) {
+      agentStates.delete(userId);
+    }
+  }
+}
+setInterval(cleanupStaleStates, 24 * 60 * 60 * 1000);
+
 function getOrCreateState(userId: string): StreamAgentState {
   if (!agentStates.has(userId)) {
     agentStates.set(userId, {
@@ -271,6 +282,7 @@ export async function startStreamAgent(userId: string): Promise<{ started: boole
 
   await checkAndEngageStream(userId);
 
+  // AUDIT FIX: Re-entrancy guard prevents overlapping checks if one iteration takes longer than the interval
   let isChecking = false;
   state.intervalHandle = setInterval(() => {
     if (isChecking) return;
@@ -294,6 +306,10 @@ export function stopStreamAgent(userId: string): void {
     state.intervalHandle = null;
   }
   state.enabled = false;
+  // AUDIT FIX: Delete never-used entries immediately on stop to avoid unbounded growth
+  if (!state.lastCheckedAt) {
+    agentStates.delete(userId);
+  }
   logAction(state, "Stream Agent paused", "Activate again before your next stream");
   logger.info(`Agent stopped for ${userId}`);
 }

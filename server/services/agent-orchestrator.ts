@@ -15,11 +15,13 @@ interface AgentHealth {
 interface UserSession {
   userId: string;
   tier: string;
-  intervals: ReturnType<typeof setInterval>[];
+  cancelFns: (() => void)[];
   startedAt: Date;
   agentsRunning: string[];
   health: Record<string, AgentHealth>;
   manuallyPaused: boolean;
+  active: boolean;
+  generation: number;
 }
 
 const activeSessions = new Map<string, UserSession>();
@@ -112,29 +114,40 @@ async function getUserTier(userId: string): Promise<string> {
   }
 }
 
+// AUDIT FIX: Self-scheduling loop prevents overlapping agent runs; isRunning guard kept as defense-in-depth
 function makeAgentRunner(
   userId: string,
   agentName: string,
   session: UserSession,
-  runFn: () => Promise<void>
+  runFn: () => Promise<void>,
+  intervalMs: number
 ): () => void {
+  let cancelled = false;
   let isRunning = false;
-  return async () => {
-    if (session.manuallyPaused || isRunning) return;
-    const health = session.health[agentName] || (session.health[agentName] = freshHealth());
-    if (isInBackoff(health)) return;
-    
-    isRunning = true;
-    try {
-      await runFn();
-      recordSuccess(health);
-    } catch (err: any) {
-      recordFailure(health, agentName, userId);
-      logger.warn(`[${userId}] ${agentName} failed: ${err.message}`);
-    } finally {
-      isRunning = false;
+  const startGeneration = session.generation;
+
+  (async () => {
+    while (!cancelled && session.active && session.generation === startGeneration) {
+      if (!session.manuallyPaused && !isRunning) {
+        const health = session.health[agentName] || (session.health[agentName] = freshHealth());
+        if (!isInBackoff(health)) {
+          isRunning = true;
+          try {
+            await runFn();
+            recordSuccess(health);
+          } catch (err: any) {
+            recordFailure(health, agentName, userId);
+            logger.warn(`[${userId}] ${agentName} failed: ${err.message}`);
+          } finally {
+            isRunning = false;
+          }
+        }
+      }
+      await new Promise(r => setTimeout(r, intervalMs));
     }
-  };
+  })();
+
+  return () => { cancelled = true; };
 }
 
 async function runAITeam(userId: string): Promise<void> {
@@ -162,18 +175,28 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
 
   const tier = await getUserTier(userId);
   const caps = TIER_CAPABILITIES[tier] || TIER_CAPABILITIES.free;
-  const intervals: ReturnType<typeof setInterval>[] = [];
+  const cancelFns: (() => void)[] = [];
   const agentsStarted: string[] = [];
   const health: Record<string, AgentHealth> = {};
 
-  const session: UserSession = { userId, tier, intervals, startedAt: new Date(), agentsRunning: agentsStarted, health, manuallyPaused: false };
+  const session: UserSession = { 
+    userId, 
+    tier, 
+    cancelFns, 
+    startedAt: new Date(), 
+    agentsRunning: agentsStarted, 
+    health, 
+    manuallyPaused: false,
+    active: true,
+    generation: 0
+  };
   activeSessions.set(userId, session);
 
   const schedule = (agentName: string, runFn: () => Promise<void>, intervalMs: number, firstRunDelayMs: number) => {
-    const runner = makeAgentRunner(userId, agentName, session, runFn);
-    setTimeout(runner, initialDelayMs + firstRunDelayMs);
-    const iv = setInterval(runner, intervalMs);
-    intervals.push(iv);
+    setTimeout(() => {
+      const cancel = makeAgentRunner(userId, agentName, session, runFn, intervalMs);
+      cancelFns.push(cancel);
+    }, initialDelayMs + firstRunDelayMs);
     agentsStarted.push(agentName);
   };
 
@@ -254,7 +277,9 @@ export async function initializeUserSystems(userId: string): Promise<void> {
 export function stopUserAgentSession(userId: string): void {
   const session = activeSessions.get(userId);
   if (session) {
-    session.intervals.forEach(iv => clearInterval(iv));
+    session.active = false;
+    session.generation = (session.generation || 0) + 1;
+    session.cancelFns.forEach(fn => fn());
     activeSessions.delete(userId);
   }
 }
@@ -311,10 +336,10 @@ async function watchdogScan(): Promise<void> {
 
       const needsStart = !existing;
       const tierChanged = existing && existing.tier !== currentTier;
-      const sessionDead = existing && existing.intervals.length === 0 && (TIER_CAPABILITIES[currentTier]?.runAITeam || false);
+      const sessionDead = existing && existing.cancelFns.length === 0 && (TIER_CAPABILITIES[currentTier]?.runAITeam || false);
 
       if (needsStart || tierChanged || sessionDead) {
-        const reason = needsStart ? "no session" : tierChanged ? `tier ${existing?.tier} → ${currentTier}` : "dead intervals";
+        const reason = needsStart ? "no session" : tierChanged ? `tier ${existing?.tier} → ${currentTier}` : "dead runners";
         logger.info(`[Watchdog] Restarting session for ${userId} — reason: ${reason}`);
         setTimeout(async () => {
           try {

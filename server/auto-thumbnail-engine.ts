@@ -46,7 +46,8 @@ Type: ${videoType}
 Return ONLY the image generation prompt, nothing else. Make it specific, visual, and optimized for a 1280x720 YouTube thumbnail.`,
         },
       ],
-      max_completion_tokens: 300,
+// AUDIT FIX: Use max_tokens (standard Chat Completions parameter)
+      max_tokens: 300,
     });
     return response.choices[0]?.message?.content?.trim() || "";
   } catch (err) {
@@ -95,8 +96,9 @@ async function generateAndUploadThumbnail(
       try {
         const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
         const existMeta = (row?.metadata as any) || {};
+        // AUDIT FIX: Do not mark autoThumbnailGenerated=true on failure — only set on confirmed successful upload
         await db.update(videos).set({
-          metadata: { ...existMeta, autoThumbnailGenerated: true, autoThumbnailFailed: "image_too_large" },
+          metadata: { ...existMeta, autoThumbnailFailed: "image_too_large", autoThumbnailRetryAt: null },
         }).where(eq(videos.id, videoDbId));
       } catch {}
       return false;
@@ -129,8 +131,9 @@ async function generateAndUploadThumbnail(
       try {
         const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
         const existMeta = (row?.metadata as any) || {};
+        // AUDIT FIX: Do not mark autoThumbnailGenerated=true on failure — only set on confirmed successful upload
         await db.update(videos).set({
-          metadata: { ...existMeta, autoThumbnailGenerated: true, autoThumbnailFailed: failReason },
+          metadata: { ...existMeta, autoThumbnailFailed: failReason },
         }).where(eq(videos.id, videoDbId));
         logger.warn(`Auto-thumbnail permanently skipped — ${failReason}`, { videoDbId, youtubeId });
       } catch {}
@@ -269,7 +272,8 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
     if (!video) return false;
 
     const meta = (video.metadata as any) || {};
-    if (meta.autoThumbnailGenerated) return false;
+    // AUDIT FIX: Skip videos with successful thumbnails OR permanent failures; don't skip transient errors
+    if (meta.autoThumbnailGenerated || meta.autoThumbnailFailed) return false;
 
     const youtubeId = meta.youtubeId;
     if (!youtubeId || !video.channelId) return false;
