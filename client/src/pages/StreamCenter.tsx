@@ -2726,7 +2726,7 @@ function LiveBanner({ stream, onEnd, isEnding }: { stream: Stream; onEnd: () => 
 
   const { data: automationData } = useQuery<{ jobs: any[]; tasks: any[] }>({
     queryKey: ["/api/streams", stream.id, "automation"],
-    queryFn: async () => { const res = await fetch(`/api/streams/${stream.id}/automation`, { credentials: 'include' }); return res.json(); },
+    queryFn: async () => { const res = await fetch(`/api/streams/${stream.id}/automation`, { credentials: 'include' }); if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`); return res.json(); },
     refetchInterval: automationPoll,
   });
 

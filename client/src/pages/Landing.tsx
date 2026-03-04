@@ -352,13 +352,14 @@ function ParticleCanvas() {
     initParticles();
     draw();
 
-    window.addEventListener("resize", () => { resize(); initParticles(); });
+    const handleResize = () => { resize(); initParticles(); };
+    window.addEventListener("resize", handleResize);
     const parent = canvas.parentElement;
     if (parent) parent.addEventListener("mousemove", handleMouse);
 
     return () => {
       cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", handleResize);
       if (parent) parent.removeEventListener("mousemove", handleMouse);
     };
   }, []);
