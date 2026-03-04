@@ -76,7 +76,8 @@ async function generateAndUploadThumbnail(
     let imageBuffer: Buffer;
     try {
       const { generateImageBuffer: genImg } = await import("./replit_integrations/image/client");
-      imageBuffer = await genImg(prompt, "1024x1024");
+      // Use 512x512 — YouTube thumbnail limit is 2 MB; 1024x1024 PNG can exceed this
+      imageBuffer = await genImg(prompt, "512x512");
     } catch (imgErr) {
       logger.error("Image generation failed (AI integration may be unavailable)", { videoDbId, error: String(imgErr) });
       return false;
@@ -84,6 +85,20 @@ async function generateAndUploadThumbnail(
 
     if (!imageBuffer || imageBuffer.length < 1000) {
       logger.warn("Generated image too small, skipping upload", { videoDbId, size: imageBuffer?.length });
+      return false;
+    }
+
+    // Pre-flight size check — YouTube rejects images > 2 MB (2097152 bytes)
+    const YOUTUBE_THUMBNAIL_LIMIT = 2_000_000; // 2 MB with margin
+    if (imageBuffer.length > YOUTUBE_THUMBNAIL_LIMIT) {
+      logger.warn("Generated thumbnail exceeds YouTube 2 MB limit — permanently skipping", { videoDbId, size: imageBuffer.length });
+      try {
+        const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
+        const existMeta = (row?.metadata as any) || {};
+        await db.update(videos).set({
+          metadata: { ...existMeta, autoThumbnailGenerated: true, autoThumbnailFailed: "image_too_large" },
+        }).where(eq(videos.id, videoDbId));
+      } catch {}
       return false;
     }
 
@@ -107,15 +122,17 @@ async function generateAndUploadThumbnail(
     return true;
   } catch (err: any) {
     const errMsg = String(err);
-    const isNotFound = errMsg.includes("cannot be found") || errMsg.includes("videoId") && errMsg.includes("not found") || errMsg.includes("404");
-    if (isNotFound) {
+    const isNotFound = errMsg.includes("cannot be found") || (errMsg.includes("videoId") && errMsg.includes("not found")) || errMsg.includes("404");
+    const isTooLarge = errMsg.includes("Media is too large") || errMsg.includes("2097152") || errMsg.includes("media_too_large");
+    if (isNotFound || isTooLarge) {
+      const failReason = isNotFound ? "video_not_found_on_youtube" : "image_too_large";
       try {
         const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
         const existMeta = (row?.metadata as any) || {};
         await db.update(videos).set({
-          metadata: { ...existMeta, autoThumbnailGenerated: true, autoThumbnailFailed: "video_not_found_on_youtube" },
+          metadata: { ...existMeta, autoThumbnailGenerated: true, autoThumbnailFailed: failReason },
         }).where(eq(videos.id, videoDbId));
-        logger.warn("Auto-thumbnail permanently skipped — video not found on YouTube", { videoDbId, youtubeId });
+        logger.warn(`Auto-thumbnail permanently skipped — ${failReason}`, { videoDbId, youtubeId });
       } catch {}
     } else {
       logger.error("Auto-thumbnail generation failed", { videoDbId, error: errMsg });

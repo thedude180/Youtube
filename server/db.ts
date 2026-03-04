@@ -13,12 +13,12 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 15,                      // raised from 10 — Replit Postgres handles ~25 total; extra headroom for burst
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 15_000, // 15 s — fail fast so withRetry can try a fresh connection sooner
+  max: 20,                      // raised from 15 — Replit Postgres handles ~25 total; 20 gives headroom for burst
+  idleTimeoutMillis: 20_000,    // release idle connections faster to free up pool slots
+  connectionTimeoutMillis: 10_000, // 10 s — fail fast so withRetry can try a fresh connection sooner
   allowExitOnIdle: true,
-  statement_timeout: 30_000,
-  query_timeout: 30_000,
+  statement_timeout: 25_000,
+  query_timeout: 25_000,
 });
 
 let poolErrorCount = 0;

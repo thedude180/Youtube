@@ -256,8 +256,8 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("* * * * *", async () => {
-    await withCronLock("ScheduledPosts", 55 * 1000, async () => {
+  cron.schedule("*/2 * * * *", async () => {
+    await withCronLock("ScheduledPosts", 90 * 1000, async () => {
       await selfHealingCore("ScheduledPosts", async () => {
         const { processScheduledPosts } = await import("./autopilot-engine");
         await processScheduledPosts();
