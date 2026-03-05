@@ -6,7 +6,7 @@ import {
   revenueRecords 
 } from "@shared/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { executeRoutedAICall } from "./ai-model-router";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { routeNotification } from "./notification-system";
@@ -67,10 +67,8 @@ export class RevenueBrain {
         return acc;
       }, { total: 0 } as Record<string, number>);
 
-      // 2. AI Analysis
-      const openai = getOpenAIClient();
-      const basePrompt = `You are a high-level Business Manager for a top-tier creator. 
-Analyze the following revenue and channel data to generate a 24-hour revenue optimization strategy.
+      // 2. AI Analysis (Claude Opus for complex revenue strategy reasoning)
+      const basePrompt = `Analyze the following revenue and channel data to generate a 24-hour revenue optimization strategy.
 
 DATA:
 - Channels: ${JSON.stringify(channelData)}
@@ -82,7 +80,7 @@ TASKS:
 2. Suggest 3 specific, actionable "Plays" for today.
 3. For each Play, decide if it can be "auto" executed or needs "approval".
 
-JSON RESPONSE FORMAT:
+Return ONLY valid JSON matching this structure:
 {
   "summary": "1-sentence business outlook",
   "strategies": [
@@ -94,19 +92,18 @@ JSON RESPONSE FORMAT:
       "reasoning": "Why this works"
     }
   ],
-  "monetizationHealth": 0.0 to 1.0
+  "monetizationHealth": 0.85
 }`;
 
       const fullPrompt = await withCreatorVoice(userId, basePrompt);
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: fullPrompt }],
-        response_format: { type: "json_object" },
-        max_tokens: 1000
-      });
+      const result = await executeRoutedAICall(
+        { taskType: "revenue_strategy", userId, priority: "high" },
+        "You are a high-level Business Manager for a top-tier content creator. Respond with valid JSON only.",
+        fullPrompt
+      );
 
-      const strategyResult = JSON.parse(response.choices[0].message.content || "{}");
+      const strategyResult = JSON.parse(result.content || "{}");
 
       // 3. Save Strategy
       await db.insert(revenueStrategies).values({
@@ -124,7 +121,7 @@ JSON RESPONSE FORMAT:
           reasoning: strat.reasoning,
           payload: strat,
           prompt: fullPrompt,
-          response: response.choices[0].message.content || ""
+          response: result.content
         });
 
         if (strat.actionType === "auto") {

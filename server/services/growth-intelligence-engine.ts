@@ -6,7 +6,7 @@ import {
   contentInsights 
 } from "@shared/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { executeRoutedAICall } from "./ai-model-router";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { routeNotification } from "./notification-system";
@@ -48,10 +48,8 @@ export class GrowthIntelligenceEngine {
         publishedAt: v.publishedAt
       }));
 
-      // 2. AI Analysis
-      const openai = getOpenAIClient();
-      const basePrompt = `You are a world-class Growth Strategist for digital creators.
-Analyze the following channel data, recent video performance, and system insights to generate a 7-day growth plan.
+      // 2. AI Analysis (Claude Opus for deep strategic growth planning)
+      const basePrompt = `Analyze the following channel data, recent video performance, and system insights to generate a 7-day growth plan.
 
 DATA:
 - Channels: ${JSON.stringify(channelData)}
@@ -63,7 +61,7 @@ TASKS:
 2. Generate 3 viral content ideas tailored to their niche.
 3. Provide a 7-day checklist of growth-focused tasks.
 
-JSON RESPONSE FORMAT:
+Return ONLY valid JSON matching this structure:
 {
   "mainFocus": "Primary goal for the week",
   "contentIdeas": [
@@ -77,19 +75,18 @@ JSON RESPONSE FORMAT:
     { "day": 1, "task": "Task description" },
     { "day": 2, "task": "Task description" }
   ],
-  "growthScore": 0.0 to 1.0
+  "growthScore": 0.75
 }`;
 
       const fullPrompt = await withCreatorVoice(userId, basePrompt);
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: fullPrompt }],
-        response_format: { type: "json_object" },
-        max_tokens: 1500
-      });
+      const result = await executeRoutedAICall(
+        { taskType: "growth_planning", userId, priority: "high" },
+        "You are a world-class Growth Strategist for digital creators. Respond with valid JSON only.",
+        fullPrompt
+      );
 
-      const growthPlanResult = JSON.parse(response.choices[0].message.content || "{}");
+      const growthPlanResult = JSON.parse(result.content || "{}");
 
       // 3. Save Growth Plan
       await db.insert(growthPlans).values({
@@ -106,7 +103,7 @@ JSON RESPONSE FORMAT:
         reasoning: "Daily growth intelligence cycle triggered",
         payload: growthPlanResult,
         prompt: fullPrompt,
-        response: response.choices[0].message.content || ""
+        response: result.content
       });
 
       // 5. Enqueue Content Idea Jobs (if applicable)

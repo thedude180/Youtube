@@ -35,22 +35,16 @@ Return a JSON array of objects with keys: "startTime", "endTime", "title", "reas
 
       const prompt = await withCreatorVoice(userId, basePrompt);
 
-      // 2. Call AI (Mocking the identify process as per task details to identify 6 moments)
-      // In a real scenario, we'd pass more granular data like chat spikes or kill feeds if available.
-      // For now, we follow the instruction: "AI identifies 6 best moments"
-      
-      const { getOpenAIClient } = await import("../lib/openai");
-      const openai = getOpenAIClient();
-      
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        max_tokens: 1000,
-      });
+      // 2. Call AI (Claude Sonnet for viral moment identification)
+      const { executeRoutedAICall } = await import("./ai-model-router");
+      const aiResult = await executeRoutedAICall(
+        { taskType: "shorts_analysis", userId, priority: "medium" },
+        "You are a viral content specialist. Identify the best moments for short-form clips. Respond with valid JSON only.",
+        prompt
+      );
 
-      const result = JSON.parse(response.choices[0].message.content || '{"moments": []}');
-      const moments = result.moments || [];
+      const parsed = JSON.parse(aiResult.content || '{"moments": []}');
+      const moments = parsed.moments || [];
 
       logger.info(`[ShortsFactory] AI identified ${moments.length} moments for VOD ${vodVideoId}`);
 
@@ -80,7 +74,7 @@ Return a JSON array of objects with keys: "startTime", "endTime", "title", "reas
         reasoning: `Identified ${moments.length} viral moments from ${gameTitle} stream.`,
         payload: { vodVideoId, momentsCount: moments.length },
         prompt,
-        response: response.choices[0].message.content || "",
+        response: aiResult.content,
       });
 
     } catch (err: any) {

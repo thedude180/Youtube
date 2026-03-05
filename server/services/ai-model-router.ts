@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "../lib/openai";
+import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { db } from "../db";
 import { aiModelRoutingLogs } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
@@ -14,12 +15,14 @@ export interface AIRouterConfig {
 
 export interface AIRouterResult {
   model: string;
+  provider: "openai" | "claude";
   maxTokens: number;
   temperature: number;
   reason: string;
 }
 
 interface TaskMapping {
+  provider?: "openai" | "claude";
   model: string;
   maxTokens: number;
   temperature: number;
@@ -27,21 +30,33 @@ interface TaskMapping {
 }
 
 const TASK_MAPPINGS: Record<string, TaskMapping> = {
-  quick_suggestion: { model: "gpt-4o-mini", maxTokens: 512, temperature: 0.7, priority: "low" },
-  title_optimization: { model: "gpt-4o-mini", maxTokens: 1024, temperature: 0.8, priority: "medium" },
-  content_analysis: { model: "gpt-4o-mini", maxTokens: 2048, temperature: 0.3, priority: "medium" },
-  strategy_planning: { model: "gpt-4o", maxTokens: 4096, temperature: 0.7, priority: "high" },
-  script_writing: { model: "gpt-4o", maxTokens: 4096, temperature: 0.9, priority: "high" },
-  competitor_analysis: { model: "gpt-4o", maxTokens: 4096, temperature: 0.4, priority: "high" },
-  copilot_chat: { model: "gpt-4o-mini", maxTokens: 2048, temperature: 0.7, priority: "medium" },
-  memory_distillation: { model: "gpt-4o-mini", maxTokens: 2048, temperature: 0.3, priority: "low" },
-  quality_scoring: { model: "gpt-4o-mini", maxTokens: 1024, temperature: 0.2, priority: "medium" },
-  trend_detection: { model: "gpt-4o-mini", maxTokens: 2048, temperature: 0.4, priority: "medium" },
+  quick_suggestion:       { model: "gpt-4o-mini",              maxTokens: 512,  temperature: 0.7, priority: "low" },
+  title_optimization:     { model: "gpt-4o-mini",              maxTokens: 1024, temperature: 0.8, priority: "medium" },
+  content_analysis:       { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.3, priority: "medium" },
+  strategy_planning:      { model: "gpt-4o",                   maxTokens: 4096, temperature: 0.7, priority: "high" },
+  script_writing:         { model: "gpt-4o",                   maxTokens: 4096, temperature: 0.9, priority: "high" },
+  competitor_analysis:    { model: "gpt-4o",                   maxTokens: 4096, temperature: 0.4, priority: "high" },
+  copilot_chat:           { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.7, priority: "medium" },
+  memory_distillation:    { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.3, priority: "low" },
+  quality_scoring:        { model: "gpt-4o-mini",              maxTokens: 1024, temperature: 0.2, priority: "medium" },
+  trend_detection:        { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.4, priority: "medium" },
+
+  creator_dna_analysis:   { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 2000, temperature: 0.3, priority: "high" },
+  revenue_strategy:       { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 3000, temperature: 0.5, priority: "high" },
+  growth_planning:        { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 3000, temperature: 0.5, priority: "high" },
+  content_writing:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1000, temperature: 0.8, priority: "medium" },
+  vod_seo:                { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 3000, temperature: 0.4, priority: "medium" },
+  chat_moderation:        { provider: "claude", model: CLAUDE_MODELS.haiku,  maxTokens: 500,  temperature: 0.1, priority: "low" },
+  shorts_analysis:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2000, temperature: 0.5, priority: "medium" },
+  daily_briefing:         { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1000, temperature: 0.6, priority: "low" },
 };
 
 const MODEL_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {
-  "gpt-4o-mini": { inputPer1k: 0.00015, outputPer1k: 0.0006 },
-  "gpt-4o": { inputPer1k: 0.0025, outputPer1k: 0.01 },
+  "gpt-4o-mini":        { inputPer1k: 0.00015, outputPer1k: 0.0006 },
+  "gpt-4o":             { inputPer1k: 0.0025,  outputPer1k: 0.01 },
+  "claude-opus-4-6":    { inputPer1k: 0.015,   outputPer1k: 0.075 },
+  "claude-sonnet-4-6":  { inputPer1k: 0.003,   outputPer1k: 0.015 },
+  "claude-haiku-4-5":   { inputPer1k: 0.0008,  outputPer1k: 0.004 },
 };
 
 const FREE_TIERS = ["free", "youtube"];
@@ -60,63 +75,85 @@ export function routeAIRequest(config: AIRouterConfig): AIRouterResult {
   const tierGroup = getTierGroup(tier);
   const priority = config.priority || mapping?.priority || "medium";
 
+  let provider: "openai" | "claude" = mapping?.provider || "openai";
   let model = mapping?.model || "gpt-4o-mini";
   let maxTokens = config.maxTokens || mapping?.maxTokens || 2048;
   let temperature = config.temperature ?? mapping?.temperature ?? 0.7;
-  let reason = `Task type '${config.taskType}' mapped to ${model}`;
+  let reason = `Task type '${config.taskType}' mapped to ${provider}/${model}`;
 
-  if (tierGroup === "free") {
-    if (model === "gpt-4o") {
-      model = "gpt-4o-mini";
-      reason = `Downgraded to gpt-4o-mini for ${tier} tier`;
-    }
-  } else if (tierGroup === "starter") {
-    if (model === "gpt-4o" && priority !== "critical") {
-      model = "gpt-4o-mini";
-      reason = `Downgraded to gpt-4o-mini for starter tier (non-critical task)`;
-    } else if (model === "gpt-4o" && priority === "critical") {
-      reason = `gpt-4o allowed for starter tier critical task`;
-    }
-  } else if (tierGroup === "premium") {
-    if (priority === "high" || priority === "critical") {
-      model = "gpt-4o";
-      reason = `Upgraded to gpt-4o for ${tier} tier high-priority task`;
+  if (provider === "openai") {
+    if (tierGroup === "free") {
+      if (model === "gpt-4o") {
+        model = "gpt-4o-mini";
+        reason = `Downgraded to gpt-4o-mini for ${tier} tier`;
+      }
+    } else if (tierGroup === "starter") {
+      if (model === "gpt-4o" && priority !== "critical") {
+        model = "gpt-4o-mini";
+        reason = `Downgraded to gpt-4o-mini for starter tier (non-critical task)`;
+      } else if (model === "gpt-4o" && priority === "critical") {
+        reason = `gpt-4o allowed for starter tier critical task`;
+      }
+    } else if (tierGroup === "premium") {
+      if (priority === "high" || priority === "critical") {
+        model = "gpt-4o";
+        reason = `Upgraded to gpt-4o for ${tier} tier high-priority task`;
+      }
     }
   }
 
   if (!mapping) {
-    model = tierGroup === "premium" ? "gpt-4o-mini" : "gpt-4o-mini";
-    reason = `Unknown task type '${config.taskType}', defaulting to gpt-4o-mini`;
+    provider = "openai";
+    model = "gpt-4o-mini";
+    reason = `Unknown task type '${config.taskType}', defaulting to openai/gpt-4o-mini`;
   }
 
-  return { model, maxTokens, temperature, reason };
+  return { provider, model, maxTokens, temperature, reason };
 }
 
 export async function executeRoutedAICall(
   config: AIRouterConfig,
   systemPrompt: string,
   userPrompt: string
-): Promise<{ content: string; model: string; tokensUsed: number; latencyMs: number; costUsd: number }> {
+): Promise<{ content: string; model: string; provider: string; tokensUsed: number; latencyMs: number; costUsd: number }> {
   const routing = routeAIRequest(config);
-  const client = getOpenAIClient();
   const startTime = Date.now();
 
-  const response = await client.chat.completions.create({
-    model: routing.model,
-    max_tokens: routing.maxTokens,
-    temperature: routing.temperature,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  });
+  let content = "";
+  let tokensUsed = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
+
+  if (routing.provider === "claude") {
+    const result = await callClaude({
+      system: systemPrompt,
+      prompt: userPrompt,
+      model: routing.model as any,
+      maxTokens: routing.maxTokens,
+      temperature: routing.temperature,
+    });
+    content = result.content;
+    promptTokens = result.inputTokens;
+    completionTokens = result.outputTokens;
+    tokensUsed = result.inputTokens + result.outputTokens;
+  } else {
+    const client = getOpenAIClient();
+    const response = await client.chat.completions.create({
+      model: routing.model,
+      max_tokens: routing.maxTokens,
+      temperature: routing.temperature,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    });
+    content = response.choices[0]?.message?.content || "";
+    tokensUsed = response.usage?.total_tokens || 0;
+    promptTokens = response.usage?.prompt_tokens || 0;
+    completionTokens = response.usage?.completion_tokens || 0;
+  }
 
   const latencyMs = Date.now() - startTime;
-  const tokensUsed = response.usage?.total_tokens || 0;
-  const promptTokens = response.usage?.prompt_tokens || 0;
-  const completionTokens = response.usage?.completion_tokens || 0;
-  const content = response.choices[0]?.message?.content || "";
-
   const pricing = MODEL_PRICING[routing.model] || MODEL_PRICING["gpt-4o-mini"];
   const costUsd = (promptTokens / 1000) * pricing.inputPer1k + (completionTokens / 1000) * pricing.outputPer1k;
 
@@ -136,6 +173,7 @@ export async function executeRoutedAICall(
   return {
     content,
     model: routing.model,
+    provider: routing.provider,
     tokensUsed,
     latencyMs,
     costUsd: Math.round(costUsd * 1000000) / 1000000,

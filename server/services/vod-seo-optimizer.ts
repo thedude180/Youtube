@@ -2,7 +2,7 @@ import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClient } from "../lib/openai";
+import { executeRoutedAICall } from "./ai-model-router";
 
 const logger = createLogger("vod-seo-optimizer");
 
@@ -41,16 +41,14 @@ Ensure the tone matches the creator's DNA.`;
 
       const prompt = await withCreatorVoice(userId, basePrompt);
 
-      // 3. Call AI
-      const openai = getOpenAIClient();
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        max_tokens: 1500,
-      });
+      // 3. Call AI (Claude Sonnet for SEO content writing)
+      const aiResult = await executeRoutedAICall(
+        { taskType: "vod_seo", userId, priority: "medium" },
+        "You are an SEO expert for YouTube. Respond with valid JSON only.",
+        prompt
+      );
 
-      const optimized = JSON.parse(response.choices[0].message.content || "{}");
+      const optimized = JSON.parse(aiResult.content || "{}");
 
       // 4. Update via YouTube API (Mocking the update call for now as per instructions)
       // In a real implementation, we would use the youtube client to call videos.update
@@ -77,7 +75,7 @@ Ensure the tone matches the creator's DNA.`;
         reasoning: "Improved SEO title, description, and tags based on creator DNA and content analysis.",
         payload: { videoId, title: optimized.optimizedTitle },
         prompt,
-        response: response.choices[0].message.content || "",
+        response: aiResult.content,
       });
 
     } catch (err: any) {

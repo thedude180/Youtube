@@ -78,6 +78,21 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
   - Stream operator expanded: real viewer count tracking (YouTube liveStreamingDetails API), `crossPostLiveAnnouncements` (every 10min, deduped), `updateDiscordServer` via channel webhook (every 30min).
   - minutesFromNow() / hoursFromNow() helpers exported from agent-events.ts for scheduled jobQueue enqueuing.
 
+### Claude (Anthropic) Integration
+- **SDK**: `@anthropic-ai/sdk` via Replit AI Integrations (no API key required, billed to Replit credits)
+- **Env vars**: `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_API_KEY` (auto-configured)
+- **Client**: `server/lib/claude.ts` — exports `getClaudeClient()`, `callClaude()`, `CLAUDE_MODELS`
+  - Retry logic: 3 attempts, exponential backoff, handles 429/500/502/503/504
+  - Logs model, token usage, and latency on every call
+- **Models**: `claude-opus-4-6` (deep reasoning), `claude-sonnet-4-6` (content), `claude-haiku-4-5` (fast)
+- **Routing** (`server/services/ai-model-router.ts`): Extended with `provider` field. 8 Claude task mappings:
+  - `creator_dna_analysis`, `revenue_strategy`, `growth_planning` → Opus 4-6
+  - `vod_seo`, `shorts_analysis`, `content_writing`, `daily_briefing` → Sonnet 4-6
+  - `chat_moderation` → Haiku 4-5
+  - All existing OpenAI task mappings preserved unchanged
+- **Wired into**: `creator-dna-builder.ts`, `revenue-brain.ts`, `growth-intelligence-engine.ts`, `vod-seo-optimizer.ts`, `shorts-factory.ts`
+- **Pricing tracked** in `aiModelRoutingLogs` table alongside OpenAI calls
+
 ### Authentication & Authorization
 - **Authentication**: Replit Auth (OIDC-based).
 - **OAuth**: Universal OAuth for 23 platforms with auto token refresh.

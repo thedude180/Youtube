@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { creatorDnaProfiles, type CreatorDnaProfile } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { executeRoutedAICall } from "./ai-model-router";
 import { storage } from "../storage";
 
 export interface CreatorDNA {
@@ -45,18 +45,14 @@ export class CreatorDNABuilder {
       platform: c.platform
     }));
 
-    // 3. Call AI to analyze patterns
-    const openai = getOpenAIClient();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert brand strategist and personality profiler. 
+    // 3. Call AI to analyze patterns (Claude Opus for deep personality analysis)
+    const result = await executeRoutedAICall(
+      { taskType: "creator_dna_analysis", userId, priority: "high" },
+      `You are an expert brand strategist and personality profiler. 
 Analyze the following creator data and extract their unique "DNA" (voice, style, humor, energy).
 Return a JSON object matching this structure:
 {
-  "styleVector": { "professional": 0.1, "energetic": 0.9, ... },
+  "styleVector": { "professional": 0.1, "energetic": 0.9 },
   "voicePatterns": { "vocabulary": "casual", "sentenceStructure": "short" },
   "humorProfile": { "type": "sarcastic", "frequency": "high" },
   "energyMap": { "baseline": "high", "spikes": "during gameplay" },
@@ -64,18 +60,11 @@ Return a JSON object matching this structure:
   "bannedPhrases": ["unethical words", "competitor names"],
   "contentThemes": [{ "topic": "gaming", "sentiment": "positive" }],
   "maturityScore": 0.8
-}`
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ channelData, videoData })
-        }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 2000
-    });
+}`,
+      JSON.stringify({ channelData, videoData })
+    );
 
-    const dnaData = JSON.parse(response.choices[0].message.content || "{}");
+    const dnaData = JSON.parse(result.content || "{}");
 
     // 4. Upsert to creatorDnaProfiles
     const [profile] = await db
