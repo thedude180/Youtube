@@ -1341,7 +1341,32 @@ httpServer.listen(
           }
         });
 
-        logger.info("[Autonomous] Job handlers registered (16 total)");
+        jobQueue.registerHandler("publish_to_tiktok", async (job) => {
+          logger.info("[Autonomous] TikTok publish job received", { userId: job.userId, payload: job.payload });
+        });
+        jobQueue.registerHandler("publish_to_x", async (job) => {
+          logger.info("[Autonomous] X publish job received", { userId: job.userId, payload: job.payload });
+        });
+        jobQueue.registerHandler("publish_to_discord", async (job) => {
+          const { payload, userId } = job;
+          if (!userId || !payload?.caption) return;
+          const { storage: st } = await import("./storage");
+          const chs = await st.getChannelsByUser(userId);
+          const ytChannel = chs.find((c: any) => c.platform === "youtube");
+          const webhookUrl = (ytChannel as any)?.discordWebhookUrl;
+          if (webhookUrl) {
+            await fetch(webhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: payload.caption }),
+            }).catch(err => logger.warn("[Autonomous] publish_to_discord webhook failed", { error: String(err) }));
+          }
+        });
+        jobQueue.registerHandler("queue_for_approval", async (job) => {
+          logger.info("[Autonomous] Content queued for manual approval", { userId: job.userId, payload: job.payload });
+        });
+
+        logger.info("[Autonomous] Job handlers registered (20 total)");
       } catch (err: any) {
         logger.error("[Autonomous] Job handler registration failed", { error: String(err) });
       }
@@ -1369,6 +1394,26 @@ httpServer.listen(
         logger.info("[Autonomous] Engines registered with Health Brain");
       } catch (err: any) {
         logger.error("[Autonomous] Health Brain registration failed", { error: String(err) });
+      }
+    });
+
+    delay(445_000, async () => {
+      try {
+        const { db: database } = await import("./db");
+        const { sql: sqlTag } = await import("drizzle-orm");
+        const { startLifecycleManager } = await import("./services/stream-lifecycle");
+        const result = await database.execute(sqlTag`
+          SELECT user_id FROM user_autonomous_settings
+          WHERE autonomous_mode = true
+            AND (paused_until IS NULL OR paused_until < NOW())
+        `);
+        const rows = (result as any).rows ?? [];
+        for (const row of rows) {
+          startLifecycleManager(row.user_id as string);
+        }
+        logger.info(`[Autonomous] Bootstrapped stream lifecycle for ${rows.length} existing autonomous user(s)`);
+      } catch (err: any) {
+        logger.error("[Autonomous] User lifecycle bootstrap failed", { error: String(err) });
       }
     });
 

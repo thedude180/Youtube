@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { dailyBriefings, autonomousActionLog, growthPlans, revenueStrategies } from "@shared/schema";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClient } from "../lib/openai";
 import { routeNotification } from "./notification-system";

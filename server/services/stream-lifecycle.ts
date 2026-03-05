@@ -24,6 +24,8 @@ const activeManagers = new Set<string>();
 export class StreamLifecycleManager {
   private userId: string;
   private interval: NodeJS.Timeout | null = null;
+  private lastKnownVideoId: string | undefined;
+  private lastKnownPlatform: string | undefined;
 
   constructor(userId: string) {
     this.userId = userId;
@@ -64,9 +66,10 @@ export class StreamLifecycleManager {
             await transition(this.userId, "idle", { reason: "cycle_complete" });
             
             // Fire stream.ended which is caught by agent-events.ts to start post-stream factory
+            // Use lastKnownVideoId captured when stream was confirmed live
             fireAgentEvent("stream.ended", this.userId, {
-              videoId: primaryResult?.videoId,
-              platform: primaryResult?.platform
+              videoId: this.lastKnownVideoId,
+              platform: this.lastKnownPlatform
             });
           }
         }
@@ -96,16 +99,21 @@ export class StreamLifecycleManager {
       // Confirmed!
       console.log(`[StreamLifecycle] Stream confirmed for ${this.userId} after ${diffMs/1000}s`);
       pendingConfirmation.delete(this.userId);
+
+      // Capture videoId/platform while we know the stream is live
+      this.lastKnownVideoId = result.videoId || pending.videoId;
+      this.lastKnownPlatform = result.platform || pending.platform;
+
       await transition(this.userId, "live", {
-        videoId: result.videoId,
-        platform: result.platform,
+        videoId: this.lastKnownVideoId,
+        platform: this.lastKnownPlatform,
         title: result.title,
         confirmedAt: now.toISOString()
       });
       
       fireAgentEvent("stream.started", this.userId, {
-        videoId: result.videoId,
-        platform: result.platform,
+        videoId: this.lastKnownVideoId,
+        platform: this.lastKnownPlatform,
         streamTitle: result.title
       });
     }

@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { channels, streamDetectionLog } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
@@ -111,8 +112,6 @@ async function detectTwitch(userId: string, channel: any): Promise<LiveDetection
     return { isLive: false, platform: "twitch", confidence: 0, signals: { error: String(err) } };
   }
 }
-
-import { eq } from "drizzle-orm";
 
 export const ps5Detector = {
   detect

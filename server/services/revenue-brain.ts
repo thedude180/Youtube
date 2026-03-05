@@ -5,7 +5,7 @@ import {
   streams, 
   revenueRecords 
 } from "@shared/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { executeRoutedAICall } from "./ai-model-router";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
@@ -144,12 +144,29 @@ Return ONLY valid JSON matching this structure:
   }
 
   /**
-   * Schedules the daily cycle to run at 8 AM.
+   * Schedules the daily cycle to run at 8 AM for all autonomous users.
    */
   scheduleAt8am(): void {
-    // In a real production system, this would be a CRON job.
-    // For this environment, we rely on the main agent to trigger cycles or use a simple setInterval check.
-    console.log("[RevenueBrain] Scheduled to run daily at 8 AM.");
+    console.log("[RevenueBrain] Scheduling daily cycle at 8 AM.");
+    setInterval(async () => {
+      const now = new Date();
+      if (now.getHours() === 8 && now.getMinutes() === 0) {
+        try {
+          const result = await db.execute(sql`
+            SELECT user_id FROM user_autonomous_settings
+            WHERE autonomous_mode = true
+              AND (paused_until IS NULL OR paused_until < NOW())
+          `);
+          for (const row of (result as any).rows ?? []) {
+            await this.dailyRevenueCycle(row.user_id as string).catch((err: any) =>
+              console.error(`[RevenueBrain] Daily cycle error for ${row.user_id}:`, err)
+            );
+          }
+        } catch (err: any) {
+          console.error("[RevenueBrain] Failed to fetch autonomous users:", err);
+        }
+      }
+    }, 60_000);
   }
 }
 

@@ -12,6 +12,7 @@ const logger = createLogger("stream-operator");
 interface StreamState {
   userId: string;
   liveChatId: string;
+  videoId?: string;
   lastProcessedCommentTime?: string;
   lastMetricsAssessmentAt: number;
   lastMidStreamHighlightAt: number;
@@ -29,7 +30,7 @@ const activeOperators = new Map<string, StreamState>();
  * @AUTONOMOUS: Manages live stream engagement, moderation, and automated highlights.
  */
 export const streamOperator = {
-  async startOperating(userId: string, context: { liveChatId: string }) {
+  async startOperating(userId: string, context: { liveChatId: string; videoId?: string }) {
     if (activeOperators.has(userId)) {
       logger.info(`[StreamOperator] Already operating for user ${userId}`);
       return;
@@ -45,6 +46,7 @@ export const streamOperator = {
     const state: StreamState = {
       userId,
       liveChatId: context.liveChatId,
+      videoId: context.videoId,
       lastMetricsAssessmentAt: Date.now(),
       lastMidStreamHighlightAt: Date.now(),
       lastCrossPostAt: Date.now(),
@@ -231,7 +233,7 @@ export const streamOperator = {
     try {
       const videoRes = await youtube.videos.list({
         part: ["liveStreamingDetails"],
-        id: [state.liveChatId.replace("Cg", "").split("_")[0] || ""], // best-effort
+        id: [state.videoId || ""],
       });
       const details = videoRes.data.items?.[0]?.liveStreamingDetails;
       currentViewers = parseInt(details?.concurrentViewers || "0", 10);

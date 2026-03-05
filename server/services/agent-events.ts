@@ -88,7 +88,7 @@ export async function wireAgentCoordination(): Promise<void> {
       setTimeout(async () => {
         try {
           const { startStreamOperator } = await import("./stream-operator");
-          await startStreamOperator(event.userId, { liveChatId });
+          await startStreamOperator(event.userId, { liveChatId, videoId });
           logger.info(`Stream operator started for ${event.userId.slice(0, 8)}`);
         } catch (err: any) {
           logger.warn(`Stream operator startup failed: ${err.message}`);
