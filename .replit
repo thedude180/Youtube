@@ -84,4 +84,4 @@ args = "NODE_OPTIONS='--max-old-space-size=1536' NODE_ENV=production node dist/i
 waitForPort = 5000
 
 [agent]
-integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_openai_ai_integrations:2.0.0", "stripe:2.0.0", "google-mail:1.0.0"]
+integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_openai_ai_integrations:2.0.0", "stripe:2.0.0", "google-mail:1.0.0", "javascript_anthropic_ai_integrations:2.0.0"]
