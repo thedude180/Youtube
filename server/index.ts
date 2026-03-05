@@ -45,6 +45,7 @@ import { jobQueue } from "./services/intelligent-job-queue";
 import { selfHealingAgent } from "./services/self-healing-agent";
 import { anomalyResponder } from "./services/anomaly-responder";
 import { continuousAudit } from "./services/continuous-audit";
+import { webhookPipeline } from "./services/webhook-pipeline";
 
 const logger = createLogger("express");
 
@@ -735,11 +736,12 @@ app.get("/api/system/self-heal-status", async (req: Request, res: Response) => {
     }
   } catch { return res.status(403).json({ error: "Admin access required" }); }
   try {
-    const [brainStatus, memStats, throttleStatus, queueStats] = await Promise.all([
+    const [brainStatus, memStats, throttleStatus, queueStats, webhookStats] = await Promise.all([
       Promise.resolve(healthBrain.getStatus()),
       Promise.resolve(getMemoryStats()),
       Promise.resolve(adaptiveThrottle.getStatus()),
       jobQueue.getStats(),
+      webhookPipeline.getStats(),
     ]);
     res.json({
       timestamp: new Date().toISOString(),
@@ -747,6 +749,7 @@ app.get("/api/system/self-heal-status", async (req: Request, res: Response) => {
       memory: memStats,
       quotas: throttleStatus,
       jobQueue: queueStats,
+      webhooks: webhookStats,
     });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to get self-heal status", details: err.message });
@@ -782,6 +785,23 @@ app.post("/api/system/clear-stuck-jobs", async (req: Request, res: Response) => 
     res.json({ cleared, message: `Cleared ${cleared} stuck intelligent jobs` });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to clear stuck jobs", details: err.message });
+  }
+});
+
+app.post("/api/system/drain-webhooks", async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.email?.toLowerCase() !== "thedude180@gmail.com") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+  } catch { return res.status(403).json({ error: "Admin access required" }); }
+  try {
+    const drained = await webhookPipeline.drain();
+    res.json({ drained, message: `Re-queued ${drained} unprocessed webhook events` });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to drain webhooks", details: err.message });
   }
 });
 
@@ -1011,6 +1031,27 @@ httpServer.listen(
         logger.info("[SelfHeal] Health Brain engines registered");
       } catch (err: any) {
         logger.error("[SelfHeal] Health Brain registration failed", { error: String(err) });
+      }
+    });
+
+    delay(410_000, () => {
+      try {
+        // Register webhook sources with the pipeline for drain/retry support.
+        // Stripe HMAC verification stays in webhookHandlers.ts (pre-verified).
+        // The pipeline's drain() re-queues any unprocessed events from the DB.
+        webhookPipeline.register("stripe", async (payload, eventType) => {
+          const { WebhookHandlers } = await import("./webhookHandlers");
+          await WebhookHandlers.processWebhook(
+            Buffer.from(JSON.stringify(payload)),
+            ""
+          ).catch(() => {});
+        });
+        webhookPipeline.register("youtube", async (payload, eventType) => {
+          logger.info("[WebhookPipeline] YouTube event processed", { eventType });
+        });
+        logger.info("[SelfHeal] Webhook Pipeline sources registered");
+      } catch (err: any) {
+        logger.error("[SelfHeal] Webhook Pipeline registration failed", { error: String(err) });
       }
     });
 

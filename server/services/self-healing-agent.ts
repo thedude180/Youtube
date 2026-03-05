@@ -3,6 +3,7 @@ import { jobQueue } from "./intelligent-job-queue";
 import { adaptiveThrottle } from "./adaptive-throttle";
 import { getMemoryStats } from "./memory-guardian";
 import { anomalyResponder } from "./anomaly-responder";
+import { webhookPipeline } from "./webhook-pipeline";
 import { db } from "../db";
 import { intelligentJobs, channels, securityEvents } from "@shared/schema";
 import { routeNotification } from "./notification-system";
@@ -96,9 +97,10 @@ export class SelfHealingAgent {
       await jobQueue.clearStuck(15);
     }
 
-    // 2. Handle Expired Tokens (Informational, connection-guardian handles refresh)
+    // 2. Handle Expired Tokens — trigger connection-guardian's refresh cycle
     if (signals.expiredTokenCount > 10) {
-      logger.warn(`[SelfHealingAgent] ${signals.expiredTokenCount} tokens expiring soon. ConnectionGuardian should handle this.`);
+      logger.warn(`[SelfHealingAgent] ${signals.expiredTokenCount} tokens expiring soon — queuing refresh jobs`);
+      await this.refreshExpiredTokens(signals.expiredTokenCount);
     }
 
     // 3. Handle Quota Exhaustion
@@ -118,9 +120,10 @@ export class SelfHealingAgent {
       }
     }
 
-    // 4. Handle Webhook Failures
+    // 4. Handle Webhook Failures — drain unprocessed backlog through job queue
     if (signals.failedWebhookCount > 10) {
-      logger.warn(`[SelfHealingAgent] High webhook failure rate: ${signals.failedWebhookCount} in the last hour`);
+      logger.warn(`[SelfHealingAgent] High webhook failure rate: ${signals.failedWebhookCount} — draining backlog`);
+      await this.drainWebhookBacklog();
     }
 
     // 5. Handle Error Spikes
@@ -136,6 +139,38 @@ export class SelfHealingAgent {
     // 6. Memory Leak (Informational, memory-guardian handles restart)
     if (signals.memLeaking) {
       logger.warn(`[SelfHealingAgent] Memory leak detected by MemoryGuardian: ${signals.memStats.slope}`);
+    }
+  }
+
+  private async refreshExpiredTokens(count: number): Promise<void> {
+    try {
+      const expiredChannels = await db.execute(sql`
+        SELECT id, user_id FROM channels
+        WHERE token_expires_at < NOW() + INTERVAL '30 minutes'
+        AND refresh_token IS NOT NULL
+        LIMIT 50
+      `);
+      for (const row of expiredChannels.rows) {
+        await jobQueue.enqueue({
+          type: "token_refresh",
+          userId: row.user_id as string,
+          priority: 8,
+          payload: { channelId: row.id },
+          dedupeKey: `token_refresh:${row.id}:${Date.now()}`,
+        }).catch(() => {});
+      }
+      logger.info(`[SelfHealingAgent] Queued token refresh for ${expiredChannels.rows.length} channels`);
+    } catch (err: any) {
+      logger.error(`[SelfHealingAgent] refreshExpiredTokens failed: ${err.message}`);
+    }
+  }
+
+  private async drainWebhookBacklog(): Promise<void> {
+    try {
+      const drained = await webhookPipeline.drain();
+      logger.info(`[SelfHealingAgent] Drained ${drained} unprocessed webhooks back into job queue`);
+    } catch (err: any) {
+      logger.error(`[SelfHealingAgent] drainWebhookBacklog failed: ${err.message}`);
     }
   }
 }

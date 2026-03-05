@@ -94,6 +94,21 @@ class HealthBrain {
     this.tickCount++;
     await this.measurePressure();
 
+    // Pressure-aware load shedding — shed background engines first, important second
+    if (this.dbPressure > 95) {
+      this.pauseByPriority(2); // shed priority-2 and -3 under extreme pressure
+    } else if (this.dbPressure > 80) {
+      this.pauseByPriority(3); // shed only priority-3 background engines
+    }
+
+    // Resume as pressure drops
+    if (this.dbPressure < 50) {
+      this.resumeByPriority(3);
+      this.resumeByPriority(2);
+    } else if (this.dbPressure < 70) {
+      this.resumeByPriority(3);
+    }
+
     // Log summary every 10 ticks (~2.5 min) — silent otherwise
     if (this.tickCount % 10 === 0) {
       const statuses = Object.fromEntries(
