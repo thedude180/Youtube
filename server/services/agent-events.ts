@@ -5,8 +5,10 @@
  */
 
 type AgentEventType =
+  | "stream.pre_live"
   | "stream.started"
   | "stream.ended"
+  | "stream.post_processing"
   | "upload.detected"
   | "sweep.completed"
   | "sweep.phase_changed"
@@ -71,6 +73,9 @@ export async function wireAgentCoordination(): Promise<void> {
   onAgentEvent("stream.ended", async (event) => {
     logger.info(`Stream ended for ${event.userId.slice(0, 8)} — triggering upload scan + consistency check`);
 
+    const videoId = event.payload?.videoId;
+    const gameTitle = event.payload?.gameTitle || "Gaming Stream";
+
     // 1. Immediately trigger upload watcher scan
     setTimeout(async () => {
       try {
@@ -92,6 +97,61 @@ export async function wireAgentCoordination(): Promise<void> {
         logger.warn(`Post-stream consistency check failed: ${err.message}`);
       }
     }, 5 * 60_000); // Wait 5 min for content to process
+
+    // --- AUTONOMOUS CONTENT FACTORY CASCADE ---
+
+    // 3. Shorts Factory (T+2min)
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { shortsFactory } = await import("./shorts-factory");
+          await shortsFactory.process(event.userId, videoId, gameTitle);
+          logger.info(`Autonomous shorts factory started for user ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Autonomous shorts factory failed: ${err.message}`);
+        }
+      }, 2 * 60_000);
+    }
+
+    // 4. VOD SEO Optimizer (T+15min)
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { vodSEOOptimizer } = await import("./vod-seo-optimizer");
+          await vodSEOOptimizer.optimize(event.userId, videoId);
+          logger.info(`Autonomous VOD SEO optimizer started for user ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Autonomous VOD SEO optimizer failed: ${err.message}`);
+        }
+      }, 15 * 60_000);
+    }
+
+    // 5. Multi-Platform Distribution (T+20min)
+    // Distribution often depends on clips being ready, but can also distribute VOD link
+    setTimeout(async () => {
+      try {
+        const { multiPlatformDistributor } = await import("./multi-platform-distributor");
+        await multiPlatformDistributor.distribute(event.userId, { videoId, gameTitle, title: "Stream Highlights" }, ["tiktok", "x", "discord"]);
+        logger.info(`Autonomous distribution started for user ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Autonomous distribution failed: ${err.message}`);
+      }
+    }, 20 * 60_000);
+
+    // 6. Community Post Job (T+30min)
+    setTimeout(async () => {
+      try {
+        const { jobQueue } = await import("./intelligent-job-queue");
+        await jobQueue.enqueue({
+          type: "community_post_update",
+          userId: event.userId,
+          payload: { videoId, gameTitle, type: "stream_summary" }
+        });
+        logger.info(`Autonomous community post job enqueued for user ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Autonomous community post job failed: ${err.message}`);
+      }
+    }, 30 * 60_000);
   });
 
   // When a new upload is detected → run consistency check on it

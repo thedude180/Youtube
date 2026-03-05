@@ -5664,3 +5664,74 @@ export const healthAuditReports = pgTable("health_audit_reports", {
   aiSummary: text("ai_summary"),
 });
 export type HealthAuditReport = typeof healthAuditReports.$inferSelect;
+
+// ==================== AUTONOMOUS SOCIAL MEDIA COMPANY ====================
+
+export const userAutonomousSettings = pgTable("user_autonomous_settings", {
+  userId: text("user_id").primaryKey(),
+  autonomousMode: boolean("autonomous_mode").notNull().default(false),
+  requireApproval: boolean("require_approval").notNull().default(false),
+  pausedUntil: timestamp("paused_until"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type UserAutonomousSettings = typeof userAutonomousSettings.$inferSelect;
+
+export const streamLifecycleStates = pgTable("stream_lifecycle_states", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  state: text("state").notNull().default("idle"),
+  prevState: text("prev_state"),
+  context: jsonb("context"),
+  transitionedAt: timestamp("transitioned_at").defaultNow(),
+}, (t) => ({
+  sls_user_idx: index("sls_user_idx").on(t.userId),
+}));
+
+export const streamDetectionLog = pgTable("stream_detection_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  confidence: real("confidence").notNull().default(0),
+  isLive: boolean("is_live").notNull().default(false),
+  falsePositive: boolean("false_positive").notNull().default(false),
+  signals: jsonb("signals"),
+  videoId: text("video_id"),
+}, (t) => ({
+  sdl_user_idx: index("sdl_user_idx").on(t.userId),
+}));
+
+export const revenueStrategies = pgTable("revenue_strategies", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  strategy: jsonb("strategy").notNull(),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (t) => ({
+  rs_user_idx: index("rs_user_idx").on(t.userId),
+}));
+
+export const growthPlans = pgTable("growth_plans", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  plan: jsonb("plan").notNull(),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (t) => ({
+  gp_user_idx: index("gp_user_idx").on(t.userId),
+}));
+
+export const autonomousActionLog = pgTable("autonomous_action_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  engine: text("engine").notNull(),
+  action: text("action").notNull(),
+  reasoning: text("reasoning"),
+  payload: jsonb("payload"),
+  prompt: text("prompt"),
+  response: text("response"),
+  publishedContent: text("published_content"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  aal_user_idx: index("aal_user_idx").on(t.userId),
+  aal_engine_idx: index("aal_engine_idx").on(t.engine),
+  aal_created_idx: index("aal_created_idx").on(t.createdAt),
+}));
+export type AutonomousActionLog = typeof autonomousActionLog.$inferSelect;

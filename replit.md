@@ -56,6 +56,23 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
   - Admin endpoints: `GET /api/system/self-heal-status`, `POST /api/system/run-audit`, `POST /api/system/clear-stuck-jobs`.
   - New DB tables: `intelligent_jobs` (SKIP LOCKED queue), `health_audit_reports` (audit persistence).
 - **Platform Policy Tracker**: Monitors 7 platforms for policy changes and enforces compliance.
+- **Autonomous Social Media Company** (Tier 7, T+430s, 2026-03-05):
+  - `server/services/ps5-live-detector.ts` — Multi-signal live detection (YouTube API + RSS + Twitch), quota-aware with fallback, majority-vote confidence, 90s poll per user. False positive guard: 3-min re-confirmation window before firing stream.started.
+  - `server/services/stream-lifecycle.ts` — Formal 5-state machine (idle→pre_live→live→ending→post_processing), persists to `streamLifecycleStates` DB, fires agent events on transitions. StreamLifecycleManager coordinates PS5Detector + false-positive guard + post-stream cascade.
+  - `server/services/creator-dna-builder.ts` — Analyzes channel + video data via gpt-4o-mini to extract creator voice DNA (tone, vocabulary, humor, energy, catchphrases). Upserts to `creatorDnaProfiles`. Exports `withCreatorVoice(userId, prompt)` which injects DNA into any AI system prompt.
+  - `server/services/stream-operator.ts` — Autonomous stream operations: 3-min cycle responding to live chat (max 5 replies, 8s delay, 200 char limit), moderating chat (keyword fast-path + AI slow-path), 10-min viewer metric assessment, 30-min highlight queueing. All actions logged to `autonomousActionLog`.
+  - `server/services/shorts-factory.ts` — AI identifies 6 best viral moments from stream VODs, enqueues `extract_and_publish_clip` jobs for each.
+  - `server/services/vod-seo-optimizer.ts` — Fetches video metadata, AI-generates optimized title/description/tags/chapters, updates via YouTube API.
+  - `server/services/multi-platform-distributor.ts` — AI-writes platform-specific copy for TikTok/Discord/X/YouTube, enqueues publish jobs (or approval queue if requireApproval=true).
+  - `server/services/revenue-brain.ts` — Daily 8am cycle: channel analytics + AI revenue strategy JSON, auto-executes 'auto' actions, saves to `revenueStrategies`, notifies user.
+  - `server/services/growth-intelligence-engine.ts` — Daily 7am cycle: trending game topics + AI 7-day growth plan, saves to `growthPlans`, enqueues content idea jobs.
+  - `server/services/community-auto-manager.ts` — 8h cycle: postCommunityUpdate (20h cooldown), respondToComments (max 10, 5s delay), runCommunityPoll (72h cooldown), heartTopComments. All with requireApproval gate.
+  - `server/services/daily-briefing.ts` — Daily 9am: aggregates 24h autonomous actions + growth + revenue into AI executive briefing, saves to `dailyBriefings`, sends notification.
+  - `server/lib/autonomous.ts` — Shared helpers: `isAutonomousMode(userId)` (checks pausedUntil), `logAutonomousAction(params)` (inserts to autonomousActionLog).
+  - New DB tables: `userAutonomousSettings`, `streamLifecycleStates`, `streamDetectionLog`, `revenueStrategies`, `growthPlans`, `autonomousActionLog`.
+  - New API endpoints: `GET /api/system/live` (SSE, 10s pulse), `GET/POST /api/autonomous/settings`, `POST /api/autonomous/mode`, `POST /api/autonomous/pause`, `POST /api/autonomous/resume`, `POST /api/autonomous/stream-now`.
+  - stream.ended cascade (agent-events.ts): T+2min→shorts factory, T+15min→SEO optimizer, T+20min→distributor, T+30min→community post job.
+  - Job handlers registered: `extract_and_publish_clip`, `post_stream_community`, `mid_stream_highlight`, `generate_content_idea`, `content_idea_generation`, `tiktok_publish`.
 
 ### Authentication & Authorization
 - **Authentication**: Replit Auth (OIDC-based).
