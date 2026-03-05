@@ -5627,3 +5627,40 @@ export const billingInvoices = pgTable("billing_invoices", {
   description: text("description").notNull().default("Subscription payment"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// ==================== SELF-HEALING ARCHITECTURE ====================
+
+export const intelligentJobs = pgTable("intelligent_jobs", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  userId: text("user_id"),
+  priority: integer("priority").notNull().default(5),
+  status: text("status").notNull().default("queued"),
+  payload: jsonb("payload").notNull(),
+  result: jsonb("result"),
+  errorMessage: text("error_message"),
+  dedupeKey: text("dedupe_key").unique(),
+  retryCount: integer("retry_count").notNull().default(0),
+  maxRetries: integer("max_retries").notNull().default(3),
+  scheduledFor: timestamp("scheduled_for").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  ij_status_type_idx: index("ij_status_type_idx").on(t.status, t.type),
+  ij_scheduled_idx: index("ij_scheduled_idx").on(t.scheduledFor),
+  ij_user_idx: index("ij_user_idx").on(t.userId),
+}));
+export type IntelligentJob = typeof intelligentJobs.$inferSelect;
+
+export const healthAuditReports = pgTable("health_audit_reports", {
+  id: serial("id").primaryKey(),
+  runAt: timestamp("run_at").defaultNow(),
+  orphanedRecords: integer("orphaned_records").notNull().default(0),
+  staleTokens: integer("stale_tokens").notNull().default(0),
+  fixedIssues: integer("fixed_issues").notNull().default(0),
+  p1Issues: jsonb("p1_issues"),
+  fullReport: jsonb("full_report"),
+  aiSummary: text("ai_summary"),
+});
+export type HealthAuditReport = typeof healthAuditReports.$inferSelect;

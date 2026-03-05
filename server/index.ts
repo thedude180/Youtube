@@ -38,6 +38,13 @@ import { startThreatLearningEngine, stopThreatLearningEngine, getLearningStats }
 import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache, checkDbPool } from "./services/resilience-core";
 import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
 import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } from "fs";
+import { healthBrain } from "./services/health-brain";
+import { memoryGuardian, getMemoryStats } from "./services/memory-guardian";
+import { adaptiveThrottle } from "./services/adaptive-throttle";
+import { jobQueue } from "./services/intelligent-job-queue";
+import { selfHealingAgent } from "./services/self-healing-agent";
+import { anomalyResponder } from "./services/anomaly-responder";
+import { continuousAudit } from "./services/continuous-audit";
 
 const logger = createLogger("express");
 
@@ -718,6 +725,66 @@ app.get("/api/system/memory-stats", async (req: Request, res: Response) => {
   });
 });
 
+app.get("/api/system/self-heal-status", async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.email?.toLowerCase() !== "thedude180@gmail.com") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+  } catch { return res.status(403).json({ error: "Admin access required" }); }
+  try {
+    const [brainStatus, memStats, throttleStatus, queueStats] = await Promise.all([
+      Promise.resolve(healthBrain.getStatus()),
+      Promise.resolve(getMemoryStats()),
+      Promise.resolve(adaptiveThrottle.getStatus()),
+      jobQueue.getStats(),
+    ]);
+    res.json({
+      timestamp: new Date().toISOString(),
+      healthBrain: brainStatus,
+      memory: memStats,
+      quotas: throttleStatus,
+      jobQueue: queueStats,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to get self-heal status", details: err.message });
+  }
+});
+
+app.post("/api/system/run-audit", async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.email?.toLowerCase() !== "thedude180@gmail.com") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+  } catch { return res.status(403).json({ error: "Admin access required" }); }
+  continuousAudit.run().catch(err =>
+    logger.error("[Admin] Manual audit run failed", { error: String(err) })
+  );
+  res.json({ message: "Audit triggered — check health_audit_reports table for results" });
+});
+
+app.post("/api/system/clear-stuck-jobs", async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.email?.toLowerCase() !== "thedude180@gmail.com") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+  } catch { return res.status(403).json({ error: "Admin access required" }); }
+  try {
+    const cleared = await jobQueue.clearStuck(15);
+    res.json({ cleared, message: `Cleared ${cleared} stuck intelligent jobs` });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to clear stuck jobs", details: err.message });
+  }
+});
+
 export function log(message: string, source = "express", level: "info" | "warn" | "error" | "debug" = "info") {
   const moduleLogger = createLogger(source);
   if (level === "error") moduleLogger.error(message);
@@ -903,6 +970,60 @@ httpServer.listen(
     delay(340_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
     delay(360_000, () => startCleanupCoordinator());
     delay(380_000, () => startResilienceWatchdog());
+
+    // ── TIER 6: Self-Healing Architecture (T+400s → T+420s) ──────────────────
+    // All services are self-starting (setInterval) after import.
+    // These delays simply stagger initial work away from the Tier 5 burst.
+    delay(400_000, () => {
+      try {
+        healthBrain.register({
+          name: "autopilot-monitor",
+          priority: 2,
+          start: () => startAutopilotMonitor(),
+          stop: () => stopAutopilotMonitor(),
+          intervalMs: 60_000,
+          maxRestarts: 5,
+        });
+        healthBrain.register({
+          name: "connection-guardian",
+          priority: 1,
+          start: () => startConnectionGuardian(),
+          stop: () => stopConnectionGuardian(),
+          intervalMs: 60_000,
+          maxRestarts: 10,
+        });
+        healthBrain.register({
+          name: "sentinel",
+          priority: 2,
+          start: () => startSentinel(),
+          stop: () => stopSentinel(),
+          intervalMs: 30_000,
+          maxRestarts: 5,
+        });
+        healthBrain.register({
+          name: "resilience-watchdog",
+          priority: 2,
+          start: () => startResilienceWatchdog(),
+          stop: () => stopResilienceWatchdog(),
+          intervalMs: 30_000,
+          maxRestarts: 5,
+        });
+        logger.info("[SelfHeal] Health Brain engines registered");
+      } catch (err: any) {
+        logger.error("[SelfHeal] Health Brain registration failed", { error: String(err) });
+      }
+    });
+
+    delay(420_000, () => {
+      try {
+        selfHealingAgent.diagnoseAndHeal().catch(err =>
+          logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) })
+        );
+        logger.info("[SelfHeal] Self-Healing Agent initial scan triggered");
+      } catch (err: any) {
+        logger.error("[SelfHeal] Self-Healing Agent startup failed", { error: String(err) });
+      }
+    });
   }
 );
 

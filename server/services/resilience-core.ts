@@ -96,7 +96,7 @@ export function registerMap(name: string, map: Map<any, any>, maxSize: number): 
   registeredMaps.push({ name, map, maxSize });
 }
 
-function emergencyMemoryRelief(): void {
+export function emergencyMemoryRelief(): void {
   totalEmergencyReliefs++;
   console.warn("[Resilience] EMERGENCY memory relief — clearing all registered caches and capping maps");
 

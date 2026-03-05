@@ -45,6 +45,16 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **God-Level Business AI Exec Team**: 9 autonomous AI executives for business functions.
     - **Legal & Tax AI Agent Command Center**: 18 autonomous AI agents for legal and tax auditing.
 - **System Hardening**: Centralized OpenAI client with telemetry, retry logic, caching, structured logging, Zod validation, DB-backed cron locks, external service health checks, and a self-healing core.
+- **World-Class Self-Healing Architecture** (8-component stack for 10k+ scale):
+  - `server/services/health-brain.ts` — Central coordinator; registers engines, measures DB/memory pressure, 15s tick with dependency-ordered restarts and exponential backoff.
+  - `server/services/memory-guardian.ts` — Linear-regression leak detector (15-min sliding window); calls `emergencyMemoryRelief()` first, then `drainAndRestart()` if heap stays >350MB after 30s.
+  - `server/services/adaptive-throttle.ts` — Daily quota budgets for YouTube/OpenAI/Stripe with 4-band throttling (free/pace/conserve/block). Integrates real YouTube quota from `youtube-quota-tracker`.
+  - `server/services/intelligent-job-queue.ts` — PostgreSQL SKIP LOCKED queue with per-type concurrency limits, deduplication, per-user fairness (>10 active → 60s delay), and stuck-job cleanup every 5 min.
+  - `server/services/self-healing-agent.ts` — 5-min diagnostic loop over 7 health signals: stuck jobs, expired tokens, quota exhaustion, webhook failures, error spikes, memory leaks.
+  - `server/services/anomaly-responder.ts` — AI-driven risk-gated responder (low=immediate, medium=5min delay, high=admin alert); logs resolutions to `security_events`.
+  - `server/services/continuous-audit.ts` — Daily 24h-interval audit: orphaned jobs, stale tokens, DB hygiene auto-fixes, AI health summary, persists to `health_audit_reports` table.
+  - Admin endpoints: `GET /api/system/self-heal-status`, `POST /api/system/run-audit`, `POST /api/system/clear-stuck-jobs`.
+  - New DB tables: `intelligent_jobs` (SKIP LOCKED queue), `health_audit_reports` (audit persistence).
 - **Platform Policy Tracker**: Monitors 7 platforms for policy changes and enforces compliance.
 
 ### Authentication & Authorization
