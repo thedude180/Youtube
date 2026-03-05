@@ -17,9 +17,14 @@ interface AuthenticatedUser {
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
+// AUDIT FIX: Reject empty/blank strings (Number("") === 0) and non-positive IDs to prevent silent id=0 operations
 export function parseNumericId(raw: string, res: Response, label = "ID"): number | null {
-  const id = Number(raw);
-  if (isNaN(id) || !Number.isFinite(id)) {
+  if (!raw || raw.trim() === "") {
+    res.status(400).json({ error: `Missing ${label}` });
+    return null;
+  }
+  const id = parseInt(raw.trim(), 10);
+  if (isNaN(id) || id <= 0) {
     res.status(400).json({ error: `Invalid ${label}` });
     return null;
   }

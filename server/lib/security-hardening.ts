@@ -159,6 +159,17 @@ registerCleanup("fingerprints", () => {
   }
 }, 60_000);
 
+// AUDIT FIX: Bounded idempotency cache — max 1000 entries (LRU eviction by insertion order) with 5-min TTL
+const MAX_IDEMPOTENCY_ENTRIES = 1000;
+function idempotencyBoundedSet(map: Map<string, { timestamp: number; response: any }>, key: string, value: { timestamp: number; response: any }) {
+  if (map.size >= MAX_IDEMPOTENCY_ENTRIES) {
+    // Delete the oldest entry (first key in Map insertion order)
+    const firstKey = map.keys().next().value;
+    if (firstKey !== undefined) map.delete(firstKey);
+  }
+  map.set(key, value);
+}
+
 export function idempotencyGuard() {
   const seen = new Map<string, { timestamp: number; response: any }>();
 
@@ -173,7 +184,13 @@ export function idempotencyGuard() {
     const idempotencyKey = req.headers["x-idempotency-key"] as string;
     if (!idempotencyKey || req.method === "GET") return next();
 
-    const key = `${(req as any).user?.claims?.sub || req.ip}:${idempotencyKey}`;
+    // AUDIT FIX: Require authenticated session — unauthenticated requests sharing an IP must not bleed responses across users
+    const userSub = (req as any).user?.claims?.sub;
+    if (!userSub) {
+      return res.status(401).json({ error: "Authentication required for idempotent requests" });
+    }
+
+    const key = `${userSub}:${idempotencyKey}`;
     const existing = seen.get(key);
     if (existing) {
       return res.status(200).json(existing.response);
@@ -181,8 +198,10 @@ export function idempotencyGuard() {
 
     const originalJson = res.json.bind(res);
     res.json = function (body: any) {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        seen.set(key, { timestamp: Date.now(), response: body });
+      // AUDIT FIX: Never cache responses that set auth cookies — prevents stale auth state replay
+      const hasCookie = !!res.getHeader("Set-Cookie");
+      if (!hasCookie && res.statusCode >= 200 && res.statusCode < 300) {
+        idempotencyBoundedSet(seen, key, { timestamp: Date.now(), response: body });
       }
       return originalJson(body);
     };

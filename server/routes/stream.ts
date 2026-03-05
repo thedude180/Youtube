@@ -267,26 +267,27 @@ export function registerStreamRoutes(app: Express) {
         { name: "compliance_check", status: "pending" },
       ];
 
+      // AUDIT FIX: Normalize platforms before job creation so DB payload never stores undefined
+      const platforms = (stream.platforms as string[]) || ["youtube"];
+
       const job = await storage.createJob({
         type: "stream_automation",
         status: "processing",
         priority: 1,
-        payload: { streamId: stream.id, platforms: stream.platforms, tasks },
+        payload: { streamId: stream.id, platforms, tasks },
       });
 
       await storage.createAuditLog({
         userId,
         action: "stream_went_live",
         target: stream.title,
-        details: { platforms: stream.platforms, automationJobId: job.id },
+        details: { platforms, automationJobId: job.id },
         riskLevel: "low",
       });
 
       (async () => {
-        const platforms = (stream.platforms as string[]) || ['youtube'];
-
         const persistTasks = async (progress: number) => {
-          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms: stream.platforms, tasks });
+          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms, tasks });
           await storage.updateJobProgress(job.id, progress);
         };
 
@@ -444,11 +445,14 @@ export function registerStreamRoutes(app: Express) {
         { name: "vod_thumbnail", status: "pending" },
       ];
 
+      // AUDIT FIX: Normalize platforms before job creation so DB payload never stores undefined
+      const platforms = (stream.platforms as string[]) || ["youtube"];
+
       const job = await storage.createJob({
         type: "post_stream_automation",
         status: "processing",
         priority: 1,
-        payload: { streamId: stream.id, platforms: stream.platforms, tasks },
+        payload: { streamId: stream.id, platforms, tasks },
       });
 
       await storage.createAuditLog({
@@ -456,7 +460,7 @@ export function registerStreamRoutes(app: Express) {
         action: "stream_ended",
         target: stream.title,
         details: {
-          platforms: stream.platforms,
+          platforms,
           postProcessJobId: job.id,
           duration: stream.startedAt ? Math.round((endedAt.getTime() - new Date(stream.startedAt).getTime()) / 1000) : null,
         },
@@ -464,13 +468,12 @@ export function registerStreamRoutes(app: Express) {
       });
 
       (async () => {
-        const platforms = (stream.platforms as string[]) || ['youtube'];
         const duration = stream.startedAt
           ? (endedAt.getTime() - new Date(stream.startedAt).getTime()) / 1000
           : undefined;
 
         const persistTasks = async (progress: number) => {
-          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms: stream.platforms, tasks });
+          await storage.updateJobPayload(job.id, { streamId: stream.id, platforms, tasks });
           await storage.updateJobProgress(job.id, progress);
         };
 

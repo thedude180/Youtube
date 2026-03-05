@@ -92,9 +92,10 @@ Focus on:
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
     try {
-      return JSON.parse(content);
+      // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
+      return typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse playlist organization response");
+      console.error("[YoutubeManager] Failed to parse playlist organization response:", content?.substring?.(0, 200));
       return {};
     }
   } catch (error) {
@@ -180,9 +181,10 @@ Score and analyze as JSON:
     if (!content) throw new Error("No AI response");
     let result;
     try {
-      result = JSON.parse(content);
+      // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
+      result = typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse SEO score response");
+      console.error("[YoutubeManager] Failed to parse SEO score response:", content?.substring?.(0, 200));
       result = {};
     }
 
@@ -240,9 +242,10 @@ Best practices:
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
     try {
-      return JSON.parse(content);
+      // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
+      return typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse pinned comment response");
+      console.error("[YoutubeManager] Failed to parse pinned comment response:", content?.substring?.(0, 200));
       return {};
     }
   } catch (error) {
@@ -289,9 +292,10 @@ Generate as JSON:
     if (!content) throw new Error("No AI response");
     let result;
     try {
-      result = JSON.parse(content);
+      // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
+      result = typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse description links response");
+      console.error("[YoutubeManager] Failed to parse description links response:", content?.substring?.(0, 200));
       result = {};
     }
 
@@ -353,9 +357,10 @@ Important:
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
     try {
-      return JSON.parse(content);
+      // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
+      return typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse multi-language metadata response");
+      console.error("[YoutubeManager] Failed to parse multi-language metadata response:", content?.substring?.(0, 200));
       return {};
     }
   } catch (error) {

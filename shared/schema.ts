@@ -71,9 +71,10 @@ export const PLATFORM_CAPABILITIES: Record<Platform, {
   },
 };
 
-export const VIDEO_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].supports.includes("video") || PLATFORM_CAPABILITIES[p].supports.includes("short_video"));
-export const TEXT_ONLY_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].primaryType === "text" && !PLATFORM_CAPABILITIES[p].supports.includes("video") && !PLATFORM_CAPABILITIES[p].supports.includes("short_video"));
-export const LIVE_STREAM_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].supports.includes("live_stream"));
+// AUDIT FIX: Cast to Platform[] to preserve type safety; plain .filter() widens to string[]
+export const VIDEO_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].supports.includes("video") || PLATFORM_CAPABILITIES[p].supports.includes("short_video")) as Platform[];
+export const TEXT_ONLY_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].primaryType === "text" && !PLATFORM_CAPABILITIES[p].supports.includes("video") && !PLATFORM_CAPABILITIES[p].supports.includes("short_video")) as Platform[];
+export const LIVE_STREAM_PLATFORMS = PLATFORMS.filter(p => PLATFORM_CAPABILITIES[p].supports.includes("live_stream")) as Platform[];
 
 export const PLATFORM_INFO: Record<Platform, {
   label: string;

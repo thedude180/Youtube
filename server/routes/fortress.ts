@@ -6,7 +6,7 @@ import {
   recordLoginAttempt, checkAccountLock, lockAccount, unlockAccount,
   getIpReputation, updateIpReputation, getTopSuspiciousIps,
   analyzeRequestPattern, getBehaviorScore,
-  registerThreatPattern, matchThreatPatterns,
+  registerThreatPattern, matchThreatPatterns, listThreatPatterns,
   validateSession, invalidateAllSessions, getActiveSessions,
   createSecurityAlert, getUnacknowledgedAlerts, acknowledgeAlert,
   getAdaptiveRateLimit,
@@ -136,8 +136,9 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/fortress/threat-patterns", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const matches = await matchThreatPatterns("");
-    res.json(matches);
+    // AUDIT FIX: Use listThreatPatterns() instead of matchThreatPatterns("") — matching empty string mutates hitCount on every admin page load
+    const patterns = await listThreatPatterns();
+    res.json(patterns);
   }));
 
   app.post("/api/fortress/threat-patterns", asyncHandler(async (req: Request, res: Response) => {

@@ -18,6 +18,8 @@ async function getCredentials() {
   const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
   const targetEnvironment = isProduction ? 'production' : 'development';
 
+  // AUDIT FIX: Validate REPLIT_CONNECTORS_HOSTNAME before URL construction to prevent "https://undefined/..." crash
+  if (!hostname) throw new Error("REPLIT_CONNECTORS_HOSTNAME is not set");
   const url = new URL(`https://${hostname}/api/v2/connection`);
   url.searchParams.set('include_secrets', 'true');
   url.searchParams.set('connector_names', connectorName);
@@ -30,6 +32,10 @@ async function getCredentials() {
     }
   });
 
+  // AUDIT FIX: Check response.ok before parsing — non-200 responses return error JSON, not connection data
+  if (!response.ok) {
+    throw new Error(`Stripe credentials fetch failed: HTTP ${response.status} from connectors service`);
+  }
   const data = await response.json();
   connectionSettings = data.items?.[0];
 
@@ -60,23 +66,26 @@ export async function getStripeSecretKey() {
   return secretKey;
 }
 
-let stripeSync: any = null;
+// AUDIT FIX: Use Promise-initializer pattern to prevent concurrent calls from each initializing a separate instance
+let stripeSyncPromise: Promise<any> | null = null;
 
 export async function getStripeSync() {
-  if (!stripeSync) {
-    const { StripeSync } = await import('stripe-replit-sync');
-    const secretKey = await getStripeSecretKey();
+  if (!stripeSyncPromise) {
+    stripeSyncPromise = (async () => {
+      const { StripeSync } = await import('stripe-replit-sync');
+      const secretKey = await getStripeSecretKey();
 
-    const noop = () => {};
-    const silentLogger = { info: noop, warn: noop, error: noop, debug: noop, trace: noop, fatal: noop, child: () => silentLogger };
-    stripeSync = new StripeSync({
-      poolConfig: {
-        connectionString: process.env.DATABASE_URL!,
-        max: 2,
-      },
-      stripeSecretKey: secretKey,
-      logger: silentLogger,
-    });
+      const noop = () => {};
+      const silentLogger = { info: noop, warn: noop, error: noop, debug: noop, trace: noop, fatal: noop, child: () => silentLogger };
+      return new StripeSync({
+        poolConfig: {
+          connectionString: process.env.DATABASE_URL!,
+          max: 2,
+        },
+        stripeSecretKey: secretKey,
+        logger: silentLogger,
+      });
+    })();
   }
-  return stripeSync;
+  return stripeSyncPromise;
 }

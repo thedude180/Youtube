@@ -208,8 +208,10 @@ const aiRateLimitMap = new Map<string, Map<string, { count: number; resetAt: num
  */
 function createAIRateLimiter(maxRequests: number = 10, windowMs: number = 60000) {
   return (req: any, res: any, next: any) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
+    // AUDIT FIX: Read userId from already-set req.user instead of calling requireAuth inline;
+    // inline requireAuth coupling can hang requests if auth sends no response on unexpected code paths
+    const userId = (req as any).user?.claims?.sub;
+    if (!userId) return res.status(401).json({ error: "Authentication required" });
     
     const endpoint = req.path;
     if (!aiRateLimitMap.has(endpoint)) {

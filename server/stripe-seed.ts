@@ -34,13 +34,17 @@ const TIERS = [
 export async function seedStripeProducts() {
   try {
     const stripe = await getUncachableStripeClient();
-    const existingProducts = await stripe.products.list({ active: true, limit: 100 });
-    const existingTiers = existingProducts.data.filter(
+    // AUDIT FIX: Use auto-pagination to handle accounts with >100 products instead of silently truncating at 100
+    const allProducts: any[] = [];
+    for await (const product of stripe.products.list({ active: true, limit: 100 })) {
+      allProducts.push(product);
+    }
+    const existingTiers = allProducts.filter(
       (p) => p.metadata?.tier && ["youtube", "starter", "pro", "ultimate"].includes(p.metadata.tier)
     );
 
     if (existingTiers.length >= 4) {
-      let pricesFixed = false;
+      // AUDIT FIX: Remove unused pricesFixed flag
       for (const tier of TIERS) {
         const product = existingTiers.find((p) => p.metadata?.tier === tier.metadata.tier);
         if (!product) continue;
@@ -54,7 +58,6 @@ export async function seedStripeProducts() {
             currency: "usd",
             recurring: { interval: tier.interval },
           });
-          pricesFixed = true;
         }
       }
       return;

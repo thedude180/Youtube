@@ -113,6 +113,10 @@ function adjustPlatformVoice(text: string, platform: string): string {
           if ((shortened + s).length < 250) shortened += s.trim() + ". ";
           else break;
         }
+        // AUDIT FIX: Guarantee at least one sentence is preserved; if first sentence exceeds 250 chars, truncate it
+        if (shortened.length === 0 && sentences.length > 0) {
+          shortened = sentences[0].substring(0, 247) + "...";
+        }
         return shortened.trim() || text;
       }
       return text;

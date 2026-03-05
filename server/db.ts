@@ -34,8 +34,12 @@ pool.on("error", (err) => {
   }
 });
 
-pool.on("connect", () => {
+pool.on("connect", (client) => {
   poolErrorCount = Math.max(0, poolErrorCount - 1);
+  // AUDIT FIX: Apply statement_timeout per-connection; Pool constructor options are not reliably applied by all pg versions
+  client.query("SET statement_timeout = 25000").catch((err: Error) => {
+    console.warn("[DB Pool] Failed to set statement_timeout on new client:", err.message);
+  });
 });
 
 export const db = drizzle(pool, { schema });
@@ -64,8 +68,10 @@ const TRANSIENT_DB_ERRORS = [
   "connection timeout",
 ];
 
+// AUDIT FIX: Lowercase both sides to handle mixed-case DB driver error messages (e.g. "Connection Refused" vs "connection refused")
 function isTransientDbError(msg: string): boolean {
-  return TRANSIENT_DB_ERRORS.some(p => msg.includes(p));
+  const msgL = (msg || "").toLowerCase();
+  return TRANSIENT_DB_ERRORS.some(p => msgL.includes(p.toLowerCase()));
 }
 
 export async function withRetry<T>(
@@ -86,5 +92,9 @@ export async function withRetry<T>(
       await new Promise((r) => setTimeout(r, delay));
     }
   }
-  throw lastErr;
+  // AUDIT FIX: Wrap final error with label and attempt count for production debuggability
+  console.error(`[DB Retry] ${label} final failure:`, lastErr);
+  const wrapped = new Error(`[DB Retry] ${label} failed after ${maxRetries} attempts: ${lastErr?.message}`);
+  (wrapped as any).cause = lastErr;
+  throw wrapped;
 }

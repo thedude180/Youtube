@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { loginAttempts, accountLockouts, ipReputations, threatPatterns, securityAlerts, securityEvents, dataRetentionPolicies } from "@shared/schema";
-import { eq, desc, sql, and, gte, lt, count, lte, or, ne } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lt, count, lte, or, ne, inArray } from "drizzle-orm";
 
 const requestTimingMap = new Map<string, {
   timestamps: number[];
@@ -24,7 +24,8 @@ const REP_EVENTS: Record<string, number> = {
   failed_auth: -3,
   attack: -20,
   suspicious_pattern: -10,
-  normal_request: 0.1,
+  // AUDIT FIX: 0.1 caused a DB write on every normal request; set to 0 so delta===0 short-circuits updateIpReputation
+  normal_request: 0,
   rate_limited: -8,
   xss_attempt: -25,
   sql_injection: -25,
@@ -260,6 +261,11 @@ export function getBehaviorScore(ip: string): number {
 // ==================== THREAT INTELLIGENCE ====================
 
 export async function registerThreatPattern(name: string, type: string, signature: string, severity: string): Promise<{ id: number } | null> {
+  // AUDIT FIX: Validate regex at insertion time to prevent ReDoS from malformed or adversarially complex patterns
+  try { new RegExp(signature); } catch (e) {
+    console.error("[Security Fortress] registerThreatPattern: invalid regex rejected:", signature);
+    return null;
+  }
   try {
     const [result] = await db.insert(threatPatterns).values({
       patternName: name, patternType: type, signature, severity,
@@ -269,18 +275,30 @@ export async function registerThreatPattern(name: string, type: string, signatur
   } catch (error) { console.error("[Security Fortress] registerThreatPattern error:", error); return null; }
 }
 
+// AUDIT FIX: Read-only listing of threat patterns; does not mutate hitCount unlike matchThreatPatterns
+export async function listThreatPatterns() {
+  try {
+    return await db.select().from(threatPatterns).where(eq(threatPatterns.enabled, true));
+  } catch (error) { console.error("[Security Fortress] listThreatPatterns error:", error); return []; }
+}
+
 export async function matchThreatPatterns(input: string): Promise<Array<{ id: number; name: string; type: string; severity: string; matched: boolean }>> {
   try {
     const patterns = await db.select().from(threatPatterns).where(eq(threatPatterns.enabled, true));
     const matches: Array<{ id: number; name: string; type: string; severity: string; matched: boolean }> = [];
+    // AUDIT FIX: Collect matched IDs and batch a single DB update instead of one write per match (N+1 elimination)
+    const hitIds: number[] = [];
     for (const p of patterns) {
       try {
         const matched = new RegExp(p.signature, "i").test(input);
         if (matched) {
-          await db.update(threatPatterns).set({ hitCount: sql`${threatPatterns.hitCount} + 1`, updatedAt: new Date() }).where(eq(threatPatterns.id, p.id));
+          hitIds.push(p.id);
           matches.push({ id: p.id, name: p.patternName, type: p.patternType, severity: p.severity, matched: true });
         }
       } catch { continue; }
+    }
+    if (hitIds.length > 0) {
+      await db.update(threatPatterns).set({ hitCount: sql`${threatPatterns.hitCount} + 1`, updatedAt: new Date() }).where(inArray(threatPatterns.id, hitIds));
     }
     return matches;
   } catch (error) { console.error("[Security Fortress] matchThreatPatterns error:", error); return []; }
