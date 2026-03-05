@@ -1248,7 +1248,100 @@ httpServer.listen(
         jobQueue.registerHandler("tiktok_publish", async (job) => {
           logger.info("[Autonomous] tiktok_publish job received", { userId: job.userId, payload: job.payload });
         });
-        logger.info("[Autonomous] Job handlers registered");
+
+        // Post-stream pipeline job types
+        jobQueue.registerHandler("vod_wait_and_process", async (job) => {
+          const { vodSEOOptimizer } = await import("./services/vod-seo-optimizer");
+          const { videoId } = job.payload || {};
+          if (job.userId && videoId) {
+            await vodSEOOptimizer.optimize(job.userId, videoId).catch(err =>
+              logger.warn("[Autonomous] vod_wait_and_process seo step failed", { error: String(err) })
+            );
+          }
+        });
+        jobQueue.registerHandler("shorts_factory", async (job) => {
+          const { shortsFactory } = await import("./services/shorts-factory");
+          const { videoId, gameTitle, duration } = job.payload || {};
+          if (job.userId && videoId) {
+            await shortsFactory.process(job.userId, videoId, gameTitle || "Gaming Stream", duration || 0).catch(err =>
+              logger.warn("[Autonomous] shorts_factory job failed", { error: String(err) })
+            );
+          }
+        });
+        jobQueue.registerHandler("vod_seo_optimize", async (job) => {
+          const { vodSEOOptimizer } = await import("./services/vod-seo-optimizer");
+          const { videoId } = job.payload || {};
+          if (job.userId && videoId) {
+            await vodSEOOptimizer.optimize(job.userId, videoId).catch(err =>
+              logger.warn("[Autonomous] vod_seo_optimize job failed", { error: String(err) })
+            );
+          }
+        });
+        jobQueue.registerHandler("multi_platform_clips", async (job) => {
+          const { multiPlatformDistributor } = await import("./services/multi-platform-distributor");
+          const { videoId, gameTitle, platforms } = job.payload || {};
+          if (job.userId) {
+            await multiPlatformDistributor.distribute(
+              job.userId,
+              { videoId, gameTitle, title: `${gameTitle} Stream Highlights` },
+              platforms || ["tiktok", "discord"]
+            ).catch(err => logger.warn("[Autonomous] multi_platform_clips job failed", { error: String(err) }));
+          }
+        });
+        jobQueue.registerHandler("stream_performance_analysis", async (job) => {
+          const { revenueBrain } = await import("./services/revenue-brain");
+          if (job.userId) {
+            await revenueBrain.dailyRevenueCycle(job.userId).catch(err =>
+              logger.warn("[Autonomous] stream_performance_analysis job failed", { error: String(err) })
+            );
+          }
+        });
+        jobQueue.registerHandler("sponsor_outreach", async (job) => {
+          logger.info("[Autonomous] sponsor_outreach job received — queued for manual send", { userId: job.userId, payload: job.payload });
+        });
+        jobQueue.registerHandler("evergreen_recycler", async (job) => {
+          const { videoId, gameTitle } = job.payload || {};
+          logger.info("[Autonomous] evergreen_recycler job received", { userId: job.userId, videoId, gameTitle });
+          // Enqueue shorts factory to re-process highlights for evergreen distribution
+          if (job.userId && videoId) {
+            const { shortsFactory } = await import("./services/shorts-factory");
+            await shortsFactory.process(job.userId, videoId, gameTitle || "Gaming Stream", 0).catch(err =>
+              logger.warn("[Autonomous] evergreen_recycler factory failed", { error: String(err) })
+            );
+          }
+        });
+        jobQueue.registerHandler("community_post_update", async (job) => {
+          const { communityAutoManager } = await import("./services/community-auto-manager");
+          if (job.userId) await communityAutoManager.postCommunityUpdate(job.userId).catch(err =>
+            logger.warn("[Autonomous] community_post_update failed", { error: String(err) })
+          );
+        });
+        jobQueue.registerHandler("clip_highlight_moment", async (job) => {
+          logger.info("[Autonomous] clip_highlight_moment job received", { userId: job.userId, payload: job.payload });
+        });
+        jobQueue.registerHandler("pre_stream_community_post", async (job) => {
+          const { communityAutoManager } = await import("./services/community-auto-manager");
+          if (job.userId) await communityAutoManager.postCommunityUpdate(job.userId).catch(err =>
+            logger.warn("[Autonomous] pre_stream_community_post failed", { error: String(err) })
+          );
+        });
+        jobQueue.registerHandler("discord_live_announce", async (job) => {
+          const { userId, payload } = job;
+          if (!userId) return;
+          const { storage: st } = await import("./storage");
+          const channels = await st.getChannelsByUser(userId);
+          const ytChannel = channels.find((c: any) => c.platform === "youtube");
+          const webhookUrl = (ytChannel as any)?.discordWebhookUrl;
+          if (webhookUrl && payload?.message) {
+            await fetch(webhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: payload.message }),
+            }).catch(err => logger.warn("[Autonomous] Discord announce webhook failed", { error: String(err) }));
+          }
+        });
+
+        logger.info("[Autonomous] Job handlers registered (16 total)");
       } catch (err: any) {
         logger.error("[Autonomous] Job handler registration failed", { error: String(err) });
       }

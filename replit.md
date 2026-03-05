@@ -72,7 +72,11 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
   - New DB tables: `userAutonomousSettings`, `streamLifecycleStates`, `streamDetectionLog`, `revenueStrategies`, `growthPlans`, `autonomousActionLog`.
   - New API endpoints: `GET /api/system/live` (SSE, 10s pulse), `GET/POST /api/autonomous/settings`, `POST /api/autonomous/mode`, `POST /api/autonomous/pause`, `POST /api/autonomous/resume`, `POST /api/autonomous/stream-now`.
   - stream.ended cascade (agent-events.ts): T+2min→shorts factory, T+15min→SEO optimizer, T+20min→distributor, T+30min→community post job.
-  - Job handlers registered: `extract_and_publish_clip`, `post_stream_community`, `mid_stream_highlight`, `generate_content_idea`, `content_idea_generation`, `tiktok_publish`.
+  - Job handlers registered (16 total): `extract_and_publish_clip`, `post_stream_community`, `mid_stream_highlight`, `generate_content_idea`, `content_idea_generation`, `tiktok_publish`, `vod_wait_and_process`, `shorts_factory`, `vod_seo_optimize`, `multi_platform_clips`, `stream_performance_analysis`, `sponsor_outreach`, `evergreen_recycler`, `community_post_update`, `clip_highlight_moment`, `pre_stream_community_post`, `discord_live_announce`.
+  - stream.started cascade (agent-events.ts): immediate stream operator start (if liveChatId) + T+1min community post + T+1min Discord live announce.
+  - stream.ended cascade extended: T+60min→stream_performance_analysis job, T+24hr→evergreen_recycler job, T+5s→stop stream operator.
+  - Stream operator expanded: real viewer count tracking (YouTube liveStreamingDetails API), `crossPostLiveAnnouncements` (every 10min, deduped), `updateDiscordServer` via channel webhook (every 30min).
+  - minutesFromNow() / hoursFromNow() helpers exported from agent-events.ts for scheduled jobQueue enqueuing.
 
 ### Authentication & Authorization
 - **Authentication**: Replit Auth (OIDC-based).

@@ -62,12 +62,73 @@ export function getRecentEvents(userId?: string, limit = 20): AgentEvent[] {
   return filtered.slice(0, limit);
 }
 
+// ── Scheduling helpers ─────────────────────────────────────────────────────
+function minutesFromNow(n: number): Date {
+  return new Date(Date.now() + n * 60_000);
+}
+function hoursFromNow(n: number): Date {
+  return new Date(Date.now() + n * 3_600_000);
+}
+
 /**
  * Wire all cross-agent reactions. Call once at startup.
  * This is where the "god level" coordination lives.
  */
 export async function wireAgentCoordination(): Promise<void> {
   logger.info("Wiring agent coordination event handlers");
+
+  // ── PRE-STREAM PIPELINE ─────────────────────────────────────────────────
+  // When stream.started fires → start the autonomous stream operator + announce
+  onAgentEvent("stream.started", async (event) => {
+    const { videoId, gameTitle, liveChatId, title } = event.payload || {};
+    logger.info(`stream.started for ${event.userId.slice(0, 8)} — launching pre-stream pipeline`);
+
+    // 1. Immediately start the stream operator (if liveChatId available)
+    if (liveChatId) {
+      setTimeout(async () => {
+        try {
+          const { startStreamOperator } = await import("./stream-operator");
+          await startStreamOperator(event.userId, { liveChatId });
+          logger.info(`Stream operator started for ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Stream operator startup failed: ${err.message}`);
+        }
+      }, 0);
+    }
+
+    // 2. T+1min: Community post announcing the stream
+    setTimeout(async () => {
+      try {
+        const { jobQueue } = await import("./intelligent-job-queue");
+        await jobQueue.enqueue({
+          type: "pre_stream_community_post",
+          userId: event.userId,
+          priority: 9,
+          payload: { videoId, gameTitle, title },
+          dedupeKey: `pre_stream_announce:${videoId || event.userId}`,
+        });
+        logger.info(`Pre-stream community post queued for ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Pre-stream community post failed: ${err.message}`);
+      }
+    }, 60_000);
+
+    // 3. T+1min: Discord live announcement
+    setTimeout(async () => {
+      try {
+        const { jobQueue } = await import("./intelligent-job-queue");
+        await jobQueue.enqueue({
+          type: "discord_live_announce",
+          userId: event.userId,
+          priority: 9,
+          payload: { videoId, gameTitle, title },
+          dedupeKey: `discord_announce:${videoId || event.userId}`,
+        });
+      } catch (err: any) {
+        logger.warn(`Discord live announce queue failed: ${err.message}`);
+      }
+    }, 60_000);
+  });
 
   // When a stream ends → immediately scan for new uploads + run consistency
   onAgentEvent("stream.ended", async (event) => {
@@ -145,13 +206,66 @@ export async function wireAgentCoordination(): Promise<void> {
         await jobQueue.enqueue({
           type: "community_post_update",
           userId: event.userId,
-          payload: { videoId, gameTitle, type: "stream_summary" }
+          priority: 7,
+          payload: { videoId, gameTitle, type: "stream_summary" },
+          dedupeKey: `post_stream_community:${videoId || event.userId}`,
         });
         logger.info(`Autonomous community post job enqueued for user ${event.userId.slice(0, 8)}`);
       } catch (err: any) {
         logger.warn(`Autonomous community post job failed: ${err.message}`);
       }
     }, 30 * 60_000);
+
+    // 7. Stream Performance Analysis (T+60min)
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { jobQueue } = await import("./intelligent-job-queue");
+          await jobQueue.enqueue({
+            type: "stream_performance_analysis",
+            userId: event.userId,
+            priority: 5,
+            payload: { videoId, gameTitle },
+            scheduledFor: minutesFromNow(60),
+            dedupeKey: `stream_analysis:${videoId}`,
+          });
+          logger.info(`Stream performance analysis queued for ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Stream performance analysis queue failed: ${err.message}`);
+        }
+      }, 60 * 60_000);
+    }
+
+    // 8. Evergreen Recycler (T+24hr) — repurpose best moments as new content
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { jobQueue } = await import("./intelligent-job-queue");
+          await jobQueue.enqueue({
+            type: "evergreen_recycler",
+            userId: event.userId,
+            priority: 3,
+            payload: { videoId, gameTitle },
+            scheduledFor: hoursFromNow(24),
+            dedupeKey: `evergreen:${videoId}`,
+          });
+          logger.info(`Evergreen recycler queued for ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Evergreen recycler queue failed: ${err.message}`);
+        }
+      }, 24 * 60 * 60_000);
+    }
+
+    // 9. Stop stream operator when stream ends
+    setTimeout(async () => {
+      try {
+        const { stopStreamOperator } = await import("./stream-operator");
+        await stopStreamOperator(event.userId);
+        logger.info(`Stream operator stopped for ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Stream operator stop failed: ${err.message}`);
+      }
+    }, 5_000); // 5s grace period
   });
 
   // When a new upload is detected → run consistency check on it

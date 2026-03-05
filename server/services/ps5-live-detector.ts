@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { channels, streamDetectionLog, type InsertStreamDetectionLog } from "@shared/schema";
+import { channels, streamDetectionLog } from "@shared/schema";
 import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
