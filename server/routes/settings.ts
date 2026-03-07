@@ -927,6 +927,10 @@ export function registerSettingsRoutes(app: Express) {
     if (!userId) return;
 
     const statuses = await cached(`agents-status:${userId}`, 5, async () => {
+      const { getSessionInfo } = await import("../services/agent-orchestrator");
+      const session = getSessionInfo(userId);
+      const sessionActive = session.active && !session.paused;
+
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const recentActivities = await db
         .select({
@@ -939,23 +943,33 @@ export function registerSettingsRoutes(app: Express) {
         .groupBy(aiAgentActivities.agentId);
 
       const activityMap = new Map(recentActivities.map(a => [a.agentId, a]));
+      const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
 
       return AI_AGENTS.map(agent => {
         const recent = activityMap.get(agent.id);
         let status: "active" | "idle" | "error" = "idle";
+
         if (recent) {
           const lastRunTime = new Date(recent.lastRun).getTime();
-          const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
           status = lastRunTime > sixHoursAgo ? "active" : "idle";
+        } else if (sessionActive) {
+          status = "active";
         }
+
+        const healthEntry = session.health?.[agent.id];
+        if (healthEntry && healthEntry.consecutiveFails >= 3 && status !== "active") {
+          status = "error";
+        }
+
         return {
           id: agent.id,
           name: agent.name,
           role: agent.role,
           icon: agent.icon,
           status,
-          lastRun: recent?.lastRun || null,
+          lastRun: recent?.lastRun || session.startedAt || null,
           tasksToday: recent?.count || 0,
+          sessionActive,
         };
       });
     });
