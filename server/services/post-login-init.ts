@@ -1,6 +1,7 @@
 import { storage } from "../storage";
-import { channels, users } from "@shared/schema";
+import { channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { db } from "../db";
 
 export async function initializeUserSystems(userId: string): Promise<{ results: Record<string, string> }> {
   const results: Record<string, string> = {};
@@ -13,6 +14,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
     }
     results.user = "found";
 
+    // Phase 1: Critical blocking tasks (backlog must start before anything else)
     try {
       const { startBacklogOnLogin } = await import("../backlog-manager");
       const backlogResult = await startBacklogOnLogin(userId);
@@ -22,118 +24,123 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       results.backlog = "error";
     }
 
-    try {
-      const { getQuotaStatus } = await import("./youtube-quota-tracker");
-      const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-      if (quota.remaining >= 10) {
-        const { refreshAllUserChannelStats } = await import("../youtube");
-        await refreshAllUserChannelStats(userId);
-        results.channelStats = "refreshed";
-      } else {
-        results.channelStats = "skipped_low_quota";
-      }
-    } catch (err) {
-      console.error(`[PostLoginInit] Channel stats refresh failed for ${userId}:`, err);
+    // Phase 2: Independent tasks run in parallel
+    const [channelStatsResult, tokenRefreshResult, customerResult] = await Promise.allSettled([
+      // Channel stats refresh (quota-gated)
+      (async () => {
+        const { getQuotaStatus } = await import("./youtube-quota-tracker");
+        const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+        if (quota.remaining >= 10) {
+          const { refreshAllUserChannelStats } = await import("../youtube");
+          await refreshAllUserChannelStats(userId);
+          return "refreshed";
+        }
+        return "skipped_low_quota";
+      })(),
+
+      // Token refresh (if any channel tokens expiring)
+      (async () => {
+        const userChannels = await storage.getChannelsByUser(userId);
+        const now = new Date();
+        const needsRefresh = userChannels.some(ch => {
+          if (!ch.accessToken || !ch.refreshToken) return false;
+          const expiresAt = ch.tokenExpiresAt ? new Date(ch.tokenExpiresAt) : null;
+          return expiresAt && expiresAt.getTime() - now.getTime() < 60 * 60 * 1000;
+        });
+
+        if (!needsRefresh) return { tokenResult: "not_needed", count: userChannels.length };
+
+        const { refreshExpiringTokens } = await import("../token-refresh");
+        const refreshResult = await refreshExpiringTokens();
+        return { tokenResult: `${refreshResult.refreshed} refreshed, ${refreshResult.failed} failed`, count: userChannels.length };
+      })(),
+
+      // Customer profile update
+      (async () => {
+        const { createOrUpdateCustomerProfile, updateCustomerActivity } = await import("../customer-database-engine");
+        await createOrUpdateCustomerProfile(userId, {});
+        await updateCustomerActivity(userId);
+        return "updated";
+      })(),
+    ]);
+
+    if (channelStatsResult.status === "fulfilled") {
+      results.channelStats = channelStatsResult.value;
+    } else {
+      console.error(`[PostLoginInit] Channel stats failed for ${userId}:`, channelStatsResult.reason);
       results.channelStats = "error";
     }
 
-    try {
-      const userChannels = await storage.getChannelsByUser(userId);
-      results.connectedPlatforms = String(userChannels.length);
-
-      if (userChannels.length > 0 && !user.autopilotActive) {
-        await storage.updateUserProfile(userId, { autopilotActive: true });
+    if (tokenRefreshResult.status === "fulfilled") {
+      const val = tokenRefreshResult.value;
+      results.connectedPlatforms = String(val.count);
+      results.tokenRefresh = val.tokenResult;
+      // Auto-enable autopilot if channels connected
+      if (val.count > 0 && !user.autopilotActive) {
+        await storage.updateUserProfile(userId, { autopilotActive: true }).catch(() => {});
         results.autopilotAutoEnabled = "true";
       }
-
-      for (const channel of userChannels) {
-        if (channel.accessToken && channel.refreshToken) {
-          const expiresAt = channel.tokenExpiresAt ? new Date(channel.tokenExpiresAt) : null;
-          const now = new Date();
-          if (expiresAt && expiresAt.getTime() - now.getTime() < 60 * 60 * 1000) {
-            try {
-              const { refreshExpiringTokens } = await import("../token-refresh");
-              const refreshResult = await refreshExpiringTokens();
-              results.tokenRefresh = `${refreshResult.refreshed} refreshed, ${refreshResult.failed} failed`;
-
-              if (refreshResult.failed > 0) {
-                results.reconnectEmail = "deferred to health check";
-              }
-            } catch (e) {
-              console.error(`[PostLoginInit] Token refresh failed for ${userId}:`, e);
-              results.tokenRefresh = "error";
-            }
-            break;
-          }
-        }
-      }
-      if (!results.tokenRefresh) results.tokenRefresh = "not_needed";
-    } catch (err) {
-      console.error(`[PostLoginInit] Platform sync failed for ${userId}:`, err);
-      results.connectedPlatforms = "error";
+    } else {
+      console.error(`[PostLoginInit] Token refresh failed for ${userId}:`, tokenRefreshResult.reason);
+      results.tokenRefresh = "error";
     }
 
+    if (customerResult.status === "fulfilled") {
+      results.customerProfile = customerResult.value;
+    } else {
+      console.error(`[PostLoginInit] Customer profile failed for ${userId}:`, customerResult.reason);
+      results.customerProfile = "error";
+    }
+
+    // Phase 3: Optimization tasks in parallel (non-critical, can fail silently)
+    const [settingsResult, tierResult] = await Promise.allSettled([
+      (async () => {
+        const { autoOptimizeSettings } = await import("./auto-settings-optimizer");
+        const r = await autoOptimizeSettings(userId);
+        return r.optimized ? r.summary : "already_optimal";
+      })(),
+      (async () => {
+        const { analyzeAndRecommendTier } = await import("./auto-tier-optimizer");
+        const r = await analyzeAndRecommendTier(userId);
+        return r.autoApplied ? "optimal" : `recommend_${r.recommendedTier}`;
+      })(),
+    ]);
+
+    results.settingsOptimized = settingsResult.status === "fulfilled" ? settingsResult.value : "error";
+    results.tierRecommendation = tierResult.status === "fulfilled" ? tierResult.value : "error";
+
+    // Phase 4: Autopilot + automation (deferred, non-blocking)
     const shouldRunAutopilot = user.autopilotActive || results.autopilotAutoEnabled === "true";
     if (shouldRunAutopilot) {
-      try {
-        const { processCommentResponses, processContentRecycling, processCrossPromotion } = await import("../autopilot-engine");
-        setTimeout(async () => {
-          try { await processCommentResponses(userId); } catch (e) { console.error(`[PostLoginInit] Comment responses failed for ${userId}:`, e); }
-          try { await processContentRecycling(userId); } catch (e) { console.error(`[PostLoginInit] Content recycling failed for ${userId}:`, e); }
-          try { await processCrossPromotion(userId); } catch (e) { console.error(`[PostLoginInit] Cross promotion failed for ${userId}:`, e); }
-        }, 5000);
-        results.autopilot = "activated";
-      } catch (err) {
-        console.error(`[PostLoginInit] Autopilot activation failed for ${userId}:`, err);
-        results.autopilot = "error";
-      }
+      setTimeout(async () => {
+        try {
+          const { processCommentResponses, processContentRecycling, processCrossPromotion } = await import("../autopilot-engine");
+          await Promise.allSettled([
+            processCommentResponses(userId).catch(e => console.error(`[PostLoginInit] Comment responses failed for ${userId}:`, e)),
+            processContentRecycling(userId).catch(e => console.error(`[PostLoginInit] Content recycling failed for ${userId}:`, e)),
+            processCrossPromotion(userId).catch(e => console.error(`[PostLoginInit] Cross promotion failed for ${userId}:`, e)),
+          ]);
+        } catch (e) {
+          console.error(`[PostLoginInit] Autopilot deferred tasks failed for ${userId}:`, e);
+        }
+      }, 3000);
+      results.autopilot = "activated";
     } else {
       results.autopilot = "inactive";
     }
 
+    setTimeout(async () => {
+      try {
+        const { evaluateRules } = await import("../automation-engine");
+        await evaluateRules(userId, "user_login", { userId, timestamp: new Date().toISOString() });
+      } catch (e) {
+        console.error(`[PostLoginInit] Automation rules failed for ${userId}:`, e);
+      }
+    }, 1500);
+    results.automationRules = "evaluated";
     results.liveDetection = "scheduled";
 
-    try {
-      const { evaluateRules } = await import("../automation-engine");
-      setTimeout(async () => {
-        try { await evaluateRules(userId, "user_login", { userId, timestamp: new Date().toISOString() }); } catch (e) { console.error(`[PostLoginInit] Automation rules evaluation failed for ${userId}:`, e); }
-      }, 2000);
-      results.automationRules = "evaluated";
-    } catch (err) {
-      console.error(`[PostLoginInit] Automation rules evaluation failed for ${userId}:`, err);
-      results.automationRules = "error";
-    }
-
-    try {
-      const { createOrUpdateCustomerProfile, updateCustomerActivity } = await import("../customer-database-engine");
-      await createOrUpdateCustomerProfile(userId, {});
-      await updateCustomerActivity(userId);
-      results.customerProfile = "updated";
-    } catch (err) {
-      console.error(`[PostLoginInit] Customer profile update failed for ${userId}:`, err);
-      results.customerProfile = "error";
-    }
-
-    try {
-      const { autoOptimizeSettings } = await import("./auto-settings-optimizer");
-      const settingsResult = await autoOptimizeSettings(userId);
-      results.settingsOptimized = settingsResult.optimized ? settingsResult.summary : "already_optimal";
-    } catch (err) {
-      console.error(`[PostLoginInit] Settings optimization failed for ${userId}:`, err);
-      results.settingsOptimized = "error";
-    }
-
-    try {
-      const { analyzeAndRecommendTier } = await import("./auto-tier-optimizer");
-      const tierResult = await analyzeAndRecommendTier(userId);
-      results.tierRecommendation = tierResult.autoApplied
-        ? "optimal"
-        : `recommend_${tierResult.recommendedTier}`;
-    } catch (err) {
-      console.error(`[PostLoginInit] Tier analysis failed for ${userId}:`, err);
-      results.tierRecommendation = "error";
-    }
-
+    // Phase 5: Agent session (must be last — needs everything else initialized)
     try {
       const { startUserAgentSession } = await import("./agent-orchestrator");
       const session = await startUserAgentSession(userId);

@@ -1045,6 +1045,33 @@ export async function registerPlatformRoutes(app: Express) {
     }
   }
 
+  app.get("/api/oauth/needs-reconnect", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const userChannels = await db.select({
+        platform: channels.platform,
+        platformData: channels.platformData,
+        tokenExpiresAt: channels.tokenExpiresAt,
+        refreshToken: channels.refreshToken,
+        accessToken: channels.accessToken,
+      }).from(channels).where(eq(channels.userId, userId));
+
+      const expired = userChannels.filter(ch => {
+        const pd = (ch.platformData || {}) as any;
+        if (pd._connectionStatus === "expired") return true;
+        if (ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date() && !ch.refreshToken) return true;
+        return false;
+      });
+
+      const platforms = [...new Set(expired.map(ch => ch.platform))];
+      res.json({ needsReconnect: platforms.length > 0, platforms, count: platforms.length });
+    } catch (err) {
+      console.error("[NeedsReconnect] Error:", err);
+      res.json({ needsReconnect: false, platforms: [], count: 0 });
+    }
+  });
+
   app.get("/api/oauth/status", async (_req, res) => {
     const status = await cached(`oauth-status`, 30, async () => {
       const allOAuth = getAllOAuthPlatforms();

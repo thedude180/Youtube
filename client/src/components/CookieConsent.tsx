@@ -26,7 +26,7 @@ export default function CookieConsent() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 flex justify-center" data-testid="cookie-consent-banner">
+    <div className="fixed bottom-4 right-4 left-4 md:left-auto md:max-w-sm z-50" data-testid="cookie-consent-banner">
       <Card className="max-w-lg p-4 shadow-lg border bg-card">
         <div className="flex items-start gap-3">
           <Cookie className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />

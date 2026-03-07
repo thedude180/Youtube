@@ -37,6 +37,7 @@ import { FeedbackWidget } from "@/components/FeedbackWidget";
 import CookieConsent from "@/components/CookieConsent";
 import { CreatorModeProvider } from "@/hooks/use-creator-mode";
 import { LiveStreamBanner } from "@/components/LiveStreamBanner";
+import { PlatformReconnectBanner } from "@/components/PlatformReconnectBanner";
 
 const CommandPalette = lazyRetry(() => import("@/components/CommandPalette"));
 const FloatingChat    = lazyRetry(() => import("@/components/FloatingChat"));
@@ -451,6 +452,7 @@ function AuthenticatedApp() {
           </header>
           {!isFocusMode && <HealthRibbon />}
           <LiveStreamBanner />
+          {!isFocusMode && <PlatformReconnectBanner />}
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
             <Suspense fallback={<div className="flex items-center justify-center h-full min-h-[200px]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
               <Router />

@@ -59,8 +59,8 @@ async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
         startedAt: s.started_at,
         viewerCount: s.viewer_count,
       }));
-  } catch (err) {
-    console.error(`[LiveDetection] Twitch check failed for channel ${channelRow.id}:`, err);
+  } catch (err: any) {
+    console.warn(`[LiveDetection] Twitch check failed for channel ${channelRow.id}:`, err?.message ?? err);
     return [];
   }
 }
@@ -144,8 +144,8 @@ async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast[]> {
       startedAt: new Date().toISOString(),
       viewerCount: undefined,
     }];
-  } catch (err) {
-    console.error(`[LiveDetection] TikTok check failed for channel ${channelRow.id}:`, err);
+  } catch (err: any) {
+    console.warn(`[LiveDetection] TikTok check failed for channel ${channelRow.id}:`, err?.message ?? err);
     return [];
   }
 }
@@ -182,8 +182,13 @@ async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
           viewerCount: ls.viewer_count || ch.viewer_count,
         };
       });
-  } catch (err) {
-    console.error(`[LiveDetection] Kick check failed for channel ${channelRow.id}:`, err);
+  } catch (err: any) {
+    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError" || err?.code === "UND_ERR_CONNECT_TIMEOUT";
+    if (isTimeout) {
+      console.warn(`[LiveDetection] Kick check timed out for channel ${channelRow.id} — Kick API slow`);
+    } else {
+      console.warn(`[LiveDetection] Kick check failed for channel ${channelRow.id}:`, err?.message ?? err);
+    }
     return [];
   }
 }
@@ -217,8 +222,8 @@ async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast[]> {
         startedAt: ls.started_at || ls.created_at,
         viewerCount: ls.viewer_count || ls.watching_now || 0,
       }));
-  } catch (err) {
-    console.error(`[LiveDetection] Rumble check failed for channel ${channelRow.id}:`, err);
+  } catch (err: any) {
+    console.warn(`[LiveDetection] Rumble check failed for channel ${channelRow.id}:`, err?.message ?? err);
     return [];
   }
 }
