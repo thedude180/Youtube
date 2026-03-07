@@ -46,9 +46,10 @@ export function registerSyncRoutes(app: Express): void {
       }
 
       try {
-        const { refreshExpiringTokens } = await import("../token-refresh");
+        const { refreshExpiringTokens, keepAliveAllTokens } = await import("../token-refresh");
         const tokenResult = await refreshExpiringTokens();
-        results.tokenRefresh = `${tokenResult.refreshed} refreshed`;
+        const keepaliveResult = await keepAliveAllTokens();
+        results.tokenRefresh = `${tokenResult.refreshed + keepaliveResult.kept} active, ${tokenResult.failed + keepaliveResult.failed} failed`;
       } catch (err: any) {
         results.tokenRefresh = "skipped";
       }

@@ -2,7 +2,7 @@ import type { Platform } from "@shared/schema";
 import { OAUTH_CONFIGS } from "./oauth-config";
 import { db } from "./db";
 import { channels } from "@shared/schema";
-import { eq, lt, and, isNotNull } from "drizzle-orm";
+import { eq, lt, and, isNotNull, isNull, not } from "drizzle-orm";
 
 interface RefreshResult {
   success: boolean;
@@ -173,16 +173,35 @@ export async function refreshSingleChannel(ch: { platform: string; refreshToken:
 
 const X_PLATFORMS = new Set<string>(["x", "twitter"]);
 
+// Widen the buffer: refresh tokens 24 hours before expiry instead of 2 hours.
+// This gives a full day of runway before any token risks going stale.
+const REFRESH_BUFFER_MS = 24 * 60 * 60 * 1000;
+
+// How many consecutive permanent failures before we accept the token as dead.
+// 3 retries over 30 minutes avoids flagging tokens dead due to transient Google API outages.
+const PERMANENT_FAILURE_THRESHOLD = 3;
+
+async function markChannelExpired(channelId: number, existingPlatformData: any): Promise<void> {
+  await db.update(channels).set({
+    tokenExpiresAt: null,
+    refreshToken: null,
+    platformData: {
+      ...(existingPlatformData || {}),
+      _connectionStatus: "expired",
+      _expiredAt: new Date().toISOString(),
+      _permanentFailures: 0,
+    },
+  }).where(eq(channels.id, channelId));
+}
+
 export async function refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
-  const bufferMs = 2 * 60 * 60 * 1000;
-  const threshold = new Date(Date.now() + bufferMs);
+  const threshold = new Date(Date.now() + REFRESH_BUFFER_MS);
 
   let refreshed = 0;
   let failed = 0;
 
   try {
-    const xBufferMs = 90 * 60 * 1000;
-    const xThreshold = new Date(Date.now() + xBufferMs);
+    const xThreshold = new Date(Date.now() + 90 * 60 * 1000);
 
     const expiring = await db.select().from(channels).where(
       and(
@@ -210,8 +229,9 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
     for (const ch of allExpiring) {
       if (!ch.refreshToken || !ch.platform) continue;
       const pd = (ch.platformData || {}) as any;
-      const reconnectFailures = pd._reconnectFailures || 0;
-      if (pd._connectionStatus === "expired" && reconnectFailures >= 5) continue;
+
+      // Only stop retrying after hitting the permanent failure threshold
+      if (pd._connectionStatus === "expired" && (pd._permanentFailures || 0) >= PERMANENT_FAILURE_THRESHOLD) continue;
 
       const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
 
@@ -220,19 +240,33 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
           accessToken: result.accessToken,
           refreshToken: result.refreshToken || ch.refreshToken,
           tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
-          platformData: { ...(ch.platformData as any || {}), _connectionStatus: "active", _lastRefresh: new Date().toISOString() },
+          platformData: {
+            ...(pd),
+            _connectionStatus: "active",
+            _lastRefresh: new Date().toISOString(),
+            _permanentFailures: 0,
+          },
         }).where(eq(channels.id, ch.id));
-
         refreshed++;
       } else {
         const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
         if (isExpiredPermanently) {
-          await db.update(channels).set({
-            tokenExpiresAt: null,
-            refreshToken: null,
-            platformData: { ...(ch.platformData as any || {}), _connectionStatus: "expired", _expiredAt: new Date().toISOString() },
-          }).where(eq(channels.id, ch.id));
-          console.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} permanently expired — user must re-authorize`);
+          const failures = (pd._permanentFailures || 0) + 1;
+          if (failures >= PERMANENT_FAILURE_THRESHOLD) {
+            await markChannelExpired(ch.id, pd);
+            console.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} confirmed expired after ${failures} attempts — user must re-authorize`);
+          } else {
+            // Don't wipe the token yet — wait for more failures to confirm it's truly dead
+            await db.update(channels).set({
+              platformData: {
+                ...pd,
+                _connectionStatus: "degraded",
+                _permanentFailures: failures,
+                _lastFailureAt: new Date().toISOString(),
+              },
+            }).where(eq(channels.id, ch.id));
+            console.warn(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD}) — will retry`);
+          }
         } else {
           console.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
         }
@@ -244,4 +278,85 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
   }
 
   return { refreshed, failed };
+}
+
+// Daily keepalive: refresh ALL active tokens once per day regardless of expiry.
+// This prevents refresh tokens from ever going stale due to inactivity (Google revokes
+// refresh tokens that haven't been used in 6 months — daily exercise prevents this entirely).
+export async function keepAliveAllTokens(): Promise<{ kept: number; failed: number }> {
+  let kept = 0;
+  let failed = 0;
+
+  console.log("[TokenKeepalive] Starting daily keepalive for all active channels...");
+
+  try {
+    const activeChannels = await db.select().from(channels).where(
+      and(
+        isNotNull(channels.refreshToken),
+        isNotNull(channels.accessToken),
+      )
+    );
+
+    for (const ch of activeChannels) {
+      if (!ch.refreshToken || !ch.platform) continue;
+      const pd = (ch.platformData || {}) as any;
+
+      // Skip channels already confirmed expired
+      if (pd._connectionStatus === "expired") continue;
+
+      // Skip if we refreshed this channel in the last 20 hours (no need to refresh twice in one day)
+      if (pd._lastRefresh) {
+        const lastRefresh = new Date(pd._lastRefresh).getTime();
+        if (Date.now() - lastRefresh < 20 * 60 * 60 * 1000) {
+          kept++;
+          continue;
+        }
+      }
+
+      try {
+        const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
+
+        if (result.success && result.accessToken) {
+          await db.update(channels).set({
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken || ch.refreshToken,
+            tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
+            platformData: {
+              ...pd,
+              _connectionStatus: "active",
+              _lastRefresh: new Date().toISOString(),
+              _permanentFailures: 0,
+              _keepaliveAt: new Date().toISOString(),
+            },
+          }).where(eq(channels.id, ch.id));
+          kept++;
+        } else {
+          const isPermanent = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
+          if (isPermanent) {
+            const failures = (pd._permanentFailures || 0) + 1;
+            if (failures >= PERMANENT_FAILURE_THRESHOLD) {
+              await markChannelExpired(ch.id, pd);
+              console.error(`[TokenKeepalive] ${ch.platform} ${ch.channelName} confirmed dead — user must re-authorize`);
+            } else {
+              await db.update(channels).set({
+                platformData: { ...pd, _connectionStatus: "degraded", _permanentFailures: failures, _lastFailureAt: new Date().toISOString() },
+              }).where(eq(channels.id, ch.id));
+            }
+          }
+          failed++;
+        }
+      } catch (e) {
+        console.warn(`[TokenKeepalive] Error refreshing ${ch.platform} channel ${ch.id}:`, e);
+        failed++;
+      }
+
+      // Small stagger to avoid hammering OAuth endpoints
+      await new Promise(r => setTimeout(r, 200));
+    }
+  } catch (e) {
+    console.error("[TokenKeepalive] Error during keepalive:", e);
+  }
+
+  console.log(`[TokenKeepalive] Done — ${kept} kept alive, ${failed} failed`);
+  return { kept, failed };
 }

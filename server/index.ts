@@ -1204,7 +1204,18 @@ httpServer.listen(
       }).catch(err => logger.error("VOD optimizer engine init failed", { error: String(err) }));
     });
 
-    // ── TIER 6: Self-Healing Architecture (T+480s → T+500s) ──────────────────
+    delay(480_000, () => {
+      // Token keepalive: refresh ALL active tokens once per day.
+      // Prevents refresh tokens from ever going stale due to inactivity —
+      // Google revokes tokens unused for 6 months; daily exercise eliminates that risk.
+      import("./token-refresh").then(async m => {
+        await m.keepAliveAllTokens().catch(() => {});
+        const iv = setInterval(() => m.keepAliveAllTokens().catch(() => {}), 24 * 60 * 60_000);
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.warn("Token keepalive init failed", { error: String(err) }));
+    });
+
+    // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.
     delay(400_000, () => {
