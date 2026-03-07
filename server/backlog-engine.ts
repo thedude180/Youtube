@@ -36,20 +36,20 @@ interface AgentChainResult {
 }
 
 const AGENT_CHAIN = [
-  { agentId: "seo_director", action: "SEO Optimization" },
-  { agentId: "editor", action: "Content Refinement" },
-  { agentId: "brand_strategist", action: "Brand Alignment Check" },
-  { agentId: "legal_advisor", action: "Compliance Verification" },
-  { agentId: "social_manager", action: "Social Distribution Plan" },
-  { agentId: "analytics_director", action: "Performance Prediction" },
+  { agentId: "seo",        action: "SEO Optimization" },
+  { agentId: "editor",     action: "Content Refinement" },
+  { agentId: "brand",      action: "Brand Alignment Check" },
+  { agentId: "legal",      action: "Compliance Verification" },
+  { agentId: "social",     action: "Social Distribution Plan" },
+  { agentId: "analyst",    action: "Performance Prediction" },
 ];
 
 const STREAM_SUPPORT_AGENTS = [
-  { agentId: "seo_director", action: "Live Stream SEO Optimization" },
-  { agentId: "social_manager", action: "Live Social Engagement" },
-  { agentId: "community_manager", action: "Live Chat Management" },
-  { agentId: "analytics_director", action: "Real-time Analytics Monitoring" },
-  { agentId: "growth_strategist", action: "Live Growth Tactics" },
+  { agentId: "seo",        action: "Live Stream SEO Optimization" },
+  { agentId: "social",     action: "Live Social Engagement" },
+  { agentId: "community",  action: "Live Chat Management" },
+  { agentId: "analyst",    action: "Real-time Analytics Monitoring" },
+  { agentId: "ops",        action: "Live Growth Tactics" },
 ];
 
 const sessions = new Map<string, BacklogSession>();

@@ -85,7 +85,7 @@ Provide your analysis as JSON:
 Return up to 10 best opportunities, sorted by boost score descending.`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -262,7 +262,7 @@ Provide your impact assessment as JSON:
 }`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;

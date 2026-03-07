@@ -172,7 +172,7 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
       for (const video of userVideos) {
         if (generated >= MAX_THUMBNAILS_PER_RUN) break;
         const meta = (video.metadata as any) || {};
-        if (meta.autoThumbnailGenerated) continue;
+        if (meta.autoThumbnailGenerated || meta.autoThumbnailFailed) continue;
         const youtubeId = meta.youtubeId;
         if (!youtubeId) continue;
         if (video.thumbnailUrl && !video.thumbnailUrl.includes("default")) {

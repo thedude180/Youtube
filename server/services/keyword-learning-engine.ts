@@ -87,7 +87,7 @@ Respond with JSON:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2000,
+    max_completion_tokens: 60000,
   });
 
   const content = response.choices[0]?.message?.content;

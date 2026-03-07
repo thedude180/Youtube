@@ -92,7 +92,7 @@ Provide your analysis as JSON:
 Return up to 8 best ideas, sorted by estimated demand (0-1 scale).`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -199,7 +199,7 @@ Create a comprehensive design brief as JSON:
 }`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -280,7 +280,7 @@ Estimate demand as JSON:
 }`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;

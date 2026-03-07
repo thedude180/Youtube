@@ -111,7 +111,7 @@ Respond as JSON:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -221,7 +221,7 @@ Respond as JSON:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const responseContent = response.choices[0]?.message?.content;
@@ -301,7 +301,7 @@ Respond as JSON:
     model: "gpt-5-mini",
     messages: [{ role: "user", content: aiPrompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;

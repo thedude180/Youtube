@@ -154,7 +154,7 @@ async function pushAndUpdateLocal(
 
   await storage.createAgentActivity({
     userId,
-    agentId: "social_manager",
+    agentId: "social",
     action: `Pushed updated ${updatedFields.join(", ")} to YouTube`,
     target: videoTitle,
     status: "completed",

@@ -136,7 +136,7 @@ async function runTitleOptimization(userId: string): Promise<any> {
           role: "user",
           content: `Current title: "${video.title}" (${video.views || 0} views). Category: ${(video.metadata as any)?.category || "general"}. Optimize for maximum CTR.`
         }],
-        max_completion_tokens: 500,
+        max_completion_tokens: 40000,
         response_format: { type: "json_object" },
       });
 
@@ -182,7 +182,7 @@ async function runDescriptionSeo(userId: string): Promise<any> {
           role: "user",
           content: `Title: "${video.title}". Description: "${(video.description || "").slice(0, 500)}". Optimize for YouTube search.`
         }],
-        max_completion_tokens: 600,
+        max_completion_tokens: 6000,
         response_format: { type: "json_object" },
       });
 
@@ -222,7 +222,7 @@ async function runThumbnailRefresh(userId: string): Promise<any> {
           role: "user",
           content: `Video: "${video.title}" (${video.views || 0} views). Current thumbnail: ${video.thumbnail || "none"}. Design concepts for maximum CTR.`
         }],
-        max_completion_tokens: 500,
+        max_completion_tokens: 40000,
         response_format: { type: "json_object" },
       });
 
@@ -265,7 +265,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
           role: "user",
           content: `Video: "${video.title}" (${video.duration || 600}s, ${video.views || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral Short clips.`
         }],
-        max_completion_tokens: 500,
+        max_completion_tokens: 40000,
         response_format: { type: "json_object" },
       });
 
@@ -376,7 +376,7 @@ async function runVodLearningAdaptation(userId: string): Promise<any> {
         role: "user",
         content: `${recentRuns.length} optimization cycles completed. ${totalOptimized} videos optimized, ${totalShorts} shorts views. Generate learning adaptations.`
       }],
-      max_completion_tokens: 400,
+      max_completion_tokens: 4000,
       response_format: { type: "json_object" },
     });
 

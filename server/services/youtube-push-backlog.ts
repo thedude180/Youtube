@@ -224,7 +224,7 @@ export async function processBacklog(): Promise<{
 
         await storage.createAgentActivity({
           userId,
-          agentId: "seo_director",
+          agentId: "seo",
           action: `Auto-pushed queued optimization to YouTube: ${updates.title || item.youtubeVideoId}`,
           details: { backlogId: item.id, youtubeVideoId: item.youtubeVideoId, updatedFields: Object.keys(updates) },
           status: "completed",

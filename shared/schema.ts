@@ -175,17 +175,20 @@ export const PLATFORM_INFO: Record<Platform, {
 };
 
 export const AI_AGENTS = [
-  { id: "editor", name: "AI Editor", role: "Cuts highlights, creates shorts, optimizes VODs", icon: "Film" },
-  { id: "social_manager", name: "Social Manager", role: "Cross-posts, schedules content, manages community posts", icon: "Share2" },
-  { id: "seo_director", name: "SEO Director", role: "Optimizes titles, descriptions, tags for all platforms", icon: "Search" },
-  { id: "analytics_director", name: "Analytics Director", role: "Tracks performance, identifies trends, reports insights", icon: "BarChart3" },
-  { id: "brand_strategist", name: "Brand Strategist", role: "Maintains voice consistency, brand guidelines, sponsorship fit", icon: "Palette" },
-  { id: "ad_buyer", name: "Ad Buyer", role: "Manages ad spend, targets audiences, optimizes ROAS", icon: "DollarSign" },
-  { id: "legal_advisor", name: "Legal Advisor", role: "Copyright checks, compliance monitoring, DMCA protection", icon: "Scale" },
-  { id: "community_manager", name: "Community Manager", role: "Moderates comments, engages fans, handles DMs", icon: "Users" },
-  { id: "business_manager", name: "Business Manager", role: "Revenue tracking, invoicing, sponsorship negotiations", icon: "Briefcase" },
-  { id: "growth_strategist", name: "Growth Strategist", role: "A/B testing, collaboration outreach, viral content planning", icon: "TrendingUp" },
-  { id: "tax_strategist", name: "Tax Strategist", role: "Deduction finder, quarterly estimates, entity structure, state compliance", icon: "Calculator" },
+  { id: "ceo",          name: "Jordan Blake",   role: "CEO & Strategy Lead",         icon: "Crown" },
+  { id: "ops",          name: "Priya Sharma",   role: "Operations Manager",          icon: "Settings" },
+  { id: "research",     name: "Tomás Rivera",   role: "Research Lead",               icon: "Search" },
+  { id: "scriptwriter", name: "Nia Okafor",     role: "Scriptwriter",                icon: "FileText" },
+  { id: "editor",       name: "Kenji Watanabe", role: "Video Editor",                icon: "Film" },
+  { id: "thumbnail",    name: "Sofia Vasquez",  role: "Thumbnail Designer",          icon: "Image" },
+  { id: "seo",          name: "Arjun Mehta",    role: "SEO Manager",                 icon: "BarChart3" },
+  { id: "shorts",       name: "Zara Ibrahim",   role: "Shorts Specialist",           icon: "Zap" },
+  { id: "social",       name: "Marcus Wilson",  role: "Social Media Manager",        icon: "Share2" },
+  { id: "community",    name: "Chloe Chen",     role: "Community Manager",           icon: "Users" },
+  { id: "analyst",      name: "Dr. Leo Zhang",  role: "Data Analyst",                icon: "TrendingUp" },
+  { id: "brand",        name: "Elena Rossi",    role: "Brand & Sponsorships",        icon: "Palette" },
+  { id: "talent",       name: "Sarah Jenkins",  role: "Talent Manager",              icon: "Star" },
+  { id: "legal",        name: "Alex Rivera",    role: "Legal & Compliance",          icon: "Scale" },
 ] as const;
 
 export type AgentId = typeof AI_AGENTS[number]["id"];

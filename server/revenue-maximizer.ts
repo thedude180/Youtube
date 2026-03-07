@@ -78,7 +78,7 @@ Provide your analysis as JSON:
 }`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -187,7 +187,7 @@ Respond as JSON:
 }`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -297,7 +297,7 @@ Provide a comprehensive report as JSON:
 }`
     }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content;

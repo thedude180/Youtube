@@ -145,7 +145,7 @@ Analyze and respond with JSON:
         },
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 6000,
     });
 
     const content = response.choices[0]?.message?.content;

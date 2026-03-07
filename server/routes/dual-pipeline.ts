@@ -701,7 +701,7 @@ Return JSON: {
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2000,
+    max_completion_tokens: 60000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -1293,7 +1293,7 @@ Return JSON: {
         },
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 1000,
+      max_completion_tokens: 6000,
     });
 
     const content = response.choices[0]?.message?.content;

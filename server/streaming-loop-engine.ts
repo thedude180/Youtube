@@ -145,7 +145,7 @@ async function runClipExtraction(userId: string, runId: number): Promise<any> {
           role: "user",
           content: `Analyze for clips: "${video.title}" (${video.duration || 0}s). Description: ${(video.description || "").slice(0, 200)}`
         }],
-        max_completion_tokens: 500,
+        max_completion_tokens: 40000,
         response_format: { type: "json_object" },
       });
 
@@ -207,7 +207,7 @@ async function runVodOptimization(userId: string, runId: number): Promise<any> {
           role: "user",
           content: `Optimize VOD: "${video.title}". Current description: ${(video.description || "").slice(0, 300)}`
         }],
-        max_completion_tokens: 600,
+        max_completion_tokens: 6000,
         response_format: { type: "json_object" },
       });
 
@@ -296,7 +296,7 @@ async function runLearningAdaptation(userId: string, runId: number): Promise<any
         role: "user",
         content: `Past ${recentRuns.length} runs: ${totalClips} clips extracted, avg CTR delta: ${avgCtrDelta.toFixed(2)}%. Generate learning insights.`
       }],
-      max_completion_tokens: 400,
+      max_completion_tokens: 4000,
       response_format: { type: "json_object" },
     });
 

@@ -189,7 +189,7 @@ CRITICAL RULES:
         { role: "system", content: systemMsg },
         { role: "user", content: prompt },
       ],
-      max_completion_tokens: 100,
+      max_completion_tokens: 4000,
     });
 
     let reply = response.choices[0]?.message?.content || "";

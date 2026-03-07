@@ -72,7 +72,7 @@ Generate a single real-time suggestion. Avoid repeating recent suggestion types 
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 1024,
+    max_completion_tokens: 6000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -173,7 +173,7 @@ Respond as JSON:
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 60000,
   });
 
   const content = response.choices[0]?.message?.content;

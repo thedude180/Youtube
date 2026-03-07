@@ -147,7 +147,7 @@ Generate exactly this JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -507,7 +507,7 @@ Be realistic. Account for diminishing returns, seasonality, and typical creator 
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -748,7 +748,7 @@ Generate a Content DNA profile as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content;

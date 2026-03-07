@@ -9,6 +9,19 @@ import { storage } from "./storage";
 
 const logger = createLogger("autopilot");
 
+const COMMENT_QUOTA_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const commentQuotaCooldown = new Map<string, number>();
+
+function isCommentQuotaOnCooldown(userId: string): boolean {
+  const hitAt = commentQuotaCooldown.get(userId);
+  if (!hitAt) return false;
+  if (Date.now() - hitAt > COMMENT_QUOTA_COOLDOWN_MS) {
+    commentQuotaCooldown.delete(userId);
+    return false;
+  }
+  return true;
+}
+
 function isVideoPostable(video: any): boolean {
   const meta = (video.metadata as any) || {};
   const privacy = meta.privacyStatus || "";
@@ -594,6 +607,10 @@ export async function processPostStreamHighlights(userId: string, streamId: numb
 }
 
 export async function processCommentResponses(userId: string) {
+  if (isCommentQuotaOnCooldown(userId)) {
+    return;
+  }
+
   const config = await getAutopilotConfig(userId, "comment-responder");
   if (config && config.enabled === false) return;
 
@@ -635,7 +652,8 @@ export async function processCommentResponses(userId: string) {
       realComments = await fetchYouTubeComments(connectedChannel.id, ytId, 20);
     } catch (err: any) {
       if (err.code === 403 || err.message?.includes("quota")) {
-        logger.warn("YouTube quota hit fetching comments", { videoId: ytId });
+        logger.warn("YouTube quota hit fetching comments — cooling down 24h", { videoId: ytId, userId });
+        commentQuotaCooldown.set(userId, Date.now());
         break;
       }
       logger.error("Failed to fetch comments", { videoId: ytId, error: err.message });

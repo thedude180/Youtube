@@ -292,7 +292,7 @@ Respond with JSON:
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 3000,
+    max_completion_tokens: 12000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -440,7 +440,7 @@ Respond with JSON:
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 3000,
+    max_completion_tokens: 12000,
   });
 
   const content = response.choices[0]?.message?.content;

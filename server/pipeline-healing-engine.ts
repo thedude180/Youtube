@@ -213,7 +213,7 @@ Provide JSON with:
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 512,
+    max_completion_tokens: 40000,
   });
 
   const content = response.choices[0]?.message?.content;

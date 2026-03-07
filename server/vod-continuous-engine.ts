@@ -81,7 +81,7 @@ async function aiEditVideo(video: any): Promise<{ title: string; description: st
         role: "user",
         content: `Title: "${video.title}". Description: "${(video.description || "").slice(0, 400)}". Views: ${video.views || 0}. Duration: ${(video.metadata as any)?.duration || "unknown"}. Edit for maximum performance.`,
       }],
-      max_completion_tokens: 600,
+      max_completion_tokens: 6000,
       response_format: { type: "json_object" },
     });
     return JSON.parse(resp.choices[0]?.message?.content || "{}");
@@ -101,7 +101,7 @@ async function aiExtractShorts(video: any): Promise<Array<{ title: string; start
         role: "user",
         content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${video.views || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral moments.`,
       }],
-      max_completion_tokens: 500,
+      max_completion_tokens: 40000,
       response_format: { type: "json_object" },
     });
     const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");

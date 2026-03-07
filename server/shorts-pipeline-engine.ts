@@ -274,7 +274,7 @@ TikTok-specific optimization (for clips targeting tiktok):
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -366,7 +366,7 @@ Return as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -433,7 +433,7 @@ Return as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -534,7 +534,7 @@ Create a compilation plan as JSON:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content;

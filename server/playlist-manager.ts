@@ -96,7 +96,7 @@ async function detectGameFromVideo(video: any): Promise<string> {
           content: `Title: ${video.title || "unknown"}\nDescription: ${(video.description || "").substring(0, 200)}\nTags: ${tags.slice(0, 10).join(", ")}`,
         },
       ],
-      max_completion_tokens: 30,
+      max_completion_tokens: 4000,
     });
     const detected = response.choices[0]?.message?.content?.trim().toLowerCase() || "general";
     return detected.length > 0 && detected.length < 50 ? detected : "general";
@@ -263,7 +263,7 @@ RULES:
           content: `Create a thumbnail image prompt for this YouTube playlist: "${playlistTitle}"\n\nReturn ONLY the image generation prompt, nothing else. Make it specific, visual, and optimized for a 1280x720 YouTube playlist thumbnail.`,
         },
       ],
-      max_completion_tokens: 300,
+      max_completion_tokens: 4000,
     });
     return response.choices[0]?.message?.content?.trim() || "";
   } catch (err) {

@@ -150,7 +150,7 @@ async function generateQuickDiagnosis(subsystemName: string, error: Error): Prom
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 200,
+    max_completion_tokens: 4000,
   });
   const content = response.choices[0]?.message?.content;
   if (!content) return { rootCause: "unknown", suggestedFix: "retry", shouldRetry: true };

@@ -50,7 +50,7 @@ Respond as JSON:
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 60000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -147,7 +147,7 @@ Create platform-specific promotional content. Respond as JSON:
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
+    max_completion_tokens: 60000,
   });
 
   const content = response.choices[0]?.message?.content;
