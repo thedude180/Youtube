@@ -115,7 +115,17 @@ export default function Dashboard() {
   const { data: agentActivities } = useQuery<AgentActivity[]>({ queryKey: ['/api/agents/activities'], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: notifications } = useQuery<Notification[]>({ queryKey: ['/api/notifications'], refetchInterval: 30_000, staleTime: 20_000 });
 
-  const { data: creatorScore } = useQuery<any>({ queryKey: ["/api/nexus/creator-score"], refetchInterval: 120000 });
+  const { data: creatorScore, refetch: refetchScore } = useQuery<any>({ queryKey: ["/api/nexus/creator-score"], refetchInterval: 30_000, staleTime: 10_000 });
+  const calcScoreMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/nexus/creator-score/calculate", {}).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nexus/creator-score"] }); queryClient.invalidateQueries({ queryKey: ["/api/creator/rank"] }); },
+  });
+  useEffect(() => {
+    if (creatorScore && (creatorScore.trend === "calculating" || creatorScore.overallScore === null)) {
+      const t = setTimeout(() => refetchScore(), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [creatorScore, refetchScore]);
   const { data: activities } = useQuery<any[]>({ queryKey: ["/api/agents/activities"], refetchInterval: 30000 });
   const { data: momentumScore } = useQuery<any>({ queryKey: ['/api/nexus/momentum'], refetchInterval: 300_000 });
   const { data: missionControl } = useQuery<any>({ queryKey: ['/api/nexus/mission-control'], refetchInterval: 60_000 });
@@ -346,9 +356,13 @@ export default function Dashboard() {
       </section>
 
       {(() => {
-        const score = (creatorScore as any)?.score ?? (creatorScore as any)?.overallScore ?? 72;
-        const scoreColor = score >= 70 ? "hsl(142 70% 50%)" : score >= 40 ? "hsl(45 90% 55%)" : "hsl(0 80% 55%)";
-        const trend = score >= 70 ? "Accelerating" : score >= 40 ? "Stable" : "Declining";
+        const rawScore = (creatorScore as any)?.overallScore ?? (creatorScore as any)?.score;
+        const isCalculating = !creatorScore || rawScore === null || (creatorScore as any)?.trend === "calculating";
+        const score = isCalculating ? 0 : (rawScore as number);
+        const scoreColor = isCalculating ? "hsl(265 50% 50%)" : score >= 70 ? "hsl(142 70% 50%)" : score >= 40 ? "hsl(45 90% 55%)" : "hsl(0 80% 55%)";
+        const trendLabel = isCalculating ? "Calculating…" : score >= 70 ? "Accelerating" : score >= 40 ? "Stable" : "Developing";
+        const subScoreKeys = ["contentQualityScore","monetizationScore","growthScore","engagementScore","reachScore"] as const;
+        const subLabels = ["Content","Revenue","Growth","Engagement","Reach"];
         return (
           <div className="card-empire rounded-2xl p-5 relative overflow-hidden mb-4" data-testid="card-empire-score">
             <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
@@ -357,25 +371,30 @@ export default function Dashboard() {
                 <svg width="140" height="140" viewBox="0 0 140 140" data-testid="svg-empire-gauge">
                   <circle cx="70" cy="70" r="54" fill="none" stroke="hsl(265 80% 60% / 0.15)" strokeWidth="10" />
                   <circle cx="70" cy="70" r="54" fill="none" stroke={scoreColor} strokeWidth="10"
-                    strokeDasharray="339.3" strokeDashoffset={339.3 * (1 - score/100)}
+                    strokeDasharray="339.3" strokeDashoffset={isCalculating ? 339.3 : 339.3 * (1 - score/100)}
                     strokeLinecap="round" transform="rotate(-90 70 70)"
-                    style={{ transition: 'stroke-dashoffset 1.5s ease', filter: `drop-shadow(0 0 8px ${scoreColor})` }} />
-                  <text x="70" y="65" textAnchor="middle" fill="white" fontSize="28" fontWeight="bold" fontFamily="monospace">{score}</text>
-                  <text x="70" y="82" textAnchor="middle" fill="hsl(265 80% 70%)" fontSize="10" fontFamily="monospace">SCORE</text>
+                    style={{ transition: 'stroke-dashoffset 1.5s ease', filter: `drop-shadow(0 0 8px ${scoreColor})`, animation: isCalculating ? "spin 2s linear infinite" : undefined }} />
+                  {isCalculating
+                    ? <text x="70" y="75" textAnchor="middle" fill="hsl(265 80% 70%)" fontSize="11" fontFamily="monospace">CALC…</text>
+                    : <>
+                        <text x="70" y="65" textAnchor="middle" fill="white" fontSize="28" fontWeight="bold" fontFamily="monospace" data-testid="text-empire-score">{score}</text>
+                        <text x="70" y="82" textAnchor="middle" fill="hsl(265 80% 70%)" fontSize="10" fontFamily="monospace">SCORE</text>
+                      </>
+                  }
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-lg font-bold text-white">Creator Empire Score</h2>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${score >= 70 ? 'bg-emerald-500/20 text-emerald-400' : score >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`} data-testid="badge-trend">{trend}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${isCalculating ? 'bg-purple-500/20 text-purple-400 animate-pulse' : score >= 70 ? 'bg-emerald-500/20 text-emerald-400' : score >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`} data-testid="badge-trend">{trendLabel}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">AI-calculated composite score across all platforms</p>
                 <div className="grid grid-cols-5 gap-2">
-                  {["Content","Revenue","Growth","Engagement","Brand"].map((label, i) => {
-                    const subScore = Math.max(0, Math.min(100, score + Math.floor(Math.sin(i) * 15)));
+                  {subLabels.map((label, i) => {
+                    const subScore = isCalculating ? "—" : ((creatorScore as any)?.[subScoreKeys[i]] ?? Math.max(0, Math.min(100, score + Math.floor(Math.sin(i) * 15))));
                     return (
                       <div key={label} className="text-center p-2 rounded-lg bg-muted/20 border border-border/20" data-testid={`metric-${label.toLowerCase()}`}>
-                        <div className="text-sm font-bold font-mono" style={{ color: scoreColor }}>{subScore}</div>
+                        <div className="text-sm font-bold font-mono" style={{ color: isCalculating ? "hsl(265 50% 60%)" : scoreColor }}>{subScore}</div>
                         <div className="text-[9px] text-muted-foreground mt-0.5">{label}</div>
                       </div>
                     );
@@ -504,7 +523,7 @@ export default function Dashboard() {
                   { label: "Fill Calendar", icon: Zap, bgColor: "bg-primary/10", iconColor: "text-primary", onClick: () => fillCalendarMutation.mutate() },
                   { label: "Script Studio", icon: Terminal, bgColor: "bg-purple-500/10", iconColor: "text-purple-400", onClick: () => navigateTo("/script-studio") },
                   { label: "Viral Score", icon: TrendingUp, bgColor: "bg-blue-500/10", iconColor: "text-blue-400", onClick: () => navigateTo("/viral-predictor") },
-                  { label: "Calc Score", icon: Target, bgColor: "bg-emerald-500/10", iconColor: "text-emerald-400", onClick: () => { apiRequest("POST", "/api/nexus/creator-score/calculate", {}).then(() => queryClient.invalidateQueries({ queryKey: ['/api/creator/rank'] })).catch(() => {}); } },
+                  { label: "Calc Score", icon: Target, bgColor: "bg-emerald-500/10", iconColor: "text-emerald-400", onClick: () => calcScoreMutation.mutate() },
                   { label: "Intelligence", icon: Activity, bgColor: "bg-amber-500/10", iconColor: "text-amber-400", onClick: () => navigateTo("/intelligence") },
                   { label: "AI Matrix", icon: NetworkIcon, bgColor: "bg-cyan-500/10", iconColor: "text-cyan-400", onClick: () => navigateTo("/ai-matrix") },
                 ].map(action => (

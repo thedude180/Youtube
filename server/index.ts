@@ -1151,7 +1151,60 @@ httpServer.listen(
     delay(360_000, () => startCleanupCoordinator());
     delay(380_000, () => startResilienceWatchdog());
 
-    // ── TIER 6: Self-Healing Architecture (T+400s → T+420s) ──────────────────
+    // ── TIER 5b: Missing engines (T+390s → T+490s, 10-15s gaps) ─────────────
+    // These engines were not started from any other boot path. Each on its own
+    // slot so they don't compete for DB connections at startup.
+    delay(390_000, () => {
+      import("./weekly-report-engine").then(m => m.initWeeklyReportEngine())
+        .catch(err => logger.error("Weekly Report Engine init failed", { error: String(err) }));
+    });
+
+    delay(405_000, () => {
+      // Auto-thumbnail generation: run once then every 4 hours
+      import("./auto-thumbnail-engine").then(async m => {
+        await m.runAutoThumbnailGeneration().catch(() => {});
+        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(() => {}), 4 * 60 * 60_000);
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.error("Auto-thumbnail engine init failed", { error: String(err) }));
+    });
+
+    delay(420_000, () => {
+      // Marketer engine: run once then every 6 hours
+      import("./marketer-engine").then(async m => {
+        await m.runMarketingCycleForAllUsers().catch(() => {});
+        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(() => {}), 6 * 60 * 60_000);
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.error("Marketer engine init failed", { error: String(err) }));
+    });
+
+    delay(435_000, () => {
+      // Daily content engine: run once then every 12 hours
+      import("./daily-content-engine").then(async m => {
+        await m.runDailyContentGeneration().catch(() => {});
+        const iv = setInterval(() => m.runDailyContentGeneration().catch(() => {}), 12 * 60 * 60_000);
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.error("Daily content engine init failed", { error: String(err) }));
+    });
+
+    delay(450_000, () => {
+      // Playlist manager: run once then every 24 hours
+      import("./playlist-manager").then(async m => {
+        await m.runPlaylistOrganizationForAllUsers().catch(() => {});
+        const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(() => {}), 24 * 60 * 60_000);
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.error("Playlist manager init failed", { error: String(err) }));
+    });
+
+    delay(465_000, () => {
+      // VOD optimizer: run once then every 8 hours
+      import("./vod-optimizer-engine").then(async m => {
+        await m.runVodOptimizationCycle().catch(() => {});
+        const iv = setInterval(() => m.runVodOptimizationCycle().catch(() => {}), 8 * 60 * 60_000);
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.error("VOD optimizer engine init failed", { error: String(err) }));
+    });
+
+    // ── TIER 6: Self-Healing Architecture (T+480s → T+500s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.
     delay(400_000, () => {

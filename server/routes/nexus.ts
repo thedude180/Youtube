@@ -37,23 +37,72 @@ router.get("/api/nexus/creator-score", async (req, res) => {
   try {
     const [score] = await db.select().from(creatorScores).where(eq(creatorScores.userId, userId)).orderBy(desc(creatorScores.createdAt)).limit(1);
     if (!score) {
-      return res.json({ overallScore: 0, engagementScore: 0, consistencyScore: 0, growthScore: 0, monetizationScore: 0, reachScore: 0, contentQualityScore: 0, trend: "new", breakdownData: {} });
+      // No score yet — kick off a background calculation and tell the client to retry
+      setImmediate(async () => {
+        try { await calculateEmpireScore(userId); } catch {}
+      });
+      return res.json({ overallScore: null, trend: "calculating", breakdownData: {} });
     }
     res.json(score);
   } catch (e) { res.status(500).json({ error: "Failed to fetch creator score" }); }
 });
 
+async function calculateEmpireScore(userId: string) {
+  // Pull real channel + video + revenue data to ground the AI score
+  const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+  const userVideos = await db.select({ id: videos.id, views: videos.views, likes: videos.likes, publishedAt: videos.publishedAt })
+    .from(videos).where(eq(videos.userId, userId)).limit(100);
+  const revenueRows = await db.select({ amount: revenueRecords.amount })
+    .from(revenueRecords).where(eq(revenueRecords.userId, userId)).limit(50);
+  const totalRevenue = revenueRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+  const totalViews = userVideos.reduce((s, v) => s + Number(v.views || 0), 0);
+  const totalLikes = userVideos.reduce((s, v) => s + Number(v.likes || 0), 0);
+  const channelCount = userChannels.length;
+  const videoCount = userVideos.length;
+  const subscribers = userChannels.reduce((s, c) => s + Number((c as any).subscriberCount || 0), 0);
+
+  const openai = getOpenAIClient();
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: "You are a creator analytics engine. Calculate a realistic Creator Empire Score (0-100) based on real channel data. Return valid JSON with: overallScore (number 0-100), engagementScore, consistencyScore, growthScore, monetizationScore, reachScore, contentQualityScore (all 0-100), trend ('up'|'down'|'stable'), breakdownData (object with key insights)."
+      },
+      {
+        role: "user",
+        content: `Calculate Creator Score for this creator's empire:
+- Channels connected: ${channelCount}
+- Total videos: ${videoCount}
+- Total views: ${totalViews.toLocaleString()}
+- Total likes: ${totalLikes.toLocaleString()}
+- Subscribers: ${subscribers.toLocaleString()}
+- Total revenue tracked: $${totalRevenue.toFixed(2)}
+Score realistically — a creator with ${videoCount} videos and ${totalViews} views should score proportionally. New creators with no content should score ~20-35.`
+      }
+    ],
+    response_format: { type: "json_object" },
+  });
+  const data = JSON.parse(response.choices[0].message.content || "{}");
+  await db.insert(creatorScores).values({
+    userId,
+    overallScore: data.overallScore ?? 30,
+    engagementScore: data.engagementScore ?? 30,
+    consistencyScore: data.consistencyScore ?? 30,
+    growthScore: data.growthScore ?? 30,
+    monetizationScore: data.monetizationScore ?? 30,
+    reachScore: data.reachScore ?? 30,
+    contentQualityScore: data.contentQualityScore ?? 30,
+    trend: data.trend ?? "stable",
+    breakdownData: data.breakdownData ?? {},
+  });
+}
+
 router.post("/api/nexus/creator-score/calculate", async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
-    const openai = getOpenAIClient();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "system", content: "You are a creator analytics engine. Calculate a Creator Score (0-100) with sub-scores for engagement, consistency, growth, monetization, reach, and content quality. Return valid JSON with fields: overallScore, engagementScore, consistencyScore, growthScore, monetizationScore, reachScore, contentQualityScore, trend (up/down/stable), breakdownData (object with details)." }, { role: "user", content: `Calculate Creator Score for a creator. Consider all platforms and recent performance metrics. Provide realistic scores.` }],
-      response_format: { type: "json_object" },
-    });
-    const data = JSON.parse(response.choices[0].message.content || "{}");
-    const [newScore] = await db.insert(creatorScores).values({ userId, overallScore: data.overallScore || 50, engagementScore: data.engagementScore || 50, consistencyScore: data.consistencyScore || 50, growthScore: data.growthScore || 50, monetizationScore: data.monetizationScore || 50, reachScore: data.reachScore || 50, contentQualityScore: data.contentQualityScore || 50, trend: data.trend || "stable", breakdownData: data.breakdownData || {} }).returning();
+    await calculateEmpireScore(userId);
+    const [newScore] = await db.select().from(creatorScores).where(eq(creatorScores.userId, userId)).orderBy(desc(creatorScores.createdAt)).limit(1);
     res.json(newScore);
   } catch (e) { res.status(500).json({ error: "Failed to calculate score" }); }
 });
