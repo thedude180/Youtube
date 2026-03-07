@@ -87,7 +87,12 @@ function appendCrosslinks(content: string, platform: string, contentType: string
   if (platform === "youtube") {
     const lines: string[] = [];
     if (links.website) lines.push(`\n\n${links.website}`);
-    for (const p of otherPlatforms.slice(0, 4)) {
+    const platformOrder = ["twitch", "tiktok", "discord", "x", "kick", "rumble"];
+    const ordered = platformOrder
+      .map(p => otherPlatforms.find(op => op.platform === p))
+      .filter(Boolean) as { platform: string; url: string }[];
+    const rest = otherPlatforms.filter(op => !platformOrder.includes(op.platform));
+    for (const p of [...ordered, ...rest].slice(0, 6)) {
       const label = getPlatformLabel(p.platform);
       lines.push(`\n${label}: ${p.url}`);
     }
@@ -109,7 +114,26 @@ function appendCrosslinks(content: string, platform: string, contentType: string
       return content + `\n\n${videoUrl}`;
     }
     const lines: string[] = [];
-    if (links.youtube) lines.push(`\n\n${links.youtube}`);
+    if (links.youtube) lines.push(`\n\nyoutube: ${links.youtube}`);
+    return content + lines.join("");
+  }
+
+  if (platform === "instagram") {
+    if (hasVideoLink) {
+      return content + `\n\n${videoUrl}`;
+    }
+    const lines: string[] = [];
+    if (links.youtube) lines.push(`\n\nyoutube: ${links.youtube}`);
+    else if (links.website) lines.push(`\n\n${links.website}`);
+    return content + lines.join("");
+  }
+
+  if (platform === "rumble") {
+    const lines: string[] = [];
+    if (hasVideoLink) lines.push(`\n\n${videoUrl}`);
+    if (links.youtube) lines.push(`\nYouTube: ${links.youtube}`);
+    if (links.discord) lines.push(`\nDiscord: ${links.discord}`);
+    if (links.website) lines.push(`\n${links.website}`);
     return content + lines.join("");
   }
 
@@ -118,7 +142,12 @@ function appendCrosslinks(content: string, platform: string, contentType: string
     if (hasVideoLink) {
       lines.push(`\n\n${videoUrl}`);
     }
-    for (const p of otherPlatforms.filter(p => p.platform !== "discord").slice(0, 3)) {
+    const discordPriority = ["youtube", "twitch", "kick", "tiktok", "x"];
+    const prioritized = discordPriority
+      .map(p => otherPlatforms.find(op => op.platform === p))
+      .filter(Boolean) as { platform: string; url: string }[];
+    const extras = otherPlatforms.filter(op => !discordPriority.includes(op.platform));
+    for (const p of [...prioritized, ...extras].slice(0, 4)) {
       const label = getPlatformLabel(p.platform);
       lines.push(`\n${label}: ${p.url}`);
     }
@@ -130,14 +159,17 @@ function appendCrosslinks(content: string, platform: string, contentType: string
 
   if (hasVideoLink) {
     const lines = [`\n\n${videoUrl}`];
-    for (const p of otherPlatforms.slice(0, 2)) {
+    const extras = otherPlatforms.filter(op => op.platform !== "website").slice(0, 2);
+    for (const p of extras) {
       lines.push(`\n${getPlatformLabel(p.platform)}: ${p.url}`);
     }
     return content + lines.join("");
   }
 
   const lines: string[] = [];
-  for (const p of otherPlatforms.slice(0, 3)) {
+  if (links.youtube) lines.push(`\nYouTube: ${links.youtube}`);
+  const remaining = otherPlatforms.filter(op => op.platform !== "youtube").slice(0, 2);
+  for (const p of remaining) {
     lines.push(`\n${getPlatformLabel(p.platform)}: ${p.url}`);
   }
   if (links.website) lines.push(`\n${links.website}`);
@@ -152,6 +184,8 @@ function getPlatformLabel(platform: string): string {
     tiktok: "TikTok",
     x: "X",
     discord: "Discord",
+    rumble: "Rumble",
+    instagram: "Instagram",
   };
   return labels[platform] || platform;
 }
@@ -164,52 +198,70 @@ const PLATFORM_VOICE: Record<string, string> = {
 - 2-3 hashtags MAX, mix trending + niche
 - Never sound like you're promoting, sound like you're sharing something cool
 - Use lowercase aesthetic when it fits
-- Reference TikTok culture naturally`,
+- Reference TikTok culture naturally
+- CROSS-PLATFORM FUNNEL (critical): Every post must bridge to YouTube. Use natural language like "full vid on youtube", "linked below if you want the full thing", or just the YouTube channel name. The goal is TikTok viewer → YouTube subscriber. Never post a clip without directing people to YouTube.`,
 
   x: `PLATFORM: X (Twitter)
 - Conversational, opinion-driven
-- Under 280 chars, make every word count
+- Under 280 chars for standalone posts, or use a thread for depth
 - Use rhetorical questions, hot takes, or observations
 - 1-2 hashtags max, or none
 - Thread hooks work great for content
 - React to your own content like you're a viewer
 - Sound like you're tweeting from your couch
 - STREAM ANNOUNCEMENTS: Hype up upcoming/active livestreams with urgency ("LIVE NOW", "Going live in 10")
-- TRAFFIC DRIVING: Resurface older videos with fresh angles ("Still one of my best clips", "This aged well", "Y'all slept on this one")
-- Mix new content posts with throwback/catalog posts to keep all content active
-- Use quote tweets and reply threads to link older videos naturally`,
+- TRAFFIC DRIVING: Mix new video posts with catalog reactivation — resurface older videos with fresh angles ("this one hit different", "y'all slept on this", "still can't believe this happened")
+- CROSS-PLATFORM FUNNEL: X drives people to YouTube (main hub). Every video announcement ends with the YouTube link. Occasionally mention Discord invite and Twitch schedule to funnel engaged followers deeper into the ecosystem.`,
 
   discord: `PLATFORM: Discord
-- Talking to your community, your people
-- Warm, insider-vibe, like a group chat
+- Talking to your community, your inner circle
+- Warm, insider-vibe, like a group chat with people who actually care
 - Can be slightly longer (2-4 sentences)
 - No hashtags
-- Reference the community ("y'all", "you guys", "the crew")
-- Share behind-the-scenes energy
-- Make people feel special for being in the server`,
+- Reference the community ("y'all", "you guys", "the squad")
+- Share behind-the-scenes energy — Discord members get info first
+- Make people feel special for being in the server
+- CROSS-PLATFORM FUNNEL: Discord is where subscribers become super fans. Always link the YouTube video AND mention where else they can find you (Twitch stream nights, TikTok for clips). Discord members should feel like they're the most connected to you across all platforms.`,
 
   twitch: `PLATFORM: Twitch
 - Stream-culture language
-- Reference clips, highlights, funny moments
+- Reference clips, highlights, funny moments from streams
 - Hype energy, community-focused
 - Use Twitch-native phrases naturally
 - Keep it about the experience, not just the content
-- 1-2 sentences max for announcements`,
+- 1-2 sentences max for announcements
+- CROSS-PLATFORM FUNNEL: Twitch viewers should know about YouTube VODs and TikTok clips. During announcements, reference YouTube ("the full VOD is going up on YouTube") and Discord ("join Discord to see when we go live next").`,
 
   kick: `PLATFORM: Kick
-- Similar to Twitch but edgier
-- More raw, unfiltered energy
-- Community-first language
+- Similar to Twitch but edgier, more raw
+- Unfiltered energy, community-first language
 - Reference Kick culture specifically
-- Keep announcements brief and punchy`,
+- Keep announcements brief and punchy
+- CROSS-PLATFORM FUNNEL: Drive Kick viewers to YouTube for VODs, Discord for community, TikTok for clips. Kick is part of the live streaming layer — bridge it to the broader ecosystem.`,
 
   youtube: `PLATFORM: YouTube
-- Can be more descriptive
-- SEO-aware but natural
-- Community tab post style
-- Ask questions to drive engagement
-- Reference the video naturally
-- Can be 2-5 sentences`,
+- Can be more descriptive and thoughtful
+- SEO-aware but natural sounding
+- Community tab post style — feels like a personal update
+- Ask questions to drive comments and engagement
+- Reference the video or upcoming content naturally
+- Can be 2-5 sentences
+- CROSS-PLATFORM FUNNEL: YouTube Community posts should push fans toward Discord (for exclusive stuff) and mention when you stream on Twitch/Kick. The Community tab is a retention tool — use it to bridge between uploads and funnel fans into the deeper ecosystem.`,
+
+  rumble: `PLATFORM: Rumble
+- Straightforward, authentic tone
+- This audience values original content and creator independence
+- Keep it clean and direct — no platform-specific slang
+- Mirror the YouTube description tone but slightly more casual
+- CROSS-PLATFORM FUNNEL: Rumble viewers may not know your other platforms. Always mention YouTube as the main hub and Discord for community.`,
+
+  instagram: `PLATFORM: Instagram
+- Visual-first, aspirational but authentic
+- Caption starts with a strong first line (visible before "more")
+- 5-10 relevant hashtags in first comment or end of caption
+- Aesthetic and polished but still personal
+- Save-worthy content performs best
+- CROSS-PLATFORM FUNNEL: Instagram drives to YouTube via "link in bio" or YouTube channel name in caption. Every Reel caption should naturally mention the full video on YouTube.`,
 };
 
 const BANNED_AI_PHRASES = [
