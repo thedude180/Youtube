@@ -1,34 +1,36 @@
-# CreatorOS - YouTube Team In A Box
+# CreatorOS - AI YouTube Business Team
 
 ## Overview
-CreatorOS is an AI-powered creator platform designed for content creators, offering multi-platform content management, live streaming automation, AI-driven growth coaching, and comprehensive business operations across major social media platforms. The platform aims for near-100% automated growth and revenue maximization, providing adaptive AI coaching.
+CreatorOS is a fully autonomous AI-powered YouTube business. A team of 14 named AI agents (Jordan Blake/CEO, Nia Okafor/Scriptwriter, Sofia Vasquez/Thumbnail Designer, etc.) works autonomously 24/7 to grow a creator's channel — writing scripts, producing thumbnails, optimizing SEO, managing community, tracking revenue, and running the live stream pipeline. The UI is intentionally simple: just the team doing their work.
 
 ## User Preferences
-- Dark mode design with deep purple/blue tones
-- "God Tier" power-user aesthetic — cinematic, data-dense, $10M SaaS feel
-- Emphasis on AI-powered automation
-- Multi-platform streaming focus (PS5 to 25 platforms)
-- "5-year-old simple" UI with big buttons and color-coded status
-- Exception-only notifications (AI handles everything silently unless issue arises)
-- Advanced Mode toggle (off by default) - reveals extra controls, detailed metrics, manual overrides
-- Floating AI chat accessible from any page (+ mobile FAB)
-- No manual trigger buttons - everything runs autonomously in background
-- Full mobile god-mode optimization: scrollable tabs, responsive gauges, cinematic bottom nav, touch targets
+- Dark mode, clean and simple — agents are the star of the show
+- 5 pages only: Team (home), Content, Live, Revenue, Settings
+- Exception-only notifications (AI handles everything silently)
+- No complexity — no empire scores, no mission control, no legal/tax dashboards
+- Everything runs autonomously in the background; user just observes and approves
 
 ## System Architecture
-CreatorOS is a full-stack application built with an Express.js backend and a React/Vite frontend, utilizing a multi-tenant PostgreSQL database.
+CreatorOS is a full-stack application leveraging an Express.js backend and a React/Vite frontend, all built around a multi-tenant PostgreSQL database.
 
 ### Frontend
 - **Technology**: React + Vite, Tailwind CSS, shadcn/ui.
-- **UI/UX Decisions**: Dark theme, consolidated tabbed pages, notification bell, Advanced Mode toggle, content calendar, floating AI chat, command palette, keyboard shortcuts, rich empty states. Mobile optimization includes cinematic bottom navigation and responsive components.
-- **Features**: Internationalization (12 languages with RTL support), robust SEO features (dynamic hreflang, Open Graph, JSON-LD), accessibility standards (ARIA roles, keyboard navigation), and performance optimizations (lazy loading, code splitting, PWA support).
-- **Core Visuals**: Custom keyframes and power classes create a "God Tier" aesthetic with animated glows, neon effects, data-grid backgrounds, and holographic elements.
+- **Pages (5 total)**:
+  - `/` — Team: 14 AI agent cards with live status, activity feed, channel stats
+  - `/content` — Content: video library, scripts, calendar, thumbnails
+  - `/stream` — Live: stream detection, engagement tools, post-stream pipeline
+  - `/money` — Revenue: earnings, expenses, sponsorships, tax
+  - `/settings` — Settings: channel connection, brand voice, account
+- **Sidebar**: 5-item navigation (Team, Content, Live, Revenue, Settings) + user info + channel stats
+- **Mobile**: Bottom nav mirrors sidebar items; floating AI chat available on all pages
+- **All legacy routes redirect** to the appropriate page or home (/)
+- **Features**: Dark theme, notification bell, floating AI chat, command palette, keyboard shortcuts, PWA support
 
 ### Backend
 - **Technology**: Express.js with Drizzle ORM and PostgreSQL.
 - **Architecture**: Domain-based route modularization.
 - **Security**: Helmet, rate limiting, CSRF protection, API key authentication, subscription tier enforcement, and an AI Security Sentinel for prompt injection detection and replay attack prevention.
-- **AI Integration**: Primarily uses OpenAI (gpt-5-mini) for AI functionalities.
+- **AI Integration**: Primarily uses OpenAI (gpt-5-mini) and Anthropic (Claude Opus/Sonnet/Haiku) for various AI functionalities, intelligently routed based on task.
 - **Core Engines**:
     - **Growth Journey System**: AI-generated daily actions and personalized roadmaps.
     - **Competitive Edge Suite**: VOD optimizer, Autopilot (7-phase pipeline), Creator DNA & Brand Voice, Cross-Platform Analytics, A/B Testing, Sponsorship Marketplace.
@@ -38,60 +40,14 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
     - **Autonomy Controller**: Orchestrates all AI engines.
     - **AI Team Engine**: Three autonomous AI agents (Editor, Moderator, Analyst) collaborate via a shared task queue.
     - **Conversational AI Co-Pilot**: Context-aware AI assistant with tool-calling.
-    - **Content Automation System**: Includes a YouTube Upload Watcher and Historical Content Sweep for automated content ingestion and repurposing.
-    - **Content Consistency Agent**: Analyzes upload cadence, fills calendar gaps, and audits videos for SEO issues.
-    - **Auto Agent Orchestrator**: Manages background agent sessions for all paid users.
-    - **Team Ops God Mode**: Orchestrates a 41-agent company via `server/team-orchestration.ts`.
+    - **Content Automation System**: Includes YouTube Upload Watcher, Historical Content Sweep, and Content Consistency Agent.
+    - **Auto Agent Orchestrator**: Manages background agent sessions for all paid users, including Stream Agent and Copyright Guardian.
+    - **Team Ops God Mode**: Orchestrates a 41-agent company via a dedicated orchestration service.
     - **God-Level Business AI Exec Team**: 9 autonomous AI executives for business functions.
     - **Legal & Tax AI Agent Command Center**: 18 autonomous AI agents for legal and tax auditing.
-- **System Hardening**: Centralized OpenAI client with telemetry, retry logic, caching, structured logging, Zod validation, DB-backed cron locks, external service health checks, and a self-healing core.
-- **World-Class Self-Healing Architecture** (8-component stack for 10k+ scale):
-  - `server/services/health-brain.ts` — Central coordinator; registers engines, measures DB/memory pressure, 15s tick with dependency-ordered restarts and exponential backoff.
-  - `server/services/memory-guardian.ts` — Linear-regression leak detector (15-min sliding window); calls `emergencyMemoryRelief()` first, then `drainAndRestart()` if heap stays >350MB after 30s.
-  - `server/services/adaptive-throttle.ts` — Daily quota budgets for YouTube/OpenAI/Stripe with 4-band throttling (free/pace/conserve/block). Integrates real YouTube quota from `youtube-quota-tracker`.
-  - `server/services/intelligent-job-queue.ts` — PostgreSQL SKIP LOCKED queue with per-type concurrency limits, deduplication, per-user fairness (>10 active → 60s delay), and stuck-job cleanup every 5 min.
-  - `server/services/self-healing-agent.ts` — 5-min diagnostic loop over 7 health signals: stuck jobs, expired tokens, quota exhaustion, webhook failures, error spikes, memory leaks.
-  - `server/services/anomaly-responder.ts` — AI-driven risk-gated responder (low=immediate, medium=5min delay, high=admin alert); logs resolutions to `security_events`.
-  - `server/services/continuous-audit.ts` — Daily 24h-interval audit: orphaned jobs, stale tokens, DB hygiene auto-fixes, AI health summary, persists to `health_audit_reports` table.
-  - Admin endpoints: `GET /api/system/self-heal-status`, `POST /api/system/run-audit`, `POST /api/system/clear-stuck-jobs`.
-  - New DB tables: `intelligent_jobs` (SKIP LOCKED queue), `health_audit_reports` (audit persistence).
+    - **Autonomous Social Media Company**: Comprehensive suite for live stream detection, lifecycle management, creator DNA analysis, stream operations (chat response, moderation, highlights), shorts factory, VOD SEO optimization, multi-platform distribution, revenue intelligence, and community management.
+- **System Hardening**: Centralized OpenAI client with telemetry, retry logic, caching, structured logging, Zod validation, DB-backed cron locks, external service health checks, and a world-class self-healing core comprising 8 components for high availability and scalability (Health Brain, Memory Guardian, Adaptive Throttle, Intelligent Job Queue, Self-Healing Agent, Anomaly Responder, Continuous Audit, and Admin Endpoints).
 - **Platform Policy Tracker**: Monitors 7 platforms for policy changes and enforces compliance.
-- **Autonomous Social Media Company** (Tier 7, T+430s, 2026-03-05):
-  - `server/services/ps5-live-detector.ts` — Multi-signal live detection (YouTube API + RSS + Twitch), quota-aware with fallback, majority-vote confidence, 90s poll per user. False positive guard: 3-min re-confirmation window before firing stream.started.
-  - `server/services/stream-lifecycle.ts` — Formal 5-state machine (idle→pre_live→live→ending→post_processing), persists to `streamLifecycleStates` DB, fires agent events on transitions. StreamLifecycleManager coordinates PS5Detector + false-positive guard + post-stream cascade.
-  - `server/services/creator-dna-builder.ts` — Analyzes channel + video data via gpt-4o-mini to extract creator voice DNA (tone, vocabulary, humor, energy, catchphrases). Upserts to `creatorDnaProfiles`. Exports `withCreatorVoice(userId, prompt)` which injects DNA into any AI system prompt.
-  - `server/services/stream-operator.ts` — Autonomous stream operations: 3-min cycle responding to live chat (max 5 replies, 8s delay, 200 char limit), moderating chat (keyword fast-path + AI slow-path), 10-min viewer metric assessment, 30-min highlight queueing. All actions logged to `autonomousActionLog`.
-  - `server/services/shorts-factory.ts` — AI identifies 6 best viral moments from stream VODs, enqueues `extract_and_publish_clip` jobs for each.
-  - `server/services/vod-seo-optimizer.ts` — Fetches video metadata, AI-generates optimized title/description/tags/chapters, updates via YouTube API.
-  - `server/services/multi-platform-distributor.ts` — AI-writes platform-specific copy for TikTok/Discord/X/YouTube, enqueues publish jobs (or approval queue if requireApproval=true).
-  - `server/services/revenue-brain.ts` — Daily 8am cycle: channel analytics + AI revenue strategy JSON, auto-executes 'auto' actions, saves to `revenueStrategies`, notifies user.
-  - `server/services/growth-intelligence-engine.ts` — Daily 7am cycle: trending game topics + AI 7-day growth plan, saves to `growthPlans`, enqueues content idea jobs.
-  - `server/services/community-auto-manager.ts` — 8h cycle: postCommunityUpdate (20h cooldown), respondToComments (max 10, 5s delay), runCommunityPoll (72h cooldown), heartTopComments. All with requireApproval gate.
-  - `server/services/daily-briefing.ts` — Daily 9am: aggregates 24h autonomous actions + growth + revenue into AI executive briefing, saves to `dailyBriefings`, sends notification.
-  - `server/lib/autonomous.ts` — Shared helpers: `isAutonomousMode(userId)` (checks pausedUntil), `logAutonomousAction(params)` (inserts to autonomousActionLog).
-  - New DB tables: `userAutonomousSettings`, `streamLifecycleStates`, `streamDetectionLog`, `revenueStrategies`, `growthPlans`, `autonomousActionLog`.
-  - New API endpoints: `GET /api/system/live` (SSE, 10s pulse), `GET/POST /api/autonomous/settings`, `POST /api/autonomous/mode`, `POST /api/autonomous/pause`, `POST /api/autonomous/resume`, `POST /api/autonomous/stream-now`.
-  - stream.ended cascade (agent-events.ts): T+2min→shorts factory, T+15min→SEO optimizer, T+20min→distributor, T+30min→community post job.
-  - Job handlers registered (16 total): `extract_and_publish_clip`, `post_stream_community`, `mid_stream_highlight`, `generate_content_idea`, `content_idea_generation`, `tiktok_publish`, `vod_wait_and_process`, `shorts_factory`, `vod_seo_optimize`, `multi_platform_clips`, `stream_performance_analysis`, `sponsor_outreach`, `evergreen_recycler`, `community_post_update`, `clip_highlight_moment`, `pre_stream_community_post`, `discord_live_announce`.
-  - stream.started cascade (agent-events.ts): immediate stream operator start (if liveChatId) + T+1min community post + T+1min Discord live announce.
-  - stream.ended cascade extended: T+60min→stream_performance_analysis job, T+24hr→evergreen_recycler job, T+5s→stop stream operator.
-  - Stream operator expanded: real viewer count tracking (YouTube liveStreamingDetails API), `crossPostLiveAnnouncements` (every 10min, deduped), `updateDiscordServer` via channel webhook (every 30min).
-  - minutesFromNow() / hoursFromNow() helpers exported from agent-events.ts for scheduled jobQueue enqueuing.
-
-### Claude (Anthropic) Integration
-- **SDK**: `@anthropic-ai/sdk` via Replit AI Integrations (no API key required, billed to Replit credits)
-- **Env vars**: `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_API_KEY` (auto-configured)
-- **Client**: `server/lib/claude.ts` — exports `getClaudeClient()`, `callClaude()`, `CLAUDE_MODELS`
-  - Retry logic: 3 attempts, exponential backoff, handles 429/500/502/503/504
-  - Logs model, token usage, and latency on every call
-- **Models**: `claude-opus-4-6` (deep reasoning), `claude-sonnet-4-6` (content), `claude-haiku-4-5` (fast)
-- **Routing** (`server/services/ai-model-router.ts`): Extended with `provider` field. 8 Claude task mappings:
-  - `creator_dna_analysis`, `revenue_strategy`, `growth_planning` → Opus 4-6
-  - `vod_seo`, `shorts_analysis`, `content_writing`, `daily_briefing` → Sonnet 4-6
-  - `chat_moderation` → Haiku 4-5
-  - All existing OpenAI task mappings preserved unchanged
-- **Wired into**: `creator-dna-builder.ts`, `revenue-brain.ts`, `growth-intelligence-engine.ts`, `vod-seo-optimizer.ts`, `shorts-factory.ts`
-- **Pricing tracked** in `aiModelRoutingLogs` table alongside OpenAI calls
 
 ### Authentication & Authorization
 - **Authentication**: Replit Auth (OIDC-based).
@@ -105,23 +61,11 @@ CreatorOS is a full-stack application built with an Express.js backend and a Rea
 ## External Dependencies
 - **Replit Auth**: User authentication.
 - **OpenAI API**: AI-driven functionalities.
+- **Anthropic API**: AI-driven functionalities (Claude models).
 - **Gmail API**: Email notifications.
 - **i18next**: Internationalization.
 - **PostgreSQL**: Primary database.
 - **YouTube Data API v3**: YouTube integration.
 - **Stripe**: Payment processing and subscription management.
 - **node-cron**: Background task scheduling.
-
-## Recent Features
-- **Stream Agent** (`server/services/stream-agent.ts`): Autonomous hands-free streaming assistant. Polls every 2 min for live status. When live: responds to chat in creator's voice, moderates, generates AI engagement prompts every 10 min. When stream ends: triggers full VOD clip+distribute pipeline. Keeps 20-entry action log. API: GET/POST `/api/stream-agent/status|start|stop`. Bootstrapped at T+45s. UI panel (`data-testid="stream-agent-card"`) at top of `/stream` page.
-- **Empire Mode** (`client/src/pages/Autopilot.tsx`): Single "Activate Empire" button (`data-testid="button-activate-empire"`) that chains autopilot + sweep + consistency agent. ON state shows 4 green checkmark status lines. `data-testid="empire-switch"`.
-- **Content Automation System**: Upload Watcher (30min polls, new uploads → clips + repurpose), Historical Content Sweep (3-phase: sync→clip→repurpose), Content Consistency Agent (every 4h, audits SEO + fills calendar gaps). Routes under `/api/content-automation/*`.
-- **Content Intelligence Hub** (`client/src/pages/Autopilot.tsx`): Always-visible panel (`data-testid="content-intelligence-hub"`) on /autopilot showing Upload Watcher status card and Historical Sweep card with Start/Cancel buttons. Data pulled from `/api/content-automation/status`, auto-refreshes every 15s.
-- **Agent Event Bus** (`server/services/agent-events.ts`): In-process pub/sub system for cross-agent coordination. Fires events: `stream.started`, `stream.ended`, `upload.detected`, `sweep.completed`, `empire.activated`. Handlers: stream.ended → triggers upload scan + consistency check. Stream agent wired into orchestrator `initializeUserSystems`. Coordination wired at T+5s on startup.
-- **Copyright Guardian Agent** (`server/services/copyright-guardian.ts`): Autonomous AI agent scanning all videos every 6h for copyright/trademark risks via keyword scan + GPT-4o-mini. Auto-rewrites titles/descriptions/tags for low/medium risk. Flags high/critical for manual review with suggested rewrites. Rate-limited to 1 video/12s. Bootstrapped at T+50s. Routes under `/api/copyright-guardian/*`. UI panel (`data-testid="copyright-guardian-panel"`) on /autopilot with status stats, issue list, Apply Fix / Dismiss actions, and Run Deep Scan button. Wired into agent orchestrator `startUserAgentSession`.
-- **Production DB Pool Hardening** (2026-03-03): Fixed critical pool exhaustion causing cascading failures across all background engines. (1) ConnectionGuardian fast-recovery interval raised from 30s → 5 min; main cycle raised from 3 min → 15 min — was the #1 DB pressure source with 12+ sequential full-table-scan queries per cycle. (2) AI team `processTaskQueue` now detects transient DB errors (connection timeout/ECONNRESET/query timeout) and re-queues tasks to `status="queued"` instead of marking `status="failed"`, with inner try-catch so the recovery write can't fail loudly. (3) `runTeamCycle` now cleans up tasks stuck in `status="in_progress"` for >10 minutes at the start of each cycle. (4) `daily-content-engine.ts` `generateBatchPlan` now uses `response_format: { type: "json_object" }` to force valid JSON from the model, eliminating the unescaped-quote parse crash (e.g. `"BATTLEFIELD 6"` inside a description string). (5) DualPipeline `registerCleanup("dualPipelineProcess")` interval raised from 60s → 5 min — was firing 3 sequential DB queries every 60s (processWaitingVodPipelines, processQueuedPipelines, autoSpawnMissingVodPipelines), now runs every 5 min reducing DB load by 80%.
-- **Content Automation Bug Fixes** (2026-03-04): (1) Auto-thumbnail engine: catch block now detects "cannot be found" / 404 errors and permanently marks the video `metadata.autoThumbnailFailed = "video_not_found_on_youtube"` so deleted YouTube videos stop retrying forever. `regenerateThumbnailsForUnderperformers` also now skips videos with `autoThumbnailFailed` set, preventing the underperformer refresh logic from overriding the permanent mark. (2) `server/youtube.ts`: added `export` to `getAuthenticatedClient` — was private, causing `TypeError: n is not a function` in playlist-manager. (3) `server/playlist-manager.ts` `organizePlaylistsForUser`: added `PLAYLIST_BATCH_LIMIT = 20` cap on both outer (channel) and inner (video) loops plus `.limit(40)` on the DB query — eliminates DB read timeouts from unbounded full-table scans. (4) `server/auto-fix-engine.ts`: added "creditsdepleted", "credits to fulfill", and "does not have any credits" to CONFIG_PATTERNS so X API 402 billing errors are immediately classified as `config_missing` (permanent fail) instead of "unknown" (which was causing 3x retry loop).
-- **22-Fix Security Remediation** (2026-03-04): Full audit remediation across all layers. (1) `webhook-verify.ts`: HMAC now compares raw bytes (not UTF-8 hex strings) via `digest()` + `Buffer.from(sig,'hex'/'base64')`; Discord Ed25519 replaced with `tweetnacl` `nacl.sign.detached.verify`; all 4 platform verifiers fail-closed (`{valid:false}`) when secrets missing in production (`NODE_ENV=production` or `REPLIT_DEPLOYMENT=1`), pass-through in dev only. (2) `money.ts`: `/api/stripe/payments` and `/api/stripe/balance` now require `requireAdmin` (not `requireAuth`); `getAppBaseUrl(req)` helper resolves from `APP_BASE_URL` → `REPLIT_DOMAINS` → request headers, eliminating `https://undefined` redirects. (3) `webhookHandlers.ts`: `checkAndRecordWebhookEvent` uses `.onConflictDoNothing()` to eliminate read-then-insert race condition. (4) `upgrades.ts callAI`: optional chaining `response?.choices?.[0]?.message?.content` + JSON.parse try/catch. (5) `content.ts` GET video: added direct `video.userId !== userId` ownership check before channel lookup (IDOR fix). (6) All 4 `.passthrough()` mass-assignment sinks removed from `content.ts` (channel update, video update) and `platform.ts` (community post, subscription) — replaced with explicit allowlist schemas. (7) `storage.ts getVideosByUser`: added `page`/`limit` params with DB-level LIMIT/OFFSET (max 100); route updated to pass these instead of in-memory slice. (8) `usage-metering.ts`: reads `user?.tier || user?.subscriptionTier` for both property name variants. (9) `youtube-quota-tracker.ts getNextResetTime`: uses `Intl.DateTimeFormat.formatToParts()` to reliably extract Pacific midnight UTC. (10) `youtube.ts` OAuth token handler: wrapped in IIFE + try/catch to prevent unhandled promise rejections. (11) `youtube.ts` numeric stats: all truthy checks on `subscriberCount/videoCount/viewCount` replaced with `!= null` checks (fixes channels reporting 0 subscribers). (12) `offline-engine.ts`: `runDueAutomations` uses `apiRequest` (not raw `fetch`) for CSRF token; event listeners stored as named refs so `stop()` can properly remove them. (13) `settings.ts`: removed duplicate `POST /api/notifications/mark-all-read` endpoint (canonical is `read-all`). (14) `AuthForm.tsx`: password toggle `tabIndex={-1}` removed; added `aria-label`, `aria-pressed`, `type="button"`. (15) `use-login-sync.ts syncTriggered`: reset to `false` on all exit paths (success, error, timeout). (16) `stripe-hardening.ts`: all 5 in-memory Maps/Sets migrated to DB tables (`billing_dunning_records`, `billing_paused_subscriptions`, `billing_promo_applications`, `billing_promo_usage`, `billing_trial_records`, `billing_invoices`); `applyPromoCode` now validates tier applicability; promo uses atomic `INSERT ... ON CONFLICT DO UPDATE SET currentUses = currentUses + 1`. `tweetnacl` package installed.
-- **21-Fix DB/Auth/Schema Remediation** (2026-03-05): Final audit pass covering database, schema, and authentication layers. (1) `db.ts isTransientDbError`: case-insensitive comparison — lowercase both sides so "Connection Refused" is recognized. (2) `db.ts pool.on("connect")`: per-client `SET statement_timeout = 25000` query for reliable application vs. Pool constructor. (3) `db.ts withRetry`: wraps final throw in labeled error with attempt count and `.cause` for production debuggability. (4) `security-hardening.ts idempotencyGuard`: returns 401 for unauthenticated requests; bounded Map (max 1000 entries, oldest-first eviction); never caches `Set-Cookie` responses. (5) `security-fortress.ts registerThreatPattern`: validates regex at insertion time via `new RegExp(signature)` — invalid patterns rejected with error log. (6) `security-fortress.ts matchThreatPatterns`: batches all matched IDs into a single `inArray` `db.update` instead of one write per match (N+1 fix). (7) `security-fortress.ts listThreatPatterns()`: new read-only function; `fortress.ts` GET `/threat-patterns` updated to call it instead of `matchThreatPatterns("")` which was mutating hitCount on every admin page load. (8) `security-fortress.ts REP_EVENTS.normal_request`: 0.1 → 0, eliminating spurious DB write on every normal request. (9) `stealth-guardrails.ts adjustPlatformVoice`: guarantees at least one sentence preserved for X platform — truncates first sentence to 247 chars with "..." if loop produces nothing. (10) `helpers.ts parseNumericId`: rejects empty/blank strings and `id <= 0` (was accepting `Number("") === 0`). (11) `upgrades.ts createAIRateLimiter`: removed inline `requireAuth()` call; reads `req.user?.claims?.sub` directly, returns 401 if absent. (12) `stripeClient.ts getCredentials`: throws if `REPLIT_CONNECTORS_HOSTNAME` is undefined; checks `response.ok` before parsing JSON. (13) `stripeClient.ts getStripeSync`: Promise-initializer pattern (`stripeSyncPromise`) prevents concurrent calls from creating duplicate instances. (14) `youtube-manager.ts`: all 5 `JSON.parse(content)` sites wrapped with `typeof content === "string"` guard and diagnostic logging on parse failure. (15) Multistream routes: both `getMultistreamStatus` and `stopMultistream` are synchronous — FIX 49 already correct, no change. (16) `shared/schema.ts VIDEO_PLATFORMS/TEXT_ONLY_PLATFORMS/LIVE_STREAM_PLATFORMS`: cast `as Platform[]` to prevent type widening to `string[]`. (17) FIX 51 (JSONB defaults): Drizzle correctly converts `.default({})` to `'{}':jsonb` in db:push — low-risk in current version, mass-change deferred. (18) `stripe-seed.ts`: auto-pagination via `for await` handles accounts with >100 Stripe products; removed unused `pricesFixed` flag. (19) `stream.ts` go-live + stream-ended handlers: normalize `const platforms = (stream.platforms as string[]) || ["youtube"]` before `storage.createJob()` — eliminates `platforms: undefined` in DB payloads. FIX 38/39/52 already resolved in prior sessions.
-- **12-Fix AI Engine & Orchestration Remediation** (2026-03-04 session 3): Supplementary audit fixes across AI engines, background agents, and orchestration. (1) `ai-engine.ts detectContentContext`: metadata JSON now included in signal-detection text string for richer niche scoring. (2) `lib/openai.ts withRetry`: added HTTP-date string parsing for `retry-after` header (in addition to existing integer-seconds handling) — prevents thundering retries when API sends `Wed, 05 Mar 2026...` style dates. (3) `agent-orchestrator.ts makeAgentRunner`: replaced `setInterval` with self-scheduling async loop — guarantees gap between runs, eliminates interval drift, keeps `isRunning` as defense-in-depth. `UserSession` uses `cancelFns[]` instead of `intervals[]`. `stopUserAgentSession` increments `generation` counter so in-flight loops exit cooperatively at next iteration boundary. (4) `stream-agent.ts`: confirmed `isChecking` re-entrancy guard is correctly implemented with `.finally()`. Added `cleanupStaleStates()` that runs every 24h pruning `agentStates` Map entries inactive >7 days; entries with null `lastCheckedAt` deleted immediately on stop. (5) `vod-optimizer-engine.ts`: confirmed `inArray(videos.channelId, channelIds)` already pushed to DB query; added AUDIT FIX comment. (6) `daily-content-engine.ts getNextAvailableDayOffset`: scheduledDate normalized via `instanceof Date` check before Set membership test. `extractAndSanitizeJSON`: removed destructive `(\w)"(\w)→apostrophe` regex; added diagnostic warn log with raw snippet whenever sanitization path is triggered. (7) `auto-thumbnail-engine.ts generateAndUploadThumbnail`: removed `autoThumbnailGenerated: true` from ALL error/catch branches — only SUCCESS path (line 114) sets this flag; skip logic updated to `meta.autoThumbnailGenerated || meta.autoThumbnailFailed`. `max_completion_tokens` → `max_tokens`. (8) `autopilot-engine.ts`: `max_completion_tokens` → `max_tokens`. (9) `content-loop.ts runLoopIteration`: cooperative interruption checks (`if (state.interrupted) { state.interrupted = false; return; }`) added at each batch phase boundary (stream exhaust, VOD optimize, thumbnail generate).
-- **DB Pool + Cron Pressure Fixes** (2026-03-04 session 2): Addresses cascading DB connection timeout failures visible in production logs. (1) `server/db.ts`: pool `max` raised 15 → 20 connections; `idleTimeoutMillis` reduced 30s → 20s (faster slot reclamation); `connectionTimeoutMillis` reduced 15s → 10s (fail-fast for withRetry); statement/query timeouts reduced 30s → 25s. (2) `server/automation-engine.ts`: ScheduledPosts cron changed from `"* * * * *"` (every 1 min) to `"*/2 * * * *"` (every 2 min) — was acquiring a DB cron-lock every 60s; halving frequency reduces DB lock contention by 50%. Lock TTL raised from 55s to 90s to match new interval. (3) `server/auto-thumbnail-engine.ts`: image generation switched from `"1024x1024"` to `"512x512"` — eliminates `"Media is too large. Limit: 2097152"` errors at the source (512x512 PNG is ~4× smaller). Added pre-flight check: if generated buffer still exceeds 2 MB, permanently marks video `metadata.autoThumbnailFailed = "image_too_large"` without uploading. Extended catch block to also detect `"Media is too large"` / `"2097152"` / `"media_too_large"` errors from YouTube API and apply the same permanent-fail mark — stops infinite 30-second retry loop for oversized thumbnails.
+- **tweetnacl**: Cryptographic library for security (e.g., Discord Ed25519 verification).
