@@ -423,10 +423,12 @@ export function registerAutopilotRoutes(app: Express) {
             },
           })
           .where(eq(autopilotQueue.id, postId));
+        const { clearMatchingScheduleItems } = await import("../publish-verifier");
+        await clearMatchingScheduleItems(userId, post.targetPlatform, post.sourceVideoId, post.scheduledAt);
         return res.json({ verified: true, platformStatus: "url_available", platformUrl: meta.publishResult.postUrl });
       }
 
-      const { verifyPost } = await import("../publish-verifier");
+      const { verifyPost, clearMatchingScheduleItems } = await import("../publish-verifier");
       const result = await verifyPost(userId, post.targetPlatform, publishPostId);
 
       const existingVerification = meta.verification || { attempts: 0 };
@@ -447,6 +449,10 @@ export function registerAutopilotRoutes(app: Express) {
           },
         })
         .where(eq(autopilotQueue.id, postId));
+
+      if (result.confirmed) {
+        await clearMatchingScheduleItems(userId, post.targetPlatform, post.sourceVideoId, post.scheduledAt);
+      }
 
       res.json({
         verified: result.confirmed,

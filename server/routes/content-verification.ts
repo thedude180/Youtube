@@ -59,6 +59,8 @@ export function registerContentVerificationRoutes(app: Express) {
       }
 
       if (!postId) {
+        const { clearMatchingScheduleItems } = await import("../publish-verifier");
+        await clearMatchingScheduleItems(userId, post.targetPlatform, post.sourceVideoId, post.scheduledAt);
         return res.json({ verified: true, status: "url_available", url: meta.publishResult?.postUrl });
       }
 
@@ -82,6 +84,11 @@ export function registerContentVerificationRoutes(app: Express) {
           },
         })
         .where(eq(autopilotQueue.id, post.id));
+
+      if (result.confirmed) {
+        const { clearMatchingScheduleItems } = await import("../publish-verifier");
+        await clearMatchingScheduleItems(userId, post.targetPlatform, post.sourceVideoId, post.scheduledAt);
+      }
 
       res.json({
         verified: result.confirmed,

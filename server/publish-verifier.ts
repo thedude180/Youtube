@@ -1,10 +1,45 @@
 import { db } from "./db";
-import { autopilotQueue, channels, videos } from "@shared/schema";
+import { autopilotQueue, channels, videos, scheduleItems } from "@shared/schema";
 import { users } from "@shared/models/auth";
-import { eq, and, gte, isNotNull, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, isNotNull, inArray, desc, sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { storage } from "./storage";
 import { OAUTH_CONFIGS } from "./oauth-config";
+
+export async function clearMatchingScheduleItems(
+  userId: string,
+  platform: string,
+  sourceVideoId?: number | null,
+  scheduledAt?: Date | null,
+): Promise<void> {
+  try {
+    const baseWhere = [
+      eq(scheduleItems.userId, userId),
+      eq(scheduleItems.platform, platform),
+      eq(scheduleItems.status, "scheduled"),
+    ];
+
+    if (sourceVideoId) {
+      await db.update(scheduleItems)
+        .set({ status: "completed", completedAt: new Date() } as any)
+        .where(and(...baseWhere, eq(scheduleItems.videoId, sourceVideoId)));
+    } else if (scheduledAt) {
+      const dayStart = new Date(scheduledAt);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(scheduledAt);
+      dayEnd.setHours(23, 59, 59, 999);
+      await db.update(scheduleItems)
+        .set({ status: "completed", completedAt: new Date() } as any)
+        .where(and(
+          ...baseWhere,
+          gte(scheduleItems.scheduledAt, dayStart),
+          lte(scheduleItems.scheduledAt, dayEnd),
+        ));
+    }
+  } catch (err: any) {
+    logger.warn("[Verifier] Failed to clear schedule items after verification", { userId, platform, error: err?.message });
+  }
+}
 
 interface VerificationResult {
   confirmed: boolean;
@@ -395,6 +430,7 @@ export async function verifyRecentPublishedPosts() {
             },
           })
           .where(eq(autopilotQueue.id, post.id));
+        await clearMatchingScheduleItems(post.userId, post.targetPlatform, post.sourceVideoId, post.scheduledAt);
         verified++;
       } else {
         await db.update(autopilotQueue)
@@ -441,6 +477,7 @@ export async function verifyRecentPublishedPosts() {
           },
         })
         .where(eq(autopilotQueue.id, post.id));
+      await clearMatchingScheduleItems(post.userId, post.targetPlatform, post.sourceVideoId, post.scheduledAt);
       verified++;
       logger.info("[Verifier] Post confirmed on platform", {
         postId: post.id,
@@ -540,6 +577,7 @@ export async function verifyPostImmediately(postId: number, userId: string, plat
     .where(eq(autopilotQueue.id, postId));
 
   if (result.confirmed) {
+    await clearMatchingScheduleItems(userId, platform, post[0].sourceVideoId, post[0].scheduledAt);
     logger.info("[Verifier] Immediate verification confirmed", { postId, platform, status: result.platformStatus });
   } else {
     logger.info("[Verifier] Immediate verification pending, will retry in sweep", { postId, platform, error: result.error });
