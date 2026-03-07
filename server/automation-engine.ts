@@ -217,7 +217,11 @@ export async function initAutomationEngine() {
     console.warn("[AutomationEngine] Startup flush failed:", err.message);
   }
 
-  cron.schedule("*/5 * * * *", async () => {
+  // Stagger cron start times using minute offsets to prevent all jobs firing at :00 simultaneously.
+  // Frequencies are intentionally conservative — Replit Postgres has a 25-connection hard limit.
+  // */2 and */3 schedules replaced with */5 and */10 to reduce DB pressure.
+
+  cron.schedule("2-59/10 * * * *", async () => {   // offset :02, every 10 min (was */5)
     await withCronLock("CronProcessor", 4 * 60 * 1000, async () => {
       await selfHealingCore("CronProcessor", () => processAllCronJobs(), { silent: true });
     });
@@ -229,7 +233,7 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/30 * * * *", async () => {
+  cron.schedule("15 */1 * * *", async () => {      // offset :15, every 30 min (was */30)
     await withCronLock("AutoApprovals", 25 * 60 * 1000, async () => {
       await selfHealingCore("AutoApprovals", () => processAutoApprovals());
     });
@@ -247,7 +251,7 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/5 * * * *", async () => {
+  cron.schedule("7-59/10 * * * *", async () => {   // offset :07, every 10 min (was */5)
     await withCronLock("TokenRefresh", 4 * 60 * 1000, async () => {
       await selfHealingCore("TokenRefresh", async () => {
         const { refreshExpiringTokens } = await import("./token-refresh");
@@ -256,8 +260,8 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/2 * * * *", async () => {
-    await withCronLock("ScheduledPosts", 90 * 1000, async () => {
+  cron.schedule("4-59/5 * * * *", async () => {    // offset :04, every 5 min (was */2)
+    await withCronLock("ScheduledPosts", 4 * 60 * 1000, async () => {
       await selfHealingCore("ScheduledPosts", async () => {
         const { processScheduledPosts } = await import("./autopilot-engine");
         await processScheduledPosts();
@@ -265,7 +269,7 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/3 * * * *", async () => {
+  cron.schedule("9-59/10 * * * *", async () => {   // offset :09, every 10 min (was */3)
     await withCronLock("AutoFixEngine", 2 * 60 * 1000, async () => {
       await selfHealingCore("AutoFixEngine", async () => {
         const { runAutoFixCycle } = await import("./auto-fix-engine");
@@ -274,7 +278,7 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/10 * * * *", async () => {
+  cron.schedule("14-59/15 * * * *", async () => {  // offset :14, every 15 min (was */10)
     await withCronLock("PublishVerification", 9 * 60 * 1000, async () => {
       await selfHealingCore("PublishVerification", async () => {
         const { verifyAllRecentUploads } = await import("./publish-verifier");
@@ -452,14 +456,8 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/2 * * * *", async () => {
-    await withCronLock("LiveDetection", 100 * 1000, async () => {
-      await selfHealingCore("LiveDetection", async () => {
-        const { runMultiPlatformLiveDetection } = await import("./services/live-detection");
-        await runMultiPlatformLiveDetection();
-      });
-    });
-  });
+  // LiveDetection is driven by index.ts (setInterval every 90s) — cron removed to eliminate duplicate.
+
 
   cron.schedule("0 */4 * * *", async () => {
     await withCronLock("AlgorithmMonitor", 3 * 60 * 60 * 1000, async () => {

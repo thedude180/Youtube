@@ -10,6 +10,7 @@ import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { seedStripeProducts } from "./stripe-seed";
 import { pool } from "./db";
+import { setServerStartTime } from "./lib/resource-governor";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 import { startAutopilotMonitor, stopAutopilotMonitor } from "./services/autopilot-monitor";
 import { startConnectionGuardian, stopConnectionGuardian } from "./services/connection-guardian";
@@ -1010,6 +1011,7 @@ httpServer.listen(
   { port, host: "0.0.0.0" },
   () => {
     process.stderr.write(`[Server] listening on port ${port}\n`);
+    setServerStartTime(Date.now()); // resource governor quiet period starts here
 
     // ── CRITICAL: listen callback must return IMMEDIATELY ─────────────────────
     // Replit's health check fires as soon as port 5000 opens and must receive
@@ -1070,7 +1072,8 @@ httpServer.listen(
       logger.info(`Live detection polling started — interval ${LIVE_POLL_MS / 1000}s`);
     });
 
-    // ── TIER 3: Agent orchestration (T+35s) ───────────────────────────────────
+    // ── TIER 3: Agent orchestration (T+35s → T+87s, 8-10s gaps) ─────────────
+    // Each service gets its own 8-10s window to avoid simultaneous DB bursts.
     delay(35_000, () => {
       import("./services/agent-orchestrator").then(m => {
         m.bootstrapAllUserSessions().catch(err => logger.error("Agent bootstrap failed", { error: String(err) }));
@@ -1078,50 +1081,50 @@ httpServer.listen(
       }).catch(err => logger.error("Agent orchestrator failed to load", { error: String(err) }));
     });
 
-    delay(40_000, () => {
+    delay(44_000, () => {
       import("./services/youtube-upload-watcher").then(m => {
         m.bootstrapUploadWatchers().catch(err => logger.error("Upload watcher bootstrap failed", { error: String(err) }));
       }).catch(err => logger.error("Upload watcher failed to load", { error: String(err) }));
     });
 
-    delay(42_000, () => {
+    delay(53_000, () => {
       import("./services/youtube-vod-watcher").then(m => {
         m.bootstrapVodWatchers().catch(err => logger.error("VOD watcher bootstrap failed", { error: String(err) }));
       }).catch(err => logger.error("VOD watcher failed to load", { error: String(err) }));
     });
 
-    delay(45_000, () => {
+    delay(62_000, () => {
       import("./services/content-consistency-agent").then(m => {
         m.bootstrapConsistencyAgents().catch(err => logger.error("Consistency agent bootstrap failed", { error: String(err) }));
       }).catch(err => logger.error("Consistency agent failed to load", { error: String(err) }));
     });
 
-    delay(50_000, () => {
+    delay(71_000, () => {
       import("./services/stream-agent").then(m => {
         m.bootstrapStreamAgents().catch(err => logger.error("Stream agent bootstrap failed", { error: String(err) }));
       }).catch(err => logger.error("Stream agent failed to load", { error: String(err) }));
     });
 
-    delay(55_000, () => {
+    delay(79_000, () => {
       import("./services/copyright-guardian").then(m => {
         m.bootstrapCopyrightGuardians().catch(err => logger.error("Copyright guardian bootstrap failed", { error: String(err) }));
       }).catch(err => logger.error("Copyright guardian failed to load", { error: String(err) }));
     });
 
-    delay(58_000, () => {
+    delay(84_000, () => {
       import("./services/tiktok-clip-autopublisher").then(m => {
         m.bootstrapTikTokAutopublishers().catch(err => logger.error("TikTok autopublisher bootstrap failed", { error: String(err) }));
       }).catch(err => logger.error("TikTok autopublisher failed to load", { error: String(err) }));
     });
 
-    delay(60_000, () => {
+    delay(87_000, () => {
       import("./services/multistream-engine").then(m => {
         m.wireMultistreamEvents();
       }).catch(err => logger.error("Multistream engine failed to load", { error: String(err) }));
     });
 
-    // ── TIER 4: Infrastructure (T+65s) ────────────────────────────────────────
-    delay(65_000, () => startConnectionGuardian());
+    // ── TIER 4: Infrastructure (T+93s) ────────────────────────────────────────
+    delay(93_000, () => startConnectionGuardian());
 
     // Stripe init deferred to T+90s so the workflow runner confirms server stability first
     delay(90_000, () => {

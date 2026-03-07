@@ -6,13 +6,13 @@ import { createLogger } from "../lib/logger";
 const logger = createLogger("job-queue");
 
 const CONCURRENCY = new Map<string, number>([
-  ['ai_generation', 3],
-  ['youtube_api', 2],
+  ['ai_generation', 1],   // 1 AI job at a time — prevent token rate-limit bursts
+  ['youtube_api', 1],     // 1 YouTube API call at a time — quota protection
   ['thumbnail_gen', 1],
-  ['db_heavy', 4],
-  ['webhook_stripe', 5],
-  ['webhook_youtube', 5],
-  ['default', 2],
+  ['db_heavy', 2],        // 2 heavy DB jobs max (was 4) — pool is capped at 10
+  ['webhook_stripe', 3],  // webhooks need responsiveness but stay bounded
+  ['webhook_youtube', 3],
+  ['default', 1],         // 1 default at a time (was 2)
 ]);
 
 class IntelligentJobQueue {
