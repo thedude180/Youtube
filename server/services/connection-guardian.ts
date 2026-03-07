@@ -8,7 +8,16 @@ let guardianInterval: ReturnType<typeof setInterval> | null = null;
 let fastRecoveryInterval: ReturnType<typeof setInterval> | null = null;
 const GUARDIAN_CYCLE_MS = 15 * 60 * 1000;
 const FAST_RECOVERY_CYCLE_MS = 5 * 60 * 1000;
-const TOKEN_PREEMPTIVE_BUFFER_MS = 2 * 60 * 60 * 1000;
+const TOKEN_PREEMPTIVE_BUFFER_MS = 24 * 60 * 60 * 1000;
+
+// Require 15 consecutive failures before accepting a token as permanently dead.
+// Discord and X produce more transient failures than YouTube (Discord: single-use refresh tokens;
+// X: 2-hour access tokens cause more refresh cycles and occasional 403s from API quirks).
+const PERMANENT_FAILURE_THRESHOLD = 15;
+
+// Failure decay: if the last failure was > 48 hours ago, reset the counter.
+// Prevents old stale failures from blocking a healthy connection forever.
+const FAILURE_DECAY_MS = 48 * 60 * 60 * 1000;
 
 async function verifyConnectionAlive(platform: string, accessToken: string): Promise<boolean> {
   try {
@@ -114,9 +123,19 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
 
         const pd = (ch.platformData || {}) as any;
         const lastCheck = pd._lastVerifiedAt || 0;
-        const existingFailures = (pd._reconnectFailures || 0) as number;
+        let existingFailures = (pd._reconnectFailures || 0) as number;
 
-        if (existingFailures >= 5 && pd._connectionStatus === "expired") {
+        // Failure decay: stale failures from > 48 hours ago are reset.
+        // This prevents old transient errors from permanently blocking a healthy connection.
+        const lastFailureAt = pd._lastFailureAt ? new Date(pd._lastFailureAt).getTime() : 0;
+        if (existingFailures > 0 && lastFailureAt > 0 && now - lastFailureAt > FAILURE_DECAY_MS) {
+          existingFailures = 0;
+          await db.update(channels).set({
+            platformData: { ...pd, _reconnectFailures: 0, _connectionStatus: pd._connectionStatus === "expired" ? "degraded" : pd._connectionStatus },
+          }).where(eq(channels.id, ch.id)).catch(() => {});
+        }
+
+        if (existingFailures >= PERMANENT_FAILURE_THRESHOLD && pd._connectionStatus === "expired") {
           const cooldownMs = Math.min(existingFailures * 30 * 60 * 1000, 24 * 60 * 60 * 1000);
           if (now - lastCheck < cooldownMs) {
             failed++;
@@ -144,15 +163,15 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
           } else {
             const failures = existingFailures + 1;
             await db.update(channels).set({
-              platformData: { ...(ch.platformData || {}), _connectionStatus: "expired", _lastVerifiedAt: now, _reconnectFailures: failures },
+              platformData: { ...(ch.platformData || {}), _connectionStatus: "expired", _lastVerifiedAt: now, _reconnectFailures: failures, _lastFailureAt: new Date().toISOString() },
             }).where(eq(channels.id, ch.id));
             failed++;
 
-            if (failures <= 3) {
-              console.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token expired/revoked, needs manual reconnect (failure #${failures})`);
+            if (failures <= 5) {
+              console.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token check failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD})`);
             }
 
-            if (failures === 2 && ch.userId) {
+            if (failures >= PERMANENT_FAILURE_THRESHOLD && ch.userId) {
               try {
                 const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
                 await proactiveTokenHealthCheck();
@@ -435,11 +454,21 @@ async function fastRecoverBrokenConnections(): Promise<number> {
     const brokenChannels = await db.select().from(channels)
       .where(isNotNull(channels.refreshToken));
 
+    const now = Date.now();
     for (const ch of brokenChannels) {
       const pd = (ch.platformData || {}) as any;
-      if (pd._connectionStatus !== "expired") continue;
+      if (pd._connectionStatus !== "expired" && pd._connectionStatus !== "degraded") continue;
+
       const failures = pd._reconnectFailures || 0;
-      if (failures > 5) continue;
+      // Apply failure decay: if last failure was > 48 hours ago, always retry regardless of count
+      const lastFailureAt = pd._lastFailureAt ? new Date(pd._lastFailureAt).getTime() : 0;
+      const isDecayed = lastFailureAt > 0 && now - lastFailureAt > FAILURE_DECAY_MS;
+
+      // Skip only if we've hit the threshold AND failures are recent AND we already tried recently
+      if (failures >= PERMANENT_FAILURE_THRESHOLD && !isDecayed) {
+        const lastCheck = pd._lastVerifiedAt || 0;
+        if (now - lastCheck < 60 * 60 * 1000) continue; // Skip if checked within last hour
+      }
 
       const refreshOk = await tryRefreshSingleToken(ch);
       if (refreshOk) {

@@ -144,7 +144,7 @@ const systemChecks: SystemCheck[] = [
         const expiringThreshold = new Date(Date.now() + 2 * 60 * 60 * 1000);
         const expiringChannels = userChannels.filter(ch => {
           const pd = (ch.platformData || {}) as any;
-          if (pd._connectionStatus === "expired" && (pd._reconnectFailures || 0) >= 5) return false;
+          if (pd._connectionStatus === "expired" && (pd._reconnectFailures || 0) >= 15) return false;
           return ch.accessToken && ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < expiringThreshold;
         });
 

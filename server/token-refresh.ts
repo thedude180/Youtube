@@ -2,7 +2,7 @@ import type { Platform } from "@shared/schema";
 import { OAUTH_CONFIGS } from "./oauth-config";
 import { db } from "./db";
 import { channels } from "@shared/schema";
-import { eq, lt, and, isNotNull, isNull, not } from "drizzle-orm";
+import { eq, lt, and, isNotNull } from "drizzle-orm";
 
 interface RefreshResult {
   success: boolean;
