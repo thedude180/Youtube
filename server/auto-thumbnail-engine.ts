@@ -77,8 +77,8 @@ async function generateAndUploadThumbnail(
     let imageBuffer: Buffer;
     try {
       const { generateImageBuffer: genImg } = await import("./replit_integrations/image/client");
-      // Use 512x512 — YouTube thumbnail limit is 2 MB; 1024x1024 PNG can exceed this
-      imageBuffer = await genImg(prompt, "512x512");
+      // Use 1024x1024 — gpt-image-1 minimum valid size; size check below rejects if >2 MB
+      imageBuffer = await genImg(prompt, "1024x1024");
     } catch (imgErr) {
       logger.error("Image generation failed (AI integration may be unavailable)", { videoDbId, error: String(imgErr) });
       return false;

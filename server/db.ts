@@ -13,9 +13,9 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,                      // raised from 15 — Replit Postgres handles ~25 total; 20 gives headroom for burst
-  idleTimeoutMillis: 20_000,    // release idle connections faster to free up pool slots
-  connectionTimeoutMillis: 10_000, // 10 s — fail fast so withRetry can try a fresh connection sooner
+  max: 10,                      // conservative — Replit Postgres ~25 limit; 10 prevents burst exhaustion across services
+  idleTimeoutMillis: 15_000,    // release idle connections quickly to free slots for other services
+  connectionTimeoutMillis: 8_000, // 8 s — fail fast so withRetry can try a fresh connection sooner
   allowExitOnIdle: true,
   statement_timeout: 25_000,
   query_timeout: 25_000,

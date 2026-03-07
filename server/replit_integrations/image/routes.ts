@@ -14,7 +14,7 @@ export function registerImageRoutes(app: Express): void {
         model: "gpt-image-1",
         prompt,
         n: 1,
-        size: size as "1024x1024" | "512x512" | "256x256",
+        size: size as "1024x1024" | "1024x1536" | "1536x1024" | "auto",
       });
 
       const imageData = response.data![0];
