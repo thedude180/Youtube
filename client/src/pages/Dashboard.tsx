@@ -32,6 +32,7 @@ const AGENT_ROSTER = [
   { id: "clipper",    name: "Mila Reyes",     role: "Moment Hunter",                 initials: "MR", color: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30" },
   { id: "raidscout",  name: "Devon Hall",     role: "Raid Scout & Network Builder",  initials: "DH", color: "bg-green-500/20 text-green-400 border-green-500/30" },
   { id: "revpulse",   name: "Jade Kim",       role: "Revenue Pulse",                 initials: "JK", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+  { id: "continuity", name: "Morgan Wells",   role: "Autonomous Operations Director", initials: "MW", color: "bg-violet-500/20 text-violet-400 border-violet-500/30" },
 ];
 
 function StatusDot({ status }: { status: string }) {

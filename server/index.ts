@@ -1149,6 +1149,7 @@ httpServer.listen(
     delay(289_000, () => import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(err => logger.error("Live Clip Highlighter init failed", { error: String(err) })));
     delay(291_000, () => import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(err => logger.error("Live Raid Scout init failed", { error: String(err) })));
     delay(293_000, () => import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(err => logger.error("Live Revenue Activator init failed", { error: String(err) })));
+    delay(295_000, () => import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(err => logger.error("Continuity Engine init failed", { error: String(err) })));
     delay(300_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
     delay(320_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
     delay(325_000, () => import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(err => logger.error("VOD Continuous Engine init failed", { error: String(err) })));

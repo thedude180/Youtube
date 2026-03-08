@@ -1245,6 +1245,7 @@ async function getTeamContext(ownerId: string, currentAgentRole: string): Promis
     "ai-clip-highlighter": "Moment Hunter",
     "ai-raid-scout": "Raid Scout",
     "ai-revenue-pulse": "Revenue Pulse",
+    "ai-continuity": "Autonomous Operations Director",
   };
 
   const lines = recentWork.map(t => {
