@@ -311,6 +311,22 @@ function GeneralTab() {
         </CardHeader>
         <CardContent className="p-3 space-y-3">
           {(() => {
+            const expiredChannels = (channels || []).filter((ch: any) => ch.connectionStatus === "expired");
+            if (expiredChannels.length > 0) {
+              const names = expiredChannels.map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)).join(" & ");
+              return (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30" data-testid="banner-connection-alert">
+                  <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-destructive">{names} {expiredChannels.length === 1 ? "needs" : "need"} reconnection</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Posting has paused on {expiredChannels.length === 1 ? "this platform" : "these platforms"}. Use the Reconnect button below to restore full automation.</p>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          {(() => {
             const FOCUSED_PLATFORMS = [
               { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true, streamKeyOnly: false },
               { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },

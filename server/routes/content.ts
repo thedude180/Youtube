@@ -83,11 +83,15 @@ export function registerContentRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const userChannels = await storage.getChannelsByUser(userId);
+    const now = new Date();
     const enriched = userChannels.map(ch => {
       const pd = (ch.platformData || {}) as any;
+      const tokenExpired = ch.tokenExpiresAt && ch.tokenExpiresAt < now;
+      const guardianStatus = pd._connectionStatus || "healthy";
+      const connectionStatus = tokenExpired ? "expired" : guardianStatus;
       return {
         ...ch,
-        connectionStatus: pd._connectionStatus || "healthy",
+        connectionStatus,
         lastVerifiedAt: pd._lastVerifiedAt || null,
       };
     });

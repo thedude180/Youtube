@@ -1,6 +1,6 @@
 import { db, withRetry } from "./db";
 import { autopilotQueue, notifications, deadLetterQueue } from "@shared/schema";
-import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, sql, gt } from "drizzle-orm";
 import { getNextResetTime, getQuotaStatus, getPacificDate } from "./services/youtube-quota-tracker";
 import { selfHealingCore } from "./self-healing-core";
 
@@ -192,6 +192,23 @@ function getRetryDelay(category: FailureCategory, attempt: number = 0, platform?
 async function createNotification(userId: string, title: string, message: string, severity: string = "info", actionUrl?: string) {
   if (severity === "info") return;
   try {
+    // Deduplicate: skip if an identical unread notification was created in the last 24 hours
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recent = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.title, title),
+          eq(notifications.read, false),
+          gt(notifications.createdAt!, oneDayAgo)
+        )
+      )
+      .limit(1);
+
+    if (recent.length > 0) return;
+
     await db.insert(notifications).values({
       userId,
       type: "system",

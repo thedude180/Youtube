@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   Users, Video, Eye, DollarSign, TrendingUp, CheckCircle2,
-  Clock, AlertCircle, Sparkles, Radio,
+  Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -112,6 +112,16 @@ export default function TeamDashboard() {
     staleTime: 10_000,
   });
 
+  const { data: channels } = useQuery<any[]>({
+    queryKey: ["/api/channels"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 4 * 60_000,
+  });
+
+  const expiredPlatforms = (channels || [])
+    .filter((ch: any) => ch.connectionStatus === "expired")
+    .map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1));
+
   const activeCount = agentStatus?.filter((a: any) => a.status === "active").length ?? 0;
 
   const fmt = (n?: number | null) => {
@@ -140,6 +150,16 @@ export default function TeamDashboard() {
       </div>
 
       <div className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-6">
+        {expiredPlatforms.length > 0 && (
+          <a href="/settings" className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30 hover:bg-destructive/15 transition-colors" data-testid="banner-platform-alert">
+            <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-destructive leading-none">{expiredPlatforms.join(" & ")} {expiredPlatforms.length === 1 ? "needs" : "need"} reconnection</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Posting is paused. Tap to reconnect in Settings.</p>
+            </div>
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          </a>
+        )}
         {statsLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
