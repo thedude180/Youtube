@@ -257,9 +257,9 @@ export async function autoFixFailedPosts(): Promise<{
       if (isPermanentFailure(category) || category === "config_missing") {
         stats.permanent++;
         let notifTitle = `Action needed: ${post.targetPlatform}`;
-        let friendlyMsg = `Posting to ${post.targetPlatform} requires platform reconnection. Go to Settings → Platforms to reconnect.`;
+        let friendlyMsg = `Posting to ${post.targetPlatform} requires reconnecting your account. Tap to reconnect in one step.`;
         let notifSeverity = "warning";
-        let notifActionUrl: string | undefined = "/channels";
+        let notifActionUrl: string | undefined = `/settings?reconnect=${post.targetPlatform}`;
 
         if (category === "copyright") {
           notifTitle = `Copyright block on ${post.targetPlatform}`;
@@ -374,7 +374,7 @@ export async function autoFixFailedPosts(): Promise<{
             `Upload couldn't be fixed automatically`,
             `After ${autoFixAttempts} automatic fix attempts, posting to ${post.targetPlatform} was abandoned. Error: ${errorMsg.substring(0, 150)}`,
             "error",
-            post.targetPlatform === "youtube" ? "/content" : "/channels"
+            post.targetPlatform === "youtube" ? "/content" : `/settings?reconnect=${post.targetPlatform}`
           );
         }
         await db.update(autopilotQueue)

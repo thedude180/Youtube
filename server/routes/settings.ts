@@ -62,6 +62,13 @@ export function registerSettingsRoutes(app: Express) {
     res.json({ success: true });
   });
 
+  app.post("/api/notifications/mark-all-read", writeRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await storage.markAllRead(userId);
+    res.json({ success: true });
+  });
+
   app.delete("/api/notifications/:id", writeRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
