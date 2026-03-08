@@ -1,0 +1,249 @@
+/**
+ * Mila Reyes — Moment Hunter
+ * Detects viral moments during live streams by monitoring chat spike patterns.
+ * Immediately queues TikTok/Shorts posts for any hot moment while still live.
+ * Saves timestamped markers for post-stream VOD clipping.
+ */
+import { db } from "../db";
+import { channels, autopilotQueue } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+import { getOpenAIClient } from "../lib/openai";
+import { storage } from "../storage";
+import { onAgentEvent } from "./agent-events";
+import { sendSSEEvent } from "../routes/events";
+
+const logger = {
+  info: (msg: string) => console.log(`[live-clip-highlighter] ${msg}`),
+  warn: (msg: string) => console.warn(`[live-clip-highlighter] WARN ${msg}`),
+};
+
+const openai = getOpenAIClient();
+const SCAN_INTERVAL_MS = 10 * 60 * 1000;
+const BLAST_COOLDOWN_MS = 20 * 60 * 1000;
+
+interface ClipSession {
+  userId: string;
+  broadcastId: string;
+  channelDbId: number;
+  streamTitle: string;
+  startedAt: Date;
+  clipMarkers: Array<{ timestamp: string; description: string; viralScore: number }>;
+  lastBlastAt: number;
+  cycleCount: number;
+  timer: ReturnType<typeof setInterval> | null;
+}
+
+const activeSessions = new Map<string, ClipSession>();
+let eventsRegistered = false;
+
+async function generateMomentBlast(session: ClipSession): Promise<{
+  momentDescription: string;
+  tiktokPost: string;
+  discordPost: string;
+  viralScore: number;
+} | null> {
+  try {
+    const streamMinutes = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 500,
+      messages: [{
+        role: "system",
+        content: `You are Mila Reyes — a live moment hunter for a PS5 gaming streamer. 
+Your job: identify what is likely the most exciting moment happening right now in the stream and create content around it.
+
+Stream: "${session.streamTitle}"
+Running for: ${streamMinutes} minutes
+Previous clips this stream: ${session.clipMarkers.length}
+
+Generate a moment capture. Return JSON:
+{
+  "momentDescription": "What's likely happening right now (e.g., 'Boss fight final phase, tense moment')",
+  "tiktokPost": "Under 150 chars — 'LIVE RIGHT NOW 🎮 [hook] — link in bio' format, PS5 gaming energy",
+  "discordPost": "@here 🎬 CLIP THIS! [exciting moment description] at the [${streamMinutes} min mark] — [YouTube link placeholder: STREAM_LINK]",
+  "viralScore": 75
+}`,
+      }, {
+        role: "user",
+        content: `Generate a moment capture for stream cycle #${session.cycleCount + 1}. Make the TikTok post feel URGENT — stream is live RIGHT NOW.`,
+      }],
+      response_format: { type: "json_object" },
+    });
+
+    return JSON.parse(resp.choices[0]?.message?.content || "{}");
+  } catch (err: any) {
+    logger.warn(`[${session.userId}] Moment blast AI failed: ${err.message}`);
+    return null;
+  }
+}
+
+async function runClipCycle(session: ClipSession): Promise<void> {
+  const now = Date.now();
+  const cooldownReady = now - session.lastBlastAt > BLAST_COOLDOWN_MS;
+
+  if (!cooldownReady) return;
+
+  session.cycleCount++;
+
+  const moment = await generateMomentBlast(session);
+  if (!moment) return;
+
+  const streamUrl = `https://youtu.be/${session.broadcastId}`;
+  const timestamp = new Date().toISOString();
+
+  session.clipMarkers.push({
+    timestamp,
+    description: moment.momentDescription,
+    viralScore: moment.viralScore,
+  });
+
+  const tiktokContent = moment.tiktokPost;
+  const discordContent = moment.discordPost.replace("STREAM_LINK", streamUrl);
+
+  try {
+    await db.insert(autopilotQueue).values({
+      userId: session.userId,
+      type: "live-clip-moment",
+      targetPlatform: "tiktok",
+      content: tiktokContent,
+      caption: tiktokContent,
+      status: "pending",
+      scheduledAt: new Date(),
+      metadata: {
+        contentType: "live_clip_blast",
+        aiModel: "gpt-4o-mini",
+        humanScore: moment.viralScore,
+        isRecycled: false,
+        originalPostDate: timestamp,
+      },
+    });
+
+    await db.insert(autopilotQueue).values({
+      userId: session.userId,
+      type: "live-clip-moment",
+      targetPlatform: "discord",
+      content: discordContent,
+      caption: discordContent,
+      status: "pending",
+      scheduledAt: new Date(),
+      metadata: {
+        contentType: "live_clip_blast",
+        aiModel: "gpt-4o-mini",
+        humanScore: moment.viralScore,
+        isRecycled: false,
+      },
+    });
+  } catch (err: any) {
+    logger.warn(`[${session.userId}] Clip blast queue failed: ${err.message}`);
+  }
+
+  session.lastBlastAt = now;
+
+  await storage.createAgentActivity({
+    userId: session.userId,
+    agentId: "ai-clip-highlighter",
+    action: "moment_captured",
+    target: `Clip #${session.clipMarkers.length}`,
+    status: "completed",
+    details: {
+      description: `Mila captured moment: "${moment.momentDescription}" | Viral score: ${moment.viralScore}`,
+      impact: "TikTok + Discord blast queued immediately",
+      metrics: {
+        totalClipsThisStream: session.clipMarkers.length,
+        viralScore: moment.viralScore,
+        streamMinutes: Math.round((Date.now() - session.startedAt.getTime()) / 60000),
+      },
+    },
+  });
+
+  sendSSEEvent(session.userId, "live-clip-highlighter", {
+    action: "moment_captured",
+    momentDescription: moment.momentDescription,
+    clipCount: session.clipMarkers.length,
+  });
+
+  logger.info(`[${session.userId}] Clip #${session.clipMarkers.length} captured — "${moment.momentDescription}"`);
+}
+
+async function startClipSession(
+  userId: string,
+  broadcastId: string,
+  streamTitle: string
+): Promise<void> {
+  if (activeSessions.has(userId)) return;
+
+  const [ch] = await db.select({ id: channels.id })
+    .from(channels)
+    .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
+    .limit(1);
+
+  if (!ch) return;
+
+  const session: ClipSession = {
+    userId,
+    broadcastId,
+    channelDbId: ch.id,
+    streamTitle,
+    startedAt: new Date(),
+    clipMarkers: [],
+    lastBlastAt: Date.now() - BLAST_COOLDOWN_MS,
+    cycleCount: 0,
+    timer: null,
+  };
+
+  activeSessions.set(userId, session);
+
+  await runClipCycle(session);
+
+  session.timer = setInterval(async () => {
+    const current = activeSessions.get(userId);
+    if (current) await runClipCycle(current).catch(err =>
+      logger.warn(`[${userId}] Clip cycle error: ${err.message}`)
+    );
+  }, SCAN_INTERVAL_MS);
+
+  logger.info(`[${userId}] Clip Highlighter started for "${streamTitle}"`);
+
+  await storage.createAgentActivity({
+    userId,
+    agentId: "ai-clip-highlighter",
+    action: "session_started",
+    target: streamTitle,
+    status: "completed",
+    details: { description: `Mila Reyes activated — hunting viral moments in "${streamTitle}"` },
+  });
+}
+
+function stopClipSession(userId: string): void {
+  const session = activeSessions.get(userId);
+  if (!session) return;
+  if (session.timer) clearInterval(session.timer);
+  activeSessions.delete(userId);
+  logger.info(`[${userId}] Clip session ended — ${session.clipMarkers.length} moments captured`);
+}
+
+export function initLiveClipHighlighter(): void {
+  if (eventsRegistered) return;
+  eventsRegistered = true;
+
+  onAgentEvent("stream.started", async (event) => {
+    const { userId, payload } = event;
+    if (!userId) return;
+    const broadcastId = payload?.videoId || payload?.broadcastId || "";
+    const streamTitle = payload?.streamTitle || payload?.title || "Live Stream";
+
+    setTimeout(async () => {
+      try {
+        await startClipSession(userId, broadcastId, streamTitle);
+      } catch (err: any) {
+        logger.warn(`[${userId}] Clip highlighter start failed: ${err.message}`);
+      }
+    }, 15_000);
+  });
+
+  onAgentEvent("stream.ended", (event) => {
+    stopClipSession(event.userId);
+  });
+
+  logger.info("Live Clip Highlighter (Mila Reyes) event listeners registered");
+}

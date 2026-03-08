@@ -27,7 +27,11 @@ const AGENT_ROSTER = [
   { id: "talent",     name: "Sarah Jenkins",   role: "Talent Manager",        initials: "SJ", color: "bg-lime-500/20 text-lime-400 border-lime-500/30" },
   { id: "legal",      name: "Alex Rivera",     role: "Legal & Compliance",    initials: "AR", color: "bg-slate-500/20 text-slate-400 border-slate-500/30" },
   { id: "catalog",    name: "Jamie Cruz",      role: "Catalog Content Director",  initials: "JC", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
-  { id: "livestream", name: "River Osei",      role: "Live Stream Growth Agent",  initials: "RO", color: "bg-red-600/20 text-red-400 border-red-600/30" },
+  { id: "livestream", name: "River Osei",      role: "Live Stream Growth Agent",     initials: "RO", color: "bg-red-600/20 text-red-400 border-red-600/30" },
+  { id: "livechat",   name: "Kai Nakamura",   role: "Live Chat Commander",           initials: "KN", color: "bg-sky-500/20 text-sky-400 border-sky-500/30" },
+  { id: "clipper",    name: "Mila Reyes",     role: "Moment Hunter",                 initials: "MR", color: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30" },
+  { id: "raidscout",  name: "Devon Hall",     role: "Raid Scout & Network Builder",  initials: "DH", color: "bg-green-500/20 text-green-400 border-green-500/30" },
+  { id: "revpulse",   name: "Jade Kim",       role: "Revenue Pulse",                 initials: "JK", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
 ];
 
 function StatusDot({ status }: { status: string }) {

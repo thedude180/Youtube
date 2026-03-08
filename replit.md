@@ -1,7 +1,7 @@
 # CreatorOS - AI YouTube Business Team
 
 ## Overview
-CreatorOS is a fully autonomous AI-powered YouTube business. A team of 16 named AI agents (Jordan Blake/CEO, Nia Okafor/Scriptwriter, Jamie Cruz/Catalog Content Director, River Osei/Live Stream Growth Agent, etc.) works autonomously 24/7 to grow a creator's channel — writing scripts, producing thumbnails, optimizing SEO, managing community, tracking revenue, running the live stream pipeline, mining the catalog for new content, and maximizing concurrent viewers on every live stream. The UI is intentionally simple: just the team doing their work.
+CreatorOS is a fully autonomous AI-powered YouTube business. A team of 20 named AI agents (Jordan Blake/CEO, Nia Okafor/Scriptwriter, Jamie Cruz/Catalog Content Director, River Osei/Live Stream Growth Agent, etc.) works autonomously 24/7 to grow a creator's channel — writing scripts, producing thumbnails, optimizing SEO, managing community, tracking revenue, running the live stream pipeline, mining the catalog for new content, and maximizing concurrent viewers on every live stream. The UI is intentionally simple: just the team doing their work.
 
 ## User Preferences
 - Dark mode, clean and simple — agents are the star of the show
@@ -16,7 +16,7 @@ CreatorOS is a full-stack application leveraging an Express.js backend and a Rea
 ### Frontend
 - **Technology**: React + Vite, Tailwind CSS, shadcn/ui.
 - **Pages (5 total)**:
-  - `/` — Team: 16 AI agent cards with live status, activity feed, channel stats (includes Jamie Cruz / Catalog Content Director, River Osei / Live Stream Growth Agent)
+  - `/` — Team: 20 AI agent cards with live status, activity feed, channel stats. Live stream squad: River Osei (Growth), Kai Nakamura (Chat), Mila Reyes (Clips), Devon Hall (Raids), Jade Kim (Revenue)
   - `/content` — Content: video library, scripts, calendar, thumbnails
   - `/stream` — Live: stream detection, engagement tools, post-stream pipeline
   - `/money` — Revenue: earnings, expenses, sponsorships, tax
