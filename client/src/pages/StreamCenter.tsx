@@ -37,6 +37,9 @@ export default function StreamCenter() {
   const qc = useQueryClient();
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [showAddDest, setShowAddDest] = useState(false);
+  const [platformConnecting, setPlatformConnecting] = useState<string | null>(null);
+  const [keyDialogPlatform, setKeyDialogPlatform] = useState<string | null>(null);
+  const [keyInput, setKeyInput] = useState("");
   const [newDest, setNewDest] = useState({ platform: "youtube", label: "", rtmpUrl: "", streamKey: "" });
   const [aiStreamRecs, setAiStreamRecs] = useState<AIResponse>(null);
   const [aiStreamRecsLoading, setAiStreamRecsLoading] = useState(true);
@@ -1001,6 +1004,197 @@ export default function StreamCenter() {
               {streamAgent?.videoId ? `Detected: ${streamAgent.videoId}` : 'Watching for live stream...'}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* ─── Streaming Platform Connection Hub ─── */}
+      <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="platform-connection-hub">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <Wifi className="h-4 w-4 text-primary" style={{ filter: "drop-shadow(0 0 6px hsl(265 80% 60% / 0.6))" }} />
+              <div>
+                <h3 className="text-sm font-bold font-mono text-foreground uppercase tracking-wide">Streaming Channels</h3>
+                <p className="text-[11px] text-muted-foreground">Connect all your platforms to enable simultaneous multistream relay</p>
+              </div>
+            </div>
+            {(() => {
+              const liveStreamPlatforms = ["youtube", "twitch", "kick", "rumble"] as const;
+              const connectedCount = liveStreamPlatforms.filter(p => {
+                if (p === "youtube") return connectedChannels.some((c: Channel) => c.platform === "youtube");
+                return destinations.some((d: any) => d.platform === p && d.streamKey);
+              }).length;
+              return (
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary" data-testid="badge-hub-status">
+                  {connectedCount}/{liveStreamPlatforms.length} CONNECTED
+                </span>
+              );
+            })()}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="section-platform-hub-grid">
+            {(["youtube", "twitch", "kick", "rumble"] as const).map(platform => {
+              const info = PLATFORM_INFO[platform];
+              const isYoutube = platform === "youtube";
+              const isConnectedYT = isYoutube && connectedChannels.some((c: Channel) => c.platform === "youtube");
+              const hasStreamKey = !isYoutube && destinations.some((d: any) => d.platform === platform && d.streamKey);
+              const isConnected = isYoutube ? isConnectedYT : hasStreamKey;
+              const isLoading = platformConnecting === platform;
+
+              return (
+                <div
+                  key={platform}
+                  className="relative rounded-xl border p-3 flex flex-col gap-2 transition-colors"
+                  style={{
+                    background: isConnected ? `${info.color}12` : "hsl(265 20% 10% / 0.4)",
+                    borderColor: isConnected ? `${info.color}40` : "hsl(265 20% 30% / 0.4)",
+                  }}
+                  data-testid={`card-hub-${platform}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <PlatformIcon platform={platform} className="h-4 w-4" />
+                      <span className="text-[11px] font-bold font-mono text-foreground">{info.label}</span>
+                    </div>
+                    <span
+                      className="text-[9px] font-mono px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: isConnected ? "#22c55e22" : "#94a3b822",
+                        color: isConnected ? "#22c55e" : "#94a3b8",
+                      }}
+                      data-testid={`badge-hub-status-${platform}`}
+                    >
+                      {isConnected ? "READY" : "SETUP"}
+                    </span>
+                  </div>
+
+                  <p className="text-[9px] text-muted-foreground leading-tight line-clamp-2">
+                    {isYoutube
+                      ? isConnected ? "OAuth connected — stream detection active" : "Sign in with Google to enable stream detection & relay source"
+                      : isConnected ? `Stream key saved — ready for relay` : info.setupSteps[0]}
+                  </p>
+
+                  {isYoutube ? (
+                    <button
+                      className="mt-auto text-[10px] font-mono px-2 py-1.5 rounded-lg border transition-colors w-full disabled:opacity-50"
+                      style={isConnected
+                        ? { background: "#22c55e15", borderColor: "#22c55e40", color: "#22c55e" }
+                        : { background: `${info.color}15`, borderColor: `${info.color}40`, color: info.color }
+                      }
+                      disabled={isLoading || isConnected}
+                      onClick={async () => {
+                        setPlatformConnecting(platform);
+                        try {
+                          const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
+                          if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Failed"); }
+                          const { url } = await res.json();
+                          window.location.href = url;
+                        } catch (err: any) {
+                          toast({ title: "Connect failed", description: err.message, variant: "destructive" });
+                          setPlatformConnecting(null);
+                        }
+                      }}
+                      data-testid={`button-hub-connect-${platform}`}
+                    >
+                      {isLoading ? <Loader2 className="h-3 w-3 animate-spin mx-auto" /> : isConnected ? <span className="flex items-center justify-center gap-1"><Check className="h-3 w-3" />Connected</span> : "Connect YouTube"}
+                    </button>
+                  ) : (
+                    <button
+                      className="mt-auto text-[10px] font-mono px-2 py-1.5 rounded-lg border transition-colors w-full"
+                      style={isConnected
+                        ? { background: "#22c55e15", borderColor: "#22c55e40", color: "#22c55e" }
+                        : { background: `${info.color}15`, borderColor: `${info.color}40`, color: info.color }
+                      }
+                      onClick={() => { setKeyDialogPlatform(platform); setKeyInput(""); }}
+                      data-testid={`button-hub-key-${platform}`}
+                    >
+                      {isConnected ? <span className="flex items-center justify-center gap-1"><Check className="h-3 w-3" />Update Key</span> : `Set Stream Key`}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Stream Key Entry Dialog */}
+          <Dialog open={keyDialogPlatform !== null} onOpenChange={(open) => { if (!open) setKeyDialogPlatform(null); }}>
+            <DialogContent data-testid="dialog-stream-key">
+              {keyDialogPlatform && (() => {
+                const info = PLATFORM_INFO[keyDialogPlatform as Platform];
+                return (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <PlatformIcon platform={keyDialogPlatform as Platform} className="h-5 w-5" />
+                        Connect {info.label}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-2">
+                      <div className="rounded-lg bg-muted/30 border border-border/30 p-3 space-y-1">
+                        {info.setupSteps.map((step: string, i: number) => (
+                          <p key={i} className="text-xs text-muted-foreground flex gap-2">
+                            <span className="text-primary font-mono shrink-0">{i + 1}.</span>
+                            {step}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium">Stream Key</label>
+                        <Input
+                          data-testid="input-hub-stream-key"
+                          type="password"
+                          placeholder={`Your ${info.label} stream key`}
+                          value={keyInput}
+                          onChange={(e) => setKeyInput(e.target.value)}
+                        />
+                        <p className="text-[10px] text-muted-foreground">Your stream key is stored securely and never exposed.</p>
+                      </div>
+                      <Button
+                        data-testid="button-hub-save-key"
+                        className="w-full"
+                        disabled={!keyInput.trim()}
+                        onClick={() => {
+                          if (!keyDialogPlatform || !keyInput.trim()) return;
+                          const platform = keyDialogPlatform;
+                          const info = PLATFORM_INFO[platform as Platform];
+                          const existing = destinations.find((d: any) => d.platform === platform);
+                          const payload = {
+                            platform,
+                            label: info.label,
+                            rtmpUrl: info.rtmpUrlTemplate,
+                            streamKey: keyInput.trim(),
+                            enabled: true,
+                          };
+                          if (existing) {
+                            apiRequest("PUT", `/api/stream-destinations/${existing.id}`, payload)
+                              .then(() => {
+                                qc.invalidateQueries({ queryKey: ["/api/stream-destinations"] });
+                                qc.invalidateQueries({ queryKey: ["/api/multistream/destinations"] });
+                                toast({ title: `${info.label} updated`, description: "Stream key saved — ready for relay" });
+                                setKeyDialogPlatform(null);
+                              })
+                              .catch((err: any) => toast({ title: "Save failed", description: err.message, variant: "destructive" }));
+                          } else {
+                            apiRequest("POST", "/api/stream-destinations", payload)
+                              .then(() => {
+                                qc.invalidateQueries({ queryKey: ["/api/stream-destinations"] });
+                                qc.invalidateQueries({ queryKey: ["/api/multistream/destinations"] });
+                                toast({ title: `${info.label} connected`, description: "Stream key saved — ready for multistream relay" });
+                                setKeyDialogPlatform(null);
+                              })
+                              .catch((err: any) => toast({ title: "Save failed", description: err.message, variant: "destructive" }));
+                          }
+                        }}
+                      >
+                        Save & Connect
+                      </Button>
+                    </div>
+                  </>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
