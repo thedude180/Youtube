@@ -260,7 +260,7 @@ RULES:
         },
         {
           role: "user",
-          content: `Create a thumbnail image prompt for this YouTube playlist: "${playlistTitle}"\n\nReturn ONLY the image generation prompt, nothing else. Make it specific, visual, and optimized for a 1280x720 YouTube playlist thumbnail.`,
+          content: `Create a thumbnail image prompt for this YouTube playlist: "${playlistTitle}"\n\nReturn ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16:9 frame (1280x720 YouTube playlist thumbnail). The composition must be wide and horizontal — fill the widescreen frame from edge to edge. No portrait or square framing.`,
         },
       ],
       max_completion_tokens: 4000,
@@ -294,7 +294,8 @@ async function generateAndSetPlaylistThumbnail(
     let imageBuffer: Buffer;
     try {
       const { generateImageBuffer } = await import("./replit_integrations/image/client");
-      imageBuffer = await generateImageBuffer(prompt, "1024x1024");
+      // YouTube playlist thumbnails display in 16:9 — use landscape format
+      imageBuffer = await generateImageBuffer(prompt, "1536x1024");
     } catch (imgErr) {
       logger.error("Image generation failed for playlist thumbnail", { error: String(imgErr) });
       return false;

@@ -666,22 +666,45 @@ export async function generateThumbnailPrompt(data: {
   const contentSection = buildContentPromptSection(contentCtx);
   const creatorContext = await getCreatorContext(userId);
 
-  const prompt = `You are a thumbnail design expert for ${data.platform || 'YouTube'}. Create a detailed image generation prompt for a high-performing thumbnail.
+  // Platform-specific thumbnail specs
+  const platform = (data.platform || 'youtube').toLowerCase();
+  const platformSpecs: Record<string, { aspectRatio: string; resolution: string; orientation: string; notes: string }> = {
+    youtube:        { aspectRatio: "16:9", resolution: "1280x720", orientation: "LANDSCAPE", notes: "wide cinematic frame — focal point center or rule-of-thirds, horizontal composition fills full width" },
+    youtube_shorts: { aspectRatio: "9:16", resolution: "1080x1920", orientation: "VERTICAL PORTRAIT", notes: "tall vertical frame — full-bleed portrait composition, subject fills the height, no black bars" },
+    twitch:         { aspectRatio: "16:9", resolution: "1280x720", orientation: "LANDSCAPE", notes: "wide cinematic frame matching broadcast dimensions — high energy, game-relevant imagery" },
+    kick:           { aspectRatio: "16:9", resolution: "1280x720", orientation: "LANDSCAPE", notes: "widescreen landscape — bold colors, game screenshot or streamer reaction in horizontal frame" },
+    rumble:         { aspectRatio: "16:9", resolution: "1280x720", orientation: "LANDSCAPE", notes: "standard widescreen format — clean horizontal composition" },
+    tiktok:         { aspectRatio: "9:16", resolution: "1080x1920", orientation: "VERTICAL PORTRAIT", notes: "full-screen vertical mobile format — center subject, high contrast, impactful close-up" },
+    instagram:      { aspectRatio: "1:1",  resolution: "1080x1080", orientation: "SQUARE", notes: "perfect square composition — balanced, symmetrical, subject centered" },
+    x:              { aspectRatio: "16:9", resolution: "1200x675",  orientation: "LANDSCAPE", notes: "wide horizontal card format for Twitter/X feed preview" },
+    discord:        { aspectRatio: "16:9", resolution: "1280x720",  orientation: "LANDSCAPE", notes: "widescreen embed preview format" },
+  };
+  const spec = platformSpecs[platform] || platformSpecs['youtube'];
+  const platformLabel = platform === 'youtube_shorts' ? 'YouTube Shorts' : (platform.charAt(0).toUpperCase() + platform.slice(1));
+
+  const prompt = `You are a thumbnail design expert for ${platformLabel}. Create a detailed image generation prompt for a high-performing thumbnail.
 
 Content Title: "${data.title}"
 Description: "${data.description || 'Not provided'}"
 Content Type: ${data.type || 'video'}
-Platform: ${data.platform || 'youtube'}
+Platform: ${platformLabel}
+Aspect Ratio: ${spec.aspectRatio} ${spec.orientation}
+Resolution: ${spec.resolution}
+Framing Rule: ${spec.notes}
 ${contentCtx.topicName ? `Topic/Subject: "${contentCtx.topicName}"` : ''}
 ${contentCtx.niche !== 'general' ? `Content Category: ${contentCtx.niche}` : ''}
 ${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}
 
+CRITICAL: The image prompt MUST produce a ${spec.orientation} ${spec.aspectRatio} composition. ${spec.notes.toUpperCase()}.
+
 Create a detailed, photorealistic image generation prompt as JSON:
 {
-  "prompt": "A detailed, specific image generation prompt that will create a professional, click-worthy thumbnail.${contentCtx.topicName ? ` The thumbnail MUST visually reference ${contentCtx.topicName} - use recognizable visual elements, themes, and motifs associated with ${contentCtx.topicName}. The color palette should match the ${nicheLabel} aesthetic.` : ''} Include: specific visual composition, color scheme (high contrast), text overlay suggestions (as visual elements), emotional hooks, facial expressions if applicable, background style, lighting, and any platform-specific sizing considerations.${contentCtx.niche !== 'general' ? ` For ${contentCtx.niche} content: use ${contentCtx.contentStyle} compositions that resonate with ${contentCtx.audienceType}.` : ''} The prompt should produce a thumbnail that stands out in a crowded feed.",
+  "prompt": "A detailed, specific image generation prompt that will create a professional, click-worthy ${platformLabel} thumbnail in ${spec.orientation} ${spec.aspectRatio} format.${contentCtx.topicName ? ` The thumbnail MUST visually reference ${contentCtx.topicName} - use recognizable visual elements, themes, and motifs associated with ${contentCtx.topicName}. The color palette should match the ${nicheLabel} aesthetic.` : ''} Include: ${spec.orientation} ${spec.aspectRatio} composition that fills the ${spec.resolution} frame, high-contrast color scheme, emotional hooks, cinematic ${spec.orientation === 'LANDSCAPE' ? 'widescreen' : 'portrait'} lighting, background style.${contentCtx.niche !== 'general' ? ` For ${contentCtx.niche} content: use ${contentCtx.contentStyle} compositions that resonate with ${contentCtx.audienceType}.` : ''} The prompt should produce a thumbnail that stands out in the ${platformLabel} feed.",
   "style": "The overall visual style${contentCtx.niche !== 'general' ? ` (should match the ${nicheLabel} aesthetic and visual conventions of ${contentCtx.niche} content)` : ' (e.g., cinematic, bold, minimalist, energetic)'}",
   "dominantColors": ["3 hex color codes that should dominate the thumbnail${contentCtx.topicName ? ` - should align with ${contentCtx.topicName}'s visual identity` : ''}"],
-  "textOverlay": "Suggested text to overlay on the thumbnail (keep it to 3-5 words maximum${contentCtx.topicName ? ` - reference ${contentCtx.topicName} or niche-specific terms` : ''})"
+  "textOverlay": "Suggested text to overlay on the thumbnail (keep it to 3-5 words maximum${contentCtx.topicName ? ` - reference ${contentCtx.topicName} or niche-specific terms` : ''})",
+  "aspectRatio": "${spec.aspectRatio}",
+  "imageSize": "${spec.aspectRatio === '16:9' ? '1536x1024' : spec.aspectRatio === '9:16' ? '1024x1536' : '1024x1024'}"
 }`;
 
   const response = await openai.chat.completions.create({

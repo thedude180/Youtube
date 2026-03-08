@@ -43,7 +43,7 @@ Title: "${videoTitle}"
 Description: "${(videoDescription || "").substring(0, 300)}"
 Type: ${videoType}
 
-Return ONLY the image generation prompt, nothing else. Make it specific, visual, and optimized for a 1280x720 YouTube thumbnail.`,
+Return ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16:9 frame (1280x720 YouTube thumbnail). The composition must fill the widescreen frame — wide, horizontal scene with the focal point centered or rule-of-thirds. No vertical or square framing.`,
         },
       ],
 // AUDIT FIX: Use max_tokens (standard Chat Completions parameter)
@@ -77,8 +77,8 @@ async function generateAndUploadThumbnail(
     let imageBuffer: Buffer;
     try {
       const { generateImageBuffer: genImg } = await import("./replit_integrations/image/client");
-      // Use 1024x1024 — gpt-image-1 minimum valid size; size check below rejects if >2 MB
-      imageBuffer = await genImg(prompt, "1024x1024");
+      // YouTube thumbnails are 16:9 landscape — use 1536x1024 for correct aspect ratio
+      imageBuffer = await genImg(prompt, "1536x1024");
     } catch (imgErr) {
       logger.error("Image generation failed (AI integration may be unavailable)", { videoDbId, error: String(imgErr) });
       return false;
