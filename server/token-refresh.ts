@@ -301,11 +301,23 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
       if (!ch.refreshToken || !ch.platform) continue;
       const pd = (ch.platformData || {}) as any;
 
-      // Skip channels already confirmed expired
-      if (pd._connectionStatus === "expired") continue;
+      // If previously confirmed expired — retry once every 4 hours.
+      // The refresh token may still be valid even if the access token was marked expired.
+      // Only give up permanently after PERMANENT_FAILURE_THRESHOLD consecutive failures.
+      if (pd._connectionStatus === "expired") {
+        const failures = (pd._permanentFailures || 0) as number;
+        if (failures >= PERMANENT_FAILURE_THRESHOLD) continue; // genuinely dead, skip
+        const lastAttempt = pd._lastKeepaliveAttempt ? new Date(pd._lastKeepaliveAttempt).getTime() : 0;
+        if (Date.now() - lastAttempt < 4 * 60 * 60 * 1000) continue; // too soon, try again later
+        // Fall through to attempt refresh
+        console.log(`[TokenKeepalive] Retrying expired channel ${ch.platform} (attempt ${failures + 1}/${PERMANENT_FAILURE_THRESHOLD})`);
+        await db.update(channels).set({
+          platformData: { ...pd, _lastKeepaliveAttempt: new Date().toISOString() },
+        }).where(eq(channels.id, ch.id));
+      }
 
       // Skip if we refreshed this channel in the last 20 hours (no need to refresh twice in one day)
-      if (pd._lastRefresh) {
+      if (pd._connectionStatus !== "expired" && pd._lastRefresh) {
         const lastRefresh = new Date(pd._lastRefresh).getTime();
         if (Date.now() - lastRefresh < 20 * 60 * 60 * 1000) {
           kept++;

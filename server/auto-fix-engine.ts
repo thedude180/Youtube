@@ -277,8 +277,8 @@ export async function autoFixFailedPosts(): Promise<{
           notifActionUrl = "/content";
         } else if (category === "config_missing") {
           notifTitle = `${post.targetPlatform} needs reconnection`;
-          friendlyMsg = `Posting to ${post.targetPlatform} requires reconnecting your account. Go to Settings → Channels and reconnect.`;
-          notifActionUrl = "/channels";
+          friendlyMsg = `Posting to ${post.targetPlatform} requires reconnecting your account. Tap to reconnect in one step.`;
+          notifActionUrl = `/settings?reconnect=${post.targetPlatform}`;
         }
 
         if (!metadata.permanentFailNotified) {
@@ -319,9 +319,9 @@ export async function autoFixFailedPosts(): Promise<{
             if (!metadata.permanentFailNotified) {
               await createNotification(post.userId,
                 `${post.targetPlatform} needs reconnection`,
-                `Your ${post.targetPlatform} connection expired and couldn't be refreshed automatically. Go to Settings → Channels to reconnect.`,
+                `Your ${post.targetPlatform} connection expired. Tap to reconnect in one step — automation will resume immediately.`,
                 "warning",
-                "/channels"
+                `/settings?reconnect=${post.targetPlatform}`
               );
               await db.update(autopilotQueue)
                 .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: "auth_expired" } })

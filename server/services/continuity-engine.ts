@@ -10,8 +10,8 @@
  * No human touch required. The machine watches itself.
  */
 import { db } from "../db";
-import { aiAgentActivities, autopilotQueue } from "@shared/schema";
-import { eq, and, lt, gt, count, desc, or } from "drizzle-orm";
+import { aiAgentActivities, autopilotQueue, channels } from "@shared/schema";
+import { eq, and, lt, gt, count, or, isNotNull } from "drizzle-orm";
 import { storage } from "../storage";
 import { enqueueAgentTask } from "../ai-team-engine";
 import { createLogger } from "../lib/logger";
@@ -334,6 +334,27 @@ async function runHealthReport(userId: string): Promise<void> {
 }
 
 // --------------------------------------------------------------------------
+// 5. TOKEN KEEPALIVE
+// Proactively refreshes all platform tokens before they expire.
+// Retries channels previously marked expired — the refresh token may still work.
+// --------------------------------------------------------------------------
+async function runTokenKeepalive(): Promise<{ kept: number; failed: number; retried: number }> {
+  try {
+    const { keepAliveAllTokens } = await import("../token-refresh");
+    const result = await keepAliveAllTokens();
+
+    if (result.kept > 0 || result.failed > 0) {
+      logger.info(`Token keepalive: ${result.kept} refreshed, ${result.failed} failed`);
+    }
+
+    return { kept: result.kept, failed: result.failed, retried: 0 };
+  } catch (err: any) {
+    logger.warn(`Token keepalive error: ${err.message}`);
+    return { kept: 0, failed: 0, retried: 0 };
+  }
+}
+
+// --------------------------------------------------------------------------
 // MAIN CYCLE — runs every 30 minutes per user
 // --------------------------------------------------------------------------
 async function runContinuityCycle(): Promise<void> {
@@ -357,6 +378,11 @@ async function runContinuityCycle(): Promise<void> {
       logger.info("No active users found — continuity engine standing by");
       return;
     }
+
+    // Run token keepalive globally (not per-user, since keepAliveAllTokens handles all users)
+    await runTokenKeepalive().catch(err =>
+      logger.warn(`Token keepalive failed: ${err.message}`)
+    );
 
     for (const userId of activeUserIds) {
       try {

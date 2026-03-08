@@ -80,6 +80,43 @@ function GeneralTab() {
   const { toast } = useToast();
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Auto-trigger OAuth reconnect when ?reconnect=platform is in the URL
+  // This lets notifications deep-link directly into the reconnect flow
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const reconnectPlatform = urlParams.get("reconnect");
+    if (!reconnectPlatform) return;
+
+    window.history.replaceState({}, "", window.location.pathname);
+
+    const YOUTUBE_PLATFORMS = ["youtube"];
+    const isYouTube = YOUTUBE_PLATFORMS.includes(reconnectPlatform);
+
+    const DEEP_LINK_PLATFORMS_MOBILE = ["kick", "twitch", "tiktok", "discord"];
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    setOauthLoading(reconnectPlatform);
+
+    const doReconnect = async () => {
+      try {
+        if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS_MOBILE.includes(reconnectPlatform)) {
+          window.location.href = `/api/oauth/${reconnectPlatform}/bounce`;
+          return;
+        }
+        const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${reconnectPlatform}/auth`;
+        const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
+        const { url } = await res.json();
+        window.location.href = url;
+      } catch (error: any) {
+        toast({ title: "Reconnect failed", description: error.message, variant: "destructive" });
+        setOauthLoading(null);
+      }
+    };
+
+    doReconnect();
+  }, [toast]);
   const { data: presetData } = useQuery<{ preset: "safe" | "normal" | "aggressive" }>({
     queryKey: ["/api/settings/preset"],
     staleTime: 30_000,

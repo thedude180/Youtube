@@ -34,8 +34,9 @@ export async function sendReconnectEmail(userId: string, platform: string): Prom
           userId,
           type: "system",
           title: `${platformName} Disconnected`,
-          message: `Your ${platformName} connection has expired. Go to Settings → Channels to reconnect and restore full automation.`,
+          message: `Your ${platformName} connection has expired. Tap to reconnect in one step — automation will resume immediately.`,
           severity: "warning",
+          actionUrl: `/settings?reconnect=${platform}`,
         });
         const { sendSSEEvent } = await import("../routes/events");
         sendSSEEvent(userId, "notification", { type: "new" });
