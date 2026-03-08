@@ -1144,6 +1144,7 @@ httpServer.listen(
     delay(240_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
     delay(260_000, () => import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) })));
     delay(280_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
+    delay(285_000, () => import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(err => logger.error("Livestream Growth Agent init failed", { error: String(err) })));
     delay(300_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
     delay(320_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
     delay(325_000, () => import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(err => logger.error("VOD Continuous Engine init failed", { error: String(err) })));

@@ -1,7 +1,7 @@
 # CreatorOS - AI YouTube Business Team
 
 ## Overview
-CreatorOS is a fully autonomous AI-powered YouTube business. A team of 15 named AI agents (Jordan Blake/CEO, Nia Okafor/Scriptwriter, Jamie Cruz/Catalog Content Director, etc.) works autonomously 24/7 to grow a creator's channel — writing scripts, producing thumbnails, optimizing SEO, managing community, tracking revenue, running the live stream pipeline, and continuously mining the video catalog for new content. The UI is intentionally simple: just the team doing their work.
+CreatorOS is a fully autonomous AI-powered YouTube business. A team of 16 named AI agents (Jordan Blake/CEO, Nia Okafor/Scriptwriter, Jamie Cruz/Catalog Content Director, River Osei/Live Stream Growth Agent, etc.) works autonomously 24/7 to grow a creator's channel — writing scripts, producing thumbnails, optimizing SEO, managing community, tracking revenue, running the live stream pipeline, mining the catalog for new content, and maximizing concurrent viewers on every live stream. The UI is intentionally simple: just the team doing their work.
 
 ## User Preferences
 - Dark mode, clean and simple — agents are the star of the show
@@ -16,7 +16,7 @@ CreatorOS is a full-stack application leveraging an Express.js backend and a Rea
 ### Frontend
 - **Technology**: React + Vite, Tailwind CSS, shadcn/ui.
 - **Pages (5 total)**:
-  - `/` — Team: 15 AI agent cards with live status, activity feed, channel stats (includes Jamie Cruz / Catalog Content Director)
+  - `/` — Team: 16 AI agent cards with live status, activity feed, channel stats (includes Jamie Cruz / Catalog Content Director, River Osei / Live Stream Growth Agent)
   - `/content` — Content: video library, scripts, calendar, thumbnails
   - `/stream` — Live: stream detection, engagement tools, post-stream pipeline
   - `/money` — Revenue: earnings, expenses, sponsorships, tax
@@ -40,6 +40,7 @@ CreatorOS is a full-stack application leveraging an Express.js backend and a Rea
     - **Autonomy Controller**: Orchestrates all AI engines.
     - **AI Team Engine**: Autonomous AI agents collaborate via a shared task queue. The 15th agent, Jamie Cruz (Catalog Content Director), mines the full YouTube catalog every 4 hours to identify repurposing opportunities (viral clips, compilations, throwbacks, trend-jacked re-frames) and queues them to autopilot.
     - **Catalog Content Engine** (`server/services/catalog-content-engine.ts`): Scans ALL catalog videos (no age limit), uses GPT-4o-mini with Jamie Cruz's world-class editing prompt to identify up to 8 repurposing opportunities per cycle, and queues them as `catalog-clip`, `catalog-compilation`, `catalog-reactivation`, or `catalog-reaction` types.
+    - **Livestream Growth Agent** (`server/services/livestream-growth-agent.ts`): River Osei activates automatically when a `stream.started` event fires. Every 15 min while live: AI generates a maximally SEO-optimized YouTube title (🔴 LIVE: format), updates the broadcast via YouTube API, and queues social blasts to X, Discord, and TikTok to drive live viewers. Every 20 min: additional social push. Stops automatically on `stream.ended`.
     - **Conversational AI Co-Pilot**: Context-aware AI assistant with tool-calling.
     - **Content Automation System**: Includes YouTube Upload Watcher, Historical Content Sweep, and Content Consistency Agent.
     - **Auto Agent Orchestrator**: Manages background agent sessions for all paid users, including Stream Agent and Copyright Guardian.
