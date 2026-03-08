@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { eq, and, desc, asc, sql, inArray, ne, lt } from "drizzle-orm";
-import { teamMembers, teamActivityLog, aiAgentTasks, videos, channels, users } from "@shared/schema";
+import { teamMembers, teamActivityLog, aiAgentTasks, videos, channels, users, managedPlaylists } from "@shared/schema";
 import type { AiAgentTask, TeamMember } from "@shared/schema";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
@@ -338,7 +338,8 @@ OUTPUT FORMAT — respond with valid JSON:
     capabilities: [
       "keyword_velocity_analysis", "title_formula_engineering", "description_template_building",
       "tag_cluster_strategy", "chapter_seo", "search_vs_browse_classification",
-      "closed_caption_optimization", "trending_keyword_detection"
+      "closed_caption_optimization", "trending_keyword_detection",
+      "playlist_seo_optimization", "playlist_title_engineering", "watch_session_chaining"
     ],
     systemPrompt: `You are the AI SEO Manager — a world-class YouTube search ranking specialist who engineers discoverability at scale.
 
@@ -398,9 +399,40 @@ TAG STRATEGY:
 - Cluster 3: Channel brand tags (creator name, channel name)
 - Total: 10-15 tags max (quality over quantity)
 
+PLAYLIST SEO — YOU MUST ALWAYS INCLUDE THIS IN YOUR OUTPUT:
+Playlists are one of the most underutilized SEO levers on YouTube. They create watch sessions, boost average view duration across the channel, and rank separately in search.
+
+PLAYLIST TITLE FORMULA:
+- Include the main topic keyword at the start: "PS5 Gameplay | [Series Name]"
+- Add a series signal: "Part 1-5", "Full Series", "Complete Guide", "All Episodes"
+- Avoid generic names like "My Videos" — be specific and keyword-rich
+
+PLAYLIST DESCRIPTION SEO:
+- First 2 sentences must contain the primary keyword (this is what YouTube indexes)
+- Include secondary keywords naturally in sentences 3-5
+- Add a "What you'll find in this playlist:" section listing 3-5 topics
+- End with a subscribe CTA and related playlist mention
+
+PLAYLIST VIDEO ORDERING STRATEGY:
+- Start with the highest-view video (social proof) OR the best hook video (retention)
+- Group by topic cluster — viewers who finish one video should want the next
+- Put long-form content early, shorts at the end (keeps watch time high at the start)
+- Series playlists: always chronological
+
+WATCH SESSION CHAINING:
+- Every playlist should end with an end screen that points to the next playlist
+- Playlist descriptions should mention related playlists by name (YouTube cross-ranks them)
+- If a video appears in 2+ playlists, that signals relevance to the algorithm
+
+NEW PLAYLIST IDEAS — always suggest these based on the channel's video library:
+- "Best Of [Channel Name]" — the evergreen discovery playlist
+- "[Game Name] Moments" — for gaming channels, topic-specific playlists rank well in search
+- "New Here? Start Here" — onboarding playlist for new subscribers
+- Series playlists for any recurring video format
+
 OUTPUT FORMAT — respond with valid JSON:
 {
-  "action": "full_seo_package" | "title_options" | "description_template" | "tag_strategy",
+  "action": "full_seo_package" | "title_options" | "description_template" | "tag_strategy" | "playlist_seo",
   "output": "complete SEO analysis and recommendations",
   "title_options": array,
   "primary_keyword": string,
@@ -409,6 +441,12 @@ OUTPUT FORMAT — respond with valid JSON:
   "tags": array,
   "chapter_markers": array,
   "search_vs_browse": "search" | "browse" | "both",
+  "playlist_seo": {
+    "existing_optimizations": [{"playlist": "playlist title", "currentIssue": "what's wrong", "optimizedTitle": "better title", "optimizedDescription": "first 150 chars of new description", "estimatedImpact": "what this fixes"}],
+    "new_playlist_ideas": [{"title": "playlist name", "description": "first 150 chars", "videoGroupingLogic": "which videos to add and why", "seoRationale": "why this playlist will rank"}],
+    "ordering_strategy": "overall recommendation for video ordering across all playlists",
+    "watch_session_chain": "how playlists should link to each other for maximum session time"
+  },
   "handoff_to": "Social Media Manager" | "Shorts Specialist" | null,
   "handoff_reason": string | null
 }`
@@ -1199,12 +1237,18 @@ export async function provisionAiAgents(ownerId: string): Promise<TeamMember[]> 
 
 async function getChannelContext(ownerId: string): Promise<string> {
   const [channel] = await db.select().from(channels).where(eq(channels.userId, ownerId)).limit(1);
-  const recentVideos = channel
-    ? await db.select().from(videos)
-        .where(eq(videos.channelId, channel.id))
-        .orderBy(desc(videos.publishedAt))
-        .limit(5)
-    : [];
+  const [recentVideos, playlists] = await Promise.all([
+    channel
+      ? db.select().from(videos)
+          .where(eq(videos.channelId, channel.id))
+          .orderBy(desc(videos.publishedAt))
+          .limit(5)
+      : Promise.resolve([]),
+    db.select().from(managedPlaylists)
+      .where(eq(managedPlaylists.userId, ownerId))
+      .orderBy(desc(managedPlaylists.lastUpdatedAt))
+      .limit(10),
+  ]);
 
   if (!channel && recentVideos.length === 0) {
     return "No channel or videos found yet. The creator is just getting started.";
@@ -1216,6 +1260,13 @@ async function getChannelContext(ownerId: string): Promise<string> {
   }
   if (recentVideos.length > 0) {
     ctx += `Recent videos: ${recentVideos.map(v => `"${v.title}" (${v.viewCount || 0} views, ${v.likeCount || 0} likes)`).join("; ")}. `;
+  }
+  if (playlists.length > 0) {
+    ctx += `\nPlaylists (${playlists.length} total): ${playlists.map(p =>
+      `"${p.title}" (${p.videoCount || 0} videos${p.seoScore ? `, SEO score: ${Math.round(p.seoScore)}` : ""}${p.description ? `, desc: "${p.description.substring(0, 60)}..."` : ", no description"})`
+    ).join("; ")}. `;
+  } else {
+    ctx += `\nPlaylists: None created yet — high opportunity for SEO grouping and watch-session chaining. `;
   }
   return ctx;
 }
@@ -1464,7 +1515,7 @@ export async function runTeamCycle(ownerId: string): Promise<{ tasks: AiAgentTas
     await enqueueAgentTask(ownerId, "ai-scriptwriter", "full_script_writing",
       "Script & Hook Engineering — Based on Research Lead Brief", base, 3);
     await enqueueAgentTask(ownerId, "ai-seo-manager", "full_seo_package",
-      "YouTube SEO Package — Titles, Keywords, Description Template", base, 3);
+      "YouTube SEO Package — Titles, Keywords, Description Template, Playlist SEO & Watch Session Architecture", base, 3);
     await enqueueAgentTask(ownerId, "ai-editor", "post_production_brief",
       "Post-Production Direction — Pacing, B-Roll, Chapter Strategy", base, 4);
     await enqueueAgentTask(ownerId, "ai-thumbnail-artist", "thumbnail_concept",
