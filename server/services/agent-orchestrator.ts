@@ -260,6 +260,15 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
     logger.warn(`[${userId}] TikTok autopublisher init failed: ${err.message}`);
   }
 
+  if (tier !== "free") {
+    try {
+      const { initCatalogEngineForUser } = await import("./catalog-content-engine");
+      initCatalogEngineForUser(userId);
+    } catch (err: any) {
+      logger.warn(`[${userId}] Catalog content engine init failed: ${err.message}`);
+    }
+  }
+
   try {
     const { fireAgentEvent } = await import("./agent-events");
     fireAgentEvent("agent.session.started", userId, { tier, agentsStarted });
@@ -282,6 +291,11 @@ export function stopUserAgentSession(userId: string): void {
     session.cancelFns.forEach(fn => fn());
     activeSessions.delete(userId);
   }
+  try {
+    import("./catalog-content-engine").then(({ stopCatalogEngineForUser }) => {
+      stopCatalogEngineForUser(userId);
+    }).catch(() => {});
+  } catch {}
 }
 
 export function pauseUserAgentSession(userId: string): boolean {

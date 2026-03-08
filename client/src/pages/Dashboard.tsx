@@ -26,6 +26,7 @@ const AGENT_ROSTER = [
   { id: "brand",      name: "Elena Rossi",     role: "Brand & Sponsorships",  initials: "ER", color: "bg-rose-500/20 text-rose-400 border-rose-500/30" },
   { id: "talent",     name: "Sarah Jenkins",   role: "Talent Manager",        initials: "SJ", color: "bg-lime-500/20 text-lime-400 border-lime-500/30" },
   { id: "legal",      name: "Alex Rivera",     role: "Legal & Compliance",    initials: "AR", color: "bg-slate-500/20 text-slate-400 border-slate-500/30" },
+  { id: "catalog",    name: "Jamie Cruz",      role: "Catalog Content Director", initials: "JC", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
 ];
 
 function StatusDot({ status }: { status: string }) {
