@@ -230,6 +230,20 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
       });
     }
   }
+
+  const videoDuration = meta?.duration || (video as any).duration || 0;
+  if (video.platform === "youtube" && videoDuration >= 900) {
+    import("./smart-edit-engine").then(m => {
+      m.queueVideoForSmartEdit(userId, videoId)
+        .then(jobId => {
+          if (jobId) {
+            logger.info("Long video auto-queued for smart edit", { videoId, duration: videoDuration });
+            m.processSmartEditQueue(userId).catch(() => undefined);
+          }
+        })
+        .catch(err => logger.warn("Auto smart-edit queue failed", { videoId, error: String(err).substring(0, 200) }));
+    }).catch(() => undefined);
+  }
 }
 
 const MAX_CROSS_POSTS_PER_DAY = 20;

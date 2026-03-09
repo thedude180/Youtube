@@ -1903,4 +1903,54 @@ export function registerContentRoutes(app: Express) {
       res.status(500).json({ error: "Failed to resolve A/B test" });
     }
   }));
+
+  app.post("/api/content/videos/:id/smart-edit", writeRateLimit, asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const videoId = parseNumericId(req.params.id);
+      if (!videoId) return res.status(400).json({ error: "Invalid video ID" });
+
+      const video = await storage.getVideo(videoId);
+      if (!video || video.userId !== userId) return res.status(404).json({ error: "Video not found" });
+
+      const meta = video.metadata as any;
+      const duration = meta?.duration || (video as any).duration || 0;
+      if (duration < 900) return res.status(400).json({ error: "Video must be longer than 15 minutes" });
+
+      const { queueVideoForSmartEdit, processSmartEditQueue } = await import("../smart-edit-engine");
+      const jobId = await queueVideoForSmartEdit(userId, videoId);
+      if (!jobId) return res.status(409).json({ error: "Already queued or video too short" });
+
+      processSmartEditQueue(userId).catch(() => undefined);
+
+      res.json({ queued: true, jobId });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to queue smart edit" });
+    }
+  }));
+
+  app.get("/api/content/smart-edit/jobs", asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getSmartEditJobs } = await import("../smart-edit-engine");
+      const jobs = await getSmartEditJobs(userId, 30);
+      res.json(jobs);
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to fetch smart edit jobs" });
+    }
+  }));
+
+  app.post("/api/content/smart-edit/batch", bulkRateLimit, asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { initSmartEditForAllLongVideos } = await import("../smart-edit-engine");
+      const result = await initSmartEditForAllLongVideos(userId);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to batch queue smart edits" });
+    }
+  }));
 }

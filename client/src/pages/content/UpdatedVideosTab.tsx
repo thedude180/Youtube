@@ -15,6 +15,7 @@ import { SiYoutube } from "react-icons/si";
 import { formatDistanceToNow } from "date-fns";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
+import SmartEditPanel from "./SmartEditPanel";
 
 interface AutopilotEntry {
   id: number;
@@ -599,6 +600,8 @@ function UpdatedVideosTab() {
           </CardContent>
         </Card>
       )}
+
+      <SmartEditPanel />
     </div>
   );
 }

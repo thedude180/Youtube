@@ -1221,6 +1221,24 @@ httpServer.listen(
       }).catch(err => logger.warn("Token keepalive init failed", { error: String(err) }));
     });
 
+    delay(495_000, () => {
+      import("./performance-feedback-engine").then(m => {
+        m.startPerformanceFeedbackEngine();
+      }).catch(err => logger.error("Performance feedback engine init failed", { error: String(err) }));
+    });
+
+    delay(510_000, () => {
+      import("./smart-edit-engine").then(async m => {
+        const { db: database } = await import("./db");
+        const { users } = await import("@shared/schema");
+        const allUsers = await database.select({ id: users.id }).from(users).limit(50);
+        for (const u of allUsers) {
+          m.initSmartEditForAllLongVideos(u.id).catch(() => undefined);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+      }).catch(err => logger.error("Smart edit engine init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.
