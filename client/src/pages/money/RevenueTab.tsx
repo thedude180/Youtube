@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DollarSign, Plus, TrendingUp, CalendarDays, CheckCircle2, AlertTriangle,
-  Sparkles, Loader2, RefreshCw, Zap, CloudDownload, Clock,
+  Sparkles, Loader2, RefreshCw, Zap, CloudDownload, Clock, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
@@ -164,6 +164,15 @@ export default function RevenueTab() {
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-revenue-title" className="text-lg font-semibold">Revenue</h2>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            data-testid="button-export-revenue"
+            size="sm"
+            variant="outline"
+            onClick={() => window.open('/api/revenue/export.csv', '_blank')}
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Export CSV
+          </Button>
           <Button
             data-testid="button-sync-revenue"
             size="sm"

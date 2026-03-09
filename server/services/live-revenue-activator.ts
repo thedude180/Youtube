@@ -163,6 +163,45 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
   const prompt = await generateMembershipPrompt(session);
   if (!prompt) return;
 
+  // Post to YouTube Live Chat
+  if (session.broadcastId) {
+    try {
+      const { google } = await import("googleapis");
+      const { getAuthenticatedClient } = await import("../youtube");
+      const { oauth2Client } = await getAuthenticatedClient(session.channelDbId);
+      const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+
+      // Get liveChatId if not already in session
+      let liveChatId = (session as any).liveChatId;
+      if (!liveChatId) {
+        const res = await youtube.liveBroadcasts.list({
+          part: ["snippet"],
+          id: [session.broadcastId]
+        });
+        liveChatId = res.data.items?.[0]?.snippet?.liveChatId;
+        (session as any).liveChatId = liveChatId;
+      }
+
+      if (liveChatId) {
+        await youtube.liveChatMessages.insert({
+          part: ["snippet"],
+          requestBody: {
+            snippet: {
+              liveChatId,
+              type: "textMessageEvent",
+              textMessageDetails: {
+                messageText: prompt.chatMessage
+              }
+            }
+          }
+        });
+        logger.info(`[${session.userId}] Membership prompt posted to YouTube chat`);
+      }
+    } catch (err: any) {
+      logger.warn(`[${session.userId}] YouTube chat post failed: ${err.message}`);
+    }
+  }
+
   try {
     await db.insert(autopilotQueue).values({
       userId: session.userId,

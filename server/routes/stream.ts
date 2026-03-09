@@ -24,6 +24,7 @@ import { db } from "../db";
 import { videos, channels, streams } from "@shared/schema";
 import { eq, and, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { enqueueAgentTask } from "../ai-team-engine";
+import { aiAgentTasks } from "@shared/schema";
 
 async function checkYouTubeLiveViaWatchPage(channelId: string): Promise<boolean> {
   const result = await detectYouTubeLiveFromChannel(channelId);
@@ -580,6 +581,54 @@ export function registerStreamRoutes(app: Express) {
     });
 
     res.json({ jobs: streamJobs, tasks });
+  }));
+
+  app.get("/api/agents/tasks/:taskId/result", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const taskId = parseNumericId(req.params.taskId, res);
+    if (taskId === null) return;
+
+    const [task] = await db.select().from(aiAgentTasks).where(and(eq(aiAgentTasks.id, taskId), eq(aiAgentTasks.ownerId, userId))).limit(1);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+
+    res.json(task.result || {});
+  }));
+
+  app.get("/api/notifications/vapid-public-key", asyncHandler(async (req, res) => {
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    if (!publicKey) return res.status(500).json({ error: "VAPID public key not configured" });
+    res.json({ publicKey });
+  }));
+
+  app.post("/api/notifications/subscribe", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const subscription = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: "Invalid subscription" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const prefs = user.userPreferences || {};
+    const subs = prefs.pushSubscriptions || [];
+
+    // Avoid duplicates
+    if (!subs.find((s: any) => s.endpoint === subscription.endpoint)) {
+      subs.push(subscription);
+    }
+
+    await storage.updateUserProfile(userId, {
+      userPreferences: {
+        ...prefs,
+        pushSubscriptions: subs
+      }
+    } as any);
+
+    res.json({ success: true });
   }));
 
   app.post(api.streams.postStreamProcess.path, asyncHandler(async (req, res) => {

@@ -29,10 +29,47 @@ export async function detect(userId: string): Promise<LiveDetectionResult[]> {
       results.push(await detectYouTube(userId, channel));
     } else if (channel.platform === "twitch") {
       results.push(await detectTwitch(userId, channel));
+    } else if (channel.platform === "kick") {
+      results.push(await detectKick(userId, channel));
     }
   }
 
   return results;
+}
+
+async function detectKick(userId: string, channel: any): Promise<LiveDetectionResult> {
+  const channelName = channel.channelId; // For Kick we usually store the slug/username as channelId
+  const signals: Record<string, any> = {};
+
+  if (!channelName) {
+    return { isLive: false, platform: "kick", confidence: 0, signals: { error: "missing_channel_id" } };
+  }
+
+  try {
+    // Kick public API v2
+    const res = await fetch(`https://kick.com/api/v2/channels/${channelName}`);
+    
+    if (!res.ok) {
+      signals.api_error = `HTTP ${res.status}`;
+      return { isLive: false, platform: "kick", confidence: 0, signals };
+    }
+
+    const data = await res.json();
+    const isLive = data.is_live === true;
+    
+    signals.api = isLive;
+    
+    return {
+      isLive,
+      platform: "kick",
+      videoId: data.livestream?.id?.toString(),
+      title: data.livestream?.session_title,
+      confidence: 1.0,
+      signals
+    };
+  } catch (err) {
+    return { isLive: false, platform: "kick", confidence: 0, signals: { error: String(err) } };
+  }
 }
 
 async function detectYouTube(userId: string, channel: any): Promise<LiveDetectionResult> {

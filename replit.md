@@ -71,3 +71,21 @@ CreatorOS is a full-stack application leveraging an Express.js backend and a Rea
 - **Stripe**: Payment processing and subscription management.
 - **node-cron**: Background task scheduling.
 - **tweetnacl**: Cryptographic library for security (e.g., Discord Ed25519 verification).
+- **sharp**: Image processing for JPEG thumbnail conversion before YouTube upload.
+- **web-push**: VAPID-based web push notifications for critical alerts.
+
+## Recent Improvements (Latest Session)
+- **JPEG thumbnails**: Auto-thumbnail engine now converts generated images from PNG to JPEG (via sharp) before YouTube upload — better compatibility and smaller file size.
+- **Kick live detection**: `ps5-live-detector.ts` now checks Kick channels via their public API alongside YouTube and Twitch.
+- **Devon raid execution**: When a stream ends, Devon Hall calls the Twitch Helix Raid API to actually execute the top-ranked raid (not just recommend it).
+- **Jade → YouTube chat**: Jade Kim's membership prompts are now posted directly to YouTube live chat (not just Discord).
+- **Agent task post-processing**: After each AI agent task completes, a `dispatchTaskResult()` handler pushes results into the right place — SEO suggestions → video metadata (+ YouTube push), scripts → video metadata, thumbnail prompts → auto-thumbnail engine, sponsorship opportunities → sponsorship deals table, clip timestamps → content clips table.
+- **Revenue/Expense CSV export**: `GET /api/revenue/export.csv` and `GET /api/expenses/export.csv` endpoints with frontend Export CSV buttons.
+- **Agent task result detail modal**: Clicking any activity row in the Dashboard opens a modal showing the full AI agent output (JSON or text).
+- **Script export**: Copy + Download .txt buttons on scripts in Script Studio.
+- **Bulk video SEO**: Multi-select mode on Content page with floating action bar to batch-optimize SEO for multiple videos at once via `POST /api/content/bulk-seo-optimize`.
+- **Wellness + Accessibility persistence**: Settings saved via `POST /api/settings/wellness` and `POST /api/settings/accessibility`, stored in `user_preferences` JSONB on users table.
+- **Platform setup banners**: Dashboard shows dismissible amber banners when YouTube is not connected or Stripe is unconfigured.
+- **Stripe graceful UI**: Money and Pricing pages show a setup card instead of errors when Stripe is not configured.
+- **Channel stats refresh**: Refresh button on Dashboard triggers a live sync from YouTube API.
+- **Push notifications (VAPID)**: `web-push` VAPID keys configured, subscription endpoint `POST /api/notifications/subscribe`, public key at `GET /api/notifications/vapid-public-key`, browser prompted for permission on load, critical notifications trigger real web push.

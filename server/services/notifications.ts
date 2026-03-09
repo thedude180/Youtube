@@ -2,6 +2,18 @@ import { db } from "../db";
 import { users, ADMIN_EMAIL, SUPPORT_EMAIL } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 import { sendGmail } from "./gmail-client";
+import webpush from "web-push";
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    `mailto:${SUPPORT_EMAIL}`,
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+}
 
 export type NotificationSeverity = "info" | "warning" | "critical";
 
@@ -115,6 +127,30 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
         result.email = sent;
       } catch (emailErr) {
         console.error(`[Notifications] Email send failed for ${payload.userId}:`, emailErr);
+      }
+    }
+
+    if (payload.severity === "critical" || payload.severity === "warning") {
+      const prefs = (user as any).userPreferences || {};
+      const subs = prefs.pushSubscriptions || [];
+      if (subs.length > 0) {
+        const pushPayload = JSON.stringify({
+          title: payload.title,
+          body: payload.message,
+          severity: payload.severity,
+          icon: "/icon-192.png"
+        });
+
+        for (const sub of subs) {
+          try {
+            await webpush.sendNotification(sub, pushPayload);
+          } catch (err: any) {
+            console.error(`[Notifications] Web Push failed for user ${payload.userId}:`, err.message);
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              // TODO: Clean up expired subscriptions
+            }
+          }
+        }
       }
     }
   } catch (err) {

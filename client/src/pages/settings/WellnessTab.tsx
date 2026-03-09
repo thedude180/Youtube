@@ -21,9 +21,42 @@ const STRESS_LABELS = ["Relaxed", "Low", "Moderate", "High", "Overwhelmed"];
 
 function WellnessTab() {
   const { toast } = useToast();
-  const [mood, setMood] = useState(3);
-  const [energy, setEnergy] = useState(3);
-  const [stress, setStress] = useState(2);
+  const { data: wellnessPrefs } = useQuery<any>({ queryKey: ["/api/settings/wellness"] });
+
+  useEffect(() => {
+    if (wellnessPrefs) {
+      if (wellnessPrefs.mood !== undefined) setMood(wellnessPrefs.mood);
+      if (wellnessPrefs.energy !== undefined) setEnergy(wellnessPrefs.energy);
+      if (wellnessPrefs.stress !== undefined) setStress(wellnessPrefs.stress);
+    }
+  }, [wellnessPrefs]);
+
+  const saveWellnessMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/settings/wellness", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/wellness"] });
+      toast({ title: "Wellness settings saved" });
+    },
+    onError: (e: any) => toast({ title: "Failed to save wellness settings", description: e.message, variant: "destructive" }),
+  });
+
+  const updateMood = (val: number) => {
+    setMood(val);
+    saveWellnessMutation.mutate({ mood: val });
+  };
+
+  const updateEnergy = (val: number) => {
+    setEnergy(val);
+    saveWellnessMutation.mutate({ energy: val });
+  };
+
+  const updateStress = (val: number) => {
+    setStress(val);
+    saveWellnessMutation.mutate({ stress: val });
+  };
   const [showCheckin, setShowCheckin] = useState(false);
   const [aiWellness, setAiWellness] = useState<AIResponse>(null);
   const [aiWellnessLoading, setAiWellnessLoading] = useState(true);

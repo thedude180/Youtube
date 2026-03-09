@@ -11,7 +11,7 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileText, Zap, Copy, RefreshCw, Brain, ChevronRight,
-  Sparkles, Clock, Target, TrendingUp, Mic, Hash
+  Sparkles, Clock, Target, TrendingUp, Mic, Hash, Download
 } from "lucide-react";
 
 const CONTENT_TYPES = [
@@ -297,18 +297,40 @@ export default function ScriptStudio() {
                     </div>
                   )}
 
-                  <Button
-                    className="w-full mt-4"
-                    variant="outline"
-                    onClick={() => {
-                      const fullScript = [result.hook, result.intro, result.mainContent, result.script, result.bRollNotes, result.cta, result.outro].filter(Boolean).join("\n\n---\n\n");
-                      navigator.clipboard.writeText(fullScript);
-                      toast({ title: "Full script copied!", description: "Ready to paste into your script doc" });
-                    }}
-                    data-testid="button-copy-full-script"
-                  >
-                    <Copy className="h-4 w-4 mr-2" /> Copy Full Script
-                  </Button>
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={() => {
+                        const fullScript = [result.hook, result.intro, result.mainContent, result.script, result.bRollNotes, result.cta, result.outro].filter(Boolean).join("\n\n---\n\n");
+                        navigator.clipboard.writeText(fullScript);
+                        toast({ title: "Full script copied!", description: "Ready to paste into your script doc" });
+                      }}
+                      data-testid="button-copy-full-script"
+                    >
+                      <Copy className="h-4 w-4 mr-2" /> Copy Full Script
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={() => {
+                        const fullScript = [result.hook, result.intro, result.mainContent, result.script, result.bRollNotes, result.cta, result.outro].filter(Boolean).join("\n\n---\n\n");
+                        const blob = new Blob([fullScript], { type: "text/plain" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `script-${topic.slice(0, 30).replace(/\s+/g, "-") || "video"}.txt`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        toast({ title: "Script downloaded!", description: "Your script has been saved as a .txt file" });
+                      }}
+                      data-testid="button-download-full-script"
+                    >
+                      <Download className="h-4 w-4 mr-2" /> Download .txt
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

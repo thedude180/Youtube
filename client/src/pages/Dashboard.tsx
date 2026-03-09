@@ -1,15 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { formatDistanceToNow } from "date-fns";
 import {
   Users, Video, Eye, DollarSign, TrendingUp, CheckCircle2,
-  Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink,
+  Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink, RefreshCw, Loader2, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const AGENT_ROSTER = [
   { id: "owner",      name: "Jordan Blake",    role: "CEO / AI Owner",        initials: "JB", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
@@ -92,7 +98,94 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
   );
 }
 
+function TaskResultModal({ task, onClose }: { task: any; onClose: () => void }) {
+  const { data: result, isLoading } = useQuery<any>({
+    queryKey: ["/api/agents/tasks", task?.id, "result"],
+    queryFn: () => fetch(`/api/agents/tasks/${task.id}/result`).then(res => res.json()),
+    enabled: !!task?.id,
+  });
+
+  return (
+    <Dialog open={!!task} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            {task?.agentName || "AI Agent"} Task Result
+          </DialogTitle>
+          <DialogDescription>
+            {task?.action || task?.taskType || "AI Task Output"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden mt-4">
+          {isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-[90%]" />
+              <Skeleton className="h-4 w-[95%]" />
+            </div>
+          ) : result ? (
+            <ScrollArea className="h-full pr-4">
+              <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+                <pre className="text-xs font-mono whitespace-pre-wrap break-words text-foreground/90">
+                  {typeof result === 'object' 
+                    ? JSON.stringify(result, null, 2) 
+                    : String(result)
+                  }
+                </pre>
+              </div>
+              <div className="mt-4 flex flex-col gap-2 text-[11px] text-muted-foreground border-t border-border/20 pt-4">
+                <div className="flex justify-between">
+                  <span>Task ID:</span>
+                  <span className="font-mono">{task?.id}</span>
+                </div>
+                {task?.createdAt && (
+                  <div className="flex justify-between">
+                    <span>Completed:</span>
+                    <span>{new Date(task.createdAt).toLocaleString()}</span>
+                  </div>
+                )}
+                {task?.taskType && (
+                  <div className="flex justify-between">
+                    <span>Type:</span>
+                    <Badge variant="outline" className="text-[10px] py-0 h-4">{task.taskType}</Badge>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground">
+              No result data available for this task.
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TeamDashboard() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [dismissedBanners, setDismissedBanners] = useState<string[]>([]);
+
+  const syncChannelsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/sync/channels");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({ title: "Channel stats refreshed" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Refresh failed", description: e.message, variant: "destructive" });
+    }
+  });
+
   const { data: stats, isLoading: statsLoading } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
     refetchInterval: 60_000,
@@ -150,6 +243,30 @@ export default function TeamDashboard() {
       </div>
 
       <div className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-6">
+        {channels && !channels.some((c: any) => c.platform === "youtube") && !dismissedBanners.includes("youtube") && (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30" data-testid="banner-youtube-not-connected">
+            <Radio className="h-4 w-4 text-amber-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-500 leading-none">Connect YouTube</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Unlock AI agents, revenue sync, and VOD automation. <a href="/settings" className="font-medium underline underline-offset-2">Go to Settings</a></p>
+            </div>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDismissedBanners([...dismissedBanners, "youtube"])}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+        {user?.tier === "free" && !dismissedBanners.includes("stripe") && (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30" data-testid="banner-stripe-not-configured">
+            <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-500 leading-none">Stripe Not Configured</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Upgrade your plan to access premium features. <a href="/money" className="font-medium underline underline-offset-2">Go to Billing</a></p>
+            </div>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDismissedBanners([...dismissedBanners, "stripe"])}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
         {expiredPlatforms.length > 0 && (
           <a href="/settings" className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30 hover:bg-destructive/15 transition-colors" data-testid="banner-platform-alert">
             <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
@@ -222,7 +339,11 @@ export default function TeamDashboard() {
                     </div>
                   ) : (
                     activities.map((a: any, i: number) => (
-                      <ActivityRow key={a.id ?? i} activity={a} />
+                      <ActivityRow 
+                        key={a.id ?? i} 
+                        activity={a} 
+                        onClick={() => setSelectedTask(a)}
+                      />
                     ))
                   )}
                 </div>
@@ -231,12 +352,29 @@ export default function TeamDashboard() {
           </div>
         </div>
 
+        <TaskResultModal 
+          task={selectedTask} 
+          onClose={() => setSelectedTask(null)} 
+        />
+
         {stats && (
           <div className="rounded-xl border border-border/30 bg-card/20 p-4">
-            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              Channel Performance
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                Channel Performance
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => syncChannelsMutation.mutate()}
+                disabled={syncChannelsMutation.isPending}
+                data-testid="button-refresh-channels"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncChannelsMutation.isPending ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <PerfMetric label="Total Views"       value={fmt(stats?.totalViews)}       />
               <PerfMetric label="Total Videos"      value={fmt(stats?.totalVideos)}      />
@@ -250,7 +388,7 @@ export default function TeamDashboard() {
   );
 }
 
-function ActivityRow({ activity }: { activity: any }) {
+function ActivityRow({ activity, onClick }: { activity: any; onClick?: () => void }) {
   const statusIcon = activity.status === "completed"
     ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
     : activity.status === "error"
@@ -260,15 +398,33 @@ function ActivityRow({ activity }: { activity: any }) {
   const time = activity.createdAt || activity.timestamp || activity.updatedAt;
 
   return (
-    <div className="flex gap-2.5 py-2.5 border-b border-border/20 last:border-0" data-testid={`activity-row-${activity.id}`}>
+    <div 
+      className={`flex gap-2.5 py-2.5 border-b border-border/20 last:border-0 ${onClick ? 'cursor-pointer hover:bg-muted/30 transition-colors' : ''}`} 
+      data-testid={`activity-row-${activity.id}`}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       {statusIcon}
       <div className="flex-1 min-w-0">
-        {activity.agentName && (
-          <span className="text-[11px] font-semibold text-primary/80">{activity.agentName} </span>
-        )}
-        <span className="text-[11px] text-foreground/80 leading-snug">
-          {activity.action || activity.description || activity.taskType || "completed a task"}
-        </span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            {activity.agentName && (
+              <span className="text-[11px] font-semibold text-primary/80">{activity.agentName} </span>
+            )}
+            <span className="text-[11px] text-foreground/80 leading-snug">
+              {activity.action || activity.description || activity.taskType || "completed a task"}
+            </span>
+          </div>
+          {onClick && (
+            <button 
+              className="text-[10px] text-primary hover:underline flex-shrink-0"
+              data-testid={`button-view-task-result-${activity.id}`}
+            >
+              View
+            </button>
+          )}
+        </div>
         {time && (
           <div className="text-[10px] text-muted-foreground/50 mt-0.5">
             {formatDistanceToNow(new Date(time), { addSuffix: true })}

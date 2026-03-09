@@ -146,6 +146,53 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
     });
   } catch {}
 
+  // Twitch Raid Execution
+  try {
+    const userChannels = await db.select().from(channels).where(and(eq(channels.userId, session.userId), eq(channels.platform, "twitch")));
+    const twitchChannel = userChannels[0];
+
+    if (twitchChannel?.accessToken && process.env.TWITCH_CLIENT_ID) {
+      logger.info(`[${session.userId}] Attempting to execute Twitch raid for ${top.channelName}`);
+      
+      // 1. Get target broadcaster ID
+      const searchRes = await fetch(`https://api.twitch.tv/helix/users?login=${top.channelName}`, {
+        headers: {
+          "Authorization": `Bearer ${twitchChannel.accessToken}`,
+          "Client-Id": process.env.TWITCH_CLIENT_ID
+        }
+      });
+      
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        const targetId = searchData.data?.[0]?.id;
+        
+        if (targetId) {
+          // 2. Start Raid
+          const raidRes = await fetch(`https://api.twitch.tv/helix/raids?from_broadcaster_id=${twitchChannel.channelId}&to_broadcaster_id=${targetId}`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${twitchChannel.accessToken}`,
+              "Client-Id": process.env.TWITCH_CLIENT_ID
+            }
+          });
+          
+          if (raidRes.ok) {
+            logger.info(`[${session.userId}] Twitch raid started successfully for ${top.channelName}`);
+          } else {
+            const raidErr = await raidRes.text();
+            logger.warn(`[${session.userId}] Twitch raid start failed: ${raidRes.status} ${raidErr}`);
+          }
+        } else {
+          logger.warn(`[${session.userId}] Could not find Twitch ID for channel: ${top.channelName}`);
+        }
+      } else {
+        logger.warn(`[${session.userId}] Twitch user search failed: ${searchRes.status}`);
+      }
+    }
+  } catch (err: any) {
+    logger.warn(`[${session.userId}] Twitch raid execution error: ${err.message}`);
+  }
+
   await storage.createAgentActivity({
     userId: session.userId,
     agentId: "ai-raid-scout",

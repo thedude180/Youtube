@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, Crown, Zap, Star, Rocket, Gift, Lock, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, Loader2, Crown, Zap, Star, Rocket, Gift, Lock, X, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { useState, useMemo } from "react";
 import { SiYoutube } from "react-icons/si";
 
@@ -185,11 +185,24 @@ export default function Pricing() {
     staleTime: 30_000,
   });
 
-  const { data: products } = useQuery<any[]>({
+  const { data: products, error: productsError } = useQuery<any[]>({
     queryKey: ["/api/stripe/products-with-prices"],
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
+
+  const isStripeError = useMemo(() => {
+    if (productsError instanceof Error) {
+      return productsError.message?.toLowerCase().includes("stripe not configured") || 
+             productsError.message?.toLowerCase().includes("stripe_not_configured");
+    }
+    if (typeof productsError === 'object' && productsError !== null) {
+      const err = productsError as any;
+      return err.message?.toLowerCase().includes("stripe not configured") ||
+             err.error?.toLowerCase().includes("stripe not configured");
+    }
+    return false;
+  }, [productsError]);
 
   const checkoutMutation = useMutation({
     mutationFn: async (priceId: string) => {
@@ -260,6 +273,19 @@ export default function Pricing() {
           <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{t('pricingPage.pricing')}</p>
           <h1 className="text-3xl sm:text-4xl font-display font-bold mb-3" data-testid="text-pricing-title">{t('pricingPage.title')}</h1>
           <p className="text-base text-muted-foreground max-w-md mx-auto">{t('pricingPage.scaleYourBusiness')}</p>
+          {isStripeError && (
+            <Card className="mt-6 max-w-md mx-auto border-amber-500/50 bg-amber-500/10" data-testid="card-stripe-not-configured">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span className="font-bold">Billing Offline</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Subscription billing is not configured yet. Contact the admin to set up Stripe.
+                </p>
+              </CardContent>
+            </Card>
+          )}
           {currentTier !== "free" && (
             <Badge variant="secondary" className="mt-2" data-testid="badge-current-tier">
               {t('pricingPage.current', { tier: currentTier.charAt(0).toUpperCase() + currentTier.slice(1) })}

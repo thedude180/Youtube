@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16", "node"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -89,3 +89,9 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_openai_ai_integrations:2.0.0", "stripe:2.0.0", "google-mail:1.0.0", "javascript_anthropic_ai_integrations:2.0.0"]
+
+[userenv]
+
+[userenv.shared]
+VAPID_PUBLIC_KEY = "BGqxdJN5Vdr_obD35xNo-_gU9LGt5RZyfXyZ7WAMPmonU6h76Q0WbMEVjuRrhcdMIMr4QVvwUqVzO4EIOKwP0Bc"
+VAPID_PRIVATE_KEY = "cInyyHI2VRaPElnB6UzEB9_YGsUjQ7K-VrqqQhmcjvQ"

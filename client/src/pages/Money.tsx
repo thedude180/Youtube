@@ -159,6 +159,19 @@ export default function Money() {
 
   const activeError = (activeTab === "payments" && paymentsError) || null;
 
+  const isStripeError = useMemo(() => {
+    if (paymentsError instanceof Error) {
+      return paymentsError.message?.toLowerCase().includes("stripe not configured") || 
+             paymentsError.message?.toLowerCase().includes("stripe_not_configured");
+    }
+    if (typeof paymentsError === 'object' && paymentsError !== null) {
+      const err = paymentsError as any;
+      return err.message?.toLowerCase().includes("stripe not configured") ||
+             err.error?.toLowerCase().includes("stripe not configured");
+    }
+    return false;
+  }, [paymentsError]);
+
   const activeErrorQueryKey = useMemo(
     () => activeTab === "payments" ? ["/api/stripe/payments"] : ["/api/revenue"],
     [activeTab]
@@ -180,6 +193,25 @@ export default function Money() {
   }
 
   if (activeError) {
+    if (activeTab === "payments" && isStripeError) {
+      return (
+        <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
+          <Card data-testid="card-stripe-not-configured" className="border-amber-500/50 bg-amber-500/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+                Billing System Offline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Subscription billing is not configured yet. Contact the admin to set up Stripe.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
     return (
       <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
         <QueryErrorReset error={activeError instanceof Error ? activeError : null} queryKey={activeErrorQueryKey} label={`Failed to load ${activeTab}`} />

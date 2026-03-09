@@ -301,11 +301,38 @@ export function registerMoneyRoutes(app: Express) {
     res.status(201).json(record);
   }));
 
-  app.get(api.revenue.summary.path, asyncHandler(async (req, res) => {
+  app.get("/api/revenue/summary", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const summary = await storage.getRevenueSummary(userId);
     res.json(summary);
+  }));
+
+  app.get("/api/revenue/export.csv", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const records = await storage.getRevenueRecords(userId);
+    const csvRows = [
+      ["Date", "Source", "Platform", "Amount", "Currency"].join(",")
+    ];
+
+    for (const record of records) {
+      const date = record.recordedAt ? new Date(record.recordedAt).toISOString().split('T')[0] : "";
+      const source = `"${(record.source || "").replace(/"/g, '""')}"`;
+      const platform = `"${(record.platform || "").replace(/"/g, '""')}"`;
+      const amount = record.amount || 0;
+      const currency = record.currency || "USD";
+      csvRows.push([date, source, platform, amount, currency].join(","));
+    }
+
+    const csvContent = csvRows.join("\n");
+    const now = new Date();
+    const filename = `revenue-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}.csv`;
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csvContent);
   }));
 
   app.get("/api/expenses/summary", asyncHandler(async (req, res) => {
@@ -320,6 +347,33 @@ export function registerMoneyRoutes(app: Express) {
     if (!userId) return;
     const records = await storage.getExpenseRecords(userId);
     res.json(records);
+  }));
+
+  app.get("/api/expenses/export.csv", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const records = await storage.getExpenseRecords(userId);
+    const csvRows = [
+      ["Date", "Category", "Description", "Amount", "Vendor"].join(",")
+    ];
+
+    for (const record of records) {
+      const date = record.expenseDate ? new Date(record.expenseDate).toISOString().split('T')[0] : "";
+      const category = `"${(record.category || "").replace(/"/g, '""')}"`;
+      const description = `"${(record.description || "").replace(/"/g, '""')}"`;
+      const amount = record.amount || 0;
+      const vendor = `"${(record.vendor || "").replace(/"/g, '""')}"`;
+      csvRows.push([date, category, description, amount, vendor].join(","));
+    }
+
+    const csvContent = csvRows.join("\n");
+    const now = new Date();
+    const filename = `expenses-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}.csv`;
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csvContent);
   }));
 
   app.post("/api/expenses", asyncHandler(async (req, res) => {

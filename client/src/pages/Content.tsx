@@ -16,12 +16,17 @@ import { useTranslation } from "react-i18next";
 import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
   Calendar as CalendarIcon, Eye, Loader2, Brain,
-  TrendingUp, Film, Zap, BarChart2,
+  TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
+  Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
 import { LiveTimestamp } from "@/components/LiveTimestamp";
 import { lazyRetry } from "@/lib/lazyRetry";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 
 type ContentTab = "library" | "updated" | "channels" | "calendar" | "retention";
 
@@ -148,6 +153,9 @@ const TYPE_LABEL: Record<string, string> = { vod: "VOD", short: "Short" };
 function LibraryTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
+  const { toast } = useToast();
   const { data: videos, isLoading, error } = useVideos();
 
   const filtered = useMemo(() => {
@@ -161,12 +169,41 @@ function LibraryTab() {
     return list;
   }, [videos, typeFilter, searchQuery]);
 
+  const bulkSeoMutation = useMutation({
+    mutationFn: async (videoIds: number[]) => {
+      const res = await apiRequest("POST", "/api/content/bulk-seo-optimize", { videoIds });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Bulk SEO Optimization Queued",
+        description: `Successfully queued optimization for ${data.count} videos.`,
+      });
+      setSelectedVideoIds([]);
+      setIsSelectMode(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/agents/tasks"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Bulk SEO Failed",
+        description: "Failed to queue optimization tasks. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleSelectVideo = (id: number) => {
+    setSelectedVideoIds(prev =>
+      prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
+    );
+  };
+
   if (error) {
     return <QueryErrorReset error={error} queryKey={["/api/videos"]} />;
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-20">
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -193,6 +230,19 @@ function LibraryTab() {
               {t === "all" ? "All" : TYPE_LABEL[t] || t}
             </Button>
           ))}
+          <Button
+            variant={isSelectMode ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => {
+              setIsSelectMode(!isSelectMode);
+              if (isSelectMode) setSelectedVideoIds([]);
+            }}
+            data-testid="button-toggle-select-mode"
+            aria-label="Toggle bulk select mode"
+          >
+            <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
+            {isSelectMode ? "Cancel" : "Select"}
+          </Button>
         </div>
       </div>
 
@@ -215,11 +265,25 @@ function LibraryTab() {
             const youtubeId = video.metadata?.youtubeId;
             const viewCount = video.metadata?.viewCount;
             const publishedAt = video.metadata?.publishedAt || video.createdAt;
+            const isSelected = selectedVideoIds.includes(video.id);
+
             return (
-              <Card key={video.id} data-testid={`card-video-${video.id}`}>
+              <Card 
+                key={video.id} 
+                data-testid={`card-video-${video.id}`}
+                className={isSelected ? "border-primary/50 bg-primary/5" : ""}
+                onClick={() => isSelectMode && toggleSelectVideo(video.id)}
+              >
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
+                      {isSelectMode && (
+                        <Checkbox 
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelectVideo(video.id)}
+                          data-testid={`checkbox-video-${video.id}`}
+                        />
+                      )}
                       {video.thumbnailUrl ? (
                         <img
                           src={video.thumbnailUrl}
@@ -277,6 +341,53 @@ function LibraryTab() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {selectedVideoIds.length > 0 && (
+        <div 
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4"
+          data-testid="bulk-action-bar"
+        >
+          <Card className="flex items-center gap-4 px-4 py-2 border-primary/30 shadow-2xl bg-card/95 backdrop-blur">
+            <div className="flex items-center gap-2 pr-4 border-r border-border/50">
+              <Badge variant="secondary" className="h-6 px-2 min-w-[24px] flex items-center justify-center">
+                {selectedVideoIds.length}
+              </Badge>
+              <span className="text-xs font-medium text-muted-foreground">selected</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button 
+                size="sm" 
+                variant="default"
+                className="h-8 gap-1.5"
+                disabled={bulkSeoMutation.isPending}
+                onClick={() => bulkSeoMutation.mutate(selectedVideoIds)}
+                data-testid="button-bulk-seo-optimize"
+              >
+                {bulkSeoMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                Optimize SEO
+              </Button>
+              
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-muted-foreground"
+                onClick={() => {
+                  setSelectedVideoIds([]);
+                  setIsSelectMode(false);
+                }}
+                data-testid="button-clear-selection"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </div>

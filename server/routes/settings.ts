@@ -27,6 +27,75 @@ export function registerSettingsRoutes(app: Express) {
   const deleteRateLimit = rateLimitEndpoint(10, 60000);
   const bulkRateLimit = rateLimitEndpoint(5, 60000);
 
+  app.get("/api/settings/wellness", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const user = await storage.getUser(userId);
+    res.json(user?.userPreferences?.wellness || {});
+  });
+
+  app.post("/api/settings/wellness", writeRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      mood: z.number().optional(),
+      energy: z.number().optional(),
+      stress: z.number().optional(),
+      lastCheckIn: z.string().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+    
+    const user = await storage.getUser(userId);
+    const prefs = user?.userPreferences || {};
+    const updatedPrefs = {
+      ...prefs,
+      wellness: {
+        ...(prefs.wellness || {}),
+        ...parsed.data,
+      }
+    };
+    
+    await storage.updateUserProfile(userId, { userPreferences: updatedPrefs } as any);
+    res.json(updatedPrefs.wellness);
+  });
+
+  app.get("/api/settings/accessibility", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const user = await storage.getUser(userId);
+    res.json(user?.userPreferences?.accessibility || {});
+  });
+
+  app.post("/api/settings/accessibility", writeRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({
+      highContrast: z.boolean().optional(),
+      dyslexiaFont: z.boolean().optional(),
+      fontSize: z.string().optional(),
+      reducedMotion: z.boolean().optional(),
+      voiceNavigation: z.boolean().optional(),
+      keyboardShortcuts: z.record(z.string()).optional(),
+      language: z.string().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+
+    const user = await storage.getUser(userId);
+    const prefs = user?.userPreferences || {};
+    const updatedPrefs = {
+      ...prefs,
+      accessibility: {
+        ...(prefs.accessibility || {}),
+        ...parsed.data,
+      }
+    };
+
+    await storage.updateUserProfile(userId, { userPreferences: updatedPrefs } as any);
+    res.json(updatedPrefs.accessibility);
+  });
+
   app.get("/api/notifications", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

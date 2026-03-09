@@ -8,6 +8,7 @@ import {
   reengagementCampaigns, streamPipelines, channels,
   keywordInsights, trafficStrategies, videoUpdateHistory,
   contentInsights, complianceRecords, growthStrategies,
+  aiAgentTasks,
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -76,6 +77,62 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       console.error("Auto-connect YouTube error:", err);
       res.status(500).json({ message: "Failed to auto-connect YouTube" });
+    }
+  }));
+
+  app.post("/api/content/bulk-seo-optimize", writeRateLimit, asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const schema = z.object({
+      videoIds: z.array(z.number()),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+
+    const { videoIds } = parsed.data;
+
+    try {
+      const allUserVideos = await storage.getVideosByUser(userId, 1, 200);
+      const videoList = allUserVideos.filter(v => videoIds.includes(v.id));
+
+      if (videoList.length === 0) {
+        return res.status(404).json({ message: "No valid videos found" });
+      }
+
+      const tasks = videoList.map(video => ({
+        ownerId: userId,
+        agentRole: "ai-seo-manager",
+        taskType: "seo_optimize",
+        title: `Optimize SEO for: ${video.title}`,
+        status: "queued" as const,
+        priority: 5,
+        payload: {
+          videoId: video.id,
+          videoTitle: video.title,
+          videoDescription: video.description,
+          platform: video.platform,
+          metadata: video.metadata,
+        },
+      }));
+
+      await db.insert(aiAgentTasks).values(tasks);
+
+      await storage.createAuditLog({
+        userId,
+        action: "bulk_seo_optimized_queued",
+        target: `${videoList.length} videos`,
+        details: { videoIds },
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, count: videoList.length });
+    } catch (err: any) {
+      console.error("Bulk SEO optimization error:", err);
+      res.status(500).json({ message: "Failed to queue bulk SEO optimization" });
     }
   }));
 

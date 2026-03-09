@@ -69,7 +69,7 @@ const DEFAULT_SHORTCUTS: Record<string, string> = {
 
 export default function AccessibilityTab() {
   const { toast } = useToast();
-  const { data: prefs, isLoading } = useQuery<AccessibilityPrefs>({ queryKey: ["/api/accessibility/preferences"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: prefs, isLoading } = useQuery<AccessibilityPrefs>({ queryKey: ["/api/settings/accessibility"], refetchInterval: 30_000, staleTime: 20_000 });
 
   const [local, setLocal] = useState<AccessibilityPrefs>(DEFAULT_PREFS);
   const [dirty, setDirty] = useState(false);
@@ -90,11 +90,11 @@ export default function AccessibilityTab() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: AccessibilityPrefs) => {
-      const res = await apiRequest("POST", "/api/accessibility/preferences", data);
+      const res = await apiRequest("POST", "/api/settings/accessibility", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/accessibility/preferences"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/accessibility"] });
       toast({ title: "Accessibility preferences saved" });
       setDirty(false);
     },

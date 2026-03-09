@@ -58,6 +58,24 @@ export const users = pgTable("users", {
   notifyPhone: boolean("notify_phone").default(false),
   autopilotActive: boolean("autopilot_active").default(true),
   onboardingCompleted: timestamp("onboarding_completed"),
+  userPreferences: jsonb("user_preferences").$type<{
+    wellness?: {
+      mood?: number;
+      energy?: number;
+      stress?: number;
+      lastCheckIn?: string;
+    };
+    accessibility?: {
+      highContrast?: boolean;
+      dyslexiaFont?: boolean;
+      fontSize?: string;
+      reducedMotion?: boolean;
+      voiceNavigation?: boolean;
+      keyboardShortcuts?: Record<string, string>;
+      language?: string;
+    };
+    pushSubscriptions?: any[];
+  }>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

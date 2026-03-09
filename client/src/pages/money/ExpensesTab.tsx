@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  DollarSign, Plus, Receipt, ShieldCheck, Trash2, Tag, Upload,
+  DollarSign, Plus, Receipt, ShieldCheck, Trash2, Tag, Upload, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
@@ -221,6 +221,15 @@ export default function ExpensesTab() {
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-expenses-title" className="text-lg font-semibold">Expense Tracker</h2>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            data-testid="button-export-expenses"
+            size="sm"
+            variant="outline"
+            onClick={() => window.open('/api/expenses/export.csv', '_blank')}
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Export CSV
+          </Button>
           <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-import-chase" size="sm" variant="secondary">

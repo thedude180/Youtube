@@ -105,7 +105,25 @@ async function generateAndUploadThumbnail(
     }
 
     const { setYouTubeThumbnail } = await import("./youtube");
-    await setYouTubeThumbnail(channelId, youtubeId, imageBuffer, "image/png");
+    
+    // Convert to JPEG using sharp for better compatibility and smaller size
+    let finalBuffer = imageBuffer;
+    let finalMimeType = "image/jpeg";
+    try {
+      const sharp = (await import("sharp")).default;
+      finalBuffer = await sharp(imageBuffer)
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      logger.info("Converted thumbnail to JPEG", { 
+        originalSize: imageBuffer.length, 
+        newSize: finalBuffer.length 
+      });
+    } catch (sharpErr) {
+      logger.warn("Sharp conversion failed, falling back to original buffer", { error: String(sharpErr) });
+      finalMimeType = "image/png"; // Fallback if sharp fails
+    }
+
+    await setYouTubeThumbnail(channelId, youtubeId, finalBuffer, finalMimeType);
 
     const meta = ((await db.select().from(videos).where(eq(videos.id, videoDbId)))[0]?.metadata as any) || {};
     await db.update(videos).set({
