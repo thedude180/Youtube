@@ -65,7 +65,7 @@ export function welcomeEmail(username: string): string {
     <p>Welcome to <strong>CreatorOS</strong> — your AI-powered content management system.</p>
     <p>Here's what happens next:</p>
     <ul style="padding-left:20px;">
-      <li>Connect your platforms (YouTube, Twitch, Kick, TikTok, X, Discord)</li>
+      <li>Connect your platforms (YouTube, Twitch, Kick, TikTok, Discord)</li>
       <li>Our AI starts monitoring and optimizing your content automatically</li>
       <li>Sit back while CreatorOS handles SEO, cross-posting, and growth</li>
     </ul>

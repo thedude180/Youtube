@@ -33,7 +33,7 @@ const CHANGELOG = [
       { type: "feature", icon: Sparkles, text: "Pinned comments system with auto-posting and bulk backfill" },
       { type: "improvement", icon: Zap, text: "Enhanced AI content engine with retention briefs" },
       { type: "improvement", icon: Zap, text: "Real-time Command Center dashboard" },
-      { type: "fix", icon: Bug, text: "Auto-reconnect now works for all platforms including X" },
+      { type: "fix", icon: Bug, text: "Auto-reconnect now works for all connected platforms" },
     ],
   },
   {

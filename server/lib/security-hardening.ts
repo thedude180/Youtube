@@ -10,7 +10,7 @@ const SENSITIVE_FIELDS = new Set([
   "streamKey", "apiKey", "privateKey", "clientSecret",
   "oauthToken", "sessionSecret", "webhookSecret",
   "stripeKey", "discordToken", "twitchToken",
-  "kickToken", "tiktokToken", "xToken", "googleToken",
+  "kickToken", "tiktokToken", "googleToken",
 ]);
 
 export function sanitizeResponseData(data: any, depth = 0): any {

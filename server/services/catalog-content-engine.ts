@@ -60,7 +60,7 @@ Analyze the provided catalog and return ONLY valid JSON in this exact format:
     {
       "sourceVideoTitle": "exact video title",
       "repurposeType": "viral_clip|compilation|best_of|trend_reframe|throwback|deep_cut|reaction",
-      "platform": "youtube|tiktok|shorts|x",
+      "platform": "youtube|tiktok|shorts|discord",
       "editingBrief": "detailed editing instructions",
       "estimatedViralScore": 85,
       "urgency": "immediate|this_week|this_month"

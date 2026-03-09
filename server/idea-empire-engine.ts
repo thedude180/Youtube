@@ -600,7 +600,7 @@ Respond with JSON:
     "socialBlitz": {
       "posts": [
         {
-          "platform": "tiktok/x/discord",
+          "platform": "tiktok/discord",
           "content": "Exact post text",
           "timing": "When to post relative to video launch",
           "hashtags": ["relevant hashtags"]
