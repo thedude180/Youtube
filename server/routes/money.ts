@@ -4,7 +4,7 @@ import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { db } from "../db";
 import { sql, eq, and, desc } from "drizzle-orm";
-import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals, affiliateLinks } from "@shared/schema";
+import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals, affiliateLinks, channels, revenueRecords } from "@shared/schema";
 import { requireAuth, requireTier, parseNumericId, asyncHandler, getUserEmail } from "./helpers";
 import { cached } from "../lib/cache";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
@@ -474,6 +474,47 @@ export function registerMoneyRoutes(app: Express) {
     }
   }));
 
+  app.post("/api/revenue/import-csv", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const rowsSchema = z.object({
+        rows: z.array(z.object({
+          date: z.string().optional(),
+          source: z.string().optional(),
+          platform: z.string().optional(),
+          amount: z.union([z.string(), z.number()]),
+          currency: z.string().optional(),
+        }).passthrough()).min(1, "No rows provided"),
+      });
+      const parsed = rowsSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const { rows } = parsed.data;
+      const imported = [];
+      for (const row of rows) {
+        const amount = parseFloat(String(row.amount)) || 0;
+        if (amount <= 0) continue;
+        const record = await storage.createRevenueRecord({
+          userId,
+          platform: row.platform || "manual",
+          source: row.source || "Historical Import",
+          amount,
+          currency: row.currency || "USD",
+          syncSource: "csv-import",
+          recordedAt: row.date ? new Date(row.date) : new Date(),
+          metadata: { details: "Imported from CSV" },
+        } as any);
+        imported.push(record);
+      }
+      res.json({ imported: imported.length, records: imported });
+    } catch (error: any) {
+      console.error("Revenue CSV import error:", error);
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  }));
+
   app.post("/api/tax-analyze", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Tax Intelligence");
     if (!userId) return;
@@ -732,6 +773,42 @@ export function registerMoneyRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     await db.delete(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId)));
     res.json({ success: true });
+  }));
+
+  app.post("/api/sponsorship-deals/:id/outreach-draft", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res);
+    if (id === null) return;
+    const [deal] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId))).limit(1);
+    if (!deal) return res.status(404).json({ error: "Deal not found" });
+
+    const user = await storage.getUser(userId);
+    const userChannels = await db.select({ channelName: channels.channelName, platform: channels.platform, subscriberCount: channels.subscriberCount })
+      .from(channels).where(eq(channels.userId, userId)).limit(5);
+    const channelCtx = userChannels.map(c => `${c.platform}: ${c.channelName} (${(c.subscriberCount || 0).toLocaleString()} subs)`).join(", ");
+
+    const { getOpenAIClient } = await import("../lib/openai");
+    const openai = getOpenAIClient();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [{
+        role: "user",
+        content: `Write a professional sponsorship outreach email from a gaming/PS5 content creator to a potential brand partner.
+Brand: ${deal.brandName}
+Deal value in mind: ${deal.dealValue ? `$${deal.dealValue}` : "to be negotiated"}
+Creator channels: ${channelCtx || "gaming content creator"}
+Notes about this deal: ${deal.notes || "none"}
+
+Write a short, confident, human-sounding outreach email (not stiff corporate language). Include subject line.
+Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follow-up timing" }`
+      }],
+      max_completion_tokens: 1000,
+    });
+
+    const result = JSON.parse(completion.choices[0]?.message?.content || "{}");
+    res.json(result);
   }));
 
   app.post("/api/monetization/ad-breaks/:videoId", asyncHandler(async (req, res) => {

@@ -6984,11 +6984,39 @@ Respond as JSON: { "assessment": [{"skill": "skill name", "level": "current leve
 }
 
 export async function aiLearningPathBuilder(data: { goal?: string; current?: string }, userId?: string) {
-  const p = `Build a learning path for a content creator.
-${data.goal ? `Goal: ${data.goal}` : ""}
-${data.current ? `Current level: ${data.current}` : ""}
-Respond as JSON: { "path": [{"milestone": "milestone", "resources": "resources", "duration": "duration"}], "schedule": "recommended schedule" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 16000 });
+  let creatorCtx = "";
+  if (userId) {
+    try {
+      const { db } = await import("./db");
+      const { channels, videos } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const userChannels = await db.select({
+        platform: channels.platform, channelName: channels.channelName, subscriberCount: channels.subscriberCount,
+      }).from(channels).where(eq(channels.userId, userId)).limit(6);
+      const userChannelIds = userChannels.length > 0
+        ? await db.select({ id: channels.id }).from(channels).where(eq(channels.userId, userId)).limit(10)
+        : [];
+      const channelIdList = userChannelIds.map(c => c.id);
+      const { inArray } = await import("drizzle-orm");
+      const recentVideos = channelIdList.length > 0
+        ? await db.select({ title: videos.title, viewCount: videos.viewCount, publishedAt: videos.publishedAt })
+            .from(videos).where(inArray(videos.channelId, channelIdList)).orderBy(desc(videos.publishedAt)).limit(5)
+        : [];
+      if (userChannels.length > 0) {
+        creatorCtx += `\nCreator's platforms: ${userChannels.map(c => `${c.platform} (${(c.subscriberCount || 0).toLocaleString()} subs)`).join(", ")}`;
+      }
+      if (recentVideos.length > 0) {
+        creatorCtx += `\nRecent content: ${recentVideos.map(v => `"${v.title}" (${v.viewCount || 0} views)`).join(", ")}`;
+      }
+    } catch {}
+  }
+  const p = `Build a personalized learning path for a PS5/gaming content creator who streams and uploads on YouTube, Twitch, and other platforms.
+${data.goal ? `Their stated goal: ${data.goal}` : "Goal: grow audience and monetize content"}
+${data.current ? `Current level: ${data.current}` : ""}${creatorCtx}
+
+Create a specific, actionable learning path tailored to a gaming creator. Include concrete resources (YouTube channels, books, tools) they can use right now. Focus on: content quality, audience growth, monetization, live streaming production, brand partnerships.
+Respond as JSON: { "path": [{"milestone": "milestone name", "resources": "specific resources", "duration": "duration", "why": "why this matters for their channel"}], "schedule": "recommended weekly schedule", "quickWins": ["3-5 things they can do this week"] }`;
+  const r = await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 2000 });
   const c = r.choices[0]?.message?.content;
   if (!c) throw new Error("No response from AI");
   return JSON.parse(c);

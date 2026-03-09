@@ -88,4 +88,11 @@ CreatorOS is a full-stack application leveraging an Express.js backend and a Rea
 - **Platform setup banners**: Dashboard shows dismissible amber banners when YouTube is not connected or Stripe is unconfigured.
 - **Stripe graceful UI**: Money and Pricing pages show a setup card instead of errors when Stripe is not configured.
 - **Channel stats refresh**: Refresh button on Dashboard triggers a live sync from YouTube API.
-- **Push notifications (VAPID)**: `web-push` VAPID keys configured, subscription endpoint `POST /api/notifications/subscribe`, public key at `GET /api/notifications/vapid-public-key`, browser prompted for permission on load, critical notifications trigger real web push.
+- **Push notifications (VAPID)**: `web-push` VAPID keys configured, subscription endpoint `POST /api/notifications/subscribe`, public key at `GET /api/notifications/vapid-public-key` (public — no auth required), browser prompted for permission on load, critical notifications trigger real web push.
+- **YouTube community post character limit**: Fixed — `postMaxLength: 50000` added to YouTube platform spec so autopilot community posts no longer fail the 100-char safety check (which was incorrectly using the video title limit as fallback).
+- **Thumbnail quality auto-scaling**: JPEG conversion now starts at quality 82 and loops down to stay under 1.9 MB (YouTube 2 MB limit). Also resizes to 1280×720 before conversion.
+- **TikTok live detection**: `detectTikTok()` added to `ps5-live-detector.ts` — checks TikTok user LIVE page for live indicators (`is_live`, `isLive`, `liveRoom`) with 8s timeout.
+- **Channel expired token display**: ChannelsTab platform cards now show amber `AlertTriangle "Expired"` badge when `platformData._connectionStatus === "expired"` instead of always showing green "On".
+- **Revenue CSV import**: `POST /api/revenue/import-csv` endpoint + Import CSV button on Revenue tab with paste-in dialog (supports date, source, platform, amount, currency columns).
+- **Sponsorship outreach draft**: `POST /api/sponsorship-deals/:id/outreach-draft` endpoint generates AI outreach email (subject + body + follow-up tip) using deal info and channel context. "Outreach" button on each deal card opens draft in dialog with Copy button.
+- **Learning path personalization**: `aiLearningPathBuilder` now fetches user's channels and recent videos to build personalized recommendations. Response includes `quickWins` (this week actions), `path` (milestones with `why` field), and `schedule`. LearningTab updated to display all fields.

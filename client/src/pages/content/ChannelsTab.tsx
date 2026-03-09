@@ -14,7 +14,7 @@ import { PLATFORM_INFO, PLATFORMS, type Platform, type Channel } from "@shared/s
 import { PLATFORM_CONTENT_SPECS } from "@shared/platform-specs";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CheckCircle2, Circle, ExternalLink, Loader2, RefreshCw, Trash2, LogIn,
+  CheckCircle2, Circle, ExternalLink, Loader2, RefreshCw, Trash2, LogIn, AlertTriangle,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
@@ -404,12 +404,20 @@ function ChannelsTab() {
                       {isAdvanced && <Badge variant="secondary" className="mt-0.5">{info.category}</Badge>}
                     </div>
                   </div>
-                  {isConnected ? (
-                    <div className="flex items-center gap-1 text-emerald-500">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span className="text-xs font-medium">On</span>
-                    </div>
-                  ) : (
+                  {isConnected ? (() => {
+                    const hasExpired = connectedChannels.some(ch => (ch.platformData as any)?._connectionStatus === "expired");
+                    return hasExpired ? (
+                      <div className="flex items-center gap-1 text-amber-500" title="Token expired — reconnect to restore full functionality">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-xs font-medium">Expired</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-emerald-500">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-xs font-medium">On</span>
+                      </div>
+                    );
+                  })() : (
                     <Circle className="h-4 w-4 text-muted-foreground" />
                   )}
                 </div>

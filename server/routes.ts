@@ -154,6 +154,7 @@ export async function registerRoutes(
 
   const PUBLIC_API_PATHS = new Set([
     "/api/health", "/api/verify", "/api/vitals", "/api/events",
+    "/api/notifications/vapid-public-key",
   ]);
   const PUBLIC_API_PREFIXES = ["/api/auth", "/api/stripe"];
   if (!process.env.REPLIT_DEPLOYMENT) {

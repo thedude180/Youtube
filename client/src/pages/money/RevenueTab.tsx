@@ -6,14 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DollarSign, Plus, TrendingUp, CalendarDays, CheckCircle2, AlertTriangle,
-  Sparkles, Loader2, RefreshCw, Zap, CloudDownload, Clock, Download,
+  Sparkles, Loader2, RefreshCw, Zap, CloudDownload, Clock, Download, Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
@@ -28,6 +29,8 @@ type AIResponse = any;
 export default function RevenueTab() {
   const { toast } = useToast();
   const [revenueDialogOpen, setRevenueDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [csvText, setCsvText] = useState("");
   const [aiInsights, setAiInsights] = useState<AIResponse>(null);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const [aiPLReport, setAiPLReport] = useState<AIResponse>(null);
@@ -73,6 +76,37 @@ export default function RevenueTab() {
       toast({ title: "Revenue recorded" });
     },
   });
+
+  const importCsvMutation = useMutation({
+    mutationFn: async (rows: any[]) => {
+      const res = await apiRequest("POST", "/api/revenue/import-csv", { rows });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/revenue'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/revenue/summary'] });
+      setImportDialogOpen(false);
+      setCsvText("");
+      toast({ title: `Imported ${data.imported} revenue records` });
+    },
+    onError: () => {
+      toast({ title: "Import failed", variant: "destructive" });
+    },
+  });
+
+  const handleCsvImport = () => {
+    const lines = csvText.trim().split("\n").filter(l => l.trim());
+    if (lines.length < 2) { toast({ title: "Paste CSV with a header row and at least one data row", variant: "destructive" }); return; }
+    const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/['"]/g, ""));
+    const rows = lines.slice(1).map(line => {
+      const vals = line.split(",").map(v => v.trim().replace(/^["']|["']$/g, ""));
+      const row: any = {};
+      headers.forEach((h, i) => { row[h] = vals[i] || ""; });
+      return row;
+    }).filter(r => parseFloat(r.amount || r.Amount || r.total || "0") > 0);
+    if (rows.length === 0) { toast({ title: "No valid rows found (need amount > 0)", variant: "destructive" }); return; }
+    importCsvMutation.mutate(rows);
+  };
 
   const totalRevenue = revenueSummary?.total || 0;
   const byPlatform = revenueSummary?.byPlatform || {};
@@ -164,6 +198,15 @@ export default function RevenueTab() {
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 data-testid="text-revenue-title" className="text-lg font-semibold">Revenue</h2>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            data-testid="button-import-revenue"
+            size="sm"
+            variant="outline"
+            onClick={() => setImportDialogOpen(true)}
+          >
+            <Upload className="w-4 h-4 mr-1" />
+            Import CSV
+          </Button>
           <Button
             data-testid="button-export-revenue"
             size="sm"
@@ -741,6 +784,37 @@ export default function RevenueTab() {
           </CardContent>
         )}
       </Card>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent data-testid="dialog-import-revenue">
+          <DialogHeader>
+            <DialogTitle>Import Revenue from CSV</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Paste your CSV below. Required header: <span className="font-mono text-xs">amount</span> — Optional: <span className="font-mono text-xs">date, source, platform, currency</span>
+            </p>
+            <Textarea
+              data-testid="input-csv-import"
+              placeholder={"date,source,platform,amount\n2024-01-15,YouTube Ads,youtube,142.50\n2024-01-16,Twitch Subs,twitch,89.00"}
+              className="resize-none font-mono text-xs min-h-[160px]"
+              value={csvText}
+              onChange={e => setCsvText(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} data-testid="button-cancel-import">Cancel</Button>
+            <Button
+              onClick={handleCsvImport}
+              disabled={importCsvMutation.isPending || !csvText.trim()}
+              data-testid="button-confirm-import"
+            >
+              {importCsvMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+              {importCsvMutation.isPending ? "Importing..." : "Import"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

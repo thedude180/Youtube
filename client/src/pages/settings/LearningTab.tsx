@@ -380,7 +380,22 @@ function LearningTab() {
                   </div>
                   {aiLearnPathLoading ? <Skeleton className="h-24 w-full" /> : aiLearnPath && (
                     <div className="space-y-2 text-xs text-muted-foreground">
-                      {renderAIListLearn(aiLearnPath.paths || aiLearnPath.recommendations || aiLearnPath.results)}
+                      {aiLearnPath.quickWins?.length > 0 && (
+                        <div className="mb-2 p-2 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                          <p className="font-medium text-emerald-400 mb-1">This week's quick wins:</p>
+                          <ul className="space-y-0.5">
+                            {aiLearnPath.quickWins.map((w: string, i: number) => (
+                              <li key={i} className="flex items-start gap-1"><span className="text-emerald-400 mt-0.5">›</span>{w}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {renderAIListLearn(aiLearnPath.path || aiLearnPath.paths || aiLearnPath.recommendations || aiLearnPath.results)}
+                      {aiLearnPath.schedule && (
+                        <p className="mt-2 pt-2 border-t border-border/40 text-muted-foreground">
+                          <span className="font-medium">Schedule:</span> {aiLearnPath.schedule}
+                        </p>
+                      )}
                     </div>
                   )}
                 </CardContent>

@@ -52,6 +52,9 @@ export default function SponsorsTab() {
   const [aiMediaKit, setAiMediaKit] = useState<AIResponse>(null);
   const [aiMediaKitLoading, setAiMediaKitLoading] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
+  const [outreachDialogOpen, setOutreachDialogOpen] = useState(false);
+  const [outreachDraft, setOutreachDraft] = useState<{ subject?: string; body?: string; followUpNote?: string } | null>(null);
+  const [outreachLoading, setOutreachLoading] = useState<number | null>(null);
 
   useEffect(() => {
     if (!aiToolsOpen) return;
@@ -670,6 +673,28 @@ export default function SponsorsTab() {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid={`button-outreach-${deal.id}`}
+                      disabled={outreachLoading === deal.id}
+                      onClick={async () => {
+                        setOutreachLoading(deal.id);
+                        try {
+                          const res = await apiRequest("POST", `/api/sponsorship-deals/${deal.id}/outreach-draft`);
+                          const draft = await res.json();
+                          setOutreachDraft(draft);
+                          setOutreachDialogOpen(true);
+                        } catch {
+                          toast({ title: "Failed to generate outreach draft", variant: "destructive" });
+                        } finally {
+                          setOutreachLoading(null);
+                        }
+                      }}
+                    >
+                      {outreachLoading === deal.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                      Outreach
+                    </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button size="icon" variant="ghost" data-testid={`button-delete-deal-${deal.id}`}>
@@ -718,6 +743,53 @@ export default function SponsorsTab() {
           ))}
         </div>
       )}
+
+      <Dialog open={outreachDialogOpen} onOpenChange={setOutreachDialogOpen}>
+        <DialogContent className="max-w-xl" data-testid="dialog-outreach-draft">
+          <DialogHeader>
+            <DialogTitle>Outreach Draft</DialogTitle>
+          </DialogHeader>
+          {outreachDraft && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Subject</p>
+                <p className="text-sm font-semibold" data-testid="text-outreach-subject">{outreachDraft.subject}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Email Body</p>
+                <Textarea
+                  readOnly
+                  value={outreachDraft.body || ""}
+                  className="resize-none text-xs min-h-[180px]"
+                  data-testid="text-outreach-body"
+                />
+              </div>
+              {outreachDraft.followUpNote && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium">Follow-up tip:</span> {outreachDraft.followUpNote}
+                </p>
+              )}
+              <div className="flex gap-2 justify-end pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-testid="button-copy-outreach"
+                  onClick={() => {
+                    const text = `Subject: ${outreachDraft.subject}\n\n${outreachDraft.body}`;
+                    navigator.clipboard.writeText(text);
+                    toast({ title: "Copied to clipboard" });
+                  }}
+                >
+                  <Copy className="w-3 h-3 mr-1" /> Copy
+                </Button>
+                <Button size="sm" onClick={() => setOutreachDialogOpen(false)} data-testid="button-close-outreach">
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

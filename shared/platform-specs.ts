@@ -49,6 +49,7 @@ export const PLATFORM_CONTENT_SPECS: Record<Platform, PlatformContentSpec> = {
     limits: {
       titleMaxLength: 100,
       descriptionMaxLength: 5000,
+      postMaxLength: 50000,
       maxTags: 30,
       maxTagsChars: 500,
       videoMaxDuration: null,

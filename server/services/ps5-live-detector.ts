@@ -31,6 +31,8 @@ export async function detect(userId: string): Promise<LiveDetectionResult[]> {
       results.push(await detectTwitch(userId, channel));
     } else if (channel.platform === "kick") {
       results.push(await detectKick(userId, channel));
+    } else if (channel.platform === "tiktok") {
+      results.push(await detectTikTok(userId, channel));
     }
   }
 
@@ -147,6 +149,53 @@ async function detectTwitch(userId: string, channel: any): Promise<LiveDetection
     };
   } catch (err) {
     return { isLive: false, platform: "twitch", confidence: 0, signals: { error: String(err) } };
+  }
+}
+
+async function detectTikTok(userId: string, channel: any): Promise<LiveDetectionResult> {
+  const username = channel.channelId;
+  const signals: Record<string, any> = {};
+
+  if (!username) {
+    return { isLive: false, platform: "tiktok", confidence: 0, signals: { error: "missing_channel_id" } };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(`https://www.tiktok.com/@${username}/live`, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Cache-Control": "no-cache",
+      },
+    });
+    clearTimeout(timeout);
+
+    const html = await res.text();
+    const isLive =
+      html.includes('"is_live":true') ||
+      html.includes('"isLive":true') ||
+      html.includes('"status":4') ||
+      (html.includes('/live') && html.includes('"liveRoom"'));
+
+    signals.statusCode = res.status;
+    signals.isLive = isLive;
+
+    return {
+      isLive,
+      platform: "tiktok",
+      confidence: isLive ? 0.8 : 0.7,
+      signals,
+    };
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      return { isLive: false, platform: "tiktok", confidence: 0, signals: { error: "tiktok_timeout" } };
+    }
+    return { isLive: false, platform: "tiktok", confidence: 0, signals: { error: String(err) } };
   }
 }
 

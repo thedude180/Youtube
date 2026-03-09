@@ -111,12 +111,22 @@ async function generateAndUploadThumbnail(
     let finalMimeType = "image/jpeg";
     try {
       const sharp = (await import("sharp")).default;
+      let quality = 82;
       finalBuffer = await sharp(imageBuffer)
-        .jpeg({ quality: 90 })
+        .resize(1280, 720, { fit: "cover", position: "center" })
+        .jpeg({ quality })
         .toBuffer();
+      while (finalBuffer.length > 1.9 * 1024 * 1024 && quality > 50) {
+        quality -= 8;
+        finalBuffer = await sharp(imageBuffer)
+          .resize(1280, 720, { fit: "cover", position: "center" })
+          .jpeg({ quality })
+          .toBuffer();
+      }
       logger.info("Converted thumbnail to JPEG", { 
         originalSize: imageBuffer.length, 
-        newSize: finalBuffer.length 
+        newSize: finalBuffer.length,
+        quality,
       });
     } catch (sharpErr) {
       logger.warn("Sharp conversion failed, falling back to original buffer", { error: String(sharpErr) });
