@@ -192,7 +192,7 @@ export async function wireAgentCoordination(): Promise<void> {
     setTimeout(async () => {
       try {
         const { multiPlatformDistributor } = await import("./multi-platform-distributor");
-        await multiPlatformDistributor.distribute(event.userId, { videoId, gameTitle, title: "Stream Highlights" }, ["tiktok", "x", "discord"]);
+        await multiPlatformDistributor.distribute(event.userId, { videoId, gameTitle, title: "Stream Highlights" }, ["tiktok", "discord"]);
         logger.info(`Autonomous distribution started for user ${event.userId.slice(0, 8)}`);
       } catch (err: any) {
         logger.warn(`Autonomous distribution failed: ${err.message}`);

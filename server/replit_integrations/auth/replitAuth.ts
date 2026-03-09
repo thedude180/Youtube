@@ -160,7 +160,7 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/logout", (req, res) => {
     const user = req.user as any;
-    const localProviders = ["google", "email", "discord", "twitch", "x", "tiktok", "kick"];
+    const localProviders = ["google", "email", "discord", "twitch", "tiktok", "kick"];
     const isLocalAuth = localProviders.includes(user?.auth_provider);
     
     req.logout(() => {
@@ -185,7 +185,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const localProviders = ["google", "email", "discord", "twitch", "x", "tiktok", "kick"];
+  const localProviders = ["google", "email", "discord", "twitch", "tiktok", "kick"];
   if (localProviders.includes(user.auth_provider)) {
     if (user.claims?.sub) {
       return next();

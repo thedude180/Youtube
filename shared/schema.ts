@@ -13,7 +13,6 @@ export const PLATFORMS = [
   "twitch",
   "kick",
   "tiktok",
-  "x",
   "discord",
   "rumble",
 ] as const;
@@ -135,18 +134,6 @@ export const PLATFORM_INFO: Record<Platform, {
     signupUrl: "https://www.tiktok.com/signup",
     strategyDescription: "The fastest way to go viral. Post short-form vertical videos (up to 10 minutes) to reach Gen Z audiences with massive organic reach and rapid growth potential.",
     setupSteps: ["Open TikTok on your phone and go to your profile", "Tap the + button to create content", "Record or upload your short-form video (up to 10 min)", "Add captions, effects, and hashtags", "Post and track engagement"],
-  },
-  x: {
-    label: "X (Twitter)",
-    color: "#000000",
-    maxResolution: "N/A",
-    maxBitrate: "N/A",
-    rtmpUrlTemplate: "",
-    category: "social",
-    connectionType: "manual",
-    signupUrl: "https://x.com/i/flow/signup",
-    strategyDescription: "Real-time conversation platform. X posts drive traffic to your videos and streams with live announcements, highlight clips, and throwback content that surfaces older videos for new audiences.",
-    setupSteps: ["Connect your X account via Settings", "CreatorOS will auto-post stream announcements, clips, and traffic-driving posts", "Older content gets resurfaced automatically to keep your catalog active"],
   },
   discord: {
     label: "Discord",

@@ -201,39 +201,6 @@ async function getValidToken(userId: string, platform: string): Promise<string |
   }
 }
 
-async function verifyXPost(userId: string, postId: string): Promise<VerificationResult> {
-  try {
-    const token = await getValidToken(userId, "x");
-    if (!token) return { confirmed: false, error: "No X credentials available for verification" };
-
-    const res = await fetch(`https://api.twitter.com/2/tweets/${postId}`, {
-      headers: { "Authorization": `Bearer ${token}` },
-    });
-
-    if (res.ok) {
-      const data = await res.json() as any;
-      if (data.data?.id === postId) {
-        return {
-          confirmed: true,
-          platformStatus: "live",
-          platformUrl: `https://x.com/i/status/${postId}`,
-        };
-      }
-    }
-
-    if (res.status === 404) {
-      return { confirmed: false, platformStatus: "not_found", error: "Post not found on X — may have been deleted or failed to publish" };
-    }
-
-    if (res.status === 429) {
-      return { confirmed: false, error: "X rate limit — will retry verification later" };
-    }
-
-    return { confirmed: false, error: `X API returned ${res.status}` };
-  } catch (err: any) {
-    return { confirmed: false, error: `X verification error: ${err.message}` };
-  }
-}
 
 async function verifyYouTubePost(userId: string, postId: string): Promise<VerificationResult> {
   try {
@@ -323,8 +290,6 @@ async function verifyStreamOnlyPlatformPost(platform: string): Promise<Verificat
 
 export async function verifyPost(userId: string, platform: string, postId: string): Promise<VerificationResult> {
   switch (platform) {
-    case "x":
-      return verifyXPost(userId, postId);
     case "youtube":
     case "youtubeshorts":
       return verifyYouTubePost(userId, postId);

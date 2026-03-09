@@ -23,7 +23,6 @@ import {
   BarChart3,
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiDiscord } from "react-icons/si";
-import { FaXTwitter } from "react-icons/fa6";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -101,7 +100,6 @@ const platformIcons: Record<string, any> = {
   youtube: SiYoutube,
   youtubeshorts: SiYoutube,
   tiktok: SiTiktok,
-  x: FaXTwitter,
   discord: SiDiscord,
 };
 

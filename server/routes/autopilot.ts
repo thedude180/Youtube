@@ -787,7 +787,7 @@ export function registerAutopilotRoutes(app: Express) {
             .limit(5)
         : [];
 
-      const platforms = ["x", "discord"];
+      const platforms = ["discord"];
       const contentTypes = ["auto-clip", "content-recycle", "cross-promo"];
       let seeded = 0;
       const now = new Date();
@@ -807,7 +807,7 @@ export function registerAutopilotRoutes(app: Express) {
       const batchValues: any[] = [];
       for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
         for (const platform of platforms) {
-          const postsPerDay = platform === "x" ? 2 : 1;
+          const postsPerDay = 1;
 
           for (let postIdx = 0; postIdx < postsPerDay; postIdx++) {
             const contentType = contentTypes[seeded % contentTypes.length];

@@ -173,40 +173,6 @@ const KNOWN_PROGRAMS: ProgramDefinition[] = [
     applicationUrl: "https://www.tiktok.com/creator-center/referral",
   },
   {
-    platform: "x",
-    programName: "X Premium Creator Revenue Sharing",
-    programType: "monetization",
-    requirements: [
-      { metric: "X Premium Subscription", target: 1 },
-      { metric: "Followers", target: 500 },
-      { metric: "Post Impressions (3 months)", target: 5000000 },
-    ],
-    benefits: [
-      "Ad revenue sharing on posts",
-      "Subscriptions from followers",
-      "Longer posts and videos",
-      "Priority in replies and search",
-      "Blue verified checkmark",
-    ],
-    applicationUrl: "https://twitter.com/settings/monetization",
-  },
-  {
-    platform: "x",
-    programName: "X Ads Revenue Sharing (Creators)",
-    programType: "ads-revenue",
-    requirements: [
-      { metric: "X Premium/Verified Orgs Subscription", target: 1 },
-      { metric: "Followers", target: 500 },
-      { metric: "Organic Impressions (3 months)", target: 5000000 },
-    ],
-    benefits: [
-      "Share of ad revenue from replies to your posts",
-      "Monthly payouts",
-      "Performance analytics",
-    ],
-    applicationUrl: "https://twitter.com/settings/monetization",
-  },
-  {
     platform: "discord",
     programName: "Discord Server Subscriptions",
     programType: "monetization",

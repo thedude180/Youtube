@@ -131,56 +131,6 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
   }
 }
 
-async function postToX(accessToken: string, content: string): Promise<PublishResult> {
-  try {
-    const xLimit = PLATFORM_CONTENT_SPECS.x.limits.postMaxLength || 280;
-    const tweetText = content.length > xLimit ? content.substring(0, xLimit - 3) + "..." : content;
-
-    const data = await withRetry(async () => {
-      const res = await fetch("https://api.twitter.com/2/tweets", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: tweetText }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.text();
-        console.error(`[Publisher:X] Post failed (${res.status}):`, errData);
-
-        if (res.status === 401 || res.status === 403) {
-          const nonRetryable: any = new Error(`X authentication expired. Please reconnect your X account in Settings > Channels to restore posting.`);
-          nonRetryable.status = res.status;
-          nonRetryable.nonRetryable = true;
-          throw nonRetryable;
-        }
-
-        const err: any = new Error(`X API error ${res.status}: ${errData.substring(0, 200)}`);
-        err.status = res.status;
-        throw err;
-      }
-
-      return await res.json() as any;
-    }, "X post", {
-      maxRetries: 3,
-      retryOn: (error) => !error.nonRetryable && (error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT'),
-    });
-    const tweetId = data.data?.id;
-    if (!tweetId) {
-      return { success: false, platform: "x", error: "X API returned no tweet ID" };
-    }
-    return {
-      success: true,
-      platform: "x",
-      postId: tweetId,
-      postUrl: `https://x.com/i/status/${tweetId}`,
-    };
-  } catch (err: any) {
-    return { success: false, platform: "x", error: err.message };
-  }
-}
 
 async function postToDiscord(accessToken: string, content: string, channelData: any): Promise<PublishResult> {
   try {
@@ -443,8 +393,6 @@ export async function publishToplatform(
   }
 
   switch (platform) {
-    case "x":
-      return postToX(accessToken, formattedContent);
     case "discord":
       return postToDiscord(accessToken, formattedContent, channel);
     case "twitch":

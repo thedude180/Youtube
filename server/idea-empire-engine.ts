@@ -169,14 +169,6 @@ Respond with JSON:
       "growthTactic": "Specific growth strategy",
       "whenToStart": "When to add this platform"
     },
-    "x": {
-      "priority": 5,
-      "role": "Role of this platform",
-      "contentTypes": ["What to post here"],
-      "postingFrequency": "How often",
-      "growthTactic": "Specific growth strategy",
-      "whenToStart": "When to add this platform"
-    },
     "discord": {
       "priority": 6,
       "role": "Role of this platform",
@@ -1359,7 +1351,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
   const finalTitle = videoPackage.seoPackage?.finalTitle || videoPackage.videoScript?.title || contentIdea.title;
 
   const crossPlatformSchedule = generateStaggeredSchedule(
-    ["youtube", "tiktok", "x", "discord"].filter(p => p !== platform),
+    ["youtube", "tiktok", "discord"].filter(p => p !== platform),
     "new-video",
     userId,
   );

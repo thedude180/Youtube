@@ -200,7 +200,6 @@ export default function RevenueTab() {
                         <SelectItem value="twitch">Twitch</SelectItem>
                         <SelectItem value="tiktok">TikTok</SelectItem>
                         <SelectItem value="kick">Kick</SelectItem>
-                        <SelectItem value="x">X</SelectItem>
                         <SelectItem value="discord">Discord</SelectItem>
                         <SelectItem value="stripe">Stripe</SelectItem>
                         <SelectItem value="other">Other</SelectItem>

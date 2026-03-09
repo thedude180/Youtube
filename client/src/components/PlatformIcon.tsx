@@ -6,7 +6,6 @@ import {
   SiTwitch,
   SiKick,
   SiTiktok,
-  SiX,
   SiDiscord,
   SiStripe,
 } from "react-icons/si";
@@ -16,7 +15,6 @@ const PLATFORM_ICONS: Record<string, any> = {
   twitch: SiTwitch,
   kick: SiKick,
   tiktok: SiTiktok,
-  x: SiX,
   discord: SiDiscord,
   stripe: SiStripe,
 };

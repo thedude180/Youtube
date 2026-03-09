@@ -250,7 +250,7 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     return;
   }
 
-  const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord", "rumble"];
+  const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "discord", "rumble"];
 
   const stream = await storage.createStream({
     userId,

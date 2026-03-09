@@ -173,7 +173,7 @@ export function registerClipRoutes(app: Express) {
         (a, b) => (b.optimizationScore || 0) - (a.optimizationScore || 0),
       );
 
-      const platforms = ["youtube", "x", "discord", "tiktok"];
+      const platforms = ["youtube", "discord", "tiktok"];
       const platformBudgets: Record<string, number> = {};
       for (const p of platforms) {
         platformBudgets[p] = calculateDailyPostBudget(p) * 14;

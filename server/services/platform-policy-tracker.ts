@@ -14,7 +14,7 @@ function getOpenAI() {
   return _openai;
 }
 
-const PLATFORMS = ["youtube", "tiktok", "twitch", "kick", "x", "discord", "rumble"] as const;
+const PLATFORMS = ["youtube", "tiktok", "twitch", "kick", "discord", "rumble"] as const;
 type Platform = (typeof PLATFORMS)[number];
 
 interface PolicyRule {
@@ -64,15 +64,6 @@ const PLATFORM_POLICY_SOURCES: Record<Platform, { name: string; policyAreas: str
       "Terms of Service", "Community Guidelines", "Streaming content rules",
       "Gambling content policy", "Multi-streaming policy",
       "Monetization & creator payouts", "DMCA policy",
-    ],
-  },
-  x: {
-    name: "X (Twitter)",
-    policyAreas: [
-      "API Terms of Service v2", "Automation & bot rules",
-      "Spam & platform manipulation", "Media policy (images/video)",
-      "Rate limits & fair use", "Paid content / monetization rules",
-      "AI labeling requirements", "Sensitive media policies",
     ],
   },
   discord: {
@@ -397,17 +388,6 @@ export async function enforceComplianceRules(
       result.fixedContent = fixedContent;
     }
 
-    if (limits.postMaxLength && platform === "x" && content.length > limits.postMaxLength) {
-      const fixedContent = content.substring(0, limits.postMaxLength - 3) + "...";
-      result.autoFixes.push({
-        field: "content",
-        original: content.substring(0, 100) + "...",
-        fixed: fixedContent.substring(0, 100) + "...",
-        reason: `Post exceeds X max length of ${limits.postMaxLength}`,
-      });
-      result.fixedContent = fixedContent;
-    }
-
     if (limits.descriptionMaxLength && content.length > limits.descriptionMaxLength) {
       const fixedContent = content.substring(0, limits.descriptionMaxLength - 3) + "...";
       result.autoFixes.push({
@@ -598,24 +578,6 @@ export async function seedDefaultPlatformRules(): Promise<number> {
       severity: "critical",
       keywords: ["copyrighted music", "dmca", "music strike", "unlicensed music", "stream muted"],
       sourceUrl: "https://www.twitch.tv/p/legal/dmca-guidelines",
-    },
-    {
-      platform: "x",
-      ruleCategory: "automation",
-      ruleName: "x_automation_rules",
-      description: "Automated posting must comply with X API rules: no duplicate content, no mass actions, rate limits must be respected",
-      severity: "critical",
-      keywords: ["duplicate post", "spam", "mass follow", "mass like", "automation abuse"],
-      sourceUrl: "https://developer.x.com/en/docs/x-api/enterprise/rules-and-filtering/overview",
-    },
-    {
-      platform: "x",
-      ruleCategory: "content_policy",
-      ruleName: "x_synthetic_media",
-      description: "X requires labeling of synthetic and manipulated media that could mislead users",
-      severity: "warning",
-      keywords: ["ai generated", "synthetic media", "manipulated media", "deepfake"],
-      sourceUrl: "https://help.x.com/en/rules-and-policies/synthetic-and-manipulated-media-policy",
     },
     {
       platform: "discord",

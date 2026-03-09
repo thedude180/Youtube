@@ -199,7 +199,6 @@ function AddItemDialog({ onClose }: { onClose: () => void }) {
               <SelectItem value="youtube">YouTube</SelectItem>
               <SelectItem value="tiktok">TikTok</SelectItem>
               <SelectItem value="twitch">Twitch</SelectItem>
-              <SelectItem value="x">X</SelectItem>
               <SelectItem value="instagram">Instagram</SelectItem>
             </SelectContent>
           </Select>

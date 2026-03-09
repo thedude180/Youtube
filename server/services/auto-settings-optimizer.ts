@@ -43,7 +43,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "keyword-optimized",
     commentResponseTone: "informative",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-3-per-week",
   },
   vlog: {
@@ -52,7 +52,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "discovery-focused",
     commentResponseTone: "friendly",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   education: {
@@ -61,7 +61,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "search-optimized",
     commentResponseTone: "helpful",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-per-week",
   },
   music: {
@@ -70,7 +70,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "genre-focused",
     commentResponseTone: "appreciative",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   fitness: {
@@ -79,7 +79,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "transformation-focused",
     commentResponseTone: "motivational",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   cooking: {
@@ -88,7 +88,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "recipe-searchable",
     commentResponseTone: "warm",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   beauty: {
@@ -97,7 +97,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "product-tagged",
     commentResponseTone: "supportive",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   fashion: {
@@ -106,7 +106,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "brand-tagged",
     commentResponseTone: "trendy",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   travel: {
@@ -115,7 +115,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "location-optimized",
     commentResponseTone: "adventurous",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   comedy: {
@@ -124,7 +124,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "viral-optimized",
     commentResponseTone: "witty",
-    crossPostPlatforms: ["tiktok", "x", "discord"],
+    crossPostPlatforms: ["tiktok", "discord"],
     contentCadence: "3-5-per-week",
   },
   sports: {
@@ -133,7 +133,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "event-driven",
     commentResponseTone: "enthusiastic",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   finance: {
@@ -142,7 +142,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "authority-building",
     commentResponseTone: "professional",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-3-per-week",
   },
   crypto: {
@@ -151,7 +151,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "trending-ticker",
     commentResponseTone: "analytical",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "daily",
   },
   asmr: {
@@ -169,7 +169,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "how-to-searchable",
     commentResponseTone: "encouraging",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   crafts: {
@@ -178,7 +178,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "material-tagged",
     commentResponseTone: "encouraging",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   pets: {
@@ -187,7 +187,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "breed-tagged",
     commentResponseTone: "playful",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-5-per-week",
   },
   animals: {
@@ -196,7 +196,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "species-tagged",
     commentResponseTone: "educational-warm",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   cars: {
@@ -205,7 +205,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "make-model-tagged",
     commentResponseTone: "passionate",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   automotive: {
@@ -214,7 +214,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "make-model-tagged",
     commentResponseTone: "knowledgeable",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   science: {
@@ -223,7 +223,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "question-driven",
     commentResponseTone: "curious-informative",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "weekly",
   },
   history: {
@@ -232,7 +232,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "era-event-tagged",
     commentResponseTone: "scholarly",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "weekly",
   },
   news: {
@@ -241,7 +241,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "breaking-trending",
     commentResponseTone: "neutral-factual",
-    crossPostPlatforms: ["x"],
+    crossPostPlatforms: [],
     contentCadence: "daily",
   },
   commentary: {
@@ -250,7 +250,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "topic-driven",
     commentResponseTone: "opinionated",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "3-per-week",
   },
   reaction: {
@@ -259,7 +259,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "trending-content",
     commentResponseTone: "relatable",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "daily",
   },
   podcast: {
@@ -268,7 +268,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "guest-topic-tagged",
     commentResponseTone: "conversational",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   animation: {
@@ -277,7 +277,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "style-tagged",
     commentResponseTone: "creative",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "bi-weekly",
   },
   film: {
@@ -286,7 +286,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "title-genre-tagged",
     commentResponseTone: "analytical",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "weekly",
   },
   photography: {
@@ -295,7 +295,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "gear-technique-tagged",
     commentResponseTone: "artistic",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   art: {
@@ -304,7 +304,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "medium-style-tagged",
     commentResponseTone: "creative-supportive",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   design: {
@@ -313,7 +313,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "tool-style-tagged",
     commentResponseTone: "professional-creative",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   motivation: {
@@ -322,7 +322,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "emotion-driven",
     commentResponseTone: "inspiring",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "daily",
   },
   selfimprovement: {
@@ -331,7 +331,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "topic-habit-tagged",
     commentResponseTone: "empathetic",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   meditation: {
@@ -349,7 +349,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "practice-level-tagged",
     commentResponseTone: "calming",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   health: {
@@ -358,7 +358,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "condition-tagged",
     commentResponseTone: "caring-informative",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   parenting: {
@@ -367,7 +367,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "age-stage-tagged",
     commentResponseTone: "supportive-relatable",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   family: {
@@ -376,7 +376,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "family-activity-tagged",
     commentResponseTone: "warm-relatable",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   garden: {
@@ -385,7 +385,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "plant-season-tagged",
     commentResponseTone: "nurturing",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   homeimprovement: {
@@ -394,7 +394,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "project-material-tagged",
     commentResponseTone: "helpful-practical",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   realestate: {
@@ -403,7 +403,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "location-price-tagged",
     commentResponseTone: "professional",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   entrepreneurship: {
@@ -412,7 +412,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "business-model-tagged",
     commentResponseTone: "mentor-like",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-3-per-week",
   },
   marketing: {
@@ -421,7 +421,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "strategy-tagged",
     commentResponseTone: "strategic",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-per-week",
   },
   productivity: {
@@ -430,7 +430,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "tool-method-tagged",
     commentResponseTone: "efficient-helpful",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   programming: {
@@ -439,7 +439,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "language-framework-tagged",
     commentResponseTone: "technical-friendly",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-per-week",
   },
   webdev: {
@@ -448,7 +448,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "framework-tagged",
     commentResponseTone: "developer-friendly",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-3-per-week",
   },
   gamedev: {
@@ -457,7 +457,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "engine-genre-tagged",
     commentResponseTone: "creative-technical",
-    crossPostPlatforms: ["x", "discord", "tiktok"],
+    crossPostPlatforms: ["discord", "tiktok"],
     contentCadence: "weekly",
   },
   datascience: {
@@ -466,7 +466,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "tool-dataset-tagged",
     commentResponseTone: "analytical",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "weekly",
   },
   ai: {
@@ -475,7 +475,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "model-tool-tagged",
     commentResponseTone: "forward-thinking",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-3-per-week",
   },
   true_crime: {
@@ -484,7 +484,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "case-tagged",
     commentResponseTone: "empathetic-serious",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   horror: {
@@ -493,7 +493,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "genre-mood-tagged",
     commentResponseTone: "mysterious",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   paranormal: {
@@ -502,7 +502,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "location-event-tagged",
     commentResponseTone: "open-minded",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   outdoors: {
@@ -511,7 +511,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "activity-location-tagged",
     commentResponseTone: "adventurous",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   fishing: {
@@ -520,7 +520,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "species-location-tagged",
     commentResponseTone: "patient-friendly",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   hunting: {
@@ -529,7 +529,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "season-species-tagged",
     commentResponseTone: "respectful-experienced",
-    crossPostPlatforms: ["x"],
+    crossPostPlatforms: [],
     contentCadence: "weekly",
   },
   camping: {
@@ -538,7 +538,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "gear-location-tagged",
     commentResponseTone: "outdoorsy-friendly",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   survival: {
@@ -547,7 +547,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "skill-scenario-tagged",
     commentResponseTone: "authoritative",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   miniatures: {
@@ -556,7 +556,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "hobby-material-tagged",
     commentResponseTone: "enthusiastic",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   lego: {
@@ -565,7 +565,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "set-theme-tagged",
     commentResponseTone: "fun-enthusiastic",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   toys: {
@@ -574,7 +574,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "brand-age-tagged",
     commentResponseTone: "fun",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   collectibles: {
@@ -583,7 +583,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "rarity-brand-tagged",
     commentResponseTone: "knowledgeable",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   sneakers: {
@@ -592,7 +592,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "brand-model-tagged",
     commentResponseTone: "hype-knowledgeable",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   watches: {
@@ -601,7 +601,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "brand-reference-tagged",
     commentResponseTone: "refined",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   luxury: {
@@ -610,7 +610,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "brand-lifestyle-tagged",
     commentResponseTone: "refined-aspirational",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   cleaning: {
@@ -628,7 +628,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "space-method-tagged",
     commentResponseTone: "calm-helpful",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   autos_racing: {
@@ -637,7 +637,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "event-team-tagged",
     commentResponseTone: "excited",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   mma: {
@@ -646,7 +646,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "fighter-event-tagged",
     commentResponseTone: "passionate-analytical",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   basketball: {
@@ -655,7 +655,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "player-team-tagged",
     commentResponseTone: "energetic",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-5-per-week",
   },
   football: {
@@ -664,7 +664,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "team-season-tagged",
     commentResponseTone: "energetic-analytical",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   soccer: {
@@ -673,7 +673,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "club-league-tagged",
     commentResponseTone: "passionate",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   esports: {
@@ -682,7 +682,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "game-team-tagged",
     commentResponseTone: "competitive-analytical",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "daily",
   },
   chess: {
@@ -691,7 +691,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "opening-player-tagged",
     commentResponseTone: "intellectual",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "3-per-week",
   },
   tabletop: {
@@ -700,7 +700,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "game-genre-tagged",
     commentResponseTone: "community-focused",
-    crossPostPlatforms: ["discord", "x"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "weekly",
   },
   cardgames: {
@@ -709,7 +709,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "set-deck-tagged",
     commentResponseTone: "strategic",
-    crossPostPlatforms: ["tiktok", "x", "discord"],
+    crossPostPlatforms: ["tiktok", "discord"],
     contentCadence: "2-3-per-week",
   },
   dance: {
@@ -718,7 +718,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "style-song-tagged",
     commentResponseTone: "energetic-encouraging",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-5-per-week",
   },
   singing: {
@@ -727,7 +727,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "song-genre-tagged",
     commentResponseTone: "appreciative",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   piano: {
@@ -736,7 +736,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "piece-composer-tagged",
     commentResponseTone: "appreciative-educational",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   guitar: {
@@ -745,7 +745,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "song-technique-tagged",
     commentResponseTone: "jam-friendly",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   djing: {
@@ -754,7 +754,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "genre-set-tagged",
     commentResponseTone: "vibe-curator",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   storytime: {
@@ -763,7 +763,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "topic-hook-tagged",
     commentResponseTone: "relatable-personal",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   books: {
@@ -772,7 +772,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "genre-author-tagged",
     commentResponseTone: "thoughtful",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   movies: {
@@ -781,7 +781,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "title-genre-tagged",
     commentResponseTone: "analytical-passionate",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   anime: {
@@ -790,7 +790,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "series-genre-tagged",
     commentResponseTone: "passionate",
-    crossPostPlatforms: ["x", "tiktok", "discord"],
+    crossPostPlatforms: ["tiktok", "discord"],
     contentCadence: "2-3-per-week",
   },
   manga: {
@@ -799,7 +799,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "title-chapter-tagged",
     commentResponseTone: "fan-analytical",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-per-week",
   },
   cosplay: {
@@ -808,7 +808,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "character-series-tagged",
     commentResponseTone: "creative-community",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   spiritual: {
@@ -817,7 +817,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "practice-topic-tagged",
     commentResponseTone: "compassionate",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   astrology: {
@@ -826,7 +826,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "sign-event-tagged",
     commentResponseTone: "mystical-personal",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-5-per-week",
   },
   politics: {
@@ -835,7 +835,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "issue-event-tagged",
     commentResponseTone: "measured-factual",
-    crossPostPlatforms: ["x"],
+    crossPostPlatforms: [],
     contentCadence: "daily",
   },
   military: {
@@ -844,7 +844,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "topic-era-tagged",
     commentResponseTone: "respectful-informative",
-    crossPostPlatforms: ["x"],
+    crossPostPlatforms: [],
     contentCadence: "weekly",
   },
   space: {
@@ -853,7 +853,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "mission-discovery-tagged",
     commentResponseTone: "wonder-driven",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-per-week",
   },
   math: {
@@ -862,7 +862,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "topic-level-tagged",
     commentResponseTone: "patient-educational",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-per-week",
   },
   language: {
@@ -871,7 +871,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "language-level-tagged",
     commentResponseTone: "encouraging-educational",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "daily",
   },
   prepping: {
@@ -880,7 +880,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "scenario-gear-tagged",
     commentResponseTone: "practical-serious",
-    crossPostPlatforms: ["x"],
+    crossPostPlatforms: [],
     contentCadence: "weekly",
   },
   woodworking: {
@@ -889,7 +889,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "project-tool-tagged",
     commentResponseTone: "craftsman-helpful",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   metalwork: {
@@ -898,7 +898,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "technique-material-tagged",
     commentResponseTone: "craftsman-proud",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   thrifting: {
@@ -907,7 +907,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "find-price-tagged",
     commentResponseTone: "excited-thrifty",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   reselling: {
@@ -916,7 +916,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "platform-profit-tagged",
     commentResponseTone: "business-savvy",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   unboxing: {
@@ -925,7 +925,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "brand-product-tagged",
     commentResponseTone: "excited",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   mukbang: {
@@ -943,7 +943,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "recipe-type-tagged",
     commentResponseTone: "warm-encouraging",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   cocktails: {
@@ -952,7 +952,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "drink-spirit-tagged",
     commentResponseTone: "sophisticated-fun",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   wine: {
@@ -961,7 +961,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "region-varietal-tagged",
     commentResponseTone: "refined-educational",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   coffee: {
@@ -970,7 +970,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "method-origin-tagged",
     commentResponseTone: "connoisseur-friendly",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   skincare: {
@@ -979,7 +979,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "ingredient-concern-tagged",
     commentResponseTone: "caring-knowledgeable",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   nails: {
@@ -988,7 +988,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "style-product-tagged",
     commentResponseTone: "creative-supportive",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   hair: {
@@ -997,7 +997,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "style-technique-tagged",
     commentResponseTone: "encouraging",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   tattoo: {
@@ -1006,7 +1006,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "style-placement-tagged",
     commentResponseTone: "artistic-respectful",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   pranks: {
@@ -1015,7 +1015,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "viral-hook-tagged",
     commentResponseTone: "playful",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   challenges: {
@@ -1024,7 +1024,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "trending-challenge-tagged",
     commentResponseTone: "fun-engaging",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "3-per-week",
   },
   magic: {
@@ -1033,7 +1033,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "trick-type-tagged",
     commentResponseTone: "mysterious-showman",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   drone: {
@@ -1042,7 +1042,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "location-gear-tagged",
     commentResponseTone: "enthusiast",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   "3dprinting": {
@@ -1051,7 +1051,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "printer-material-tagged",
     commentResponseTone: "maker-helpful",
-    crossPostPlatforms: ["tiktok", "x", "discord"],
+    crossPostPlatforms: ["tiktok", "discord"],
     contentCadence: "2-per-week",
   },
   electronics: {
@@ -1060,7 +1060,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "component-project-tagged",
     commentResponseTone: "technical-patient",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "weekly",
   },
   robotics: {
@@ -1069,7 +1069,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "project-tech-tagged",
     commentResponseTone: "engineering-enthusiast",
-    crossPostPlatforms: ["x", "discord", "tiktok"],
+    crossPostPlatforms: ["discord", "tiktok"],
     contentCadence: "bi-weekly",
   },
   law: {
@@ -1078,7 +1078,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "topic-case-tagged",
     commentResponseTone: "authoritative-accessible",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   medical: {
@@ -1087,7 +1087,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "condition-specialty-tagged",
     commentResponseTone: "professional-empathetic",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   psychology: {
@@ -1096,7 +1096,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "concept-study-tagged",
     commentResponseTone: "empathetic-analytical",
-    crossPostPlatforms: ["x", "tiktok"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   philosophy: {
@@ -1105,7 +1105,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "thinker-concept-tagged",
     commentResponseTone: "reflective",
-    crossPostPlatforms: ["x"],
+    crossPostPlatforms: [],
     contentCadence: "weekly",
   },
   relationships: {
@@ -1114,7 +1114,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "topic-advice-tagged",
     commentResponseTone: "empathetic-honest",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   wedding: {
@@ -1123,7 +1123,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "vendor-style-tagged",
     commentResponseTone: "celebratory",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   vanlife: {
@@ -1132,7 +1132,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "location-lifestyle-tagged",
     commentResponseTone: "free-spirited",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   homestead: {
@@ -1141,7 +1141,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "skill-season-tagged",
     commentResponseTone: "self-sufficient",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   farming: {
@@ -1150,7 +1150,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "crop-season-tagged",
     commentResponseTone: "down-to-earth",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   aquarium: {
@@ -1159,7 +1159,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "species-tank-tagged",
     commentResponseTone: "hobbyist-helpful",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   rc: {
@@ -1168,7 +1168,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "model-brand-tagged",
     commentResponseTone: "enthusiast",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   knitting: {
@@ -1177,7 +1177,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "pattern-yarn-tagged",
     commentResponseTone: "warm-patient",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   sewing: {
@@ -1186,7 +1186,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "long",
     tagStrategy: "pattern-fabric-tagged",
     commentResponseTone: "crafty-helpful",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "weekly",
   },
   pottery: {
@@ -1195,7 +1195,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "technique-glaze-tagged",
     commentResponseTone: "zen-creative",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-per-week",
   },
   calligraphy: {
@@ -1204,7 +1204,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "short",
     tagStrategy: "style-tool-tagged",
     commentResponseTone: "artistic-meditative",
-    crossPostPlatforms: ["tiktok", "x"],
+    crossPostPlatforms: ["tiktok"],
     contentCadence: "2-3-per-week",
   },
   default: {
@@ -1213,7 +1213,7 @@ const NICHE_OPTIMAL_SETTINGS: Record<string, Record<string, any>> = {
     descriptionLength: "medium",
     tagStrategy: "balanced",
     commentResponseTone: "friendly",
-    crossPostPlatforms: ["x", "discord"],
+    crossPostPlatforms: ["discord"],
     contentCadence: "2-3-per-week",
   },
 };

@@ -46,7 +46,6 @@ function buildChannelUrl(platform: string, channelId: string, channelName: strin
     case "twitch": return name ? `https://twitch.tv/${name}` : "";
     case "kick": return name ? `https://kick.com/${name}` : "";
     case "tiktok": return name ? `https://tiktok.com/@${name}` : "";
-    case "x": return name ? `https://x.com/${name}` : "";
     case "discord": return id?.match(/^https?:\/\//) ? id : id ? `https://discord.gg/${id}` : "";
     default: return "";
   }
@@ -87,7 +86,7 @@ function appendCrosslinks(content: string, platform: string, contentType: string
   if (platform === "youtube") {
     const lines: string[] = [];
     if (links.website) lines.push(`\n\n${links.website}`);
-    const platformOrder = ["twitch", "tiktok", "discord", "x", "kick", "rumble"];
+    const platformOrder = ["twitch", "tiktok", "discord", "kick", "rumble"];
     const ordered = platformOrder
       .map(p => otherPlatforms.find(op => op.platform === p))
       .filter(Boolean) as { platform: string; url: string }[];
@@ -96,16 +95,6 @@ function appendCrosslinks(content: string, platform: string, contentType: string
       const label = getPlatformLabel(p.platform);
       lines.push(`\n${label}: ${p.url}`);
     }
-    return content + lines.join("");
-  }
-
-  if (platform === "x") {
-    if (hasVideoLink) {
-      return content + `\n\n${videoUrl}`;
-    }
-    const lines: string[] = [];
-    if (links.youtube) lines.push(`\n\n${links.youtube}`);
-    else if (links.website) lines.push(`\n\n${links.website}`);
     return content + lines.join("");
   }
 
@@ -142,7 +131,7 @@ function appendCrosslinks(content: string, platform: string, contentType: string
     if (hasVideoLink) {
       lines.push(`\n\n${videoUrl}`);
     }
-    const discordPriority = ["youtube", "twitch", "kick", "tiktok", "x"];
+    const discordPriority = ["youtube", "twitch", "kick", "tiktok"];
     const prioritized = discordPriority
       .map(p => otherPlatforms.find(op => op.platform === p))
       .filter(Boolean) as { platform: string; url: string }[];
@@ -200,18 +189,6 @@ const PLATFORM_VOICE: Record<string, string> = {
 - Use lowercase aesthetic when it fits
 - Reference TikTok culture naturally
 - CROSS-PLATFORM FUNNEL (critical): Every post must bridge to YouTube. Use natural language like "full vid on youtube", "linked below if you want the full thing", or just the YouTube channel name. The goal is TikTok viewer → YouTube subscriber. Never post a clip without directing people to YouTube.`,
-
-  x: `PLATFORM: X (Twitter)
-- Conversational, opinion-driven
-- Under 280 chars for standalone posts, or use a thread for depth
-- Use rhetorical questions, hot takes, or observations
-- 1-2 hashtags max, or none
-- Thread hooks work great for content
-- React to your own content like you're a viewer
-- Sound like you're tweeting from your couch
-- STREAM ANNOUNCEMENTS: Hype up upcoming/active livestreams with urgency ("LIVE NOW", "Going live in 10")
-- TRAFFIC DRIVING: Mix new video posts with catalog reactivation — resurface older videos with fresh angles ("this one hit different", "y'all slept on this", "still can't believe this happened")
-- CROSS-PLATFORM FUNNEL: X drives people to YouTube (main hub). Every video announcement ends with the YouTube link. Occasionally mention Discord invite and Twitch schedule to funnel engaged followers deeper into the ecosystem.`,
 
   discord: `PLATFORM: Discord
 - Talking to your community, your inner circle
@@ -546,9 +523,6 @@ function calculateStealthScore(text: string, platform: string): number {
 
   const words = text.split(/\s+/);
   if (platform === "tiktok" && words.length > 40) score -= 0.1;
-  const xPostLimit = PLATFORM_CONTENT_SPECS.x?.limits.postMaxLength || 280;
-  if (platform === "x" && text.length > xPostLimit) score -= 0.2;
-
   const hashtags = (text.match(/#\w+/g) || []).length;
   if (hashtags > 5) score -= 0.15;
   if (platform === "discord" && hashtags > 0) score -= 0.1;
@@ -633,7 +607,7 @@ export async function getStealthReport(userId: string): Promise<{
   recentIssues: string[];
   recommendations: string[];
 }> {
-  const platforms = ["youtube", "tiktok", "x", "discord"];
+  const platforms = ["youtube", "tiktok", "discord"];
   const platformGrades: Record<string, { grade: string; score: number; postCount: number }> = {};
   const allIssues: string[] = [];
 

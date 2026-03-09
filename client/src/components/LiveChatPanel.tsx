@@ -256,7 +256,7 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
             </p>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1">
-                {["youtube", "twitch", "kick", "tiktok", "x", "discord"].map(p => (
+                {["youtube", "twitch", "kick", "tiktok", "discord"].map(p => (
                   <Badge
                     key={p}
                     variant={simulatePlatform === p ? "default" : "outline"}

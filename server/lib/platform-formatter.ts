@@ -168,30 +168,6 @@ export function formatForTikTok(
   return { content: caption, warnings };
 }
 
-export function formatForX(
-  content: string,
-  metadata?: any,
-): FormatResult {
-  const warnings: string[] = [];
-  const LIMIT = 280;
-
-  let text = stripMarkdown(content);
-  text = text.replace(/\n{3,}/g, "\n").trim();
-
-  const hashtags = extractHashtags(text);
-  if (hashtags.length > 2) {
-    text = removeExcessHashtags(text, 2);
-    warnings.push(`Trimmed to 2 hashtags (had ${hashtags.length}) — more than 2 reduces engagement on X`);
-  }
-
-  if (text.length > LIMIT) {
-    text = truncateSmart(text, LIMIT);
-    warnings.push(`Tweet truncated to ${LIMIT} chars`);
-  }
-
-  return { content: text, warnings };
-}
-
 export function formatForDiscord(
   content: string,
   metadata?: any,
@@ -269,8 +245,6 @@ export function formatContentForPlatform(
       return formatForYouTubeShort(content, metadata);
     case "tiktok":
       return formatForTikTok(content, metadata);
-    case "x":
-      return formatForX(content, metadata);
     case "discord":
       return formatForDiscord(content, metadata);
     case "twitch":
@@ -304,16 +278,6 @@ export function getFormatSummary(platform: string): {
           "Hook in first 1–2 seconds — put the best line first",
         ],
         limits: { caption: 2200, softPreview: 150, hashtags: 30 },
-      };
-    case "x":
-      return {
-        rules: [
-          "280 chars total — every word counts",
-          "1–2 hashtags max (more hurts engagement)",
-          "No markdown formatting",
-          "Questions and hot takes drive more replies",
-        ],
-        limits: { chars: 280, hashtags: 2 },
       };
     case "discord":
       return {

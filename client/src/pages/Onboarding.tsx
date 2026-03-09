@@ -36,7 +36,6 @@ import {
   SiYoutube,
   SiTwitch,
   SiTiktok,
-  SiX,
   SiDiscord,
   SiGoogle,
   SiMeta,
@@ -48,7 +47,6 @@ const PLATFORM_ICONS: Record<string, IconType> = {
   twitch: SiTwitch,
   kick: SiTwitch,
   tiktok: SiTiktok,
-  x: SiX,
   discord: SiDiscord,
 };
 
@@ -79,7 +77,7 @@ const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
   {
     key: "live-streaming",
     label: "Live Streaming",
-    platforms: ["twitch", "kick", "tiktok", "x"],
+    platforms: ["twitch", "kick", "tiktok"],
   },
   {
     key: "social-media",
@@ -90,7 +88,7 @@ const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
 
 const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<string, string> }> = {
   gaming: {
-    platforms: ["youtube", "twitch", "kick", "discord", "tiktok", "x"],
+    platforms: ["youtube", "twitch", "kick", "discord", "tiktok"],
     reasons: {
       youtube: "Upload gameplay, reviews, walkthroughs + Shorts for highlights",
       twitch: "Live stream your gameplay to a gaming audience",
@@ -101,7 +99,7 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   tech: {
-    platforms: ["youtube", "x", "discord", "tiktok"],
+    platforms: ["youtube", "discord", "tiktok"],
     reasons: {
       youtube: "In-depth reviews, tutorials, unboxings + Shorts for quick tips",
       x: "Share tech news and engage with the tech community",
@@ -118,7 +116,7 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   vlogging: {
-    platforms: ["youtube", "tiktok", "x", "discord"],
+    platforms: ["youtube", "tiktok", "discord"],
     reasons: {
       youtube: "Long-form vlogs, day-in-the-life + Shorts for quick updates",
       tiktok: "Short lifestyle clips and trends",
@@ -127,7 +125,7 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   education: {
-    platforms: ["youtube", "tiktok", "x"],
+    platforms: ["youtube", "tiktok"],
     reasons: {
       youtube: "In-depth tutorials, courses, explainers + Shorts for quick tips",
       tiktok: "EduTok is a massive category — short lessons",
@@ -143,7 +141,7 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   music: {
-    platforms: ["youtube", "tiktok", "x", "discord"],
+    platforms: ["youtube", "tiktok", "discord"],
     reasons: {
       youtube: "Music videos, covers, performances + Shorts for song previews",
       tiktok: "Short song clips can go viral and drive streams",
@@ -152,7 +150,7 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   business: {
-    platforms: ["youtube", "x", "tiktok"],
+    platforms: ["youtube", "tiktok"],
     reasons: {
       youtube: "Business advice, case studies, interviews + Shorts for quick tips",
       x: "Business commentary and networking",
@@ -168,7 +166,7 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   comedy: {
-    platforms: ["youtube", "tiktok", "x"],
+    platforms: ["youtube", "tiktok"],
     reasons: {
       youtube: "Sketches, commentary, long-form comedy + Shorts for skits",
       tiktok: "Comedy clips and trends are the core of TikTok",
@@ -184,7 +182,7 @@ const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<s
     },
   },
   other: {
-    platforms: ["youtube", "tiktok", "x", "discord"],
+    platforms: ["youtube", "tiktok", "discord"],
     reasons: {
       youtube: "Long-form content + Shorts for fast audience growth",
       tiktok: "Short-form content for maximum reach",

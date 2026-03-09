@@ -591,7 +591,7 @@ router.post("/api/nexus/content-atomizer", async (req, res) => {
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: "You are a content atomizer. Take one piece of content and split it into optimized versions for multiple platforms. Return JSON: outputs (array of {platform, contentType, title, description, status: 'ready'})." }, { role: "user", content: `Atomize this content for all platforms: "${sourceTitle}" from ${sourcePlatform}. Create versions for YouTube, TikTok, X/Twitter, Instagram, Discord.` }],
+      messages: [{ role: "system", content: "You are a content atomizer. Take one piece of content and split it into optimized versions for multiple platforms. Return JSON: outputs (array of {platform, contentType, title, description, status: 'ready'})." }, { role: "user", content: `Atomize this content for all platforms: "${sourceTitle}" from ${sourcePlatform}. Create versions for YouTube, TikTok, Instagram, Discord.` }],
       response_format: { type: "json_object" },
     });
     const data = JSON.parse(response.choices[0].message.content || "{}");

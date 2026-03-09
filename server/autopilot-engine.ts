@@ -99,8 +99,8 @@ const AUTOPILOT_FEATURES = [
 
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
-const ALL_DISTRIBUTION_PLATFORMS = ["youtube", "x", "discord", "tiktok"];
-const ALL_ANNOUNCE_PLATFORMS = ["x", "discord"];
+const ALL_DISTRIBUTION_PLATFORMS = ["youtube", "discord", "tiktok"];
+const ALL_ANNOUNCE_PLATFORMS = ["discord"];
 
 function getContentTypeForPlatform(platform: string, sourceContentType: string): "video" | "text" | "short_video" {
   const caps = PLATFORM_CAPABILITIES[platform as keyof typeof PLATFORM_CAPABILITIES];

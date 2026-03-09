@@ -490,7 +490,7 @@ function CalendarTab() {
                         required
                         maxLength={titleLimit}
                         data-testid="input-schedule-title"
-                        placeholder={formPlatform === "x" ? "What's happening?" : formPlatform === "discord" ? "Announcement title" : "Video title"}
+                        placeholder={formPlatform === "discord" ? "Announcement title" : "Video title"}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -506,7 +506,6 @@ function CalendarTab() {
                           <SelectContent>
                             <SelectItem value="youtube">YouTube</SelectItem>
                             <SelectItem value="tiktok">TikTok</SelectItem>
-                            <SelectItem value="x">X (Twitter)</SelectItem>
                             <SelectItem value="discord">Discord</SelectItem>
                             <SelectItem value="twitch">Twitch</SelectItem>
                             <SelectItem value="kick">Kick</SelectItem>

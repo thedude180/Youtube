@@ -304,7 +304,7 @@ async function runCrossPlatformDistribution(userId: string): Promise<any> {
 
   let distributed = 0;
   for (const clip of pendingClips) {
-    const targetPlatforms = platforms.filter(p => ["tiktok", "x", "discord"].includes(p));
+    const targetPlatforms = platforms.filter(p => ["tiktok", "discord"].includes(p));
 
     for (const platform of targetPlatforms) {
       await db.insert(autopilotQueue).values({

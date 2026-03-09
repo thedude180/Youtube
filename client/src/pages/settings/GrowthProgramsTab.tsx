@@ -95,7 +95,7 @@ interface AiRecommendations {
   longTermGoals: string[];
 }
 
-const PLATFORM_ORDER = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
+const PLATFORM_ORDER = ["youtube", "twitch", "kick", "tiktok", "discord"];
 
 const PROGRAM_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   monetization: { label: "Monetization", color: "text-green-500" },
@@ -475,7 +475,7 @@ export default function GrowthProgramsTab() {
         <div key={platform} className="space-y-3">
           <div className="flex items-center gap-2">
             <PlatformBadge platform={platform} />
-            <h3 className="text-sm font-medium capitalize">{platform === "x" ? "X (Twitter)" : platform}</h3>
+            <h3 className="text-sm font-medium capitalize">{platform}</h3>
             <Badge variant="secondary" className="text-[10px]">
               {platformPrograms.filter(p => p.eligibilityMet).length}/{platformPrograms.length} eligible
             </Badge>

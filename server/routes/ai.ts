@@ -633,7 +633,6 @@ import {
   aiVideoToPodcastConverter,
   aiVideoToCourseConverter,
   aiBlogToVideoConverter,
-  aiTwitterThreadCreator,
   aiLinkedInContentAdapter,
   aiPinterestPinCreator,
   aiRedditPostOptimizer,
@@ -726,8 +725,6 @@ import {
   aiInstagramAestheticPlanner,
 } from "../ai-engine";
 import {
-  aiXTwitterGrowthStrategy,
-  aiXTwitterThreadWriter,
   aiLinkedInCreatorStrategy,
   aiLinkedInArticleWriter,
   aiFacebookGroupManager,
@@ -5901,15 +5898,6 @@ export function registerAiRoutes(app: Express) {
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
-  app.post("/api/ai/twitter-thread", aiRateLimit, async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiTwitterThreadCreator(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
   app.post("/api/ai/linkedin-adapter", aiRateLimit, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -6590,24 +6578,6 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try {
       const result = await aiInstagramAestheticPlanner(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/x-growth", aiRateLimit, async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiXTwitterGrowthStrategy(req.body, userId);
-      res.json(result);
-    } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
-  });
-
-  app.post("/api/ai/x-thread", aiRateLimit, async (req, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const result = await aiXTwitterThreadWriter(req.body, userId);
       res.json(result);
     } catch (e: any) { console.error("AI error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });

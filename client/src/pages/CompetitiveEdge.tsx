@@ -232,7 +232,6 @@ const PulseGrid = () => {
     { name: "YouTube", icon: Video, color: "text-red-500", glow: "glow-red" },
     { name: "Twitch", icon: Heart, color: "text-purple-500", glow: "glow-purple" },
     { name: "TikTok", icon: Music2, color: "text-pink-500", glow: "glow-pink" },
-    { name: "Twitter", icon: Share2, color: "text-blue-400", glow: "glow-blue" },
     { name: "Discord", icon: MessageSquare, color: "text-indigo-400", glow: "glow-purple" },
     { name: "Instagram", icon: Heart, color: "text-rose-500", glow: "glow-red" },
   ];

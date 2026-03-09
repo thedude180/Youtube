@@ -45,10 +45,6 @@ const PLATFORM_CHAT_STYLE: Record<string, string> = {
 - React to the moment
 - Keep it fun and light`,
 
-  x: `X/Twitter Spaces style:
-- Conversational and opinionated
-- Quick takes and reactions
-- Sound natural and unscripted`,
 };
 
 interface LiveChatResponse {

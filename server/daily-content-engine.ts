@@ -39,7 +39,7 @@ const MINUTES_PER_BATCH = 75; // 60 min long-form + ~15 min headroom for 3 short
 const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 4 (1 long-form + 3 shorts per batch)
 const MIN_DAY_OFFSET = 0; // start from today — first batch fires ASAP, subsequent batches fill sequential future days
 const VIDEO_PLATFORMS = ["tiktok"];
-const TEXT_PLATFORMS = ["x", "discord"];
+const TEXT_PLATFORMS = ["discord"];
 const CROSS_PLATFORMS = [...VIDEO_PLATFORMS, ...TEXT_PLATFORMS];
 // Hard wall-clock safety valve per engine invocation.
 // Each batch awaits a real OpenAI API call (~5-15 s), so the event loop is
@@ -599,14 +599,7 @@ async function queueBatchContent(
   for (const platform of connectedPlatforms.text) {
     const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
     const topTags = plan.longForm.tags.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ");
-    let longFormAnnouncement: string;
-    if (platform === "x") {
-      longFormAnnouncement = `NEW VIDEO: ${plan.longForm.title}\n\n${plan.longForm.description.substring(0, 160)}\n\nWatch now on YouTube!\n${topTags}`;
-      if (longFormAnnouncement.length > 280) longFormAnnouncement = longFormAnnouncement.substring(0, 277) + "...";
-    } else {
-      longFormAnnouncement = `**NEW VIDEO**\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`;
-      if (longFormAnnouncement.length > 2000) longFormAnnouncement = longFormAnnouncement.substring(0, 1997) + "...";
-    }
+    const longFormAnnouncement = `**NEW VIDEO**\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`.substring(0, 1997) + "...";
 
     try {
       await db.insert(autopilotQueue).values({
@@ -636,14 +629,7 @@ async function queueBatchContent(
     for (let i = 0; i < plan.shorts.length; i++) {
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 3) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
-      let textContent: string;
-      if (platform === "x") {
-        textContent = `${short.hook}\n\n${short.hashtags.slice(0, 3).join(" ")}\n\nFull video on YouTube`;
-        if (textContent.length > 280) textContent = textContent.substring(0, 277) + "...";
-      } else {
-        textContent = `**${short.title}**\n\n${short.hook}\n\n${short.hashtags.slice(0, 5).join(" ")}\n\nCheck it out on YouTube!`;
-        if (textContent.length > 2000) textContent = textContent.substring(0, 1997) + "...";
-      }
+      const textContent = `**${short.title}**\n\n${short.hook}\n\n${short.hashtags.slice(0, 5).join(" ")}\n\nCheck it out on YouTube!`.substring(0, 1997) + "...";
 
       try {
         await db.insert(autopilotQueue).values({

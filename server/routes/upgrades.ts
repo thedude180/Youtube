@@ -768,7 +768,7 @@ export function registerUpgradeRoutes(app: Express) {
         totalWatchTime: seededInt(rng, 100, 5000),
         memberSince: new Date(Date.now() - seededInt(rng, 30, 730) * 86400000).toISOString(),
         tier: seededPick(rng, ["superfan", "regular", "member", "vip"]),
-        platforms: [seededPick(rng, ["youtube", "tiktok", "x"])],
+        platforms: [seededPick(rng, ["youtube", "tiktok"])],
       }));
       res.json({ topFans: fans, totalSuperfans: seededInt(rng, 50, 2000), superfanGrowthRate: seededFloat(rng, 2, 15) });
     } catch (error: any) {
@@ -1269,7 +1269,7 @@ export function registerUpgradeRoutes(app: Express) {
           startDate: new Date(Date.now() - seededInt(rng, 1, 30) * 86400000).toISOString(),
           endDate: new Date(Date.now() + seededInt(rng, 1, 30) * 86400000).toISOString(),
           winner: seededPick(rng, [null, null, `User_${seededInt(rng, 100, 9999)}`]),
-          platforms: [seededPick(rng, ["youtube", "tiktok", "x"])],
+          platforms: [seededPick(rng, ["youtube", "tiktok"])],
         }));
       });
       res.json(giveaways);
@@ -2338,7 +2338,7 @@ export function registerUpgradeRoutes(app: Express) {
     const userId = req.params.userId;
     const rng = seedRandom(`radar-${userId}`);
 
-    const platforms = ["Twitter", "Reddit", "TikTok", "YouTube Comments"];
+    const platforms = ["TikTok", "YouTube Comments", "Reddit", "Discord"];
     const mentions = platforms.map(platform => ({
       platform,
       sentiment: seededPick(rng, ["Positive", "Neutral", "Mixed"]),

@@ -1,4 +1,4 @@
-export type Platform = "youtube" | "twitch" | "kick" | "tiktok" | "x" | "discord" | "rumble";
+export type Platform = "youtube" | "twitch" | "kick" | "tiktok" | "discord" | "rumble";
 
 export interface PlatformContentSpec {
   label: string;
@@ -114,39 +114,6 @@ export const PLATFORM_CONTENT_SPECS: Record<Platform, PlatformContentSpec> = {
     },
     tone: "Ultra-casual, trending energy, punchy. Use hooks like 'POV:', 'This is why...'",
     dailyLimits: { maxPosts: 10 },
-  },
-
-  x: {
-    label: "X (Twitter)",
-    category: "social",
-    color: "#1da1f2",
-    capabilities: ["Text posts (280 chars)", "Long posts (25K chars)", "Images"],
-    contentTypes: ["post"],
-    limits: {
-      titleMaxLength: 280,
-      descriptionMaxLength: 280,
-      postMaxLength: 280,
-      videoMaxDuration: 140,
-      mediaLimit: 4,
-    },
-    streaming: {
-      supported: false,
-    },
-    posting: {
-      supported: true,
-      videoUpload: false,
-      textPost: true,
-      imagePost: true,
-      bestPractices: [
-        "Keep tweets under 280 chars — every word counts",
-        "1-2 hashtags max or none — threads work well",
-        "Rhetorical questions and hot takes drive engagement",
-        "Link to videos in separate reply for better reach",
-        "Use 'LIVE NOW' format for stream announcements",
-      ],
-    },
-    tone: "Conversational, opinion-driven. Use hot takes and rhetorical questions.",
-    dailyLimits: { maxPosts: 50 },
   },
 
   discord: {

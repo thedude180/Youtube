@@ -46,7 +46,6 @@ Generate an optimized live stream update. Return valid JSON with:
 - optimizedTitle (max 100 chars, start with 🔴 LIVE:, be specific about what's happening)
 - optimizedDescription (full description with links section at bottom)
 - optimizedTags (array of 15 strings — game name, genre, "live", "gaming", "ps5", specifics)
-- xPost (tweet under 280 chars, include #Live #Gaming #PS5 hashtags)
 - discordPost (@everyone announcement, exciting, include context about what's happening)
 - tiktokPost (short text-post, under 150 chars, drive to YouTube)
 - urgency: "high" if viewers < 50, "medium" if 50-200, "low" if 200+
@@ -57,7 +56,6 @@ async function aiGenerateLiveUpdate(session: LiveGrowthSession): Promise<{
   optimizedTitle: string;
   optimizedDescription: string;
   optimizedTags: string[];
-  xPost: string;
   discordPost: string;
   tiktokPost: string;
   urgency: string;
@@ -75,7 +73,6 @@ LIVE TITLE FORMULA:
 - Use pipe | separators
 
 SOCIAL BLAST FORMULA:
-- X/Twitter: Under 280 chars, punchy, #GameName #Live #Gaming #PS5 hashtags, YouTube link placeholder [LINK]
 - Discord: @everyone announcement, exciting, include what's happening, [LINK] placeholder
 - TikTok: Under 150 chars, text post format, drive to YouTube, link in bio
 
@@ -117,7 +114,7 @@ async function queueSocialPost(
     const youtubeUrl = `https://youtu.be/${broadcastId}`;
     const finalContent = content.replace("[LINK]", youtubeUrl);
 
-    const targetPlatform = platform === "x" ? "twitter" : platform;
+    const targetPlatform = platform;
 
     await db.insert(autopilotQueue).values({
       userId,
@@ -194,7 +191,6 @@ async function runSocialBlast(session: LiveGrowthSession): Promise<void> {
     if (!update) return;
 
     const posts: Array<[string, string]> = [
-      ["x", update.xPost],
       ["discord", update.discordPost],
       ["tiktok", update.tiktokPost],
     ];

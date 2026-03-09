@@ -78,7 +78,7 @@ export default function ContentPredictions() {
             data-testid="input-prediction-description"
           />
           <div className="flex items-center gap-2 flex-wrap">
-            {["youtube", "twitch", "tiktok", "x"].map((p) => (
+            {["youtube", "twitch", "tiktok"].map((p) => (
               <Button
                 key={p}
                 size="sm"

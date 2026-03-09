@@ -433,7 +433,6 @@ function TrendInterceptor() {
               <SelectContent>
                 <SelectItem value="youtube">YouTube</SelectItem>
                 <SelectItem value="tiktok">TikTok</SelectItem>
-                <SelectItem value="twitter">X (Twitter)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1020,7 +1019,6 @@ function CaptionGenerator() {
               <SelectContent>
                 <SelectItem value="instagram">Instagram</SelectItem>
                 <SelectItem value="tiktok">TikTok</SelectItem>
-                <SelectItem value="twitter">X/Twitter</SelectItem>
               </SelectContent>
             </Select>
             <Select name="tone" defaultValue="witty">

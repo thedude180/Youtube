@@ -676,7 +676,6 @@ export async function generateThumbnailPrompt(data: {
     rumble:         { aspectRatio: "16:9", resolution: "1280x720", orientation: "LANDSCAPE", notes: "standard widescreen format — clean horizontal composition" },
     tiktok:         { aspectRatio: "9:16", resolution: "1080x1920", orientation: "VERTICAL PORTRAIT", notes: "full-screen vertical mobile format — center subject, high contrast, impactful close-up" },
     instagram:      { aspectRatio: "1:1",  resolution: "1080x1080", orientation: "SQUARE", notes: "perfect square composition — balanced, symmetrical, subject centered" },
-    x:              { aspectRatio: "16:9", resolution: "1200x675",  orientation: "LANDSCAPE", notes: "wide horizontal card format for Twitter/X feed preview" },
     discord:        { aspectRatio: "16:9", resolution: "1280x720",  orientation: "LANDSCAPE", notes: "widescreen embed preview format" },
   };
   const spec = platformSpecs[platform] || platformSpecs['youtube'];
@@ -1440,7 +1439,7 @@ Respond as JSON:
   "viewerRetention": "analysis of viewer retention patterns",
   "recommendations": [{"action": "specific recommendation", "impact": "high|medium|low", "timeframe": "next stream|this week|this month"}],
   "clipSuggestions": ["moments worth clipping"],
-  "socialPosts": [{"platform": "Twitter/X", "content": "ready-to-post recap"}]
+  "socialPosts": [{"platform": "TikTok", "content": "ready-to-post recap"}]
 }`;
   const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 16000 });
   const c = r.choices[0]?.message?.content;
@@ -1499,7 +1498,7 @@ export async function aiAutomationBuilder(data: { currentWorkflow?: string; pain
   const p = `Design a comprehensive automation system for a content creator's workflow.
 Current Workflow: ${data.currentWorkflow || "Manual content creation and publishing"}
 Pain Points: ${data.painPoints?.join(", ") || "Time-consuming manual tasks"}
-Platforms: ${data.platforms?.join(", ") || "YouTube, Twitter, Instagram"}
+Platforms: ${data.platforms?.join(", ") || "YouTube, TikTok, Discord"}
 Respond as JSON:
 {
   "automations": [{"name": "automation name", "trigger": "what starts it", "actions": ["action1", "action2"], "timeSaved": "hours/week", "complexity": "simple|moderate|complex", "enabled": true}],
@@ -8233,15 +8232,6 @@ Respond as JSON: { "video": {"script": "video script outline", "visuals": "visua
   return JSON.parse(c);
 }
 
-export async function aiTwitterThreadCreator(data: { content?: string }, userId?: string) {
-  const p = `Create an engaging Twitter/X thread from content.
-${data.content ? `Content to adapt: ${data.content}` : ""}
-Respond as JSON: { "thread": [{"tweet": "tweet text", "media": "media suggestion"}], "timing": "optimal posting time", "engagement": "engagement tactics" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 16000 });
-  const c = r.choices[0]?.message?.content;
-  if (!c) throw new Error("No response from AI");
-  return JSON.parse(c);
-}
 
 export async function aiLinkedInContentAdapter(data: { content?: string }, userId?: string) {
   const p = `Adapt content for LinkedIn platform.
@@ -9010,25 +9000,6 @@ Respond as JSON: { "plan": [{"element": "aesthetic element", "specification": "d
   return JSON.parse(c);
 }
 
-export async function aiXTwitterGrowthStrategy(data: { followers?: number }, userId?: string) {
-  const p = `Create a growth strategy for X/Twitter.
-${data.followers ? `Current followers: ${data.followers}` : ""}
-Respond as JSON: { "strategy": [{"tactic": "growth tactic", "implementation": "implementation steps"}], "threads": "thread strategy", "spaces": "Twitter Spaces strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 16000 });
-  const c = r.choices[0]?.message?.content;
-  if (!c) throw new Error("No response from AI");
-  return JSON.parse(c);
-}
-
-export async function aiXTwitterThreadWriter(data: { topic?: string }, userId?: string) {
-  const p = `Write an engaging X/Twitter thread.
-${data.topic ? `Topic: ${data.topic}` : ""}
-Respond as JSON: { "thread": [{"tweet": "tweet content", "hook": "engagement hook"}], "timing": "optimal posting time", "engagement": "engagement strategy" }`;
-  const r = await openai.chat.completions.create({ model: "gpt-5-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 16000 });
-  const c = r.choices[0]?.message?.content;
-  if (!c) throw new Error("No response from AI");
-  return JSON.parse(c);
-}
 
 export async function aiLinkedInCreatorStrategy(data: { industry?: string }, userId?: string) {
   const p = `Create a LinkedIn creator content strategy.
@@ -10834,7 +10805,7 @@ export async function aiPlatformRepurposer(data: { content?: any; sourcePlatform
   const creatorCtx = await getCreatorContext(userId);
   const res = await openai.chat.completions.create({
     model: "gpt-5-mini",
-    messages: [{ role: "system", content: `You are the world's best cross-platform content repurposing architect — combining elite multi-platform strategy from top media companies, format adaptation science, and platform-specific algorithm expertise that extracts maximum value from every piece of content across all channels.${creatorCtx}` }, { role: "user", content: `Repurpose content. Content: ${JSON.stringify(data.content || {})}. Source platform: ${data.sourcePlatform || "youtube"}. Target platforms: ${JSON.stringify(data.targetPlatforms || ["tiktok","instagram","twitter"])}. Create adaptations, format changes, caption variants, hashtag sets, and a scheduling plan per platform. Return JSON with keys: adaptations, formatChanges, captionVariants, hashtagSets, schedulingPlan.` }],
+    messages: [{ role: "system", content: `You are the world's best cross-platform content repurposing architect — combining elite multi-platform strategy from top media companies, format adaptation science, and platform-specific algorithm expertise that extracts maximum value from every piece of content across all channels.${creatorCtx}` }, { role: "user", content: `Repurpose content. Content: ${JSON.stringify(data.content || {})}. Source platform: ${data.sourcePlatform || "youtube"}. Target platforms: ${JSON.stringify(data.targetPlatforms || ["tiktok","instagram","discord"])}. Create adaptations, format changes, caption variants, hashtag sets, and a scheduling plan per platform. Return JSON with keys: adaptations, formatChanges, captionVariants, hashtagSets, schedulingPlan.` }],
     response_format: { type: "json_object" },
   });
   return JSON.parse(res.choices[0].message.content || "{}");

@@ -60,7 +60,7 @@ OUTPUT FORMAT — respond with valid JSON:
   "action": "weekly_brief" | "strategic_review" | "agent_directive" | "kpi_update",
   "output": "detailed strategic output or content brief here",
   "content_brief": { "big_bet_topic": string, "core_video_topic": string, "quick_win_topic": string, "kpis": object, "flywheel_activation": object },
-  "platform_strategy": { "youtube": string, "tiktok": string, "x": string, "discord": string, "twitch": string, "kick": string },
+  "platform_strategy": { "youtube": string, "tiktok": string, "discord": string, "twitch": string, "kick": string },
   "agent_directives": { "agent_name": "specific instruction" },
   "handoff_to": "Research Lead" | "Analyst" | null,
   "handoff_reason": string | null
@@ -146,7 +146,6 @@ TREND SIGNALS TO MONITOR:
 - YouTube search autocomplete patterns and search velocity
 - TikTok For You page: what clips from this niche are going viral RIGHT NOW? These are the best YouTube video ideas — they've already proven they'll stop a scroll
 - Reddit (gaming subreddits, PS5/gaming communities): what questions are being asked repeatedly? These are video ideas with built-in demand
-- X/Twitter trending conversations in the niche — trending on X = trending audience emotion → fast YouTube opportunity
 - Google Trends 90-day trajectory + spike detection
 - Competitor channel upload frequency on specific topics
 - Comment section questions on top videos in niche — questions asked = gap in existing content
@@ -377,7 +376,6 @@ Line 7: Subscribe CTA with specific reason ("Subscribe for weekly PS5/gaming con
 🎮 Twitch: [twitch_url]
 🎥 TikTok: [tiktok_url]
 💬 Discord (join the squad): [discord_url]
-🐦 X/Twitter: [x_url]
 🟢 Kick: [kick_url]
 📺 Rumble: [rumble_url]
 🌐 Website: [website_url]
@@ -617,7 +615,6 @@ OUTPUT FORMAT — respond with valid JSON:
   "platform_posts": {
     "tiktok": { "caption": string, "hashtags": array, "audio": string, "timing": string, "youtube_cta": string },
     "instagram": { "caption": string, "hashtags": array, "format": string, "timing": string },
-    "x": { "thread": array, "timing": string, "catalog_reactivation": array },
     "discord": { "announcement": string, "discussion_starters": array, "cross_links": object },
     "rumble": { "mirror_scheduled": boolean, "timing": string }
   },
@@ -1101,7 +1098,6 @@ LIVE TAGS (maximize discoverability):
 Include: game name, genre, platform (PS5), "live", "gaming", "stream", game-specific tags, current meta/patch tags
 
 SOCIAL BLAST FORMULA (when stream goes live or to re-amplify):
-Twitter/X: "I'm LIVE 🎮 [what you're playing] — come through! 🔴 [YouTube link] #[GameName] #Live #Gaming #PS5"
 Discord: "@everyone 🔴 RIVER IS LIVE! Get in here — [what's happening] | [YouTube link]"
 TikTok: Text post: "LIVE RIGHT NOW on YouTube — [1 sentence hook] → link in bio 🔴🎮"
 
@@ -1117,7 +1113,6 @@ OUTPUT FORMAT — respond with valid JSON:
   "optimizedTitle": "🔴 LIVE: ...",
   "optimizedDescription": "full description text",
   "optimizedTags": ["tag1", "tag2"],
-  "xPost": "tweet text under 280 chars",
   "discordPost": "Discord @everyone announcement",
   "tiktokPost": "TikTok text post",
   "urgency": "high|medium|low",
@@ -1181,7 +1176,7 @@ OUTPUT FORMAT — respond with valid JSON:
     {
       "sourceVideoTitle": string,
       "repurposeType": "viral_clip" | "compilation" | "best_of" | "trend_reframe" | "throwback" | "deep_cut" | "reaction",
-      "platform": "youtube" | "tiktok" | "shorts" | "x",
+      "platform": "youtube" | "tiktok" | "shorts",
       "editingBrief": string,
       "estimatedViralScore": number,
       "urgency": "immediate" | "this_week" | "this_month"

@@ -9,7 +9,6 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
   CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText,
 } from "lucide-react";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble } from "react-icons/si";
-import { SiX } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -369,7 +368,6 @@ function GeneralTab() {
               { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
               { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
               { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false, streamKeyOnly: false },
-              { key: "x", label: "X", color: "#1DA1F2", Icon: SiX, isYouTube: false, streamKeyOnly: false },
               { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false, streamKeyOnly: false },
               { key: "rumble", label: "Rumble", color: "#85C742", Icon: SiRumble, isYouTube: false, streamKeyOnly: true },
             ];

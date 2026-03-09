@@ -321,40 +321,6 @@ async function verifyTikTokContent(userId: string, publishId: string): Promise<C
   }
 }
 
-async function verifyXContent(userId: string, tweetId: string): Promise<ContentVerification["details"]> {
-  const token = await getValidToken(userId, "x");
-  if (!token) return { isAccessible: false, isPublic: false, hasDuration: false, error: "No X credentials" };
-
-  try {
-    const res = await fetch(`https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=public_metrics,created_at`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (res.status === 404) {
-      return { isAccessible: false, isPublic: false, hasDuration: false, error: "Tweet not found" };
-    }
-
-    if (res.status === 429) {
-      return { isAccessible: false, isPublic: false, hasDuration: false, error: "Rate limited — will retry" };
-    }
-
-    if (!res.ok) {
-      return { isAccessible: false, isPublic: false, hasDuration: false, error: `X API ${res.status}` };
-    }
-
-    const data = await res.json() as any;
-    const tweet = data.data;
-
-    return {
-      isAccessible: !!tweet,
-      isPublic: !!tweet,
-      hasDuration: false,
-      viewCount: tweet?.public_metrics?.impression_count,
-    };
-  } catch (err: any) {
-    return { isAccessible: false, isPublic: false, hasDuration: false, error: err.message };
-  }
-}
 
 function formatUptime(ms: number): string {
   const hours = Math.floor(ms / 3600000);
@@ -502,8 +468,6 @@ export async function verifyAllUserContent(userId: string): Promise<Verification
       details = await verifyYouTubeVideo(userId, postId);
     } else if (platform === "tiktok") {
       details = await verifyTikTokContent(userId, postId);
-    } else if (platform === "x") {
-      details = await verifyXContent(userId, postId);
     } else if (platform === "discord") {
       details = { isAccessible: true, isPublic: true, hasDuration: false };
     } else {

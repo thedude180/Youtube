@@ -257,7 +257,6 @@ function CollabsTab() {
                       <SelectItem value="YouTube">YouTube</SelectItem>
                       <SelectItem value="TikTok">TikTok</SelectItem>
                       <SelectItem value="Instagram">Instagram</SelectItem>
-                      <SelectItem value="Twitter">Twitter</SelectItem>
                       <SelectItem value="Twitch">Twitch</SelectItem>
                     </SelectContent>
                   </Select>

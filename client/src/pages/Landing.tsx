@@ -9,7 +9,7 @@ import {
   TrendingDown, Minus, ArrowUpRight
 } from "lucide-react";
 import {
-  SiYoutube, SiTwitch, SiTiktok, SiX, SiDiscord,
+  SiYoutube, SiTwitch, SiTiktok, SiDiscord,
   SiInstagram, SiLinkedin, SiRumble, SiSnapchat,
   SiPinterest, SiFacebook
 } from "react-icons/si";
@@ -59,7 +59,6 @@ function PlatformLogos() {
     { icon: SiYoutube, name: "YouTube" },
     { icon: SiTwitch, name: "Twitch" },
     { icon: SiTiktok, name: "TikTok" },
-    { icon: SiX, name: "X" },
     { icon: SiDiscord, name: "Discord" },
     { icon: SiInstagram, name: "Instagram" },
     { icon: SiLinkedin, name: "LinkedIn" },

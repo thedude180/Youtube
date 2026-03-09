@@ -463,7 +463,7 @@ export async function initAutomationEngine() {
     await withCronLock("AlgorithmMonitor", 3 * 60 * 60 * 1000, async () => {
       await selfHealingCore("AlgorithmMonitor", async () => {
         const { scanAlgorithmChanges } = await import("./algorithm-monitor");
-        for (const platform of ["youtube", "twitch", "kick", "tiktok", "x"]) {
+        for (const platform of ["youtube", "twitch", "kick", "tiktok"]) {
           await scanAlgorithmChanges(platform);
         }
       });

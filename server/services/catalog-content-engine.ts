@@ -120,7 +120,6 @@ function repurposeTypeToQueueType(type: string): string {
 function platformToTarget(platform: string): string {
   if (platform === "tiktok") return "tiktok";
   if (platform === "shorts") return "youtube";
-  if (platform === "x") return "twitter";
   return "youtube";
 }
 

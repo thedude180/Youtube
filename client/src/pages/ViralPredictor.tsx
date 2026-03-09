@@ -111,7 +111,6 @@ export default function ViralPredictor() {
                       { value: "tiktok", label: "TikTok", color: "hsl(330 80% 60%)" },
                       { value: "twitch", label: "Twitch", color: "hsl(265 80% 65%)" },
                       { value: "instagram", label: "Instagram", color: "hsl(320 70% 60%)" },
-                      { value: "x", label: "X / Twitter", color: "hsl(200 80% 60%)" },
                     ].map((p) => (
                       <button key={p.value} onClick={() => setPlatform(p.value)}
                         data-testid={`btn-platform-${p.value}`}

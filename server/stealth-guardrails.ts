@@ -105,21 +105,6 @@ function adjustPlatformVoice(text: string, platform: string): string {
       return text
         .replace(/\bcheck out\b/gi, (m) => Math.random() < 0.3 ? "peep" : m)
         .replace(/subscribe/gi, (m) => Math.random() < 0.4 ? "follow" : m);
-    case "x":
-      if (text.length > 260) {
-        const sentences = text.split(/[.!?]+/).filter(s => s.trim());
-        let shortened = "";
-        for (const s of sentences) {
-          if ((shortened + s).length < 250) shortened += s.trim() + ". ";
-          else break;
-        }
-        // AUDIT FIX: Guarantee at least one sentence is preserved; if first sentence exceeds 250 chars, truncate it
-        if (shortened.length === 0 && sentences.length > 0) {
-          shortened = sentences[0].substring(0, 247) + "...";
-        }
-        return shortened.trim() || text;
-      }
-      return text;
     default:
       return text;
   }

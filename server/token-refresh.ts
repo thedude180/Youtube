@@ -171,7 +171,6 @@ export async function refreshSingleChannel(ch: { platform: string; refreshToken:
   return refreshToken(ch.platform as Platform, ch.refreshToken);
 }
 
-const X_PLATFORMS = new Set<string>(["x", "twitter"]);
 
 // Widen the buffer: refresh tokens 24 hours before expiry instead of 2 hours.
 // This gives a full day of runway before any token risks going stale.
@@ -201,30 +200,13 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
   let failed = 0;
 
   try {
-    const xThreshold = new Date(Date.now() + 90 * 60 * 1000);
-
-    const expiring = await db.select().from(channels).where(
+    const allExpiring = await db.select().from(channels).where(
       and(
         isNotNull(channels.refreshToken),
         isNotNull(channels.tokenExpiresAt),
         lt(channels.tokenExpiresAt, threshold)
       )
     );
-
-    const xChannelsNeedingRefresh = await db.select().from(channels).where(
-      and(
-        isNotNull(channels.refreshToken),
-        isNotNull(channels.tokenExpiresAt),
-        lt(channels.tokenExpiresAt, xThreshold)
-      )
-    );
-
-    const allExpiring = [...expiring];
-    for (const xCh of xChannelsNeedingRefresh) {
-      if (X_PLATFORMS.has(xCh.platform) && !allExpiring.find(e => e.id === xCh.id)) {
-        allExpiring.push(xCh);
-      }
-    }
 
     for (const ch of allExpiring) {
       if (!ch.refreshToken || !ch.platform) continue;

@@ -697,7 +697,7 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
     }
   }
 
-  const platforms = ["youtube", "tiktok", "x", "discord"];
+  const platforms = ["youtube", "tiktok", "discord"];
 
   const audienceSourceByPlatform = new Map<string, string>();
   for (const platform of platforms) {

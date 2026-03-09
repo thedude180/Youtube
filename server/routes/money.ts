@@ -853,7 +853,7 @@ export function registerMoneyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const allowedPlatforms = ["youtube", "twitch", "tiktok", "twitter", "discord", "kick", "rumble", "patreon"];
+      const allowedPlatforms = ["youtube", "twitch", "tiktok", "discord", "kick", "rumble", "patreon"];
       const platform = String(req.params.platform).toLowerCase().trim();
       if (!platform || !allowedPlatforms.includes(platform)) return res.status(400).json({ error: "Invalid platform" });
       const result = await syncPlatformRevenue(userId, platform);
@@ -959,7 +959,7 @@ export function registerMoneyRoutes(app: Express) {
         : 0;
 
       const connectedPlatforms = new Set(channels.map(c => c.platform));
-      const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "x", "discord"];
+      const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "discord"];
       const unmonetized = allPlatforms.filter(p => connectedPlatforms.has(p) && !records.some(r => r.platform === p));
       const notConnected = allPlatforms.filter(p => !connectedPlatforms.has(p));
 

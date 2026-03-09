@@ -15,7 +15,6 @@ const PLATFORM_LABELS: Record<string, string> = {
   twitch: "Twitch",
   kick: "Kick",
   tiktok: "TikTok",
-  x: "X (Twitter)",
   discord: "Discord",
   rumble: "Rumble",
   instagram: "Instagram",

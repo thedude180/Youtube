@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { SiGoogle, SiDiscord, SiTwitch, SiTiktok, SiX, SiKick } from "react-icons/si";
+import { SiGoogle, SiDiscord, SiTwitch, SiTiktok, SiKick } from "react-icons/si";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 type AuthMode = "login" | "register" | "forgot-password";
@@ -14,7 +14,6 @@ const OAUTH_PROVIDERS = [
   { id: "google", label: "Google", icon: SiGoogle, path: "/api/auth/google" },
   { id: "discord", label: "Discord", icon: SiDiscord, path: "/api/auth/discord" },
   { id: "twitch", label: "Twitch", icon: SiTwitch, path: "/api/auth/twitch" },
-  { id: "x", label: "X", icon: SiX, path: "/api/auth/x" },
   { id: "tiktok", label: "TikTok", icon: SiTiktok, path: "/api/auth/tiktok" },
   { id: "kick", label: "Kick", icon: SiKick, path: "/api/auth/kick" },
 ];

@@ -369,48 +369,6 @@ async function syncKickRevenue(channel: Channel, userId: string): Promise<Revenu
   return result;
 }
 
-async function syncXRevenue(channel: Channel, userId: string): Promise<RevenueSyncResult> {
-  const result: RevenueSyncResult = { platform: "x", recordsSynced: 0, totalAmount: 0 };
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const pd = channel.platformData as any;
-
-  try {
-    const followerCount = channel.subscriberCount || pd?.followerCount || pd?.followersCount || 0;
-    const tweetCount = pd?.tweetCount || 0;
-    if (followerCount >= 500 && tweetCount > 0) {
-      const impressionEstimate = followerCount * 0.05 * Math.min(tweetCount, 100);
-      const rpm = 0.5;
-      const estimatedRevenue = (impressionEstimate / 1000) * rpm;
-
-      if (estimatedRevenue > 0.5) {
-        const externalId = `x-ads-${channel.channelId}-${monthKey}`;
-        const existing = await storage.getRevenueByExternalId(userId, externalId);
-        if (!existing) {
-          await storage.createRevenueRecord({
-            userId,
-            platform: "x",
-            source: "X Ads Revenue Share",
-            amount: Math.round(estimatedRevenue * 100) / 100,
-            currency: "USD",
-            period: monthKey,
-            syncSource: "auto-estimated",
-            externalId,
-            metadata: { syncedAt: new Date().toISOString(), impressions: impressionEstimate, details: `Est. from ${followerCount} followers` },
-            recordedAt: new Date(),
-          });
-          result.recordsSynced++;
-          result.totalAmount += estimatedRevenue;
-        }
-      }
-    }
-  } catch (e: any) {
-    result.error = e.message;
-    console.error("[RevenueSyncEngine:x] Error:", e.message);
-  }
-  return result;
-}
-
 async function syncDiscordRevenue(channel: Channel, userId: string): Promise<RevenueSyncResult> {
   const result: RevenueSyncResult = { platform: "discord", recordsSynced: 0, totalAmount: 0 };
   const now = new Date();
@@ -504,7 +462,6 @@ const PLATFORM_REVENUE_SYNCERS: Record<string, (channel: Channel, userId: string
   twitch: syncTwitchRevenue,
   tiktok: syncTikTokRevenue,
   kick: syncKickRevenue,
-  x: syncXRevenue,
   discord: syncDiscordRevenue,
 };
 

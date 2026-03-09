@@ -5,7 +5,7 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import type { Platform } from "@shared/schema";
 
 const STATE_MAX_AGE = 10 * 60 * 1000;
-const AUTH_PLATFORMS: Platform[] = ["discord", "twitch", "x", "tiktok", "kick"];
+const AUTH_PLATFORMS: Platform[] = ["discord", "twitch", "tiktok", "kick"];
 
 function getAuthRedirectUri(platform: string, req?: any): string {
   if (process.env.REPLIT_DEPLOYMENT) {

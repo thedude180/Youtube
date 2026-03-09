@@ -428,7 +428,7 @@ export async function registerPlatformRoutes(app: Express) {
     if (!userId) return;
     try {
       const { getOptimalPostingTimes } = await import("../smart-scheduler");
-      const platforms = ["youtube", "tiktok", "x", "discord"];
+      const platforms = ["youtube", "tiktok", "discord"];
       const audienceData: Record<string, any> = {};
       let hasAnyData = false;
 

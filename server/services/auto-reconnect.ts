@@ -75,10 +75,6 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
         testUrl = "https://discord.com/api/v10/users/@me";
         headers["Authorization"] = `Bearer ${accessToken}`;
         break;
-      case "x":
-        testUrl = "https://api.twitter.com/2/users/me";
-        headers["Authorization"] = `Bearer ${accessToken}`;
-        break;
       default:
         return true;
     }

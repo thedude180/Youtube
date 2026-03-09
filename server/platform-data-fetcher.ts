@@ -202,36 +202,6 @@ async function fetchTikTokData(accessToken: string, channelId: string): Promise<
   return result;
 }
 
-async function fetchXData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
-  const result: PlatformFetchedData = { platformData: {} };
-
-  try {
-    const userRes = await withRetry(() => fetch("https://api.twitter.com/2/users/me?user.fields=public_metrics,profile_image_url,description,created_at", {
-      headers: { "Authorization": `Bearer ${accessToken}` },
-    }), { label: "X/Twitter user API" });
-    if (userRes.ok) {
-      const data = await userRes.json() as any;
-      const user = data.data;
-      if (user) {
-        result.channelName = user.name;
-        result.channelId = user.id;
-        result.profileUrl = `https://x.com/${user.username}`;
-        result.followerCount = user.public_metrics?.followers_count;
-        result.platformData!.username = user.username;
-        result.platformData!.followingCount = user.public_metrics?.following_count;
-        result.platformData!.tweetCount = user.public_metrics?.tweet_count;
-        result.platformData!.listedCount = user.public_metrics?.listed_count;
-        result.platformData!.profileImageUrl = user.profile_image_url;
-        result.platformData!.description = user.description;
-      }
-    }
-  } catch (e) {
-    console.error("[PlatformFetcher:x] User info fetch failed:", e);
-  }
-
-  return result;
-}
-
 async function fetchInstagramData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
   const result: PlatformFetchedData = { platformData: {} };
 
@@ -623,7 +593,6 @@ const PLATFORM_FETCHERS: Partial<Record<string, PlatformFetcher>> = {
   twitch: fetchTwitchData,
   facebook: fetchFacebookData,
   tiktok: fetchTikTokData,
-  x: fetchXData,
   instagram: fetchInstagramData,
   linkedin: fetchLinkedInData,
   discord: fetchDiscordData,

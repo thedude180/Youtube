@@ -6,8 +6,6 @@ import { eq, desc, and, sql, gte } from "drizzle-orm";
 const PLATFORM_CONSTRAINTS: Record<string, { title: number; description: number; maxTags?: number; maxHashtags?: number }> = {
   youtube: { title: 100, description: 5000, maxTags: 500 },
   tiktok: { title: 150, description: 2200 },
-  x: { title: 280, description: 280 },
-  twitter: { title: 280, description: 280 },
   instagram: { title: 2200, description: 2200, maxHashtags: 30 },
 };
 
@@ -210,14 +208,6 @@ export async function getPlatformOptimizations(platform: string, content: { titl
   if (normalizedPlatform === "tiktok") {
     if (!descriptionOptimized.match(/#\w+/)) {
       issues.push("TikTok descriptions should include relevant hashtags");
-    }
-  }
-
-  if (normalizedPlatform === "x" || normalizedPlatform === "twitter") {
-    const totalLength = titleOptimized.length + (descriptionOptimized ? descriptionOptimized.length + 1 : 0);
-    if (totalLength > 280) {
-      issues.push("Combined title and description exceed X's 280 character limit");
-      descriptionOptimized = descriptionOptimized.substring(0, 280 - titleOptimized.length - 4) + "...";
     }
   }
 

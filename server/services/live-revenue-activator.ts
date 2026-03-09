@@ -44,7 +44,7 @@ let eventsRegistered = false;
 async function generateMilestoneContent(
   session: RevenueSession,
   milestone: number
-): Promise<{ discordPost: string; xPost: string; communityPost: string } | null> {
+): Promise<{ discordPost: string; communityPost: string } | null> {
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -60,7 +60,6 @@ Channel: "${session.channelName}"
 Generate hype content for this milestone. Return JSON:
 {
   "discordPost": "@here 🔥 WE HIT ${milestone} VIEWERS! Get in here! [YouTube link: STREAM_LINK]",
-  "xPost": "Under 250 chars — excited about hitting ${milestone} viewers, include STREAM_LINK, #Live #Gaming #PS5",
   "communityPost": "YouTube Community post: exciting milestone message, invite people to join the stream and the channel membership"
 }`,
       }, {
@@ -114,7 +113,6 @@ async function checkMilestones(session: RevenueSession): Promise<void> {
 
       for (const [platform, text] of [
         ["discord", content.discordPost.replace("STREAM_LINK", streamUrl)],
-        ["twitter", content.xPost.replace("STREAM_LINK", streamUrl)],
       ] as [string, string][]) {
         try {
           await db.insert(autopilotQueue).values({

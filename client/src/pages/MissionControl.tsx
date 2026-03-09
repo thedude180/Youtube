@@ -349,7 +349,7 @@ export default function MissionControl() {
               <CardTitle className="text-white flex items-center gap-2"><Globe className="w-5 h-5 text-purple-400" /> Platform Status</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {["youtube", "twitch", "tiktok", "discord", "kick", "x"].map((platform) => {
+              {["youtube", "twitch", "tiktok", "discord", "kick"].map((platform) => {
                 const Icon = PLATFORM_ICONS[platform] || Globe;
                 const metrics = (controlData?.platformMetrics as any)?.[platform];
                 return (

@@ -18,8 +18,6 @@ import { useLocation } from "wouter";
 const PLATFORM_COLORS: Record<string, string> = {
   youtube: "hsl(0 80% 55%)",
   tiktok: "hsl(180 70% 55%)",
-  twitter: "hsl(200 80% 55%)",
-  x: "hsl(200 80% 55%)",
   instagram: "hsl(320 70% 60%)",
   discord: "hsl(235 80% 65%)",
   twitch: "hsl(265 80% 65%)",
@@ -32,8 +30,6 @@ const PLATFORM_COLORS: Record<string, string> = {
 const PLATFORM_ICONS: Record<string, string> = {
   youtube: "▶",
   tiktok: "♪",
-  twitter: "𝕏",
-  x: "𝕏",
   instagram: "📷",
   discord: "💬",
   twitch: "🎮",
