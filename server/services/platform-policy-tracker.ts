@@ -5,13 +5,9 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("platform-policy-tracker");
 
-let _openai: any = null;
+import { getOpenAIClient } from "../lib/openai";
 function getOpenAI() {
-  if (!_openai) {
-    const OpenAI = require("openai").default;
-    _openai = new OpenAI();
-  }
-  return _openai;
+  return getOpenAIClient();
 }
 
 const PLATFORMS = ["youtube", "tiktok", "twitch", "kick", "discord", "rumble"] as const;
