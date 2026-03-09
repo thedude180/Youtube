@@ -20,6 +20,10 @@ import { sendSSEEvent } from "./events";
 import { getQuotaStatus } from "../services/youtube-quota-tracker";
 import { fireAgentEvent } from "../services/agent-events";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
+import { db } from "../db";
+import { videos, channels, streams } from "@shared/schema";
+import { eq, and, inArray, isNotNull, isNull, lt } from "drizzle-orm";
+import { enqueueAgentTask } from "../ai-team-engine";
 
 async function checkYouTubeLiveViaWatchPage(channelId: string): Promise<boolean> {
   const result = await detectYouTubeLiveFromChannel(channelId);
@@ -767,6 +771,168 @@ export function registerStreamRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("[YouTube] Detect live error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  // --- UNEDITED STREAMS ---
+
+  app.get("/api/stream/unedited-vods", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+      const channelIds = userChannels.map((c) => c.id);
+
+      const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      // Source 1: videos table — stream VODs that are still in "ingested" state after 24h
+      const uneditedVideoRows = channelIds.length > 0
+        ? await db.select().from(videos).where(
+            and(
+              inArray(videos.channelId, channelIds),
+              eq(videos.type, "stream_vod"),
+              eq(videos.status, "ingested"),
+              lt(videos.publishedAt, cutoff24h)
+            )
+          )
+        : [];
+
+      // Source 2: streams table — ended streams with no linked VOD video, within last 30 days
+      const uneditedStreamRows = await db.select().from(streams).where(
+        and(
+          eq(streams.userId, userId),
+          isNotNull(streams.endedAt),
+          isNull(streams.vodVideoId),
+          lt(streams.createdAt, cutoff24h)
+        )
+      ).then((rows) => rows.filter((s) => s.endedAt && s.endedAt > cutoff30d));
+
+      // Build a unified list
+      const seenYouTubeIds = new Set<string>();
+      const result: any[] = [];
+
+      for (const v of uneditedVideoRows) {
+        const meta = v.metadata as any;
+        const ytId = meta?.youtubeId;
+        if (ytId) seenYouTubeIds.add(ytId);
+        result.push({
+          id: v.id,
+          source: "video",
+          title: v.title,
+          thumbnailUrl: v.thumbnailUrl || null,
+          streamedAt: meta?.streamStartedAt || v.publishedAt?.toISOString() || null,
+          durationMs: meta?.streamDurationMs || null,
+          youtubeId: ytId || null,
+          youtubeUrl: ytId ? `https://youtube.com/watch?v=${ytId}` : null,
+        });
+      }
+
+      for (const s of uneditedStreamRows) {
+        result.push({
+          id: s.id,
+          source: "stream",
+          title: s.title,
+          thumbnailUrl: s.thumbnailUrl || null,
+          streamedAt: s.startedAt?.toISOString() || s.endedAt?.toISOString() || null,
+          durationMs: s.startedAt && s.endedAt
+            ? s.endedAt.getTime() - s.startedAt.getTime()
+            : null,
+          youtubeId: null,
+          youtubeUrl: null,
+        });
+      }
+
+      // Sort newest first
+      result.sort((a, b) => {
+        const ta = a.streamedAt ? new Date(a.streamedAt).getTime() : 0;
+        const tb = b.streamedAt ? new Date(b.streamedAt).getTime() : 0;
+        return tb - ta;
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[UnEditedVODs] Error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.patch("/api/stream/unedited-vods/:id/mark-uploaded", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { source } = req.query;
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    try {
+      if (source === "stream") {
+        const stream = await storage.getStream(id);
+        if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Not found" });
+        // Mark stream as having a "manual" VOD reference so it leaves the list
+        await storage.updateStream(id, { vodVideoId: -1 } as any);
+      } else {
+        const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+        const channelIds = userChannels.map((c) => c.id);
+        const [video] = await db.select().from(videos).where(
+          and(eq(videos.id, id), channelIds.length > 0 ? inArray(videos.channelId, channelIds) : eq(videos.id, -1))
+        );
+        if (!video) return res.status(404).json({ message: "Not found" });
+        await storage.updateVideo(id, { status: "uploaded" } as any);
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[UnEditedVODs] Mark uploaded error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.post("/api/stream/unedited-vods/:id/start-pipeline", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { source } = req.query;
+    const id = parseNumericId(req.params.id, res);
+    if (id === null) return;
+    try {
+      let title = "Stream VOD";
+      let youtubeId: string | null = null;
+      let durationMs: number | null = null;
+
+      if (source === "stream") {
+        const stream = await storage.getStream(id);
+        if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Not found" });
+        title = stream.title;
+        durationMs = stream.startedAt && stream.endedAt
+          ? stream.endedAt.getTime() - stream.startedAt.getTime()
+          : null;
+        // Mark as processing so it leaves the unedited list
+        await storage.updateStream(id, { vodVideoId: -2 } as any);
+      } else {
+        const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+        const channelIds = userChannels.map((c) => c.id);
+        const [video] = await db.select().from(videos).where(
+          and(eq(videos.id, id), channelIds.length > 0 ? inArray(videos.channelId, channelIds) : eq(videos.id, -1))
+        );
+        if (!video) return res.status(404).json({ message: "Not found" });
+        title = video.title;
+        const meta = video.metadata as any;
+        youtubeId = meta?.youtubeId || null;
+        durationMs = meta?.streamDurationMs || null;
+        await storage.updateVideo(id, { status: "processing" } as any);
+      }
+
+      const payload = { title, youtubeId, durationMs, sourceId: id, source };
+
+      // Queue Kenji (editor) and Jamie (catalog director) in parallel
+      await Promise.all([
+        enqueueAgentTask(userId, "ai-editor", "edit_stream_vod",
+          `Edit stream VOD: ${title}`, payload, 7),
+        enqueueAgentTask(userId, "ai-catalog-director", "catalog_vod_repurpose",
+          `Repurpose stream VOD into clips/compilations: ${title}`, payload, 8),
+      ]);
+
+      res.json({ success: true, agentsQueued: ["ai-editor", "ai-catalog-director"] });
+    } catch (error: any) {
+      console.error("[UnEditedVODs] Start pipeline error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));

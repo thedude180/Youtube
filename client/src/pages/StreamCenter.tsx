@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check, ChevronDown, ChevronUp, Activity, Brain, Signal, Shield } from "lucide-react";
+import { Radio, Plus, Trash2, Zap, Sparkles, Loader2, Image, Play, Square, CheckCircle2, XCircle, Clock, ArrowRight, Wifi, WifiOff, Check, ChevronDown, ChevronUp, Activity, Brain, Signal, Shield, Film, AlertTriangle } from "lucide-react";
 import { PLATFORM_INFO, type Platform, PLATFORMS } from "@shared/schema";
 import type { StreamDestination, Stream, Channel } from "@shared/schema";
 import { PlatformIcon, PlatformBadge } from "@/components/PlatformIcon";
@@ -646,6 +646,30 @@ export default function StreamCenter() {
   });
   const relayDests: any[] = relayDestData?.destinations ?? [];
 
+  const { data: uneditedVods = [], refetch: refetchUnedited } = useQuery<any[]>({
+    queryKey: ["/api/stream/unedited-vods"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 2 * 60_000,
+  });
+
+  const markUploadedMutation = useMutation({
+    mutationFn: async ({ id, source }: { id: number; source: string }) => {
+      const res = await apiRequest("PATCH", `/api/stream/unedited-vods/${id}/mark-uploaded?source=${source}`, {});
+      return res.json();
+    },
+    onSuccess: () => { refetchUnedited(); toast({ title: "Marked as uploaded" }); },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const startPipelineMutation = useMutation({
+    mutationFn: async ({ id, source }: { id: number; source: string }) => {
+      const res = await apiRequest("POST", `/api/stream/unedited-vods/${id}/start-pipeline?source=${source}`, {});
+      return res.json();
+    },
+    onSuccess: () => { refetchUnedited(); toast({ title: "Edit pipeline started", description: "Kenji and Jamie are on it — editing + repurposing this VOD" }); },
+    onError: () => toast({ title: "Failed to start pipeline", variant: "destructive" }),
+  });
+
   const startRelayMutation = useMutation({
     mutationFn: async (videoId: string) => { const res = await apiRequest("POST", "/api/multistream/start", { videoId }); return res.json(); },
     onSuccess: () => { refetchMultistream(); toast({ title: "Multi-stream relay started", description: "FFmpeg is relaying your stream to all configured platforms" }); },
@@ -906,6 +930,77 @@ export default function StreamCenter() {
           </div>
         </div>
       </div>
+
+      {/* ─── Unedited Streams ─── */}
+      {uneditedVods.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4" data-testid="section-unedited-vods">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <h3 className="text-sm font-bold text-amber-300 uppercase tracking-wide font-mono">
+              Streams Waiting for Upload
+            </h3>
+            <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold" data-testid="badge-unedited-count">
+              {uneditedVods.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {uneditedVods.map((vod: any) => {
+              const isMarkingUploaded = markUploadedMutation.isPending && (markUploadedMutation.variables as any)?.id === vod.id;
+              const isStartingPipeline = startPipelineMutation.isPending && (startPipelineMutation.variables as any)?.id === vod.id;
+              const durationMin = vod.durationMs ? Math.round(vod.durationMs / 60000) : null;
+              const streamedDate = vod.streamedAt ? new Date(vod.streamedAt) : null;
+              const relativeDate = streamedDate ? (() => {
+                const diffDays = Math.floor((Date.now() - streamedDate.getTime()) / 86400000);
+                if (diffDays === 0) return "Today";
+                if (diffDays === 1) return "Yesterday";
+                return `${diffDays} days ago`;
+              })() : null;
+
+              return (
+                <div key={`${vod.source}-${vod.id}`} className="flex items-center gap-3 rounded-xl bg-background/40 border border-border/20 p-3" data-testid={`row-unedited-vod-${vod.id}`}>
+                  <div className="w-14 h-10 rounded-lg bg-muted/30 border border-border/20 flex items-center justify-center shrink-0 overflow-hidden">
+                    {vod.thumbnailUrl
+                      ? <img src={vod.thumbnailUrl} alt="" className="w-full h-full object-cover rounded-lg" />
+                      : <Film className="w-5 h-5 text-muted-foreground/40" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate" data-testid={`text-unedited-title-${vod.id}`}>{vod.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {relativeDate && <span className="text-[10px] text-muted-foreground">{relativeDate}</span>}
+                      {durationMin && <span className="text-[10px] text-muted-foreground">· {durationMin}min</span>}
+                      {vod.youtubeId && (
+                        <a href={vod.youtubeUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-[10px] text-primary/70 hover:text-primary underline" data-testid={`link-yt-vod-${vod.id}`}>
+                          View on YouTube
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => startPipelineMutation.mutate({ id: vod.id, source: vod.source })}
+                      disabled={isStartingPipeline || isMarkingUploaded}
+                      className="text-[11px] px-3 py-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 border border-primary/30 text-primary font-semibold transition-colors disabled:opacity-50 flex items-center gap-1"
+                      data-testid={`button-start-pipeline-${vod.id}`}>
+                      {isStartingPipeline ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                      Start Edit Pipeline
+                    </button>
+                    <button
+                      onClick={() => markUploadedMutation.mutate({ id: vod.id, source: vod.source })}
+                      disabled={isMarkingUploaded || isStartingPipeline}
+                      className="text-[11px] px-3 py-1.5 rounded-lg border border-border/30 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors disabled:opacity-50 flex items-center gap-1"
+                      data-testid={`button-mark-uploaded-${vod.id}`}>
+                      {isMarkingUploaded ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                      Mark as Uploaded
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ─── Multi-Stream Relay Engine ─── */}
       <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="multistream-relay-card">
