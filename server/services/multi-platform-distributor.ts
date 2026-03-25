@@ -53,10 +53,45 @@ Return a JSON object where keys are platform names and values are the generated 
 
       const captions = JSON.parse(response.choices[0].message.content || "{}");
 
-      // 3. Enqueue jobs per platform
+      // 3. Run governance checks + enqueue jobs per platform
       for (const platform of platforms) {
         const caption = captions[platform] || "";
         
+        let governanceAllowed = true;
+        try {
+          const { checkPublishingGates } = await import("../distribution/publishing-gates");
+          const { getConnectionHealth } = await import("../distribution/connection-health");
+          const { recordDistributionLearning } = await import("../distribution/distribution-learning");
+
+          const health = getConnectionHealth(platform);
+          if (health.status === "open") {
+            logger.warn(`[MultiPlatformDistributor] Skipping ${platform} — circuit breaker open`);
+            await recordDistributionLearning(userId, platform, "distribute_blocked", {
+              allowed: false, trustCost: 0, policyIssues: ["circuit breaker open"], connectionStatus: "open",
+            }).catch(() => {});
+            governanceAllowed = false;
+          }
+
+          if (governanceAllowed) {
+            const gateResult = await checkPublishingGates(userId, platform, {
+              title: clipPayload.title || caption.slice(0, 100),
+              description: caption,
+              tags: clipPayload.tags,
+            });
+            if (!gateResult.passed) {
+              logger.warn(`[MultiPlatformDistributor] Policy blocked ${platform}: ${gateResult.issues.join(", ")}`);
+              await recordDistributionLearning(userId, platform, "distribute_policy_blocked", {
+                allowed: false, trustCost: 0, policyIssues: gateResult.issues, connectionStatus: health.status,
+              }).catch(() => {});
+              governanceAllowed = false;
+            }
+          }
+        } catch (err: any) {
+          logger.warn(`[MultiPlatformDistributor] Governance check failed for ${platform}, proceeding: ${err.message}`);
+        }
+
+        if (!governanceAllowed) continue;
+
         await jobQueue.enqueue({
           type: requireApproval ? "queue_for_approval" : `publish_to_${platform}`,
           userId,

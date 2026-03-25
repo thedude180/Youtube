@@ -327,6 +327,77 @@ export async function publishToplatform(
 ): Promise<PublishResult> {
   content = sanitizePlaceholders(content, metadata);
 
+  try {
+    const { checkPublishingGates } = await import("./distribution/publishing-gates");
+    const { getConnectionHealth, recordConnectionSuccess, recordConnectionFailure } = await import("./distribution/connection-health");
+    const { recordDistributionLearning } = await import("./distribution/distribution-learning");
+
+    const connectionHealth = getConnectionHealth(platform);
+    if (connectionHealth.status === "open") {
+      await recordDistributionLearning(userId, platform, "publish_blocked", {
+        allowed: false,
+        trustCost: 0,
+        policyIssues: ["circuit breaker open"],
+        connectionStatus: "open",
+      }).catch(() => {});
+      return {
+        success: false,
+        platform,
+        error: `Platform ${platform} is temporarily unavailable (circuit breaker open). Will retry automatically.`,
+      };
+    }
+
+    const gateResult = await checkPublishingGates(userId, platform, {
+      title: metadata?.title || content.slice(0, 100),
+      description: metadata?.description || content,
+      tags: metadata?.tags,
+      hasDisclosure: metadata?.hasDisclosure,
+      copyrightCleared: metadata?.copyrightCleared,
+    });
+
+    if (!gateResult.passed) {
+      await recordDistributionLearning(userId, platform, "publish_policy_blocked", {
+        allowed: false,
+        trustCost: 0,
+        policyIssues: gateResult.issues,
+        connectionStatus: connectionHealth.status,
+      }).catch(() => {});
+      return {
+        success: false,
+        platform,
+        error: `Publishing blocked by policy gates: ${gateResult.issues.join("; ")}`,
+      };
+    }
+
+    const startTime = Date.now();
+    const result = await _executePublish(userId, platform, content, metadata);
+    const latencyMs = Date.now() - startTime;
+
+    if (result.success) {
+      recordConnectionSuccess(platform, latencyMs);
+    } else if (!result.skipped) {
+      recordConnectionFailure(platform, latencyMs);
+    }
+
+    await recordDistributionLearning(userId, platform, result.success ? "publish_success" : "publish_failure", {
+      allowed: result.success,
+      trustCost: 0,
+      policyIssues: [],
+      connectionStatus: connectionHealth.status,
+    }).catch(() => {});
+
+    return result;
+  } catch (err: any) {
+    return _executePublish(userId, platform, content, metadata);
+  }
+}
+
+async function _executePublish(
+  userId: string,
+  platform: string,
+  content: string,
+  metadata?: any,
+): Promise<PublishResult> {
   const formatted = formatContentForPlatform(platform, content, metadata);
   const formattedContent = formatted.content;
   if (formatted.warnings.length > 0) {
