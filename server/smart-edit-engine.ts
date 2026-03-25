@@ -12,6 +12,7 @@ import { downloadSourceVideo } from "./clip-video-processor";
 import { uploadVideoToYouTube } from "./youtube";
 import { generateThumbnailForNewVideo } from "./auto-thumbnail-engine";
 import { recordLearningEvent, getLearningContext } from "./learning-engine";
+import { checkFeatureFlag } from "./kernel/index";
 
 const logger = createLogger("smart-edit-engine");
 const execFileAsync = promisify(execFile);
@@ -392,6 +393,12 @@ function safeUnlink(filePath: string | null | undefined) {
 }
 
 export async function runSmartEditJob(queueItemId: number, userId: string, videoId: number): Promise<void> {
+  const flagEnabled = await checkFeatureFlag("smart-edit", userId);
+  if (!flagEnabled) {
+    logger.info(`Smart edit disabled by feature flag for user ${userId}`);
+    return;
+  }
+
   const tempFiles: string[] = [];
 
   let agentTaskId: number | null = null;
