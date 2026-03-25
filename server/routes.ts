@@ -43,6 +43,7 @@ import { registerMultistreamRoutes } from "./routes/multistream";
 import { registerKernelRoutes } from "./routes/kernel";
 import { registerContentCoreRoutes } from "./routes/content-core";
 import { registerLiveOpsRoutes } from "./routes/live-ops";
+import { registerDistributionRoutes } from "./routes/distribution";
 import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
@@ -239,6 +240,7 @@ export async function registerRoutes(
   registerKernelRoutes(app);
   registerContentCoreRoutes(app);
   registerLiveOpsRoutes(app);
+  registerDistributionRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {
