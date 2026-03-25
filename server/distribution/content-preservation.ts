@@ -57,10 +57,12 @@ export async function assessContentPreservation(userId: string): Promise<Preserv
   let atRiskCount = 0;
 
   for (const video of userVideos) {
-    const metadata = video.metadata as any || {};
-    const backedUp = !!metadata.backedUp || !!metadata.archiveUrl;
-    const format = metadata.format || "mp4";
-    const formatMigrationNeeded = ["flv", "wmv", "avi", "3gp"].includes(format.toLowerCase());
+    const metadata = video.metadata ?? {};
+    const crossPostIds = metadata.crossPostIds ?? {};
+    const backedUp = Object.keys(crossPostIds).length > 1;
+    const duration = metadata.duration ?? "";
+    const format = duration.includes(".") ? duration.split(".").pop()?.toLowerCase() ?? "mp4" : "mp4";
+    const formatMigrationNeeded = ["flv", "wmv", "avi", "3gp"].includes(format);
 
     let riskLevel: "safe" | "at_risk" | "critical" = "safe";
     if (!backedUp && formatMigrationNeeded) riskLevel = "critical";
