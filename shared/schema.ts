@@ -7035,3 +7035,195 @@ export const onboardingStates = pgTable("onboarding_states", {
   obs_user_idx: index("obs_user_idx").on(t.userId),
 }));
 export type OnboardingState = typeof onboardingStates.$inferSelect;
+
+export const distributionEvents = pgTable("distribution_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  contentId: text("content_id"),
+  eventType: text("event_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  trustBudgetCost: real("trust_budget_cost").default(0),
+  capabilityProbeResult: text("capability_probe_result"),
+  policyGateResult: text("policy_gate_result"),
+  errorMessage: text("error_message"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  de_user_idx: index("de_user_idx").on(t.userId),
+  de_platform_idx: index("de_platform_idx").on(t.platform),
+  de_type_idx: index("de_type_idx").on(t.eventType),
+}));
+export type DistributionEvent = typeof distributionEvents.$inferSelect;
+
+export const cadenceIntelligence = pgTable("cadence_intelligence", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  optimalFrequency: real("optimal_frequency"),
+  currentFrequency: real("current_frequency"),
+  audienceRetention: real("audience_retention"),
+  algorithmScore: real("algorithm_score"),
+  bufferDays: integer("buffer_days").default(0),
+  recommendations: jsonb("recommendations").$type<string[]>().default([]),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  ci_user_idx: index("ci_user_idx").on(t.userId),
+  ci_platform_idx: index("ci_platform_idx").on(t.platform),
+}));
+export type CadenceIntelligenceRecord = typeof cadenceIntelligence.$inferSelect;
+
+export const platformDependencyScores = pgTable("platform_dependency_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  dependencyScore: real("dependency_score").default(0),
+  revenueShare: real("revenue_share").default(0),
+  audienceShare: real("audience_share").default(0),
+  contentShare: real("content_share").default(0),
+  riskLevel: text("risk_level").default("low"),
+  migrationReadiness: real("migration_readiness").default(0),
+  recommendations: jsonb("recommendations").$type<string[]>().default([]),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pds_user_idx: index("pds_user_idx").on(t.userId),
+  pds_platform_idx: index("pds_platform_idx").on(t.platform),
+}));
+export type PlatformDependencyScore = typeof platformDependencyScores.$inferSelect;
+
+export const algorithmRelationships = pgTable("algorithm_relationships", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  contentType: text("content_type").notNull(),
+  ctrResponse: real("ctr_response"),
+  retentionResponse: real("retention_response"),
+  recommendationRate: real("recommendation_rate"),
+  algorithmFavor: real("algorithm_favor").default(0.5),
+  patterns: jsonb("patterns").$type<Record<string, any>>().default({}),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  ar_user_idx: index("ar_user_idx").on(t.userId),
+  ar_platform_idx: index("ar_platform_idx").on(t.platform),
+}));
+export type AlgorithmRelationship = typeof algorithmRelationships.$inferSelect;
+
+export const trendArbitrageOpportunities = pgTable("trend_arbitrage_opportunities", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  topic: text("topic").notNull(),
+  platform: text("platform").notNull(),
+  saturationLevel: real("saturation_level").default(0),
+  opportunityScore: real("opportunity_score").default(0),
+  windowRemainingHours: real("window_remaining_hours"),
+  competitorCount: integer("competitor_count").default(0),
+  recommended: boolean("recommended").default(false),
+  actedOn: boolean("acted_on").default(false),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  tao_user_idx: index("tao_user_idx").on(t.userId),
+  tao_topic_idx: index("tao_topic_idx").on(t.topic),
+}));
+export type TrendArbitrageOpportunity = typeof trendArbitrageOpportunities.$inferSelect;
+
+export const formatInnovations = pgTable("format_innovations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  formatName: text("format_name").notNull(),
+  description: text("description"),
+  adoptionStage: text("adoption_stage").default("emerging"),
+  potentialScore: real("potential_score").default(0),
+  competitorAdoption: real("competitor_adoption").default(0),
+  recommended: boolean("recommended").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  fi_user_idx: index("fi_user_idx").on(t.userId),
+  fi_platform_idx: index("fi_platform_idx").on(t.platform),
+}));
+export type FormatInnovation = typeof formatInnovations.$inferSelect;
+
+export const contentTimingIntelligence = pgTable("content_timing_intelligence", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  dayOfWeek: integer("day_of_week"),
+  hourOfDay: integer("hour_of_day"),
+  timezone: text("timezone"),
+  engagementScore: real("engagement_score").default(0),
+  viewsMultiplier: real("views_multiplier").default(1),
+  sampleSize: integer("sample_size").default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  cti_user_idx: index("cti_user_idx").on(t.userId),
+  cti_platform_idx: index("cti_platform_idx").on(t.platform),
+}));
+export type ContentTimingIntelligenceRecord = typeof contentTimingIntelligence.$inferSelect;
+
+export const platformIndependenceScores = pgTable("platform_independence_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  overallScore: real("overall_score").default(0),
+  singlePlatformRisk: real("single_platform_risk").default(0),
+  diversificationScore: real("diversification_score").default(0),
+  dataSovereigntyScore: real("data_sovereignty_score").default(0),
+  roadmap: jsonb("roadmap").$type<string[]>().default([]),
+  platformBreakdown: jsonb("platform_breakdown").$type<Record<string, any>>().default({}),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pis_user_idx: index("pis_user_idx").on(t.userId),
+}));
+export type PlatformIndependenceScore = typeof platformIndependenceScores.$inferSelect;
+
+export const nicheAuthorityTracking = pgTable("niche_authority_tracking", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  niche: text("niche").notNull(),
+  platform: text("platform").notNull(),
+  authorityScore: real("authority_score").default(0),
+  contentCount: integer("content_count").default(0),
+  audienceReach: integer("audience_reach").default(0),
+  competitorRank: integer("competitor_rank"),
+  growthTrend: text("growth_trend").default("stable"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  nat_user_idx: index("nat_user_idx").on(t.userId),
+  nat_niche_idx: index("nat_niche_idx").on(t.niche),
+  nat_platform_idx: index("nat_platform_idx").on(t.platform),
+}));
+export type NicheAuthorityRecord = typeof nicheAuthorityTracking.$inferSelect;
+
+export const insertDistributionEventSchema = createInsertSchema(distributionEvents).omit({ id: true, createdAt: true });
+export type InsertDistributionEvent = z.infer<typeof insertDistributionEventSchema>;
+
+export const insertCadenceIntelligenceSchema = createInsertSchema(cadenceIntelligence).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCadenceIntelligence = z.infer<typeof insertCadenceIntelligenceSchema>;
+
+export const insertPlatformDependencyScoreSchema = createInsertSchema(platformDependencyScores).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPlatformDependencyScore = z.infer<typeof insertPlatformDependencyScoreSchema>;
+
+export const insertAlgorithmRelationshipSchema = createInsertSchema(algorithmRelationships).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAlgorithmRelationship = z.infer<typeof insertAlgorithmRelationshipSchema>;
+
+export const insertTrendArbitrageOpportunitySchema = createInsertSchema(trendArbitrageOpportunities).omit({ id: true, createdAt: true });
+export type InsertTrendArbitrageOpportunity = z.infer<typeof insertTrendArbitrageOpportunitySchema>;
+
+export const insertFormatInnovationSchema = createInsertSchema(formatInnovations).omit({ id: true, createdAt: true });
+export type InsertFormatInnovation = z.infer<typeof insertFormatInnovationSchema>;
+
+export const insertContentTimingIntelligenceSchema = createInsertSchema(contentTimingIntelligence).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertContentTimingIntelligence = z.infer<typeof insertContentTimingIntelligenceSchema>;
+
+export const insertPlatformIndependenceScoreSchema = createInsertSchema(platformIndependenceScores).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPlatformIndependenceScore = z.infer<typeof insertPlatformIndependenceScoreSchema>;
+
+export const insertNicheAuthorityTrackingSchema = createInsertSchema(nicheAuthorityTracking).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertNicheAuthorityTracking = z.infer<typeof insertNicheAuthorityTrackingSchema>;
