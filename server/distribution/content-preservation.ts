@@ -60,9 +60,14 @@ export async function assessContentPreservation(userId: string): Promise<Preserv
     const metadata = video.metadata ?? {};
     const crossPostIds = metadata.crossPostIds ?? {};
     const backedUp = Object.keys(crossPostIds).length > 1;
-    const duration = metadata.duration ?? "";
-    const format = duration.includes(".") ? duration.split(".").pop()?.toLowerCase() ?? "mp4" : "mp4";
-    const formatMigrationNeeded = ["flv", "wmv", "avi", "3gp"].includes(format);
+    const titleLower = video.title.toLowerCase();
+    const inferredFormat = titleLower.endsWith(".flv") ? "flv"
+      : titleLower.endsWith(".wmv") ? "wmv"
+      : titleLower.endsWith(".avi") ? "avi"
+      : titleLower.endsWith(".3gp") ? "3gp"
+      : titleLower.endsWith(".webm") ? "webm"
+      : "mp4";
+    const formatMigrationNeeded = ["flv", "wmv", "avi", "3gp"].includes(inferredFormat);
 
     let riskLevel: "safe" | "at_risk" | "critical" = "safe";
     if (!backedUp && formatMigrationNeeded) riskLevel = "critical";
@@ -80,7 +85,7 @@ export async function assessContentPreservation(userId: string): Promise<Preserv
       contentId: video.id,
       title: video.title,
       backedUp,
-      formatCurrent: format,
+      formatCurrent: inferredFormat,
       formatMigrationNeeded,
       riskLevel,
       recommendation,

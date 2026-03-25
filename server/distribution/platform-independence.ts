@@ -118,7 +118,14 @@ export async function assessPlatformIndependence(userId: string): Promise<Indepe
     diversificationScore,
     dataSovereigntyScore,
     roadmap,
-    platformBreakdown: Object.fromEntries(dependencies.map(d => [d.platform, { dep: d.dependencyScore, risk: d.riskLevel }])),
+    platformBreakdown: Object.fromEntries(dependencies.map(d => [d.platform, {
+      dep: d.dependencyScore,
+      risk: d.riskLevel,
+      dataSovereignty: d.migrationReadiness,
+      revenueShare: d.revenueShare,
+      audienceShare: d.audienceShare,
+      contentShare: d.contentShare,
+    }])),
   }).catch(() => {});
 
   try {
