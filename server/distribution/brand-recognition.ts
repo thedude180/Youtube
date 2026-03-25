@@ -1,0 +1,147 @@
+import { db } from "../db";
+import { brandAssets, brandDriftAlerts, contentDnaProfiles } from "@shared/schema";
+import type { Platform } from "@shared/schema";
+import { eq, desc, and } from "drizzle-orm";
+
+type BrandConsistencyScore = {
+  overallScore: number;
+  platformScores: Record<string, number>;
+  driftDetected: boolean;
+  driftAreas: string[];
+  suggestions: string[];
+};
+
+type BrandElement = {
+  element: string;
+  consistent: boolean;
+  score: number;
+  platforms: string[];
+  issue?: string;
+};
+
+export async function scoreBrandConsistency(userId: string): Promise<BrandConsistencyScore> {
+  const { getBrandProfile, checkBrandAlignment } = await import("../content/brand-system");
+  const profile = getBrandProfile(userId);
+
+  const assets = await db.select().from(brandAssets)
+    .where(eq(brandAssets.userId, userId))
+    .orderBy(desc(brandAssets.createdAt))
+    .limit(50);
+
+  const dnaProfiles = await db.select().from(contentDnaProfiles)
+    .where(eq(contentDnaProfiles.userId, userId))
+    .limit(10);
+
+  const platformScores: Record<string, number> = {};
+  const driftAreas: string[] = [];
+  const suggestions: string[] = [];
+
+  const platformGroups: Record<string, typeof assets> = {};
+  for (const asset of assets) {
+    const plat = (asset as any).platform || "youtube";
+    if (!platformGroups[plat]) platformGroups[plat] = [];
+    platformGroups[plat].push(asset);
+  }
+
+  for (const [platform, platformAssets] of Object.entries(platformGroups)) {
+    let platformScore = 0.7;
+
+    if (platformAssets.length < 2) {
+      platformScore = 0.5;
+      suggestions.push(`${platform}: Limited brand assets — consider adding more branded elements`);
+    }
+
+    const hasLogo = platformAssets.some(a => a.type === "logo");
+    const hasBanner = platformAssets.some(a => a.type === "banner");
+    const hasColor = platformAssets.some(a => a.type === "color_palette");
+
+    if (!hasLogo) { platformScore -= 0.1; driftAreas.push(`${platform}: missing logo`); }
+    if (!hasBanner) { platformScore -= 0.05; }
+    if (!hasColor) { platformScore -= 0.05; }
+
+    platformScores[platform] = Math.max(0, Math.min(1, platformScore));
+  }
+
+  if (Object.keys(platformScores).length === 0) {
+    platformScores["youtube"] = 0.5;
+    suggestions.push("No brand assets found — set up brand identity for consistency tracking");
+  }
+
+  if (dnaProfiles.length > 0) {
+    const dna = dnaProfiles[0];
+    const dnaData = (dna as any).styleFingerprint || (dna as any).dnaData || {};
+    if (dnaData.voiceTone && dnaData.voiceTone !== profile.voiceTone) {
+      driftAreas.push("Voice tone drift detected between brand profile and content DNA");
+    }
+  }
+
+  const scores = Object.values(platformScores);
+  const overallScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0.5;
+
+  if (scores.length > 1) {
+    const minScore = Math.min(...scores);
+    const maxScore = Math.max(...scores);
+    if (maxScore - minScore > 0.3) {
+      driftAreas.push("Significant brand consistency gap between platforms");
+      suggestions.push("Align brand presentation across platforms to reduce drift");
+    }
+  }
+
+  const driftDetected = driftAreas.length > 0;
+
+  if (driftDetected) {
+    await db.insert(brandDriftAlerts).values({
+      userId,
+      alertType: "consistency_check",
+      severity: driftAreas.length > 2 ? "high" : "medium",
+      message: `Brand drift detected: ${driftAreas.join("; ")}`,
+      metadata: { platformScores, driftAreas, suggestions },
+      resolved: false,
+    }).catch(() => {});
+
+    try {
+      const { emitDomainEvent } = await import("../kernel/index");
+      await emitDomainEvent(userId, "brand.drift.detected", { driftAreas, overallScore }, "brand-recognition", "drift-check");
+    } catch {}
+  }
+
+  return { overallScore, platformScores, driftDetected, driftAreas, suggestions };
+}
+
+export async function getBrandElements(userId: string): Promise<BrandElement[]> {
+  const { getBrandProfile } = await import("../content/brand-system");
+  const profile = getBrandProfile(userId);
+  const elements: BrandElement[] = [];
+
+  elements.push({
+    element: "voice_tone",
+    consistent: true,
+    score: 0.8,
+    platforms: ["youtube", "tiktok", "x"],
+  });
+
+  for (const pillar of profile.contentPillars) {
+    elements.push({
+      element: `pillar:${pillar}`,
+      consistent: true,
+      score: 0.75,
+      platforms: ["youtube"],
+    });
+  }
+
+  elements.push({
+    element: "visual_identity",
+    consistent: true,
+    score: 0.7,
+    platforms: ["youtube", "tiktok"],
+  });
+
+  return elements;
+}
+
+export async function getDriftHistory(userId: string, limit: number = 20): Promise<any[]> {
+  return db.select().from(brandDriftAlerts)
+    .where(eq(brandDriftAlerts.userId, userId))
+    .orderBy(desc(brandDriftAlerts.createdAt))
+    .limit(limit);
+}
