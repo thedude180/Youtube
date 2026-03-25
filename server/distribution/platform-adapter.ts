@@ -122,7 +122,16 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     }
   }
 
-  const status = !allowed ? "blocked" : (publishResult?.success ? "published" : "approved");
+  let status: string;
+  if (!allowed) {
+    status = "blocked";
+  } else if (!publishResult) {
+    status = "approved";
+  } else if (publishResult.success) {
+    status = "published";
+  } else {
+    status = "failed";
+  }
 
   const [event] = await db.insert(distributionEvents).values({
     userId: req.userId,
@@ -139,6 +148,7 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
       tags: req.tags,
       contentType: req.contentType,
       publishPostId: publishResult?.postId,
+      publishLatencyMs: publishResult ? connectionHealth.latencyMs : undefined,
     },
     publishedAt: publishResult?.success ? new Date() : null,
   }).returning();
@@ -149,6 +159,8 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     trustCost,
     policyIssues: policyCheck.issues,
     connectionStatus: connectionHealth.status,
+    publishSuccess: publishResult?.success,
+    publishLatencyMs: connectionHealth.latencyMs,
   }).catch(() => {});
 
   return {

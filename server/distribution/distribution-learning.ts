@@ -7,6 +7,8 @@ type LearningSignal = {
   trustCost: number;
   policyIssues: string[];
   connectionStatus: string;
+  publishSuccess?: boolean;
+  publishLatencyMs?: number;
   engagementRate?: number;
   viewCount?: number;
   clickThroughRate?: number;
@@ -113,14 +115,15 @@ export async function getDistributionInsights(userId: string): Promise<{
 
   const recent = events.slice(0, 20);
   const older = events.slice(20, 40);
-  const recentSuccess = recent.filter(e => e.status === "approved").length / recent.length;
-  const olderSuccess = older.length > 0 ? older.filter(e => e.status === "approved").length / older.length : recentSuccess;
+  const isSuccess = (s: string) => s === "published" || s === "approved";
+  const recentSuccess = recent.filter(e => isSuccess(e.status)).length / recent.length;
+  const olderSuccess = older.length > 0 ? older.filter(e => isSuccess(e.status)).length / older.length : recentSuccess;
 
   const recentTrend = recentSuccess > olderSuccess + 0.05 ? "improving"
     : recentSuccess < olderSuccess - 0.05 ? "declining" : "stable";
 
   const platformCounts: Record<string, number> = {};
-  for (const e of events.filter(e => e.status === "approved")) {
+  for (const e of events.filter(e => isSuccess(e.status))) {
     platformCounts[e.platform] = (platformCounts[e.platform] || 0) + 1;
   }
   const bestPlatform = Object.entries(platformCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
