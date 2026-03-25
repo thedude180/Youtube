@@ -57,7 +57,9 @@ export function registerDistributionRoutes(app: Express) {
     }
   });
 
-  app.get("/api/distribution/platforms", async (_req: Request, res: Response) => {
+  app.get("/api/distribution/platforms", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Authentication required" });
     try {
       const { getSupportedPlatforms } = await import("../distribution/platform-adapter");
       res.json({ platforms: getSupportedPlatforms() });

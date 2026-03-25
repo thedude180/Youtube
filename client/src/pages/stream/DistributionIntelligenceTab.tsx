@@ -324,12 +324,145 @@ function GlobalSafetyCard() {
   );
 }
 
+function BrandConsistencyCard() {
+  const { data, isLoading, isError } = useQuery<{
+    overallScore: number;
+    elements: { type: string; consistency: number }[];
+  }>({
+    queryKey: ["/api/distribution/brand-recognition"],
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return <LoadingCard title="Brand Consistency" />;
+  if (isError || !data) return <ErrorCard title="Brand Consistency" icon={<CheckCircle2 className="h-4 w-4 text-primary" />} />;
+
+  const scoreColor = (data.overallScore ?? 0) >= 0.8 ? "text-emerald-400" : (data.overallScore ?? 0) >= 0.5 ? "text-amber-400" : "text-red-400";
+
+  return (
+    <Card className="card-empire" data-testid="card-brand-consistency">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-primary" />
+          Brand Consistency
+          <Badge variant="outline" className={`ml-auto text-[10px] ${scoreColor}`}>
+            {((data.overallScore ?? 0) * 100).toFixed(0)}%
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {(data.elements || []).length === 0 ? (
+          <div className="text-xs text-muted-foreground p-3 text-center" data-testid="text-no-brand-elements">No brand elements tracked yet</div>
+        ) : (
+          <div className="space-y-2">
+            {(data.elements || []).slice(0, 5).map((el, i) => (
+              <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-brand-element-${i}`}>
+                <span className="capitalize font-medium">{el.type}</span>
+                <Badge variant="outline" className="text-[10px]">{(el.consistency * 100).toFixed(0)}%</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CadenceIntelligenceCard() {
+  const { data, isLoading, isError } = useQuery<{
+    burnoutRisk: number;
+    optimalFrequency: Record<string, number>;
+    recommendations: string[];
+  }>({
+    queryKey: ["/api/distribution/cadence"],
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return <LoadingCard title="Cadence Intelligence" />;
+  if (isError || !data) return <ErrorCard title="Cadence Intelligence" icon={<Clock className="h-4 w-4 text-primary" />} />;
+
+  const riskColor = (data.burnoutRisk ?? 0) < 0.3 ? "text-emerald-400" : (data.burnoutRisk ?? 0) < 0.6 ? "text-amber-400" : "text-red-400";
+
+  return (
+    <Card className="card-empire" data-testid="card-cadence-intelligence">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Clock className="h-4 w-4 text-primary" />
+          Cadence Intelligence
+          <Badge variant="outline" className={`ml-auto text-[10px] ${riskColor}`}>
+            Burnout: {((data.burnoutRisk ?? 0) * 100).toFixed(0)}%
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {(data.recommendations || []).length === 0 ? (
+          <div className="text-xs text-muted-foreground p-3 text-center" data-testid="text-no-cadence-data">Cadence analysis will populate with publishing data</div>
+        ) : (
+          <div className="space-y-1">
+            {(data.recommendations || []).slice(0, 3).map((rec, i) => (
+              <div key={i} className="text-[10px] text-muted-foreground flex items-center gap-1" data-testid={`text-cadence-rec-${i}`}>
+                <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />
+                {rec}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AlgorithmRelationshipsCard() {
+  const { data, isLoading, isError } = useQuery<{
+    userId: string;
+    relationships: { platform: string; favorScore: number; trend: string }[];
+  }>({
+    queryKey: ["/api/distribution/algorithm-relationships"],
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return <LoadingCard title="Algorithm Relationships" />;
+  if (isError || !data) return <ErrorCard title="Algorithm Relationships" icon={<BarChart3 className="h-4 w-4 text-primary" />} />;
+
+  const trendIcons: Record<string, string> = { improving: "text-emerald-400", stable: "text-muted-foreground", declining: "text-red-400" };
+
+  return (
+    <Card className="card-empire" data-testid="card-algorithm-relationships">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          Algorithm Relationships
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {(data.relationships || []).length === 0 ? (
+          <div className="text-xs text-muted-foreground p-3 text-center" data-testid="text-no-algorithm-data">No algorithm data available</div>
+        ) : (
+          <div className="space-y-2">
+            {(data.relationships || []).slice(0, 5).map((r, i) => (
+              <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-algorithm-${i}`}>
+                <span className="capitalize font-medium">{r.platform}</span>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">{(r.favorScore * 100).toFixed(0)}%</Badge>
+                  <span className={`text-[10px] capitalize ${trendIcons[r.trend] || ""}`}>{r.trend}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DistributionIntelligenceTab() {
   return (
     <div className="space-y-4" data-testid="section-distribution-intelligence">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DistributionSummaryCard />
         <PlatformHealthCard />
+        <BrandConsistencyCard />
+        <CadenceIntelligenceCard />
+        <AlgorithmRelationshipsCard />
         <CompetitorInsightsCard />
         <TrendOpportunitiesCard />
         <RegulatoryAlertsCard />

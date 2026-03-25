@@ -395,6 +395,45 @@ describe("Regional Opportunity Integration", () => {
   });
 });
 
+describe("Distribution Summary Integration", () => {
+  it("aggregates all distribution intelligence modules", async () => {
+    const { getDistributionStats } = await import("../platform-adapter");
+    const stats = await getDistributionStats("user1");
+    expect(typeof stats.totalEvents).toBe("number");
+    expect(typeof stats.approved).toBe("number");
+    expect(typeof stats.blocked).toBe("number");
+  });
+
+  it("brand scoring returns numeric overallScore", async () => {
+    const { scoreBrandConsistency } = await import("../brand-recognition");
+    const result = await scoreBrandConsistency("user1");
+    expect(result.overallScore).toBeGreaterThanOrEqual(0);
+    expect(result.overallScore).toBeLessThanOrEqual(1);
+  });
+
+  it("cadence analysis returns burnout risk in [0,1]", async () => {
+    const { analyzeCadence } = await import("../cadence-intelligence");
+    const result = await analyzeCadence("user1");
+    expect(result.burnoutRisk).toBeGreaterThanOrEqual(0);
+    expect(result.burnoutRisk).toBeLessThanOrEqual(1);
+  });
+
+  it("regulatory horizon sorts alerts by urgency", async () => {
+    const { scanRegulatoryHorizon } = await import("../regulatory-horizon");
+    const result = await scanRegulatoryHorizon("user1");
+    for (let i = 1; i < result.alerts.length; i++) {
+      expect(result.alerts[i].daysUntilEffective).toBeGreaterThanOrEqual(result.alerts[i - 1].daysUntilEffective);
+    }
+  });
+
+  it("geopolitical safety returns overallSafety in [0,1]", async () => {
+    const { checkGeopoliticalSafety } = await import("../geopolitical-safety");
+    const result = await checkGeopoliticalSafety("user1", { title: "Test", description: "", tags: [] }, ["US"]);
+    expect(result.overallSafety).toBeGreaterThanOrEqual(0);
+    expect(result.overallSafety).toBeLessThanOrEqual(1);
+  });
+});
+
 describe("v9.0 Verification", () => {
   it("distribution pipeline enforces circuit breaker before trust budget", async () => {
     const connHealthMod = await import("../connection-health");
