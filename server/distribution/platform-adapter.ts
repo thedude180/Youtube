@@ -87,6 +87,7 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
   if (connectionHealth.status === "open") errorParts.push("circuit breaker open");
 
   let publishResult: PublishResult | null = null;
+  let actualPublishLatencyMs = 0;
 
   if (allowed && req.content) {
     const startTime = Date.now();
@@ -105,15 +106,15 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
           copyrightCleared: req.copyrightCleared,
         }
       );
-      const latencyMs = Date.now() - startTime;
+      actualPublishLatencyMs = Date.now() - startTime;
       if (publishResult.success) {
-        recordConnectionSuccess(req.platform, latencyMs);
+        recordConnectionSuccess(req.platform, actualPublishLatencyMs);
       } else if (!publishResult.skipped) {
-        recordConnectionFailure(req.platform, latencyMs);
+        recordConnectionFailure(req.platform, actualPublishLatencyMs);
       }
     } catch (err: any) {
-      const latencyMs = Date.now() - startTime;
-      recordConnectionFailure(req.platform, latencyMs);
+      actualPublishLatencyMs = Date.now() - startTime;
+      recordConnectionFailure(req.platform, actualPublishLatencyMs);
       publishResult = {
         success: false,
         platform: req.platform,
@@ -148,7 +149,7 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
       tags: req.tags,
       contentType: req.contentType,
       publishPostId: publishResult?.postId,
-      publishLatencyMs: publishResult ? connectionHealth.latencyMs : undefined,
+      publishLatencyMs: actualPublishLatencyMs > 0 ? actualPublishLatencyMs : undefined,
     },
     publishedAt: publishResult?.success ? new Date() : null,
   }).returning();
@@ -160,7 +161,7 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     policyIssues: policyCheck.issues,
     connectionStatus: connectionHealth.status,
     publishSuccess: publishResult?.success,
-    publishLatencyMs: connectionHealth.latencyMs,
+    publishLatencyMs: actualPublishLatencyMs > 0 ? actualPublishLatencyMs : undefined,
   }).catch(() => {});
 
   return {

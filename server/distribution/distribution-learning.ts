@@ -65,7 +65,8 @@ export function getDistributionLearningContext(userId: string, platform?: string
       totalSignals++;
       breakdown[plat].total++;
       totalCost += s.trustCost;
-      if (s.allowed) {
+      const isSuccess = s.publishSuccess !== undefined ? s.publishSuccess : s.allowed;
+      if (isSuccess) {
         successes++;
         breakdown[plat].successes++;
       }
