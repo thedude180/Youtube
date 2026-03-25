@@ -64,7 +64,7 @@ export async function assessPlatformIndependence(userId: string): Promise<Indepe
     for (const d of depScores) {
       const eventShare = (platformEventCounts[d.platform] || 0) / totalEvents;
       const depScore = d.dependencyScore ?? 0;
-      const riskLevel = depScore > 0.8 ? "critical" : depScore > 0.6 ? "high" : depScore > 0.3 ? "medium" : "low";
+      const riskLevel: "low" | "medium" | "high" | "critical" = depScore > 0.8 ? "critical" : depScore > 0.6 ? "high" : depScore > 0.3 ? "medium" : "low";
       const recs: string[] = d.recommendations || [];
       if (depScore > 0.7) recs.push(`Reduce ${d.platform} dependency — diversify to other platforms`);
       if (eventShare > 0.7) recs.push(`${d.platform} accounts for ${(eventShare * 100).toFixed(0)}% of activity — spread distribution`);
@@ -75,7 +75,7 @@ export async function assessPlatformIndependence(userId: string): Promise<Indepe
         revenueShare: d.revenueShare ?? 0,
         audienceShare: d.audienceShare ?? 0,
         contentShare: d.contentShare ?? eventShare,
-        riskLevel: riskLevel as any,
+        riskLevel,
         migrationReadiness: d.migrationReadiness ?? 0,
         recommendations: recs,
       });

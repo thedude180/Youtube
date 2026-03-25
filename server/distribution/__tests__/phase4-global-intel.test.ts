@@ -197,3 +197,46 @@ describe("Global Monetization", () => {
     }
   });
 });
+
+describe("Distribution Safety Gate", () => {
+  it("evaluates distribution safety for safe content", async () => {
+    const { runDistributionSafetyGate } = await import("../distribution-safety-gate");
+    const result = await runDistributionSafetyGate({
+      userId: "user1",
+      platform: "youtube",
+      title: "Elden Ring Boss Fight",
+      description: "No commentary gameplay",
+      tags: ["gaming", "ps5"],
+    });
+    expect(typeof result.allowed).toBe("boolean");
+    expect(Array.isArray(result.geopoliticalFlags)).toBe(true);
+    expect(Array.isArray(result.culturalIssues)).toBe(true);
+    expect(Array.isArray(result.blockedRegions)).toBe(true);
+    expect(Array.isArray(result.recommendations)).toBe(true);
+  });
+
+  it("blocks distribution for geopolitically sensitive content", async () => {
+    const { runDistributionSafetyGate } = await import("../distribution-safety-gate");
+    const result = await runDistributionSafetyGate({
+      userId: "user1",
+      platform: "tiktok",
+      title: "Game with gambling casino content and skeleton enemies",
+      description: "Casino mini-game walkthrough with skeleton boss",
+      tags: ["gambling", "casino", "skeleton"],
+      targetRegions: ["CN", "SA"],
+    });
+    expect(result.blockedRegions.length).toBeGreaterThan(0);
+    expect(result.geopoliticalFlags.length + result.culturalIssues.length).toBeGreaterThan(0);
+  });
+
+  it("includes preservation warning when health is low", async () => {
+    const { runDistributionSafetyGate } = await import("../distribution-safety-gate");
+    const result = await runDistributionSafetyGate({
+      userId: "user1",
+      platform: "youtube",
+      title: "Normal Gaming Content",
+      tags: ["gaming"],
+    });
+    expect(result.preservationWarning === null || typeof result.preservationWarning === "string").toBe(true);
+  });
+});

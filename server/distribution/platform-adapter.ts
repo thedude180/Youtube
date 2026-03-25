@@ -105,6 +105,23 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     copyrightCleared: req.copyrightCleared,
   });
 
+  let safetyGateAllowed = true;
+  try {
+    const { runDistributionSafetyGate } = await import("./distribution-safety-gate");
+    const safetyResult = await runDistributionSafetyGate({
+      userId: req.userId,
+      platform: req.platform,
+      title: req.title,
+      description: req.description,
+      tags: req.tags,
+    });
+    safetyGateAllowed = safetyResult.allowed;
+    if (!safetyGateAllowed) {
+      policyCheck.passed = false;
+      policyCheck.issues.push(...safetyResult.recommendations);
+    }
+  } catch {}
+
   const allowed = !trustCheck.blocked
     && capabilityCheck.probeResult !== "error"
     && policyCheck.passed;
