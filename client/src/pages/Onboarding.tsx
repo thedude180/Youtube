@@ -1525,10 +1525,35 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
       localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
     }
     try {
-      await apiRequest("PATCH", "/api/user/profile", {
-        contentNiche: selectedNiche || undefined,
-        onboardingCompleted: true,
-      });
+      const stepPromises = [
+        apiRequest("POST", "/api/kernel/onboarding/step", {
+          step: 1,
+          data: { channelName: user?.firstName ? `${user.firstName}'s Channel` : "My Channel" },
+        }),
+        apiRequest("POST", "/api/kernel/onboarding/step", {
+          step: 2,
+          data: { contentPillar: selectedNiche || "general" },
+        }),
+        apiRequest("POST", "/api/kernel/onboarding/step", {
+          step: 3,
+          data: { connectedPlatforms: Array.from(connectedPlatforms), youtubeConnected: connectedPlatforms.has("youtube") },
+        }),
+        apiRequest("POST", "/api/kernel/onboarding/step", {
+          step: 4,
+          data: { monetizationPath: "adsense" },
+        }),
+        apiRequest("POST", "/api/kernel/onboarding/step", {
+          step: 5,
+          data: { completed: true },
+        }),
+      ];
+      await Promise.allSettled([
+        apiRequest("PATCH", "/api/user/profile", {
+          contentNiche: selectedNiche || undefined,
+          onboardingCompleted: true,
+        }),
+        ...stepPromises,
+      ]);
     } catch (e) {
       console.error("Failed to save onboarding:", e);
     }

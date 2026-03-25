@@ -105,3 +105,27 @@ export async function checkTrustBudget(
     totalDeducted: (period.totalDeducted ?? 0) + (cost > 0 && !blocked ? cost : 0),
   };
 }
+
+export async function getTrustBudgetSummary(userId: string) {
+  const now = new Date();
+  const periods = await db
+    .select()
+    .from(trustBudgetPeriods)
+    .where(
+      and(
+        eq(trustBudgetPeriods.userId, userId),
+        lte(trustBudgetPeriods.periodStart, now),
+        gte(trustBudgetPeriods.periodEnd, now),
+      ),
+    );
+
+  return periods.map((p) => ({
+    agentName: p.agentName,
+    remaining: p.endingBudget ?? DEFAULT_BUDGET,
+    total: p.startingBudget ?? DEFAULT_BUDGET,
+    deductionsCount: p.deductionsCount ?? 0,
+    totalDeducted: p.totalDeducted ?? 0,
+    exhausted: (p.endingBudget ?? DEFAULT_BUDGET) <= 0,
+    periodId: p.id,
+  }));
+}

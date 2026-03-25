@@ -10,47 +10,71 @@ import {
   Globe, Zap, ArrowRight, Sparkles,
 } from "lucide-react";
 
+interface OnboardingStep {
+  step: number;
+  key: string;
+  title: string;
+}
+
+interface OnboardingState {
+  currentStep: number;
+  totalSteps: number;
+  stepData: Record<string, any>;
+  completed: boolean;
+  steps: OnboardingStep[];
+}
+
 interface MissionStep {
   id: string;
+  dbKey: string;
+  dbStep: number;
   title: string;
   description: string;
   icon: typeof Rocket;
   checkEndpoint?: string;
-  action?: string;
 }
 
 const MISSION_STEPS: MissionStep[] = [
   {
-    id: "pulse-check",
-    title: "System Pulse Check",
-    description: "Verify all kernel subsystems are healthy and responsive",
+    id: "channel-identity",
+    dbKey: "channel_identity",
+    dbStep: 1,
+    title: "Name your channel identity",
+    description: "Set your channel name and brand identity",
     icon: Gauge,
     checkEndpoint: "/api/kernel/pulse",
   },
   {
-    id: "trust-budget",
-    title: "Trust Budget Initialized",
-    description: "Confirm your audience trust budget is set and tracking",
+    id: "content-pillar",
+    dbKey: "content_pillar",
+    dbStep: 2,
+    title: "Pick your first content pillar",
+    description: "Choose the content category that defines your channel",
     icon: Shield,
-    checkEndpoint: "/api/kernel/trust-budget/sponsorship_intensity",
   },
   {
-    id: "capability-probe",
-    title: "Capability Probe",
-    description: "Run probes to verify platform integrations are connected",
+    id: "connect-youtube",
+    dbKey: "connect_youtube",
+    dbStep: 3,
+    title: "Connect YouTube",
+    description: "Link your YouTube channel for full automation",
     icon: Globe,
     checkEndpoint: "/api/kernel/capability/database/database:read",
   },
   {
-    id: "agent-ready",
-    title: "Agent Network Online",
-    description: "Verify the agent interop bus can send and receive messages",
+    id: "monetization-path",
+    dbKey: "monetization_path",
+    dbStep: 4,
+    title: "Set your monetization path",
+    description: "Choose how you want to earn from your content",
     icon: Bot,
   },
   {
-    id: "first-decision",
-    title: "First Governed Decision",
-    description: "Your AI agents made their first constitutional decision",
+    id: "publish-asset",
+    dbKey: "publish_asset",
+    dbStep: 5,
+    title: "Publish your first asset",
+    description: "Your AI agents made their first governed decision",
     icon: Sparkles,
   },
 ];
@@ -58,12 +82,18 @@ const MISSION_STEPS: MissionStep[] = [
 type StepStatus = "locked" | "ready" | "running" | "complete" | "failed";
 
 export function FirstLiveMission({ onComplete }: { onComplete?: () => void }) {
+  const { data: onboardingData } = useQuery<OnboardingState>({
+    queryKey: ["/api/kernel/onboarding"],
+    staleTime: 30000,
+    refetchInterval: 30000,
+  });
+
   const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>(() => {
     const saved = localStorage.getItem("creatoros:first-mission");
     if (saved) {
       try { return JSON.parse(saved); } catch { /* ignore */ }
     }
-    return { "pulse-check": "ready" };
+    return { "channel-identity": "ready" };
   });
 
   const [currentStep, setCurrentStep] = useState<string>(() => {
@@ -72,11 +102,29 @@ export function FirstLiveMission({ onComplete }: { onComplete?: () => void }) {
       try {
         const parsed = JSON.parse(saved);
         const firstIncomplete = MISSION_STEPS.find(s => parsed[s.id] !== "complete");
-        return firstIncomplete?.id || "first-decision";
+        return firstIncomplete?.id || "publish-asset";
       } catch { /* ignore */ }
     }
-    return "pulse-check";
+    return "channel-identity";
   });
+
+  useEffect(() => {
+    if (!onboardingData?.stepData) return;
+    const updated: Record<string, StepStatus> = {};
+    let foundIncomplete = false;
+    for (const step of MISSION_STEPS) {
+      if (onboardingData.stepData[step.dbKey]?.completedAt) {
+        updated[step.id] = "complete";
+      } else if (!foundIncomplete) {
+        updated[step.id] = "ready";
+        foundIncomplete = true;
+        setCurrentStep(step.id);
+      } else {
+        updated[step.id] = "locked";
+      }
+    }
+    setStepStatuses(prev => ({ ...prev, ...updated }));
+  }, [onboardingData?.stepData]);
 
   useEffect(() => {
     localStorage.setItem("creatoros:first-mission", JSON.stringify(stepStatuses));
@@ -91,11 +139,16 @@ export function FirstLiveMission({ onComplete }: { onComplete?: () => void }) {
 
     try {
       if (step.checkEndpoint) {
-        const resp = await fetch(step.checkEndpoint);
+        const resp = await fetch(step.checkEndpoint, { credentials: "include" });
         if (!resp.ok) throw new Error(`Step check failed: ${resp.status}`);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
+      await apiRequest("POST", "/api/kernel/onboarding/step", {
+        step: step.dbStep,
+        data: { verified: true, stepId: step.id },
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 600 + Math.random() * 500));
 
       setStepStatuses(prev => {
         const updated = { ...prev, [step.id]: "complete" as StepStatus };
@@ -107,6 +160,8 @@ export function FirstLiveMission({ onComplete }: { onComplete?: () => void }) {
         }
         return updated;
       });
+
+      queryClient.invalidateQueries({ queryKey: ["/api/kernel/onboarding"] });
     } catch {
       setStepStatuses(prev => ({ ...prev, [step.id]: "failed" }));
     }

@@ -7020,3 +7020,18 @@ export const liveLearningSignals = pgTable("live_learning_signals", {
   lls_stream_idx: index("lls_stream_idx").on(t.streamId),
 }));
 export type LiveLearningSignal = typeof liveLearningSignals.$inferSelect;
+
+export const onboardingStates = pgTable("onboarding_states", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  currentStep: integer("current_step").notNull().default(1),
+  totalSteps: integer("total_steps").notNull().default(5),
+  stepData: jsonb("step_data").$type<Record<string, any>>().default({}),
+  completed: boolean("completed").default(false),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  obs_user_idx: index("obs_user_idx").on(t.userId),
+}));
+export type OnboardingState = typeof onboardingStates.$inferSelect;
