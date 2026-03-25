@@ -3,22 +3,33 @@ import { distributionEvents, PLATFORMS } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
-type DistributionRequest = {
+export type DistributionRequest = {
   userId: string;
   platform: Platform;
   contentId: string;
   contentType: "video" | "short" | "post" | "live";
   title: string;
   description?: string;
+  content?: string;
   tags?: string[];
   hasDisclosure?: boolean;
   copyrightCleared?: boolean;
   metadata?: Record<string, any>;
 };
 
-type AdapterResult = {
+type PublishResult = {
+  success: boolean;
+  platform: string;
+  postId?: string;
+  postUrl?: string;
+  error?: string;
+  skipped?: boolean;
+};
+
+export type AdapterResult = {
   allowed: boolean;
   eventId: number;
+  publishResult: PublishResult | null;
   trustCheck: { remaining: number; blocked: boolean };
   capabilityCheck: { probeResult: string };
   policyCheck: { passed: boolean; issues: string[] };
@@ -61,7 +72,7 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     copyrightCleared: req.copyrightCleared,
   });
 
-  const { getConnectionHealth } = await import("./connection-health");
+  const { getConnectionHealth, recordConnectionSuccess, recordConnectionFailure } = await import("./connection-health");
   const connectionHealth = getConnectionHealth(req.platform);
 
   const allowed = !trustCheck.blocked
@@ -69,12 +80,49 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     && policyCheck.passed
     && connectionHealth.status !== "open";
 
-  const status = allowed ? "approved" : "blocked";
   const errorParts: string[] = [];
   if (trustCheck.blocked) errorParts.push("trust budget exhausted");
   if (capabilityCheck.probeResult === "error") errorParts.push("capability probe failed");
   if (!policyCheck.passed) errorParts.push(`policy: ${policyCheck.issues.join(", ")}`);
   if (connectionHealth.status === "open") errorParts.push("circuit breaker open");
+
+  let publishResult: PublishResult | null = null;
+
+  if (allowed && req.content) {
+    const startTime = Date.now();
+    try {
+      const { executePublish } = await import("../platform-publisher");
+      publishResult = await executePublish(
+        req.userId,
+        req.platform,
+        req.content,
+        {
+          ...req.metadata,
+          title: req.title,
+          description: req.description,
+          tags: req.tags,
+          hasDisclosure: req.hasDisclosure,
+          copyrightCleared: req.copyrightCleared,
+        }
+      );
+      const latencyMs = Date.now() - startTime;
+      if (publishResult.success) {
+        recordConnectionSuccess(req.platform, latencyMs);
+      } else if (!publishResult.skipped) {
+        recordConnectionFailure(req.platform, latencyMs);
+      }
+    } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
+      recordConnectionFailure(req.platform, latencyMs);
+      publishResult = {
+        success: false,
+        platform: req.platform,
+        error: err?.message || "Publisher execution failed",
+      };
+    }
+  }
+
+  const status = !allowed ? "blocked" : (publishResult?.success ? "published" : "approved");
 
   const [event] = await db.insert(distributionEvents).values({
     userId: req.userId,
@@ -85,13 +133,14 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     trustBudgetCost: trustCost,
     capabilityProbeResult: capabilityCheck.probeResult,
     policyGateResult: policyCheck.passed ? "passed" : "blocked",
-    errorMessage: errorParts.length > 0 ? errorParts.join("; ") : null,
+    errorMessage: errorParts.length > 0 ? errorParts.join("; ") : (publishResult && !publishResult.success ? publishResult.error : null),
     metadata: {
       title: req.title,
       tags: req.tags,
       contentType: req.contentType,
+      publishPostId: publishResult?.postId,
     },
-    publishedAt: allowed ? new Date() : null,
+    publishedAt: publishResult?.success ? new Date() : null,
   }).returning();
 
   const { recordDistributionLearning } = await import("./distribution-learning");
@@ -105,6 +154,7 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
   return {
     allowed,
     eventId: event.id,
+    publishResult,
     trustCheck,
     capabilityCheck,
     policyCheck,
@@ -146,12 +196,12 @@ export async function getDistributionStats(userId: string): Promise<{
   for (const e of events) {
     if (!byPlatform[e.platform]) byPlatform[e.platform] = { total: 0, approved: 0, blocked: 0 };
     byPlatform[e.platform].total++;
-    if (e.status === "approved") {
-      approved++;
-      byPlatform[e.platform].approved++;
-    } else {
+    if (e.status === "blocked") {
       blocked++;
       byPlatform[e.platform].blocked++;
+    } else {
+      approved++;
+      byPlatform[e.platform].approved++;
     }
   }
 

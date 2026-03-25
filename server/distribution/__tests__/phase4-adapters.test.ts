@@ -44,6 +44,14 @@ vi.mock("../../kernel/index", () => ({
   emitDomainEvent: async () => {},
 }));
 
+vi.mock("../../platform-publisher", () => ({
+  executePublish: async (_userId: string, platform: string) => ({
+    success: true,
+    platform,
+    postId: "mock-post-123",
+  }),
+}));
+
 import {
   getConnectionHealth,
   recordConnectionSuccess,
@@ -237,7 +245,7 @@ describe("Distribution Learning", () => {
 });
 
 describe("Platform Adapter", () => {
-  it("distributes content through governance pipeline", async () => {
+  it("distributes content through governance pipeline and calls publisher", async () => {
     resetCircuitBreaker("youtube");
     recordConnectionSuccess("youtube", 100);
 
@@ -247,6 +255,7 @@ describe("Platform Adapter", () => {
       contentId: "vid-123",
       contentType: "video",
       title: "Elden Ring Boss Fight — No Commentary PS5",
+      content: "Full gameplay walkthrough of the boss fight",
       tags: ["elden ring", "boss fight"],
     });
 
@@ -256,6 +265,9 @@ describe("Platform Adapter", () => {
     expect(result.capabilityCheck.probeResult).toBe("verified");
     expect(result.policyCheck.passed).toBe(true);
     expect(result.connectionHealth.status).toBe("closed");
+    expect(result.publishResult).not.toBeNull();
+    expect(result.publishResult!.success).toBe(true);
+    expect(result.publishResult!.postId).toBe("mock-post-123");
   });
 
   it("blocks distribution when circuit breaker is open", async () => {

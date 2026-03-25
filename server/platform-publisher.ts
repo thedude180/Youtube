@@ -431,7 +431,7 @@ export async function publishToplatform(
     }
 
     const startTime = Date.now();
-    const result = await _executePublish(userId, platform, content, metadata);
+    const result = await executePublish(userId, platform, content, metadata);
     const latencyMs = Date.now() - startTime;
 
     if (result.success) {
@@ -457,7 +457,7 @@ export async function publishToplatform(
   }
 }
 
-async function _executePublish(
+export async function executePublish(
   userId: string,
   platform: string,
   content: string,
