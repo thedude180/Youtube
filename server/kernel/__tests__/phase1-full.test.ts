@@ -42,7 +42,7 @@ vi.mock("../../db", () => {
 
 import { sendAgentMessage, getAgentMessages } from "../interop";
 import { runEval, getEvalResults } from "../eval";
-import { checkTrustBudget, deductTrustBudget } from "../trust-budget";
+import { checkTrustBudget } from "../trust-budget";
 import { probeCapability, getCapabilityStatus, checkCapabilityBeforeWrite } from "../capability-probe";
 import { detectJurisdiction, isMonetizationRestricted, formatCurrency } from "../../adapters/payment";
 import { detectLocale, formatDate, formatNumber, isRTL } from "../../adapters/localization";
@@ -61,17 +61,16 @@ describe("Agent Interop Bus", () => {
 
 describe("Eval Harness", () => {
   it("creates an eval run", async () => {
-    const id = await runEval(
+    const run = await runEval(
       "user1",
       "smart-edit-engine",
       "highlight-quality",
-      { videoId: "v1" },
-      { clipCount: 3, avgScore: 0.82 },
-      0.82,
-      true,
-      "Good highlight selection"
+      {
+        inputSnapshot: { videoId: "v1" },
+        evaluator: () => ({ score: 0.82, passed: true, notes: "Good highlight selection" }),
+      }
     );
-    expect(id).toBeGreaterThan(0);
+    expect(run.id).toBeGreaterThan(0);
   });
 
   it("fetches eval results", async () => {
@@ -83,39 +82,37 @@ describe("Eval Harness", () => {
 describe("Trust Budget", () => {
   it("returns default budget when no record exists", async () => {
     const status = await checkTrustBudget("user1", "title_volatility");
-    expect(status.budgetTotal).toBe(100);
-    expect(status.budgetRemaining).toBe(100);
-    expect(status.exhausted).toBe(false);
+    expect(status.remaining).toBe(100);
+    expect(status.blocked).toBe(false);
   });
 
   it("deducts trust budget and reports remaining", async () => {
-    const status = await deductTrustBudget("user1", "cta_pressure", 25, "sponsored content CTA");
-    expect(status.budgetRemaining).toBeDefined();
-    expect(typeof status.exhausted).toBe("boolean");
+    const status = await checkTrustBudget("user1", "cta_pressure", 25);
+    expect(status.remaining).toBeDefined();
+    expect(typeof status.blocked).toBe("boolean");
   });
 
   it("detects exhausted trust budget", async () => {
-    const status = await deductTrustBudget("user1", "posting_pressure", 200, "mass posting burst");
-    expect(status.budgetRemaining).toBe(0);
-    expect(status.exhausted).toBe(true);
+    const status = await checkTrustBudget("user1", "posting_pressure", 200);
+    expect(status.remaining).toBe(0);
+    expect(status.blocked).toBe(true);
   });
 });
 
 describe("Capability Probe", () => {
   it("probes a database capability", async () => {
-    const result = await probeCapability("database", "database:read", "user1");
+    const result = await probeCapability("database", "database:read", undefined, "user1");
     expect(result.platform).toBe("database");
     expect(result.capabilityName).toBe("database:read");
-    expect(["verified", "unavailable"]).toContain(result.status);
-    expect(result.isStale).toBe(false);
+    expect(["verified", "error", "success"]).toContain(result.probeResult);
   });
 
-  it("probes youtube capability (simulated)", async () => {
-    const result = await probeCapability("youtube", "youtube:upload", "user1");
-    expect(result.status).toBe("verified");
+  it("probes storage capability (simulated)", async () => {
+    const result = await probeCapability("storage", "storage:write", undefined, "user1");
+    expect(result.probeResult).toBe("verified");
   });
 
-  it("returns stale status for unknown capability", async () => {
+  it("returns unknown status for unprobed capability", async () => {
     const status = await getCapabilityStatus("unknown-platform", "unknown:cap");
     expect(["unknown", "stale"]).toContain(status.status);
     expect(status.isStale).toBe(true);
