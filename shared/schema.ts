@@ -15,6 +15,7 @@ export const PLATFORMS = [
   "tiktok",
   "discord",
   "rumble",
+  "x",
 ] as const;
 export type Platform = typeof PLATFORMS[number];
 
@@ -7051,9 +7052,9 @@ export const distributionEvents = pgTable("distribution_events", {
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
-  de_user_idx: index("de_user_idx").on(t.userId),
-  de_platform_idx: index("de_platform_idx").on(t.platform),
-  de_type_idx: index("de_type_idx").on(t.eventType),
+  dist_user_idx: index("dist_user_idx").on(t.userId),
+  dist_platform_idx: index("dist_platform_idx").on(t.platform),
+  dist_type_idx: index("dist_type_idx").on(t.eventType),
 }));
 export type DistributionEvent = typeof distributionEvents.$inferSelect;
 
