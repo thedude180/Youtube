@@ -43,6 +43,7 @@ import { registerMultistreamRoutes } from "./routes/multistream";
 import { registerKernelRoutes } from "./routes/kernel";
 import { registerContentCoreRoutes } from "./routes/content-core";
 import { registerLiveOpsRoutes } from "./routes/live-ops";
+import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -233,6 +234,7 @@ export async function registerRoutes(
   registerStreamAgentRoutes(app);
   registerCopyrightGuardianRoutes(app);
   registerMultistreamRoutes(app);
+  registerKernelOpsRoutes(app);
   registerTestAuthRoutes(app);
   registerKernelRoutes(app);
   registerContentCoreRoutes(app);

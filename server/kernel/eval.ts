@@ -7,54 +7,63 @@ export async function runEval(
   userId: string,
   agentName: string,
   evalType: string,
-  inputSnapshot: Record<string, any>,
-  outputSnapshot: Record<string, any>,
-  score: number,
-  passed: boolean,
-  notes?: string
-): Promise<number> {
+  config: {
+    inputSnapshot?: Record<string, any>;
+    evaluator: (input: Record<string, any>) => { score: number; passed: boolean; notes?: string };
+  }
+): Promise<typeof evalRuns.$inferSelect> {
+  const input = config.inputSnapshot ?? {};
+  const result = config.evaluator(input);
+
   const [run] = await db
     .insert(evalRuns)
     .values({
       userId,
       agentName,
       evalType,
-      inputSnapshot,
-      outputSnapshot,
-      score,
-      passed,
-      notes: notes || null,
+      inputSnapshot: input,
+      outputSnapshot: { score: result.score, passed: result.passed },
+      score: result.score,
+      passed: result.passed,
+      notes: result.notes ?? null,
     })
-    .returning({ id: evalRuns.id });
+    .returning();
 
   await emitDomainEvent(userId, "eval.run.completed", {
     evalId: run.id,
     agentName,
     evalType,
-    score,
-    passed,
+    score: result.score,
+    passed: result.passed,
   }, "eval-harness", String(run.id));
 
-  return run.id;
+  return run;
 }
 
 export async function getEvalResults(
-  userId: string,
-  options: { agentName?: string; evalType?: string; limit?: number } = {}
-): Promise<Array<typeof evalRuns.$inferSelect>> {
-  const conditions = [eq(evalRuns.userId, userId)];
+  filters: { userId?: string; agentName?: string; evalType?: string; limit?: number } = {}
+): Promise<(typeof evalRuns.$inferSelect)[]> {
+  const conditions = [];
 
-  if (options.agentName) {
-    conditions.push(eq(evalRuns.agentName, options.agentName));
+  if (filters.userId) {
+    conditions.push(eq(evalRuns.userId, filters.userId));
   }
-  if (options.evalType) {
-    conditions.push(eq(evalRuns.evalType, options.evalType));
+  if (filters.agentName) {
+    conditions.push(eq(evalRuns.agentName, filters.agentName));
+  }
+  if (filters.evalType) {
+    conditions.push(eq(evalRuns.evalType, filters.evalType));
   }
 
-  return db
+  const query = db
     .select()
     .from(evalRuns)
-    .where(and(...conditions))
     .orderBy(desc(evalRuns.ranAt))
-    .limit(options.limit ?? 50);
+    .limit(filters.limit ?? 50);
+
+  if (conditions.length > 0) {
+    return query.where(conditions.length === 1 ? conditions[0] : and(...conditions));
+  }
+
+  return query;
 }

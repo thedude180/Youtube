@@ -5,6 +5,15 @@ import { emitDomainEvent } from "./index";
 
 const STALENESS_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
+export interface ProbeResult {
+  id: number;
+  platform: string;
+  capabilityName: string;
+  probeResult: string;
+  responseTimeMs: number | null;
+  errorMessage: string | null;
+}
+
 export interface CapabilityProbeResult {
   platform: string;
   capabilityName: string;
@@ -15,63 +24,77 @@ export interface CapabilityProbeResult {
 
 export async function probeCapability(
   platform: string,
-  capabilityName: string,
+  capabilityKey: string,
+  probeFn?: () => Promise<{ ok: boolean; error?: string }>,
   userId?: string
-): Promise<CapabilityProbeResult> {
-  const startTime = Date.now();
-  let probeResult = "unknown";
-  let responseTimeMs = 0;
+): Promise<ProbeResult> {
+  const start = Date.now();
+  let result = "success";
   let errorMessage: string | null = null;
 
   try {
-    switch (platform) {
-      case "youtube":
-        probeResult = "verified";
-        responseTimeMs = Date.now() - startTime;
-        break;
-      case "storage":
-        probeResult = "verified";
-        responseTimeMs = Date.now() - startTime;
-        break;
-      case "database":
-        await db.execute(sql`SELECT 1`);
-        probeResult = "verified";
-        responseTimeMs = Date.now() - startTime;
-        break;
-      default:
-        probeResult = "unknown";
-        responseTimeMs = Date.now() - startTime;
+    if (probeFn) {
+      const outcome = await probeFn();
+      if (!outcome.ok) {
+        result = "failure";
+        errorMessage = outcome.error ?? "probe failed";
+      }
+    } else {
+      switch (platform) {
+        case "youtube": {
+          const res = await fetch("https://www.googleapis.com/youtube/v3/videos?part=id&maxResults=0&key=probe-check", {
+            signal: AbortSignal.timeout(5000),
+          }).catch(() => null);
+          result = res ? "reachable" : "unreachable";
+          if (!res) errorMessage = "YouTube API unreachable";
+          break;
+        }
+        case "database":
+          await db.execute(sql`SELECT 1`);
+          result = "verified";
+          break;
+        case "storage":
+          result = "verified";
+          break;
+        default:
+          result = "skipped";
+      }
     }
   } catch (err: any) {
-    probeResult = "unavailable";
+    result = "error";
     errorMessage = err?.message || String(err);
-    responseTimeMs = Date.now() - startTime;
   }
 
-  await db.insert(platformCapabilityProbes).values({
-    platform,
-    capabilityName,
-    probeResult,
-    responseTimeMs,
-    errorMessage,
-    metadata: { userId: userId || null },
-  });
+  const responseTimeMs = Date.now() - start;
+
+  const [probe] = await db
+    .insert(platformCapabilityProbes)
+    .values({
+      platform,
+      capabilityName: capabilityKey,
+      probeResult: result,
+      responseTimeMs,
+      errorMessage,
+      metadata: { probedAt: new Date().toISOString(), userId: userId || null },
+    })
+    .returning();
 
   if (userId) {
     await emitDomainEvent(userId, "capability.probed", {
       platform,
-      capabilityName,
-      result: probeResult,
+      capabilityName: capabilityKey,
+      result,
       responseTimeMs,
-    }, "capability-probe", `${platform}:${capabilityName}`);
+    }, "capability-probe", `${platform}:${capabilityKey}`);
   }
 
   return {
-    platform,
-    capabilityName,
-    status: probeResult as CapabilityProbeResult["status"],
-    lastProbed: new Date(),
-    isStale: false,
+    id: probe.id,
+    platform: probe.platform,
+    capabilityName: probe.capabilityName,
+    probeResult: probe.probeResult,
+    responseTimeMs: probe.responseTimeMs,
+    errorMessage: probe.errorMessage,
   };
 }
 
@@ -121,15 +144,16 @@ export async function checkCapabilityBeforeWrite(
   const status = await getCapabilityStatus(platform, capabilityName);
 
   if (status.status === "stale" || status.status === "unknown") {
-    const freshProbe = await probeCapability(platform, capabilityName, userId);
-    if (freshProbe.status === "unavailable" || freshProbe.status === "degraded") {
+    const freshProbe = await probeCapability(platform, capabilityName, undefined, userId);
+    const freshStatus = await getCapabilityStatus(platform, capabilityName);
+    if (freshStatus.status === "unavailable" || freshStatus.status === "degraded") {
       return {
         allowed: false,
-        reason: `capability ${capabilityName} on ${platform} is ${freshProbe.status}`,
-        status: freshProbe,
+        reason: `capability ${capabilityName} on ${platform} is ${freshStatus.status}`,
+        status: freshStatus,
       };
     }
-    return { allowed: true, reason: "re-verified", status: freshProbe };
+    return { allowed: true, reason: "re-verified", status: freshStatus };
   }
 
   if (status.status === "unavailable" || status.status === "degraded") {
@@ -141,6 +165,31 @@ export async function checkCapabilityBeforeWrite(
   }
 
   return { allowed: true, reason: "verified", status };
+}
+
+export async function getProbeResults(
+  filters: { platform?: string; capabilityName?: string; limit?: number } = {}
+): Promise<(typeof platformCapabilityProbes.$inferSelect)[]> {
+  const conditions = [];
+
+  if (filters.platform) {
+    conditions.push(eq(platformCapabilityProbes.platform, filters.platform));
+  }
+  if (filters.capabilityName) {
+    conditions.push(eq(platformCapabilityProbes.capabilityName, filters.capabilityName));
+  }
+
+  const query = db
+    .select()
+    .from(platformCapabilityProbes)
+    .orderBy(desc(platformCapabilityProbes.probedAt))
+    .limit(filters.limit ?? 50);
+
+  if (conditions.length > 0) {
+    return query.where(conditions.length === 1 ? conditions[0] : and(...conditions));
+  }
+
+  return query;
 }
 
 export async function seedCapabilityRegistry(): Promise<void> {

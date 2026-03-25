@@ -4,7 +4,7 @@ import { agentUiPayloads, featureFlags, featureSunsetRecords } from "@shared/sch
 import { eq, desc, and } from "drizzle-orm";
 import { sendAgentMessage, getAgentMessages, markMessageDelivered } from "../kernel/interop";
 import { runEval, getEvalResults } from "../kernel/eval";
-import { checkTrustBudget, deductTrustBudget, getTrustBudgetSummary, resetTrustBudget } from "../kernel/trust-budget";
+import { checkTrustBudget } from "../kernel/trust-budget";
 import { probeCapability, getCapabilityStatus, checkCapabilityBeforeWrite } from "../kernel/capability-probe";
 import { detectJurisdiction, getSupportedJurisdictions } from "../adapters/payment";
 import { detectLocale, getSupportedLocales } from "../adapters/localization";
@@ -53,7 +53,8 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const messages = await getAgentMessages(req.params.agentName, userId, {
+      const messages = await getAgentMessages(req.params.agentName, {
+        userId,
         status: req.query.status as string | undefined,
         limit: Number(req.query.limit) || 50,
       });
@@ -85,8 +86,11 @@ export function registerKernelRoutes(app: Express) {
     }
 
     try {
-      const id = await runEval(userId, agentName, evalType, inputSnapshot || {}, outputSnapshot || {}, score, !!passed, notes);
-      res.json({ id, status: "completed" });
+      const result = await runEval(userId, agentName, evalType, {
+        inputSnapshot: inputSnapshot || {},
+        evaluator: () => ({ score, passed: !!passed, notes }),
+      });
+      res.json({ id: result.id, status: "completed" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -97,7 +101,8 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const results = await getEvalResults(userId, {
+      const results = await getEvalResults({
+        userId,
         agentName: req.query.agentName as string | undefined,
         evalType: req.query.evalType as string | undefined,
         limit: Number(req.query.limit) || 50,
@@ -113,8 +118,8 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const summary = await getTrustBudgetSummary(userId);
-      res.json(summary);
+      const status = await checkTrustBudget(userId, "default", 0);
+      res.json(status);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -125,7 +130,7 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const status = await checkTrustBudget(userId, req.params.category);
+      const status = await checkTrustBudget(userId, req.params.category, 0);
       res.json(status);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -142,7 +147,7 @@ export function registerKernelRoutes(app: Express) {
     }
 
     try {
-      const status = await deductTrustBudget(userId, category, amount, reason);
+      const status = await checkTrustBudget(userId, category, amount);
       res.json(status);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -157,7 +162,7 @@ export function registerKernelRoutes(app: Express) {
     if (!category) return res.status(400).json({ error: "category required" });
 
     try {
-      const status = await resetTrustBudget(userId, category, userId);
+      const status = await checkTrustBudget(userId, category, 0);
       res.json(status);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -174,7 +179,7 @@ export function registerKernelRoutes(app: Express) {
     }
 
     try {
-      const result = await probeCapability(platform, capabilityName, userId);
+      const result = await probeCapability(platform, capabilityName, undefined, userId);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -238,14 +243,13 @@ export function registerKernelRoutes(app: Express) {
         getCapabilityStatus("storage", "storage:read"),
       ]);
 
-      const trustBudget = await getTrustBudgetSummary(userId);
-      const anyExhausted = trustBudget.some((b) => b.exhausted);
+      const trustBudget = await checkTrustBudget(userId, "default", 0);
 
       const systems: Record<string, string> = {
         database: dbProbe.status === "fulfilled" && dbProbe.value.status === "verified" ? "healthy" : "degraded",
         storage: storageProbe.status === "fulfilled" && storageProbe.value.status === "verified" ? "healthy" : "idle",
         kernel: "healthy",
-        trust_budget: anyExhausted ? "blocked" : "healthy",
+        trust_budget: trustBudget.blocked ? "blocked" : "healthy",
         webhook: "idle",
         learning: "healthy",
       };

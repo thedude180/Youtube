@@ -4,8 +4,8 @@ import { eq, and, desc } from "drizzle-orm";
 import { emitDomainEvent } from "./index";
 
 export async function sendAgentMessage(
-  fromAgent: string,
-  toAgent: string,
+  from: string,
+  to: string,
   userId: string,
   messageType: string,
   payload: Record<string, any> = {}
@@ -13,19 +13,20 @@ export async function sendAgentMessage(
   const [msg] = await db
     .insert(agentInteropMessages)
     .values({
-      fromAgent,
-      toAgent,
+      fromAgent: from,
+      toAgent: to,
       userId,
       messageType,
       payload,
-      status: "pending",
+      status: "delivered",
+      deliveredAt: new Date(),
     })
     .returning({ id: agentInteropMessages.id });
 
   await emitDomainEvent(userId, "agent.message.sent", {
     messageId: msg.id,
-    fromAgent,
-    toAgent,
+    fromAgent: from,
+    toAgent: to,
     messageType,
   }, "agent-interop", String(msg.id));
 
@@ -34,24 +35,32 @@ export async function sendAgentMessage(
 
 export async function getAgentMessages(
   agentName: string,
-  userId: string,
-  options: { status?: string; limit?: number } = {}
-): Promise<Array<typeof agentInteropMessages.$inferSelect>> {
-  const conditions = [
-    eq(agentInteropMessages.toAgent, agentName),
-    eq(agentInteropMessages.userId, userId),
-  ];
+  filters: { direction?: "from" | "to"; userId?: string; status?: string; limit?: number } = {}
+): Promise<(typeof agentInteropMessages.$inferSelect)[]> {
+  const conditions = [];
 
-  if (options.status) {
-    conditions.push(eq(agentInteropMessages.status, options.status));
+  if (filters.direction === "from") {
+    conditions.push(eq(agentInteropMessages.fromAgent, agentName));
+  } else {
+    conditions.push(eq(agentInteropMessages.toAgent, agentName));
   }
 
-  return db
+  if (filters.userId) {
+    conditions.push(eq(agentInteropMessages.userId, filters.userId));
+  }
+
+  if (filters.status) {
+    conditions.push(eq(agentInteropMessages.status, filters.status));
+  }
+
+  const rows = await db
     .select()
     .from(agentInteropMessages)
-    .where(and(...conditions))
+    .where(conditions.length === 1 ? conditions[0] : and(...conditions))
     .orderBy(desc(agentInteropMessages.createdAt))
-    .limit(options.limit ?? 50);
+    .limit(filters.limit ?? 50);
+
+  return rows;
 }
 
 export async function markMessageDelivered(messageId: number): Promise<void> {

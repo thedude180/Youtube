@@ -14,6 +14,10 @@ import { generateThumbnailForNewVideo } from "./auto-thumbnail-engine";
 import { recordLearningEvent, getLearningContext } from "./learning-engine";
 import { checkFeatureFlag } from "./kernel/index";
 import { emitLearningSignal } from "./kernel/learning";
+import { sendAgentMessage } from "./kernel/interop";
+import { runEval } from "./kernel/eval";
+import { checkTrustBudget, type TrustBudgetResult } from "./kernel/trust-budget";
+import { probeCapability } from "./kernel/capability-probe";
 
 const logger = createLogger("smart-edit-engine");
 const execFileAsync = promisify(execFile);
@@ -582,6 +586,33 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       confidence: 0.8,
     }).catch(err => logger.warn("Failed to emit smart_edit_completed signal", { error: String(err).substring(0, 200) }));
 
+    await sendAgentMessage(
+      "smart-edit-engine",
+      "performance-feedback-engine",
+      userId,
+      "job-completed",
+      { videoId, youtubeId: newYoutubeId, gameName, segmentCount: segments.length, title: metadata.title }
+    ).catch(err => logger.warn("Interop message failed", { error: String(err).substring(0, 200) }));
+
+    await runEval(userId, "smart-edit-engine", "smart-edit-quality", {
+      inputSnapshot: { videoId, gameName, segmentCount: segments.length, sourceDuration: actualDuration },
+      evaluator: (input) => {
+        const segCount = input.segmentCount ?? 0;
+        const score = Math.min(1, segCount / 5);
+        return { score, passed: score >= 0.4, notes: `${segCount} segments extracted from source` };
+      },
+    }).catch(err => logger.warn("Eval run failed", { error: String(err).substring(0, 200) }));
+
+    const { agentUiPayloads } = await import("@shared/schema");
+    await db.insert(agentUiPayloads).values({
+      userId,
+      agentName: "smart-edit-engine",
+      payloadType: "job-result",
+      title: `Smart Edit: ${metadata.title}`,
+      body: `Extracted ${segments.length} highlight segments from ${gameName}. Uploaded to YouTube as ${newYoutubeId}.`,
+      metadata: { videoId, youtubeId: newYoutubeId, gameName, segmentCount: segments.length },
+    }).catch(err => logger.warn("UI payload write failed", { error: String(err).substring(0, 200) }));
+
     logger.info("Smart edit job complete", { youtubeId: newYoutubeId, queueItemId });
   } catch (err: any) {
     const errorMsg = String(err?.message || err).substring(0, 500);
@@ -622,6 +653,14 @@ export async function processSmartEditQueue(userId: string): Promise<void> {
 
   activeJobs.add(userId);
   try {
+    const trustResult: TrustBudgetResult = await checkTrustBudget(userId, "smart-edit-engine", 5).catch((): TrustBudgetResult => ({
+      remaining: 100, blocked: false, periodId: 0, deductionsCount: 0, totalDeducted: 0,
+    }));
+    if (trustResult.blocked) {
+      logger.warn("Smart edit blocked by trust budget exhaustion", { userId });
+      return;
+    }
+
     const [item] = await db.select()
       .from(autopilotQueue)
       .where(and(
@@ -738,6 +777,10 @@ export async function initSmartEditForAllLongVideos(userId: string): Promise<{ q
       const id = await queueVideoForSmartEdit(userId, v.id);
       if (id) queued++;
     }
+
+    probeCapability("youtube", "api-connectivity").catch(err =>
+      logger.warn("YouTube capability probe failed", { error: String(err).substring(0, 200) })
+    );
 
     if (queued > 0) {
       logger.info("Smart edit jobs queued on startup", { userId, queued });

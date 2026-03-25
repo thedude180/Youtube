@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Zap, Play, RefreshCw, Activity, ChevronRight } from "lucide-react";
+import { Users, Zap, Play, RefreshCw, Activity, ChevronRight, MessageSquare } from "lucide-react";
 
 const DEPT_META = {
   creative: { label: "Creative Team", color: "hsl(265 80% 60%)", bg: "hsl(265 80% 60% / 0.08)", border: "hsl(265 80% 60% / 0.25)", emoji: "🎬", subtitle: "YouTube Content & Distribution — 14 Agents" },
@@ -215,6 +215,58 @@ function PhasePipeline() {
   );
 }
 
+function AgentUiPayloadsSection() {
+  const { data: payloads, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/agent-ui-payloads"],
+    refetchInterval: 30000,
+  });
+
+  const items = payloads ?? [];
+
+  return (
+    <div className="card-empire rounded-2xl p-4" data-testid="widget-agent-ui-payloads">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-primary" />
+          <span className="text-xs font-mono text-muted-foreground uppercase">Agent UI Payloads</span>
+        </div>
+        <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
+          {items.length} payloads
+        </Badge>
+      </div>
+      {isLoading ? (
+        <div className="text-center py-6 text-muted-foreground text-sm">Loading...</div>
+      ) : items.length > 0 ? (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {items.map((p: any) => (
+            <div
+              key={p.id}
+              className="rounded-lg border p-3"
+              style={{ background: "hsl(265 20% 8%)", borderColor: "hsl(265 30% 18%)" }}
+              data-testid={`agent-payload-${p.id}`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-white">{p.title}</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                  style={{ background: "hsl(265 80% 60% / 0.15)", color: "hsl(265 80% 70%)" }}>
+                  {p.payloadType}
+                </span>
+              </div>
+              <div className="text-[10px] text-muted-foreground">{p.agentName}</div>
+              {p.body && <p className="text-[10px] text-muted-foreground/80 mt-1 line-clamp-2">{p.body}</p>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-6 text-muted-foreground text-sm">
+          <MessageSquare className="w-6 h-6 mx-auto mb-2 opacity-30" />
+          <p>No agent UI payloads yet</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TeamOps() {
   usePageTitle("God Mode Team Operations", "41 AI agents working as a coordinated human team across Creative, Executive, and Legal departments.");
   const { user } = useAuth();
@@ -379,6 +431,8 @@ export default function TeamOps() {
             </div>
           </div>
         </div>
+
+        <AgentUiPayloadsSection />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="section-app-ownership">
           {[
