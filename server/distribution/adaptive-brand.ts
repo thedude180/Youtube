@@ -1,5 +1,4 @@
 import type { Platform } from "@shared/schema";
-import { PLATFORM_CAPABILITIES } from "@shared/schema";
 
 async function checkTrustBudgetForBrand(userId: string): Promise<{ allowed: boolean }> {
   try {

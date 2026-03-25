@@ -137,6 +137,9 @@ export async function scoreBrandConsistency(userId: string): Promise<BrandConsis
 }
 
 export async function getBrandElements(userId: string): Promise<BrandElement[]> {
+  const trustCheck = await checkTrustBudgetForBrand(userId);
+  if (!trustCheck.allowed) return [];
+
   const { getBrandProfile } = await import("../content/brand-system");
   const profile = getBrandProfile(userId);
   const elements: BrandElement[] = [];
@@ -168,6 +171,9 @@ export async function getBrandElements(userId: string): Promise<BrandElement[]> 
 }
 
 export async function getDriftHistory(userId: string, limit: number = 20): Promise<any[]> {
+  const trustCheck = await checkTrustBudgetForBrand(userId);
+  if (!trustCheck.allowed) return [];
+
   return db.select().from(brandDriftAlerts)
     .where(eq(brandDriftAlerts.userId, userId))
     .orderBy(desc(brandDriftAlerts.createdAt))
