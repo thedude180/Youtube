@@ -46,6 +46,39 @@ const TRUST_COSTS: Record<string, number> = {
 export async function distributeContent(req: DistributionRequest): Promise<AdapterResult> {
   const trustCost = TRUST_COSTS[req.contentType] || 5;
 
+  const { getConnectionHealth, recordConnectionSuccess, recordConnectionFailure } = await import("./connection-health");
+  const connectionHealth = getConnectionHealth(req.platform);
+
+  if (connectionHealth.status === "open") {
+    const [event] = await db.insert(distributionEvents).values({
+      userId: req.userId,
+      platform: req.platform,
+      contentId: req.contentId,
+      eventType: `publish_${req.contentType}`,
+      status: "blocked",
+      trustBudgetCost: trustCost,
+      capabilityProbeResult: "skipped",
+      policyGateResult: "skipped",
+      errorMessage: "circuit breaker open",
+      metadata: { title: req.title, tags: req.tags, contentType: req.contentType },
+    }).returning();
+
+    const { recordDistributionLearning } = await import("./distribution-learning");
+    await recordDistributionLearning(req.userId, req.platform, `publish_${req.contentType}`, {
+      allowed: false, trustCost, policyIssues: ["circuit breaker open"], connectionStatus: "open",
+    }).catch(() => {});
+
+    return {
+      allowed: false,
+      eventId: event.id,
+      publishResult: null,
+      trustCheck: { remaining: 0, blocked: false },
+      capabilityCheck: { probeResult: "skipped" },
+      policyCheck: { passed: false, issues: ["circuit breaker open"] },
+      connectionHealth,
+    };
+  }
+
   let trustCheck = { remaining: 0, blocked: true };
   try {
     const { checkTrustBudget } = await import("../kernel/trust-budget");
@@ -72,19 +105,14 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     copyrightCleared: req.copyrightCleared,
   });
 
-  const { getConnectionHealth, recordConnectionSuccess, recordConnectionFailure } = await import("./connection-health");
-  const connectionHealth = getConnectionHealth(req.platform);
-
   const allowed = !trustCheck.blocked
     && capabilityCheck.probeResult !== "error"
-    && policyCheck.passed
-    && connectionHealth.status !== "open";
+    && policyCheck.passed;
 
   const errorParts: string[] = [];
   if (trustCheck.blocked) errorParts.push("trust budget exhausted");
   if (capabilityCheck.probeResult === "error") errorParts.push("capability probe failed");
   if (!policyCheck.passed) errorParts.push(`policy: ${policyCheck.issues.join(", ")}`);
-  if (connectionHealth.status === "open") errorParts.push("circuit breaker open");
 
   let publishResult: PublishResult | null = null;
   let actualPublishLatencyMs = 0;
