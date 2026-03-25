@@ -1036,6 +1036,7 @@ httpServer.listen(
       import("./kernel/seed-schema-registry").then(m => {
         m.seedAgentExplanationContract().catch(err => logger.error("Schema registry seed failed", { error: String(err) }));
       }).catch(err => logger.error("Schema registry seed module failed to load", { error: String(err) }));
+      import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(err => logger.error("Signal registry seed failed", { error: String(err) }));
     });
 
     delay(15_000, () => {

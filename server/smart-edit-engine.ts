@@ -13,6 +13,7 @@ import { uploadVideoToYouTube } from "./youtube";
 import { generateThumbnailForNewVideo } from "./auto-thumbnail-engine";
 import { recordLearningEvent, getLearningContext } from "./learning-engine";
 import { checkFeatureFlag } from "./kernel/index";
+import { emitLearningSignal } from "./kernel/learning";
 
 const logger = createLogger("smart-edit-engine");
 const execFileAsync = promisify(execFile);
@@ -564,6 +565,23 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       platform: "youtube",
     });
 
+    await emitLearningSignal({
+      signalType: "smart_edit_completed",
+      sourceSystem: "smart-edit-engine",
+      payload: {
+        videoId,
+        youtubeId: newYoutubeId,
+        gameName,
+        segmentCount: segments.length,
+        title: metadata.title,
+        sourceDurationSec: actualDuration,
+      },
+      agentName: "ai-editor",
+      userId,
+      channelId: ytChannel.id,
+      confidence: 0.8,
+    }).catch(err => logger.warn("Failed to emit smart_edit_completed signal", { error: String(err).substring(0, 200) }));
+
     logger.info("Smart edit job complete", { youtubeId: newYoutubeId, queueItemId });
   } catch (err: any) {
     const errorMsg = String(err?.message || err).substring(0, 500);
@@ -580,6 +598,15 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
         .where(eq(aiAgentTasks.id, agentTaskId))
         .catch(() => undefined);
     }
+
+    await emitLearningSignal({
+      signalType: "smart_edit_failed",
+      sourceSystem: "smart-edit-engine",
+      payload: { videoId, queueItemId, error: errorMsg },
+      agentName: "ai-editor",
+      userId,
+      confidence: 1.0,
+    }).catch(() => undefined);
 
     throw err;
   } finally {
