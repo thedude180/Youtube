@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "lBF__v4vxEBYQ4fRCqtGk"
+uri = "file://CREATOROS_MASTER_PROMPT_v9.md"
+type = "text"
+title = "CreatorOS Master Prompt v9.0 (Consolidated)"
