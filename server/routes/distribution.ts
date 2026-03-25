@@ -1,11 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-
-function getUserId(req: Request): string | null {
-  return (req as Record<string, unknown> & { user?: { id?: string; claims?: { sub?: string } } }).user?.id
-    || (req as Record<string, unknown> & { user?: { claims?: { sub?: string } } }).user?.claims?.sub
-    || null;
-}
+import { getUserId, requireAuth } from "./helpers";
 
 export function registerDistributionRoutes(app: Express) {
   app.post("/api/distribution/distribute", async (req: Request, res: Response) => {

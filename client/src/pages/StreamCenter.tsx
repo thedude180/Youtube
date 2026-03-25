@@ -1829,7 +1829,7 @@ export default function StreamCenter() {
         </Suspense>
       </CollapsibleToolbox>
 
-      <CollapsibleToolbox title="Distribution Intelligence" toolCount={6}>
+      <CollapsibleToolbox title="Distribution Intelligence" toolCount={9}>
         <Suspense fallback={<Skeleton className="h-48 w-full" />}>
           <DistributionIntelligenceTab />
         </Suspense>
