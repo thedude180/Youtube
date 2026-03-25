@@ -55,7 +55,65 @@ function daysAgo(n: number): Date {
   return new Date(Date.now() - n * 86400000);
 }
 
+async function checkTrustBudgetForTiming(userId: string): Promise<{ allowed: boolean }> {
+  try {
+    const { checkTrustBudget } = await import("../kernel/trust-budget");
+    const result = await checkTrustBudget(userId, "content-timing", 2);
+    return { allowed: !result.blocked };
+  } catch {
+    return { allowed: false };
+  }
+}
+
+async function resolveUserTimezone(userId: string): Promise<string> {
+  try {
+    const { notificationPreferences } = await import("@shared/schema");
+    const prefs = await db.select().from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, userId))
+      .limit(1);
+    if (prefs.length > 0 && prefs[0].timezone) {
+      return prefs[0].timezone;
+    }
+  } catch {}
+  return "UTC";
+}
+
+function buildHistoricalPerformanceMap(events: any[]): Map<string, { successCount: number; totalCount: number }> {
+  const map = new Map<string, { successCount: number; totalCount: number }>();
+
+  for (const e of events) {
+    if (!e.createdAt) continue;
+    const date = new Date(e.createdAt);
+    const dayOfWeek = date.getUTCDay();
+    const hourOfDay = date.getUTCHours();
+    const key = `${dayOfWeek}:${hourOfDay}`;
+
+    const entry = map.get(key) || { successCount: 0, totalCount: 0 };
+    entry.totalCount++;
+    if (e.status === "published" || e.status === "approved") {
+      entry.successCount++;
+    }
+    map.set(key, entry);
+  }
+
+  return map;
+}
+
 export async function analyzeContentTiming(userId: string, platform: string): Promise<TimingAnalysis> {
+  const trustCheck = await checkTrustBudgetForTiming(userId);
+  if (!trustCheck.allowed) {
+    return {
+      userId,
+      platform,
+      bestWindows: [],
+      worstWindows: [],
+      timezone: "UTC",
+      dataPoints: 0,
+    };
+  }
+
+  const userTimezone = await resolveUserTimezone(userId);
+
   const activityPatterns = await db.select().from(audienceActivityPatterns)
     .where(and(
       eq(audienceActivityPatterns.userId, userId),
@@ -70,7 +128,9 @@ export async function analyzeContentTiming(userId: string, platform: string): Pr
       eq(distributionEvents.platform, platform),
       gte(distributionEvents.createdAt, daysAgo(60))
     ))
-    .limit(100);
+    .limit(200);
+
+  const historicalPerf = buildHistoricalPerformanceMap(recentEvents);
 
   const bestWindows: TimingWindow[] = [];
   const worstWindows: TimingWindow[] = [];
@@ -78,13 +138,19 @@ export async function analyzeContentTiming(userId: string, platform: string): Pr
   if (activityPatterns.length > 5) {
     const top = activityPatterns.slice(0, 5);
     for (const p of top) {
+      const key = `${p.dayOfWeek}:${p.hourOfDay}`;
+      const perfData = historicalPerf.get(key);
+      const perfBoost = perfData && perfData.totalCount >= 3
+        ? (perfData.successCount / perfData.totalCount) * 0.2
+        : 0;
+
       bestWindows.push({
         platform,
         dayOfWeek: p.dayOfWeek,
         hourOfDay: p.hourOfDay,
-        score: Math.min(1, (p.activityLevel || 50) / 100),
-        viewsMultiplier: 1 + ((p.activityLevel || 50) / 200),
-        confidence: Math.min(1, (p.sampleSize || 1) / 20),
+        score: Math.min(1, ((p.activityLevel || 50) / 100) + perfBoost),
+        viewsMultiplier: 1 + ((p.activityLevel || 50) / 200) + perfBoost,
+        confidence: Math.min(1, ((p.sampleSize || 1) / 20) + (perfData ? perfData.totalCount / 30 : 0)),
       });
     }
 
@@ -102,13 +168,19 @@ export async function analyzeContentTiming(userId: string, platform: string): Pr
   } else {
     const defaults = DEFAULT_OPTIMAL_WINDOWS[platform] || DEFAULT_OPTIMAL_WINDOWS.youtube;
     for (const d of defaults) {
+      const key = `${d.day}:${d.hour}`;
+      const perfData = historicalPerf.get(key);
+      const perfBoost = perfData && perfData.totalCount >= 2
+        ? (perfData.successCount / perfData.totalCount) * 0.15
+        : 0;
+
       bestWindows.push({
         platform,
         dayOfWeek: d.day,
         hourOfDay: d.hour,
-        score: d.score,
-        viewsMultiplier: 1 + d.score * 0.5,
-        confidence: 0.3,
+        score: Math.min(1, d.score + perfBoost),
+        viewsMultiplier: 1 + (d.score + perfBoost) * 0.5,
+        confidence: perfData ? Math.min(1, 0.3 + perfData.totalCount / 20) : 0.3,
       });
     }
   }
@@ -119,17 +191,18 @@ export async function analyzeContentTiming(userId: string, platform: string): Pr
       platform,
       dayOfWeek: w.dayOfWeek,
       hourOfDay: w.hourOfDay,
-      timezone: "UTC",
+      timezone: userTimezone,
       engagementScore: w.score,
       viewsMultiplier: w.viewsMultiplier,
-      sampleSize: activityPatterns.length,
+      sampleSize: activityPatterns.length + recentEvents.length,
     }).catch(() => {});
   }
 
   try {
     const { emitDomainEvent } = await import("../kernel/index");
     await emitDomainEvent(userId, "timing.analyzed", {
-      platform, windowCount: bestWindows.length,
+      platform, windowCount: bestWindows.length, timezone: userTimezone,
+      historicalDataPoints: recentEvents.length,
     }, "content-timing", platform);
   } catch {}
 
@@ -138,7 +211,7 @@ export async function analyzeContentTiming(userId: string, platform: string): Pr
     platform,
     bestWindows,
     worstWindows,
-    timezone: "UTC",
+    timezone: userTimezone,
     dataPoints: activityPatterns.length + recentEvents.length,
   };
 }
@@ -149,11 +222,12 @@ export async function getBestPublishTime(userId: string, platform: string): Prom
   hourOfDay: number;
   score: number;
   confidence: number;
+  timezone: string;
 }> {
   const analysis = await analyzeContentTiming(userId, platform);
   const best = analysis.bestWindows[0];
   if (!best) {
-    return { dayOfWeek: 5, dayName: "Friday", hourOfDay: 17, score: 0.7, confidence: 0.2 };
+    return { dayOfWeek: 5, dayName: "Friday", hourOfDay: 17, score: 0.7, confidence: 0.2, timezone: analysis.timezone };
   }
   return {
     dayOfWeek: best.dayOfWeek,
@@ -161,6 +235,7 @@ export async function getBestPublishTime(userId: string, platform: string): Prom
     hourOfDay: best.hourOfDay,
     score: best.score,
     confidence: best.confidence,
+    timezone: analysis.timezone,
   };
 }
 

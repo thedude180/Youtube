@@ -1,6 +1,16 @@
 import type { Platform } from "@shared/schema";
 import { PLATFORM_CAPABILITIES } from "@shared/schema";
 
+async function checkTrustBudgetForBrand(userId: string): Promise<{ allowed: boolean }> {
+  try {
+    const { checkTrustBudget } = await import("../kernel/trust-budget");
+    const result = await checkTrustBudget(userId, "adaptive-brand", 1);
+    return { allowed: !result.blocked };
+  } catch {
+    return { allowed: false };
+  }
+}
+
 type BrandAdaptation = {
   platform: string;
   title: string;
@@ -69,6 +79,18 @@ export async function adaptBrandForPlatform(
 ): Promise<BrandAdaptation> {
   const spec = PLATFORM_SPECS[platform] || PLATFORM_SPECS.youtube;
   const contentNotes: string[] = [];
+
+  const trustCheck = await checkTrustBudgetForBrand(userId);
+  if (!trustCheck.allowed) {
+    return {
+      platform: platform as string,
+      title: content.title.substring(0, spec.maxTitleLength),
+      description: content.description.substring(0, spec.maxDescLength || content.description.length),
+      tags: content.tags.slice(0, spec.maxTags),
+      thumbnailSpec: { width: spec.thumbnailWidth, height: spec.thumbnailHeight, format: spec.thumbnailFormat },
+      contentNotes: ["Trust budget exhausted — using basic adaptation only"],
+    };
+  }
 
   let { getBrandProfile, checkBrandAlignment } = await import("../content/brand-system");
   const profile = getBrandProfile(userId);

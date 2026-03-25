@@ -1,6 +1,16 @@
 import type { Platform } from "@shared/schema";
 import { PLATFORM_CAPABILITIES } from "@shared/schema";
 
+async function checkTrustBudgetForPackaging(userId: string): Promise<{ allowed: boolean }> {
+  try {
+    const { checkTrustBudget } = await import("../kernel/trust-budget");
+    const result = await checkTrustBudget(userId, "cross-platform-packaging", 1);
+    return { allowed: !result.blocked };
+  } catch {
+    return { allowed: false };
+  }
+}
+
 type PackagedContent = {
   platform: string;
   format: "landscape" | "portrait" | "square" | "text_only";
@@ -43,6 +53,22 @@ export async function packageForPlatform(
 ): Promise<PackagedContent> {
   const fmt = PLATFORM_FORMATS[platform] || PLATFORM_FORMATS.youtube;
   const platformNotes: string[] = [];
+
+  const trustCheck = await checkTrustBudgetForPackaging(userId);
+  if (!trustCheck.allowed) {
+    return {
+      platform: platform as string,
+      format: fmt.format,
+      aspectRatio: fmt.aspectRatio,
+      maxDurationSeconds: fmt.maxDuration,
+      title: content.title,
+      description: content.description,
+      tags: content.tags,
+      thumbnailRequired: fmt.thumbnailRequired,
+      contentTypeLabel: fmt.contentTypeLabel,
+      platformNotes: ["Trust budget exhausted — using basic packaging only"],
+    };
+  }
 
   const { adaptBrandForPlatform } = await import("./adaptive-brand");
   const adapted = await adaptBrandForPlatform(userId, platform, content);
