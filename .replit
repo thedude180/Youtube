@@ -95,3 +95,7 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_openai_ai_int
 [userenv.shared]
 VAPID_PUBLIC_KEY = "BGqxdJN5Vdr_obD35xNo-_gU9LGt5RZyfXyZ7WAMPmonU6h76Q0WbMEVjuRrhcdMIMr4QVvwUqVzO4EIOKwP0Bc"
 VAPID_PRIVATE_KEY = "cInyyHI2VRaPElnB6UzEB9_YGsUjQ7K-VrqqQhmcjvQ"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
