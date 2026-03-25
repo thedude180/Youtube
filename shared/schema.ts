@@ -6509,20 +6509,30 @@ export type PromptDriftEvaluation = typeof promptDriftEvaluations.$inferSelect;
 
 export const webhookDeliveryRecords = pgTable("webhook_delivery_records", {
   id: serial("id").primaryKey(),
-  webhookUrl: text("webhook_url").notNull(),
-  eventType: text("event_type").notNull(),
+  webhookUrl: text("webhook_url"),
+  source: text("source"),
+  eventType: text("event_type"),
+  deliveryId: text("delivery_id"),
   payload: jsonb("payload").$type<Record<string, any>>().default({}),
   httpStatus: integer("http_status"),
   responseBody: text("response_body"),
   attemptNumber: integer("attempt_number").default(1),
   maxAttempts: integer("max_attempts").default(3),
+  signatureValid: boolean("signature_valid"),
+  signatureError: text("signature_error"),
   status: text("status").notNull().default("pending"),
   nextRetryAt: timestamp("next_retry_at"),
+  processedAt: timestamp("processed_at"),
+  dlqId: integer("dlq_id"),
+  ipAddress: text("ip_address"),
   deliveredAt: timestamp("delivered_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   wdr_event_idx: index("wdr_event_idx").on(t.eventType),
   wdr_status_idx: index("wdr_status_idx").on(t.status),
+  wdr_source_idx: index("wdr_source_idx2").on(t.source),
+  wdr_created_idx: index("wdr_created_idx2").on(t.createdAt),
+  wdr_delivery_idx: index("wdr_delivery_idx2").on(t.deliveryId),
 }));
 export type WebhookDeliveryRecord = typeof webhookDeliveryRecords.$inferSelect;
 
@@ -6590,3 +6600,5 @@ export const systemSelfAssessmentReports = pgTable("system_self_assessment_repor
   ssar_assessed_idx: index("ssar_assessed_idx").on(t.assessedAt),
 }));
 export type SystemSelfAssessmentReport = typeof systemSelfAssessmentReports.$inferSelect;
+export const insertWebhookDeliveryRecordSchema = createInsertSchema(webhookDeliveryRecords).omit({ id: true, createdAt: true });
+export type InsertWebhookDeliveryRecord = z.infer<typeof insertWebhookDeliveryRecordSchema>;

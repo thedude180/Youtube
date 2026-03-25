@@ -174,17 +174,18 @@ async function initStripe() {
 // initStripe is deferred into the listen callback (T+90s) so that the workflow
 // runner has time to confirm server stability before heavy startup work begins.
 
+import { createWebhookVerificationMiddleware } from "./kernel/webhook-verification";
+
+const stripeWebhookVerifier = createWebhookVerificationMiddleware("stripe");
+
 app.post(
   '/api/stripe/webhook',
   express.raw({ type: 'application/json' }),
+  stripeWebhookVerifier,
   async (req, res) => {
-    const signature = req.headers['stripe-signature'];
-    if (!signature) {
-      return res.status(400).json({ error: 'Missing stripe-signature' });
-    }
-
     try {
-      const sig = Array.isArray(signature) ? signature[0] : signature;
+      const signature = req.headers['stripe-signature'];
+      const sig = Array.isArray(signature) ? signature[0] : (signature || '');
 
       if (!Buffer.isBuffer(req.body)) {
         logger.error('STRIPE WEBHOOK ERROR: req.body is not a Buffer');
@@ -1037,6 +1038,8 @@ httpServer.listen(
         m.seedAgentExplanationContract().catch(err => logger.error("Schema registry seed failed", { error: String(err) }));
       }).catch(err => logger.error("Schema registry seed module failed to load", { error: String(err) }));
       import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(err => logger.error("Signal registry seed failed", { error: String(err) }));
+      import("./kernel/seed").then(m => m.seedKernelData()).catch(err => logger.error("Kernel seed failed", { error: String(err) }));
+      import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(err => logger.error("Smart-edit command registration failed", { error: String(err) }));
     });
 
     delay(15_000, () => {

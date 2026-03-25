@@ -640,7 +640,21 @@ export async function processSmartEditQueue(userId: string): Promise<void> {
       return;
     }
 
-    await runSmartEditJob(item.id, userId, sourceVideoId);
+    const { submitSmartEditToKernel } = await import("./kernel/smart-edit-handler");
+    const kernelResult = await submitSmartEditToKernel(userId, sourceVideoId, item.id);
+
+    if (!kernelResult.success) {
+      if (kernelResult.reason === "idempotent-skip") {
+        logger.info("Smart edit job skipped (idempotent)", { userId, videoId: sourceVideoId, queueItemId: item.id });
+      } else {
+        const reason = kernelResult.reason || kernelResult.error || "kernel-denied";
+        logger.warn("Smart edit job denied by kernel", { userId, videoId: sourceVideoId, reason });
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: `Kernel denied: ${reason}` })
+          .where(eq(autopilotQueue.id, item.id))
+          .catch(() => undefined);
+      }
+    }
   } catch (err) {
     logger.error("processSmartEditQueue error", { userId, error: String(err).substring(0, 300) });
   } finally {
