@@ -1,6 +1,6 @@
 # CREATOROS — CONSOLIDATED MASTER PROMPT v9.0
 
-STATUS: v8.0 FROZEN BASELINE + v9.0 AMENDMENTS (a01 + a02) INTEGRATED + v9.1 TIGHTENING EDITS
+STATUS: v8.0 FROZEN BASELINE + v9.0 AMENDMENTS (a01 + a02) INTEGRATED
 PURPOSE: FULL PRODUCT + OPERATING SPINE + MARKET-DOMINANCE BUILD DIRECTIVE
 EDIT RULE: DO NOT REWRITE THIS DOCUMENT IN PLACE. APPEND CHANGES AS VERSIONED AMENDMENTS.
 
@@ -779,18 +779,6 @@ Rules:
 - trust budget resets must be human-approved and audited
 - trust budget state must be a kernel-level concern, not a UI decoration
 
-TRUST BUDGET RULE
-Aggressive growth actions must consume from explicit trust budgets, including:
-- sponsorship intensity
-- CTA pressure
-- title volatility
-- comment automation
-- posting pressure
-- audience fatigue
-
-When trust budget is depleted, the system must tighten automation automatically.
-No system may silently overspend trust budget.
-
 ---
 
 ## OVERRIDE LEARNING SYSTEM (v9.0)
@@ -1066,6 +1054,18 @@ No money UI may silently blend realized and estimated values.
 - suspicious loops must be detected
 - fraud-prone workflows must be rate-limited and audited
 - no unsafe outbound automation with no throttling or reason codes
+
+TRUST BUDGET RULE
+Aggressive growth actions must consume from explicit trust budgets, including:
+- sponsorship intensity
+- CTA pressure
+- title volatility
+- comment automation
+- posting pressure
+- audience fatigue
+
+When trust budget is depleted, the system must tighten automation automatically.
+No system may silently overspend trust budget.
 
 ---
 
@@ -1935,8 +1935,8 @@ The overall product is not final unless:
 - "ultimate" tier, 10 channels connected
 
 ### What Is Already Built (Phase 1 partial)
-- All v8.0 Phase 1 tables added to schema and migrated
-- All ~33 v9.0 amendment tables added to schema and migrated
+- 17 v8.0 Phase 1 tables added to schema and migrated (domain_events, schema_registry, signal_registry, prompt_versions, signed_action_receipts, operating_mode_history, channel_maturity_scores, feature_flag_audit, approval_matrix_rules, approval_decisions, commercial_tier_entitlements, benchmark_participation_settings, learning_signals, learning_maturity_scores, agent_interop_messages, agent_ui_payloads, eval_runs)
+- dead_letter_queue and revenue_attribution tables already existed
 - Secure Kernel created at `server/kernel/index.ts` with:
   - `emitDomainEvent()` — append-only writes to domain_events
   - `routeCommand()` — CQRS write path with approval matrix check, idempotency enforcement, DLQ routing
@@ -1945,20 +1945,14 @@ The overall product is not final unless:
   - `routeToDLQ()` — dead letter queue routing
   - `verifyReceipt()` — receipt signature verification
   - `registerCommand()` — command handler registration
-- Learning signal infrastructure created at `server/kernel/learning.ts` with:
-  - `emitLearningSignal()` — writes classified signals to learning_signals table
-  - `seedSignalRegistry()` — seeds 7 initial signal types
-- Feature flag gating wired into Smart Edit Engine
-- Smart Edit Engine emits learning signals on success/failure
-- Agent Explanation Contract seeded into schema_registry
-- Signal Registry seeded with initial signal types
-- 4 kernel unit tests passing (vitest)
-- Learning signal tests passing (25 assertions)
+- Feature flag gating wired into Smart Edit Engine (checkFeatureFlag("smart-edit", userId) at top of runSmartEditJob())
 - Build passes clean (npm run build — zero errors)
 
 ### What Is Not Yet Built (Phase 1 remaining)
-- Governed workflow end-to-end wiring (Task #2 — in progress)
+- ~33 v9.0 amendment tables not yet in schema
 - Webhook verification middleware
+- Learning signal emission function (emitLearningSignal)
+- Signal Registry seed data
 - Agent Interop Bus (sendAgentMessage / getAgentMessages)
 - Eval Harness (runEval / getEvalResults)
 - Trust Budget kernel integration
@@ -1971,33 +1965,38 @@ The overall product is not final unless:
 - Capability Degradation Playbooks
 - Feature Sunset state model
 - CMD+K command palette
+- Agent Explanation Contract schema registry entry
+- Kernel unit tests
 - End-to-end governed workflow integration test
 
 ---
 
 ## PHASE 1 TASK PLAN
 
-### Task #1: Secure Kernel + DB Foundation (v8.0 + v9.0) — MERGED
-- All v8.0 + v9.0 tables in schema and migrated
-- Feature_flags extended with lifecycle_state column
-- Revenue_records extended with reconciliation columns
-- Agent Explanation Contract registered in schema_registry
-- Kernel unit tests passing
-- Build passes clean
+### Task #1: Secure Kernel + DB Foundation (v8.0 + v9.0)
+- Add ~33 v9.0 amendment tables to schema
+- Extend feature_flags with lifecycle_state column
+- Extend revenue_records with reconciliation columns
+- Register Agent Explanation Contract in schema_registry
+- Run DB migration
+- Write kernel unit tests (emitDomainEvent, issueSignedReceipt, checkFeatureFlag, routeToDLQ)
+- Verify build integrity
+- Dependencies: none
 
-### Task #2: Governed Workflow + Approval Matrix + Webhook Reliability — IN PROGRESS
+### Task #2: Governed Workflow + Approval Matrix + Webhook Reliability
 - Wire Smart Edit Engine through routeCommand() end-to-end
 - Seed approval_matrix_rules for "smart-edit" action type
 - Create webhook verification middleware with signature verification
 - Write webhook_delivery_records on every webhook
+- Seed Agent Explanation Contract into schema_registry
 - Tests: end-to-end governed workflow, approval denial, signed receipt, idempotency, webhook rejection
 - Dependencies: Task #1
 
-### Task #3: Learning Signal Infrastructure — MERGED
-- emitLearningSignal() function built
-- Signal Registry seeded with 7 initial signal types
-- Smart Edit Engine emits learning signals at job completion
-- 25 test assertions passing
+### Task #3: Learning Signal Infrastructure
+- Build emitLearningSignal() function
+- Seed Signal Registry with initial signal types
+- Wire Smart Edit Engine to emit learning signals at job completion
+- Tests: signal emission, unregistered signal type warning
 - Dependencies: Task #1
 
 ### Task #4: Agent Interop Bus + Eval Harness + Trust Budget + Capability Probes
