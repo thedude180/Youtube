@@ -58,6 +58,7 @@ Return a JSON object where keys are platform names and values are the generated 
         const caption = captions[platform] || "";
         
         let governanceAllowed = true;
+        const trustCost = 5;
         try {
           const { checkPublishingGates } = await import("../distribution/publishing-gates");
           const { getConnectionHealth } = await import("../distribution/connection-health");
@@ -67,9 +68,37 @@ Return a JSON object where keys are platform names and values are the generated 
           if (health.status === "open") {
             logger.warn(`[MultiPlatformDistributor] Skipping ${platform} — circuit breaker open`);
             await recordDistributionLearning(userId, platform, "distribute_blocked", {
-              allowed: false, trustCost: 0, policyIssues: ["circuit breaker open"], connectionStatus: "open",
+              allowed: false, trustCost, policyIssues: ["circuit breaker open"], connectionStatus: "open",
             }).catch(() => {});
             governanceAllowed = false;
+          }
+
+          if (governanceAllowed) {
+            try {
+              const { checkTrustBudget } = await import("../kernel/trust-budget");
+              const trustResult = await checkTrustBudget(userId, `distribution:${platform}`, trustCost);
+              if (trustResult.blocked) {
+                logger.warn(`[MultiPlatformDistributor] Trust budget blocked ${platform}`);
+                await recordDistributionLearning(userId, platform, "distribute_trust_blocked", {
+                  allowed: false, trustCost, policyIssues: ["trust budget exhausted"], connectionStatus: health.status,
+                }).catch(() => {});
+                governanceAllowed = false;
+              }
+            } catch {}
+          }
+
+          if (governanceAllowed) {
+            try {
+              const { probeCapability } = await import("../kernel/capability-probe");
+              const probe = await probeCapability(platform, `${platform}:publish`, undefined, userId);
+              if (probe.probeResult === "error") {
+                logger.warn(`[MultiPlatformDistributor] Capability probe failed for ${platform}`);
+                await recordDistributionLearning(userId, platform, "distribute_capability_failed", {
+                  allowed: false, trustCost, policyIssues: ["capability probe failed"], connectionStatus: health.status,
+                }).catch(() => {});
+                governanceAllowed = false;
+              }
+            } catch {}
           }
 
           if (governanceAllowed) {
@@ -81,7 +110,7 @@ Return a JSON object where keys are platform names and values are the generated 
             if (!gateResult.passed) {
               logger.warn(`[MultiPlatformDistributor] Policy blocked ${platform}: ${gateResult.issues.join(", ")}`);
               await recordDistributionLearning(userId, platform, "distribute_policy_blocked", {
-                allowed: false, trustCost: 0, policyIssues: gateResult.issues, connectionStatus: health.status,
+                allowed: false, trustCost, policyIssues: gateResult.issues, connectionStatus: health.status,
               }).catch(() => {});
               governanceAllowed = false;
             }

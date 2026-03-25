@@ -347,6 +347,47 @@ export async function publishToplatform(
       };
     }
 
+    let trustBudgetBlocked = false;
+    const trustCost = platform === "youtube" ? 10 : 5;
+    try {
+      const { checkTrustBudget } = await import("./kernel/trust-budget");
+      const trustResult = await checkTrustBudget(userId, `distribution:${platform}`, trustCost);
+      if (trustResult.blocked) {
+        trustBudgetBlocked = true;
+        await recordDistributionLearning(userId, platform, "publish_trust_blocked", {
+          allowed: false,
+          trustCost,
+          policyIssues: ["trust budget exhausted"],
+          connectionStatus: connectionHealth.status,
+        }).catch(() => {});
+        return {
+          success: false,
+          platform,
+          error: `Publishing blocked: trust budget exhausted for ${platform} distribution (remaining: ${trustResult.remaining}).`,
+        };
+      }
+    } catch {}
+
+    let capabilityOk = true;
+    try {
+      const { probeCapability } = await import("./kernel/capability-probe");
+      const probeResult = await probeCapability(platform, `${platform}:publish`, undefined, userId);
+      if (probeResult.probeResult === "error") {
+        capabilityOk = false;
+        await recordDistributionLearning(userId, platform, "publish_capability_failed", {
+          allowed: false,
+          trustCost,
+          policyIssues: ["capability probe failed"],
+          connectionStatus: connectionHealth.status,
+        }).catch(() => {});
+        return {
+          success: false,
+          platform,
+          error: `Publishing blocked: capability probe failed for ${platform}. Platform integration may be unavailable.`,
+        };
+      }
+    } catch {}
+
     const gateResult = await checkPublishingGates(userId, platform, {
       title: metadata?.title || content.slice(0, 100),
       description: metadata?.description || content,
@@ -358,7 +399,7 @@ export async function publishToplatform(
     if (!gateResult.passed) {
       await recordDistributionLearning(userId, platform, "publish_policy_blocked", {
         allowed: false,
-        trustCost: 0,
+        trustCost,
         policyIssues: gateResult.issues,
         connectionStatus: connectionHealth.status,
       }).catch(() => {});
@@ -381,7 +422,7 @@ export async function publishToplatform(
 
     await recordDistributionLearning(userId, platform, result.success ? "publish_success" : "publish_failure", {
       allowed: result.success,
-      trustCost: 0,
+      trustCost,
       policyIssues: [],
       connectionStatus: connectionHealth.status,
     }).catch(() => {});
