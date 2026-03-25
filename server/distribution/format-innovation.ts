@@ -77,14 +77,14 @@ export async function analyzeFormatInnovations(userId: string, platforms?: strin
       : `${((f.competitorAdoption ?? 0) * 100).toFixed(0)}% competitor adoption — consider differentiating`,
   }));
 
-  const existingFormatNames = new Set(existingFormats.map(f => f.formatName.toLowerCase()));
+  const existingFormatKeys = new Set(existingFormats.map(f => `${f.platform}:${f.formatName.toLowerCase()}`));
   const targetPlatforms = platforms || Object.keys(KNOWN_EMERGING_FORMATS);
   const emergingFormats: FormatOpportunity[] = [];
 
   for (const plat of targetPlatforms) {
     const knownFormats = KNOWN_EMERGING_FORMATS[plat] || [];
     for (const fmt of knownFormats) {
-      if (existingFormatNames.has(fmt.name.toLowerCase())) continue;
+      if (existingFormatKeys.has(`${fmt.platform}:${fmt.name.toLowerCase()}`)) continue;
 
       const competitorAdoption = competitors.filter(c =>
         c.platform === plat && c.strengths?.some(s => s.toLowerCase().includes(fmt.name.split(" ")[0].toLowerCase()))
