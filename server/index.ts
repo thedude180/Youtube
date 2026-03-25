@@ -1032,6 +1032,12 @@ httpServer.listen(
 
     delay(12_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
 
+    delay(13_000, () => {
+      import("./kernel/seed-schema-registry").then(m => {
+        m.seedAgentExplanationContract().catch(err => logger.error("Schema registry seed failed", { error: String(err) }));
+      }).catch(err => logger.error("Schema registry seed module failed to load", { error: String(err) }));
+    });
+
     delay(15_000, () => {
       import("./services/agent-events").then(m => {
         m.wireAgentCoordination().catch(err => logger.error("Agent coordination wiring failed", { error: String(err) }));

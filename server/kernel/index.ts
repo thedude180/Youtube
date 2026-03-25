@@ -55,7 +55,7 @@ export async function issueSignedReceipt(
   rollbackAvailable: boolean = false,
   rollbackMetadata?: Record<string, any>
 ): Promise<number> {
-  const sigData = JSON.stringify({ userId, actionType, executionKey, payload, result, ts: Date.now() });
+  const sigData = JSON.stringify({ userId, actionType, executionKey, payload, result });
   const hmacSignature = computeHmac(sigData);
 
   const [receipt] = await db

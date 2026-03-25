@@ -510,6 +510,11 @@ export const revenueRecords = pgTable("revenue_records", {
     views?: number;
     subscribers?: number;
   }>(),
+  reconciliationStatus: text("reconciliation_status").default("unverified"),
+  reconciliationSource: text("reconciliation_source"),
+  reconciliationVerifiedAt: timestamp("reconciliation_verified_at"),
+  reconciliationGapAmount: real("reconciliation_gap_amount"),
+  reconciliationNotes: text("reconciliation_notes"),
   recordedAt: timestamp("recorded_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
@@ -3722,6 +3727,7 @@ export const featureFlags = pgTable("feature_flags", {
   enabled: boolean("enabled").default(false),
   rolloutPercentage: integer("rollout_percentage").default(100),
   minTier: text("min_tier").default("free"),
+  lifecycleState: text("lifecycle_state").default("active"),
   metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -6027,3 +6033,560 @@ export const evalRuns = pgTable("eval_runs", {
   er_ran_idx: index("er_ran_idx").on(t.ranAt),
 }));
 export type EvalRun = typeof evalRuns.$inferSelect;
+
+// === V9.0 AMENDMENT TABLES ===
+
+export const reconciliationRuns = pgTable("reconciliation_runs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  runType: text("run_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  recordsChecked: integer("records_checked").default(0),
+  driftsFound: integer("drifts_found").default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  rr_user_idx: index("rr_user_idx").on(t.userId),
+  rr_status_idx: index("rr_status_idx").on(t.status),
+}));
+export type ReconciliationRun = typeof reconciliationRuns.$inferSelect;
+
+export const reconciliationDriftRecords = pgTable("reconciliation_drift_records", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").references(() => reconciliationRuns.id),
+  userId: text("user_id").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  driftType: text("drift_type").notNull(),
+  expectedValue: jsonb("expected_value").$type<Record<string, any>>(),
+  actualValue: jsonb("actual_value").$type<Record<string, any>>(),
+  severity: text("severity").default("medium"),
+  resolved: boolean("resolved").default(false),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  rdr_run_idx: index("rdr_run_idx").on(t.runId),
+  rdr_user_idx: index("rdr_user_idx").on(t.userId),
+  rdr_entity_idx: index("rdr_entity_idx").on(t.entityType, t.entityId),
+}));
+export type ReconciliationDriftRecord = typeof reconciliationDriftRecords.$inferSelect;
+
+export const idempotencyLedger = pgTable("idempotency_ledger", {
+  id: serial("id").primaryKey(),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  userId: text("user_id"),
+  operationType: text("operation_type").notNull(),
+  status: text("status").notNull().default("completed"),
+  requestHash: text("request_hash"),
+  responseSnapshot: jsonb("response_snapshot").$type<Record<string, any>>(),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  il_key_idx: index("il_key_idx").on(t.idempotencyKey),
+  il_user_idx: index("il_user_idx").on(t.userId),
+}));
+export type IdempotencyLedgerEntry = typeof idempotencyLedger.$inferSelect;
+
+export const capabilityRegistryRecords = pgTable("capability_registry_records", {
+  id: serial("id").primaryKey(),
+  capabilityName: text("capability_name").notNull().unique(),
+  category: text("category").notNull(),
+  status: text("status").notNull().default("active"),
+  version: integer("version").default(1),
+  provider: text("provider"),
+  dependencies: jsonb("dependencies").$type<string[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  crr_name_idx: index("crr_name_idx").on(t.capabilityName),
+  crr_category_idx: index("crr_category_idx").on(t.category),
+}));
+export type CapabilityRegistryRecord = typeof capabilityRegistryRecords.$inferSelect;
+
+export const connectorScopeRecords = pgTable("connector_scope_records", {
+  id: serial("id").primaryKey(),
+  connectorName: text("connector_name").notNull(),
+  scopeKey: text("scope_key").notNull(),
+  scopeType: text("scope_type").notNull(),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  userId: text("user_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  csr_connector_idx: index("csr_connector_idx").on(t.connectorName),
+  csr_user_idx: index("csr_user_idx").on(t.userId),
+}));
+export type ConnectorScopeRecord = typeof connectorScopeRecords.$inferSelect;
+
+export const jobLeases = pgTable("job_leases", {
+  id: serial("id").primaryKey(),
+  jobId: text("job_id").notNull().unique(),
+  workerName: text("worker_name").notNull(),
+  leaseExpiresAt: timestamp("lease_expires_at").notNull(),
+  status: text("status").notNull().default("active"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  acquiredAt: timestamp("acquired_at").defaultNow(),
+  releasedAt: timestamp("released_at"),
+}, (t) => ({
+  jl_job_idx: index("jl_job_idx").on(t.jobId),
+  jl_worker_idx: index("jl_worker_idx").on(t.workerName),
+}));
+export type JobLease = typeof jobLeases.$inferSelect;
+
+export const jobHeartbeats = pgTable("job_heartbeats", {
+  id: serial("id").primaryKey(),
+  jobId: text("job_id").notNull(),
+  workerName: text("worker_name").notNull(),
+  progress: integer("progress").default(0),
+  statusMessage: text("status_message"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  heartbeatAt: timestamp("heartbeat_at").defaultNow(),
+}, (t) => ({
+  jh_job_idx: index("jh_job_idx").on(t.jobId),
+}));
+export type JobHeartbeat = typeof jobHeartbeats.$inferSelect;
+
+export const poisonJobRecords = pgTable("poison_job_records", {
+  id: serial("id").primaryKey(),
+  jobId: text("job_id").notNull(),
+  jobType: text("job_type").notNull(),
+  failureCount: integer("failure_count").notNull().default(1),
+  lastError: text("last_error"),
+  payload: jsonb("payload").$type<Record<string, any>>().default({}),
+  quarantinedAt: timestamp("quarantined_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pjr_job_idx: index("pjr_job_idx").on(t.jobId),
+  pjr_type_idx: index("pjr_type_idx").on(t.jobType),
+}));
+export type PoisonJobRecord = typeof poisonJobRecords.$inferSelect;
+
+export const revenueTruthRecords = pgTable("revenue_truth_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  period: text("period").notNull(),
+  reportedAmount: real("reported_amount").notNull().default(0),
+  verifiedAmount: real("verified_amount"),
+  currency: text("currency").default("USD"),
+  sourceOfTruth: text("source_of_truth").notNull(),
+  verificationStatus: text("verification_status").default("pending"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  rtr_user_idx: index("rtr_user_idx").on(t.userId),
+  rtr_platform_idx: index("rtr_platform_idx").on(t.platform),
+  rtr_period_idx: index("rtr_period_idx").on(t.period),
+}));
+export type RevenueTruthRecord = typeof revenueTruthRecords.$inferSelect;
+
+export const revenueSettlementRecords = pgTable("revenue_settlement_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  truthRecordId: integer("truth_record_id").references(() => revenueTruthRecords.id),
+  settlementType: text("settlement_type").notNull(),
+  amount: real("amount").notNull().default(0),
+  currency: text("currency").default("USD"),
+  status: text("status").notNull().default("pending"),
+  settledAt: timestamp("settled_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  rsr_user_idx: index("rsr_user_idx").on(t.userId),
+  rsr_truth_idx: index("rsr_truth_idx").on(t.truthRecordId),
+}));
+export type RevenueSettlementRecord = typeof revenueSettlementRecords.$inferSelect;
+
+export const priorContradictionRecords = pgTable("prior_contradiction_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentName: text("agent_name").notNull(),
+  priorClaimId: text("prior_claim_id"),
+  contradictingClaimId: text("contradicting_claim_id"),
+  priorClaim: jsonb("prior_claim").$type<Record<string, any>>(),
+  contradictingClaim: jsonb("contradicting_claim").$type<Record<string, any>>(),
+  resolutionStatus: text("resolution_status").default("unresolved"),
+  resolvedBy: text("resolved_by"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+}, (t) => ({
+  pcr_user_idx: index("pcr_user_idx").on(t.userId),
+  pcr_agent_idx: index("pcr_agent_idx").on(t.agentName),
+}));
+export type PriorContradictionRecord = typeof priorContradictionRecords.$inferSelect;
+
+export const priorFreshnessRecords = pgTable("prior_freshness_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentName: text("agent_name").notNull(),
+  priorKey: text("prior_key").notNull(),
+  lastRefreshedAt: timestamp("last_refreshed_at"),
+  freshnessScore: real("freshness_score").default(1.0),
+  staleThreshold: real("stale_threshold").default(0.3),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pfr_user_idx: index("pfr_user_idx").on(t.userId),
+  pfr_agent_idx: index("pfr_agent_idx").on(t.agentName),
+  pfr_key_idx: index("pfr_key_idx").on(t.priorKey),
+}));
+export type PriorFreshnessRecord = typeof priorFreshnessRecords.$inferSelect;
+
+export const rolloutLaneRecords = pgTable("rollout_lane_records", {
+  id: serial("id").primaryKey(),
+  laneName: text("lane_name").notNull().unique(),
+  laneType: text("lane_type").notNull(),
+  percentage: integer("percentage").default(0),
+  status: text("status").notNull().default("active"),
+  criteria: jsonb("criteria").$type<Record<string, any>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  rlr_name_idx: index("rlr_name_idx").on(t.laneName),
+}));
+export type RolloutLaneRecord = typeof rolloutLaneRecords.$inferSelect;
+
+export const rolloutExposureRecords = pgTable("rollout_exposure_records", {
+  id: serial("id").primaryKey(),
+  laneId: integer("lane_id").references(() => rolloutLaneRecords.id),
+  userId: text("user_id").notNull(),
+  featureKey: text("feature_key").notNull(),
+  variant: text("variant").default("control"),
+  exposedAt: timestamp("exposed_at").defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+}, (t) => ({
+  rer_lane_idx: index("rer_lane_idx").on(t.laneId),
+  rer_user_idx: index("rer_user_idx").on(t.userId),
+  rer_feature_idx: index("rer_feature_idx").on(t.featureKey),
+}));
+export type RolloutExposureRecord = typeof rolloutExposureRecords.$inferSelect;
+
+export const trustBudgetRecords = pgTable("trust_budget_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentName: text("agent_name").notNull(),
+  budgetTotal: real("budget_total").notNull().default(100),
+  budgetRemaining: real("budget_remaining").notNull().default(100),
+  lastDeductionAmount: real("last_deduction_amount"),
+  lastDeductionReason: text("last_deduction_reason"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  tbr_user_idx: index("tbr_user_idx").on(t.userId),
+  tbr_agent_idx: index("tbr_agent_idx").on(t.agentName),
+}));
+export type TrustBudgetRecord = typeof trustBudgetRecords.$inferSelect;
+
+export const continuityArtifacts = pgTable("continuity_artifacts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  artifactType: text("artifact_type").notNull(),
+  artifactKey: text("artifact_key").notNull(),
+  payload: jsonb("payload").$type<Record<string, any>>().default({}),
+  version: integer("version").default(1),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  ca_user_idx: index("ca_user_idx").on(t.userId),
+  ca_type_idx: index("ca_type_idx").on(t.artifactType),
+  ca_key_idx: index("ca_key_idx").on(t.artifactKey),
+}));
+export type ContinuityArtifact = typeof continuityArtifacts.$inferSelect;
+
+export const archiveIntegrityReports = pgTable("archive_integrity_reports", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  archiveType: text("archive_type").notNull(),
+  recordsScanned: integer("records_scanned").default(0),
+  integrityScore: real("integrity_score").default(1.0),
+  issuesFound: integer("issues_found").default(0),
+  details: jsonb("details").$type<Record<string, any>>().default({}),
+  reportedAt: timestamp("reported_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  air_user_idx: index("air_user_idx").on(t.userId),
+  air_type_idx: index("air_type_idx").on(t.archiveType),
+}));
+export type ArchiveIntegrityReport = typeof archiveIntegrityReports.$inferSelect;
+
+export const operatorOverrideRecords = pgTable("operator_override_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  overrideType: text("override_type").notNull(),
+  targetEntity: text("target_entity").notNull(),
+  targetId: text("target_id"),
+  previousValue: jsonb("previous_value").$type<Record<string, any>>(),
+  newValue: jsonb("new_value").$type<Record<string, any>>(),
+  reason: text("reason"),
+  performedBy: text("performed_by").notNull(),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  oor_user_idx: index("oor_user_idx").on(t.userId),
+  oor_type_idx: index("oor_type_idx").on(t.overrideType),
+  oor_target_idx: index("oor_target_idx").on(t.targetEntity),
+}));
+export type OperatorOverrideRecord = typeof operatorOverrideRecords.$inferSelect;
+
+export const overrideReasonRecords = pgTable("override_reason_records", {
+  id: serial("id").primaryKey(),
+  overrideId: integer("override_id").references(() => operatorOverrideRecords.id),
+  reasonCategory: text("reason_category").notNull(),
+  reasonText: text("reason_text").notNull(),
+  confidence: real("confidence"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  orr_override_idx: index("orr_override_idx").on(t.overrideId),
+  orr_category_idx: index("orr_category_idx").on(t.reasonCategory),
+}));
+export type OverrideReasonRecord = typeof overrideReasonRecords.$inferSelect;
+
+export const platformCapabilityProbes = pgTable("platform_capability_probes", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),
+  capabilityName: text("capability_name").notNull(),
+  probeResult: text("probe_result").notNull().default("unknown"),
+  responseTimeMs: integer("response_time_ms"),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  probedAt: timestamp("probed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pcp_platform_idx: index("pcp_platform_idx").on(t.platform),
+  pcp_capability_idx: index("pcp_capability_idx").on(t.capabilityName),
+}));
+export type PlatformCapabilityProbe = typeof platformCapabilityProbes.$inferSelect;
+
+export const executionHistory = pgTable("execution_history", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  actionType: text("action_type").notNull(),
+  executionKey: text("execution_key"),
+  status: text("status").notNull().default("completed"),
+  durationMs: integer("duration_ms"),
+  inputSnapshot: jsonb("input_snapshot").$type<Record<string, any>>().default({}),
+  outputSnapshot: jsonb("output_snapshot").$type<Record<string, any>>().default({}),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  executedAt: timestamp("executed_at").defaultNow(),
+}, (t) => ({
+  eh_user_idx: index("eh_user_idx").on(t.userId),
+  eh_action_idx: index("eh_action_idx").on(t.actionType),
+  eh_key_idx: index("eh_key_idx").on(t.executionKey),
+  eh_executed_idx: index("eh_executed_idx").on(t.executedAt),
+}));
+export type ExecutionHistoryEntry = typeof executionHistory.$inferSelect;
+
+export const trustBudgetPeriods = pgTable("trust_budget_periods", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentName: text("agent_name").notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  startingBudget: real("starting_budget").notNull().default(100),
+  endingBudget: real("ending_budget"),
+  deductionsCount: integer("deductions_count").default(0),
+  totalDeducted: real("total_deducted").default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  tbp_user_idx: index("tbp_user_idx").on(t.userId),
+  tbp_agent_idx: index("tbp_agent_idx").on(t.agentName),
+  tbp_period_idx: index("tbp_period_idx").on(t.periodStart, t.periodEnd),
+}));
+export type TrustBudgetPeriod = typeof trustBudgetPeriods.$inferSelect;
+
+export const capabilityDegradationPlaybooks = pgTable("capability_degradation_playbooks", {
+  id: serial("id").primaryKey(),
+  capabilityName: text("capability_name").notNull(),
+  degradationLevel: text("degradation_level").notNull(),
+  playbookName: text("playbook_name").notNull(),
+  steps: jsonb("steps").$type<Record<string, any>[]>().default([]),
+  autoActivate: boolean("auto_activate").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  cdp_capability_idx: index("cdp_capability_idx").on(t.capabilityName),
+  cdp_level_idx: index("cdp_level_idx").on(t.degradationLevel),
+}));
+export type CapabilityDegradationPlaybook = typeof capabilityDegradationPlaybooks.$inferSelect;
+
+export const playbookActivationEvents = pgTable("playbook_activation_events", {
+  id: serial("id").primaryKey(),
+  playbookId: integer("playbook_id").references(() => capabilityDegradationPlaybooks.id),
+  activatedBy: text("activated_by").notNull(),
+  reason: text("reason"),
+  status: text("status").notNull().default("active"),
+  deactivatedAt: timestamp("deactivated_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  activatedAt: timestamp("activated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pae_playbook_idx: index("pae_playbook_idx").on(t.playbookId),
+  pae_status_idx: index("pae_status_idx").on(t.status),
+}));
+export type PlaybookActivationEvent = typeof playbookActivationEvents.$inferSelect;
+
+export const overrideLearningRecords = pgTable("override_learning_records", {
+  id: serial("id").primaryKey(),
+  overrideId: integer("override_id").references(() => operatorOverrideRecords.id),
+  patternDetected: text("pattern_detected"),
+  suggestedRuleChange: jsonb("suggested_rule_change").$type<Record<string, any>>(),
+  confidenceScore: real("confidence_score"),
+  applied: boolean("applied").default(false),
+  appliedAt: timestamp("applied_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  olr_override_idx: index("olr_override_idx").on(t.overrideId),
+}));
+export type OverrideLearningRecord = typeof overrideLearningRecords.$inferSelect;
+
+export const overridePatternSummaries = pgTable("override_pattern_summaries", {
+  id: serial("id").primaryKey(),
+  patternKey: text("pattern_key").notNull(),
+  patternDescription: text("pattern_description").notNull(),
+  occurrenceCount: integer("occurrence_count").default(1),
+  lastOccurredAt: timestamp("last_occurred_at"),
+  suggestedAction: text("suggested_action"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  ops_key_idx: index("ops_key_idx").on(t.patternKey),
+}));
+export type OverridePatternSummary = typeof overridePatternSummaries.$inferSelect;
+
+export const revenueReconciliationReports = pgTable("revenue_reconciliation_reports", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform"),
+  period: text("period").notNull(),
+  expectedRevenue: real("expected_revenue").default(0),
+  actualRevenue: real("actual_revenue").default(0),
+  discrepancy: real("discrepancy").default(0),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  reportedAt: timestamp("reported_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  rrr_user_idx: index("rrr_user_idx").on(t.userId),
+  rrr_period_idx: index("rrr_period_idx").on(t.period),
+}));
+export type RevenueReconciliationReport = typeof revenueReconciliationReports.$inferSelect;
+
+export const promptDriftEvaluations = pgTable("prompt_drift_evaluations", {
+  id: serial("id").primaryKey(),
+  agentName: text("agent_name").notNull(),
+  promptVersion: text("prompt_version").notNull(),
+  baselineVersion: text("baseline_version"),
+  driftScore: real("drift_score").default(0),
+  evaluationResult: text("evaluation_result").default("pass"),
+  sampleInput: jsonb("sample_input").$type<Record<string, any>>().default({}),
+  sampleOutput: jsonb("sample_output").$type<Record<string, any>>().default({}),
+  baselineOutput: jsonb("baseline_output").$type<Record<string, any>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  evaluatedAt: timestamp("evaluated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pde_agent_idx: index("pde_agent_idx").on(t.agentName),
+  pde_version_idx: index("pde_version_idx").on(t.promptVersion),
+}));
+export type PromptDriftEvaluation = typeof promptDriftEvaluations.$inferSelect;
+
+export const webhookDeliveryRecords = pgTable("webhook_delivery_records", {
+  id: serial("id").primaryKey(),
+  webhookUrl: text("webhook_url").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").$type<Record<string, any>>().default({}),
+  httpStatus: integer("http_status"),
+  responseBody: text("response_body"),
+  attemptNumber: integer("attempt_number").default(1),
+  maxAttempts: integer("max_attempts").default(3),
+  status: text("status").notNull().default("pending"),
+  nextRetryAt: timestamp("next_retry_at"),
+  deliveredAt: timestamp("delivered_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  wdr_event_idx: index("wdr_event_idx").on(t.eventType),
+  wdr_status_idx: index("wdr_status_idx").on(t.status),
+}));
+export type WebhookDeliveryRecord = typeof webhookDeliveryRecords.$inferSelect;
+
+export const featureSunsetRecords = pgTable("feature_sunset_records", {
+  id: serial("id").primaryKey(),
+  featureKey: text("feature_key").notNull(),
+  sunsetReason: text("sunset_reason"),
+  sunsetPhase: text("sunset_phase").notNull().default("announced"),
+  announcedAt: timestamp("announced_at"),
+  deprecatedAt: timestamp("deprecated_at"),
+  removedAt: timestamp("removed_at"),
+  affectedUsers: integer("affected_users").default(0),
+  migrationPath: text("migration_path"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  fsr_feature_idx: index("fsr_feature_idx").on(t.featureKey),
+  fsr_phase_idx: index("fsr_phase_idx").on(t.sunsetPhase),
+}));
+export type FeatureSunsetRecord = typeof featureSunsetRecords.$inferSelect;
+
+export const continuityOperationsPackets = pgTable("continuity_operations_packets", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  packetType: text("packet_type").notNull(),
+  version: integer("version").default(1),
+  status: text("status").notNull().default("active"),
+  summary: text("summary"),
+  payload: jsonb("payload").$type<Record<string, any>>().default({}),
+  validUntil: timestamp("valid_until"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  cop_user_idx: index("cop_user_idx").on(t.userId),
+  cop_type_idx: index("cop_type_idx").on(t.packetType),
+}));
+export type ContinuityOperationsPacket = typeof continuityOperationsPackets.$inferSelect;
+
+export const continuityPacketSections = pgTable("continuity_packet_sections", {
+  id: serial("id").primaryKey(),
+  packetId: integer("packet_id").references(() => continuityOperationsPackets.id),
+  sectionKey: text("section_key").notNull(),
+  sectionTitle: text("section_title").notNull(),
+  content: jsonb("content").$type<Record<string, any>>().default({}),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  cps_packet_idx: index("cps_packet_idx").on(t.packetId),
+  cps_key_idx: index("cps_key_idx").on(t.sectionKey),
+}));
+export type ContinuityPacketSection = typeof continuityPacketSections.$inferSelect;
+
+export const systemSelfAssessmentReports = pgTable("system_self_assessment_reports", {
+  id: serial("id").primaryKey(),
+  reportType: text("report_type").notNull(),
+  overallScore: real("overall_score").default(0),
+  categoryScores: jsonb("category_scores").$type<Record<string, number>>().default({}),
+  findings: jsonb("findings").$type<Record<string, any>[]>().default([]),
+  recommendations: jsonb("recommendations").$type<string[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  assessedAt: timestamp("assessed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  ssar_type_idx: index("ssar_type_idx").on(t.reportType),
+  ssar_assessed_idx: index("ssar_assessed_idx").on(t.assessedAt),
+}));
+export type SystemSelfAssessmentReport = typeof systemSelfAssessmentReports.$inferSelect;
