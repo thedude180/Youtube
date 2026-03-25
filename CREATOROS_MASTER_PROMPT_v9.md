@@ -1,6 +1,6 @@
 # CREATOROS — CONSOLIDATED MASTER PROMPT v9.0
 
-STATUS: v8.0 FROZEN BASELINE + v9.0 AMENDMENTS (a01 + a02) INTEGRATED
+STATUS: v8.0 FROZEN BASELINE + v9.0 AMENDMENTS (a01 + a02) INTEGRATED + v9.1 TIGHTENING EDITS
 PURPOSE: FULL PRODUCT + OPERATING SPINE + MARKET-DOMINANCE BUILD DIRECTIVE
 EDIT RULE: DO NOT REWRITE THIS DOCUMENT IN PLACE. APPEND CHANGES AS VERSIONED AMENDMENTS.
 
@@ -14,6 +14,10 @@ You are the Lead System Architect and Senior Product Engineer for CreatorOS.
 
 Turn the existing CreatorOS codebase into a production-grade, sovereign, self-healing, self-improving AI media business operating system that compounds into an irreplaceable business asset over time.
 
+MISSION LOCK
+If the repo does not typecheck, build, and execute one governed workflow end-to-end, no new feature work is allowed.
+Stability, auditability, and governed execution take priority over breadth.
+
 ---
 
 ## PRIMARY REALITY RULE
@@ -26,29 +30,39 @@ Current repo reality:
 - PostgreSQL via Drizzle ORM
 - Tailwind + shadcn/ui
 - Replit-native deployment assumptions
-- gpt-4o-mini as primary AI model
+- gpt-4o-mini as primary low-cost AI lane
 - 255 existing tables in schema
 - 100+ engines and services
-- "ultimate" tier with 10 channels connected
+- Ultimate tier assumptions with 10 channels connected
 
 You must reconcile the product vision with the actual repo.
 Do not pretend the repo already matches the constitution.
+Do not preserve existing complexity by default.
 Do not force a framework rewrite in Phase 1.
 Do not attempt a surprise migration to Next.js unless you first produce:
 - blast-radius analysis
 - rollback plan
 - proof that migration is safer than stabilizing the current stack
 
+Any existing engine, service, workflow, or table that is redundant, overlapping, unused, misleading, or impossible to govern must be merged, downgraded, deferred, or removed.
+
 ## ARCHITECTURE NORMALIZATION RULE
 
 Architecture normalization beats architecture replacement.
 Preserve buildability, safety, auditability, and phase discipline over ideology.
+Existing engines and services must be consolidated where overlapping, not preserved by default.
+A larger architecture is not a better architecture.
+A table, score, card, panel, or engine does not count unless it changes a real decision, workflow, approval path, signal path, or user-visible outcome.
 
 ---
 
 ## CORE PRODUCT
 
 CreatorOS is a fully autonomous AI-powered media business operating system built first for YouTube gaming channels, starting with no-commentary PS5 gaming, but designed to expand into a multi-channel, multi-brand creator business platform.
+
+PRODUCT TRUTH RULE
+CreatorOS is not allowed to become a content-automation shell with fake business intelligence layered on top.
+It must become a governed operating system for content, monetization, audience ownership, trust, survivability, and buyer-readiness.
 
 ## CORE USER PROMISE
 
@@ -58,6 +72,11 @@ The user should mostly only need to:
 3. Handle rare exception approvals for legal, tax, contractual, destructive, financial, privacy-sensitive, or high-risk reputation actions
 
 Everything else should be handled by AI agents and governed runtime services.
+
+AUTONOMY CLARIFIER
+"Fully autonomous" means exception-only human involvement for governed low-risk and reversible actions.
+It does not mean zero-approval autonomy for legal, financial, contractual, destructive, privacy-sensitive, or public-reputation actions.
+Any language implying total autonomy must defer to the red-band safety model.
 
 ## PRODUCT IDENTITY
 
@@ -111,6 +130,10 @@ The 5 core pages are:
 - live agent status
 - channel stats
 - the agents are the star visually, not giant dashboards
+
+TEAM PAGE RULE
+No agent card may exist as decorative status theater.
+Every visible agent state must be backed by real task state, workflow state, queue state, or audit state.
 
 ### /content
 - content library
@@ -170,6 +193,10 @@ Each agent must have:
 - signal emission
 - eval coverage
 
+AGENT REDUCTION RULE
+If multiple named agents share the same execution path, queue, capability set, or decision logic, they must be merged internally into one governed subsystem with distinct presentation roles only where useful.
+No duplicate orchestration lanes are allowed merely to preserve agent branding.
+
 Example named agents:
 - Jordan Blake = CEO / Strategy
 - Nia Okafor = Scriptwriter / Content Intelligence
@@ -213,9 +240,12 @@ These are the product-facing engines, but they must all be governed by the opera
 
 ### Livestream Growth Engine
 - activates when a stream goes live
-- may optimize titles, metadata, distribution, commerce prompts, and community follow-through
+- may optimize title, metadata, distribution, commerce prompts, and community follow-through
 - MUST be event-driven, not blind timer spam
 - no title churn or social blasting without state-based justification
+- no platform-risk behavior disguised as "growth"
+- title updates must be rate-limited, evidence-backed, and suppressible by trust-budget or platform-risk logic
+- social pushes must be triggered by meaningful state change, not arbitrary cadence alone
 
 ### Autopilot Engine
 - governed multi-phase workflow for clipping, scheduling, metadata, distribution, recycling, and community follow-through
@@ -252,6 +282,24 @@ These are the product-facing engines, but they must all be governed by the opera
 - routes through review and validation
 - never silently mutates production red-band systems
 
+ENGINE VALIDITY RULE
+An engine is only considered real if all of the following are true:
+- it has a defined owner
+- it has defined inputs and outputs
+- it writes auditable execution records
+- it emits or consumes governed signals where relevant
+- it has an error path
+- it is represented honestly in the UI
+- it influences a real workflow or decision
+
+An engine is not real if it exists only as:
+- a name
+- a table
+- a UI card
+- a prompt
+- a placeholder service
+- a marketing label
+
 ---
 
 ## LEARNING LOOP
@@ -273,6 +321,15 @@ The system must get smarter from:
 - overrides
 - failures
 - experiments
+
+LEARNING DECAY RULE
+No prior may remain dominant indefinitely without fresh evidence.
+The system must support:
+- stale prior decay
+- contradiction detection
+- market-shift invalidation
+- human correction weighting
+- override-based recalibration
 
 ---
 
@@ -353,6 +410,14 @@ The following must never silently auto-run by default:
 - no valuation estimate may present estimated revenue as verified revenue (v9.0)
 - no feature may be silently removed without going through the sunset and archive process (v9.0)
 
+ANTI-THEATER RULE
+No system may claim to be:
+- intelligent without real decision impact
+- learning without classified feedback loops
+- event-sourced without append-only event truth
+- governed without approval and audit enforcement
+- self-healing without bounded validation and rollback discipline
+
 ## TRADEOFF ORDER
 
 If tradeoffs are required, preserve in this order:
@@ -393,6 +458,9 @@ Rules:
 - all platform writes flow through typed adapters
 - all major actions are traceable end-to-end
 
+KERNEL ENFORCEMENT RULE
+If a meaningful action cannot be proven to have passed through the kernel, it does not count as part of CreatorOS and must be treated as noncompliant.
+
 ---
 
 ## WORKFLOW ENGINE
@@ -405,6 +473,16 @@ The Workflow Engine must:
 - respect feature flags and approvals
 - emit learning signals
 - write audit records
+
+STATE RECONCILIATION RULE
+The system must maintain a reconciliation layer that regularly compares:
+- platform truth
+- internal database truth
+- workflow truth
+- attributed or inferred truth
+
+Drift must be classified, surfaced, and repairable.
+No critical subsystem may assume internal state is correct indefinitely without reconciliation.
 
 ---
 
@@ -498,6 +576,16 @@ Rules:
 - retries must never duplicate external side effects
 - media jobs must be serialized or throttled to prevent disk or compute pressure
 - duplicate replies, uploads, or posts must be structurally prevented
+
+IDEMPOTENCY LEDGER RULE
+Every critical inbound or outbound action must record:
+- deterministic operation key
+- first-seen timestamp
+- duplicate detection outcome
+- retry lineage
+- final disposition
+
+No upload, post, reply, sponsor send, or financial side effect may occur without idempotency visibility.
 
 ---
 
@@ -691,6 +779,18 @@ Rules:
 - trust budget resets must be human-approved and audited
 - trust budget state must be a kernel-level concern, not a UI decoration
 
+TRUST BUDGET RULE
+Aggressive growth actions must consume from explicit trust budgets, including:
+- sponsorship intensity
+- CTA pressure
+- title volatility
+- comment automation
+- posting pressure
+- audience fatigue
+
+When trust budget is depleted, the system must tighten automation automatically.
+No system may silently overspend trust budget.
+
 ---
 
 ## OVERRIDE LEARNING SYSTEM (v9.0)
@@ -816,6 +916,16 @@ Rules:
 - no continuity packet may expose secrets directly
 - continuity quality must influence survivability and buyer readiness
 
+BUSINESS CONTINUITY RULE
+The system must be able to generate a continuity pack containing:
+- channel recovery kit
+- archive verification summary
+- emergency operating SOP
+- exportable handoff packet
+- continuity readiness status
+
+Continuity artifacts must never expose raw secrets directly.
+
 ---
 
 ## CONTINUITY OPERATIONS PACKET (v9.0)
@@ -904,6 +1014,16 @@ Minimum approval classes include:
 - provider auth failure must not crash the app
 - secret rotation must be supported
 
+CAPABILITY TRUTH RULE
+No agent may plan or execute an action without checking current connector capability truth, including:
+- granted scopes
+- feature availability
+- temporary degradation
+- policy restrictions
+- geography restrictions
+
+Unsupported actions must degrade early and visibly instead of failing late.
+
 ## PRIVACY / CONSENT RULE
 
 - consent records must be versioned
@@ -914,12 +1034,29 @@ Minimum approval classes include:
 - audience identity must remain consent-aware
 - data collection must respect platform policy and law
 
+DELETION PROPAGATION RULE
+If user data, audience data, or identity-linked data is deleted or revoked, all dependent learning, indexing, and derived-state systems must either:
+- delete the dependent data
+- detach it safely
+- or mark it as no longer eligible for future use
+
 ## BILLING / ENTITLEMENTS RULE
 
 - premium entitlements must fail closed
 - no in-memory source of truth for billing, trial, or promo state
 - grants and revokes must be auditable
 - downgrade behavior must be deterministic
+
+REVENUE TRUTH RULE
+Money surfaces must distinguish clearly between:
+- booked revenue
+- estimated revenue
+- attributed revenue
+- pending revenue
+- unpaid revenue
+- disputed revenue
+
+No money UI may silently blend realized and estimated values.
 
 ## ABUSE / FRAUD / SPAM RULE
 
@@ -959,6 +1096,10 @@ Track and surface:
 - override learning quality (v9.0)
 - webhook delivery health per platform (v9.0)
 - prompt drift scores (v9.0)
+
+OBSERVABILITY ENFORCEMENT RULE
+Observability must support operational decisions, not vanity dashboards.
+If a metric does not influence alerting, throttling, review, prioritization, rollback, or staffing, it should not be treated as a primary operating metric.
 
 ---
 
@@ -1214,6 +1355,13 @@ Required build:
 - Content Demand Graph schema scaffolding
 - System Health Score schema
 - schema scaffolding for Audience Identity Graph, Offer OS, Sponsor Operations Cloud, Capital Allocation, Trust-Risk Simulator, Income Gap, Geographic Monetization, Multilingual Intelligence, AI Displacement Risk, Data Sovereignty, M&A Readiness, Brand Safety, and Infrastructure Positioning
+- state reconciliation scaffolding
+- idempotency ledger scaffolding
+- capability registry scaffolding
+- resilient job orchestration scaffolding
+- revenue truth scaffolding
+- rollout lane scaffolding
+- operator override memory scaffolding
 
 v9.0 Phase 1 additions:
 - State Reconciliation Layer schema and minimum enforcement scaffolding
@@ -1269,6 +1417,11 @@ Phase 1 done only if:
 - no trust-spending automation executes without trust cost estimate (v9.0)
 - no webhook payload processed without signature verification (v9.0)
 - no agent output surfaces in Decision Theater without conforming to Agent Explanation Contract (v9.0)
+- one reconciliation path can detect at least one mismatch between internal and external or simulated truth
+- one idempotency path suppresses at least one duplicate action
+- one connector capability check blocks or downgrades an unsupported action
+- one revenue surface distinguishes estimated from realized values
+- one rollout lane exists beyond direct-to-production behavior
 
 ### PHASE 2 — CONTENT + YOUTUBE CORE
 
@@ -1322,6 +1475,9 @@ Build:
 - Audience Co-Creation scaffolding
 - Legal Defense scaffolding
 - IP Expansion scaffolding for content adaptation tagging
+- learning decay and contradiction handling begins influencing content decisions
+- operator override memory begins feeding content workflow corrections
+- trust budget begins influencing content automation pressure
 
 v9.0 Phase 2 additions:
 - Capability Degradation Playbooks for YouTube API
@@ -1361,6 +1517,9 @@ Build:
 - crisis/reputation live detection
 - live accessibility checks
 - live co-creation signals
+- trust budget applies to live title and engagement actions
+- live growth actions require event-based justification
+- live capability truth must prevent unsupported platform actions
 
 v9.0 Phase 3 additions:
 - Capability Degradation Playbooks for live platform providers
@@ -1411,6 +1570,9 @@ Build:
 - Seasonal Intelligence active
 - Content Preservation active
 - Regulatory Horizon alerts active
+- reconciliation and capability truth influence cross-platform decisions
+- geopolitical safety and preservation logic influence distribution choices
+- rollout lanes apply to risky distribution automations
 
 v9.0 Phase 4 additions:
 - Capability Degradation Playbooks for all connected distribution platforms
@@ -1490,6 +1652,10 @@ Build:
 - Content Preservation and Ban Recovery basic active
 - Legal Defense Readiness active
 - Seasonal Revenue Calendar active
+- revenue truth layer fully influences money surfaces
+- business continuity pack becomes exportable
+- trust budget influences monetization timing and sponsorship pressure
+- override memory influences commercial workflow tuning
 
 v9.0 Phase 5 additions:
 - Revenue Reconciliation Engine fully active for all revenue streams
@@ -1542,6 +1708,9 @@ Build:
 - regulatory horizon alerts into Exception Desk
 - crisis response approval enforcement
 - legal defense export approval enforcement
+- reconciliation, idempotency, capability truth, rollout lanes, and revenue truth are fully hardened
+- continuity artifacts are governed and exportable
+- trust budget violations trigger alerts or tightening actions
 
 v9.0 Phase 6 additions:
 - Prompt Toxicity and Drift Monitor fully active with production alert thresholds
@@ -1577,6 +1746,10 @@ Only after earlier phases are real:
 - privacy-safe benchmark layer
 - cooperative intelligence only as opt-in, privacy-safe, cross-tenant-protected system
 - advanced collaboration, adaptation, seasonal, wellness, preservation, and succession systems influencing capital allocation and buyer readiness
+- override learning fully feeds adaptive optimization
+- rollout intelligence influences promotion and rollback
+- reconciliation history influences system health and buyer readiness
+- learning freshness and contradiction systems influence model and workflow confidence everywhere
 
 v9.0 Phase 7 additions:
 - Execution History Ledger as primary source for Decision Theater lookups
@@ -1587,16 +1760,21 @@ v9.0 Phase 7 additions:
 
 ---
 
-## TEST RULE
+## TESTING RULE
 
 For each phase add:
-- typecheck clean
+- clean typecheck
+- clean build where applicable
 - targeted unit tests for new kernel logic
 - one integration test for one end-to-end governed workflow
 - one negative test for approval denial or policy block
 - one test proving signal emission
 - one test proving receipt creation where applicable
 - one test proving idempotency or deduplication on a critical path where applicable
+- one test proving rollback, downgrade, or graceful degradation on a relevant risk path where applicable
+
+Do not skip tests.
+Do not treat ad hoc manual clicking as sufficient proof.
 
 ---
 
@@ -1633,6 +1811,11 @@ Do not optimize for breadth until there is:
 - one clean governed live workflow
 - one clean governed monetization recommendation workflow
 - one clean governed approval workflow
+
+ROLLUP FRAUD RULE
+A phase may not be declared complete based on aggregate volume of features.
+The presence of many tables, engines, cards, or services is not evidence of maturity.
+Only governed, tested, auditable, end-to-end execution counts.
 
 ---
 
@@ -1675,6 +1858,9 @@ Never claim:
 - event-sourced if append-only event flow is not real
 - intelligent if it is only dashboards with derived labels
 - production-grade if build, tests, and one governed workflow are not proven
+- autonomous if the system still relies on hidden manual rescue work
+- monetization-aware if estimates and realized revenue are blended carelessly
+- trust-protective if trust budget and trust-risk controls are missing or bypassed
 - platform capability is known if it has not been verified within staleness window (v9.0)
 - revenue is verified if it has not been reconciled against provider actuals (v9.0)
 - trust is protected if no trust budget exists (v9.0)
@@ -1749,8 +1935,8 @@ The overall product is not final unless:
 - "ultimate" tier, 10 channels connected
 
 ### What Is Already Built (Phase 1 partial)
-- 17 v8.0 Phase 1 tables added to schema and migrated (domain_events, schema_registry, signal_registry, prompt_versions, signed_action_receipts, operating_mode_history, channel_maturity_scores, feature_flag_audit, approval_matrix_rules, approval_decisions, commercial_tier_entitlements, benchmark_participation_settings, learning_signals, learning_maturity_scores, agent_interop_messages, agent_ui_payloads, eval_runs)
-- dead_letter_queue and revenue_attribution tables already existed
+- All v8.0 Phase 1 tables added to schema and migrated
+- All ~33 v9.0 amendment tables added to schema and migrated
 - Secure Kernel created at `server/kernel/index.ts` with:
   - `emitDomainEvent()` — append-only writes to domain_events
   - `routeCommand()` — CQRS write path with approval matrix check, idempotency enforcement, DLQ routing
@@ -1759,14 +1945,20 @@ The overall product is not final unless:
   - `routeToDLQ()` — dead letter queue routing
   - `verifyReceipt()` — receipt signature verification
   - `registerCommand()` — command handler registration
-- Feature flag gating wired into Smart Edit Engine (checkFeatureFlag("smart-edit", userId) at top of runSmartEditJob())
+- Learning signal infrastructure created at `server/kernel/learning.ts` with:
+  - `emitLearningSignal()` — writes classified signals to learning_signals table
+  - `seedSignalRegistry()` — seeds 7 initial signal types
+- Feature flag gating wired into Smart Edit Engine
+- Smart Edit Engine emits learning signals on success/failure
+- Agent Explanation Contract seeded into schema_registry
+- Signal Registry seeded with initial signal types
+- 4 kernel unit tests passing (vitest)
+- Learning signal tests passing (25 assertions)
 - Build passes clean (npm run build — zero errors)
 
 ### What Is Not Yet Built (Phase 1 remaining)
-- ~33 v9.0 amendment tables not yet in schema
+- Governed workflow end-to-end wiring (Task #2 — in progress)
 - Webhook verification middleware
-- Learning signal emission function (emitLearningSignal)
-- Signal Registry seed data
 - Agent Interop Bus (sendAgentMessage / getAgentMessages)
 - Eval Harness (runEval / getEvalResults)
 - Trust Budget kernel integration
@@ -1779,38 +1971,33 @@ The overall product is not final unless:
 - Capability Degradation Playbooks
 - Feature Sunset state model
 - CMD+K command palette
-- Agent Explanation Contract schema registry entry
-- Kernel unit tests
 - End-to-end governed workflow integration test
 
 ---
 
 ## PHASE 1 TASK PLAN
 
-### Task #1: Secure Kernel + DB Foundation (v8.0 + v9.0)
-- Add ~33 v9.0 amendment tables to schema
-- Extend feature_flags with lifecycle_state column
-- Extend revenue_records with reconciliation columns
-- Register Agent Explanation Contract in schema_registry
-- Run DB migration
-- Write kernel unit tests (emitDomainEvent, issueSignedReceipt, checkFeatureFlag, routeToDLQ)
-- Verify build integrity
-- Dependencies: none
+### Task #1: Secure Kernel + DB Foundation (v8.0 + v9.0) — MERGED
+- All v8.0 + v9.0 tables in schema and migrated
+- Feature_flags extended with lifecycle_state column
+- Revenue_records extended with reconciliation columns
+- Agent Explanation Contract registered in schema_registry
+- Kernel unit tests passing
+- Build passes clean
 
-### Task #2: Governed Workflow + Approval Matrix + Webhook Reliability
+### Task #2: Governed Workflow + Approval Matrix + Webhook Reliability — IN PROGRESS
 - Wire Smart Edit Engine through routeCommand() end-to-end
 - Seed approval_matrix_rules for "smart-edit" action type
 - Create webhook verification middleware with signature verification
 - Write webhook_delivery_records on every webhook
-- Seed Agent Explanation Contract into schema_registry
 - Tests: end-to-end governed workflow, approval denial, signed receipt, idempotency, webhook rejection
 - Dependencies: Task #1
 
-### Task #3: Learning Signal Infrastructure
-- Build emitLearningSignal() function
-- Seed Signal Registry with initial signal types
-- Wire Smart Edit Engine to emit learning signals at job completion
-- Tests: signal emission, unregistered signal type warning
+### Task #3: Learning Signal Infrastructure — MERGED
+- emitLearningSignal() function built
+- Signal Registry seeded with 7 initial signal types
+- Smart Edit Engine emits learning signals at job completion
+- 25 test assertions passing
 - Dependencies: Task #1
 
 ### Task #4: Agent Interop Bus + Eval Harness + Trust Budget + Capability Probes
@@ -1844,3 +2031,4 @@ Do not ask for permission.
 Audit the current repo against Phase 1.
 Fix the current architecture using the least disruptive path.
 Do not advance until Phase 1 definition of done is truly met.
+Before adding any new breadth, identify and collapse overlapping engines, services, and fake-operational surfaces that would distort Phase 1 quality.
