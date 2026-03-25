@@ -36,7 +36,7 @@ function ErrorCard({ title, icon }: { title: string; icon: React.ReactNode }) {
 
 function DistributionSummaryCard() {
   const { data, isLoading, isError } = useQuery<{
-    stats: { totalEvents: number; platformBreakdown: Record<string, number> };
+    stats: { totalEvents: number; byPlatform: Record<string, number> };
     supportedPlatforms: string[];
     brandConsistency: number;
     cadence: { burnoutRisk: number; overallHealth: string };
@@ -100,7 +100,7 @@ function DistributionSummaryCard() {
 
 function PlatformHealthCard() {
   const { data, isLoading, isError } = useQuery<{
-    stats: { totalEvents: number; platformBreakdown: Record<string, number> };
+    stats: { totalEvents: number; byPlatform: Record<string, number> };
   }>({
     queryKey: ["/api/distribution/stats"],
     refetchInterval: 30000,
@@ -109,7 +109,7 @@ function PlatformHealthCard() {
   if (isLoading) return <LoadingCard title="Platform Health" />;
   if (isError || !data) return <ErrorCard title="Platform Health" icon={<Radio className="h-4 w-4 text-primary" />} />;
 
-  const platforms = Object.entries(data.stats?.platformBreakdown || {}).sort((a, b) => b[1] - a[1]);
+  const platforms = Object.entries(data.stats?.byPlatform || {}).sort((a, b) => b[1] - a[1]);
 
   return (
     <Card className="card-empire" data-testid="card-platform-health">
