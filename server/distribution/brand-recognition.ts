@@ -36,42 +36,49 @@ export async function scoreBrandConsistency(userId: string): Promise<BrandConsis
   const driftAreas: string[] = [];
   const suggestions: string[] = [];
 
-  const platformGroups: Record<string, typeof assets> = {};
+  const assetTypeCounts: Record<string, number> = {};
   for (const asset of assets) {
-    const plat = (asset as any).platform || "youtube";
-    if (!platformGroups[plat]) platformGroups[plat] = [];
-    platformGroups[plat].push(asset);
+    assetTypeCounts[asset.assetType] = (assetTypeCounts[asset.assetType] || 0) + 1;
   }
 
-  for (const [platform, platformAssets] of Object.entries(platformGroups)) {
-    let platformScore = 0.7;
-
-    if (platformAssets.length < 2) {
-      platformScore = 0.5;
-      suggestions.push(`${platform}: Limited brand assets — consider adding more branded elements`);
-    }
-
-    const hasLogo = platformAssets.some(a => a.type === "logo");
-    const hasBanner = platformAssets.some(a => a.type === "banner");
-    const hasColor = platformAssets.some(a => a.type === "color_palette");
-
-    if (!hasLogo) { platformScore -= 0.1; driftAreas.push(`${platform}: missing logo`); }
-    if (!hasBanner) { platformScore -= 0.05; }
-    if (!hasColor) { platformScore -= 0.05; }
-
-    platformScores[platform] = Math.max(0, Math.min(1, platformScore));
+  let baseScore = 0.7;
+  if (assets.length < 2) {
+    baseScore = 0.5;
+    suggestions.push("Limited brand assets — consider adding more branded elements");
   }
 
-  if (Object.keys(platformScores).length === 0) {
-    platformScores["youtube"] = 0.5;
+  const hasLogo = !!assetTypeCounts["logo"];
+  const hasBanner = !!assetTypeCounts["banner"];
+  const hasColor = !!assetTypeCounts["color_palette"] || !!assetTypeCounts["color"];
+  const hasFont = !!assetTypeCounts["font"] || !!assetTypeCounts["typography"];
+
+  if (!hasLogo) { baseScore -= 0.1; driftAreas.push("missing logo asset"); }
+  if (!hasBanner) { baseScore -= 0.05; }
+  if (!hasColor) { baseScore -= 0.05; driftAreas.push("missing color palette asset"); }
+  if (hasFont) { baseScore += 0.05; }
+
+  baseScore = Math.max(0, Math.min(1, baseScore));
+
+  const targetPlatforms = ["youtube", "tiktok", "x", "twitch", "kick", "discord", "rumble"];
+  for (const plat of targetPlatforms) {
+    platformScores[plat] = baseScore;
+  }
+
+  if (assets.length === 0) {
     suggestions.push("No brand assets found — set up brand identity for consistency tracking");
   }
 
   if (dnaProfiles.length > 0) {
     const dna = dnaProfiles[0];
-    const dnaData = (dna as any).styleFingerprint || (dna as any).dnaData || {};
-    if (dnaData.voiceTone && dnaData.voiceTone !== profile.voiceTone) {
-      driftAreas.push("Voice tone drift detected between brand profile and content DNA");
+    const profileData = dna.profileData;
+    if (profileData?.tonalPattern && profileData.tonalPattern !== profile.voiceTone) {
+      driftAreas.push(`Tonal drift: content DNA shows "${profileData.tonalPattern}" vs brand profile "${profile.voiceTone}"`);
+    }
+    if (profileData?.visualStyle) {
+      const visualLower = profileData.visualStyle.toLowerCase();
+      if (!visualLower.includes("cinematic") && !visualLower.includes("immersive")) {
+        driftAreas.push("Visual style may be drifting from cinematic-immersive brand identity");
+      }
     }
   }
 
