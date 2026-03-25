@@ -17,7 +17,7 @@ import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
   Calendar as CalendarIcon, Eye, Loader2, Brain,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
-  Sparkles,
+  Sparkles, Shield,
 } from "lucide-react";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
@@ -28,12 +28,13 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 
-type ContentTab = "library" | "updated" | "channels" | "calendar" | "retention";
+type ContentTab = "library" | "updated" | "channels" | "calendar" | "retention" | "intelligence";
 
 const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
 const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
 const RetentionBeatsTab = lazyRetry(() => import("./content/RetentionBeatsTab"));
+const ContentIntelligenceTab = lazyRetry(() => import("./content/ContentIntelligenceTab"));
 
 function ContentStatsStrip() {
   const { data: videos } = useVideos();
@@ -117,6 +118,9 @@ export default function Content() {
             <TabsTrigger value="retention" data-testid="tab-retention" aria-label="Retention beats tab">
               <Brain className="h-3.5 w-3.5 mr-1.5" />Retention
             </TabsTrigger>
+            <TabsTrigger value="intelligence" data-testid="tab-intelligence" aria-label="Content intelligence tab">
+              <Shield className="h-3.5 w-3.5 mr-1.5" />Intelligence
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -141,6 +145,11 @@ export default function Content() {
         <TabsContent value="retention" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <RetentionBeatsTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="intelligence" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <ContentIntelligenceTab />
           </Suspense>
         </TabsContent>
       </Tabs>

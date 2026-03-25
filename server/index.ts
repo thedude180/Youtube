@@ -1042,6 +1042,7 @@ httpServer.listen(
       import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(err => logger.error("Smart-edit command registration failed", { error: String(err) }));
       import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(err => logger.error("Degradation playbook seed failed", { error: String(err) }));
       import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(err => logger.error("Capability registry seed failed", { error: String(err) }));
+      import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(err => logger.error("Skill compiler seed failed", { error: String(err) }));
     });
 
     delay(15_000, () => {

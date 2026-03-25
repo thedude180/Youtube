@@ -6602,3 +6602,264 @@ export const systemSelfAssessmentReports = pgTable("system_self_assessment_repor
 export type SystemSelfAssessmentReport = typeof systemSelfAssessmentReports.$inferSelect;
 export const insertWebhookDeliveryRecordSchema = createInsertSchema(webhookDeliveryRecords).omit({ id: true, createdAt: true });
 export type InsertWebhookDeliveryRecord = z.infer<typeof insertWebhookDeliveryRecordSchema>;
+
+export const contentAtoms = pgTable("content_atoms", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  atomType: text("atom_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  sourceVideoId: integer("source_video_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  provenance: jsonb("provenance").$type<Record<string, any>>().default({}),
+  sealed: boolean("sealed").default(false),
+  sealedAt: timestamp("sealed_at"),
+  fingerprint: text("fingerprint"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  ca_user_idx: index("ca_user_idx").on(t.userId),
+  ca_type_idx: index("ca_type_idx").on(t.atomType),
+  ca_sealed_idx: index("ca_sealed_idx").on(t.sealed),
+}));
+export type ContentAtom = typeof contentAtoms.$inferSelect;
+
+export const replayFactoryJobs = pgTable("replay_factory_jobs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceAtomId: integer("source_atom_id"),
+  replayType: text("replay_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  config: jsonb("config").$type<Record<string, any>>().default({}),
+  result: jsonb("result").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (t) => ({
+  rfj_user_idx: index("rfj_user_idx").on(t.userId),
+  rfj_status_idx: index("rfj_status_idx").on(t.status),
+}));
+export type ReplayFactoryJob = typeof replayFactoryJobs.$inferSelect;
+
+export const clipQueueItems = pgTable("clip_queue_items", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceAtomId: integer("source_atom_id"),
+  sourceVideoId: integer("source_video_id"),
+  clipType: text("clip_type").notNull(),
+  startTime: real("start_time"),
+  endTime: real("end_time"),
+  priority: integer("priority").default(0),
+  status: text("status").notNull().default("queued"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  cqi_user_idx: index("cqi_user_idx").on(t.userId),
+  cqi_status_idx: index("cqi_status_idx").on(t.status),
+  cqi_priority_idx: index("cqi_priority_idx").on(t.priority),
+}));
+export type ClipQueueItem = typeof clipQueueItems.$inferSelect;
+
+export const provenanceTags = pgTable("provenance_tags", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type").notNull(),
+  entityId: integer("entity_id").notNull(),
+  tagType: text("tag_type").notNull(),
+  origin: text("origin").notNull(),
+  agentName: text("agent_name"),
+  confidence: real("confidence"),
+  chain: jsonb("chain").$type<Record<string, any>[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  pt_entity_idx: index("pt_entity_idx").on(t.entityType, t.entityId),
+  pt_tag_type_idx: index("pt_tag_type_idx").on(t.tagType),
+}));
+export type ProvenanceTag = typeof provenanceTags.$inferSelect;
+
+export const decisionTheaterEntries = pgTable("decision_theater_entries", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentName: text("agent_name").notNull(),
+  actionType: text("action_type").notNull(),
+  evidence: jsonb("evidence").$type<Record<string, any>[]>().default([]),
+  confidence: real("confidence").notNull(),
+  risk: text("risk").notNull().default("low"),
+  signalCount: integer("signal_count").default(0),
+  recency: real("recency"),
+  reasoning: jsonb("reasoning").$type<Record<string, any>>().default({}),
+  outcome: text("outcome"),
+  band: text("band").notNull().default("GREEN"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  dte_user_idx: index("dte_user_idx").on(t.userId),
+  dte_agent_idx: index("dte_agent_idx").on(t.agentName),
+  dte_band_idx: index("dte_band_idx").on(t.band),
+}));
+export type DecisionTheaterEntry = typeof decisionTheaterEntries.$inferSelect;
+
+export const brandDriftAlerts = pgTable("brand_drift_alerts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  alertType: text("alert_type").notNull(),
+  severity: text("severity").notNull().default("low"),
+  description: text("description").notNull(),
+  driftScore: real("drift_score").default(0),
+  evidence: jsonb("evidence").$type<Record<string, any>>().default({}),
+  resolved: boolean("resolved").default(false),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  bda_user_idx: index("bda_user_idx").on(t.userId),
+  bda_severity_idx: index("bda_severity_idx").on(t.severity),
+}));
+export type BrandDriftAlert = typeof brandDriftAlerts.$inferSelect;
+
+export const safeToAutomateScores = pgTable("safe_to_automate_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  actionType: text("action_type").notNull(),
+  score: real("score").notNull(),
+  factors: jsonb("factors").$type<Record<string, number>>().default({}),
+  threshold: real("threshold").default(0.7),
+  autoApproved: boolean("auto_approved").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  stas_user_idx: index("stas_user_idx").on(t.userId),
+  stas_action_idx: index("stas_action_idx").on(t.actionType),
+}));
+export type SafeToAutomateScore = typeof safeToAutomateScores.$inferSelect;
+
+export const shadowAudienceSimulations = pgTable("shadow_audience_simulations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentAtomId: integer("content_atom_id"),
+  simulationType: text("simulation_type").notNull(),
+  predictedEngagement: real("predicted_engagement"),
+  predictedRetention: real("predicted_retention"),
+  audienceSegments: jsonb("audience_segments").$type<Record<string, any>[]>().default([]),
+  reasoning: text("reasoning"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  sas_user_idx: index("sas_user_idx").on(t.userId),
+}));
+export type ShadowAudienceSimulation = typeof shadowAudienceSimulations.$inferSelect;
+
+export const narrativeArcs = pgTable("narrative_arcs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  arcType: text("arc_type").notNull(),
+  structure: jsonb("structure").$type<Record<string, any>>().default({}),
+  contentAtomIds: jsonb("content_atom_ids").$type<number[]>().default([]),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  na_user_idx: index("na_user_idx").on(t.userId),
+}));
+export type NarrativeArc = typeof narrativeArcs.$inferSelect;
+
+export const momentGenomeClassifications = pgTable("moment_genome_classifications", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceVideoId: integer("source_video_id"),
+  momentType: text("moment_type").notNull(),
+  timestamp: real("timestamp"),
+  duration: real("duration"),
+  intensity: real("intensity"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  genome: jsonb("genome").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  mgc_user_idx: index("mgc_user_idx").on(t.userId),
+  mgc_type_idx: index("mgc_type_idx").on(t.momentType),
+}));
+export type MomentGenomeClassification = typeof momentGenomeClassifications.$inferSelect;
+
+export const contentVelocityMetrics = pgTable("content_velocity_metrics", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  period: text("period").notNull(),
+  contentCount: integer("content_count").default(0),
+  publishRate: real("publish_rate"),
+  qualityAvg: real("quality_avg"),
+  engagementAvg: real("engagement_avg"),
+  velocityScore: real("velocity_score"),
+  trend: text("trend").default("stable"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  measuredAt: timestamp("measured_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  cvm_user_idx: index("cvm_user_idx").on(t.userId),
+  cvm_period_idx: index("cvm_period_idx").on(t.period),
+}));
+export type ContentVelocityMetric = typeof contentVelocityMetrics.$inferSelect;
+
+export const contentDemandGraphNodes = pgTable("content_demand_graph_nodes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  topic: text("topic").notNull(),
+  demandScore: real("demand_score").default(0),
+  supplyScore: real("supply_score").default(0),
+  gapScore: real("gap_score").default(0),
+  trendDirection: text("trend_direction").default("stable"),
+  sources: jsonb("sources").$type<string[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  cdgn_user_idx: index("cdgn_user_idx").on(t.userId),
+  cdgn_gap_idx: index("cdgn_gap_idx").on(t.gapScore),
+}));
+export type ContentDemandGraphNode = typeof contentDemandGraphNodes.$inferSelect;
+
+export const learningDecayRecords = pgTable("learning_decay_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  signalType: text("signal_type").notNull(),
+  originalWeight: real("original_weight").notNull(),
+  currentWeight: real("current_weight").notNull(),
+  decayRate: real("decay_rate").default(0.05),
+  lastDecayAt: timestamp("last_decay_at").defaultNow(),
+  contradictions: integer("contradictions").default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  ldr_user_idx: index("ldr_user_idx").on(t.userId),
+  ldr_signal_idx: index("ldr_signal_idx").on(t.signalType),
+}));
+export type LearningDecayRecord = typeof learningDecayRecords.$inferSelect;
+
+export const agentEvalAudits = pgTable("agent_eval_audits", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentName: text("agent_name").notNull(),
+  evalRunId: integer("eval_run_id"),
+  auditType: text("audit_type").notNull(),
+  violation: text("violation"),
+  severity: text("severity").notNull().default("low"),
+  details: jsonb("details").$type<Record<string, any>>().default({}),
+  resolved: boolean("resolved").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  aea_user_idx: index("aea_user_idx").on(t.userId),
+  aea_agent_idx: index("aea_agent_idx").on(t.agentName),
+  aea_severity_idx: index("aea_severity_idx").on(t.severity),
+}));
+export type AgentEvalAudit = typeof agentEvalAudits.$inferSelect;
+
+export const revenuLeakageDetections = pgTable("revenue_leakage_detections", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  leakageType: text("leakage_type").notNull(),
+  estimatedLoss: real("estimated_loss").default(0),
+  source: text("source").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("detected"),
+  resolution: text("resolution"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  rld_user_idx: index("rld_user_idx").on(t.userId),
+  rld_type_idx: index("rld_type_idx").on(t.leakageType),
+}));
+export type RevenueLeakageDetection = typeof revenuLeakageDetections.$inferSelect;
