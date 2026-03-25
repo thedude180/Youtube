@@ -35,7 +35,28 @@ function daysAgo(n: number): Date {
   return new Date(Date.now() - n * 86400000);
 }
 
+async function checkTrustBudgetForCadence(userId: string): Promise<{ allowed: boolean; remaining: number }> {
+  try {
+    const { checkTrustBudget } = await import("../kernel/trust-budget");
+    const result = await checkTrustBudget(userId, "cadence-intelligence", 2);
+    return { allowed: !result.blocked, remaining: result.remaining };
+  } catch {
+    return { allowed: false, remaining: 0 };
+  }
+}
+
 export async function analyzeCadence(userId: string, platforms?: string[]): Promise<CadenceAnalysis> {
+  const trustCheck = await checkTrustBudgetForCadence(userId);
+  if (!trustCheck.allowed) {
+    return {
+      userId,
+      recommendations: [],
+      overallHealth: 0,
+      burnoutRisk: 0,
+      algorithmAlignment: 0,
+    };
+  }
+
   const thirtyDaysAgo = daysAgo(30);
 
   const recentEvents = await db.select().from(distributionEvents)

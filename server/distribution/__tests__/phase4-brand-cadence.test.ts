@@ -37,6 +37,10 @@ vi.mock("../../kernel/index", () => ({
   emitDomainEvent: async () => {},
 }));
 
+vi.mock("../../kernel/trust-budget", () => ({
+  checkTrustBudget: async () => ({ remaining: 100, blocked: false, periodId: "test", deductionsCount: 0, totalDeducted: 0 }),
+}));
+
 vi.mock("../../content/brand-system", () => ({
   getBrandProfile: () => ({
     voiceTone: "cinematic-immersive",
@@ -247,6 +251,7 @@ describe("Cadence Resilience", () => {
     expect(result.overallResilience).toBeLessThanOrEqual(1);
     expect(typeof result.breakSafetyDays).toBe("number");
     expect(Array.isArray(result.recommendations)).toBe(true);
+    expect(typeof result.autoScheduleEnabled).toBe("boolean");
   });
 
   it("evaluates break readiness", async () => {
@@ -255,6 +260,34 @@ describe("Cadence Resilience", () => {
     expect(typeof result.feasible).toBe("boolean");
     expect(Array.isArray(result.platformsAtRisk)).toBe(true);
     expect(Array.isArray(result.prepActions)).toBe(true);
+  });
+
+  it("enforces minimum cadence by scheduling content", async () => {
+    const { enforceMinimumCadence } = await import("../cadence-resilience");
+    const result = await enforceMinimumCadence("resilience-user", ["youtube"]);
+    expect(typeof result.enforced).toBe("boolean");
+    expect(Array.isArray(result.scheduled)).toBe(true);
+    expect(result.trustBlocked).toBe(false);
+    for (const action of result.scheduled) {
+      expect(action).toHaveProperty("platform");
+      expect(action).toHaveProperty("scheduledAt");
+      expect(action).toHaveProperty("autoPublish");
+      expect(action.autoPublish).toBe(true);
+    }
+  });
+
+  it("schedules break coverage across platforms", async () => {
+    const { scheduleBreakCoverage } = await import("../cadence-resilience");
+    const breakStart = new Date(Date.now() + 3 * 86400000);
+    const breakEnd = new Date(Date.now() + 10 * 86400000);
+    const result = await scheduleBreakCoverage("resilience-user", breakStart, breakEnd, ["youtube"]);
+    expect(result.trustBlocked).toBe(false);
+    expect(result.coverageDays).toBe(7);
+    expect(Array.isArray(result.scheduled)).toBe(true);
+    for (const action of result.scheduled) {
+      expect(action.platform).toBe("youtube");
+      expect(action.autoPublish).toBe(true);
+    }
   });
 });
 

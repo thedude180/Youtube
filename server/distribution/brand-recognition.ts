@@ -19,7 +19,28 @@ type BrandElement = {
   issue?: string;
 };
 
+async function checkTrustBudgetForBrand(userId: string): Promise<{ allowed: boolean; remaining: number }> {
+  try {
+    const { checkTrustBudget } = await import("../kernel/trust-budget");
+    const result = await checkTrustBudget(userId, "brand-recognition", 2);
+    return { allowed: !result.blocked, remaining: result.remaining };
+  } catch {
+    return { allowed: false, remaining: 0 };
+  }
+}
+
 export async function scoreBrandConsistency(userId: string): Promise<BrandConsistencyScore> {
+  const trustCheck = await checkTrustBudgetForBrand(userId);
+  if (!trustCheck.allowed) {
+    return {
+      overallScore: 0,
+      platformScores: {},
+      driftDetected: false,
+      driftAreas: [],
+      suggestions: ["Trust budget exhausted — brand consistency check blocked"],
+    };
+  }
+
   const { getBrandProfile, checkBrandAlignment } = await import("../content/brand-system");
   const profile = getBrandProfile(userId);
 
