@@ -40,6 +40,7 @@ import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { registerTestAuthRoutes } from "./routes/test-auth";
 import { registerCopyrightGuardianRoutes } from "./routes/copyright-guardian";
 import { registerMultistreamRoutes } from "./routes/multistream";
+import { registerKernelRoutes } from "./routes/kernel";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -231,6 +232,7 @@ export async function registerRoutes(
   registerCopyrightGuardianRoutes(app);
   registerMultistreamRoutes(app);
   registerTestAuthRoutes(app);
+  registerKernelRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {

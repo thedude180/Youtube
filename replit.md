@@ -51,6 +51,18 @@ CreatorOS is a full-stack application leveraging an Express.js backend and a Rea
     - **Legal & Tax AI Agent Command Center**: 18 autonomous AI agents for legal and tax auditing.
     - **Autonomous Social Media Company**: Comprehensive suite for live stream detection, lifecycle management, creator DNA analysis, stream operations (chat response, moderation, highlights), shorts factory, VOD SEO optimization, multi-platform distribution, revenue intelligence, and community management.
 - **Secure Kernel** (`server/kernel/`): CQRS command routing with approval matrix (GREEN/YELLOW/RED bands), idempotency enforcement via execution keys, HMAC-signed receipts, DLQ routing on failure, and feature flag gating. Smart Edit Engine is the first governed workflow routed through `routeCommand()`. Webhook verification middleware validates Stripe/YouTube webhook signatures and writes delivery records; signature failures route to DLQ. Agent Explanation Contract schema is seeded into the schema registry.
+    - **Agent Interop Bus** (`server/kernel/interop.ts`): sendAgentMessage/getAgentMessages/markMessageDelivered for cross-agent communication.
+    - **Eval Harness** (`server/kernel/eval.ts`): runEval/getEvalResults for agent performance evaluation with pass/fail tracking.
+    - **Trust Budget** (`server/kernel/trust-budget.ts`): checkTrustBudget/deductTrustBudget/resetTrustBudget for 6 audience trust categories (sponsorship_intensity, cta_pressure, title_volatility, comment_automation, posting_pressure, audience_fatigue).
+    - **Capability Probes** (`server/kernel/capability-probe.ts`): probeCapability/getCapabilityStatus/checkCapabilityBeforeWrite for runtime platform integration verification.
+    - **Payment Adapter** (`server/adapters/payment.ts`): Jurisdiction detection for US/GB/DE/JP/BR/IN/NG/PH/KE with monetization access levels (full/limited/restricted).
+    - **Localization Adapter** (`server/adapters/localization.ts`): Locale detection, date/number/currency formatting, RTL detection.
+    - **Degradation Playbooks** (`server/kernel/degradation-playbooks.ts`): Pre-seeded recovery playbooks for database and storage failures.
+    - **Kernel API Routes** (`server/routes/kernel.ts`): REST endpoints for all kernel subsystems (interop, eval, trust-budget, capability, jurisdiction, locale, pulse, feature-sunset).
+    - **System Pulse HUD** (`client/src/components/SystemPulseHUD.tsx`): Header indicator with 5-state vocabulary (healthy, degraded, blocked, running, idle).
+    - **First Live Mission** (`client/src/components/FirstLiveMission.tsx`): 5-step onboarding that verifies governance spine (pulse check, trust budget, capability probe, agent network, first decision).
+    - **Demo Mode** (`client/src/components/DemoMode.tsx`): 4 scenarios (US healthy, Nigeria restricted, Japan localized, storage degraded) with labeled outputs.
+    - **Agent UI Payload Card** (`client/src/components/AgentUIPayloadCard.tsx`): Dashboard card showing agent decisions and actions.
 - **System Hardening**: Centralized OpenAI client with telemetry, retry logic, caching, structured logging, Zod validation, DB-backed cron locks, external service health checks, and a world-class self-healing core comprising 8 components for high availability and scalability (Health Brain, Memory Guardian, Adaptive Throttle, Intelligent Job Queue, Self-Healing Agent, Anomaly Responder, Continuous Audit, and Admin Endpoints).
 - **Platform Policy Tracker**: Monitors 7 platforms for policy changes and enforces compliance.
 

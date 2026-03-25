@@ -31,6 +31,7 @@ import { BackToTop } from "@/components/BackToTop";
 import { GlobalProgress } from "@/components/GlobalProgress";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { HealthRibbon } from "@/components/HealthRibbon";
+import { SystemPulseHUD } from "@/components/SystemPulseHUD";
 import { SessionTracker } from "@/components/SessionTracker";
 import { lazyRetry, isChunkError } from "@/lib/lazyRetry";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
@@ -465,6 +466,7 @@ function AuthenticatedApp() {
                 </TooltipTrigger>
                 <TooltipContent>Search (Ctrl+K)</TooltipContent>
               </Tooltip>
+              {!isFocusMode && <SystemPulseHUD />}
               {!isFocusMode && <OfflineStatusBadge />}
               {!isFocusMode && <HeaderClock />}
               {!isFocusMode && <ThemeToggle />}

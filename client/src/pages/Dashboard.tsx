@@ -16,6 +16,8 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FirstLiveMission } from "@/components/FirstLiveMission";
+import { AgentUIPayloadCard } from "@/components/AgentUIPayloadCard";
 
 const AGENT_ROSTER = [
   { id: "owner",      name: "Jordan Blake",    role: "CEO / AI Owner",        initials: "JB", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
@@ -277,6 +279,8 @@ export default function TeamDashboard() {
             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
           </a>
         )}
+        <FirstLiveMission />
+
         {statsLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
@@ -351,6 +355,8 @@ export default function TeamDashboard() {
             </div>
           </div>
         </div>
+
+        <AgentUIPayloadCard />
 
         <TaskResultModal 
           task={selectedTask} 
