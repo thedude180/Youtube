@@ -1043,6 +1043,7 @@ httpServer.listen(
       import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(err => logger.error("Degradation playbook seed failed", { error: String(err) }));
       import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(err => logger.error("Capability registry seed failed", { error: String(err) }));
       import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(err => logger.error("Skill compiler seed failed", { error: String(err) }));
+      import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(err => logger.error("Live event triggers seed failed", { error: String(err) }));
     });
 
     delay(15_000, () => {

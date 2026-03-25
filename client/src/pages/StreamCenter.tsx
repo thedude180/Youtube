@@ -5,6 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 const StreamUpgradesSection = lazy(() => import("./stream/StreamUpgradesSection"));
+const LiveOpsIntelligenceTab = lazy(() => import("./stream/LiveOpsIntelligenceTab"));
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1819,6 +1820,12 @@ export default function StreamCenter() {
           )}
         </CardContent>
       </Card>
+      </CollapsibleToolbox>
+
+      <CollapsibleToolbox title="Live Ops Intelligence" toolCount={4}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <LiveOpsIntelligenceTab />
+        </Suspense>
       </CollapsibleToolbox>
 
       <CollapsibleToolbox title="Stream Upgrades" toolCount={5}>

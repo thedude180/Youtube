@@ -6509,18 +6509,24 @@ export type PromptDriftEvaluation = typeof promptDriftEvaluations.$inferSelect;
 
 export const webhookDeliveryRecords = pgTable("webhook_delivery_records", {
   id: serial("id").primaryKey(),
+  userId: text("user_id"),
   webhookUrl: text("webhook_url"),
   source: text("source"),
+  provider: text("provider"),
   eventType: text("event_type"),
   deliveryId: text("delivery_id"),
+  deliveryStatus: text("delivery_status"),
   payload: jsonb("payload").$type<Record<string, any>>().default({}),
   httpStatus: integer("http_status"),
   responseBody: text("response_body"),
   attemptNumber: integer("attempt_number").default(1),
+  attempts: integer("attempts").default(1),
   maxAttempts: integer("max_attempts").default(3),
   signatureValid: boolean("signature_valid"),
   signatureError: text("signature_error"),
+  errorMessage: text("error_message"),
   status: text("status").notNull().default("pending"),
+  lastAttemptAt: timestamp("last_attempt_at"),
   nextRetryAt: timestamp("next_retry_at"),
   processedAt: timestamp("processed_at"),
   dlqId: integer("dlq_id"),
@@ -6617,9 +6623,9 @@ export const contentAtoms = pgTable("content_atoms", {
   fingerprint: text("fingerprint"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
-  ca_user_idx: index("ca_user_idx").on(t.userId),
-  ca_type_idx: index("ca_type_idx").on(t.atomType),
-  ca_sealed_idx: index("ca_sealed_idx").on(t.sealed),
+  catom_user_idx: index("catom_user_idx").on(t.userId),
+  catom_type_idx: index("catom_type_idx").on(t.atomType),
+  catom_sealed_idx: index("catom_sealed_idx").on(t.sealed),
 }));
 export type ContentAtom = typeof contentAtoms.$inferSelect;
 
@@ -6863,3 +6869,154 @@ export const revenuLeakageDetections = pgTable("revenue_leakage_detections", {
   rld_type_idx: index("rld_type_idx").on(t.leakageType),
 }));
 export type RevenueLeakageDetection = typeof revenuLeakageDetections.$inferSelect;
+
+export const liveOpsEvents = pgTable("live_ops_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  eventType: text("event_type").notNull(),
+  streamId: text("stream_id"),
+  payload: jsonb("payload").default({}),
+  source: text("source").notNull().default("system"),
+  trustCost: real("trust_cost").default(0),
+  approved: boolean("approved").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  loe_user_idx: index("loe_user_idx").on(t.userId),
+  loe_type_idx: index("loe_type_idx").on(t.eventType),
+  loe_stream_idx: index("loe_stream_idx").on(t.streamId),
+}));
+export type LiveOpsEvent = typeof liveOpsEvents.$inferSelect;
+
+export const liveGameDetections = pgTable("live_game_detections", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  gameTitle: text("game_title").notNull(),
+  confidence: real("confidence").default(0),
+  detectionMethod: text("detection_method").notNull().default("title_parse"),
+  metadata: jsonb("metadata").default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lgd_user_idx: index("lgd_user_idx").on(t.userId),
+  lgd_stream_idx: index("lgd_stream_idx").on(t.streamId),
+}));
+export type LiveGameDetection = typeof liveGameDetections.$inferSelect;
+
+export const liveMomentCaptures = pgTable("live_moment_captures", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  momentType: text("moment_type").notNull(),
+  timestamp: real("timestamp_sec").default(0),
+  duration: real("duration_sec").default(0),
+  intensity: real("intensity").default(0),
+  clipPotential: real("clip_potential").default(0),
+  description: text("description"),
+  metadata: jsonb("metadata").default({}),
+  status: text("status").notNull().default("captured"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lmc_user_idx: index("lmc_user_idx").on(t.userId),
+  lmc_stream_idx: index("lmc_stream_idx").on(t.streamId),
+  lmc_type_idx: index("lmc_type_idx").on(t.momentType),
+}));
+export type LiveMomentCapture = typeof liveMomentCaptures.$inferSelect;
+
+export const liveBurnoutSignals = pgTable("live_burnout_signals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  signalType: text("signal_type").notNull(),
+  severity: text("severity").notNull().default("low"),
+  riskScore: real("risk_score").default(0),
+  factors: jsonb("factors").default({}),
+  recommendation: text("recommendation"),
+  acknowledged: boolean("acknowledged").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lbs_user_idx: index("lbs_user_idx").on(t.userId),
+}));
+export type LiveBurnoutSignal = typeof liveBurnoutSignals.$inferSelect;
+
+export const liveCrisisEvents = pgTable("live_crisis_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  crisisType: text("crisis_type").notNull(),
+  severity: text("severity").notNull().default("low"),
+  description: text("description"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolution: text("resolution"),
+  reputationImpact: real("reputation_impact").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lce_user_idx: index("lce_user_idx").on(t.userId),
+  lce_stream_idx: index("lce_stream_idx").on(t.streamId),
+}));
+export type LiveCrisisEvent = typeof liveCrisisEvents.$inferSelect;
+
+export const liveCommerceEvents = pgTable("live_commerce_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  eventType: text("event_type").notNull(),
+  amount: real("amount").default(0),
+  currency: text("currency").notNull().default("USD"),
+  source: text("source").notNull(),
+  viewerCount: integer("viewer_count").default(0),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lcme_user_idx: index("lcme_user_idx").on(t.userId),
+  lcme_stream_idx: index("lcme_stream_idx").on(t.streamId),
+}));
+export type LiveCommerceEvent = typeof liveCommerceEvents.$inferSelect;
+
+export const liveAudienceGeo = pgTable("live_audience_geo", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  country: text("country").notNull(),
+  region: text("region"),
+  viewerCount: integer("viewer_count").default(0),
+  percentage: real("percentage").default(0),
+  peakConcurrent: integer("peak_concurrent").default(0),
+  snapshotAt: timestamp("snapshot_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lag_user_idx: index("lag_user_idx").on(t.userId),
+  lag_stream_idx: index("lag_stream_idx").on(t.streamId),
+}));
+export type LiveAudienceGeo = typeof liveAudienceGeo.$inferSelect;
+
+export const liveCoCreationSignals = pgTable("live_co_creation_signals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  signalType: text("signal_type").notNull(),
+  source: text("source").notNull().default("chat"),
+  content: text("content"),
+  sentiment: real("sentiment").default(0),
+  actionTaken: text("action_taken"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lccs_user_idx: index("lccs_user_idx").on(t.userId),
+  lccs_stream_idx: index("lccs_stream_idx").on(t.streamId),
+}));
+export type LiveCoCreationSignal = typeof liveCoCreationSignals.$inferSelect;
+
+export const liveLearningSignals = pgTable("live_learning_signals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: text("stream_id"),
+  signalType: text("signal_type").notNull(),
+  signalValue: real("signal_value").default(0),
+  context: jsonb("context").default({}),
+  appliedTo: text("applied_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  lls_user_idx: index("lls_user_idx").on(t.userId),
+  lls_stream_idx: index("lls_stream_idx").on(t.streamId),
+}));
+export type LiveLearningSignal = typeof liveLearningSignals.$inferSelect;
