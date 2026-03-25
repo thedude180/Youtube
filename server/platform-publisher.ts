@@ -347,13 +347,11 @@ export async function publishToplatform(
       };
     }
 
-    let trustBudgetBlocked = false;
     const trustCost = platform === "youtube" ? 10 : 5;
     try {
       const { checkTrustBudget } = await import("./kernel/trust-budget");
       const trustResult = await checkTrustBudget(userId, `distribution:${platform}`, trustCost);
       if (trustResult.blocked) {
-        trustBudgetBlocked = true;
         await recordDistributionLearning(userId, platform, "publish_trust_blocked", {
           allowed: false,
           trustCost,
@@ -366,14 +364,24 @@ export async function publishToplatform(
           error: `Publishing blocked: trust budget exhausted for ${platform} distribution (remaining: ${trustResult.remaining}).`,
         };
       }
-    } catch {}
+    } catch (trustErr: any) {
+      await recordDistributionLearning(userId, platform, "publish_trust_error", {
+        allowed: false,
+        trustCost,
+        policyIssues: ["trust budget check failed: " + (trustErr?.message || "unknown")],
+        connectionStatus: connectionHealth.status,
+      }).catch(() => {});
+      return {
+        success: false,
+        platform,
+        error: `Publishing blocked: trust budget check unavailable for ${platform}.`,
+      };
+    }
 
-    let capabilityOk = true;
     try {
       const { probeCapability } = await import("./kernel/capability-probe");
       const probeResult = await probeCapability(platform, `${platform}:publish`, undefined, userId);
       if (probeResult.probeResult === "error") {
-        capabilityOk = false;
         await recordDistributionLearning(userId, platform, "publish_capability_failed", {
           allowed: false,
           trustCost,
@@ -386,7 +394,19 @@ export async function publishToplatform(
           error: `Publishing blocked: capability probe failed for ${platform}. Platform integration may be unavailable.`,
         };
       }
-    } catch {}
+    } catch (probeErr: any) {
+      await recordDistributionLearning(userId, platform, "publish_capability_error", {
+        allowed: false,
+        trustCost,
+        policyIssues: ["capability probe error: " + (probeErr?.message || "unknown")],
+        connectionStatus: connectionHealth.status,
+      }).catch(() => {});
+      return {
+        success: false,
+        platform,
+        error: `Publishing blocked: capability probe unavailable for ${platform}.`,
+      };
+    }
 
     const gateResult = await checkPublishingGates(userId, platform, {
       title: metadata?.title || content.slice(0, 100),
@@ -429,7 +449,11 @@ export async function publishToplatform(
 
     return result;
   } catch (err: any) {
-    return _executePublish(userId, platform, content, metadata);
+    return {
+      success: false,
+      platform,
+      error: `Publishing blocked: governance pipeline error — ${err?.message || "unknown error"}. Content not published.`,
+    };
   }
 }
 

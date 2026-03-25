@@ -84,7 +84,13 @@ Return a JSON object where keys are platform names and values are the generated 
                 }).catch(() => {});
                 governanceAllowed = false;
               }
-            } catch {}
+            } catch (trustErr: any) {
+              logger.warn(`[MultiPlatformDistributor] Trust budget check error for ${platform}: ${trustErr?.message}`);
+              await recordDistributionLearning(userId, platform, "distribute_trust_error", {
+                allowed: false, trustCost, policyIssues: ["trust budget check error"], connectionStatus: health.status,
+              }).catch(() => {});
+              governanceAllowed = false;
+            }
           }
 
           if (governanceAllowed) {
@@ -98,7 +104,13 @@ Return a JSON object where keys are platform names and values are the generated 
                 }).catch(() => {});
                 governanceAllowed = false;
               }
-            } catch {}
+            } catch (probeErr: any) {
+              logger.warn(`[MultiPlatformDistributor] Capability probe error for ${platform}: ${probeErr?.message}`);
+              await recordDistributionLearning(userId, platform, "distribute_capability_error", {
+                allowed: false, trustCost, policyIssues: ["capability probe error"], connectionStatus: health.status,
+              }).catch(() => {});
+              governanceAllowed = false;
+            }
           }
 
           if (governanceAllowed) {
@@ -116,7 +128,8 @@ Return a JSON object where keys are platform names and values are the generated 
             }
           }
         } catch (err: any) {
-          logger.warn(`[MultiPlatformDistributor] Governance check failed for ${platform}, proceeding: ${err.message}`);
+          logger.warn(`[MultiPlatformDistributor] Governance pipeline error for ${platform}, blocking: ${err.message}`);
+          governanceAllowed = false;
         }
 
         if (!governanceAllowed) continue;

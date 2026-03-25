@@ -35,21 +35,21 @@ const TRUST_COSTS: Record<string, number> = {
 export async function distributeContent(req: DistributionRequest): Promise<AdapterResult> {
   const trustCost = TRUST_COSTS[req.contentType] || 5;
 
-  let trustCheck = { remaining: 100, blocked: false };
+  let trustCheck = { remaining: 0, blocked: true };
   try {
     const { checkTrustBudget } = await import("../kernel/trust-budget");
     trustCheck = await checkTrustBudget(req.userId, `distribution:${req.platform}`, trustCost);
   } catch {
-    trustCheck = { remaining: 100, blocked: false };
+    trustCheck = { remaining: 0, blocked: true };
   }
 
-  let capabilityCheck = { probeResult: "verified" };
+  let capabilityCheck = { probeResult: "error" };
   try {
     const { probeCapability } = await import("../kernel/capability-probe");
     const probe = await probeCapability(req.platform, `${req.platform}:publish`, undefined, req.userId);
     capabilityCheck = { probeResult: probe.probeResult };
   } catch {
-    capabilityCheck = { probeResult: "skipped" };
+    capabilityCheck = { probeResult: "error" };
   }
 
   const { checkPublishingGates } = await import("./publishing-gates");
