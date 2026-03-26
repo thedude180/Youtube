@@ -459,11 +459,17 @@ export async function getRevenueTruthSummary(userId: string): Promise<RevenueTru
 
   for (const source of Object.keys(bySource)) {
     const s = bySource[source];
-    const counts = s.statusCounts;
-    const statusKeys = Object.keys(counts);
-    if (statusKeys.length > 1) {
-      const dominant = statusKeys.reduce((a, b) => counts[a] > counts[b] ? a : b);
-      s.status = parseStatus(dominant);
+    if (s.verified > 0 && s.estimated > 0) {
+      s.status = s.verified >= s.estimated ? "verified" : "estimated";
+    } else if (s.verified > 0) {
+      s.status = "verified";
+    } else {
+      const counts = s.statusCounts;
+      const statusKeys = Object.keys(counts);
+      if (statusKeys.length > 1) {
+        const dominant = statusKeys.reduce((a, b) => counts[a] > counts[b] ? a : b);
+        s.status = parseStatus(dominant);
+      }
     }
   }
 
