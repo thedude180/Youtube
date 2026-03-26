@@ -18,20 +18,20 @@ import { computeEstatePlan } from "../business/estate-succession";
 import { computeBusinessLearning } from "../business/business-learning";
 import { getRevenueTruthSummary } from "../business/revenue-reconciliation";
 
-const scenarioAnalysisSchema = z.object({
+export const scenarioAnalysisSchema = z.object({
   scenario: z.string().min(1).max(500),
   revenueImpactPercent: z.number().min(0).max(100).optional(),
   timeframeMonths: z.number().int().min(1).max(60).optional(),
 });
 
-const continuityExportSchema = z.object({
+export const continuityExportSchema = z.object({
   format: z.enum(["json", "summary"]).default("json"),
   includeValuation: z.boolean().default(true),
   includeRisk: z.boolean().default(true),
   includeEstate: z.boolean().default(true),
 });
 
-const trustBudgetOverrideSchema = z.object({
+export const trustBudgetOverrideSchema = z.object({
   trustBudgetCost: z.number().min(0),
   reason: z.string().min(1).max(500),
 });

@@ -731,42 +731,41 @@ describe("Phase 5: Business Intelligence Integration Tests", () => {
 
   describe("Zod Schema Validation (POST routes)", () => {
     it("scenarioAnalysisSchema should validate correct input", async () => {
-      const { z } = await import("zod");
-      const scenarioSchema = z.object({
-        scenario: z.string().min(1).max(500),
-        revenueImpactPercent: z.number().min(0).max(100).optional(),
-        timeframeMonths: z.number().int().min(1).max(60).optional(),
-      });
-      const valid = scenarioSchema.safeParse({ scenario: "algorithm change", revenueImpactPercent: 30 });
+      const { scenarioAnalysisSchema } = await import("../../routes/business-intelligence");
+      const valid = scenarioAnalysisSchema.safeParse({ scenario: "algorithm change", revenueImpactPercent: 30 });
       expect(valid.success).toBe(true);
-      const invalid = scenarioSchema.safeParse({ scenario: "" });
+      const invalid = scenarioAnalysisSchema.safeParse({ scenario: "" });
       expect(invalid.success).toBe(false);
     });
 
+    it("scenarioAnalysisSchema should reject invalid types", async () => {
+      const { scenarioAnalysisSchema } = await import("../../routes/business-intelligence");
+      const invalid = scenarioAnalysisSchema.safeParse({ scenario: 123 });
+      expect(invalid.success).toBe(false);
+      const outOfRange = scenarioAnalysisSchema.safeParse({ scenario: "test", revenueImpactPercent: 150 });
+      expect(outOfRange.success).toBe(false);
+    });
+
     it("continuityExportSchema should validate correct input", async () => {
-      const { z } = await import("zod");
-      const exportSchema = z.object({
-        format: z.enum(["json", "summary"]).default("json"),
-        includeValuation: z.boolean().default(true),
-        includeRisk: z.boolean().default(true),
-        includeEstate: z.boolean().default(true),
-      });
-      const valid = exportSchema.safeParse({ format: "summary", includeValuation: false });
+      const { continuityExportSchema } = await import("../../routes/business-intelligence");
+      const valid = continuityExportSchema.safeParse({ format: "summary", includeValuation: false });
       expect(valid.success).toBe(true);
-      const invalid = exportSchema.safeParse({ format: "xml" });
+      const invalid = continuityExportSchema.safeParse({ format: "xml" });
       expect(invalid.success).toBe(false);
     });
 
     it("trustBudgetOverrideSchema should validate correct input", async () => {
-      const { z } = await import("zod");
-      const overrideSchema = z.object({
-        trustBudgetCost: z.number().min(0),
-        reason: z.string().min(1).max(500),
-      });
-      const valid = overrideSchema.safeParse({ trustBudgetCost: 10, reason: "manual override test" });
+      const { trustBudgetOverrideSchema } = await import("../../routes/business-intelligence");
+      const valid = trustBudgetOverrideSchema.safeParse({ trustBudgetCost: 10, reason: "manual override test" });
       expect(valid.success).toBe(true);
-      const invalid = overrideSchema.safeParse({ trustBudgetCost: -1, reason: "" });
+      const invalid = trustBudgetOverrideSchema.safeParse({ trustBudgetCost: -1, reason: "" });
       expect(invalid.success).toBe(false);
+    });
+
+    it("trustBudgetOverrideSchema should require reason", async () => {
+      const { trustBudgetOverrideSchema } = await import("../../routes/business-intelligence");
+      const noReason = trustBudgetOverrideSchema.safeParse({ trustBudgetCost: 5 });
+      expect(noReason.success).toBe(false);
     });
   });
 
