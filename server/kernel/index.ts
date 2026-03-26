@@ -149,6 +149,19 @@ export async function routeToDLQ(
       priority: 5,
     })
     .returning({ id: deadLetterQueue.id });
+
+  try {
+    const { feedDlqToExceptionDesk } = await import("../services/exception-desk");
+    await feedDlqToExceptionDesk({
+      id: item.id,
+      jobType,
+      error,
+      userId,
+      priority: 5,
+      payload,
+    });
+  } catch {}
+
   return item.id;
 }
 

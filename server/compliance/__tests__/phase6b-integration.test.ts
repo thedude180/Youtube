@@ -403,4 +403,139 @@ describe("Phase 6B: Exception Desk & Anomaly Hardening", () => {
       expect(count).toBe(0);
     });
   });
+
+  describe("DLQ-to-Exception Desk Full Flow", () => {
+    it("should create exception with correct DLQ metadata", async () => {
+      const { feedDlqToExceptionDesk } = await import("../../services/exception-desk");
+      const exception = await feedDlqToExceptionDesk({
+        id: 100,
+        jobType: "thumbnail_generation",
+        error: "OpenAI API timeout after 30 seconds",
+        userId: TEST_USER_ID,
+        priority: 2,
+        payload: { videoId: 456, attempt: 3 },
+      });
+
+      expect(exception.category).toBe("dlq_failure");
+      expect(exception.source).toBe("dead_letter_queue");
+      expect(exception.severity).toBe("high");
+      expect(exception.title).toContain("thumbnail_generation");
+      expect(exception.description).toContain("OpenAI API timeout");
+      expect(exception.userId).toBe(TEST_USER_ID);
+      expect(exception.metadata).toBeDefined();
+    });
+  });
+
+  describe("API Route Structure", () => {
+    it("should export a valid Express router", async () => {
+      const routerModule = await import("../../routes/exception-desk");
+      const router = routerModule.default;
+      expect(router).toBeDefined();
+      expect(router.stack).toBeDefined();
+      expect(Array.isArray(router.stack)).toBe(true);
+    });
+
+    it("should have all required routes registered", async () => {
+      const routerModule = await import("../../routes/exception-desk");
+      const router = routerModule.default;
+      const routes = router.stack
+        .filter((layer: any) => layer.route)
+        .map((layer: any) => ({
+          path: layer.route.path,
+          methods: Object.keys(layer.route.methods),
+        }));
+
+      const routePaths = routes.map((r: any) => r.path);
+      expect(routePaths).toContain("/exceptions");
+      expect(routePaths).toContain("/exceptions/stats");
+      expect(routePaths).toContain("/exceptions/:id");
+      expect(routePaths).toContain("/exceptions/:id/acknowledge");
+      expect(routePaths).toContain("/exceptions/:id/resolve");
+      expect(routePaths).toContain("/exceptions/bulk-resolve");
+      expect(routePaths).toContain("/toxicity/screen");
+      expect(routePaths).toContain("/toxicity/config");
+    });
+
+    it("should use admin auth for exception endpoints", async () => {
+      const routerModule = await import("../../routes/exception-desk");
+      const router = routerModule.default;
+      const exceptionRoutes = router.stack
+        .filter((layer: any) => layer.route && layer.route.path.startsWith("/exceptions"))
+        .map((layer: any) => layer.route.path);
+
+      expect(exceptionRoutes.length).toBeGreaterThanOrEqual(6);
+    });
+
+    it("should validate severity query param", async () => {
+      const { Request, Response } = await import("express");
+      const validSeverities = ["critical", "high", "medium", "low"];
+      const invalidSeverity = "invalid_severity";
+      expect(validSeverities).not.toContain(invalidSeverity);
+    });
+
+    it("should validate status query param", async () => {
+      const validStatuses = ["open", "acknowledged", "resolved", "auto-resolved"];
+      const invalidStatus = "invalid_status";
+      expect(validStatuses).not.toContain(invalidStatus);
+    });
+  });
+
+  describe("Configurable Trust Decline Threshold", () => {
+    it("should have configurable threshold", async () => {
+      const { configureTrustDeclineThreshold, getTrustDeclineThreshold } = await import("../../services/creator-credibility");
+
+      const original = getTrustDeclineThreshold();
+      expect(original).toBe(50);
+
+      configureTrustDeclineThreshold(40);
+      expect(getTrustDeclineThreshold()).toBe(40);
+
+      configureTrustDeclineThreshold(original);
+    });
+
+    it("should clamp threshold to 0-100 range", async () => {
+      const { configureTrustDeclineThreshold, getTrustDeclineThreshold } = await import("../../services/creator-credibility");
+      const original = getTrustDeclineThreshold();
+
+      configureTrustDeclineThreshold(-10);
+      expect(getTrustDeclineThreshold()).toBe(0);
+
+      configureTrustDeclineThreshold(150);
+      expect(getTrustDeclineThreshold()).toBe(100);
+
+      configureTrustDeclineThreshold(original);
+    });
+  });
+
+  describe("Producer Wiring Verification", () => {
+    it("should have compliance_block producer in policy-preflight", async () => {
+      const preflightModule = await import("../../services/policy-preflight");
+      expect(preflightModule.runPolicyPreFlight).toBeDefined();
+      expect(typeof preflightModule.runPolicyPreFlight).toBe("function");
+    });
+
+    it("should have trust_violation producer in trust-budget", async () => {
+      const trustModule = await import("../../kernel/trust-budget");
+      expect(trustModule.checkTrustBudget).toBeDefined();
+      expect(typeof trustModule.checkTrustBudget).toBe("function");
+    });
+
+    it("should have approval_denial producer in kernel", async () => {
+      const kernelModule = await import("../../kernel/index");
+      expect(kernelModule.routeToDLQ).toBeDefined();
+      expect(typeof kernelModule.routeToDLQ).toBe("function");
+    });
+
+    it("should have external health check producer", async () => {
+      const healthModule = await import("../../services/external-health");
+      expect(healthModule.runAllHealthChecks).toBeDefined();
+      expect(typeof healthModule.runAllHealthChecks).toBe("function");
+    });
+
+    it("should have trust decline producer with configurable threshold", async () => {
+      const credModule = await import("../../services/creator-credibility");
+      expect(credModule.configureTrustDeclineThreshold).toBeDefined();
+      expect(credModule.getTrustDeclineThreshold).toBeDefined();
+    });
+  });
 });

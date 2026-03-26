@@ -8,6 +8,16 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("creator-credibility");
 
+let trustDeclineThreshold = parseInt(process.env.TRUST_DECLINE_THRESHOLD || "50", 10);
+
+export function configureTrustDeclineThreshold(threshold: number) {
+  trustDeclineThreshold = Math.max(0, Math.min(100, threshold));
+}
+
+export function getTrustDeclineThreshold(): number {
+  return trustDeclineThreshold;
+}
+
 export interface CredibilityAssessment {
   userId: string;
   channelId: number | null;
@@ -115,7 +125,7 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
   if (existing.length > 0) {
     const previousScore = existing[0].overallScore ?? 50;
     const decline = previousScore - overallScore;
-    const trustThreshold = 50;
+    const trustThreshold = getTrustDeclineThreshold();
     if (overallScore < trustThreshold && decline > 0) {
       try {
         const { feedTrustDeclineToExceptionDesk } = await import("./exception-desk");
@@ -125,6 +135,15 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
           currentScore: overallScore,
           threshold: trustThreshold,
           decline,
+        });
+      } catch {}
+      try {
+        const { routeNotification } = await import("./notification-system");
+        await routeNotification(userId, {
+          title: "Trust Score Decline Alert",
+          message: `Your creator credibility score dropped by ${decline} points to ${overallScore}. This is below the threshold of ${trustThreshold}.`,
+          severity: overallScore < trustThreshold * 0.5 ? "critical" : "warning",
+          category: "compliance",
         });
       } catch {}
     }
