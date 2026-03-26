@@ -113,6 +113,21 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
     .limit(1);
 
   if (existing.length > 0) {
+    const previousScore = existing[0].overallScore ?? 50;
+    const decline = previousScore - overallScore;
+    const trustThreshold = 50;
+    if (overallScore < trustThreshold && decline > 0) {
+      try {
+        const { feedTrustDeclineToExceptionDesk } = await import("./exception-desk");
+        await feedTrustDeclineToExceptionDesk({
+          userId,
+          platform: "all",
+          currentScore: overallScore,
+          threshold: trustThreshold,
+          decline,
+        });
+      } catch {}
+    }
     await db.update(creatorCredibilityScores)
       .set({
         overallScore,

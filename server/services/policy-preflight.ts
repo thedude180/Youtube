@@ -139,6 +139,18 @@ export async function runPolicyPreFlight(
 
   if (!passed) {
     logger.warn("Policy pre-flight failed", { userId, platform, blockers: blockers.length, gates: gatesChecked.length });
+    try {
+      const { createException } = await import("./exception-desk");
+      await createException({
+        severity: criticalDrifts.length > 0 || !credibility?.publishAllowed ? "critical" : "high",
+        category: "compliance_block",
+        source: "policy_preflight",
+        title: `Pre-flight blocked: ${platform} publish for user ${userId}`,
+        description: `${blockers.length} blocker(s): ${blockers.join("; ")}`,
+        userId,
+        metadata: { platform, blockers, gatesChecked, contentId: content.contentId },
+      });
+    } catch {}
   }
 
   return {

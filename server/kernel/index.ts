@@ -237,6 +237,18 @@ export async function routeCommand(
 
   if (!approval.approved) {
     await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, executionKey });
+    try {
+      const { createException } = await import("../services/exception-desk");
+      await createException({
+        severity: "medium",
+        category: "approval_denial",
+        source: "kernel_approval_matrix",
+        title: `Action denied: ${actionType}`,
+        description: `Approval denied for "${actionType}": ${approval.reason}`,
+        userId,
+        metadata: { actionType, executionKey, reason: approval.reason },
+      });
+    } catch {}
     return { success: false, reason: approval.reason };
   }
 

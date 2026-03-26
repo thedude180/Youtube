@@ -95,6 +95,18 @@ export async function checkTrustBudget(
       periodId: period.id,
       reason: "budget depleted — automation blocked",
     }, "trust-budget", agentName);
+    try {
+      const { createException } = await import("../services/exception-desk");
+      await createException({
+        severity: "high",
+        category: "trust_violation",
+        source: "trust_budget",
+        title: `Trust budget exhausted: ${agentName}`,
+        description: `Agent "${agentName}" exceeded trust budget (cost: ${cost}). Automation blocked until budget resets.`,
+        userId,
+        metadata: { agentName, cost, periodId: period.id },
+      });
+    } catch {}
   }
 
   return {

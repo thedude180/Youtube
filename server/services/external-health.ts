@@ -224,5 +224,29 @@ export async function runAllHealthChecks(): Promise<{
     unconfigured: services.filter(s => s.status === "unconfigured").length,
   };
 
+  const downServices = services.filter(s => s.status === "down");
+  const degradedServices = services.filter(s => s.status === "degraded");
+  if (downServices.length > 0 || degradedServices.length > 0) {
+    try {
+      const { feedSystemHealthToExceptionDesk } = await import("./exception-desk");
+      for (const svc of downServices) {
+        await feedSystemHealthToExceptionDesk({
+          source: "external_health_check",
+          issue: `${svc.service} is DOWN: ${svc.message}`,
+          severity: "critical",
+          details: { service: svc.service, status: svc.status, latencyMs: svc.latencyMs },
+        });
+      }
+      for (const svc of degradedServices) {
+        await feedSystemHealthToExceptionDesk({
+          source: "external_health_check",
+          issue: `${svc.service} is DEGRADED: ${svc.message}`,
+          severity: "medium",
+          details: { service: svc.service, status: svc.status, latencyMs: svc.latencyMs },
+        });
+      }
+    } catch {}
+  }
+
   return { services, summary, checkedAt: new Date().toISOString() };
 }
