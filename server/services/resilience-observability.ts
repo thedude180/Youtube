@@ -491,20 +491,23 @@ export async function verifyReceiptChainIntegrity(userId: string, limit: number 
   total: number;
   valid: number;
   tampered: number;
-  results: Array<{ receiptId: number; valid: boolean }>;
+  chainBroken: boolean;
+  results: Array<{ receiptId: number; valid: boolean; chainValid: boolean }>;
 }> {
   const receipts = await db
     .select()
     .from(signedActionReceipts)
     .where(eq(signedActionReceipts.userId, userId))
-    .orderBy(desc(signedActionReceipts.createdAt))
+    .orderBy(signedActionReceipts.id)
     .limit(limit);
 
   let validCount = 0;
   let tamperedCount = 0;
-  const results: Array<{ receiptId: number; valid: boolean }> = [];
+  let chainBroken = false;
+  const results: Array<{ receiptId: number; valid: boolean; chainValid: boolean }> = [];
 
-  for (const r of receipts) {
+  for (let i = 0; i < receipts.length; i++) {
+    const r = receipts[i];
     const check = verifyReceiptIntegrity({
       userId: r.userId,
       actionType: r.actionType,
@@ -513,12 +516,27 @@ export async function verifyReceiptChainIntegrity(userId: string, limit: number 
       result: (r.result as Record<string, any>) || {},
       hmacSignature: r.hmacSignature,
     });
+
+    let chainValid = true;
+    const theater = (r.decisionTheater as Record<string, any>) || {};
+    const chainInfo = theater.chainIntegrity;
+
+    if (chainInfo && i > 0) {
+      const prevReceipt = receipts[i - 1];
+      const prevTheater = (prevReceipt.decisionTheater as Record<string, any>) || {};
+      const prevChainInfo = prevTheater.chainIntegrity;
+      if (prevChainInfo && chainInfo.prevHash !== prevChainInfo.chainHash) {
+        chainValid = false;
+        chainBroken = true;
+      }
+    }
+
     if (check.valid) validCount++;
     else tamperedCount++;
-    results.push({ receiptId: r.id, valid: check.valid });
+    results.push({ receiptId: r.id, valid: check.valid, chainValid });
   }
 
-  return { total: receipts.length, valid: validCount, tampered: tamperedCount, results };
+  return { total: receipts.length, valid: validCount, tampered: tamperedCount, chainBroken, results };
 }
 
 export async function initiateFeatureSunset(

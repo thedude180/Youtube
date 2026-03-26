@@ -29,7 +29,7 @@ export async function submitSmartEditToKernel(
   userId: string,
   videoId: number,
   queueItemId: number,
-  options: { confidence?: number; executionKey?: string } = {}
+  options: { confidence?: number; executionKey?: string; correlationId?: string } = {}
 ): Promise<CommandResult> {
   const executionKey = options.executionKey || `smart-edit:${userId}:${videoId}:${queueItemId}`;
 
@@ -46,5 +46,6 @@ export async function submitSmartEditToKernel(
       outputType: "highlight-reel",
     },
     rollbackAvailable: false,
+    correlationId: options.correlationId,
   });
 }

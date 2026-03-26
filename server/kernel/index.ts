@@ -69,6 +69,8 @@ function computeHmac(data: string): string {
   return crypto.createHmac("sha256", getHmacSecret()).update(data).digest("hex");
 }
 
+let lastReceiptHash: string | null = null;
+
 export async function issueSignedReceipt(
   userId: string,
   actionType: string,
@@ -82,6 +84,14 @@ export async function issueSignedReceipt(
   const sigData = JSON.stringify({ userId, actionType, executionKey, payload, result });
   const hmacSignature = computeHmac(sigData);
 
+  const prevHash = lastReceiptHash || "genesis";
+  const chainHash = computeHmac(`${prevHash}:${hmacSignature}`);
+
+  const enrichedTheater = {
+    ...decisionTheater,
+    chainIntegrity: { prevHash, chainHash },
+  };
+
   const [receipt] = await db
     .insert(signedActionReceipts)
     .values({
@@ -90,13 +100,15 @@ export async function issueSignedReceipt(
       executionKey,
       payload,
       result,
-      decisionTheater,
+      decisionTheater: enrichedTheater,
       hmacSignature,
       status: "completed",
       rollbackAvailable,
       rollbackMetadata: rollbackMetadata || null,
     })
     .returning({ id: signedActionReceipts.id });
+
+  lastReceiptHash = chainHash;
   return receipt.id;
 }
 

@@ -427,12 +427,39 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       expect(check.tampered).toBe(true);
     });
 
-    it("should verify receipt chain integrity across multiple receipts", async () => {
+    it("should verify receipt chain integrity with cryptographic linkage", async () => {
       const { verifyReceiptChainIntegrity } = await import("../../services/resilience-observability");
       const result = await verifyReceiptChainIntegrity(TEST_USER, 10);
       expect(result.total).toBeGreaterThan(0);
       expect(result.valid + result.tampered).toBe(result.total);
       expect(result.results.length).toBe(result.total);
+      expect(typeof result.chainBroken).toBe("boolean");
+      for (const r of result.results) {
+        expect(typeof r.chainValid).toBe("boolean");
+      }
+    });
+
+    it("should include chainIntegrity in kernel-issued receipts", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      registerCommand("stream_start", async () => ({ started: true }));
+
+      const result = await routeCommand("stream_start", {
+        userId: TEST_USER,
+        executionKey: `chain-test-${Date.now()}`,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.receiptId) {
+        const [receipt] = await db
+          .select()
+          .from(signedActionReceipts)
+          .where(eq(signedActionReceipts.id, result.receiptId))
+          .limit(1);
+        const theater = receipt.decisionTheater as Record<string, any>;
+        expect(theater.chainIntegrity).toBeDefined();
+        expect(theater.chainIntegrity.prevHash).toBeDefined();
+        expect(theater.chainIntegrity.chainHash).toBeDefined();
+      }
     });
   });
 
