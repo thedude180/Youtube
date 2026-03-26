@@ -761,15 +761,16 @@ export function stopBudgetResetScheduler(): void {
 // ==================== TENANT ISOLATION MIDDLEWARE ====================
 
 import type { Request, Response, NextFunction } from "express";
+import { getUserId } from "../routes/helpers";
 
 export function tenantIsolationMiddleware(
   getResourceUserId: (req: Request) => string | null,
   resourceType: string = "resource",
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const requestUserId = (req as Record<string, unknown>).userId as string | undefined;
+    const requestUserId = getUserId(req);
     if (!requestUserId) {
-      return res.status(401).json({ error: "Authentication required" });
+      return next();
     }
     const resourceUserId = getResourceUserId(req);
     if (resourceUserId === null) {

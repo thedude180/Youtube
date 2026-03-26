@@ -10,8 +10,7 @@ import {
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
-import { checkTrustBudget } from "./trust-budget";
-import { evaluateApproval } from "../services/trust-governance";
+import { evaluateApproval, deductTrustBudget as governanceDeductBudget } from "../services/trust-governance";
 
 const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
 
@@ -246,8 +245,8 @@ export async function routeCommand(
   }
 
   const budgetCost = options.confidence != null ? Math.ceil((1 - options.confidence) * 10) : 1;
-  const budgetResult = await checkTrustBudget(userId, actionType, budgetCost);
-  if (budgetResult.blocked) {
+  const budgetResult = await governanceDeductBudget(userId, actionType, budgetCost, `kernel:${actionType}`);
+  if (!budgetResult.allowed) {
     await emitDomainEvent(userId, `${actionType}.budget-blocked`, { executionKey, remaining: budgetResult.remaining });
     return { success: false, reason: "trust-budget-exhausted" };
   }
