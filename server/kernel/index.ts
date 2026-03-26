@@ -272,13 +272,15 @@ export async function routeCommand(
 
   try {
     if (isInSafeMode()) {
+      recordMetric("kernel.command.blocked", 1, "count", { actionType, reason: "safe-mode-global" });
       await emitDomainEvent(userId, `${actionType}.blocked-safe-mode`, { executionKey }, actionType, executionKey, correlationId);
-      return { success: false, reason: "system-in-safe-mode" };
+      return { success: false, reason: "system-in-safe-mode", correlationId };
     }
 
     if (isInSafeMode(actionType)) {
+      recordMetric("kernel.command.blocked", 1, "count", { actionType, reason: "safe-mode-engine" });
       await emitDomainEvent(userId, `${actionType}.blocked-safe-mode-engine`, { executionKey }, actionType, executionKey, correlationId);
-      return { success: false, reason: `engine-${actionType}-in-safe-mode` };
+      return { success: false, reason: `engine-${actionType}-in-safe-mode`, correlationId };
     }
 
     const alreadyExists = await checkExecutionKeyExists(executionKey);
@@ -309,20 +311,23 @@ export async function routeCommand(
       } catch (feedErr: any) {
         console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
       }
-      return { success: false, reason: approval.reason };
+      recordMetric("kernel.command.denied", 1, "count", { actionType, decision: approval.decision || "denied" });
+      return { success: false, reason: approval.reason, correlationId };
     }
 
     const budgetCost = options.confidence != null ? Math.ceil((1 - options.confidence) * 10) : 1;
     const budgetResult = await governanceDeductBudget(userId, actionType, budgetCost, `kernel:${actionType}`);
     if (!budgetResult.allowed) {
+      recordMetric("kernel.command.blocked", 1, "count", { actionType, reason: "trust-budget-exhausted" });
       await emitDomainEvent(userId, `${actionType}.budget-blocked`, { executionKey, remaining: budgetResult.remaining }, actionType, executionKey, correlationId);
-      return { success: false, reason: "trust-budget-exhausted" };
+      return { success: false, reason: "trust-budget-exhausted", correlationId };
     }
 
     const handler = commandHandlers.get(actionType);
     if (!handler) {
+      recordMetric("kernel.command.error", 1, "count", { actionType, reason: "no-handler" });
       await routeToDLQ(actionType, payload, `No handler registered for ${actionType}`, userId);
-      return { success: false, error: `No handler registered for ${actionType}` };
+      return { success: false, error: `No handler registered for ${actionType}`, correlationId };
     }
 
     const limiter = options.blastRadiusLimits
@@ -331,12 +336,14 @@ export async function routeCommand(
     const blastCtx = limiter.createExecutionContext();
     const preTimeCheck = blastCtx.checkTime();
     if (!preTimeCheck.allowed) {
-      return { success: false, error: `Blast radius limit: ${preTimeCheck.reason}` };
+      recordMetric("kernel.blast_radius.blocked", 1, "count", { actionType, reason: "pre_exec_time" });
+      return { success: false, error: `Blast radius limit: ${preTimeCheck.reason}`, correlationId };
     }
 
     const itemCheck = blastCtx.recordItem();
     if (!itemCheck.allowed) {
-      return { success: false, error: `Blast radius limit: ${itemCheck.reason}` };
+      recordMetric("kernel.blast_radius.blocked", 1, "count", { actionType, reason: "item_limit" });
+      return { success: false, error: `Blast radius limit: ${itemCheck.reason}`, correlationId };
     }
 
     await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey, correlationId);

@@ -220,12 +220,3 @@ export function registerResilienceObservabilityRoutes(app: Express) {
   });
 }
 
-export function correlationIdMiddleware() {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const existing = req.headers["x-correlation-id"] as string | undefined;
-    const correlationId = existing || generateCorrelationId();
-    req.headers["x-correlation-id"] = correlationId;
-    res.setHeader("x-correlation-id", correlationId);
-    next();
-  };
-}
