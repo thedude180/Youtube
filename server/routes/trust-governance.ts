@@ -10,6 +10,7 @@ import {
   simulateTrustRisk,
   generateOverrideReport, recordOverride,
   getGovernanceAuditLogs, logGovernanceAction,
+  startBudgetResetScheduler,
 } from "../services/trust-governance";
 
 const router = Router();
@@ -81,7 +82,7 @@ router.put("/approval/rules/:actionClass", asyncHandler(async (req, res) => {
   if (!bandClass && confidenceThreshold === undefined && !description) {
     return res.status(400).json({ error: "At least one field to update is required" });
   }
-  const updates: any = {};
+  const updates: { bandClass?: string; confidenceThreshold?: number; description?: string } = {};
   if (bandClass) updates.bandClass = bandClass;
   if (confidenceThreshold !== undefined) updates.confidenceThreshold = confidenceThreshold;
   if (description) updates.description = description;
@@ -222,6 +223,7 @@ router.get("/audit", asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-export function registerTrustGovernanceRoutes(app: any) {
+export function registerTrustGovernanceRoutes(app: import("express").Express) {
   app.use("/api/trust-governance", router);
+  startBudgetResetScheduler();
 }

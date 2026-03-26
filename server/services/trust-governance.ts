@@ -693,3 +693,84 @@ export async function recordOverride(
 
   return record.id;
 }
+
+// ==================== BUDGET RESET SCHEDULER ====================
+
+let resetIntervalHandle: ReturnType<typeof setInterval> | null = null;
+
+export async function resetExpiredBudgets(): Promise<number> {
+  const now = new Date();
+  const expired = await db
+    .select()
+    .from(trustBudgetPeriods)
+    .where(lte(trustBudgetPeriods.periodEnd, now));
+
+  let resetCount = 0;
+  for (const period of expired) {
+    const periodStart = now;
+    const periodEnd = new Date(now.getTime() + BUDGET_RESET_INTERVAL_HOURS * 3600_000);
+    await db.insert(trustBudgetPeriods).values({
+      userId: period.userId,
+      agentName: period.agentName,
+      periodStart,
+      periodEnd,
+      startingBudget: DEFAULT_BUDGET_TOTAL,
+      endingBudget: DEFAULT_BUDGET_TOTAL,
+      deductionsCount: 0,
+      totalDeducted: 0,
+      metadata: { previousPeriodId: period.id, resetAt: now.toISOString() },
+    });
+    resetCount++;
+  }
+
+  if (resetCount > 0) {
+    logger.info(`Reset ${resetCount} expired trust budget periods`);
+  }
+  return resetCount;
+}
+
+export function startBudgetResetScheduler(): void {
+  if (resetIntervalHandle) return;
+  const intervalMs = BUDGET_RESET_INTERVAL_HOURS * 3600_000;
+  resetIntervalHandle = setInterval(async () => {
+    try {
+      await resetExpiredBudgets();
+    } catch (err) {
+      logger.error("Budget reset scheduler failed:", err);
+    }
+  }, intervalMs);
+  logger.info(`Budget reset scheduler started (interval: ${BUDGET_RESET_INTERVAL_HOURS}h)`);
+}
+
+export function stopBudgetResetScheduler(): void {
+  if (resetIntervalHandle) {
+    clearInterval(resetIntervalHandle);
+    resetIntervalHandle = null;
+  }
+}
+
+// ==================== TENANT ISOLATION MIDDLEWARE ====================
+
+import type { Request, Response, NextFunction } from "express";
+
+export function tenantIsolationMiddleware(
+  getResourceUserId: (req: Request) => string | null,
+  resourceType: string = "resource",
+) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const requestUserId = (req as Record<string, unknown>).userId as string | undefined;
+    if (!requestUserId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const resourceUserId = getResourceUserId(req);
+    if (resourceUserId === null) {
+      return next();
+    }
+    const isolation = enforceTenantIsolation(requestUserId, resourceUserId, resourceType);
+    if (!isolation.allowed) {
+      auditTenantAccess(requestUserId, resourceUserId, resourceType, false).catch(() => {});
+      return res.status(403).json({ error: "Access denied: tenant isolation violation" });
+    }
+    next();
+  };
+}

@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
+import { checkTrustBudget } from "./trust-budget";
 
 const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
 
@@ -179,7 +180,7 @@ async function checkApprovalMatrix(
     .limit(1);
 
   if (!rule) {
-    return { approved: true, rule: null, reason: "no-rule-defined" };
+    return { approved: false, rule: null, reason: "no-rule-defined-fail-safe" };
   }
 
   if (rule.bandClass === "RED") {
@@ -267,6 +268,13 @@ export async function routeCommand(
       console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
     }
     return { success: false, reason: approval.reason };
+  }
+
+  const budgetCost = options.confidence != null ? Math.ceil((1 - options.confidence) * 10) : 1;
+  const budgetResult = await checkTrustBudget(userId, actionType, budgetCost);
+  if (budgetResult.blocked) {
+    await emitDomainEvent(userId, `${actionType}.budget-blocked`, { executionKey, remaining: budgetResult.remaining });
+    return { success: false, reason: "trust-budget-exhausted" };
   }
 
   const handler = commandHandlers.get(actionType);

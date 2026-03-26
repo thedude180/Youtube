@@ -70,6 +70,17 @@ describe("Governed Workflow: Smart Edit through Kernel", () => {
     registerCommand("test-failing-action", async () => {
       throw new Error("Simulated processing failure");
     });
+
+    await db.insert(approvalMatrixRules).values({
+      actionClass: "test-failing-action",
+      bandClass: "GREEN",
+      defaultState: "auto-approved",
+      approver: "system",
+      reversible: false,
+      rollbackAvailable: false,
+      expertHandoff: false,
+      description: "Test rule for failing action DLQ test",
+    }).onConflictDoNothing();
   });
 
   beforeEach(async () => {
