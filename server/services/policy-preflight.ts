@@ -85,8 +85,8 @@ export async function runPolicyPreFlight(
   }
 
   let mediaTrust: PreFlightResult["mediaTrust"] = null;
+  gatesChecked.push("media_trust_check");
   if (content.contentId) {
-    gatesChecked.push("media_trust_check");
     const trustResult = await verifyMediaTrust(userId, content.contentId);
     mediaTrust = {
       overallTrustScore: trustResult.overallTrustScore,
@@ -95,6 +95,11 @@ export async function runPolicyPreFlight(
     };
     if (!trustResult.compliant) {
       recommendations.push(`Media trust score is low (${trustResult.overallTrustScore}/100) — review asset provenance`);
+    }
+  } else {
+    const highRiskPlatforms = ["youtube", "tiktok", "instagram"];
+    if (highRiskPlatforms.includes(platform)) {
+      recommendations.push("No content provenance records found — register asset origins for trust verification on this platform");
     }
   }
 
@@ -123,7 +128,10 @@ export async function runPolicyPreFlight(
   gatesChecked.push("drift_check");
   const unresolvedDrifts = await getDriftEvents({ platform, status: "detected", limit: 10 });
   const activeDrifts = unresolvedDrifts.length;
-  if (activeDrifts > 0) {
+  const criticalDrifts = unresolvedDrifts.filter(d => d.severity === "critical");
+  if (criticalDrifts.length > 0) {
+    blockers.push(`${criticalDrifts.length} critical unresolved policy drift(s) for ${platform} — must be resolved before publishing`);
+  } else if (activeDrifts > 0) {
     recommendations.push(`${activeDrifts} unresolved policy drift(s) detected for ${platform} — review before publishing`);
   }
 
