@@ -18,6 +18,7 @@ import {
   advanceFeatureSunset,
   getFeatureSunsetStatus,
   processAutoSunsets,
+  isFeatureEnabled,
   trackFeatureUsage,
   seedFullDegradationPlaybooks,
   activatePlaybook,
@@ -138,6 +139,13 @@ export function registerResilienceObservabilityRoutes(app: Express) {
     const featureKey = req.query.featureKey as string | undefined;
     const records = await getFeatureSunsetStatus(featureKey);
     res.json(records);
+  });
+
+  app.get("/api/resilience/feature-sunset/enabled/:featureKey", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const enabled = await isFeatureEnabled(req.params.featureKey);
+    res.json({ featureKey: req.params.featureKey, enabled });
   });
 
   app.post("/api/resilience/feature-sunset/process-auto", async (req, res) => {

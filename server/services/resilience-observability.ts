@@ -567,6 +567,18 @@ export async function getFeatureSunsetStatus(featureKey?: string): Promise<any[]
   return db.select().from(featureSunsetRecords).orderBy(desc(featureSunsetRecords.createdAt)).limit(50);
 }
 
+export async function isFeatureEnabled(featureKey: string): Promise<boolean> {
+  const [record] = await db
+    .select()
+    .from(featureSunsetRecords)
+    .where(eq(featureSunsetRecords.featureKey, featureKey))
+    .orderBy(desc(featureSunsetRecords.createdAt))
+    .limit(1);
+
+  if (!record) return true;
+  return record.sunsetPhase !== "disabled" && record.sunsetPhase !== "removed";
+}
+
 export async function processAutoSunsets(): Promise<{ processed: number; disabled: number }> {
   const now = new Date();
   const records = await db

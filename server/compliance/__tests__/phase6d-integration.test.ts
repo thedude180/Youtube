@@ -5,8 +5,9 @@ import {
   featureSunsetRecords,
   capabilityDegradationPlaybooks,
   playbookActivationEvents,
+  domainEvents,
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 
 const TEST_USER = "test-phase6d-user";
@@ -561,6 +562,111 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
     });
   });
 
+  describe("Correlation ID Propagation", () => {
+    it("should include correlationId in kernel command result and domain events", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      registerCommand("notification_send", async () => ({ notified: true }));
+
+      const result = await routeCommand("notification_send", {
+        userId: TEST_USER,
+        executionKey: `corr-test-${Date.now()}`,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.correlationId).toBeDefined();
+      expect(result.correlationId).toMatch(/^cid-/);
+
+      if (result.receiptId) {
+        const [receipt] = await db
+          .select()
+          .from(signedActionReceipts)
+          .where(eq(signedActionReceipts.id, result.receiptId))
+          .limit(1);
+        const theater = receipt.decisionTheater as Record<string, any>;
+        expect(theater.correlationId).toBe(result.correlationId);
+      }
+
+      const events = await db
+        .select()
+        .from(domainEvents)
+        .where(eq(domainEvents.userId, TEST_USER))
+        .orderBy(desc(domainEvents.id))
+        .limit(5);
+      const completedEvent = events.find(e => e.eventType === "notification_send.completed");
+      expect(completedEvent).toBeDefined();
+      const eventPayload = completedEvent!.payload as Record<string, any>;
+      expect(eventPayload.correlationId).toBe(result.correlationId);
+    });
+  });
+
+  describe("Feature Sunset Runtime Gate", () => {
+    it("should report feature as enabled when no sunset record exists", async () => {
+      const { isFeatureEnabled } = await import("../../services/resilience-observability");
+      const enabled = await isFeatureEnabled("nonexistent_feature_xyz");
+      expect(enabled).toBe(true);
+    });
+
+    it("should report feature as enabled when in announced/deprecated phase", async () => {
+      const { initiateFeatureSunset, isFeatureEnabled } = await import("../../services/resilience-observability");
+      await initiateFeatureSunset("test_feature_announced", "Testing", undefined, 30);
+      const enabled = await isFeatureEnabled("test_feature_announced");
+      expect(enabled).toBe(true);
+    });
+
+    it("should report feature as disabled when sunset reaches disabled phase", async () => {
+      const { initiateFeatureSunset, advanceFeatureSunset, isFeatureEnabled } = await import("../../services/resilience-observability");
+      await initiateFeatureSunset("test_feature_disabled", "Testing disabled gate", undefined, 1);
+      await advanceFeatureSunset("test_feature_disabled");
+      await advanceFeatureSunset("test_feature_disabled");
+      const enabled = await isFeatureEnabled("test_feature_disabled");
+      expect(enabled).toBe(false);
+    });
+  });
+
+  describe("Admin Rollback Override", () => {
+    it("should allow admin to rollback RED-band receipts via admin override", async () => {
+      const { executeRollback } = await import("../../services/resilience-observability");
+      const execKey = `admin-rollback-red-${Date.now()}`;
+      const payload = { test: true };
+      const resultData = { status: "completed" };
+      const sigData = JSON.stringify({
+        userId: "other-user-123",
+        actionType: "financial_action",
+        executionKey: execKey,
+        payload,
+        result: resultData,
+      });
+      const hmac = crypto.createHmac("sha256", HMAC_SECRET).update(sigData).digest("hex");
+
+      const [receipt] = await db
+        .insert(signedActionReceipts)
+        .values({
+          userId: "other-user-123",
+          actionType: "financial_action",
+          executionKey: execKey,
+          payload,
+          result: resultData,
+          hmacSignature: hmac,
+          status: "completed",
+          rollbackAvailable: true,
+        })
+        .returning({ id: signedActionReceipts.id });
+
+      const result = await executeRollback(receipt.id, TEST_USER, "Admin override rollback", true);
+      expect(result.success).toBe(true);
+      expect(result.approvalDecision).toBe("admin-override");
+
+      const [updated] = await db
+        .select()
+        .from(signedActionReceipts)
+        .where(eq(signedActionReceipts.id, receipt.id))
+        .limit(1);
+      expect(updated.status).toBe("rolled_back");
+      const meta = updated.rollbackMetadata as Record<string, any>;
+      expect(meta.adminOverride).toBe(true);
+    });
+  });
+
   describe("Rollback via Approval Matrix", () => {
     it("should route rollback through approval matrix (GREEN-band action approves)", async () => {
       const { executeRollback } = await import("../../services/resilience-observability");
@@ -641,8 +747,11 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
 
   afterAll(async () => {
     await db.delete(signedActionReceipts).where(eq(signedActionReceipts.userId, TEST_USER)).catch(() => {});
+    await db.delete(signedActionReceipts).where(eq(signedActionReceipts.userId, "other-user-123")).catch(() => {});
     await db.delete(playbookActivationEvents).where(
       eq(playbookActivationEvents.activatedBy, TEST_USER)
     ).catch(() => {});
+    await db.delete(featureSunsetRecords).where(eq(featureSunsetRecords.featureKey, "test_feature_announced")).catch(() => {});
+    await db.delete(featureSunsetRecords).where(eq(featureSunsetRecords.featureKey, "test_feature_disabled")).catch(() => {});
   });
 });

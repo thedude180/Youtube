@@ -18,6 +18,9 @@ import {
   createBlastRadiusLimiter,
   validateHealing,
   recordMetric,
+  generateCorrelationId,
+  startCorrelation,
+  endCorrelation,
 } from "../services/resilience-observability";
 
 function getHmacSecret(): string {
@@ -40,7 +43,8 @@ export async function emitDomainEvent(
   eventType: string,
   payload: Record<string, any> = {},
   aggregateType?: string,
-  aggregateId?: string
+  aggregateId?: string,
+  correlationId?: string
 ): Promise<number> {
   const [event] = await db
     .insert(domainEvents)
@@ -49,8 +53,8 @@ export async function emitDomainEvent(
       eventType,
       aggregateType: aggregateType || null,
       aggregateId: aggregateId || null,
-      payload,
-      metadata: { emittedBy: "kernel", timestamp: Date.now() },
+      payload: { ...payload, ...(correlationId ? { correlationId } : {}) },
+      metadata: { emittedBy: "kernel", timestamp: Date.now(), ...(correlationId ? { correlationId } : {}) },
     })
     .returning({ id: domainEvents.id });
   return event.id;
@@ -212,6 +216,7 @@ export interface CommandResult {
   error?: string;
   reason?: string;
   existingReceiptId?: number;
+  correlationId?: string;
 }
 
 export async function routeCommand(
@@ -231,13 +236,18 @@ export async function routeCommand(
   const executionKey =
     payload.executionKey || `${actionType}:${userId}:${JSON.stringify(payload)}:${Math.floor(Date.now() / 60000)}`;
 
+  const correlationId = generateCorrelationId();
+  startCorrelation(correlationId, { actionType, userId, executionKey });
+
   if (isInSafeMode()) {
-    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode`, { executionKey });
+    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode`, { executionKey }, actionType, executionKey, correlationId);
+    endCorrelation(correlationId);
     return { success: false, reason: "system-in-safe-mode" };
   }
 
   if (isInSafeMode(actionType)) {
-    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode-engine`, { executionKey });
+    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode-engine`, { executionKey }, actionType, executionKey, correlationId);
+    endCorrelation(correlationId);
     return { success: false, reason: `engine-${actionType}-in-safe-mode` };
   }
 
@@ -254,7 +264,7 @@ export async function routeCommand(
   const approval = await checkApprovalViaGovernance(actionType, userId, options.confidence);
 
   if (!approval.approved) {
-    await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, decision: approval.decision, executionKey });
+    await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, decision: approval.decision, executionKey }, actionType, executionKey, correlationId);
     try {
       const { createException } = await import("../services/exception-desk");
       await createException({
@@ -264,11 +274,12 @@ export async function routeCommand(
         title: `Action ${approval.decision}: ${actionType}`,
         description: `Approval ${approval.decision} for "${actionType}": ${approval.reason}`,
         userId,
-        metadata: { actionType, executionKey, reason: approval.reason, decision: approval.decision },
+        metadata: { actionType, executionKey, reason: approval.reason, decision: approval.decision, correlationId },
       });
     } catch (feedErr: any) {
       console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
     }
+    endCorrelation(correlationId);
     return { success: false, reason: approval.reason };
   }
 
@@ -295,7 +306,7 @@ export async function routeCommand(
   }
   blastCtx.recordItem();
 
-  await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey);
+  await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey, correlationId);
 
   try {
     const result = await handler(payload);
@@ -303,6 +314,14 @@ export async function routeCommand(
     const elapsed = Date.now() - startMs;
     recordMetric("kernel.command.latency", elapsed, "ms", { actionType });
     recordMetric("kernel.command.success", 1, "count", { actionType });
+
+    const postTimeCheck = blastCtx.checkTime();
+    if (!postTimeCheck.allowed) {
+      recordMetric("kernel.blast_radius.abort", 1, "count", { actionType, reason: "post_exec_time" });
+      await emitDomainEvent(userId, `${actionType}.blast-radius-abort`, { executionKey, reason: postTimeCheck.reason }, actionType, executionKey, correlationId);
+    }
+
+    const blastStatus = blastCtx.getStatus();
 
     const decisionTheater = {
       whatChanged: options.decisionTheater?.whatChanged || actionType,
@@ -319,7 +338,8 @@ export async function routeCommand(
       outputType: options.decisionTheater?.outputType || "executed",
       uncertainty: options.decisionTheater?.uncertainty || null,
       geographicContext: options.decisionTheater?.geographicContext || null,
-      blastRadiusStatus: blastCtx.getStatus(),
+      blastRadiusStatus: blastStatus,
+      correlationId,
     };
 
     const receiptId = await issueSignedReceipt(
@@ -333,7 +353,7 @@ export async function routeCommand(
       options.rollbackMetadata
     );
 
-    await emitDomainEvent(userId, `${actionType}.completed`, { executionKey, receiptId }, actionType, executionKey);
+    await emitDomainEvent(userId, `${actionType}.completed`, { executionKey, receiptId }, actionType, executionKey, correlationId);
 
     if (options.healingCheck) {
       const healingResult = await validateHealing(
@@ -346,14 +366,16 @@ export async function routeCommand(
       }
     }
 
-    return { success: true, receiptId, result };
+    endCorrelation(correlationId);
+    return { success: true, receiptId, result, correlationId };
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
     const elapsed = Date.now() - startMs;
     recordMetric("kernel.command.latency", elapsed, "ms", { actionType });
     recordMetric("kernel.command.failure", 1, "count", { actionType });
-    await emitDomainEvent(userId, `${actionType}.failed`, { executionKey, error: errorMsg }, actionType, executionKey);
+    await emitDomainEvent(userId, `${actionType}.failed`, { executionKey, error: errorMsg }, actionType, executionKey, correlationId);
     await routeToDLQ(actionType, payload, errorMsg, userId);
+    endCorrelation(correlationId);
     return { success: false, error: errorMsg };
   }
 }
