@@ -43,7 +43,11 @@ vi.mock("../../db", () => ({
     })),
     update: vi.fn().mockImplementation(() => ({
       set: vi.fn().mockImplementation(() => ({
-        where: vi.fn().mockResolvedValue(undefined),
+        where: vi.fn().mockImplementation((...args: any[]) => ({
+          returning: vi.fn().mockResolvedValue(
+            Array.isArray(args[0]?.values) ? args[0].values.map((id: number) => ({ id })) : [{ id: 1 }, { id: 2 }, { id: 3 }]
+          ),
+        })),
       })),
     })),
   },

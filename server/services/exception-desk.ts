@@ -187,15 +187,16 @@ export async function getExceptionStats(): Promise<{
 
 export async function bulkResolve(ids: number[], resolution: string): Promise<number> {
   if (ids.length === 0) return 0;
-  const result = await db.update(exceptionDeskItems)
+  const updated = await db.update(exceptionDeskItems)
     .set({
       status: "resolved",
       suggestedResolution: resolution,
       resolvedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(inArray(exceptionDeskItems.id, ids));
-  return ids.length;
+    .where(inArray(exceptionDeskItems.id, ids))
+    .returning({ id: exceptionDeskItems.id });
+  return updated.length;
 }
 
 export async function feedDlqToExceptionDesk(dlqItem: {
