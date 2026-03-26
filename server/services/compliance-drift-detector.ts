@@ -3,6 +3,7 @@ import { complianceDriftEvents, complianceRules, policyPackBaselines } from "@sh
 import { eq, and, desc } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getPolicyPack, getPolicyPackHash, getSupportedPlatforms } from "./policy-packs";
+import { createHash } from "crypto";
 
 const logger = createLogger("compliance-drift-detector");
 
@@ -61,22 +62,31 @@ export async function detectComplianceDrift(): Promise<DriftDetectionResult[]> {
   return results;
 }
 
+function computeEffectiveSnapshotHash(packHash: string, dbRules: Array<{ ruleName: string; severity: string; description: string | null }>): string {
+  const ruleFingerprint = dbRules
+    .sort((a, b) => a.ruleName.localeCompare(b.ruleName))
+    .map(r => `${r.ruleName}:${r.severity}:${(r.description || "").slice(0, 50)}`)
+    .join("|");
+  return createHash("sha256").update(`${packHash}::${ruleFingerprint}`).digest("hex").slice(0, 16);
+}
+
 async function detectPlatformDrift(platform: string): Promise<DriftDetectionResult> {
   const pack = getPolicyPack(platform);
   if (!pack) {
     return { platform, driftsDetected: 0, changes: [] };
   }
 
-  const currentHash = getPolicyPackHash(platform);
+  const existingRules = await db.select().from(complianceRules)
+    .where(and(eq(complianceRules.platform, platform), eq(complianceRules.isActive, true)))
+    .orderBy(desc(complianceRules.lastUpdated));
+
+  const packHash = getPolicyPackHash(platform);
+  const currentHash = computeEffectiveSnapshotHash(packHash, existingRules);
   const previousHash = await getBaselineHash(platform);
 
   if (previousHash && previousHash === currentHash) {
     return { platform, driftsDetected: 0, changes: [] };
   }
-
-  const existingRules = await db.select().from(complianceRules)
-    .where(and(eq(complianceRules.platform, platform), eq(complianceRules.isActive, true)))
-    .orderBy(desc(complianceRules.lastUpdated));
 
   const changes: Array<{ field: string; oldValue: string; newValue: string }> = [];
   const driftChanges: DriftDetectionResult["changes"] = [];
@@ -106,13 +116,27 @@ async function detectPlatformDrift(platform: string): Promise<DriftDetectionResu
     }
   }
 
-  if (previousHash && currentHash !== previousHash) {
-    changes.push({ field: "limits_hash", oldValue: previousHash, newValue: currentHash });
+  for (const dbRule of existingRules) {
+    const packRule = pack.rules.find(r => r.id === dbRule.ruleName);
+    if (!packRule) {
+      driftChanges.push({
+        category: "db_rule_orphan",
+        field: `db_rule:${dbRule.ruleName}`,
+        oldValue: dbRule.description || dbRule.ruleName,
+        newValue: "not_in_pack",
+        severity: "medium",
+      });
+      changes.push({ field: `db_rule:${dbRule.ruleName}`, oldValue: dbRule.description || dbRule.ruleName, newValue: "not_in_pack" });
+    }
+  }
+
+  if (previousHash && packHash !== previousHash) {
+    changes.push({ field: "limits_hash", oldValue: previousHash, newValue: packHash });
     driftChanges.push({
       category: "platform_limits",
       field: "policy_pack_version",
       oldValue: previousHash,
-      newValue: currentHash,
+      newValue: packHash,
       severity: "medium",
     });
   }

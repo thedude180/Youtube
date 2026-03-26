@@ -438,6 +438,7 @@ export async function publishToplatform(
     try {
       const { runPolicyPreFlight } = await import("./services/policy-preflight");
       const preFlightResult = await runPolicyPreFlight(userId, platform, {
+        contentId: metadata?.contentId || metadata?.sourceVideoId || undefined,
         title: metadata?.title || content.slice(0, 100),
         description: metadata?.description || content,
         tags: metadata?.tags,
