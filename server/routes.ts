@@ -355,6 +355,10 @@ export async function registerRoutes(
   registerTrustGovernanceRoutes(app);
   registerResilienceObservabilityRoutes(app);
 
+  import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
+    restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));
+  });
+
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {
     try {

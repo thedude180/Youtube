@@ -65,16 +65,61 @@ export function getSafeModeState(): SafeModeState {
   return { ...safeModeState, engines: { ...safeModeState.engines } };
 }
 
+async function persistSafeModeState(): Promise<void> {
+  try {
+    await db.insert(securityEvents).values({
+      eventType: "safe_mode_state_snapshot",
+      severity: "info",
+      userId: "system",
+      metadata: {
+        state: safeModeState,
+        persistedAt: new Date().toISOString(),
+      },
+    });
+  } catch (err: any) {
+    logger.error(`Failed to persist safe mode state: ${err?.message}`);
+  }
+}
+
+export async function restoreSafeModeState(): Promise<void> {
+  try {
+    const [latest] = await db
+      .select()
+      .from(securityEvents)
+      .where(eq(securityEvents.eventType, "safe_mode_state_snapshot"))
+      .orderBy(desc(securityEvents.id))
+      .limit(1);
+    if (latest) {
+      const meta = latest.metadata as any;
+      if (meta?.state) {
+        const restored = meta.state as SafeModeState;
+        safeModeState.global = restored.global || false;
+        safeModeState.engines = restored.engines || {};
+        safeModeState.enteredAt = restored.enteredAt || null;
+        safeModeState.reason = restored.reason || null;
+        safeModeState.autoRecoveryEnabled = restored.autoRecoveryEnabled ?? true;
+        if (safeModeState.global) {
+          logger.warn(`Safe mode state restored from DB: GLOBAL active — ${safeModeState.reason}`);
+        }
+      }
+    }
+  } catch (err: any) {
+    logger.error(`Failed to restore safe mode state: ${err?.message}`);
+  }
+}
+
 export function enterSafeMode(reason: string, engine?: string): { activated: boolean; scope: string } {
   if (engine) {
     safeModeState.engines[engine] = true;
     logger.warn(`Safe mode ENTERED for engine: ${engine} — ${reason}`);
+    persistSafeModeState();
     return { activated: true, scope: `engine:${engine}` };
   }
   safeModeState.global = true;
   safeModeState.enteredAt = Date.now();
   safeModeState.reason = reason;
   logger.warn(`GLOBAL safe mode ENTERED — ${reason}`);
+  persistSafeModeState();
   return { activated: true, scope: "global" };
 }
 
@@ -83,6 +128,7 @@ export function exitSafeMode(engine?: string): { deactivated: boolean; scope: st
     const was = safeModeState.engines[engine] ?? false;
     delete safeModeState.engines[engine];
     logger.info(`Safe mode EXITED for engine: ${engine}`);
+    persistSafeModeState();
     return { deactivated: was, scope: `engine:${engine}` };
   }
   const was = safeModeState.global;
@@ -91,6 +137,7 @@ export function exitSafeMode(engine?: string): { deactivated: boolean; scope: st
   safeModeState.reason = null;
   Object.keys(safeModeState.engines).forEach((k) => delete safeModeState.engines[k]);
   logger.info("GLOBAL safe mode EXITED");
+  persistSafeModeState();
   return { deactivated: was, scope: "global" };
 }
 
