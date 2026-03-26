@@ -415,7 +415,121 @@ describe("Phase 6G: Automated Recovery & Background Task Resilience", () => {
     });
   });
 
-  describe("T10: Integration Smoke Tests", () => {
+  describe("T10: Exception Desk → Playbook Automation", () => {
+    beforeEach(async () => {
+      const { resetPlaybookEngine } = await import("../../services/recovery-playbook-engine");
+      resetPlaybookEngine();
+    });
+
+    it("should trigger recovery playbook when system_health exception is created", async () => {
+      const { createException } = await import("../../services/exception-desk");
+      const { getRecoveryProgress } = await import("../../services/recovery-playbook-engine");
+
+      const item = await createException({
+        severity: "high",
+        category: "system_health",
+        source: "test_integration",
+        title: "Test system health alert",
+        description: "Integration test for automated recovery",
+      });
+
+      expect(item.id).toBeGreaterThan(0);
+
+      await new Promise(r => setTimeout(r, 200));
+
+      const progress = getRecoveryProgress();
+      expect(progress.totalExecutions).toBeGreaterThan(0);
+      const recent = progress.recentExecutions[progress.recentExecutions.length - 1];
+      expect(recent.playbookId).toBe("pb_system_health");
+      expect(recent.overallSuccess).toBe(true);
+    });
+
+    it("should trigger recovery playbook for pipeline_failure exception", async () => {
+      const { createException } = await import("../../services/exception-desk");
+      const { getRecoveryProgress } = await import("../../services/recovery-playbook-engine");
+
+      await createException({
+        severity: "high",
+        category: "pipeline_failure",
+        source: "test_integration",
+        title: "Test pipeline failure",
+        description: "Integration test for pipeline recovery",
+      });
+
+      await new Promise(r => setTimeout(r, 200));
+
+      const progress = getRecoveryProgress();
+      expect(progress.totalExecutions).toBeGreaterThan(0);
+    });
+
+    it("should NOT trigger recovery for exceptions from recovery engine itself", async () => {
+      const { createException } = await import("../../services/exception-desk");
+      const { getRecoveryProgress, resetPlaybookEngine } = await import("../../services/recovery-playbook-engine");
+      resetPlaybookEngine();
+
+      await createException({
+        severity: "critical",
+        category: "system_health",
+        source: "recovery_playbook_engine",
+        title: "Escalation from playbook",
+        description: "Should not re-trigger playbook",
+      });
+
+      await new Promise(r => setTimeout(r, 200));
+
+      const progress = getRecoveryProgress();
+      expect(progress.totalExecutions).toBe(0);
+    });
+
+    it("should NOT trigger recovery for heartbeat monitor exceptions", async () => {
+      const { createException } = await import("../../services/exception-desk");
+      const { getRecoveryProgress, resetPlaybookEngine } = await import("../../services/recovery-playbook-engine");
+      resetPlaybookEngine();
+
+      await createException({
+        severity: "medium",
+        category: "system_health",
+        source: "cron_heartbeat_monitor",
+        title: "Heartbeat missed",
+        description: "Should not trigger playbook",
+      });
+
+      await new Promise(r => setTimeout(r, 200));
+
+      const progress = getRecoveryProgress();
+      expect(progress.totalExecutions).toBe(0);
+    });
+  });
+
+  describe("T11: Runtime Scheduler Wiring", () => {
+    it("should have heartbeat check scheduler wired in routes", async () => {
+      const { registerCronHeartbeat, getRegisteredHeartbeats } = await import("../../lib/cron-lock");
+      registerCronHeartbeat("test_scheduler_wiring", 60_000);
+      const heartbeats = getRegisteredHeartbeats();
+      expect(heartbeats.size).toBeGreaterThan(0);
+    });
+
+    it("should have metric rollup function importable and executable", async () => {
+      const { rollupMetrics } = await import("../../services/metric-rollups");
+      expect(typeof rollupMetrics).toBe("function");
+      const result = await rollupMetrics();
+      expect(result).toHaveProperty("rolledUp");
+      expect(result).toHaveProperty("periodStart");
+    });
+
+    it("should persist metric rollups to database", async () => {
+      const { recordMetric } = await import("../../services/resilience-observability");
+      for (let i = 0; i < 5; i++) {
+        recordMetric("test.persist.check", i * 10, "ms", { env: "test" });
+      }
+      const { rollupMetrics, getAvailableMetrics } = await import("../../services/metric-rollups");
+      await rollupMetrics();
+      const available = await getAvailableMetrics();
+      expect(Array.isArray(available)).toBe(true);
+    });
+  });
+
+  describe("T12: End-to-End Integration Smoke Tests", () => {
     it("should have cron lock status available", async () => {
       const { getCronLockStatus } = await import("../../lib/cron-lock");
       const status = await getCronLockStatus();

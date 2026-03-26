@@ -363,6 +363,21 @@ export async function registerRoutes(
     restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));
   });
 
+  if (process.env.NODE_ENV !== "test") {
+    import("./lib/cron-lock").then(({ registerCronHeartbeat, runHeartbeatCheck }) => {
+      registerCronHeartbeat("clearStuck", 5 * 60_000);
+      setInterval(() => {
+        runHeartbeatCheck().catch((err: any) => console.error("[heartbeat] Check failed:", err?.message));
+      }, 5 * 60_000);
+    });
+
+    import("./services/metric-rollups").then(({ rollupMetrics }) => {
+      setInterval(() => {
+        rollupMetrics().catch((err: any) => console.error("[metric-rollup] Rollup failed:", err?.message));
+      }, 60 * 60_000);
+    });
+  }
+
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {
     try {

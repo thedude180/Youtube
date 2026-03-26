@@ -48,7 +48,39 @@ export async function createException(input: CreateExceptionInput): Promise<type
 
   logger.info("Exception created", { id: item.id, severity: input.severity, category: input.category, source: input.source });
 
+  if (input.source !== "recovery_playbook_engine" && input.source !== "cron_heartbeat_monitor") {
+    triggerRecoveryPlaybook(input.category, item.id).catch(err => {
+      logger.warn(`Recovery playbook trigger failed for exception ${item.id}: ${err?.message}`);
+    });
+  }
+
   return item;
+}
+
+async function triggerRecoveryPlaybook(category: string, exceptionId: number): Promise<void> {
+  try {
+    const { executeRecoveryPlaybook } = await import("./recovery-playbook-engine");
+    const result = await executeRecoveryPlaybook(category);
+    if (result.executed && result.result) {
+      logger.info(`Recovery playbook ${result.playbookId} executed for exception ${exceptionId}: ${result.result.overallSuccess ? "SUCCESS" : "PARTIAL"}`);
+      await db.update(exceptionDeskItems)
+        .set({
+          metadata: {
+            recoveryPlaybookId: result.playbookId,
+            recoveryExecutedAt: new Date().toISOString(),
+            recoverySuccess: result.result.overallSuccess,
+            recoveryActions: result.result.actions.map(a => ({ type: a.type, success: a.success, result: a.result })),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(exceptionDeskItems.id, exceptionId));
+      if (result.result.overallSuccess) {
+        await autoResolveException(exceptionId, `Auto-resolved by recovery playbook ${result.playbookId}`);
+      }
+    }
+  } catch (err: any) {
+    logger.warn(`Recovery playbook execution error: ${err?.message}`);
+  }
 }
 
 export async function getExceptions(filters?: {
