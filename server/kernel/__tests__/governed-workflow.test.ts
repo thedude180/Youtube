@@ -361,7 +361,7 @@ describe("RED-Band Approval Lifecycle (DB-backed)", () => {
     expect(pending.decision).toBe("pending_human");
   });
 
-  it("should resolve pending approval via resolveApproval", async () => {
+  it("should resolve pending approval via resolveApproval with execution token", async () => {
     const { resolveApproval } = await import("../../services/trust-governance");
     const [pending] = await db.select().from(approvalDecisions)
       .where(and(
@@ -375,12 +375,43 @@ describe("RED-Band Approval Lifecycle (DB-backed)", () => {
       const result = await resolveApproval(pending.id, "test-admin", "approved", "Test approval for integration test");
       expect(result.success).toBe(true);
       expect(result.decision).toBe("approved");
+      expect(result.executionToken).toBeDefined();
+      expect(typeof result.executionToken).toBe("string");
 
       const [resolved] = await db.select().from(approvalDecisions)
         .where(eq(approvalDecisions.id, pending.id))
         .limit(1);
       expect(resolved.decision).toBe("approved");
       expect(resolved.decidedBy).toBe("test-admin");
+      const meta = resolved.metadata as any;
+      expect(meta.executionToken).toBe(result.executionToken);
+      expect(meta.executionConsumed).toBe(false);
+    }
+  });
+
+  it("should consume execution token exactly once", async () => {
+    const { evaluateApproval, resolveApproval, consumeExecutionToken } = await import("../../services/trust-governance");
+
+    await evaluateApproval(TEST_USER, "test-red-action", 1.0);
+    const [pending] = await db.select().from(approvalDecisions)
+      .where(and(
+        eq(approvalDecisions.userId, TEST_USER),
+        eq(approvalDecisions.decision, "pending_human"),
+      ))
+      .orderBy(desc(approvalDecisions.decidedAt))
+      .limit(1);
+
+    if (pending) {
+      const resolved = await resolveApproval(pending.id, "test-admin", "approved", "One-time token test");
+      expect(resolved.executionToken).toBeDefined();
+
+      const firstUse = await consumeExecutionToken(pending.id, resolved.executionToken!);
+      expect(firstUse.valid).toBe(true);
+      expect(firstUse.actionClass).toBe("test-red-action");
+      expect(firstUse.userId).toBe(TEST_USER);
+
+      const secondUse = await consumeExecutionToken(pending.id, resolved.executionToken!);
+      expect(secondUse.valid).toBe(false);
     }
   });
 

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { db } from "../db";
 import {
   trustBudgetRecords, trustBudgetPeriods, approvalMatrixRules, approvalDecisions,
@@ -370,6 +371,8 @@ export async function resolveApproval(
     return { success: false, decision: existing.decision ?? "unknown" };
   }
 
+  const executionToken = resolution === "approved" ? crypto.randomUUID() : null;
+
   await db.update(approvalDecisions).set({
     decision: resolution,
     decidedBy: resolvedBy,
@@ -380,19 +383,46 @@ export async function resolveApproval(
       resolvedBy,
       resolutionReason,
       originalDecision: "pending_human",
+      executionToken,
+      executionConsumed: false,
     },
   }).where(eq(approvalDecisions.id, approvalId));
 
   await logGovernanceAction(existing.userId ?? "unknown", "approval_resolved", "approval_queue", {
     approvalId, resolution, resolvedBy, resolutionReason,
     actionClass: existing.actionClass,
+    executionToken,
   }, resolution === "denied" ? "warning" : "info", resolution);
 
   if (resolution === "approved" && existing.userId) {
     await deductTrustBudget(existing.userId, existing.actionClass ?? "unknown", 1, `human-approved:${approvalId}`);
   }
 
-  return { success: true, decision: resolution };
+  return { success: true, decision: resolution, executionToken };
+}
+
+export async function consumeExecutionToken(
+  approvalId: number,
+  token: string,
+): Promise<{ valid: boolean; actionClass: string | null; userId: string | null }> {
+  const [approval] = await db.select().from(approvalDecisions)
+    .where(eq(approvalDecisions.id, approvalId))
+    .limit(1);
+
+  if (!approval || approval.decision !== "approved") {
+    return { valid: false, actionClass: null, userId: null };
+  }
+
+  const meta = approval.metadata as Record<string, unknown> ?? {};
+  if (meta.executionToken !== token || meta.executionConsumed === true) {
+    return { valid: false, actionClass: null, userId: null };
+  }
+
+  await db.update(approvalDecisions).set({
+    metadata: { ...meta, executionConsumed: true, consumedAt: new Date().toISOString() },
+  }).where(eq(approvalDecisions.id, approvalId));
+
+  return { valid: true, actionClass: approval.actionClass, userId: approval.userId };
 }
 
 export async function getApprovalMatrixRules() {
