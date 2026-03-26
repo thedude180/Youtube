@@ -296,6 +296,18 @@ export async function initAutomationEngine() {
     });
   });
 
+  cron.schedule("0 */6 * * *", async () => {
+    await withCronLock("FeatureSunsetProcessing", 30 * 60 * 1000, async () => {
+      await selfHealingCore("FeatureSunsetProcessing", async () => {
+        const { processAutoSunsets } = await import("./services/resilience-observability");
+        const result = await processAutoSunsets();
+        if (result.disabled > 0) {
+          logger.info(`Auto-sunset: ${result.disabled} features disabled out of ${result.processed} checked`);
+        }
+      });
+    });
+  });
+
   cron.schedule("0 */2 * * *", async () => {
     await withCronLock("GrowthMonitoring", 90 * 60 * 1000, async () => {
       await selfHealingCore("GrowthMonitoring", async () => {

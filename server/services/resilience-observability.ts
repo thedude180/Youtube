@@ -523,13 +523,18 @@ export async function verifyReceiptChainIntegrity(userId: string, limit: number 
     const theater = (r.decisionTheater as Record<string, any>) || {};
     const chainInfo = theater.chainIntegrity;
 
-    if (chainInfo) {
+    if (!chainInfo || !chainInfo.prevHash || !chainInfo.chainHash) {
+      chainValid = false;
+      chainBroken = true;
+    } else {
       const expectedPrevHash = i === 0 ? "genesis" : (() => {
         const prevTheater = (receipts[i - 1].decisionTheater as Record<string, any>) || {};
-        return prevTheater.chainIntegrity?.chainHash || "genesis";
+        const prev = prevTheater.chainIntegrity;
+        if (!prev || !prev.chainHash) return null;
+        return prev.chainHash;
       })();
 
-      if (chainInfo.prevHash !== expectedPrevHash) {
+      if (expectedPrevHash === null || chainInfo.prevHash !== expectedPrevHash) {
         chainValid = false;
         chainBroken = true;
       }
@@ -552,6 +557,35 @@ export async function verifyReceiptChainIntegrity(userId: string, limit: number 
   return { total: receipts.length, valid: validCount, tampered: tamperedCount, chainBroken, results };
 }
 
+export async function emitSunsetNotification(
+  featureKey: string,
+  phase: string,
+  reason: string,
+  migrationPath?: string | null
+): Promise<void> {
+  const users = await db
+    .selectDistinct({ userId: signedActionReceipts.userId })
+    .from(signedActionReceipts)
+    .limit(100);
+
+  for (const { userId } of users) {
+    await emitDomainEvent(
+      userId,
+      "feature.sunset.notification",
+      {
+        featureKey,
+        phase,
+        reason,
+        migrationPath: migrationPath || null,
+        notifiedAt: new Date().toISOString(),
+      },
+      "feature-sunset",
+      `sunset:${featureKey}:${phase}`
+    );
+  }
+  logger.info(`Sunset notification sent for ${featureKey} (phase: ${phase}) to ${users.length} users`);
+}
+
 export async function initiateFeatureSunset(
   featureKey: string,
   reason: string,
@@ -571,6 +605,11 @@ export async function initiateFeatureSunset(
     })
     .returning({ id: featureSunsetRecords.id });
   logger.info(`Feature sunset initiated: ${featureKey} — grace period ${gracePeriodDays} days`);
+
+  await emitSunsetNotification(featureKey, "announced", reason, migrationPath).catch(err =>
+    logger.error(`Failed to send sunset notification: ${err?.message}`)
+  );
+
   return record.id;
 }
 
@@ -601,6 +640,11 @@ export async function advanceFeatureSunset(featureKey: string): Promise<{
 
   await db.update(featureSunsetRecords).set(updates).where(eq(featureSunsetRecords.id, record.id));
   logger.info(`Feature sunset advanced: ${featureKey} → ${newPhase}`);
+
+  await emitSunsetNotification(featureKey, newPhase, record.sunsetReason || "Feature sunset", record.migrationPath).catch(err =>
+    logger.error(`Failed to send sunset advance notification: ${err?.message}`)
+  );
+
   return { success: true, newPhase };
 }
 

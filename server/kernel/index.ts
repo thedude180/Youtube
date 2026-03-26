@@ -34,6 +34,7 @@ function getHmacSecret(): string {
 export interface KernelExecutionContext {
   blastRadius: BlastRadiusContext;
   correlationId: string;
+  trackedFetch: (url: string, init?: any) => Promise<Response>;
 }
 
 type CommandHandler = (payload: Record<string, any>, ctx?: KernelExecutionContext) => Promise<Record<string, any>>;
@@ -348,7 +349,15 @@ export async function routeCommand(
 
     await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey, correlationId);
 
-    const execCtx: KernelExecutionContext = { blastRadius: blastCtx, correlationId };
+    const trackedFetch = async (url: string, init?: any): Promise<Response> => {
+      const apiCheck = blastCtx.recordApiCall();
+      if (!apiCheck.allowed) {
+        throw new Error(`Blast radius API call limit reached: ${apiCheck.reason}`);
+      }
+      return fetch(url, init);
+    };
+
+    const execCtx: KernelExecutionContext = { blastRadius: blastCtx, correlationId, trackedFetch };
     const result = await handler(payload, execCtx);
 
     const elapsed = Date.now() - startMs;
@@ -360,6 +369,14 @@ export async function routeCommand(
       await emitDomainEvent(userId, `${actionType}.blast-radius-abort`, { executionKey, reason: postTimeCheck.reason }, actionType, executionKey, correlationId);
       await routeToDLQ(actionType, payload, `Blast radius breach: ${postTimeCheck.reason}`, userId);
       return { success: false, error: `Blast radius breach after execution: ${postTimeCheck.reason}`, correlationId };
+    }
+
+    const postApiStatus = blastCtx.getStatus();
+    if (postApiStatus.apiCallsMade > (options.blastRadiusLimits?.maxApiCalls || 10)) {
+      recordMetric("kernel.blast_radius.abort", 1, "count", { actionType, reason: "post_exec_api_calls" });
+      await emitDomainEvent(userId, `${actionType}.blast-radius-abort`, { executionKey, reason: "API call limit exceeded" }, actionType, executionKey, correlationId);
+      await routeToDLQ(actionType, payload, `Blast radius breach: API calls exceeded (${postApiStatus.apiCallsMade})`, userId);
+      return { success: false, error: `Blast radius breach: API call limit exceeded`, correlationId };
     }
 
     recordMetric("kernel.command.success", 1, "count", { actionType });
