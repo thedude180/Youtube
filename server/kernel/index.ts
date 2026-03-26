@@ -239,87 +239,91 @@ export async function routeCommand(
   const correlationId = generateCorrelationId();
   startCorrelation(correlationId, { actionType, userId, executionKey });
 
-  if (isInSafeMode()) {
-    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode`, { executionKey }, actionType, executionKey, correlationId);
-    endCorrelation(correlationId);
-    return { success: false, reason: "system-in-safe-mode" };
-  }
-
-  if (isInSafeMode(actionType)) {
-    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode-engine`, { executionKey }, actionType, executionKey, correlationId);
-    endCorrelation(correlationId);
-    return { success: false, reason: `engine-${actionType}-in-safe-mode` };
-  }
-
-  const alreadyExists = await checkExecutionKeyExists(executionKey);
-  if (alreadyExists) {
-    const [existing] = await db
-      .select({ id: signedActionReceipts.id })
-      .from(signedActionReceipts)
-      .where(eq(signedActionReceipts.executionKey, executionKey))
-      .limit(1);
-    return { success: true, reason: "idempotent-skip", existingReceiptId: existing?.id };
-  }
-
-  const approval = await checkApprovalViaGovernance(actionType, userId, options.confidence);
-
-  if (!approval.approved) {
-    await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, decision: approval.decision, executionKey }, actionType, executionKey, correlationId);
-    try {
-      const { createException } = await import("../services/exception-desk");
-      await createException({
-        severity: approval.decision === "pending_human" ? "medium" : "high",
-        category: "approval_denial",
-        source: "kernel_approval_matrix",
-        title: `Action ${approval.decision}: ${actionType}`,
-        description: `Approval ${approval.decision} for "${actionType}": ${approval.reason}`,
-        userId,
-        metadata: { actionType, executionKey, reason: approval.reason, decision: approval.decision, correlationId },
-      });
-    } catch (feedErr: any) {
-      console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
-    }
-    endCorrelation(correlationId);
-    return { success: false, reason: approval.reason };
-  }
-
-  const budgetCost = options.confidence != null ? Math.ceil((1 - options.confidence) * 10) : 1;
-  const budgetResult = await governanceDeductBudget(userId, actionType, budgetCost, `kernel:${actionType}`);
-  if (!budgetResult.allowed) {
-    await emitDomainEvent(userId, `${actionType}.budget-blocked`, { executionKey, remaining: budgetResult.remaining });
-    return { success: false, reason: "trust-budget-exhausted" };
-  }
-
-  const handler = commandHandlers.get(actionType);
-  if (!handler) {
-    await routeToDLQ(actionType, payload, `No handler registered for ${actionType}`, userId);
-    return { success: false, error: `No handler registered for ${actionType}` };
-  }
-
-  const limiter = options.blastRadiusLimits
-    ? createBlastRadiusLimiter(options.blastRadiusLimits)
-    : defaultBlastRadiusLimiter;
-  const blastCtx = limiter.createExecutionContext();
-  const timeCheck = blastCtx.checkTime();
-  if (!timeCheck.allowed) {
-    return { success: false, error: `Blast radius limit: ${timeCheck.reason}` };
-  }
-  blastCtx.recordItem();
-
-  await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey, correlationId);
-
   try {
+    if (isInSafeMode()) {
+      await emitDomainEvent(userId, `${actionType}.blocked-safe-mode`, { executionKey }, actionType, executionKey, correlationId);
+      return { success: false, reason: "system-in-safe-mode" };
+    }
+
+    if (isInSafeMode(actionType)) {
+      await emitDomainEvent(userId, `${actionType}.blocked-safe-mode-engine`, { executionKey }, actionType, executionKey, correlationId);
+      return { success: false, reason: `engine-${actionType}-in-safe-mode` };
+    }
+
+    const alreadyExists = await checkExecutionKeyExists(executionKey);
+    if (alreadyExists) {
+      const [existing] = await db
+        .select({ id: signedActionReceipts.id })
+        .from(signedActionReceipts)
+        .where(eq(signedActionReceipts.executionKey, executionKey))
+        .limit(1);
+      return { success: true, reason: "idempotent-skip", existingReceiptId: existing?.id, correlationId };
+    }
+
+    const approval = await checkApprovalViaGovernance(actionType, userId, options.confidence);
+
+    if (!approval.approved) {
+      await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, decision: approval.decision, executionKey }, actionType, executionKey, correlationId);
+      try {
+        const { createException } = await import("../services/exception-desk");
+        await createException({
+          severity: approval.decision === "pending_human" ? "medium" : "high",
+          category: "approval_denial",
+          source: "kernel_approval_matrix",
+          title: `Action ${approval.decision}: ${actionType}`,
+          description: `Approval ${approval.decision} for "${actionType}": ${approval.reason}`,
+          userId,
+          metadata: { actionType, executionKey, reason: approval.reason, decision: approval.decision, correlationId },
+        });
+      } catch (feedErr: any) {
+        console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
+      }
+      return { success: false, reason: approval.reason };
+    }
+
+    const budgetCost = options.confidence != null ? Math.ceil((1 - options.confidence) * 10) : 1;
+    const budgetResult = await governanceDeductBudget(userId, actionType, budgetCost, `kernel:${actionType}`);
+    if (!budgetResult.allowed) {
+      await emitDomainEvent(userId, `${actionType}.budget-blocked`, { executionKey, remaining: budgetResult.remaining }, actionType, executionKey, correlationId);
+      return { success: false, reason: "trust-budget-exhausted" };
+    }
+
+    const handler = commandHandlers.get(actionType);
+    if (!handler) {
+      await routeToDLQ(actionType, payload, `No handler registered for ${actionType}`, userId);
+      return { success: false, error: `No handler registered for ${actionType}` };
+    }
+
+    const limiter = options.blastRadiusLimits
+      ? createBlastRadiusLimiter(options.blastRadiusLimits)
+      : defaultBlastRadiusLimiter;
+    const blastCtx = limiter.createExecutionContext();
+    const preTimeCheck = blastCtx.checkTime();
+    if (!preTimeCheck.allowed) {
+      return { success: false, error: `Blast radius limit: ${preTimeCheck.reason}` };
+    }
+
+    const itemCheck = blastCtx.recordItem();
+    if (!itemCheck.allowed) {
+      return { success: false, error: `Blast radius limit: ${itemCheck.reason}` };
+    }
+
+    await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey, correlationId);
+
     const result = await handler(payload);
 
     const elapsed = Date.now() - startMs;
     recordMetric("kernel.command.latency", elapsed, "ms", { actionType });
-    recordMetric("kernel.command.success", 1, "count", { actionType });
 
     const postTimeCheck = blastCtx.checkTime();
     if (!postTimeCheck.allowed) {
       recordMetric("kernel.blast_radius.abort", 1, "count", { actionType, reason: "post_exec_time" });
       await emitDomainEvent(userId, `${actionType}.blast-radius-abort`, { executionKey, reason: postTimeCheck.reason }, actionType, executionKey, correlationId);
+      await routeToDLQ(actionType, payload, `Blast radius breach: ${postTimeCheck.reason}`, userId);
+      return { success: false, error: `Blast radius breach after execution: ${postTimeCheck.reason}`, correlationId };
     }
+
+    recordMetric("kernel.command.success", 1, "count", { actionType });
 
     const blastStatus = blastCtx.getStatus();
 
@@ -366,7 +370,6 @@ export async function routeCommand(
       }
     }
 
-    endCorrelation(correlationId);
     return { success: true, receiptId, result, correlationId };
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
@@ -375,7 +378,8 @@ export async function routeCommand(
     recordMetric("kernel.command.failure", 1, "count", { actionType });
     await emitDomainEvent(userId, `${actionType}.failed`, { executionKey, error: errorMsg }, actionType, executionKey, correlationId);
     await routeToDLQ(actionType, payload, errorMsg, userId);
+    return { success: false, error: errorMsg, correlationId };
+  } finally {
     endCorrelation(correlationId);
-    return { success: false, error: errorMsg };
   }
 }
