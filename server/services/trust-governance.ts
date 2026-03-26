@@ -703,10 +703,19 @@ export async function resetExpiredBudgets(): Promise<number> {
   const expired = await db
     .select()
     .from(trustBudgetPeriods)
-    .where(lte(trustBudgetPeriods.periodEnd, now));
+    .where(
+      and(
+        lte(trustBudgetPeriods.periodEnd, now),
+        sql`${trustBudgetPeriods.metadata}->>'resetProcessed' IS NULL`,
+      )
+    );
 
   let resetCount = 0;
   for (const period of expired) {
+    await db.update(trustBudgetPeriods)
+      .set({ metadata: { ...(period.metadata as Record<string, unknown> ?? {}), resetProcessed: true, processedAt: now.toISOString() } })
+      .where(eq(trustBudgetPeriods.id, period.id));
+
     const periodStart = now;
     const periodEnd = new Date(now.getTime() + BUDGET_RESET_INTERVAL_HOURS * 3600_000);
     await db.insert(trustBudgetPeriods).values({

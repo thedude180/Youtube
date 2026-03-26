@@ -11,6 +11,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { checkTrustBudget } from "./trust-budget";
+import { evaluateApproval } from "../services/trust-governance";
 
 const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
 
@@ -168,33 +169,18 @@ export async function routeToDLQ(
   return item.id;
 }
 
-async function checkApprovalMatrix(
+async function checkApprovalViaGovernance(
   actionClass: string,
   userId: string,
   confidence?: number
-): Promise<{ approved: boolean; rule: typeof approvalMatrixRules.$inferSelect | null; reason: string }> {
-  const [rule] = await db
-    .select()
-    .from(approvalMatrixRules)
-    .where(eq(approvalMatrixRules.actionClass, actionClass))
-    .limit(1);
-
-  if (!rule) {
-    return { approved: false, rule: null, reason: "no-rule-defined-fail-safe" };
-  }
-
-  if (rule.bandClass === "RED") {
-    return { approved: false, rule, reason: "red-band-requires-explicit-approval" };
-  }
-
-  if (rule.bandClass === "YELLOW") {
-    const threshold = rule.confidenceThreshold ?? 0.7;
-    if ((confidence ?? 0) < threshold) {
-      return { approved: false, rule, reason: `yellow-band-confidence-below-${threshold}` };
-    }
-  }
-
-  return { approved: true, rule, reason: "auto-approved" };
+): Promise<{ approved: boolean; decision: string; reason: string; ruleId: number | null }> {
+  const result = await evaluateApproval(userId, actionClass, confidence ?? 1.0);
+  return {
+    approved: result.decision === "approved",
+    decision: result.decision,
+    reason: result.reason,
+    ruleId: result.ruleId,
+  };
 }
 
 async function checkExecutionKeyExists(executionKey: string): Promise<boolean> {
@@ -238,31 +224,20 @@ export async function routeCommand(
     return { success: true, reason: "idempotent-skip", existingReceiptId: existing?.id };
   }
 
-  const approval = await checkApprovalMatrix(actionType, userId, options.confidence);
-
-  await db.insert(approvalDecisions).values({
-    userId,
-    actionClass: actionType,
-    ruleId: approval.rule?.id || null,
-    decision: approval.approved ? "approved" : "denied",
-    decidedBy: "system",
-    reason: approval.reason,
-    executionKey,
-    confidence: options.confidence ?? null,
-  });
+  const approval = await checkApprovalViaGovernance(actionType, userId, options.confidence);
 
   if (!approval.approved) {
-    await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, executionKey });
+    await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, decision: approval.decision, executionKey });
     try {
       const { createException } = await import("../services/exception-desk");
       await createException({
-        severity: "medium",
+        severity: approval.decision === "pending_human" ? "medium" : "high",
         category: "approval_denial",
         source: "kernel_approval_matrix",
-        title: `Action denied: ${actionType}`,
-        description: `Approval denied for "${actionType}": ${approval.reason}`,
+        title: `Action ${approval.decision}: ${actionType}`,
+        description: `Approval ${approval.decision} for "${actionType}": ${approval.reason}`,
         userId,
-        metadata: { actionType, executionKey, reason: approval.reason },
+        metadata: { actionType, executionKey, reason: approval.reason, decision: approval.decision },
       });
     } catch (feedErr: any) {
       console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
@@ -295,7 +270,7 @@ export async function routeCommand(
       modelVersion: options.decisionTheater?.modelVersion || "gpt-4o-mini",
       promptVersion: options.decisionTheater?.promptVersion || "1.0",
       confidenceScore: options.confidence ?? null,
-      riskLevel: approval.rule?.bandClass || "GREEN",
+      riskLevel: "GREEN",
       rollbackAvailable: options.rollbackAvailable ?? false,
       approvalState: "auto-approved",
       signalCount: options.decisionTheater?.signalCount ?? 0,

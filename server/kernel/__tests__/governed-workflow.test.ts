@@ -117,11 +117,10 @@ describe("Governed Workflow: Smart Edit through Kernel", () => {
     const [decision] = await db.select().from(approvalDecisions)
       .where(and(
         eq(approvalDecisions.userId, TEST_USER),
-        eq(approvalDecisions.executionKey, executionKey)
-      )).limit(1);
+        eq(approvalDecisions.actionClass, "test-smart-edit")
+      )).orderBy(desc(approvalDecisions.decidedAt)).limit(1);
     expect(decision).toBeDefined();
     expect(decision.decision).toBe("approved");
-    expect(decision.actionClass).toBe("test-smart-edit");
   });
 
   it("should deny execution when RED band rule exists", async () => {
@@ -133,7 +132,7 @@ describe("Governed Workflow: Smart Edit through Kernel", () => {
     }, { confidence: 0.99 });
 
     expect(result.success).toBe(false);
-    expect(result.reason).toContain("red-band");
+    expect(result.reason).toContain("RED band");
 
     const receipts = await db.select().from(signedActionReceipts)
       .where(eq(signedActionReceipts.executionKey, executionKey));
@@ -142,10 +141,10 @@ describe("Governed Workflow: Smart Edit through Kernel", () => {
     const [decision] = await db.select().from(approvalDecisions)
       .where(and(
         eq(approvalDecisions.userId, TEST_USER),
-        eq(approvalDecisions.executionKey, executionKey)
-      )).limit(1);
+        eq(approvalDecisions.actionClass, "test-red-action")
+      )).orderBy(desc(approvalDecisions.decidedAt)).limit(1);
     expect(decision).toBeDefined();
-    expect(decision.decision).toBe("denied");
+    expect(decision.decision).toBe("pending_human");
   });
 
   it("should reject duplicate execution keys (idempotency)", async () => {
@@ -199,7 +198,7 @@ describe("Governed Workflow: Smart Edit through Kernel", () => {
     }, { confidence: 0.5 });
 
     expect(result.success).toBe(false);
-    expect(result.reason).toContain("yellow-band");
+    expect(result.reason).toContain("YELLOW band");
 
     const receipts = await db.select().from(signedActionReceipts)
       .where(eq(signedActionReceipts.executionKey, executionKey));
