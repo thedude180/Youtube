@@ -681,15 +681,42 @@ export async function isFeatureEnabled(featureKey: string): Promise<boolean> {
   return record.sunsetPhase !== "disabled" && record.sunsetPhase !== "removed";
 }
 
-export async function processAutoSunsets(): Promise<{ processed: number; disabled: number }> {
+export async function processAutoSunsets(): Promise<{ processed: number; deprecated: number; disabled: number }> {
   const now = new Date();
-  const records = await db
+
+  const announcedRecords = await db
+    .select()
+    .from(featureSunsetRecords)
+    .where(eq(featureSunsetRecords.sunsetPhase, "announced"));
+
+  let deprecated = 0;
+  for (const record of announcedRecords) {
+    const meta = (record.metadata as any) || {};
+    const gracePeriodDays = meta.gracePeriodDays || 30;
+    const deprecateAfterMs = (gracePeriodDays / 2) * 24 * 60 * 60 * 1000;
+    const announcedAt = record.announcedAt ? new Date(record.announcedAt).getTime() : 0;
+    if (announcedAt > 0 && now.getTime() - announcedAt >= deprecateAfterMs) {
+      await db
+        .update(featureSunsetRecords)
+        .set({ sunsetPhase: "deprecated", deprecatedAt: now })
+        .where(eq(featureSunsetRecords.id, record.id));
+      deprecated++;
+      logger.info(`Auto-sunset: feature ${record.featureKey} deprecated (half of grace period elapsed)`);
+      try {
+        await emitSunsetNotification(record.featureKey, "deprecated", record.sunsetReason || "Auto-deprecated", record.migrationPath);
+      } catch (err: any) {
+        logger.error(`Failed to send auto-deprecation notification: ${err?.message}`);
+      }
+    }
+  }
+
+  const deprecatedRecords = await db
     .select()
     .from(featureSunsetRecords)
     .where(eq(featureSunsetRecords.sunsetPhase, "deprecated"));
 
   let disabled = 0;
-  for (const record of records) {
+  for (const record of deprecatedRecords) {
     const meta = (record.metadata as any) || {};
     if (meta.sunsetDate && new Date(meta.sunsetDate) <= now) {
       await db
@@ -698,13 +725,34 @@ export async function processAutoSunsets(): Promise<{ processed: number; disable
         .where(eq(featureSunsetRecords.id, record.id));
       disabled++;
       logger.info(`Auto-sunset: feature ${record.featureKey} disabled after grace period`);
+      try {
+        await emitSunsetNotification(record.featureKey, "disabled", record.sunsetReason || "Auto-disabled", record.migrationPath);
+      } catch (err: any) {
+        logger.error(`Failed to send auto-disable notification: ${err?.message}`);
+      }
     }
   }
-  return { processed: records.length, disabled };
+  return { processed: announcedRecords.length + deprecatedRecords.length, deprecated, disabled };
 }
 
-export function trackFeatureUsage(featureKey: string): void {
+export async function trackFeatureUsage(featureKey: string): Promise<void> {
   recordMetric(`feature_usage.${featureKey}`, 1, "count", { feature: featureKey });
+
+  const [record] = await db
+    .select()
+    .from(featureSunsetRecords)
+    .where(eq(featureSunsetRecords.featureKey, featureKey))
+    .orderBy(desc(featureSunsetRecords.createdAt))
+    .limit(1);
+
+  if (record) {
+    const meta = (record.metadata as any) || {};
+    const usageCount = (meta.usageCount || 0) + 1;
+    await db
+      .update(featureSunsetRecords)
+      .set({ metadata: { ...meta, usageCount, lastUsedAt: new Date().toISOString() } })
+      .where(eq(featureSunsetRecords.id, record.id));
+  }
 }
 
 const FULL_PLAYBOOK_SEEDS = [

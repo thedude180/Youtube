@@ -514,13 +514,22 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       expect(result.error).toContain("final phase");
     });
 
-    it("should track feature usage", async () => {
-      const { trackFeatureUsage, getMetrics } = await import("../../services/resilience-observability");
-      trackFeatureUsage("legacy_dashboard");
-      trackFeatureUsage("legacy_dashboard");
+    it("should track feature usage and persist to sunset record", async () => {
+      const { trackFeatureUsage, getMetrics, initiateFeatureSunset, getFeatureSunsetStatus } = await import("../../services/resilience-observability");
+      const usageFeature = `usage-track-feature-${Date.now()}`;
+      await initiateFeatureSunset(usageFeature, "Testing usage tracking", undefined, 30);
 
-      const metrics = getMetrics(`feature_usage.legacy_dashboard`);
+      await trackFeatureUsage(usageFeature);
+      await trackFeatureUsage(usageFeature);
+
+      const metrics = getMetrics(`feature_usage.${usageFeature}`);
       expect(metrics.length).toBeGreaterThanOrEqual(2);
+
+      const records = await getFeatureSunsetStatus(usageFeature);
+      expect(records.length).toBe(1);
+      const meta = records[0].metadata as any;
+      expect(meta.usageCount).toBeGreaterThanOrEqual(2);
+      expect(meta.lastUsedAt).toBeDefined();
     });
   });
 
