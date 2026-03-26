@@ -13,7 +13,13 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("resilience-observability");
 
-const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
+function getHmacSecretForVerification(): string {
+  const secret = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET;
+  if (!secret) {
+    throw new Error("KERNEL_HMAC_SECRET or SESSION_SECRET must be set for receipt verification");
+  }
+  return secret;
+}
 
 export interface SafeModeState {
   global: boolean;
@@ -120,28 +126,53 @@ export function checkAutoSafeModeExit(signals: {
   return { recovered: false };
 }
 
-export async function executeRollback(receiptId: number, userId: string, reason: string): Promise<{
+export async function executeRollback(receiptId: number, userId: string, reason: string, isAdmin: boolean = false): Promise<{
   success: boolean;
   error?: string;
   receiptId?: number;
+  approvalDecision?: string;
 }> {
   try {
+    const whereClause = isAdmin
+      ? eq(signedActionReceipts.id, receiptId)
+      : and(eq(signedActionReceipts.id, receiptId), eq(signedActionReceipts.userId, userId));
+
     const [receipt] = await db
       .select()
       .from(signedActionReceipts)
-      .where(and(eq(signedActionReceipts.id, receiptId), eq(signedActionReceipts.userId, userId)))
+      .where(whereClause)
       .limit(1);
 
     if (!receipt) return { success: false, error: "Receipt not found or access denied" };
     if (!receipt.rollbackAvailable) return { success: false, error: "Rollback not available for this action" };
     if (receipt.status === "rolled_back") return { success: false, error: "Action already rolled back" };
 
+    const { evaluateApproval } = await import("./trust-governance");
+    const approval = await evaluateApproval(userId, receipt.actionType, 1.0);
+    if (approval.decision !== "approved" && !isAdmin) {
+      logger.warn(`Rollback for receipt ${receiptId} blocked by approval matrix for ${receipt.actionType}: ${approval.reason}`);
+      return { success: false, error: `Rollback requires approval for ${receipt.actionType}: ${approval.reason}`, approvalDecision: approval.decision };
+    }
+
+    const effectiveDecision = isAdmin && approval.decision !== "approved" ? "admin-override" : approval.decision;
+
     await db
       .update(signedActionReceipts)
-      .set({ status: "rolled_back", rollbackMetadata: { ...((receipt.rollbackMetadata as any) || {}), rolledBackAt: Date.now(), rolledBackBy: userId, reason } })
+      .set({
+        status: "rolled_back",
+        rollbackMetadata: {
+          ...((receipt.rollbackMetadata as Record<string, unknown>) || {}),
+          rolledBackAt: Date.now(),
+          rolledBackBy: userId,
+          reason,
+          approvalDecision: effectiveDecision,
+          approvalRuleId: approval.ruleId,
+          adminOverride: isAdmin && approval.decision !== "approved",
+        },
+      })
       .where(eq(signedActionReceipts.id, receiptId));
 
-    return { success: true, receiptId };
+    return { success: true, receiptId, approvalDecision: effectiveDecision };
   } catch (err: any) {
     logger.error(`Rollback failed for receipt ${receiptId}: ${err.message}`);
     return { success: false, error: err.message };
@@ -239,6 +270,10 @@ export class BlastRadiusContext {
 }
 
 export const defaultBlastRadiusLimiter = new BlastRadiusLimiter();
+
+export function createBlastRadiusLimiter(limits: Partial<BlastRadiusLimits>): BlastRadiusLimiter {
+  return new BlastRadiusLimiter(limits);
+}
 
 export interface HealingValidationResult {
   healed: boolean;
@@ -424,10 +459,12 @@ export function verifyReceiptIntegrity(receipt: {
     result: receipt.result,
   });
   try {
-    const expected = crypto.createHmac("sha256", HMAC_SECRET).update(sigData).digest("hex");
+    const secret = getHmacSecretForVerification();
+    const expected = crypto.createHmac("sha256", secret).update(sigData).digest("hex");
     const valid = crypto.timingSafeEqual(Buffer.from(receipt.hmacSignature, "hex"), Buffer.from(expected, "hex"));
     return { valid, tampered: !valid };
-  } catch {
+  } catch (err: any) {
+    logger.error(`Receipt integrity check failed: ${err.message}`);
     return { valid: false, tampered: true };
   }
 }

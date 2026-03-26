@@ -93,7 +93,7 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       const result = { status: "done" };
       const sigData = JSON.stringify({
         userId: TEST_USER,
-        actionType: "test_rollback_action",
+        actionType: "content_draft",
         executionKey: execKey,
         payload,
         result,
@@ -104,7 +104,7 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
         .insert(signedActionReceipts)
         .values({
           userId: TEST_USER,
-          actionType: "test_rollback_action",
+          actionType: "content_draft",
           executionKey: execKey,
           payload,
           result,
@@ -480,6 +480,162 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
 
       const metrics = getMetrics(`feature_usage.legacy_dashboard`);
       expect(metrics.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("Kernel Integration: Safe Mode + Blast Radius + Metrics", () => {
+    it("should block kernel commands when global safe mode is active", async () => {
+      const { enterSafeMode, exitSafeMode } = await import("../../services/resilience-observability");
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+
+      registerCommand("tags_change", async () => ({ done: true }));
+      enterSafeMode("Integration test: kernel safe mode");
+
+      const result = await routeCommand("tags_change", { userId: TEST_USER, executionKey: `safe-mode-test-${Date.now()}` });
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe("system-in-safe-mode");
+
+      exitSafeMode();
+    });
+
+    it("should collect performance metrics through kernel routeCommand", async () => {
+      const { getMetrics } = await import("../../services/resilience-observability");
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+
+      registerCommand("cross_post", async () => ({ tracked: true }));
+
+      await routeCommand("cross_post", {
+        userId: TEST_USER,
+        executionKey: `metrics-test-${Date.now()}`,
+      });
+
+      const latencyMetrics = getMetrics("kernel.command.latency");
+      const hasCrossPost = latencyMetrics.some((m) => m.tags.actionType === "cross_post");
+      expect(hasCrossPost).toBe(true);
+    });
+
+    it("should execute healing validation when healingCheck is provided", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+
+      let healCheckCalled = false;
+      registerCommand("analytics_export", async () => ({ healed: true }));
+
+      const result = await routeCommand(
+        "analytics_export",
+        { userId: TEST_USER, executionKey: `healing-test-${Date.now()}` },
+        {
+          healingCheck: async () => {
+            healCheckCalled = true;
+            return true;
+          },
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(healCheckCalled).toBe(true);
+    });
+
+    it("should include blast radius status in receipt decision theater", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+
+      registerCommand("playlist_manage", async () => ({ blasted: true }));
+
+      const result = await routeCommand(
+        "playlist_manage",
+        { userId: TEST_USER, executionKey: `blast-test-${Date.now()}` },
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.receiptId).toBeDefined();
+
+      if (result.receiptId) {
+        const [receipt] = await db
+          .select()
+          .from(signedActionReceipts)
+          .where(eq(signedActionReceipts.id, result.receiptId))
+          .limit(1);
+        const theater = receipt.decisionTheater as Record<string, any>;
+        expect(theater.blastRadiusStatus).toBeDefined();
+        expect(theater.blastRadiusStatus.aborted).toBe(false);
+      }
+    });
+  });
+
+  describe("Rollback via Approval Matrix", () => {
+    it("should route rollback through approval matrix (GREEN-band action approves)", async () => {
+      const { executeRollback } = await import("../../services/resilience-observability");
+      const execKey = `approval-rollback-test-${Date.now()}`;
+      const payload = { test: true };
+      const resultData = { status: "completed" };
+      const sigData = JSON.stringify({
+        userId: TEST_USER,
+        actionType: "content_draft",
+        executionKey: execKey,
+        payload,
+        result: resultData,
+      });
+      const hmac = crypto.createHmac("sha256", HMAC_SECRET).update(sigData).digest("hex");
+
+      const [receipt] = await db
+        .insert(signedActionReceipts)
+        .values({
+          userId: TEST_USER,
+          actionType: "content_draft",
+          executionKey: execKey,
+          payload,
+          result: resultData,
+          hmacSignature: hmac,
+          status: "completed",
+          rollbackAvailable: true,
+        })
+        .returning({ id: signedActionReceipts.id });
+
+      const result = await executeRollback(receipt.id, TEST_USER, "Testing approval-routed rollback");
+      expect(result.success).toBe(true);
+      expect(result.approvalDecision).toBe("approved");
+
+      const [updated] = await db
+        .select()
+        .from(signedActionReceipts)
+        .where(eq(signedActionReceipts.id, receipt.id))
+        .limit(1);
+      expect(updated.status).toBe("rolled_back");
+      const meta = updated.rollbackMetadata as Record<string, any>;
+      expect(meta.approvalDecision).toBe("approved");
+    });
+
+    it("should block rollback for RED-band actions without admin approval", async () => {
+      const { executeRollback } = await import("../../services/resilience-observability");
+      const execKey = `rollback-red-test-${Date.now()}`;
+      const payload = { test: true };
+      const resultData = { status: "completed" };
+      const sigData = JSON.stringify({
+        userId: TEST_USER,
+        actionType: "financial_action",
+        executionKey: execKey,
+        payload,
+        result: resultData,
+      });
+      const hmac = crypto.createHmac("sha256", HMAC_SECRET).update(sigData).digest("hex");
+
+      const [receipt] = await db
+        .insert(signedActionReceipts)
+        .values({
+          userId: TEST_USER,
+          actionType: "financial_action",
+          executionKey: execKey,
+          payload,
+          result: resultData,
+          hmacSignature: hmac,
+          status: "completed",
+          rollbackAvailable: true,
+        })
+        .returning({ id: signedActionReceipts.id });
+
+      const result = await executeRollback(receipt.id, TEST_USER, "Trying to rollback financial action");
+      expect(result.success).toBe(false);
+      expect(result.approvalDecision).toBeDefined();
+      expect(result.approvalDecision).not.toBe("approved");
     });
   });
 

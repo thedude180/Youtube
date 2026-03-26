@@ -11,8 +11,22 @@ import {
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { evaluateApproval, deductTrustBudget as governanceDeductBudget } from "../services/trust-governance";
+import {
+  isInSafeMode,
+  BlastRadiusContext,
+  defaultBlastRadiusLimiter,
+  createBlastRadiusLimiter,
+  validateHealing,
+  recordMetric,
+} from "../services/resilience-observability";
 
-const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
+function getHmacSecret(): string {
+  const secret = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET;
+  if (!secret) {
+    throw new Error("KERNEL_HMAC_SECRET or SESSION_SECRET must be set — refusing to use hardcoded secret");
+  }
+  return secret;
+}
 
 type CommandHandler = (payload: Record<string, any>) => Promise<Record<string, any>>;
 const commandHandlers = new Map<string, CommandHandler>();
@@ -43,7 +57,7 @@ export async function emitDomainEvent(
 }
 
 function computeHmac(data: string): string {
-  return crypto.createHmac("sha256", HMAC_SECRET).update(data).digest("hex");
+  return crypto.createHmac("sha256", getHmacSecret()).update(data).digest("hex");
 }
 
 export async function issueSignedReceipt(
@@ -207,11 +221,25 @@ export async function routeCommand(
     confidence?: number;
     decisionTheater?: Record<string, any>;
     rollbackAvailable?: boolean;
+    rollbackMetadata?: Record<string, any>;
+    blastRadiusLimits?: { maxItems?: number; maxExecutionMs?: number; maxApiCalls?: number };
+    healingCheck?: () => Promise<boolean>;
   } = {}
 ): Promise<CommandResult> {
+  const startMs = Date.now();
   const { userId } = payload;
   const executionKey =
     payload.executionKey || `${actionType}:${userId}:${JSON.stringify(payload)}:${Math.floor(Date.now() / 60000)}`;
+
+  if (isInSafeMode()) {
+    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode`, { executionKey });
+    return { success: false, reason: "system-in-safe-mode" };
+  }
+
+  if (isInSafeMode(actionType)) {
+    await emitDomainEvent(userId, `${actionType}.blocked-safe-mode-engine`, { executionKey });
+    return { success: false, reason: `engine-${actionType}-in-safe-mode` };
+  }
 
   const alreadyExists = await checkExecutionKeyExists(executionKey);
   if (alreadyExists) {
@@ -257,10 +285,24 @@ export async function routeCommand(
     return { success: false, error: `No handler registered for ${actionType}` };
   }
 
+  const limiter = options.blastRadiusLimits
+    ? createBlastRadiusLimiter(options.blastRadiusLimits)
+    : defaultBlastRadiusLimiter;
+  const blastCtx = limiter.createExecutionContext();
+  const timeCheck = blastCtx.checkTime();
+  if (!timeCheck.allowed) {
+    return { success: false, error: `Blast radius limit: ${timeCheck.reason}` };
+  }
+  blastCtx.recordItem();
+
   await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey);
 
   try {
     const result = await handler(payload);
+
+    const elapsed = Date.now() - startMs;
+    recordMetric("kernel.command.latency", elapsed, "ms", { actionType });
+    recordMetric("kernel.command.success", 1, "count", { actionType });
 
     const decisionTheater = {
       whatChanged: options.decisionTheater?.whatChanged || actionType,
@@ -277,6 +319,7 @@ export async function routeCommand(
       outputType: options.decisionTheater?.outputType || "executed",
       uncertainty: options.decisionTheater?.uncertainty || null,
       geographicContext: options.decisionTheater?.geographicContext || null,
+      blastRadiusStatus: blastCtx.getStatus(),
     };
 
     const receiptId = await issueSignedReceipt(
@@ -286,14 +329,29 @@ export async function routeCommand(
       payload,
       result,
       decisionTheater,
-      options.rollbackAvailable ?? false
+      options.rollbackAvailable ?? false,
+      options.rollbackMetadata
     );
 
     await emitDomainEvent(userId, `${actionType}.completed`, { executionKey, receiptId }, actionType, executionKey);
 
+    if (options.healingCheck) {
+      const healingResult = await validateHealing(
+        `${actionType}:${executionKey}`,
+        options.healingCheck,
+        { maxAttempts: 3, baseDelayMs: 500 }
+      );
+      if (!healingResult.healed) {
+        recordMetric("kernel.healing.failed", 1, "count", { actionType });
+      }
+    }
+
     return { success: true, receiptId, result };
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
+    const elapsed = Date.now() - startMs;
+    recordMetric("kernel.command.latency", elapsed, "ms", { actionType });
+    recordMetric("kernel.command.failure", 1, "count", { actionType });
     await emitDomainEvent(userId, `${actionType}.failed`, { executionKey, error: errorMsg }, actionType, executionKey);
     await routeToDLQ(actionType, payload, errorMsg, userId);
     return { success: false, error: errorMsg };
