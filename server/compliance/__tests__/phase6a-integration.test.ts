@@ -57,7 +57,7 @@ function makeChain(data: unknown[]): Record<string, unknown> {
 import {
   complianceChecks, copyrightClaims, disclosureRequirements,
   channels, videos, contentProvenance, complianceDriftEvents,
-  creatorCredibilityScores, complianceRules
+  creatorCredibilityScores, complianceRules, policyPackBaselines
 } from "@shared/schema";
 
 const tableDataMap = new Map<unknown, unknown[]>();
@@ -70,6 +70,7 @@ tableDataMap.set(contentProvenance, mockProvenanceRecords);
 tableDataMap.set(complianceDriftEvents, mockDriftEvents);
 tableDataMap.set(creatorCredibilityScores, mockCredibilityScores);
 tableDataMap.set(complianceRules, []);
+tableDataMap.set(policyPackBaselines, []);
 
 const mockDb = {
   select: vi.fn().mockImplementation(() => ({

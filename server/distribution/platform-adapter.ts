@@ -105,6 +105,23 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     copyrightCleared: req.copyrightCleared,
   });
 
+  try {
+    const { runPolicyPreFlight } = await import("../services/policy-preflight");
+    const preFlightResult = await runPolicyPreFlight(req.userId, req.platform, {
+      contentId: parseInt(req.contentId, 10) || undefined,
+      title: req.title,
+      description: req.description,
+      tags: req.tags,
+    });
+    if (!preFlightResult.passed) {
+      policyCheck.passed = false;
+      policyCheck.issues.push(...preFlightResult.blockers);
+    }
+    if (preFlightResult.recommendations.length > 0) {
+      policyCheck.issues.push(...preFlightResult.recommendations.map(r => `[pre-flight] ${r}`));
+    }
+  } catch {}
+
   let safetyGateAllowed = true;
   try {
     const { runDistributionSafetyGate } = await import("./distribution-safety-gate");

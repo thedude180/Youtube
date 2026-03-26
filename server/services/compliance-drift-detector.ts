@@ -1,12 +1,10 @@
 import { db } from "../db";
-import { complianceDriftEvents, complianceRules } from "@shared/schema";
+import { complianceDriftEvents, complianceRules, policyPackBaselines } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getPolicyPack, getPolicyPackHash, getSupportedPlatforms } from "./policy-packs";
 
 const logger = createLogger("compliance-drift-detector");
-
-const lastKnownHashes = new Map<string, string>();
 
 export interface DriftDetectionResult {
   platform: string;
@@ -18,6 +16,27 @@ export interface DriftDetectionResult {
     newValue: string;
     severity: string;
   }>;
+}
+
+async function getBaselineHash(platform: string): Promise<string | null> {
+  const [baseline] = await db.select().from(policyPackBaselines)
+    .where(eq(policyPackBaselines.platform, platform))
+    .limit(1);
+  return baseline?.policyHash || null;
+}
+
+async function setBaselineHash(platform: string, hash: string, version: string): Promise<void> {
+  const [existing] = await db.select().from(policyPackBaselines)
+    .where(eq(policyPackBaselines.platform, platform))
+    .limit(1);
+
+  if (existing) {
+    await db.update(policyPackBaselines)
+      .set({ policyHash: hash, version, updatedAt: new Date() })
+      .where(eq(policyPackBaselines.id, existing.id));
+  } else {
+    await db.insert(policyPackBaselines).values({ platform, policyHash: hash, version });
+  }
 }
 
 export async function detectComplianceDrift(): Promise<DriftDetectionResult[]> {
@@ -49,7 +68,7 @@ async function detectPlatformDrift(platform: string): Promise<DriftDetectionResu
   }
 
   const currentHash = getPolicyPackHash(platform);
-  const previousHash = lastKnownHashes.get(platform);
+  const previousHash = await getBaselineHash(platform);
 
   if (previousHash && previousHash === currentHash) {
     return { platform, driftsDetected: 0, changes: [] };
@@ -87,8 +106,6 @@ async function detectPlatformDrift(platform: string): Promise<DriftDetectionResu
     }
   }
 
-  const packLimitsStr = JSON.stringify(pack.limits);
-  const oldLimitsStr = previousHash ? "previous_limits" : "unknown";
   if (previousHash && currentHash !== previousHash) {
     changes.push({ field: "limits_hash", oldValue: previousHash, newValue: currentHash });
     driftChanges.push({
@@ -117,7 +134,7 @@ async function detectPlatformDrift(platform: string): Promise<DriftDetectionResu
     });
   }
 
-  lastKnownHashes.set(platform, currentHash);
+  await setBaselineHash(platform, currentHash, pack.version);
 
   return {
     platform,

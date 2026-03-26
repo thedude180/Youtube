@@ -7326,3 +7326,13 @@ export const creatorCredibilityScores = pgTable("creator_credibility_scores", {
 export type CreatorCredibilityScore = typeof creatorCredibilityScores.$inferSelect;
 export const insertCreatorCredibilityScoreSchema = createInsertSchema(creatorCredibilityScores).omit({ id: true, createdAt: true, updatedAt: true, lastCalculatedAt: true });
 export type InsertCreatorCredibilityScore = z.infer<typeof insertCreatorCredibilityScoreSchema>;
+
+export const policyPackBaselines = pgTable("policy_pack_baselines", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull().unique(),
+  policyHash: text("policy_hash").notNull(),
+  version: text("version").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type PolicyPackBaseline = typeof policyPackBaselines.$inferSelect;

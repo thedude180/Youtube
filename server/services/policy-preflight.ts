@@ -70,20 +70,18 @@ export async function runPolicyPreFlight(
     recommendations.push(`[${w.ruleId}] ${w.description}`);
   }
 
-  let aiDisclosure: AiDisclosureCheck | null = null;
-  if (content.hasAiContent || content.originTypes?.some(ot => ["ai-generated", "ai-assisted"].includes(ot))) {
-    gatesChecked.push("ai_disclosure_check");
-    aiDisclosure = await checkAiDisclosure(
-      userId,
-      content.contentId || 0,
-      content.title || "",
-      content.description || "",
-      platform,
-      content.originTypes,
-    );
-    if (aiDisclosure.disclosureStatus === "missing") {
-      blockers.push(`AI content disclosure missing — ${aiDisclosure.recommendation}`);
-    }
+  gatesChecked.push("ai_disclosure_check");
+  const aiDisclosureResult = await checkAiDisclosure(
+    userId,
+    content.contentId || 0,
+    content.title || "",
+    content.description || "",
+    platform,
+    content.originTypes,
+  );
+  let aiDisclosure: AiDisclosureCheck | null = aiDisclosureResult;
+  if (aiDisclosureResult.disclosureStatus === "missing") {
+    blockers.push(`AI content disclosure missing — ${aiDisclosureResult.recommendation}`);
   }
 
   let mediaTrust: PreFlightResult["mediaTrust"] = null;
