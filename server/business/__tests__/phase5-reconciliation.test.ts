@@ -187,7 +187,7 @@ describe("Revenue Reconciliation Engine", () => {
       const gapRecord = results.find(r => r.recordId === 5);
       expect(gapRecord).toBeDefined();
       expect(gapRecord!.newStatus).toBe("unresolved");
-      expect(gapRecord!.notes).toContain("needs human review");
+      expect(gapRecord!.notes).toContain("exceeds threshold");
     });
 
     it("should return ReconciliationResult shape for each record", async () => {
@@ -213,14 +213,15 @@ describe("Revenue Reconciliation Engine", () => {
   });
 
   describe("verifyRevenueRecord", () => {
-    it("should flag disputed when gap exceeds threshold", async () => {
+    it("should flag unresolved when gap exceeds threshold and route to action queue", async () => {
       const { verifyRevenueRecord } = await import("../revenue-reconciliation");
       const result = await verifyRevenueRecord(TEST_USER_ID, 1, {
         verifiedAmount: 10.00,
         source: "bank-statement",
       });
-      expect(result.newStatus).toBe("disputed");
+      expect(result.newStatus).toBe("unresolved");
       expect(result.gapAmount).not.toBeNull();
+      expect(result.notes).toContain("exceeds threshold");
     });
   });
 
@@ -532,6 +533,26 @@ describe("Revenue Truth Layer — v9.0 Requirements", () => {
     const { getStoredReports } = await import("../revenue-reconciliation");
     const reports = await getStoredReports(TEST_USER_ID);
     expect(Array.isArray(reports)).toBe(true);
+  });
+
+  it("cross-references auto-synced actuals vs estimated records for the same platform/period", async () => {
+    const { reconcileRevenueRecords } = await import("../revenue-reconciliation");
+    const results = await reconcileRevenueRecords(TEST_USER_ID);
+    const record5Result = results.find(r => r.recordId === 5);
+    expect(record5Result).toBeDefined();
+    if (record5Result) {
+      expect(["disputed", "unresolved"]).toContain(record5Result.newStatus);
+      expect(record5Result.notes).toContain("provider actuals");
+    }
+  });
+
+  it("verifyRevenueRecord routes >threshold gaps to unresolved and action queue", async () => {
+    const { verifyRevenueRecord } = await import("../revenue-reconciliation");
+    const result = await verifyRevenueRecord(TEST_USER_ID, 1, {
+      verifiedAmount: 10, source: "payout-report", notes: "Provider payout"
+    });
+    expect(result.newStatus).toBe("unresolved");
+    expect(result.gapAmount).not.toBeNull();
   });
 
   it("flagDelayedReconciliation targets both unverified and estimated records", async () => {

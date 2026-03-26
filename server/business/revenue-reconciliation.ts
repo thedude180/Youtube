@@ -105,6 +105,35 @@ export async function reconcileRevenueRecords(
 
   const results: ReconciliationResult[] = [];
 
+  const byPlatformPeriod = new Map<string, { auto: typeof records; estimated: typeof records }>();
+  for (const record of records) {
+    const key = `${record.platform}::${record.period || "unknown"}`;
+    if (!byPlatformPeriod.has(key)) {
+      byPlatformPeriod.set(key, { auto: [], estimated: [] });
+    }
+    const group = byPlatformPeriod.get(key)!;
+    if (record.syncSource === "auto" && record.externalId) {
+      group.auto.push(record);
+    } else {
+      group.estimated.push(record);
+    }
+  }
+
+  const crossRefGaps = new Map<number, number>();
+  for (const [, group] of byPlatformPeriod) {
+    if (group.auto.length > 0 && group.estimated.length > 0) {
+      const autoTotal = group.auto.reduce((sum, r) => sum + r.amount, 0);
+      const estimatedTotal = group.estimated.reduce((sum, r) => sum + r.amount, 0);
+      const gap = estimatedTotal - autoTotal;
+      if (Math.abs(gap) > 0.01) {
+        for (const est of group.estimated) {
+          const share = estimatedTotal > 0 ? est.amount / estimatedTotal : 0;
+          crossRefGaps.set(est.id, gap * share);
+        }
+      }
+    }
+  }
+
   for (const record of records) {
     const previousStatus = parseStatus(record.reconciliationStatus);
     let newStatus: ReconciliationStatus;
@@ -125,7 +154,17 @@ export async function reconcileRevenueRecords(
       notes = "No sync source or external verification available";
     }
 
-    if (record.reconciliationGapAmount && Math.abs(record.reconciliationGapAmount) > 0) {
+    const crossRefGap = crossRefGaps.get(record.id);
+    if (crossRefGap !== undefined) {
+      gapAmount = crossRefGap;
+      if (Math.abs(gapAmount) > HUMAN_ACTION_GAP_THRESHOLD) {
+        newStatus = "unresolved";
+        notes = `Cross-referenced gap of $${Math.abs(gapAmount).toFixed(2)} vs provider actuals — exceeds threshold`;
+      } else if (Math.abs(gapAmount) > 0.01) {
+        newStatus = "disputed";
+        notes = `Cross-referenced discrepancy of $${Math.abs(gapAmount).toFixed(2)} vs provider actuals`;
+      }
+    } else if (record.reconciliationGapAmount && Math.abs(record.reconciliationGapAmount) > 0) {
       gapAmount = record.reconciliationGapAmount;
       if (Math.abs(gapAmount) > HUMAN_ACTION_GAP_THRESHOLD) {
         newStatus = "unresolved";
@@ -136,15 +175,30 @@ export async function reconcileRevenueRecords(
       }
     }
 
-    if (previousStatus !== newStatus) {
+    const updateFields: Record<string, unknown> = {
+      reconciliationStatus: newStatus,
+      reconciliationSource: record.syncSource || "system",
+      reconciliationVerifiedAt: newStatus === "verified" ? new Date() : null,
+      reconciliationNotes: notes,
+    };
+    if (gapAmount !== null) {
+      updateFields.reconciliationGapAmount = gapAmount;
+    }
+
+    if (previousStatus !== newStatus || gapAmount !== null) {
       await db.update(revenueRecords)
-        .set({
-          reconciliationStatus: newStatus,
-          reconciliationSource: record.syncSource || "system",
-          reconciliationVerifiedAt: newStatus === "verified" ? new Date() : null,
-          reconciliationNotes: notes,
-        })
+        .set(updateFields)
         .where(eq(revenueRecords.id, record.id));
+    }
+
+    if (newStatus === "unresolved") {
+      await routeUnresolvedToActionQueue(userId, [{
+        recordId: record.id,
+        platform: record.platform,
+        source: record.source,
+        amount: record.amount,
+        gapAmount: gapAmount || 0,
+      }]);
     }
 
     results.push({
@@ -182,8 +236,8 @@ export async function verifyRevenueRecord(
   let notes = verificationData.notes || "";
 
   if (Math.abs(gapAmount) > HUMAN_ACTION_GAP_THRESHOLD) {
-    newStatus = "disputed";
-    notes = `Verified amount $${verificationData.verifiedAmount.toFixed(2)} differs from recorded $${record.amount.toFixed(2)} by $${Math.abs(gapAmount).toFixed(2)}`;
+    newStatus = "unresolved";
+    notes = `Verified amount $${verificationData.verifiedAmount.toFixed(2)} differs from recorded $${record.amount.toFixed(2)} by $${Math.abs(gapAmount).toFixed(2)} — exceeds threshold, routed for review`;
   } else if (Math.abs(gapAmount) > 0.01) {
     notes = `Minor gap of $${Math.abs(gapAmount).toFixed(2)} — within acceptable threshold`;
   }
@@ -192,11 +246,21 @@ export async function verifyRevenueRecord(
     .set({
       reconciliationStatus: newStatus,
       reconciliationSource: verificationData.source,
-      reconciliationVerifiedAt: new Date(),
+      reconciliationVerifiedAt: newStatus === "verified" ? new Date() : null,
       reconciliationGapAmount: gapAmount !== 0 ? gapAmount : null,
       reconciliationNotes: notes,
     })
     .where(eq(revenueRecords.id, recordId));
+
+  if (newStatus === "unresolved") {
+    await routeUnresolvedToActionQueue(userId, [{
+      recordId,
+      platform: record.platform,
+      source: record.source,
+      amount: record.amount,
+      gapAmount,
+    }]);
+  }
 
   return {
     recordId,
