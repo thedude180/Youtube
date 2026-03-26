@@ -35,6 +35,61 @@ function ErrorCard({ title, icon }: { title: string; icon: React.ReactNode }) {
   );
 }
 
+function RevenueTruthCard() {
+  const { data, isLoading, isError } = useQuery<{
+    totalRevenue: number;
+    verifiedRevenue: number;
+    verificationRate: number;
+    confidenceLabel: string;
+    gapAmount: number;
+    recordCount: number;
+    verifiedCount: number;
+  }>({
+    queryKey: ["/api/business/revenue-truth"],
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return <LoadingCard title="Revenue Truth" />;
+  if (isError || !data) return <ErrorCard title="Revenue Truth" icon={<CheckCircle2 className="h-4 w-4 text-primary" />} />;
+
+  const confColor = data.confidenceLabel === "high" ? "text-emerald-400" :
+    data.confidenceLabel === "medium" ? "text-amber-400" : "text-red-400";
+
+  return (
+    <Card className="card-empire" data-testid="card-revenue-truth">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-primary" />
+          Revenue Truth
+          <Badge variant="outline" className={`ml-auto text-[10px] capitalize ${confColor}`}>
+            {data.confidenceLabel || "unverified"}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1" data-testid="stat-total-revenue">
+            <div className="text-xs text-muted-foreground">Total Revenue</div>
+            <div className="text-lg font-bold">${(data.totalRevenue || 0).toLocaleString()}</div>
+          </div>
+          <div className="space-y-1" data-testid="stat-verified-revenue">
+            <div className="text-xs text-muted-foreground">Verified Revenue</div>
+            <div className="text-lg font-bold text-emerald-400">${(data.verifiedRevenue || 0).toLocaleString()}</div>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-xs" data-testid="stat-verification-rate">
+          <span className="text-muted-foreground">Verification Rate</span>
+          <Badge variant="outline" className="text-[10px]">{(data.verificationRate || 0).toFixed(0)}%</Badge>
+        </div>
+        <div className="flex items-center justify-between text-xs mt-1" data-testid="stat-record-count">
+          <span className="text-muted-foreground">Records</span>
+          <span className="font-medium">{data.verifiedCount || 0}/{data.recordCount || 0} verified</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function DashboardSummaryCard() {
   const { data, isLoading, isError } = useQuery<{
     revenueTruth: { totalRevenue: number; verifiedRevenue: number; verificationRate: number; confidenceLabel: string };
@@ -770,6 +825,7 @@ export default function BusinessIntelligenceTab() {
     <div className="space-y-4" data-testid="section-business-intelligence">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DashboardSummaryCard />
+        <RevenueTruthCard />
         <SellabilityCard />
         <ValuationCard />
         <RiskIntelligenceCard />
