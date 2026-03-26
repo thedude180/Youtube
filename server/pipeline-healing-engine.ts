@@ -130,7 +130,9 @@ export async function detectAndHealFailure(
       severity: "high",
       details: { failureId: failure.id, pipelineId, stepId, errorType, retryCount: failure.retryCount },
     });
-  } catch {}
+  } catch (feedErr: any) {
+    console.error("[pipeline-healing] Failed to feed to exception desk:", feedErr?.message);
+  }
 
   return { failureId: failure.id, status: "exhausted" };
 }

@@ -150,7 +150,9 @@ export async function runPolicyPreFlight(
         userId,
         metadata: { platform, blockers, gatesChecked, contentId: content.contentId },
       });
-    } catch {}
+    } catch (feedErr: any) {
+      logger.error("Failed to feed compliance block to exception desk", { error: feedErr?.message });
+    }
   }
 
   return {

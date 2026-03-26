@@ -246,7 +246,9 @@ export async function runAllHealthChecks(): Promise<{
           details: { service: svc.service, status: svc.status, latencyMs: svc.latencyMs },
         });
       }
-    } catch {}
+    } catch (feedErr: any) {
+      console.error("[external-health] Failed to feed service health to exception desk:", feedErr?.message);
+    }
   }
 
   return { services, summary, checkedAt: new Date().toISOString() };

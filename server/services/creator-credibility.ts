@@ -136,7 +136,9 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
           threshold: trustThreshold,
           decline,
         });
-      } catch {}
+      } catch (feedErr: any) {
+        logger.error("Failed to feed trust decline to exception desk", { error: feedErr?.message });
+      }
       try {
         const { routeNotification } = await import("./notification-system");
         await routeNotification(userId, {
@@ -145,7 +147,9 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
           severity: overallScore < trustThreshold * 0.5 ? "critical" : "warning",
           category: "compliance",
         });
-      } catch {}
+      } catch (notifErr: any) {
+        logger.error("Failed to send trust decline notification", { error: notifErr?.message });
+      }
     }
     await db.update(creatorCredibilityScores)
       .set({

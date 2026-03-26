@@ -56,7 +56,8 @@ export class SelfHealingAgent {
       const baselineTotal = parseInt(baselineErrorsResult.rows[0]?.count || "0", 10);
       const baselineErrorCount = baselineTotal / 12; // average per 5 min
 
-      const errorSpike = recentErrorCount > baselineErrorCount * 3 && recentErrorCount > 5;
+      const thresholds = (await import("./anomaly-responder")).getAnomalyThresholds();
+      const errorSpike = recentErrorCount > baselineErrorCount * thresholds.errorSpikeMultiplier && recentErrorCount > thresholds.minErrorsForSpike;
 
       // 6. Memory Stats
       const memStats = getMemoryStats();

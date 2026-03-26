@@ -45,7 +45,9 @@ export async function addToDeadLetter(
       priority,
       payload,
     });
-  } catch {}
+  } catch (feedErr: any) {
+    console.error("[automation-hardening] Failed to feed DLQ to exception desk:", feedErr?.message);
+  }
 
   return item;
 }

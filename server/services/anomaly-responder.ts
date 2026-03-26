@@ -151,7 +151,9 @@ Context: ${JSON.stringify({ healthStatus, anomalyData: anomaly.data })}`
           recurring: recurrence.recurring,
           occurrenceCount: recurrence.count,
         });
-      } catch {}
+      } catch (feedErr: any) {
+        logger.error("[AnomalyResponder] Failed to feed anomaly to exception desk:", feedErr?.message);
+      }
 
       if (effectiveRisk === "low") {
         await this.execute(aiResponse.action, aiResponse.target);

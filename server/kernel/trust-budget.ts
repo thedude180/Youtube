@@ -106,7 +106,9 @@ export async function checkTrustBudget(
         userId,
         metadata: { agentName, cost, periodId: period.id },
       });
-    } catch {}
+    } catch (feedErr: any) {
+      console.error("[trust-budget] Failed to feed trust violation to exception desk:", feedErr?.message);
+    }
   }
 
   return {

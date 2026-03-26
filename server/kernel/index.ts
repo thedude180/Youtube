@@ -160,7 +160,9 @@ export async function routeToDLQ(
       priority: 5,
       payload,
     });
-  } catch {}
+  } catch (feedErr: any) {
+    console.error("[kernel] Failed to feed DLQ to exception desk:", feedErr?.message);
+  }
 
   return item.id;
 }
@@ -261,7 +263,9 @@ export async function routeCommand(
         userId,
         metadata: { actionType, executionKey, reason: approval.reason },
       });
-    } catch {}
+    } catch (feedErr: any) {
+      console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
+    }
     return { success: false, reason: approval.reason };
   }
 
