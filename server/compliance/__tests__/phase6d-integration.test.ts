@@ -737,6 +737,38 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       }
     });
 
+    it("should detect tampered chainIntegrity fields", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      const { verifyReceiptChainIntegrity } = await import("../../services/resilience-observability");
+
+      const tamperUser = `tamper-user-${Date.now()}`;
+      registerCommand("analytics_export", async () => ({ exported: true }));
+
+      await routeCommand("analytics_export", {
+        userId: tamperUser,
+        executionKey: `tamper-r1-${Date.now()}`,
+      });
+      const r2 = await routeCommand("analytics_export", {
+        userId: tamperUser,
+        executionKey: `tamper-r2-${Date.now()}`,
+      });
+
+      if (r2.receiptId) {
+        await db.update(signedActionReceipts)
+          .set({
+            decisionTheater: {
+              chainIntegrity: { prevHash: "forged-hash", chainHash: "forged-chain" },
+            },
+          })
+          .where(eq(signedActionReceipts.id, r2.receiptId));
+      }
+
+      const result = await verifyReceiptChainIntegrity(tamperUser, 10);
+      expect(result.chainBroken).toBe(true);
+      const tampered = result.results.find(r => !r.chainValid);
+      expect(tampered).toBeDefined();
+    });
+
     it("should propagate HTTP correlation ID through to kernel receipt", async () => {
       const { registerCommand, routeCommand } = await import("../../kernel/index");
       registerCommand("comment_reply", async () => ({ replied: true }));

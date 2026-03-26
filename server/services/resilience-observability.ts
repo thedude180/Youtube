@@ -506,6 +506,8 @@ export async function verifyReceiptChainIntegrity(userId: string, limit: number 
   let chainBroken = false;
   const results: Array<{ receiptId: number; valid: boolean; chainValid: boolean }> = [];
 
+  const secret = getHmacSecretForVerification();
+
   for (let i = 0; i < receipts.length; i++) {
     const r = receipts[i];
     const check = verifyReceiptIntegrity({
@@ -521,11 +523,22 @@ export async function verifyReceiptChainIntegrity(userId: string, limit: number 
     const theater = (r.decisionTheater as Record<string, any>) || {};
     const chainInfo = theater.chainIntegrity;
 
-    if (chainInfo && i > 0) {
-      const prevReceipt = receipts[i - 1];
-      const prevTheater = (prevReceipt.decisionTheater as Record<string, any>) || {};
-      const prevChainInfo = prevTheater.chainIntegrity;
-      if (prevChainInfo && chainInfo.prevHash !== prevChainInfo.chainHash) {
+    if (chainInfo) {
+      const expectedPrevHash = i === 0 ? "genesis" : (() => {
+        const prevTheater = (receipts[i - 1].decisionTheater as Record<string, any>) || {};
+        return prevTheater.chainIntegrity?.chainHash || "genesis";
+      })();
+
+      if (chainInfo.prevHash !== expectedPrevHash) {
+        chainValid = false;
+        chainBroken = true;
+      }
+
+      const expectedChainHash = crypto
+        .createHmac("sha256", secret)
+        .update(`${chainInfo.prevHash}:${r.hmacSignature}`)
+        .digest("hex");
+      if (chainInfo.chainHash !== expectedChainHash) {
         chainValid = false;
         chainBroken = true;
       }
