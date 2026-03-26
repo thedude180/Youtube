@@ -15,6 +15,15 @@ import {
   trackEquipmentRoi, getEquipmentRoi, generateInvoice, getInvoices, analyzeDeal,
 } from "../monetization-engine";
 import { syncAllRevenue, syncPlatformRevenue } from "../revenue-sync-engine";
+import {
+  reconcileRevenueRecords, verifyRevenueRecord, generateReconciliationReport,
+  getRevenueTruthSummary, flagDelayedReconciliation, getReconciliationHistory,
+  RECONCILIATION_STATUSES,
+} from "../business/revenue-reconciliation";
+import {
+  buildAttributionGraph, getTopRevenueContent, getRevenueByContent,
+  getPlatformRevenueAttribution,
+} from "../business/revenue-attribution";
 
 function getAppBaseUrl(req: any): string {
   if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL.replace(/\/$/, '');
@@ -305,7 +314,17 @@ export function registerMoneyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const summary = await storage.getRevenueSummary(userId);
-    res.json(summary);
+    const truthSummary = await getRevenueTruthSummary(userId);
+    res.json({
+      ...summary,
+      truth: {
+        verifiedRevenue: truthSummary.verifiedRevenue,
+        estimatedRevenue: truthSummary.estimatedRevenue,
+        verificationRate: truthSummary.verificationRate,
+        confidenceLabel: truthSummary.confidenceLabel,
+        byPlatform: truthSummary.byPlatform,
+      },
+    });
   }));
 
   app.get("/api/revenue/export.csv", asyncHandler(async (req, res) => {
@@ -314,7 +333,7 @@ export function registerMoneyRoutes(app: Express) {
 
     const records = await storage.getRevenueRecords(userId);
     const csvRows = [
-      ["Date", "Source", "Platform", "Amount", "Currency"].join(",")
+      ["Date", "Source", "Platform", "Amount", "Currency", "ReconciliationStatus", "SyncSource"].join(",")
     ];
 
     for (const record of records) {
@@ -323,7 +342,9 @@ export function registerMoneyRoutes(app: Express) {
       const platform = `"${(record.platform || "").replace(/"/g, '""')}"`;
       const amount = record.amount || 0;
       const currency = record.currency || "USD";
-      csvRows.push([date, source, platform, amount, currency].join(","));
+      const reconStatus = record.reconciliationStatus || "unverified";
+      const syncSource = record.syncSource || "unknown";
+      csvRows.push([date, source, platform, amount, currency, reconStatus, syncSource].join(","));
     }
 
     const csvContent = csvRows.join("\n");
@@ -1046,6 +1067,16 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         bySource[r.source] = (bySource[r.source] || 0) + (r.amount || 0);
       }
 
+      const reconStatusCounts: Record<string, number> = {};
+      for (const r of records) {
+        const status = r.reconciliationStatus || "unverified";
+        reconStatusCounts[status] = (reconStatusCounts[status] || 0) + 1;
+      }
+
+      const verifiedTotal = records
+        .filter(r => r.reconciliationStatus === "verified")
+        .reduce((s, r) => s + (r.amount || 0), 0);
+
       res.json({
         total: manualTotal + autoTotal + estimatedTotal,
         manualTotal,
@@ -1054,9 +1085,181 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         byPlatform,
         bySource,
         recordCount: { manual: manual.length, auto: autoSynced.length, estimated: autoEstimated.length, total: records.length },
+        truth: {
+          verifiedTotal,
+          unverifiedTotal: (manualTotal + autoTotal + estimatedTotal) - verifiedTotal,
+          reconciliationStatusCounts: reconStatusCounts,
+          verificationRate: records.length > 0
+            ? (records.filter(r => r.reconciliationStatus === "verified").length / records.length) * 100
+            : 0,
+        },
       });
     } catch (error: any) {
       console.error("Revenue breakdown error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/truth", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const summary = await getRevenueTruthSummary(userId);
+      res.json(summary);
+    } catch (error: unknown) {
+      console.error("Revenue truth error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.post("/api/revenue/reconcile", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const schema = z.object({
+        platform: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      });
+      const parsed = schema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+
+      const options: { platform?: string; startDate?: Date; endDate?: Date } = {};
+      if (parsed.data.platform) options.platform = parsed.data.platform;
+      if (parsed.data.startDate) options.startDate = new Date(parsed.data.startDate);
+      if (parsed.data.endDate) options.endDate = new Date(parsed.data.endDate);
+
+      const results = await reconcileRevenueRecords(userId, options);
+      res.json({
+        reconciled: results.length,
+        results,
+        summary: {
+          verified: results.filter(r => r.newStatus === "verified").length,
+          estimated: results.filter(r => r.newStatus === "estimated").length,
+          disputed: results.filter(r => r.newStatus === "disputed").length,
+          unresolved: results.filter(r => r.newStatus === "unresolved").length,
+        },
+      });
+    } catch (error: unknown) {
+      console.error("Reconciliation error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.post("/api/revenue/verify/:id", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const recordId = parseNumericId(req.params.id as string, res);
+    if (recordId === null) return;
+    try {
+      const schema = z.object({
+        verifiedAmount: z.number(),
+        source: z.string().min(1),
+        notes: z.string().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+
+      const result = await verifyRevenueRecord(userId, recordId, parsed.data);
+      res.json(result);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Verification failed";
+      if (message.includes("not found")) return res.status(404).json({ error: message });
+      console.error("Revenue verify error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/reconciliation-report", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const period = req.query.period as string | undefined;
+      const report = await generateReconciliationReport(userId, period);
+      res.json(report);
+    } catch (error: unknown) {
+      console.error("Reconciliation report error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/reconciliation-history", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      const history = await getReconciliationHistory(userId, limit);
+      res.json(history);
+    } catch (error: unknown) {
+      console.error("Reconciliation history error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.post("/api/revenue/flag-delayed", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const count = await flagDelayedReconciliation(userId, days);
+      res.json({ flagged: count, threshold: `${days} days` });
+    } catch (error: unknown) {
+      console.error("Flag delayed error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/attribution", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const graph = await buildAttributionGraph(userId);
+      res.json(graph);
+    } catch (error: unknown) {
+      console.error("Attribution graph error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/attribution/top-content", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const topContent = await getTopRevenueContent(userId, limit);
+      res.json(topContent);
+    } catch (error: unknown) {
+      console.error("Top content error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/attribution/content/:type/:id", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const contentType = req.params.type as "video" | "stream";
+    if (!["video", "stream"].includes(contentType)) {
+      return res.status(400).json({ error: "Content type must be 'video' or 'stream'" });
+    }
+    const contentId = parseNumericId(req.params.id as string, res);
+    if (contentId === null) return;
+    try {
+      const result = await getRevenueByContent(userId, contentType, contentId);
+      res.json(result);
+    } catch (error: unknown) {
+      console.error("Content attribution error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/attribution/platforms", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await getPlatformRevenueAttribution(userId);
+      res.json(result);
+    } catch (error: unknown) {
+      console.error("Platform attribution error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));

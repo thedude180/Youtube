@@ -85,6 +85,9 @@ export async function generateRevenueForecast(userId: string, period: string) {
       .limit(30);
 
     const totalRevenue = recentRevenue.reduce((s, r) => s + (r.amount || 0), 0);
+    const verifiedRevenue = recentRevenue.filter(r => r.reconciliationStatus === "verified").reduce((s, r) => s + (r.amount || 0), 0);
+    const estimatedRevenue = totalRevenue - verifiedRevenue;
+    const verificationRate = totalRevenue > 0 ? (verifiedRevenue / totalRevenue) * 100 : 0;
     const revenueBySource: Record<string, number> = {};
     for (const r of recentRevenue) {
       const source = r.source || "other";
@@ -96,7 +99,9 @@ export async function generateRevenueForecast(userId: string, period: string) {
     const prompt = `You are a creator revenue analyst. Generate a revenue forecast for the "${period}" period.
 
 CURRENT DATA (last 6 months):
-- Total revenue: $${totalRevenue.toFixed(2)}
+- Total revenue: $${totalRevenue.toFixed(2)} (${verificationRate.toFixed(0)}% verified, ${(100 - verificationRate).toFixed(0)}% estimated)
+- Verified revenue: $${verifiedRevenue.toFixed(2)}
+- Estimated (unverified) revenue: $${estimatedRevenue.toFixed(2)}
 - Revenue by source: ${JSON.stringify(revenueBySource)}
 - Monthly average: $${(totalRevenue / 6).toFixed(2)}
 - Current subscribers: ${latestMetrics?.totalSubscribers || "unknown"}
