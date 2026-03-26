@@ -45,6 +45,7 @@ import { registerContentCoreRoutes } from "./routes/content-core";
 import { registerLiveOpsRoutes } from "./routes/live-ops";
 import { registerDistributionRoutes } from "./routes/distribution";
 import { registerBusinessIntelligenceRoutes } from "./routes/business-intelligence";
+import { registerComplianceHardeningRoutes } from "./routes/compliance-hardening";
 import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
@@ -243,6 +244,7 @@ export async function registerRoutes(
   registerLiveOpsRoutes(app);
   registerDistributionRoutes(app);
   registerBusinessIntelligenceRoutes(app);
+  registerComplianceHardeningRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {

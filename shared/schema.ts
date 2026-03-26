@@ -7259,3 +7259,70 @@ export type InsertPlatformIndependenceScore = z.infer<typeof insertPlatformIndep
 
 export const insertNicheAuthorityTrackingSchema = createInsertSchema(nicheAuthorityTracking).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertNicheAuthorityTracking = z.infer<typeof insertNicheAuthorityTrackingSchema>;
+
+export const complianceDriftEvents = pgTable("compliance_drift_events", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),
+  ruleCategory: text("rule_category").notNull(),
+  driftType: text("drift_type").notNull(),
+  previousHash: text("previous_hash"),
+  currentHash: text("current_hash"),
+  changesDetected: jsonb("changes_detected").$type<Array<{ field: string; oldValue: string; newValue: string }>>().default([]),
+  severity: text("severity").notNull().default("medium"),
+  status: text("status").notNull().default("detected"),
+  resolvedAt: timestamp("resolved_at"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+}, (table) => [
+  index("compliance_drift_platform_idx").on(table.platform),
+  index("compliance_drift_status_idx").on(table.status),
+]);
+
+export type ComplianceDriftEvent = typeof complianceDriftEvents.$inferSelect;
+export const insertComplianceDriftEventSchema = createInsertSchema(complianceDriftEvents).omit({ id: true, detectedAt: true });
+export type InsertComplianceDriftEvent = z.infer<typeof insertComplianceDriftEventSchema>;
+
+export const contentProvenance = pgTable("content_provenance", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: integer("content_id"),
+  contentType: text("content_type").notNull(),
+  assetName: text("asset_name").notNull(),
+  originType: text("origin_type").notNull(),
+  source: text("source"),
+  licenseType: text("license_type"),
+  licenseExpiry: timestamp("license_expiry"),
+  verificationStatus: text("verification_status").notNull().default("unverified"),
+  trustScore: integer("trust_score").default(50),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("content_provenance_user_idx").on(table.userId),
+  index("content_provenance_origin_idx").on(table.originType),
+]);
+
+export type ContentProvenanceRecord = typeof contentProvenance.$inferSelect;
+export const insertContentProvenanceSchema = createInsertSchema(contentProvenance).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertContentProvenance = z.infer<typeof insertContentProvenanceSchema>;
+
+export const creatorCredibilityScores = pgTable("creator_credibility_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id"),
+  overallScore: integer("overall_score").notNull().default(50),
+  complianceRate: integer("compliance_rate").default(100),
+  strikeCount: integer("strike_count").default(0),
+  warningCount: integer("warning_count").default(0),
+  resolvedDisputeCount: integer("resolved_dispute_count").default(0),
+  disclosureComplianceRate: integer("disclosure_compliance_rate").default(100),
+  factors: jsonb("factors").$type<Record<string, number>>().default({}),
+  lastCalculatedAt: timestamp("last_calculated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("creator_credibility_user_idx").on(table.userId),
+]);
+
+export type CreatorCredibilityScore = typeof creatorCredibilityScores.$inferSelect;
+export const insertCreatorCredibilityScoreSchema = createInsertSchema(creatorCredibilityScores).omit({ id: true, createdAt: true, updatedAt: true, lastCalculatedAt: true });
+export type InsertCreatorCredibilityScore = z.infer<typeof insertCreatorCredibilityScoreSchema>;

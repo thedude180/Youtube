@@ -1,0 +1,147 @@
+import { db } from "../db";
+import {
+  creatorCredibilityScores, complianceChecks, copyrightClaims,
+  disclosureRequirements, channels
+} from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("creator-credibility");
+
+export interface CredibilityAssessment {
+  userId: string;
+  channelId: number | null;
+  overallScore: number;
+  complianceRate: number;
+  strikeCount: number;
+  warningCount: number;
+  resolvedDisputeCount: number;
+  disclosureComplianceRate: number;
+  factors: Record<string, number>;
+  tier: "excellent" | "good" | "fair" | "at_risk" | "poor";
+  recommendations: string[];
+}
+
+export async function computeCreatorCredibility(userId: string, channelId?: number): Promise<CredibilityAssessment> {
+  const checks = await db.select().from(complianceChecks)
+    .where(eq(complianceChecks.userId, userId))
+    .orderBy(desc(complianceChecks.checkedAt))
+    .limit(200);
+
+  const claims = await db.select().from(copyrightClaims)
+    .where(eq(copyrightClaims.userId, userId))
+    .orderBy(desc(copyrightClaims.detectedAt))
+    .limit(100);
+
+  const disclosures = await db.select().from(disclosureRequirements)
+    .where(eq(disclosureRequirements.userId, userId))
+    .limit(100);
+
+  const totalChecks = checks.length;
+  const passedChecks = checks.filter(c => c.status === "passed").length;
+  const violations = checks.filter(c => c.status === "violation");
+  const warnings = checks.filter(c => c.status === "warning");
+  const complianceRate = totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 100;
+
+  const strikeCount = violations.filter(v => {
+    const findings = Array.isArray(v.findings) ? v.findings : [];
+    return findings.some((f: Record<string, unknown>) => f && f.severity === "critical");
+  }).length;
+
+  const warningCount = warnings.length;
+
+  const resolvedClaims = claims.filter(c => c.status === "resolved");
+  const resolvedDisputeCount = resolvedClaims.length;
+
+  const requiredDisclosures = disclosures.filter(d => d.required);
+  const compliantDisclosures = requiredDisclosures.filter(d => {
+    const guidance = d.guidance && typeof d.guidance === "object" ? d.guidance as Record<string, unknown> : {};
+    return guidance.hasProperDisclosure === true;
+  });
+  const disclosureComplianceRate = requiredDisclosures.length > 0
+    ? Math.round((compliantDisclosures.length / requiredDisclosures.length) * 100)
+    : 100;
+
+  const factors: Record<string, number> = {};
+
+  factors.complianceHistory = Math.min(30, Math.round(complianceRate * 0.3));
+  factors.strikePenalty = -Math.min(25, strikeCount * 10);
+  factors.warningPenalty = -Math.min(15, warningCount * 3);
+  factors.disputeResolution = Math.min(10, resolvedDisputeCount * 2);
+  factors.disclosureCompliance = Math.min(15, Math.round(disclosureComplianceRate * 0.15));
+  factors.copyrightHealth = claims.length === 0 ? 10 : Math.max(0, 10 - claims.filter(c => c.status === "detected").length * 3);
+  factors.baseScore = 20;
+
+  const rawScore = Object.values(factors).reduce((sum, v) => sum + v, 0);
+  const overallScore = Math.max(0, Math.min(100, rawScore));
+
+  let tier: CredibilityAssessment["tier"];
+  if (overallScore >= 85) tier = "excellent";
+  else if (overallScore >= 70) tier = "good";
+  else if (overallScore >= 50) tier = "fair";
+  else if (overallScore >= 30) tier = "at_risk";
+  else tier = "poor";
+
+  const recommendations: string[] = [];
+  if (strikeCount > 0) recommendations.push(`You have ${strikeCount} critical compliance violation(s) — address them immediately to improve credibility`);
+  if (disclosureComplianceRate < 80) recommendations.push("Improve disclosure compliance — ensure all sponsored and AI content is properly disclosed");
+  if (complianceRate < 70) recommendations.push("Review content compliance — multiple check failures detected");
+  if (claims.filter(c => c.status === "detected").length > 0) recommendations.push("Resolve outstanding copyright claims to improve copyright health score");
+  if (tier === "poor") recommendations.push("Your credibility score is critically low — automated publishing may be restricted");
+
+  const resolvedChannelId = channelId || null;
+
+  const existing = await db.select().from(creatorCredibilityScores)
+    .where(eq(creatorCredibilityScores.userId, userId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db.update(creatorCredibilityScores)
+      .set({
+        overallScore,
+        complianceRate,
+        strikeCount,
+        warningCount,
+        resolvedDisputeCount,
+        disclosureComplianceRate,
+        factors,
+        channelId: resolvedChannelId,
+        lastCalculatedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(creatorCredibilityScores.id, existing[0].id));
+  } else {
+    await db.insert(creatorCredibilityScores).values({
+      userId,
+      channelId: resolvedChannelId,
+      overallScore,
+      complianceRate,
+      strikeCount,
+      warningCount,
+      resolvedDisputeCount,
+      disclosureComplianceRate,
+      factors,
+    });
+  }
+
+  return {
+    userId,
+    channelId: resolvedChannelId,
+    overallScore,
+    complianceRate,
+    strikeCount,
+    warningCount,
+    resolvedDisputeCount,
+    disclosureComplianceRate,
+    factors,
+    tier,
+    recommendations,
+  };
+}
+
+export async function getCredibilityScore(userId: string): Promise<(typeof creatorCredibilityScores.$inferSelect) | null> {
+  const [score] = await db.select().from(creatorCredibilityScores)
+    .where(eq(creatorCredibilityScores.userId, userId))
+    .limit(1);
+  return score || null;
+}
