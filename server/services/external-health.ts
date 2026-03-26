@@ -164,7 +164,8 @@ async function checkDatabase(): Promise<ServiceHealthResult> {
   const checkedAt = new Date().toISOString();
   const start = Date.now();
   try {
-    await db.execute(new (await import("drizzle-orm")).SQL(["SELECT 1"], []));
+    const { sql } = await import("drizzle-orm");
+    await db.execute(sql`SELECT 1`);
     const latencyMs = Date.now() - start;
     return { service: "PostgreSQL", status: "healthy", latencyMs, message: "Database responding", checkedAt };
   } catch (err: any) {

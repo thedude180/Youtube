@@ -260,7 +260,8 @@ describe("Phase 6B: Exception Desk & Anomaly Hardening", () => {
     it("should detect prompt drift for JSON format", async () => {
       const { detectPromptDrift } = await import("../../services/prompt-toxicity-monitor");
       const noJson = detectPromptDrift("This is just plain text, not JSON", "json");
-      expect(noJson.drifted).toBe(false);
+      expect(noJson.drifted).toBe(true);
+      expect(noJson.score).toBeGreaterThanOrEqual(0.5);
 
       const validJson = detectPromptDrift('{"key": "value"}', "json");
       expect(validJson.drifted).toBe(false);

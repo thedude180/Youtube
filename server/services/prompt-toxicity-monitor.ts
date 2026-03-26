@@ -82,7 +82,7 @@ export function detectPromptDrift(
       JSON.parse(output);
       actualPatterns.push("json_format");
     } catch {
-      driftScore += 0.4;
+      driftScore += 0.6;
       actualPatterns.push("non_json_format");
     }
   }
