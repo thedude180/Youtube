@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { revenueRecords, channels, videos, streams } from "@shared/schema";
+import { revenueRecords, channels, videos } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { computeRevenueConfidence } from "./revenue-confidence";
 

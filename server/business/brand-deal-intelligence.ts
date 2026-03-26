@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { revenueRecords, sponsorshipDeals, channels, videos } from "@shared/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { revenueRecords, sponsorshipDeals, channels } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
 import { computeRevenueConfidence } from "./revenue-confidence";
 
 export interface DealPerformance {

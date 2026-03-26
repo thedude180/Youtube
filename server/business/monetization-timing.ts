@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { revenueRecords, channels, videos, distributionEvents } from "@shared/schema";
-import { eq, desc, sql, gte } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { computeRevenueConfidence } from "./revenue-confidence";
 
 export interface MonetizationPressure {
@@ -95,14 +95,9 @@ export async function analyzeMonetizationTiming(userId: string): Promise<Monetiz
   const monetizationDensity = userVideos.length > 0
     ? Math.round((sponsoredVideoCount / userVideos.length) * 100) : 0;
 
-  let trustBudgetUsage = 0;
-  try {
-    const blockedEvents = recentDistEvents.filter(e => e.status === "blocked");
-    trustBudgetUsage = recentDistEvents.length > 0
-      ? Math.round((blockedEvents.length / recentDistEvents.length) * 100) : 0;
-  } catch {
-    trustBudgetUsage = 0;
-  }
+  const blockedEvents = recentDistEvents.filter(e => e.status === "blocked");
+  const trustBudgetUsage = recentDistEvents.length > 0
+    ? Math.round((blockedEvents.length / recentDistEvents.length) * 100) : 0;
 
   const fatigueSignals: string[] = [];
   if (monetizationDensity > 30) fatigueSignals.push("High sponsored content ratio may cause audience fatigue");
