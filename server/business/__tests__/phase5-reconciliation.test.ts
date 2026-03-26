@@ -171,14 +171,19 @@ describe("Revenue Reconciliation Engine", () => {
   });
 
   describe("reconcileRevenueRecords", () => {
-    it("should classify auto-synced records with externalId as verified", async () => {
+    it("should classify auto-synced payout records as verified and estimate-derived as estimated", async () => {
       const { reconcileRevenueRecords } = await import("../revenue-reconciliation");
       const results = await reconcileRevenueRecords(TEST_USER_ID);
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
-      const autoRecord = results.find(r => r.recordId === 1);
-      expect(autoRecord).toBeDefined();
-      expect(autoRecord!.newStatus).toBe("verified");
+      const record1 = results.find(r => r.recordId === 1);
+      expect(record1).toBeDefined();
+      expect(record1!.newStatus).toBe("estimated");
+      expect(record1!.notes).toContain("estimated metrics");
+
+      const record3 = results.find(r => r.recordId === 3);
+      expect(record3).toBeDefined();
+      expect(record3!.newStatus).toBe("verified");
     });
 
     it("should flag records with gap > threshold as unresolved", async () => {

@@ -67,7 +67,9 @@ export interface RevenueTruthSummary {
   bySource: Record<string, {
     total: number;
     verified: number;
+    estimated: number;
     status: ReconciliationStatus;
+    statusCounts: Record<string, number>;
   }>;
 }
 
@@ -140,9 +142,15 @@ export async function reconcileRevenueRecords(
     let gapAmount: number | null = null;
     let notes = "";
 
-    if (record.syncSource === "auto" && record.externalId) {
+    const meta = record.metadata as Record<string, unknown> | null;
+    const isEstimateDerived = meta && ("estimatedRevenue" in meta || "cpm" in meta || "impressions" in meta);
+
+    if (record.syncSource === "auto" && record.externalId && !isEstimateDerived) {
       newStatus = "verified";
-      notes = `Verified via ${record.syncSource} sync with external ID ${record.externalId}`;
+      notes = `Verified via payout data with external ID ${record.externalId}`;
+    } else if (record.syncSource === "auto" && record.externalId && isEstimateDerived) {
+      newStatus = "estimated";
+      notes = `Auto-synced but derived from estimated metrics (not confirmed payout) — external ID ${record.externalId}`;
     } else if (record.syncSource === "auto-estimated") {
       newStatus = "estimated";
       notes = "Revenue estimated from platform metrics, not verified payout data";
@@ -433,17 +441,30 @@ export async function getRevenueTruthSummary(userId: string): Promise<RevenueTru
     }
 
     if (!bySource[record.source]) {
-      bySource[record.source] = { total: 0, verified: 0, status };
+      bySource[record.source] = { total: 0, verified: 0, estimated: 0, status, statusCounts: {} };
     }
     bySource[record.source].total += amount;
+    bySource[record.source].statusCounts[status] = (bySource[record.source].statusCounts[status] || 0) + 1;
     if (status === "verified") {
       bySource[record.source].verified += amount;
+    } else {
+      bySource[record.source].estimated += amount;
     }
   }
 
   for (const platform of Object.keys(byPlatform)) {
     const p = byPlatform[platform];
     p.verificationRate = p.total > 0 ? (p.verified / p.total) * 100 : 0;
+  }
+
+  for (const source of Object.keys(bySource)) {
+    const s = bySource[source];
+    const counts = s.statusCounts;
+    const statusKeys = Object.keys(counts);
+    if (statusKeys.length > 1) {
+      const dominant = statusKeys.reduce((a, b) => counts[a] > counts[b] ? a : b);
+      s.status = parseStatus(dominant);
+    }
   }
 
   const verificationRate = totalRevenue > 0 ? (verifiedRevenue / totalRevenue) * 100 : 0;
