@@ -372,11 +372,11 @@ export async function routeCommand(
     }
 
     const postApiStatus = blastCtx.getStatus();
-    if (postApiStatus.apiCallsMade > (options.blastRadiusLimits?.maxApiCalls || 10)) {
-      recordMetric("kernel.blast_radius.abort", 1, "count", { actionType, reason: "post_exec_api_calls" });
-      await emitDomainEvent(userId, `${actionType}.blast-radius-abort`, { executionKey, reason: "API call limit exceeded" }, actionType, executionKey, correlationId);
-      await routeToDLQ(actionType, payload, `Blast radius breach: API calls exceeded (${postApiStatus.apiCallsMade})`, userId);
-      return { success: false, error: `Blast radius breach: API call limit exceeded`, correlationId };
+    if (postApiStatus.aborted) {
+      recordMetric("kernel.blast_radius.abort", 1, "count", { actionType, reason: postApiStatus.abortReason || "post_exec_limit" });
+      await emitDomainEvent(userId, `${actionType}.blast-radius-abort`, { executionKey, reason: postApiStatus.abortReason }, actionType, executionKey, correlationId);
+      await routeToDLQ(actionType, payload, `Blast radius breach: ${postApiStatus.abortReason}`, userId);
+      return { success: false, error: `Blast radius breach: ${postApiStatus.abortReason}`, correlationId };
     }
 
     recordMetric("kernel.command.success", 1, "count", { actionType });
