@@ -106,6 +106,11 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
   });
 
   try {
+    const { detectComplianceDrift } = await import("../services/compliance-drift-detector");
+    await detectComplianceDrift();
+  } catch {}
+
+  try {
     const { runPolicyPreFlight } = await import("../services/policy-preflight");
     const preFlightResult = await runPolicyPreFlight(req.userId, req.platform, {
       contentId: parseInt(req.contentId, 10) || undefined,
@@ -113,7 +118,7 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
       description: req.description,
       tags: req.tags,
       hasAiContent: req.metadata?.hasAiContent,
-      hasSponsoredContent: req.metadata?.hasSponsoredContent || req.hasDisclosure,
+      hasSponsoredContent: req.metadata?.hasSponsoredContent,
       hasAffiliateLinks: req.metadata?.hasAffiliateLinks,
       originTypes: req.metadata?.originTypes,
     });
@@ -129,11 +134,6 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     const msg = preFlightErr instanceof Error ? preFlightErr.message : "unknown error";
     policyCheck.issues.push(`Policy pre-flight gate failed (fail-closed): ${msg}`);
   }
-
-  try {
-    const { detectComplianceDrift } = await import("../services/compliance-drift-detector");
-    await detectComplianceDrift();
-  } catch {}
 
   let safetyGateAllowed = true;
   try {

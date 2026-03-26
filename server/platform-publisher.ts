@@ -431,6 +431,11 @@ export async function publishToplatform(
     }
 
     try {
+      const { detectComplianceDrift } = await import("./services/compliance-drift-detector");
+      await detectComplianceDrift();
+    } catch {}
+
+    try {
       const { runPolicyPreFlight } = await import("./services/policy-preflight");
       const preFlightResult = await runPolicyPreFlight(userId, platform, {
         title: metadata?.title || content.slice(0, 100),
@@ -462,11 +467,6 @@ export async function publishToplatform(
         error: `Publishing blocked: pre-flight gate failed (fail-closed): ${msg}`,
       };
     }
-
-    try {
-      const { detectComplianceDrift } = await import("./services/compliance-drift-detector");
-      await detectComplianceDrift();
-    } catch {}
 
     const startTime = Date.now();
     const result = await executePublish(userId, platform, content, metadata);

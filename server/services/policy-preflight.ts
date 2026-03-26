@@ -100,19 +100,21 @@ export async function runPolicyPreFlight(
 
   let credibility: PreFlightResult["credibility"] = null;
   gatesChecked.push("credibility_check");
-  const credScore = await getCredibilityScore(userId);
+  let credScore = await getCredibilityScore(userId);
+  if (!credScore) {
+    const { computeCreatorCredibility } = await import("./creator-credibility");
+    const computed = await computeCreatorCredibility(userId);
+    credScore = { overallScore: computed.overallScore } as typeof credScore;
+  }
   if (credScore) {
-    const publishAllowed = (credScore.overallScore || 0) >= 20;
-    const tier = (credScore.overallScore || 0) >= 85 ? "excellent"
-      : (credScore.overallScore || 0) >= 70 ? "good"
-      : (credScore.overallScore || 0) >= 50 ? "fair"
-      : (credScore.overallScore || 0) >= 30 ? "at_risk"
+    const score = credScore.overallScore || 50;
+    const publishAllowed = score >= 20;
+    const tier = score >= 85 ? "excellent"
+      : score >= 70 ? "good"
+      : score >= 50 ? "fair"
+      : score >= 30 ? "at_risk"
       : "poor";
-    credibility = {
-      score: credScore.overallScore || 50,
-      tier,
-      publishAllowed,
-    };
+    credibility = { score, tier, publishAllowed };
     if (!publishAllowed) {
       blockers.push("Creator credibility score too low for automated publishing — manual review required");
     }
