@@ -10,7 +10,7 @@ import {
   simulateTrustRisk,
   generateOverrideReport, recordOverride,
   getGovernanceAuditLogs, logGovernanceAction,
-  startBudgetResetScheduler, tenantIsolationMiddleware,
+  startBudgetResetScheduler, startOverrideReportScheduler, tenantIsolationMiddleware,
 } from "../services/trust-governance";
 
 const router = Router();
@@ -231,6 +231,7 @@ router.get("/audit", asyncHandler(async (req, res) => {
 export function registerTrustGovernanceRoutes(app: import("express").Express) {
   app.use("/api/trust-governance", router);
   startBudgetResetScheduler();
+  startOverrideReportScheduler();
   seedApprovalMatrix().then((count) => {
     if (count > 0) console.log(`[trust-governance] Seeded ${count} approval matrix rules`);
   }).catch(() => {});

@@ -711,6 +711,8 @@ export async function resetExpiredBudgets(): Promise<number> {
     );
 
   let resetCount = 0;
+  const processedUsers = new Set<string>();
+
   for (const period of expired) {
     await db.update(trustBudgetPeriods)
       .set({ metadata: { ...(period.metadata as Record<string, unknown> ?? {}), resetProcessed: true, processedAt: now.toISOString() } })
@@ -729,11 +731,28 @@ export async function resetExpiredBudgets(): Promise<number> {
       totalDeducted: 0,
       metadata: { previousPeriodId: period.id, resetAt: now.toISOString() },
     });
+
+    const userAgentKey = `${period.userId}:${period.agentName}`;
+    if (!processedUsers.has(userAgentKey)) {
+      processedUsers.add(userAgentKey);
+      await db.update(trustBudgetRecords).set({
+        budgetRemaining: DEFAULT_BUDGET_TOTAL,
+        budgetTotal: DEFAULT_BUDGET_TOTAL,
+        lastDeductionAmount: null,
+        lastDeductionReason: null,
+        updatedAt: now,
+      }).where(
+        and(
+          eq(trustBudgetRecords.userId, period.userId),
+          eq(trustBudgetRecords.agentName, period.agentName),
+        )
+      );
+    }
     resetCount++;
   }
 
   if (resetCount > 0) {
-    logger.info(`Reset ${resetCount} expired trust budget periods`);
+    logger.info(`Reset ${resetCount} expired trust budget periods and restored active budgets`);
   }
   return resetCount;
 }
@@ -755,6 +774,55 @@ export function stopBudgetResetScheduler(): void {
   if (resetIntervalHandle) {
     clearInterval(resetIntervalHandle);
     resetIntervalHandle = null;
+  }
+}
+
+// ==================== PERIODIC OVERRIDE REPORT SCHEDULER ====================
+
+let overrideReportHandle: ReturnType<typeof setInterval> | null = null;
+const OVERRIDE_REPORT_INTERVAL_HOURS = 24;
+
+export async function generatePeriodicOverrideReports(): Promise<number> {
+  const users = await db.selectDistinct({ userId: operatorOverrideRecords.userId })
+    .from(operatorOverrideRecords);
+
+  let generated = 0;
+  for (const { userId } of users) {
+    try {
+      const report = await generateOverrideReport(userId);
+      if (report.totalOverrides > 0) {
+        await logGovernanceAction(userId, "periodic_override_report", "override", {
+          totalOverrides: report.totalOverrides,
+          riskBreakdown: report.riskBreakdown,
+          reportPeriod: "24h",
+        }, report.riskBreakdown.high > 0 ? "warning" : "info", "generated");
+        generated++;
+      }
+    } catch {
+      continue;
+    }
+  }
+  logger.info(`Generated ${generated} periodic override reports`);
+  return generated;
+}
+
+export function startOverrideReportScheduler(): void {
+  if (overrideReportHandle) return;
+  const intervalMs = OVERRIDE_REPORT_INTERVAL_HOURS * 3600_000;
+  overrideReportHandle = setInterval(async () => {
+    try {
+      await generatePeriodicOverrideReports();
+    } catch (err) {
+      logger.error("Override report scheduler failed:", err);
+    }
+  }, intervalMs);
+  logger.info(`Override report scheduler started (interval: ${OVERRIDE_REPORT_INTERVAL_HOURS}h)`);
+}
+
+export function stopOverrideReportScheduler(): void {
+  if (overrideReportHandle) {
+    clearInterval(overrideReportHandle);
+    overrideReportHandle = null;
   }
 }
 
