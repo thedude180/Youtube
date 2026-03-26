@@ -310,6 +310,152 @@ describe("Phase 6G: Automated Recovery & Background Task Resilience", () => {
       expect(typeof count).toBe("number");
       expect(count).toBeGreaterThanOrEqual(0);
     });
+
+    it("should support configurable circuit thresholds", async () => {
+      const { configureProviderCircuit, getWebhookProviderHealth } = await import("../../services/webhook-pipeline");
+      configureProviderCircuit("config_test", {
+        failureThreshold: 3,
+        successRateThreshold: 0.5,
+        probeIntervalMs: 30_000,
+        probeSuccessesNeeded: 3,
+      });
+      const health = getWebhookProviderHealth();
+      expect(health.config_test).toBeDefined();
+      expect(health.config_test.circuitState).toBe("closed");
+    });
+  });
+
+  describe("T5b: Circuit Breaker State Machine", () => {
+    let runId: string;
+    beforeEach(async () => {
+      runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const { resetProviderHealth } = await import("../../services/webhook-pipeline");
+      resetProviderHealth();
+    });
+
+    it("should trip circuit to OPEN after threshold failures", async () => {
+      const src = `breaker_${runId}`;
+      const { configureProviderCircuit, getWebhookProviderHealth, webhookPipeline } = await import("../../services/webhook-pipeline");
+      configureProviderCircuit(src, { failureThreshold: 3, successRateThreshold: 0.5, windowMs: 60_000 });
+
+      webhookPipeline.register(src, async () => { throw new Error("provider down"); });
+
+      for (let i = 0; i < 4; i++) {
+        try {
+          await webhookPipeline.ingest(src, `evt_${runId}_${i}`, "test", { n: i });
+        } catch {}
+      }
+      await new Promise(r => setTimeout(r, 100));
+
+      const health = getWebhookProviderHealth();
+      expect(health[src]).toBeDefined();
+      expect(health[src].circuitState).toBe("open");
+      expect(health[src].circuitOpen).toBe(true);
+    });
+
+    it("should block events while OPEN (persist as deferred)", async () => {
+      const src = `block_${runId}`;
+      const { configureProviderCircuit, getWebhookProviderHealth, webhookPipeline } = await import("../../services/webhook-pipeline");
+      configureProviderCircuit(src, {
+        failureThreshold: 3,
+        successRateThreshold: 0.5,
+        windowMs: 60_000,
+        probeIntervalMs: 999_999,
+      });
+
+      let callCount = 0;
+      webhookPipeline.register(src, async () => {
+        callCount++;
+        throw new Error("still down");
+      });
+
+      for (let i = 0; i < 4; i++) {
+        try {
+          await webhookPipeline.ingest(src, `blk_${runId}_${i}`, "test", { n: i });
+        } catch {}
+      }
+      await new Promise(r => setTimeout(r, 100));
+
+      const health = getWebhookProviderHealth();
+      expect(health[src].circuitState).toBe("open");
+
+      const countBefore = callCount;
+      await webhookPipeline.ingest(src, `deferred_${runId}`, "test", { deferred: true });
+      await new Promise(r => setTimeout(r, 100));
+      expect(callCount).toBe(countBefore);
+    });
+
+    it("should transition OPEN → HALF_OPEN → CLOSED on probe success", async () => {
+      const src = `probe_${runId}`;
+      const { configureProviderCircuit, getWebhookProviderHealth, webhookPipeline } = await import("../../services/webhook-pipeline");
+      configureProviderCircuit(src, {
+        failureThreshold: 3,
+        successRateThreshold: 0.5,
+        windowMs: 60_000,
+        probeIntervalMs: 1,
+        probeSuccessesNeeded: 1,
+      });
+
+      let shouldFail = true;
+      webhookPipeline.register(src, async () => {
+        if (shouldFail) throw new Error("down");
+      });
+
+      for (let i = 0; i < 4; i++) {
+        try {
+          await webhookPipeline.ingest(src, `fail_${runId}_${i}`, "test", { n: i });
+        } catch {}
+      }
+      await new Promise(r => setTimeout(r, 50));
+
+      let health = getWebhookProviderHealth();
+      expect(health[src].circuitState).toBe("open");
+
+      shouldFail = false;
+      await new Promise(r => setTimeout(r, 10));
+
+      await webhookPipeline.ingest(src, `probe_${runId}`, "test", { probe: true });
+      await new Promise(r => setTimeout(r, 100));
+
+      health = getWebhookProviderHealth();
+      expect(health[src].circuitState).toBe("closed");
+      expect(health[src].circuitOpen).toBe(false);
+    });
+
+    it("should transition OPEN → HALF_OPEN → OPEN on probe failure", async () => {
+      const src = `reprobe_${runId}`;
+      const { configureProviderCircuit, getWebhookProviderHealth, webhookPipeline } = await import("../../services/webhook-pipeline");
+      configureProviderCircuit(src, {
+        failureThreshold: 3,
+        successRateThreshold: 0.5,
+        windowMs: 60_000,
+        probeIntervalMs: 1,
+        probeSuccessesNeeded: 1,
+      });
+
+      webhookPipeline.register(src, async () => { throw new Error("always down"); });
+
+      for (let i = 0; i < 4; i++) {
+        try {
+          await webhookPipeline.ingest(src, `rfail_${runId}_${i}`, "test", { n: i });
+        } catch {}
+      }
+      await new Promise(r => setTimeout(r, 50));
+
+      let health = getWebhookProviderHealth();
+      expect(health[src].circuitState).toBe("open");
+
+      await new Promise(r => setTimeout(r, 10));
+
+      try {
+        await webhookPipeline.ingest(src, `reprobe_${runId}`, "test", { probe: true });
+      } catch {}
+      await new Promise(r => setTimeout(r, 100));
+
+      health = getWebhookProviderHealth();
+      expect(health[src].circuitState).toBe("open");
+      expect(health[src].circuitOpen).toBe(true);
+    });
   });
 
   describe("T6: Ops Health API Endpoints", () => {

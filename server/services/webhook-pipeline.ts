@@ -8,18 +8,31 @@ const logger = createLogger("webhook-pipeline");
 
 type WebhookHandler = (payload: Record<string, unknown>, eventType: string) => Promise<void>;
 
+type CircuitState = "closed" | "open" | "half_open";
+
 interface ProviderHealthRecord {
   successes: number;
   failures: number;
   lastSuccess: number | null;
   lastFailure: number | null;
-  circuitOpen: boolean;
+  circuitState: CircuitState;
   circuitOpenedAt: number | null;
+  lastProbeAt: number | null;
   probeIntervalMs: number;
+  probeSuccessesNeeded: number;
+  consecutiveProbeSuccesses: number;
   failureThreshold: number;
   successRateThreshold: number;
   windowMs: number;
   recentResults: Array<{ success: boolean; timestamp: number }>;
+}
+
+export interface ProviderCircuitConfig {
+  failureThreshold?: number;
+  successRateThreshold?: number;
+  windowMs?: number;
+  probeIntervalMs?: number;
+  probeSuccessesNeeded?: number;
 }
 
 const DEFAULT_PROVIDER_CONFIG = {
@@ -27,6 +40,7 @@ const DEFAULT_PROVIDER_CONFIG = {
   successRateThreshold: 0.3,
   windowMs: 300_000,
   probeIntervalMs: 60_000,
+  probeSuccessesNeeded: 2,
   maxRecentResults: 50,
 };
 
@@ -40,9 +54,12 @@ function getProviderHealth(source: string): ProviderHealthRecord {
       failures: 0,
       lastSuccess: null,
       lastFailure: null,
-      circuitOpen: false,
+      circuitState: "closed",
       circuitOpenedAt: null,
+      lastProbeAt: null,
       probeIntervalMs: DEFAULT_PROVIDER_CONFIG.probeIntervalMs,
+      probeSuccessesNeeded: DEFAULT_PROVIDER_CONFIG.probeSuccessesNeeded,
+      consecutiveProbeSuccesses: 0,
       failureThreshold: DEFAULT_PROVIDER_CONFIG.failureThreshold,
       successRateThreshold: DEFAULT_PROVIDER_CONFIG.successRateThreshold,
       windowMs: DEFAULT_PROVIDER_CONFIG.windowMs,
@@ -51,6 +68,15 @@ function getProviderHealth(source: string): ProviderHealthRecord {
     providerHealth.set(source, health);
   }
   return health;
+}
+
+export function configureProviderCircuit(source: string, config: ProviderCircuitConfig): void {
+  const health = getProviderHealth(source);
+  if (config.failureThreshold !== undefined) health.failureThreshold = config.failureThreshold;
+  if (config.successRateThreshold !== undefined) health.successRateThreshold = config.successRateThreshold;
+  if (config.windowMs !== undefined) health.windowMs = config.windowMs;
+  if (config.probeIntervalMs !== undefined) health.probeIntervalMs = config.probeIntervalMs;
+  if (config.probeSuccessesNeeded !== undefined) health.probeSuccessesNeeded = config.probeSuccessesNeeded;
 }
 
 function pruneRecentResults(health: ProviderHealthRecord): void {
@@ -75,12 +101,14 @@ function recordProviderSuccess(source: string): void {
   health.recentResults.push({ success: true, timestamp: Date.now() });
   pruneRecentResults(health);
 
-  if (health.circuitOpen) {
-    const successRate = getSuccessRate(health);
-    if (successRate >= 0.5) {
-      health.circuitOpen = false;
+  if (health.circuitState === "half_open") {
+    health.consecutiveProbeSuccesses++;
+    if (health.consecutiveProbeSuccesses >= health.probeSuccessesNeeded) {
+      health.circuitState = "closed";
       health.circuitOpenedAt = null;
-      logger.info(`[WebhookPipeline] Circuit closed for provider: ${source} (success rate recovered to ${Math.round(successRate * 100)}%)`);
+      health.lastProbeAt = null;
+      health.consecutiveProbeSuccesses = 0;
+      logger.info(`[WebhookPipeline] Circuit CLOSED for provider: ${source} (${health.probeSuccessesNeeded} consecutive probe successes)`);
       replayDeferredEvents(source).catch((err) => {
         logger.warn(`[WebhookPipeline] Failed to replay deferred events for ${source}: ${(err as Error)?.message}`);
       });
@@ -95,35 +123,64 @@ function recordProviderFailure(source: string): void {
   health.recentResults.push({ success: false, timestamp: Date.now() });
   pruneRecentResults(health);
 
-  if (!health.circuitOpen) {
+  if (health.circuitState === "half_open") {
+    health.circuitState = "open";
+    health.circuitOpenedAt = Date.now();
+    health.consecutiveProbeSuccesses = 0;
+    logger.warn(`[WebhookPipeline] Circuit re-OPENED for provider: ${source} (probe failed)`);
+    return;
+  }
+
+  if (health.circuitState === "closed") {
     const recentFailures = health.recentResults.filter(r => !r.success).length;
     const successRate = getSuccessRate(health);
 
     if (recentFailures >= health.failureThreshold && successRate < health.successRateThreshold) {
-      health.circuitOpen = true;
+      health.circuitState = "open";
       health.circuitOpenedAt = Date.now();
+      health.consecutiveProbeSuccesses = 0;
       logger.warn(`[WebhookPipeline] Circuit OPENED for provider: ${source} (${recentFailures} failures, ${Math.round(successRate * 100)}% success rate)`);
     }
   }
 }
 
-function isProviderCircuitOpen(source: string): boolean {
+function shouldAllowProbe(source: string): boolean {
   const health = providerHealth.get(source);
-  if (!health || !health.circuitOpen) return false;
+  if (!health) return true;
+  if (health.circuitState !== "open") return health.circuitState === "closed";
 
-  if (health.circuitOpenedAt && Date.now() - health.circuitOpenedAt > health.probeIntervalMs) {
-    return false;
+  const now = Date.now();
+  const timeSinceOpen = health.circuitOpenedAt ? now - health.circuitOpenedAt : Infinity;
+  const timeSinceProbe = health.lastProbeAt ? now - health.lastProbeAt : Infinity;
+
+  if (timeSinceOpen >= health.probeIntervalMs && timeSinceProbe >= health.probeIntervalMs) {
+    health.circuitState = "half_open";
+    health.lastProbeAt = now;
+    health.consecutiveProbeSuccesses = 0;
+    logger.info(`[WebhookPipeline] Circuit HALF_OPEN for provider: ${source} — allowing probe`);
+    return true;
   }
 
-  return true;
+  return false;
+}
+
+function isProviderCircuitOpen(source: string): boolean {
+  const health = providerHealth.get(source);
+  if (!health) return false;
+  if (health.circuitState === "closed") return false;
+  if (health.circuitState === "open") return true;
+  return false;
 }
 
 export interface WebhookProviderHealthSummary {
   successes: number;
   failures: number;
   successRate: number;
+  circuitState: CircuitState;
   circuitOpen: boolean;
   circuitOpenedAt: number | null;
+  lastProbeAt: number | null;
+  consecutiveProbeSuccesses: number;
   lastSuccess: number | null;
   lastFailure: number | null;
   recentResultsCount: number;
@@ -137,8 +194,11 @@ export function getWebhookProviderHealth(): Record<string, WebhookProviderHealth
       successes: health.successes,
       failures: health.failures,
       successRate: Math.round(getSuccessRate(health) * 100),
-      circuitOpen: health.circuitOpen,
+      circuitState: health.circuitState,
+      circuitOpen: health.circuitState !== "closed",
       circuitOpenedAt: health.circuitOpenedAt,
+      lastProbeAt: health.lastProbeAt,
+      consecutiveProbeSuccesses: health.consecutiveProbeSuccesses,
       lastSuccess: health.lastSuccess,
       lastFailure: health.lastFailure,
       recentResultsCount: health.recentResults.length,
@@ -204,8 +264,6 @@ class WebhookPipeline {
     payload: Record<string, unknown>,
     userId = "system"
   ): Promise<void> {
-    const circuitOpen = isProviderCircuitOpen(source);
-
     const dedupeKey = `${source}:${eventId}`;
 
     let inserted: { id: number } | undefined;
@@ -232,19 +290,22 @@ class WebhookPipeline {
       return;
     }
 
-    if (circuitOpen) {
+    const circuitBlocking = isProviderCircuitOpen(source);
+    const probeAllowed = !circuitBlocking || shouldAllowProbe(source);
+
+    if (circuitBlocking && !probeAllowed) {
       logger.warn(`[WebhookPipeline] Circuit open for provider ${source} — event ${eventId} persisted as deferred (id: ${inserted.id})`);
       return;
     }
 
     await jobQueue.enqueue({
       type: `webhook_${source}`,
-      priority: 10,
+      priority: probeAllowed && circuitBlocking ? 1 : 10,
       payload: { webhookEventId: inserted.id },
       dedupeKey: `job:${dedupeKey}`,
     });
 
-    logger.info(`[WebhookPipeline] Ingested ${source} event ${eventId} (type: ${eventType})`);
+    logger.info(`[WebhookPipeline] ${circuitBlocking ? "Probe" : "Ingested"} ${source} event ${eventId} (type: ${eventType})`);
   }
 
   private async process(webhookEventId: number, source: string): Promise<void> {
