@@ -1922,9 +1922,10 @@ export function registerContentRoutes(app: Express) {
       const jobId = await queueVideoForSmartEdit(userId, videoId);
       if (!jobId) return res.status(409).json({ error: "Already queued or video too short" });
 
-      processSmartEditQueue(userId).catch(() => undefined);
+      const correlationId = (req as any).correlationId;
+      processSmartEditQueue(userId, correlationId).catch(() => undefined);
 
-      res.json({ queued: true, jobId });
+      res.json({ queued: true, jobId, correlationId });
     } catch (e: any) {
       res.status(500).json({ error: "Failed to queue smart edit" });
     }

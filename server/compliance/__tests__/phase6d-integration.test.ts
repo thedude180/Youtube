@@ -684,6 +684,75 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
     });
   });
 
+  describe("Receipt Chain Integrity - DB-Backed Per-User", () => {
+    it("should build per-user chain linkage across multiple receipts", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      const { verifyReceiptChainIntegrity } = await import("../../services/resilience-observability");
+
+      const chainUser = `chain-test-user-${Date.now()}`;
+      registerCommand("analytics_export", async () => ({ exported: true }));
+
+      await routeCommand("analytics_export", {
+        userId: chainUser,
+        executionKey: `chain-r1-${Date.now()}`,
+      });
+      await routeCommand("analytics_export", {
+        userId: chainUser,
+        executionKey: `chain-r2-${Date.now()}`,
+      });
+      await routeCommand("analytics_export", {
+        userId: chainUser,
+        executionKey: `chain-r3-${Date.now()}`,
+      });
+
+      const result = await verifyReceiptChainIntegrity(chainUser, 10);
+      expect(result.total).toBe(3);
+      expect(result.chainBroken).toBe(false);
+      expect(result.valid).toBe(3);
+      expect(result.tampered).toBe(0);
+      for (const r of result.results) {
+        expect(r.chainValid).toBe(true);
+      }
+    });
+
+    it("should have first receipt link to genesis", async () => {
+      const genesisUser = `genesis-user-${Date.now()}`;
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      registerCommand("playlist_manage", async () => ({ managed: true }));
+
+      const result = await routeCommand("playlist_manage", {
+        userId: genesisUser,
+        executionKey: `genesis-test-${Date.now()}`,
+      });
+      expect(result.success).toBe(true);
+
+      if (result.receiptId) {
+        const [receipt] = await db
+          .select()
+          .from(signedActionReceipts)
+          .where(eq(signedActionReceipts.id, result.receiptId))
+          .limit(1);
+        const theater = receipt.decisionTheater as Record<string, any>;
+        expect(theater.chainIntegrity.prevHash).toBe("genesis");
+      }
+    });
+
+    it("should propagate HTTP correlation ID through to kernel receipt", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      registerCommand("comment_reply", async () => ({ replied: true }));
+
+      const httpCorrelationId = `http-cid-${Date.now()}`;
+      const result = await routeCommand(
+        "comment_reply",
+        { userId: TEST_USER, executionKey: `http-cid-test-${Date.now()}` },
+        { correlationId: httpCorrelationId }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.correlationId).toBe(httpCorrelationId);
+    });
+  });
+
   describe("Feature Sunset Runtime Gate", () => {
     it("should report feature as enabled when no sunset record exists", async () => {
       const { isFeatureEnabled } = await import("../../services/resilience-observability");

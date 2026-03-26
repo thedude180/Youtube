@@ -8,7 +8,7 @@ import {
   approvalMatrixRules,
   approvalDecisions,
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { evaluateApproval, deductTrustBudget as governanceDeductBudget } from "../services/trust-governance";
 import {
@@ -69,7 +69,21 @@ function computeHmac(data: string): string {
   return crypto.createHmac("sha256", getHmacSecret()).update(data).digest("hex");
 }
 
-let lastReceiptHash: string | null = null;
+async function getLastChainHash(userId: string): Promise<string> {
+  const [last] = await db
+    .select({ decisionTheater: signedActionReceipts.decisionTheater })
+    .from(signedActionReceipts)
+    .where(eq(signedActionReceipts.userId, userId))
+    .orderBy(desc(signedActionReceipts.id))
+    .limit(1);
+  if (last) {
+    const theater = (last.decisionTheater as Record<string, any>) || {};
+    if (theater.chainIntegrity?.chainHash) {
+      return theater.chainIntegrity.chainHash;
+    }
+  }
+  return "genesis";
+}
 
 export async function issueSignedReceipt(
   userId: string,
@@ -84,7 +98,7 @@ export async function issueSignedReceipt(
   const sigData = JSON.stringify({ userId, actionType, executionKey, payload, result });
   const hmacSignature = computeHmac(sigData);
 
-  const prevHash = lastReceiptHash || "genesis";
+  const prevHash = await getLastChainHash(userId);
   const chainHash = computeHmac(`${prevHash}:${hmacSignature}`);
 
   const enrichedTheater = {
@@ -108,7 +122,6 @@ export async function issueSignedReceipt(
     })
     .returning({ id: signedActionReceipts.id });
 
-  lastReceiptHash = chainHash;
   return receipt.id;
 }
 

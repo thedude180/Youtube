@@ -645,7 +645,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
   }
 }
 
-export async function processSmartEditQueue(userId: string): Promise<void> {
+export async function processSmartEditQueue(userId: string, correlationId?: string): Promise<void> {
   if (activeJobs.has(userId)) {
     logger.debug("Smart edit queue already processing for user", { userId });
     return;
@@ -680,7 +680,7 @@ export async function processSmartEditQueue(userId: string): Promise<void> {
     }
 
     const { submitSmartEditToKernel } = await import("./kernel/smart-edit-handler");
-    const kernelResult = await submitSmartEditToKernel(userId, sourceVideoId, item.id);
+    const kernelResult = await submitSmartEditToKernel(userId, sourceVideoId, item.id, { correlationId });
 
     if (!kernelResult.success) {
       if (kernelResult.reason === "idempotent-skip") {
