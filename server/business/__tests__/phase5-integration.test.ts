@@ -798,7 +798,7 @@ describe("Phase 5: Business Intelligence Integration Tests", () => {
       const response = {
         revenueTruth: { totalRevenue: truth.totalRevenue, verifiedRevenue: truth.verifiedRevenue, verificationRate: truth.verificationRate, confidenceLabel: truth.confidenceLabel },
         sellability: { overallScore: sellability.overallScore, grade: sellability.grade },
-        valuation: { estimatedValue: valuation.estimatedValue, valuationRange: valuation.valueRange, methodology: valuation.methodologies?.[0]?.name || "SDE Multiple" },
+        valuation: { estimatedValue: valuation.estimatedValue, valuationRange: valuation.valueRange, methodology: valuation.methodologies?.[0]?.method || "SDE Multiple" },
         riskProfile: { level: risk.overallRiskProfile, score: 0 },
         aiDisplacementRisk: risk.aiDisplacement.riskLevel,
         moatStrength: risk.humanValueMoat.moatLevel,

@@ -198,7 +198,7 @@ export function registerBusinessIntelligenceRoutes(app: Express) {
       valuation: {
         estimatedValue: valuation.estimatedValue,
         valuationRange: valuation.valueRange,
-        methodology: valuation.methodologies?.[0]?.name || "SDE Multiple",
+        methodology: valuation.methodologies?.[0]?.method || "SDE Multiple",
       },
       riskProfile: { level: risk.overallRiskProfile, score: 0 },
       aiDisplacementRisk: risk.aiDisplacement.riskLevel,

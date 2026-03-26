@@ -39,11 +39,10 @@ function RevenueTruthCard() {
   const { data, isLoading, isError } = useQuery<{
     totalRevenue: number;
     verifiedRevenue: number;
+    estimatedRevenue: number;
     verificationRate: number;
     confidenceLabel: string;
-    gapAmount: number;
-    recordCount: number;
-    verifiedCount: number;
+    byPlatform: Record<string, { total: number; verified: number; verificationRate: number }>;
   }>({
     queryKey: ["/api/business/revenue-truth"],
     refetchInterval: 60000,
@@ -54,6 +53,8 @@ function RevenueTruthCard() {
 
   const confColor = data.confidenceLabel === "high" ? "text-emerald-400" :
     data.confidenceLabel === "medium" ? "text-amber-400" : "text-red-400";
+
+  const platforms = Object.entries(data.byPlatform || {});
 
   return (
     <Card className="card-empire" data-testid="card-revenue-truth">
@@ -81,10 +82,16 @@ function RevenueTruthCard() {
           <span className="text-muted-foreground">Verification Rate</span>
           <Badge variant="outline" className="text-[10px]">{(data.verificationRate || 0).toFixed(0)}%</Badge>
         </div>
-        <div className="flex items-center justify-between text-xs mt-1" data-testid="stat-record-count">
-          <span className="text-muted-foreground">Records</span>
-          <span className="font-medium">{data.verifiedCount || 0}/{data.recordCount || 0} verified</span>
-        </div>
+        {platforms.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {platforms.slice(0, 3).map(([platform, info]) => (
+              <div key={platform} className="flex items-center justify-between text-[10px] text-muted-foreground" data-testid={`row-platform-${platform}`}>
+                <span className="capitalize">{platform}</span>
+                <span>${(info.total || 0).toLocaleString()} ({(info.verificationRate || 0).toFixed(0)}% verified)</span>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -233,7 +240,7 @@ function ValuationCard() {
   const { data, isLoading, isError } = useQuery<{
     estimatedValue: number;
     valueRange: { low: number; high: number };
-    methodologies: { name: string; value: number; weight: number }[];
+    methodologies: { method: string; value: number; multiple: number; basis: string; confidenceLevel: string }[];
     contentAssetValue: number;
     audienceValue: number;
     annualizedRevenue: number;
@@ -265,7 +272,7 @@ function ValuationCard() {
           </div>
           {(data.methodologies || []).slice(0, 3).map((m, i) => (
             <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-methodology-${i}`}>
-              <span className="font-medium">{m.name}</span>
+              <span className="font-medium">{m.method}</span>
               <Badge variant="outline" className="text-[10px]">${(m.value || 0).toLocaleString()}</Badge>
             </div>
           ))}
@@ -395,9 +402,9 @@ function CapitalAllocationCard() {
 
 function RevenueVelocityCard() {
   const { data, isLoading, isError } = useQuery<{
-    velocity: { revenuePerContentDay: number; revenuePerHour: number; trend: string };
+    velocity: { avgDaysToFirstRevenue: number; avgDaysToBreakeven: number; revenuePerContentDay: number; contentToRevenueRatio: number; fastestMonetizedVideo: { title: string; daysToRevenue: number } | null };
     infrastructure: { maturityLevel: string; components: string[] };
-    narrative: { title: string; summary: string };
+    narrative: { headline: string; valueProposition: string };
   }>({
     queryKey: ["/api/business/revenue-velocity"],
     refetchInterval: 60000,
@@ -406,17 +413,14 @@ function RevenueVelocityCard() {
   if (isLoading) return <LoadingCard title="Revenue Velocity" />;
   if (isError || !data) return <ErrorCard title="Revenue Velocity" icon={<TrendingUp className="h-4 w-4 text-primary" />} />;
 
-  const trendColor = (data.velocity?.trend || "declining") === "accelerating" ? "text-emerald-400" :
-    (data.velocity?.trend || "declining") === "stable" ? "text-amber-400" : "text-red-400";
-
   return (
     <Card className="card-empire" data-testid="card-revenue-velocity">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary" />
           Revenue Velocity
-          <Badge variant="outline" className={`ml-auto text-[10px] capitalize ${trendColor}`}>
-            {data.velocity?.trend || "unknown"}
+          <Badge variant="outline" className="ml-auto text-[10px] capitalize">
+            {data.infrastructure?.maturityLevel || "unknown"}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -426,15 +430,20 @@ function RevenueVelocityCard() {
             <div className="text-xs text-muted-foreground">$/Content Day</div>
             <div className="text-lg font-bold">${(data.velocity?.revenuePerContentDay || 0).toFixed(2)}</div>
           </div>
-          <div className="space-y-1" data-testid="stat-revenue-per-hour">
-            <div className="text-xs text-muted-foreground">$/Hour</div>
-            <div className="text-lg font-bold">${(data.velocity?.revenuePerHour || 0).toFixed(2)}</div>
+          <div className="space-y-1" data-testid="stat-days-to-revenue">
+            <div className="text-xs text-muted-foreground">Avg Days to Revenue</div>
+            <div className="text-lg font-bold">{(data.velocity?.avgDaysToFirstRevenue || 0).toFixed(0)}</div>
           </div>
         </div>
-        <div className="mt-3 space-y-1" data-testid="stat-maturity-level">
-          <div className="text-xs text-muted-foreground">Infrastructure Maturity</div>
-          <div className="text-sm font-semibold capitalize">{data.infrastructure?.maturityLevel || "unknown"}</div>
+        <div className="mt-3 flex items-center justify-between text-xs" data-testid="stat-content-ratio">
+          <span className="text-muted-foreground">Content:Revenue Ratio</span>
+          <span className="font-semibold">{(data.velocity?.contentToRevenueRatio || 0).toFixed(1)}x</span>
         </div>
+        {data.narrative?.headline && (
+          <div className="mt-2 text-[10px] text-muted-foreground" data-testid="text-velocity-narrative">
+            {data.narrative.headline}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -444,7 +453,7 @@ function ContentAssetValuationCard() {
   const { data, isLoading, isError } = useQuery<{
     totalAssets: number;
     totalEstimatedValue: number;
-    topAssets: { title: string; estimatedValue: number; trend: string }[];
+    topAssets: { title: string; estimatedLifetimeValue: number; assetScore: number; licensingPotential: string }[];
     libraryHealth: string;
     ipSummary: { fullOwnership: number; shared: number; unclear: number };
   }>({
@@ -474,7 +483,7 @@ function ContentAssetValuationCard() {
             {(data.topAssets || []).slice(0, 5).map((a, i) => (
               <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-asset-${i}`}>
                 <span className="font-medium truncate max-w-[60%]">{a.title}</span>
-                <Badge variant="outline" className="text-[10px]">${(a.estimatedValue || 0).toLocaleString()}</Badge>
+                <Badge variant="outline" className="text-[10px]">${(a.estimatedLifetimeValue || 0).toLocaleString()}</Badge>
               </div>
             ))}
           </div>
@@ -551,7 +560,7 @@ function FounderDependencyCard() {
 
 function EstatePlanCard() {
   const { data, isLoading, isError } = useQuery<{
-    succession: { readinessScore: number; planElements: { element: string; status: string }[] };
+    succession: { readinessScore: number; checklist: { item: string; status: string; priority: string }[] };
     digitalAssets: { channels: number; contentPieces: number; revenueStreams: number; estimatedAnnualRevenue: number };
     keyRisks: string[];
     revenueConfidence: { confidenceLabel: string };
@@ -589,12 +598,12 @@ function EstatePlanCard() {
             <div className="text-sm font-bold">{data.digitalAssets?.contentPieces || 0}</div>
           </div>
         </div>
-        {(data.succession?.planElements || []).length > 0 && (
+        {(data.succession?.checklist || []).length > 0 && (
           <div className="space-y-2">
-            {(data.succession.planElements || []).slice(0, 4).map((p, i) => (
+            {(data.succession.checklist || []).slice(0, 4).map((c, i) => (
               <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-estate-element-${i}`}>
-                <span className="font-medium">{p.element}</span>
-                <Badge variant="outline" className={`text-[10px] capitalize ${statusColors[p.status] || ""}`}>{p.status}</Badge>
+                <span className="font-medium">{c.item}</span>
+                <Badge variant="outline" className={`text-[10px] capitalize ${statusColors[c.status] || ""}`}>{c.status}</Badge>
               </div>
             ))}
           </div>
@@ -668,8 +677,8 @@ function BusinessLearningCard() {
 
 function SponsorIntelligenceCard() {
   const { data, isLoading, isError } = useQuery<{
-    sponsorFitScores: { category: string; fitScore: { score: number; label: string }; estimatedDealRange: { low: number; high: number } }[];
-    marketRates: { cpm: { estimated: number; marketAvg: number; premium: boolean }; flatRate: { estimated: number } };
+    sponsorFitScores: { category: string; fitScore: { overallFit: number; recommendation: string }; estimatedDealRange: { low: number; high: number } }[];
+    marketRates: { cpm: { estimated: number; marketAvg: number; premium: boolean }; flatRate: { estimated: number; basis: string } };
     audienceProfile: { totalSubscribers: number; totalViews: number };
     recommendations: string[];
   }>({
@@ -706,7 +715,7 @@ function SponsorIntelligenceCard() {
           {(data.sponsorFitScores || []).slice(0, 4).map((s, i) => (
             <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-sponsor-category-${i}`}>
               <span className="font-medium">{s.category}</span>
-              <Badge variant="outline" className="text-[10px]">{s.fitScore?.label || "N/A"}</Badge>
+              <Badge variant="outline" className="text-[10px]">{s.fitScore?.overallFit || 0}/100</Badge>
             </div>
           ))}
         </div>
