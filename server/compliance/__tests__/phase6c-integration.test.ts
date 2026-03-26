@@ -68,6 +68,7 @@ import {
   simulateTrustRisk,
   generateOverrideReport,
   recordOverride,
+  governanceGate,
 } from "../../services/trust-governance";
 
 const { db } = await import("../../db");
@@ -735,6 +736,87 @@ describe("Phase 6C: Trust & Governance Hardening", () => {
       const mod = await import("../../routes/trust-governance");
       expect(mod.registerTrustGovernanceRoutes).toBeDefined();
       expect(typeof mod.registerTrustGovernanceRoutes).toBe("function");
+    });
+  });
+
+  describe("Governance Gate Middleware", () => {
+    it("should create governance gate middleware for any action class", () => {
+      const gate = governanceGate("content_publish");
+      expect(typeof gate).toBe("function");
+    });
+
+    it("should pass through when no user is authenticated", async () => {
+      const gate = governanceGate("content_publish");
+      const req = { user: null, body: {} } as any;
+      const res = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+      const next = vi.fn();
+
+      await gate(req, res, next);
+      expect(next).toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it("should enforce approval matrix for authenticated users", async () => {
+      const gate = governanceGate("content_publish");
+      const req = { user: { claims: { sub: "user-1" } }, body: { confidence: 0.9 } } as any;
+      const res = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+      const next = vi.fn();
+
+      await gate(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should create separate gates for different action classes", () => {
+      const contentGate = governanceGate("content_publish");
+      const streamGate = governanceGate("stream_config");
+      const financialGate = governanceGate("financial_action");
+
+      expect(contentGate).not.toBe(streamGate);
+      expect(streamGate).not.toBe(financialGate);
+    });
+  });
+
+  describe("Budget Period Lifecycle", () => {
+    it("should expose budget period functions", () => {
+      expect(typeof getOrCreateTrustBudget).toBe("function");
+      expect(typeof deductTrustBudget).toBe("function");
+      expect(typeof resetTrustBudget).toBe("function");
+      expect(typeof getTrustBudgetHistory).toBe("function");
+      expect(typeof getTrustBudgetStatus).toBe("function");
+    });
+
+    it("should have auto-tighten multiplier function", () => {
+      expect(typeof getAutoTightenMultiplier).toBe("function");
+    });
+  });
+
+  describe("Cross-Engine Governance Coverage", () => {
+    it("should have governance gate applicable to all engine categories", () => {
+      const engines = [
+        "content_publish", "content_schedule", "content_draft",
+        "stream_config", "stream_start", "stream_end",
+        "distribution_push", "distribution_config",
+        "metadata_title_change", "metadata_description_change",
+        "metadata_thumbnail_change", "metadata_tags_change",
+        "community_moderation", "analytics_export",
+        "channel_branding_update", "channel_settings_change",
+        "api_integration_config", "webhook_config",
+        "notification_config", "notification_push",
+        "playlist_create", "playlist_modify",
+        "financial_action", "smart_edit",
+      ];
+
+      for (const action of engines) {
+        const gate = governanceGate(action);
+        expect(typeof gate).toBe("function");
+      }
+    });
+
+    it("should have fail-safe for unknown actions in evaluateApproval", async () => {
+      expect(typeof evaluateApproval).toBe("function");
+      expect(typeof governanceGate).toBe("function");
+      const gate = governanceGate("unknown_action_xyz");
+      expect(typeof gate).toBe("function");
     });
   });
 

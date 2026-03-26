@@ -12,6 +12,7 @@ const logger = createLogger("trust-governance");
 const BUDGET_VIOLATION_THRESHOLD = 20;
 const AUTO_TIGHTEN_THRESHOLD = 40;
 const BUDGET_RESET_INTERVAL_HOURS = 24;
+const BUDGET_PERIOD_MS = BUDGET_RESET_INTERVAL_HOURS * 3600_000;
 const DEFAULT_BUDGET_TOTAL = 100;
 const IMMUNE_WINDOW_MS = 3600_000;
 const IMMUNE_DISLIKE_SPIKE_THRESHOLD = 5;
@@ -155,13 +156,24 @@ export async function resetTrustBudget(userId: string, agentName: string, newTot
     totalDeducted: (budget.budgetTotal ?? DEFAULT_BUDGET_TOTAL) - (budget.budgetRemaining ?? DEFAULT_BUDGET_TOTAL),
   });
 
+  const now = new Date();
   await db.update(trustBudgetRecords).set({
     budgetTotal: total,
     budgetRemaining: total,
     lastDeductionAmount: null,
     lastDeductionReason: null,
-    updatedAt: new Date(),
+    updatedAt: now,
   }).where(eq(trustBudgetRecords.id, budget.id));
+
+  await db.insert(trustBudgetPeriods).values({
+    userId, agentName,
+    periodStart: now,
+    periodEnd: new Date(now.getTime() + BUDGET_PERIOD_MS),
+    startingBudget: total,
+    endingBudget: total,
+    deductionsCount: 0,
+    totalDeducted: 0,
+  });
 
   await logGovernanceAction(userId, "trust_budget_reset", "trust_budget", {
     agentName, newTotal: total,
@@ -914,6 +926,40 @@ export function tenantIsolationMiddleware(
       return res.status(403).json({ error: "Access denied: tenant isolation violation" });
     }
     next();
+  };
+}
+
+export function governanceGate(actionClass: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = getUserId(req);
+    if (!userId) {
+      return next();
+    }
+    try {
+      const confidence = typeof req.body?.confidence === "number" ? req.body.confidence : 1.0;
+      const approval = await evaluateApproval(userId, actionClass, confidence);
+
+      if (approval.decision !== "approved") {
+        return res.status(403).json({
+          error: `Action ${actionClass} ${approval.decision}: ${approval.reason}`,
+          decision: approval.decision,
+          actionClass,
+        });
+      }
+
+      const budgetResult = await deductTrustBudget(userId, actionClass, 1, `governance-gate:${actionClass}`);
+      if (!budgetResult.allowed) {
+        return res.status(429).json({
+          error: "Trust budget exhausted — action blocked",
+          remaining: budgetResult.remaining,
+          actionClass,
+        });
+      }
+
+      next();
+    } catch {
+      next();
+    }
   };
 }
 

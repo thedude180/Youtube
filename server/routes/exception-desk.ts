@@ -9,6 +9,7 @@ import {
   bulkResolve,
 } from "../services/exception-desk";
 import { screenAiOutput, getMonitorConfig } from "../services/prompt-toxicity-monitor";
+import { governanceGate } from "../services/trust-governance";
 
 const router = Router();
 
@@ -66,7 +67,7 @@ router.get("/exceptions/:id", asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.post("/exceptions/:id/acknowledge", asyncHandler(async (req, res) => {
+router.post("/exceptions/:id/acknowledge", governanceGate("community_moderation"), asyncHandler(async (req, res) => {
   const userId = requireAdmin(req, res);
   if (!userId) return;
 
@@ -79,7 +80,7 @@ router.post("/exceptions/:id/acknowledge", asyncHandler(async (req, res) => {
   res.json({ success: true, id, status: "acknowledged" });
 }));
 
-router.post("/exceptions/:id/resolve", asyncHandler(async (req, res) => {
+router.post("/exceptions/:id/resolve", governanceGate("community_moderation"), asyncHandler(async (req, res) => {
   const userId = requireAdmin(req, res);
   if (!userId) return;
 
@@ -93,7 +94,7 @@ router.post("/exceptions/:id/resolve", asyncHandler(async (req, res) => {
   res.json({ success: true, id, status: "resolved" });
 }));
 
-router.post("/exceptions/bulk-resolve", asyncHandler(async (req, res) => {
+router.post("/exceptions/bulk-resolve", governanceGate("community_moderation"), asyncHandler(async (req, res) => {
   const userId = requireAdmin(req, res);
   if (!userId) return;
 
@@ -110,7 +111,7 @@ router.post("/exceptions/bulk-resolve", asyncHandler(async (req, res) => {
   res.json({ success: true, resolved });
 }));
 
-router.post("/toxicity/screen", asyncHandler(async (req, res) => {
+router.post("/toxicity/screen", governanceGate("community_moderation"), asyncHandler(async (req, res) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 

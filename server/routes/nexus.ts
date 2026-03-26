@@ -13,6 +13,7 @@ import {
   platformFailoverRules, scriptGenerations, videos, revenueRecords, channels
 } from "@shared/schema";
 import { eq, desc, and, sql, sum, count } from "drizzle-orm";
+import { governanceGate } from "../services/trust-governance";
 import { getOpenAIClient } from "../lib/openai";
 import { getAutonomyStatus, getAutonomyDecisionLog, getRecentRuns, toggleEngine, forceRunEngine } from "../autonomy-controller";
 
@@ -98,7 +99,7 @@ Score realistically — a creator with ${videoCount} videos and ${totalViews} vi
   });
 }
 
-router.post("/api/nexus/creator-score/calculate", async (req, res) => {
+router.post("/api/nexus/creator-score/calculate", governanceGate("analytics_export"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     await calculateEmpireScore(userId);
@@ -142,7 +143,7 @@ router.get("/api/nexus/mission-control", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch mission control" }); }
 });
 
-router.post("/api/nexus/mission-control/refresh", async (req, res) => {
+router.post("/api/nexus/mission-control/refresh", governanceGate("content_publish"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const [snapshot] = await db.insert(missionControlSnapshots).values({
@@ -174,7 +175,7 @@ router.get("/api/nexus/war-room", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch war room" }); }
 });
 
-router.post("/api/nexus/war-room/scan", async (req, res) => {
+router.post("/api/nexus/war-room/scan", governanceGate("community_moderation"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const openai = getOpenAIClient();
@@ -201,7 +202,7 @@ router.get("/api/nexus/audience-mind-map", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch mind map" }); }
 });
 
-router.post("/api/nexus/audience-mind-map/generate", async (req, res) => {
+router.post("/api/nexus/audience-mind-map/generate", governanceGate("analytics_export"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const openai = getOpenAIClient();
@@ -229,7 +230,7 @@ router.get("/api/nexus/what-if", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch scenarios" }); }
 });
 
-router.post("/api/nexus/what-if/simulate", async (req, res) => {
+router.post("/api/nexus/what-if/simulate", governanceGate("analytics_export"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { name, variables, timeframeWeeks } = req.body;
@@ -253,7 +254,7 @@ router.get("/api/nexus/time-machine", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch projections" }); }
 });
 
-router.post("/api/nexus/time-machine/project", async (req, res) => {
+router.post("/api/nexus/time-machine/project", governanceGate("analytics_export"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const openai = getOpenAIClient();
@@ -312,7 +313,7 @@ router.get("/api/nexus/marketplace", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch marketplace" }); }
 });
 
-router.post("/api/nexus/marketplace", async (req, res) => {
+router.post("/api/nexus/marketplace", governanceGate("financial_action"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { title, description, category, price, deliveryDays, tags } = req.body;
@@ -329,7 +330,7 @@ router.get("/api/nexus/content-vault", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch vault" }); }
 });
 
-router.post("/api/nexus/contract-analyze", async (req, res) => {
+router.post("/api/nexus/contract-analyze", governanceGate("financial_action"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { contractName, brandName, contractText } = req.body;
@@ -425,7 +426,7 @@ router.get("/api/nexus/asset-library", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch assets" }); }
 });
 
-router.post("/api/nexus/asset-library", async (req, res) => {
+router.post("/api/nexus/asset-library", governanceGate("content_draft"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { name, assetType, category, url, tags } = req.body;
@@ -514,7 +515,7 @@ router.get("/api/nexus/ai-personality", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch personality" }); }
 });
 
-router.post("/api/nexus/ai-personality", async (req, res) => {
+router.post("/api/nexus/ai-personality", governanceGate("channel_branding_update"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { aiName, personality, traits, communicationStyle, isOpinionated } = req.body;
@@ -528,7 +529,7 @@ router.post("/api/nexus/ai-personality", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to save personality" }); }
 });
 
-router.post("/api/nexus/voice-command", async (req, res) => {
+router.post("/api/nexus/voice-command", governanceGate("content_draft"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { command } = req.body;
@@ -552,7 +553,7 @@ router.get("/api/nexus/ai-learning", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch learning data" }); }
 });
 
-router.post("/api/nexus/script-generate", async (req, res) => {
+router.post("/api/nexus/script-generate", governanceGate("content_draft"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { title, topic, targetLength, style } = req.body;
@@ -584,7 +585,7 @@ router.get("/api/nexus/content-atomizer", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch atomizer jobs" }); }
 });
 
-router.post("/api/nexus/content-atomizer", async (req, res) => {
+router.post("/api/nexus/content-atomizer", governanceGate("content_publish"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { sourceTitle, sourcePlatform } = req.body;
@@ -625,7 +626,7 @@ router.get("/api/nexus/networks", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch networks" }); }
 });
 
-router.post("/api/nexus/networks", async (req, res) => {
+router.post("/api/nexus/networks", governanceGate("channel_settings_change"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { name, description, category } = req.body;
@@ -635,7 +636,7 @@ router.post("/api/nexus/networks", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to create network" }); }
 });
 
-router.post("/api/nexus/daily-briefing/generate", async (req, res) => {
+router.post("/api/nexus/daily-briefing/generate", governanceGate("content_draft"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const openai = getOpenAIClient();
@@ -673,7 +674,7 @@ router.get("/api/nexus/autonomy/runs", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to get engine runs" }); }
 });
 
-router.post("/api/nexus/autonomy/toggle-engine", async (req, res) => {
+router.post("/api/nexus/autonomy/toggle-engine", governanceGate("channel_settings_change"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { engineName, enabled } = req.body;
@@ -682,7 +683,7 @@ router.post("/api/nexus/autonomy/toggle-engine", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to toggle engine" }); }
 });
 
-router.post("/api/nexus/autonomy/force-run", async (req, res) => {
+router.post("/api/nexus/autonomy/force-run", governanceGate("channel_settings_change"), async (req, res) => {
   const userId = requireAuth(req, res); if (!userId) return;
   try {
     const { engineName } = req.body;
