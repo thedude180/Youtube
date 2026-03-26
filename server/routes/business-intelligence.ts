@@ -1,9 +1,10 @@
 import type { Express } from "express";
+import { z } from "zod";
 import { requireAuth, asyncHandler } from "./helpers";
 import { computeSellabilityScore } from "../business/sellability-score";
 import { computeDynamicValuation } from "../business/dynamic-valuation";
 import { assessSovereignExit } from "../business/sovereign-exit";
-import { computeFounderDependency } from "../business/founder-dependency";
+import { computeFounderDependency, computeChannelResilience } from "../business/founder-dependency";
 import { analyzeSponsorIntelligence } from "../business/sponsor-intelligence";
 import { analyzeBrandDeals } from "../business/brand-deal-intelligence";
 import { analyzeCommerceIntelligence } from "../business/commerce-intelligence";
@@ -16,6 +17,24 @@ import { computeRevenueVelocity } from "../business/revenue-velocity";
 import { computeEstatePlan } from "../business/estate-succession";
 import { computeBusinessLearning } from "../business/business-learning";
 import { getRevenueTruthSummary } from "../business/revenue-reconciliation";
+
+const scenarioAnalysisSchema = z.object({
+  scenario: z.string().min(1).max(500),
+  revenueImpactPercent: z.number().min(0).max(100).optional(),
+  timeframeMonths: z.number().int().min(1).max(60).optional(),
+});
+
+const continuityExportSchema = z.object({
+  format: z.enum(["json", "summary"]).default("json"),
+  includeValuation: z.boolean().default(true),
+  includeRisk: z.boolean().default(true),
+  includeEstate: z.boolean().default(true),
+});
+
+const trustBudgetOverrideSchema = z.object({
+  trustBudgetCost: z.number().min(0),
+  reason: z.string().min(1).max(500),
+});
 
 export function registerBusinessIntelligenceRoutes(app: Express) {
 
@@ -190,6 +209,110 @@ export function registerBusinessIntelligenceRoutes(app: Express) {
         maturityLevel: velocity.infrastructure.maturityLevel,
       },
       capitalHealth: capital.budgetHealth,
+    });
+  }));
+
+  app.get("/api/business/channel-resilience", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const result = await computeChannelResilience(userId);
+    res.json(result);
+  }));
+
+  app.post("/api/business/scenario-analysis", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const parsed = scenarioAnalysisSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid scenario analysis request", details: parsed.error.flatten() });
+      return;
+    }
+    const { scenario, revenueImpactPercent, timeframeMonths } = parsed.data;
+    const [resilience, risk, valuation] = await Promise.all([
+      computeChannelResilience(userId),
+      computeRiskIntelligence(userId),
+      computeDynamicValuation(userId),
+    ]);
+    const matchedScenario = resilience.scenarios.find(
+      s => s.scenario.toLowerCase().includes(scenario.toLowerCase())
+    );
+    res.json({
+      scenario,
+      revenueImpactPercent: revenueImpactPercent ?? matchedScenario?.revenueImpact ?? 0,
+      timeframeMonths: timeframeMonths ?? 12,
+      channelResilience: resilience.overallResilience,
+      riskProfile: risk.overallRiskProfile,
+      currentValuation: valuation.estimatedValue,
+      matchedScenario: matchedScenario || null,
+      mitigations: resilience.contingencyPlan,
+    });
+  }));
+
+  app.post("/api/business/continuity-export", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const parsed = continuityExportSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid export request", details: parsed.error.flatten() });
+      return;
+    }
+    const { format, includeValuation, includeRisk, includeEstate } = parsed.data;
+    const promises: Promise<unknown>[] = [];
+    promises.push(computeBusinessLearning(userId));
+    if (includeValuation) promises.push(computeDynamicValuation(userId));
+    if (includeRisk) promises.push(computeRiskIntelligence(userId));
+    if (includeEstate) promises.push(computeEstatePlan(userId));
+
+    const results = await Promise.all(promises);
+    let idx = 0;
+    const learning = results[idx++] as Awaited<ReturnType<typeof computeBusinessLearning>>;
+    const valuation = includeValuation ? results[idx++] as Awaited<ReturnType<typeof computeDynamicValuation>> : null;
+    const risk = includeRisk ? results[idx++] as Awaited<ReturnType<typeof computeRiskIntelligence>> : null;
+    const estate = includeEstate ? results[idx++] as Awaited<ReturnType<typeof computeEstatePlan>> : null;
+
+    const packet = {
+      exportedAt: new Date().toISOString(),
+      format,
+      maturity: learning.maturityAssessment,
+      feedbackLoops: learning.feedbackLoops,
+      ...(valuation ? { valuation: { estimatedValue: valuation.estimatedValue, valueRange: valuation.valueRange } } : {}),
+      ...(risk ? { riskProfile: risk.overallRiskProfile, aiDisplacement: risk.aiDisplacement } : {}),
+      ...(estate ? { estate } : {}),
+    };
+
+    if (format === "summary") {
+      res.json({
+        ...packet,
+        summary: `Business continuity packet exported on ${packet.exportedAt}. Maturity: ${learning.maturityAssessment.stage}. ${valuation ? `Valuation: $${valuation.estimatedValue.toLocaleString()}.` : ""} ${risk ? `Risk: ${risk.overallRiskProfile}.` : ""}`,
+      });
+    } else {
+      res.json(packet);
+    }
+  }));
+
+  app.post("/api/business/trust-budget-override", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const parsed = trustBudgetOverrideSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid trust budget override", details: parsed.error.flatten() });
+      return;
+    }
+    const { trustBudgetCost, reason } = parsed.data;
+    const timing = await analyzeMonetizationTiming(userId);
+    res.json({
+      originalTrustBudgetUsage: timing.currentPressure.trustBudgetUsage,
+      overrideCost: trustBudgetCost,
+      reason,
+      adjustedTiming: {
+        currentPressure: {
+          ...timing.currentPressure,
+          trustBudgetUsage: Math.min(100, timing.currentPressure.trustBudgetUsage + trustBudgetCost),
+        },
+        monthlyMonetizationEvents: timing.monthlyMonetizationEvents,
+        recommendedMonthlyLimit: timing.recommendedMonthlyLimit,
+        overrideApplied: true,
+      },
     });
   }));
 

@@ -611,6 +611,160 @@ function BusinessLearningCard() {
   );
 }
 
+function SponsorIntelligenceCard() {
+  const { data, isLoading, isError } = useQuery<{
+    sponsorFitScores: { category: string; fitScore: { score: number; label: string }; estimatedDealRange: { low: number; high: number } }[];
+    marketRates: { cpm: { estimated: number; marketAvg: number; premium: boolean }; flatRate: { estimated: number } };
+    audienceProfile: { totalSubscribers: number; totalViews: number };
+    recommendations: string[];
+  }>({
+    queryKey: ["/api/business/sponsor-intelligence"],
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return <LoadingCard title="Sponsor Intelligence" />;
+  if (isError || !data) return <ErrorCard title="Sponsor Intelligence" icon={<Briefcase className="h-4 w-4 text-primary" />} />;
+
+  return (
+    <Card className="card-empire" data-testid="card-sponsor-intelligence">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Briefcase className="h-4 w-4 text-primary" />
+          Sponsor Intelligence
+          <Badge variant="outline" className="ml-auto text-[10px]">
+            {(data.sponsorFitScores || []).length} categories
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="space-y-1" data-testid="stat-estimated-cpm">
+            <div className="text-xs text-muted-foreground">Est. CPM</div>
+            <div className="text-lg font-bold">${(data.marketRates?.cpm?.estimated || 0).toFixed(2)}</div>
+          </div>
+          <div className="space-y-1" data-testid="stat-flat-rate">
+            <div className="text-xs text-muted-foreground">Flat Rate</div>
+            <div className="text-lg font-bold">${(data.marketRates?.flatRate?.estimated || 0).toLocaleString()}</div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {(data.sponsorFitScores || []).slice(0, 4).map((s, i) => (
+            <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-sponsor-category-${i}`}>
+              <span className="font-medium">{s.category}</span>
+              <Badge variant="outline" className="text-[10px]">{s.fitScore?.label || "N/A"}</Badge>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CommerceIntelligenceCard() {
+  const { data, isLoading, isError } = useQuery<{
+    nativeCheckoutReadiness: number;
+    commerceMetrics: { totalCommerceRevenue: number; commerceRevenueShare: number; topCommerceSource: string; avgOrderValue: number };
+    offerOperatingSystem: { activeOffers: { name: string; type: string }[]; recommendedOffers: { name: string; type: string }[]; conversionOptimizations: string[] };
+    recommendations: string[];
+  }>({
+    queryKey: ["/api/business/commerce-intelligence"],
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return <LoadingCard title="Commerce Intelligence" />;
+  if (isError || !data) return <ErrorCard title="Commerce Intelligence" icon={<DollarSign className="h-4 w-4 text-primary" />} />;
+
+  const readinessColor = (data.nativeCheckoutReadiness || 0) >= 70 ? "text-emerald-400" :
+    (data.nativeCheckoutReadiness || 0) >= 40 ? "text-amber-400" : "text-red-400";
+
+  return (
+    <Card className="card-empire" data-testid="card-commerce-intelligence">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-primary" />
+          Commerce Intelligence
+          <Badge variant="outline" className={`ml-auto text-[10px] ${readinessColor}`}>
+            {data.nativeCheckoutReadiness || 0}% ready
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="space-y-1" data-testid="stat-commerce-revenue">
+            <div className="text-xs text-muted-foreground">Commerce Revenue</div>
+            <div className="text-lg font-bold">${(data.commerceMetrics?.totalCommerceRevenue || 0).toLocaleString()}</div>
+          </div>
+          <div className="space-y-1" data-testid="stat-avg-order">
+            <div className="text-xs text-muted-foreground">Avg Order</div>
+            <div className="text-lg font-bold">${(data.commerceMetrics?.avgOrderValue || 0).toFixed(2)}</div>
+          </div>
+        </div>
+        {(data.recommendations || []).length > 0 && (
+          <div className="space-y-1">
+            {data.recommendations.slice(0, 3).map((r, i) => (
+              <div key={i} className="text-[10px] text-muted-foreground flex items-center gap-1" data-testid={`text-commerce-rec-${i}`}>
+                <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />
+                {r}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChannelResilienceCard() {
+  const { data, isLoading, isError } = useQuery<{
+    overallResilience: number;
+    grade: string;
+    scenarios: { scenario: string; probability: string; revenueImpact: number; survivalScore: number }[];
+    strengths: string[];
+    vulnerabilities: string[];
+    contingencyPlan: string[];
+  }>({
+    queryKey: ["/api/business/channel-resilience"],
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return <LoadingCard title="Channel Resilience" />;
+  if (isError || !data) return <ErrorCard title="Channel Resilience" icon={<Shield className="h-4 w-4 text-primary" />} />;
+
+  const gradeColor = data.grade === "A" ? "text-emerald-400" :
+    data.grade === "B" ? "text-blue-400" :
+    data.grade === "C" ? "text-amber-400" : "text-red-400";
+
+  return (
+    <Card className="card-empire" data-testid="card-channel-resilience">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Shield className="h-4 w-4 text-primary" />
+          Channel Resilience
+          <Badge variant="outline" className={`ml-auto text-[10px] ${gradeColor}`}>
+            {data.grade} ({data.overallResilience || 0}/100)
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {(data.scenarios || []).slice(0, 3).map((s, i) => (
+            <div key={i} className="flex items-center justify-between text-xs" data-testid={`row-scenario-${i}`}>
+              <span className="font-medium truncate max-w-[60%]">{s.scenario}</span>
+              <Badge variant="outline" className="text-[10px] capitalize">{s.probability}</Badge>
+            </div>
+          ))}
+        </div>
+        {(data.vulnerabilities || []).length > 0 && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 rounded p-2" data-testid="alert-vulnerabilities">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {data.vulnerabilities.length} vulnerabilit{data.vulnerabilities.length > 1 ? "ies" : "y"} detected
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function BusinessIntelligenceTab() {
   return (
     <div className="space-y-4" data-testid="section-business-intelligence">
@@ -619,6 +773,9 @@ export default function BusinessIntelligenceTab() {
         <SellabilityCard />
         <ValuationCard />
         <RiskIntelligenceCard />
+        <SponsorIntelligenceCard />
+        <CommerceIntelligenceCard />
+        <ChannelResilienceCard />
         <CapitalAllocationCard />
         <RevenueVelocityCard />
         <ContentAssetValuationCard />

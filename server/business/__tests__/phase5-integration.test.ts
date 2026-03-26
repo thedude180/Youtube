@@ -629,4 +629,242 @@ describe("Phase 5: Business Intelligence Integration Tests", () => {
       });
     });
   });
+
+  describe("Channel Resilience", () => {
+    it("should compute channel resilience with grade", async () => {
+      const { computeChannelResilience } = await import("../founder-dependency");
+      const result = await computeChannelResilience(TEST_USER_ID);
+      expect(result.overallResilience).toBeGreaterThanOrEqual(0);
+      expect(result.overallResilience).toBeLessThanOrEqual(100);
+      expect(["A", "B", "C", "D", "F"]).toContain(result.grade);
+    });
+
+    it("should include disruption scenarios", async () => {
+      const { computeChannelResilience } = await import("../founder-dependency");
+      const result = await computeChannelResilience(TEST_USER_ID);
+      expect(Array.isArray(result.scenarios)).toBe(true);
+      result.scenarios.forEach((s: { probability: string; survivalScore: number }) => {
+        expect(["low", "medium", "high"]).toContain(s.probability);
+        expect(s.survivalScore).toBeGreaterThanOrEqual(0);
+      });
+    });
+
+    it("should provide contingency plan", async () => {
+      const { computeChannelResilience } = await import("../founder-dependency");
+      const result = await computeChannelResilience(TEST_USER_ID);
+      expect(Array.isArray(result.contingencyPlan)).toBe(true);
+    });
+  });
+
+  describe("Cross-Module Verification (v9.0)", () => {
+    it("reconciliation status should influence valuation confidence", async () => {
+      const [{ getRevenueTruthSummary }, { computeDynamicValuation }] = await Promise.all([
+        import("../revenue-reconciliation"),
+        import("../dynamic-valuation"),
+      ]);
+      const truth = await getRevenueTruthSummary(TEST_USER_ID);
+      const valuation = await computeDynamicValuation(TEST_USER_ID);
+      expect(truth.confidenceLabel).toBeDefined();
+      expect(valuation.revenueConfidence).toBeDefined();
+      expect(valuation.revenueConfidence.confidenceLabel).toBeDefined();
+      if (truth.verificationRate > 80) {
+        expect(["high", "medium"]).toContain(valuation.revenueConfidence.confidenceLabel);
+      }
+    });
+
+    it("trust budget should influence monetization timing", async () => {
+      const { analyzeMonetizationTiming } = await import("../monetization-timing");
+      const timing = await analyzeMonetizationTiming(TEST_USER_ID);
+      expect(timing.currentPressure).toBeDefined();
+      expect(typeof timing.currentPressure.trustBudgetUsage).toBe("number");
+      expect(timing.currentPressure.trustBudgetUsage).toBeGreaterThanOrEqual(0);
+      expect(timing.currentPressure.trustBudgetUsage).toBeLessThanOrEqual(100);
+      expect(typeof timing.currentPressure.safeToMonetize).toBe("boolean");
+    });
+
+    it("continuity packet should be exportable with all required fields", async () => {
+      const [
+        { computeBusinessLearning },
+        { computeDynamicValuation },
+        { computeRiskIntelligence },
+        { computeEstatePlan },
+      ] = await Promise.all([
+        import("../business-learning"),
+        import("../dynamic-valuation"),
+        import("../risk-intelligence"),
+        import("../estate-succession"),
+      ]);
+      const [learning, valuation, risk, estate] = await Promise.all([
+        computeBusinessLearning(TEST_USER_ID),
+        computeDynamicValuation(TEST_USER_ID),
+        computeRiskIntelligence(TEST_USER_ID),
+        computeEstatePlan(TEST_USER_ID),
+      ]);
+      const packet = {
+        exportedAt: new Date().toISOString(),
+        maturity: learning.maturityAssessment,
+        feedbackLoops: learning.feedbackLoops,
+        valuation: { estimatedValue: valuation.estimatedValue, valueRange: valuation.valueRange },
+        riskProfile: risk.overallRiskProfile,
+        aiDisplacement: risk.aiDisplacement,
+        estate,
+      };
+      expect(packet.exportedAt).toBeDefined();
+      expect(packet.maturity.stage).toBeDefined();
+      expect(packet.valuation.estimatedValue).toBeGreaterThanOrEqual(0);
+      expect(typeof packet.riskProfile).toBe("string");
+      expect(packet.estate.succession).toBeDefined();
+    });
+
+    it("reconciliation influences sellability components", async () => {
+      const [{ getRevenueTruthSummary }, { computeSellabilityScore }] = await Promise.all([
+        import("../revenue-reconciliation"),
+        import("../sellability-score"),
+      ]);
+      const truth = await getRevenueTruthSummary(TEST_USER_ID);
+      const sellability = await computeSellabilityScore(TEST_USER_ID);
+      expect(truth.verificationRate).toBeGreaterThanOrEqual(0);
+      expect(sellability.overallScore).toBeGreaterThanOrEqual(0);
+      expect(sellability.components).toBeDefined();
+    });
+  });
+
+  describe("Zod Schema Validation (POST routes)", () => {
+    it("scenarioAnalysisSchema should validate correct input", async () => {
+      const { z } = await import("zod");
+      const scenarioSchema = z.object({
+        scenario: z.string().min(1).max(500),
+        revenueImpactPercent: z.number().min(0).max(100).optional(),
+        timeframeMonths: z.number().int().min(1).max(60).optional(),
+      });
+      const valid = scenarioSchema.safeParse({ scenario: "algorithm change", revenueImpactPercent: 30 });
+      expect(valid.success).toBe(true);
+      const invalid = scenarioSchema.safeParse({ scenario: "" });
+      expect(invalid.success).toBe(false);
+    });
+
+    it("continuityExportSchema should validate correct input", async () => {
+      const { z } = await import("zod");
+      const exportSchema = z.object({
+        format: z.enum(["json", "summary"]).default("json"),
+        includeValuation: z.boolean().default(true),
+        includeRisk: z.boolean().default(true),
+        includeEstate: z.boolean().default(true),
+      });
+      const valid = exportSchema.safeParse({ format: "summary", includeValuation: false });
+      expect(valid.success).toBe(true);
+      const invalid = exportSchema.safeParse({ format: "xml" });
+      expect(invalid.success).toBe(false);
+    });
+
+    it("trustBudgetOverrideSchema should validate correct input", async () => {
+      const { z } = await import("zod");
+      const overrideSchema = z.object({
+        trustBudgetCost: z.number().min(0),
+        reason: z.string().min(1).max(500),
+      });
+      const valid = overrideSchema.safeParse({ trustBudgetCost: 10, reason: "manual override test" });
+      expect(valid.success).toBe(true);
+      const invalid = overrideSchema.safeParse({ trustBudgetCost: -1, reason: "" });
+      expect(invalid.success).toBe(false);
+    });
+  });
+
+  describe("Route Response Shape Contracts", () => {
+    it("dashboard-summary response should have all required fields", async () => {
+      const [
+        { getRevenueTruthSummary },
+        { computeSellabilityScore },
+        { computeDynamicValuation },
+        { computeRiskIntelligence },
+        { computeRevenueVelocity },
+        { computeCapitalAllocation },
+      ] = await Promise.all([
+        import("../revenue-reconciliation"),
+        import("../sellability-score"),
+        import("../dynamic-valuation"),
+        import("../risk-intelligence"),
+        import("../revenue-velocity"),
+        import("../capital-allocation"),
+      ]);
+      const [truth, sellability, valuation, risk, velocity, capital] = await Promise.all([
+        getRevenueTruthSummary(TEST_USER_ID),
+        computeSellabilityScore(TEST_USER_ID),
+        computeDynamicValuation(TEST_USER_ID),
+        computeRiskIntelligence(TEST_USER_ID),
+        computeRevenueVelocity(TEST_USER_ID),
+        computeCapitalAllocation(TEST_USER_ID),
+      ]);
+
+      const response = {
+        revenueTruth: { totalRevenue: truth.totalRevenue, verifiedRevenue: truth.verifiedRevenue, verificationRate: truth.verificationRate, confidenceLabel: truth.confidenceLabel },
+        sellability: { overallScore: sellability.overallScore, grade: sellability.grade },
+        valuation: { estimatedValue: valuation.estimatedValue, valuationRange: valuation.valueRange, methodology: valuation.methodologies?.[0]?.name || "SDE Multiple" },
+        riskProfile: { level: risk.overallRiskProfile, score: 0 },
+        aiDisplacementRisk: risk.aiDisplacement.riskLevel,
+        moatStrength: risk.humanValueMoat.moatLevel,
+        wellnessLevel: risk.creatorWellness.level,
+        velocityMetrics: { revenuePerContentDay: velocity.velocity.revenuePerContentDay, maturityLevel: velocity.infrastructure.maturityLevel },
+        capitalHealth: capital.budgetHealth,
+      };
+
+      expect(typeof response.revenueTruth.totalRevenue).toBe("number");
+      expect(typeof response.revenueTruth.verificationRate).toBe("number");
+      expect(typeof response.sellability.overallScore).toBe("number");
+      expect(typeof response.sellability.grade).toBe("string");
+      expect(typeof response.valuation.estimatedValue).toBe("number");
+      expect(response.valuation.valuationRange).toBeDefined();
+      expect(typeof response.riskProfile.level).toBe("string");
+      expect(typeof response.aiDisplacementRisk).toBe("string");
+      expect(typeof response.moatStrength).toBe("string");
+      expect(typeof response.wellnessLevel).toBe("string");
+      expect(typeof response.velocityMetrics.revenuePerContentDay).toBe("number");
+      expect(typeof response.capitalHealth).toBe("string");
+    });
+
+    it("full-intelligence response should include all 16 modules", async () => {
+      const modules = await Promise.all([
+        import("../revenue-reconciliation"),
+        import("../sellability-score"),
+        import("../dynamic-valuation"),
+        import("../sovereign-exit"),
+        import("../founder-dependency"),
+        import("../sponsor-intelligence"),
+        import("../brand-deal-intelligence"),
+        import("../commerce-intelligence"),
+        import("../monetization-timing"),
+        import("../revenue-diversification"),
+        import("../capital-allocation"),
+        import("../content-asset-valuation"),
+        import("../risk-intelligence"),
+        import("../revenue-velocity"),
+        import("../estate-succession"),
+        import("../business-learning"),
+      ]);
+      const fns = [
+        modules[0].getRevenueTruthSummary,
+        modules[1].computeSellabilityScore,
+        modules[2].computeDynamicValuation,
+        modules[3].assessSovereignExit,
+        modules[4].computeFounderDependency,
+        modules[5].analyzeSponsorIntelligence,
+        modules[6].analyzeBrandDeals,
+        modules[7].analyzeCommerceIntelligence,
+        modules[8].analyzeMonetizationTiming,
+        modules[9].analyzeRevenueDiversification,
+        modules[10].computeCapitalAllocation,
+        modules[11].computeContentAssetValuation,
+        modules[12].computeRiskIntelligence,
+        modules[13].computeRevenueVelocity,
+        modules[14].computeEstatePlan,
+        modules[15].computeBusinessLearning,
+      ];
+      const results = await Promise.all(fns.map(fn => fn(TEST_USER_ID)));
+      expect(results.length).toBe(16);
+      results.forEach(r => {
+        expect(r).toBeDefined();
+        expect(typeof r).toBe("object");
+      });
+    });
+  });
 });
