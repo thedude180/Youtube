@@ -103,6 +103,41 @@ export function getRateLimitPressure(): {
   };
 }
 
+const systemLimits = new Map<string, SlidingWindow>();
+
+const SYSTEM_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
+  ai_calls: { maxRequests: 60, windowMs: 60000 },
+  db_writes: { maxRequests: 100, windowMs: 60000 },
+  api_external: { maxRequests: 50, windowMs: 60000 },
+};
+
+export function checkSystemRateLimit(resource: string): { allowed: boolean; remaining: number; retryAfterMs?: number } {
+  let window = systemLimits.get(resource);
+  if (!window) {
+    const config = SYSTEM_LIMITS[resource] || { maxRequests: 100, windowMs: 60000 };
+    window = { timestamps: [], maxRequests: config.maxRequests, windowMs: config.windowMs };
+    systemLimits.set(resource, window);
+  }
+  pruneWindow(window);
+
+  if (window.timestamps.length >= window.maxRequests) {
+    const oldestInWindow = window.timestamps[0];
+    const retryAfterMs = oldestInWindow + window.windowMs - Date.now();
+    try {
+      recordMetric("kernel.system_rate_limit.rejected", 1, "count", { resource });
+    } catch {}
+    return { allowed: false, remaining: 0, retryAfterMs: Math.max(0, retryAfterMs) };
+  }
+
+  window.timestamps.push(Date.now());
+  return { allowed: true, remaining: window.maxRequests - window.timestamps.length };
+}
+
+export function getSystemLimitConfig(): Record<string, { maxRequests: number; windowMs: number }> {
+  return { ...SYSTEM_LIMITS };
+}
+
 export function resetRateLimits(): void {
   engineLimits.clear();
+  systemLimits.clear();
 }

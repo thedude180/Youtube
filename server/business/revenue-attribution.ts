@@ -263,7 +263,7 @@ export async function buildAttributionGraph(userId: string): Promise<Attribution
     p.topContent = topEntry?.[1]?.title || null;
   }
 
-  return {
+  const graph = {
     userId,
     generatedAt: new Date().toISOString(),
     totalRevenue,
@@ -274,6 +274,20 @@ export async function buildAttributionGraph(userId: string): Promise<Attribution
     byContent,
     byPlatform,
   };
+
+  try {
+    const { recordFinancialAudit } = await import("../services/financial-audit");
+    await recordFinancialAudit(
+      userId, "attribution_graph_built", "attribution_graph", null,
+      {},
+      { totalRevenue: Math.round(totalRevenue), attributedRevenue: Math.round(attributedRevenue), attributionRate: Math.round(graph.attributionRate), linkCount: links.length, platformCount: Object.keys(byPlatform).length },
+      "revenue-attribution",
+    );
+  } catch (err: unknown) {
+    console.warn("[revenue-attribution] audit trail write failed:", (err as Error)?.message);
+  }
+
+  return graph;
 }
 
 export async function getTopRevenueContent(

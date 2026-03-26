@@ -69,6 +69,21 @@ describe("Phase 6F: Operational Hardening & Audit Intelligence", () => {
       expect(result.entry!.afterSnapshot).toEqual(after);
       expect(result.entry!.changeAmount).toBe(3);
     });
+
+    it("should record audit entry for multiple financial domains", async () => {
+      const { recordFinancialAudit, getAuditTrail } = await import("../../services/financial-audit");
+      const uid = "test-user-6f-domains";
+      await recordFinancialAudit(uid, "reconciliation_status_change", "revenue_record", "r-100", {}, {}, "revenue-reconciliation");
+      await recordFinancialAudit(uid, "capital_allocation_computed", "capital_plan", null, {}, {}, "capital-allocation");
+      await recordFinancialAudit(uid, "business_learning_computed", "business_learning_report", null, {}, {}, "business-learning");
+      await recordFinancialAudit(uid, "attribution_graph_built", "attribution_graph", null, {}, {}, "revenue-attribution");
+      const trail = await getAuditTrail(uid);
+      const sources = new Set(trail.entries.map(e => e.source));
+      expect(sources.has("revenue-reconciliation")).toBe(true);
+      expect(sources.has("capital-allocation")).toBe(true);
+      expect(sources.has("business-learning")).toBe(true);
+      expect(sources.has("revenue-attribution")).toBe(true);
+    });
   });
 
   describe("T002: Internal Rate Limiter", () => {
@@ -143,6 +158,27 @@ describe("Phase 6F: Operational Hardening & Audit Intelligence", () => {
       expect(pressure.byEngine.pressure_test).toBeDefined();
       expect(pressure.byEngine.pressure_test.pressure).toBeGreaterThanOrEqual(80);
     });
+
+    it("should enforce system-level rate limits", async () => {
+      const { checkSystemRateLimit, resetRateLimits, getSystemLimitConfig } = await import("../../services/internal-rate-limiter");
+      resetRateLimits();
+      const config = getSystemLimitConfig();
+      expect(config.ai_calls).toBeDefined();
+      expect(config.db_writes).toBeDefined();
+      expect(config.api_external).toBeDefined();
+      const result = checkSystemRateLimit("ai_calls");
+      expect(result.allowed).toBe(true);
+      expect(result.remaining).toBeGreaterThan(0);
+    });
+
+    it("should reject system-level rate limit when exhausted", async () => {
+      const { checkSystemRateLimit, resetRateLimits } = await import("../../services/internal-rate-limiter");
+      resetRateLimits();
+      for (let i = 0; i < 60; i++) checkSystemRateLimit("ai_calls");
+      const result = checkSystemRateLimit("ai_calls");
+      expect(result.allowed).toBe(false);
+      expect(result.remaining).toBe(0);
+    });
   });
 
   describe("T003: Adaptive Resource Governor", () => {
@@ -207,6 +243,38 @@ describe("Phase 6F: Operational Hardening & Audit Intelligence", () => {
       expect(canRun("db")).toBe(true);
       expect(canRun("api")).toBe(true);
       expect(canRun("heavy")).toBe(true);
+    });
+
+    it("should accept and report DB connection load signals", async () => {
+      const { reportDbConnectionCount, getLoadSignals, getResourceUtilizationSummary } = await import("../../lib/resource-governor");
+      reportDbConnectionCount(5, 10);
+      const signals = getLoadSignals();
+      expect(signals.activeDbConnections).toBe(5);
+      expect(signals.maxDbConnections).toBe(10);
+      const summary = getResourceUtilizationSummary();
+      expect(summary.dbPressure).toBe(50);
+      expect(summary.loadSignals.activeDbConnections).toBe(5);
+      reportDbConnectionCount(0);
+    });
+
+    it("should accept and report pending AI call load signals", async () => {
+      const { reportPendingAiCalls, getLoadSignals, getResourceUtilizationSummary } = await import("../../lib/resource-governor");
+      reportPendingAiCalls(3, 5);
+      const signals = getLoadSignals();
+      expect(signals.pendingAiCalls).toBe(3);
+      expect(signals.maxPendingAiCalls).toBe(5);
+      const summary = getResourceUtilizationSummary();
+      expect(summary.aiPressure).toBe(60);
+      reportPendingAiCalls(0);
+    });
+
+    it("should include composite pressure incorporating DB and AI signals", async () => {
+      const { reportDbConnectionCount, reportPendingAiCalls, getResourceUtilizationSummary } = await import("../../lib/resource-governor");
+      reportDbConnectionCount(0);
+      reportPendingAiCalls(0);
+      const summary = getResourceUtilizationSummary();
+      expect(summary.compositePressure).toBeGreaterThanOrEqual(0);
+      expect(typeof summary.compositePressure).toBe("number");
     });
   });
 
@@ -289,9 +357,27 @@ describe("Phase 6F: Operational Hardening & Audit Intelligence", () => {
   });
 
   describe("T005: Ops Health Routes", () => {
-    it("should have ops-health routes importable", async () => {
+    it("should have ops-health routes importable and registerable", async () => {
       const { registerOpsHealthRoutes } = await import("../../routes/ops-health");
       expect(typeof registerOpsHealthRoutes).toBe("function");
+    });
+
+    it("should register all 8 ops-health endpoints", async () => {
+      const { registerOpsHealthRoutes } = await import("../../routes/ops-health");
+      const registeredRoutes: string[] = [];
+      const fakeApp = {
+        get: (path: string, ..._handlers: any[]) => { registeredRoutes.push(path); },
+      } as any;
+      registerOpsHealthRoutes(fakeApp);
+      expect(registeredRoutes).toContain("/api/ops-health/audit-stats");
+      expect(registeredRoutes).toContain("/api/ops-health/audit-trail");
+      expect(registeredRoutes).toContain("/api/ops-health/audit-verify/:id");
+      expect(registeredRoutes).toContain("/api/ops-health/rate-limit-pressure");
+      expect(registeredRoutes).toContain("/api/ops-health/resource-utilization");
+      expect(registeredRoutes).toContain("/api/ops-health/circuit-breakers");
+      expect(registeredRoutes).toContain("/api/ops-health/circuit-breakers/:service");
+      expect(registeredRoutes).toContain("/api/ops-health/summary");
+      expect(registeredRoutes.length).toBe(8);
     });
   });
 
@@ -311,6 +397,20 @@ describe("Phase 6F: Operational Hardening & Audit Intelligence", () => {
       expect(entry.userId).toBe("test-typed-user");
       expect(entry.checksum).toBeTruthy();
       expect(entry.source).toBe("test");
+    });
+
+    it("should have resource governor summary include load signals in utilization endpoint shape", async () => {
+      const { getResourceUtilizationSummary, reportDbConnectionCount, reportPendingAiCalls } = await import("../../lib/resource-governor");
+      reportDbConnectionCount(2, 10);
+      reportPendingAiCalls(1, 5);
+      const summary = getResourceUtilizationSummary();
+      expect(summary.loadSignals).toBeDefined();
+      expect(summary.loadSignals.activeDbConnections).toBe(2);
+      expect(summary.loadSignals.pendingAiCalls).toBe(1);
+      expect(summary.dbPressure).toBe(20);
+      expect(summary.aiPressure).toBe(20);
+      reportDbConnectionCount(0);
+      reportPendingAiCalls(0);
     });
   });
 });

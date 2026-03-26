@@ -10,6 +10,34 @@ let serverStartedAt = Date.now();
 const QUIET_PERIOD_MS = 90_000;
 const LOAD_SHED_THRESHOLD = 0.85;
 
+interface LoadSignals {
+  activeDbConnections: number;
+  maxDbConnections: number;
+  pendingAiCalls: number;
+  maxPendingAiCalls: number;
+}
+
+const loadSignals: LoadSignals = {
+  activeDbConnections: 0,
+  maxDbConnections: 10,
+  pendingAiCalls: 0,
+  maxPendingAiCalls: 5,
+};
+
+export function reportDbConnectionCount(active: number, max?: number): void {
+  loadSignals.activeDbConnections = active;
+  if (max !== undefined) loadSignals.maxDbConnections = max;
+}
+
+export function reportPendingAiCalls(pending: number, max?: number): void {
+  loadSignals.pendingAiCalls = pending;
+  if (max !== undefined) loadSignals.maxPendingAiCalls = max;
+}
+
+export function getLoadSignals(): LoadSignals {
+  return { ...loadSignals };
+}
+
 export function setServerStartTime(t: number): void {
   serverStartedAt = t;
 }
@@ -25,6 +53,18 @@ function getMemoryPressure(): number {
   return heapTotal > 0 ? heapUsed / heapTotal : 0;
 }
 
+function getDbPressure(): number {
+  return loadSignals.maxDbConnections > 0
+    ? loadSignals.activeDbConnections / loadSignals.maxDbConnections
+    : 0;
+}
+
+function getAiPressure(): number {
+  return loadSignals.maxPendingAiCalls > 0
+    ? loadSignals.pendingAiCalls / loadSignals.maxPendingAiCalls
+    : 0;
+}
+
 function getOverallUtilization(): number {
   let totalActive = 0;
   let totalMax = 0;
@@ -35,25 +75,39 @@ function getOverallUtilization(): number {
   return totalMax > 0 ? totalActive / totalMax : 0;
 }
 
-function adjustLimitsForLoad(): void {
+function getCompositePressure(): number {
   const memPressure = getMemoryPressure();
-  const utilization = getOverallUtilization();
+  const dbPressure = getDbPressure();
+  const aiPressure = getAiPressure();
+  const slotUtilization = getOverallUtilization();
+  return Math.max(memPressure, dbPressure * 0.9, aiPressure * 0.9, slotUtilization);
+}
 
-  for (const [, slot] of Object.entries(SLOTS)) {
-    if (memPressure > 0.9) {
+function adjustLimitsForLoad(): void {
+  const composite = getCompositePressure();
+  const dbPressure = getDbPressure();
+  const aiPressure = getAiPressure();
+
+  for (const [category, slot] of Object.entries(SLOTS)) {
+    if (composite > 0.9) {
       slot.max = Math.max(1, Math.floor(slot.baseMax * 0.5));
-    } else if (memPressure > 0.8 || utilization > LOAD_SHED_THRESHOLD) {
+    } else if (composite > 0.8) {
       slot.max = Math.max(1, Math.floor(slot.baseMax * 0.75));
     } else {
       slot.max = slot.baseMax;
+    }
+
+    if (category === "db" && dbPressure > 0.8) {
+      slot.max = Math.max(1, Math.floor(slot.baseMax * 0.5));
+    }
+    if (category === "ai" && aiPressure > 0.8) {
+      slot.max = Math.max(1, Math.floor(slot.baseMax * 0.5));
     }
   }
 }
 
 export function shouldLoadShed(): boolean {
-  const memPressure = getMemoryPressure();
-  const utilization = getOverallUtilization();
-  return memPressure > LOAD_SHED_THRESHOLD || utilization > LOAD_SHED_THRESHOLD;
+  return getCompositePressure() > LOAD_SHED_THRESHOLD;
 }
 
 export async function withResourceSlot<T>(
@@ -72,7 +126,7 @@ export async function withResourceSlot<T>(
   if (!slot) return fn();
 
   if (shouldLoadShed() && slot.active >= Math.max(1, Math.floor(slot.max * 0.75))) {
-    throw new Error(`[ResourceGovernor] ${label} load-shed — system under pressure (memory: ${Math.round(getMemoryPressure() * 100)}%, utilization: ${Math.round(getOverallUtilization() * 100)}%)`);
+    throw new Error(`[ResourceGovernor] ${label} load-shed — system under pressure (composite: ${Math.round(getCompositePressure() * 100)}%)`);
   }
 
   const deadline = opts.timeoutMs ? Date.now() + opts.timeoutMs : null;
@@ -105,9 +159,13 @@ export function getGovernorStats(): Record<string, { active: number; max: number
 export function getResourceUtilizationSummary(): {
   slots: Record<string, { active: number; max: number; baseMax: number; utilization: number }>;
   memoryPressure: number;
+  dbPressure: number;
+  aiPressure: number;
+  compositePressure: number;
   overallUtilization: number;
   loadShedding: boolean;
   inQuietPeriod: boolean;
+  loadSignals: LoadSignals;
 } {
   adjustLimitsForLoad();
   const slots: Record<string, { active: number; max: number; baseMax: number; utilization: number }> = {};
@@ -117,9 +175,13 @@ export function getResourceUtilizationSummary(): {
   return {
     slots,
     memoryPressure: Math.round(getMemoryPressure() * 100),
+    dbPressure: Math.round(getDbPressure() * 100),
+    aiPressure: Math.round(getAiPressure() * 100),
+    compositePressure: Math.round(getCompositePressure() * 100),
     overallUtilization: Math.round(getOverallUtilization() * 100),
     loadShedding: shouldLoadShed(),
     inQuietPeriod: inQuietPeriod(),
+    loadSignals: { ...loadSignals },
   };
 }
 
