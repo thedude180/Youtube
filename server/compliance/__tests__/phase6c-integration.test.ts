@@ -756,14 +756,14 @@ describe("Phase 6C: Trust & Governance Hardening", () => {
       expect(res.status).not.toHaveBeenCalled();
     });
 
-    it("should enforce approval matrix for authenticated users", async () => {
+    it("should enforce approval matrix for authenticated users (fail-closed)", async () => {
       const gate = governanceGate("content_publish");
       const req = { user: { claims: { sub: "user-1" } }, body: { confidence: 0.9 } } as any;
       const res = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
       const next = vi.fn();
 
       await gate(req, res, next);
-      expect(next).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(500);
     });
 
     it("should create separate gates for different action classes", () => {

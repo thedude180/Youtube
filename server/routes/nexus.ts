@@ -13,15 +13,22 @@ import {
   platformFailoverRules, scriptGenerations, videos, revenueRecords, channels
 } from "@shared/schema";
 import { eq, desc, and, sql, sum, count } from "drizzle-orm";
-import { governanceGate } from "../services/trust-governance";
+import { governanceGate, tenantIsolationMiddleware } from "../services/trust-governance";
 import { getOpenAIClient } from "../lib/openai";
 import { getAutonomyStatus, getAutonomyDecisionLog, getRecentRuns, toggleEngine, forceRunEngine } from "../autonomy-controller";
 
 const router = Router();
 
+const nexusTenantGuard = tenantIsolationMiddleware(
+  (req) => (req.body?.targetUserId as string) || (req.query?.targetUserId as string) || null,
+  "nexus-resource",
+);
+
 export function registerNexusRoutes(app: any) {
   app.use(router);
 }
+
+router.use("/api/nexus", nexusTenantGuard);
 
 function getUserId(req: Request): string | null {
   return (req as any).user?.id || null;

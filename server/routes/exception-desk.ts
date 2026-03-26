@@ -9,9 +9,15 @@ import {
   bulkResolve,
 } from "../services/exception-desk";
 import { screenAiOutput, getMonitorConfig } from "../services/prompt-toxicity-monitor";
-import { governanceGate } from "../services/trust-governance";
+import { governanceGate, tenantIsolationMiddleware } from "../services/trust-governance";
 
 const router = Router();
+
+const exceptionTenantGuard = tenantIsolationMiddleware(
+  (req) => (req.body?.targetUserId as string) || (req.query?.targetUserId as string) || null,
+  "exception-resource",
+);
+router.use(exceptionTenantGuard);
 
 const VALID_SEVERITIES = ["critical", "high", "medium", "low"];
 const VALID_STATUSES = ["open", "acknowledged", "resolved", "auto-resolved"];

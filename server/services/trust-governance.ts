@@ -248,6 +248,9 @@ const DEFAULT_RULES: Array<{
   { actionClass: "notification_send", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Send notifications to subscribers" },
   { actionClass: "comment_reply", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Reply to viewer comments" },
   { actionClass: "playlist_manage", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Manage playlists and collections" },
+  { actionClass: "channel_branding_update", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.75, description: "Update channel branding and AI personality" },
+  { actionClass: "channel_settings_change", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Modify channel settings, networks, engine toggles" },
+  { actionClass: "smart_edit", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "AI-powered smart video editing (kernel)" },
 ];
 
 export async function seedApprovalMatrix(): Promise<number> {
@@ -957,8 +960,12 @@ export function governanceGate(actionClass: string) {
       }
 
       next();
-    } catch {
-      next();
+    } catch (err) {
+      logger.error("Governance gate error — fail-closed", { actionClass, error: String(err) });
+      return res.status(500).json({
+        error: "Governance check failed — action denied for safety",
+        actionClass,
+      });
     }
   };
 }
