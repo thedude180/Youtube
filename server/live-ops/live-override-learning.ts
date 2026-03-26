@@ -27,8 +27,9 @@ export function recordLiveOverride(
   });
 
   import("../services/learning-governance").then(({ recordOverrideLearning }) => {
-    recordOverrideLearning(userId, actionType, { original: originalValue }, { override: overrideValue }, reason).catch(() => {});
-  }).catch(() => {});
+    recordOverrideLearning(userId, actionType, { original: originalValue }, { override: overrideValue }, reason)
+      .catch((err: any) => console.error("[live-override-learning] governance override recording failed:", err?.message));
+  }).catch((err: any) => console.error("[live-override-learning] governance import failed:", err?.message));
 }
 
 export function getLiveOverridePatterns(userId: string): {

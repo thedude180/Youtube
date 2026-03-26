@@ -25,7 +25,9 @@ export async function recordLiveLearning(
       userId, "content", `live_${signalType}`,
       { streamId, signalValue, ...context }, Math.min(1, Math.max(0, signalValue)), "live-learning"
     );
-  } catch {}
+  } catch (err: any) {
+    console.error("[live-learning] governance ingestion failed:", err?.message);
+  }
 
   return row.id;
 }

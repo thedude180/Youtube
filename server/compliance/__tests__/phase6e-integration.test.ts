@@ -378,6 +378,33 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
       expect(typeof readiness.provenanceCoverage.verified).toBe("number");
       expect(typeof readiness.provenanceCoverage.coveragePercent).toBe("number");
     });
+
+    it("should boost readiness score when provenance record matches asset title", async () => {
+      const { contentProvenance } = await import("@shared/schema");
+      const { registerLicensingAsset, getLicensingReadiness } = await import("../../services/learning-governance");
+
+      const assetTitle = `Provenance Test Asset ${Date.now()}`;
+      const assetId = await registerLicensingAsset(TEST_USER, "video", `prov-test-${Date.now()}`, assetTitle);
+
+      await db.insert(contentProvenance).values({
+        userId: TEST_USER,
+        contentType: "video",
+        assetName: assetTitle,
+        originType: "original",
+        licenseType: "exclusive",
+        verificationStatus: "verified",
+        trustScore: 90,
+      });
+
+      const readiness = await getLicensingReadiness(TEST_USER);
+      expect(readiness.provenanceCoverage.total).toBeGreaterThan(0);
+      expect(readiness.provenanceCoverage.verified).toBeGreaterThan(0);
+
+      const assets = await db.select().from(licensingExchangeAssets)
+        .where(eq(licensingExchangeAssets.id, assetId));
+      const baseScore = assets[0].readinessScore;
+      expect(readiness.avgReadinessScore).toBeGreaterThan(0);
+    });
   });
 
   describe("End-to-End Governance Flow", () => {

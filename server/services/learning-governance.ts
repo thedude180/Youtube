@@ -580,7 +580,8 @@ export async function getLicensingReadiness(userId: string): Promise<{
     byStatus[a.licensingStatus] = (byStatus[a.licensingStatus] || 0) + 1;
 
     let score = a.readinessScore;
-    const prov = a.assetName ? provenanceLookup.get(a.assetName.toLowerCase()) : undefined;
+    const matchKey = a.title ? a.title.toLowerCase() : null;
+    const prov = matchKey ? provenanceLookup.get(matchKey) : undefined;
     if (prov) {
       if (prov.verificationStatus === "verified") score = Math.min(100, score + 15);
       if (prov.licenseType && prov.licenseType !== "unknown") score = Math.min(100, score + 10);

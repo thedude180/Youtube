@@ -47,7 +47,9 @@ export async function recordDistributionLearning(
       userId, "distribution", `dist_${eventType}`,
       { platform, ...signal }, confidence, "distribution-learning"
     );
-  } catch {}
+  } catch (err: any) {
+    console.error("[distribution-learning] governance ingestion failed:", err?.message);
+  }
 }
 
 export function getDistributionLearningContext(userId: string, platform?: string): {
