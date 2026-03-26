@@ -7503,3 +7503,23 @@ export const financialAuditTrail = pgTable("financial_audit_trail", {
   index("fat_created_idx").on(t.createdAt),
 ]);
 export type FinancialAuditEntry = typeof financialAuditTrail.$inferSelect;
+
+export const metricRollups = pgTable("metric_rollups", {
+  id: serial("id").primaryKey(),
+  metricName: text("metric_name").notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  count: integer("count").notNull().default(0),
+  sum: real("sum").notNull().default(0),
+  avg: real("avg").notNull().default(0),
+  min: real("min").notNull().default(0),
+  max: real("max").notNull().default(0),
+  unit: text("unit").notNull(),
+  tags: jsonb("tags").$type<Record<string, string>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("mr_metric_idx").on(t.metricName),
+  index("mr_period_idx").on(t.periodStart, t.periodEnd),
+  index("mr_metric_period_idx").on(t.metricName, t.periodStart),
+]);
+export type MetricRollup = typeof metricRollups.$inferSelect;

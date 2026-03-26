@@ -6,14 +6,17 @@ import { createLogger } from "../lib/logger";
 const logger = createLogger("job-queue");
 
 const CONCURRENCY = new Map<string, number>([
-  ['ai_generation', 1],   // 1 AI job at a time — prevent token rate-limit bursts
-  ['youtube_api', 1],     // 1 YouTube API call at a time — quota protection
+  ['ai_generation', 1],
+  ['youtube_api', 1],
   ['thumbnail_gen', 1],
-  ['db_heavy', 2],        // 2 heavy DB jobs max (was 4) — pool is capped at 10
-  ['webhook_stripe', 3],  // webhooks need responsiveness but stay bounded
+  ['db_heavy', 2],
+  ['webhook_stripe', 3],
   ['webhook_youtube', 3],
-  ['default', 1],         // 1 default at a time (was 2)
+  ['default', 1],
 ]);
+
+const MAX_CONCURRENT_RETRIES = 3;
+const RETRY_STAGGER_MS = 2000;
 
 class IntelligentJobQueue {
   private handlers = new Map<string, (job: IntelligentJob) => Promise<any>>();
@@ -71,7 +74,6 @@ class IntelligentJobQueue {
 
       logger.info(`[JobQueue] Enqueued job ${opts.type} (id: ${inserted.id})`);
       
-      // Fire and forget
       this.processNext(opts.type).catch((err) => {
         logger.error(`[JobQueue] Error in fire-and-forget processNext: ${err.message}`);
       });
@@ -137,7 +139,7 @@ class IntelligentJobQueue {
         logger.error(`[JobQueue] Job ${job.id} failed: ${err.message}`);
         
         if (job.retryCount < job.maxRetries) {
-          const backoff = Math.min(1000 * Math.pow(2, job.retryCount), 300_000); // max 5 min
+          const backoff = Math.min(1000 * Math.pow(2, job.retryCount), 300_000);
           await db.update(intelligentJobs)
             .set({ 
               status: 'queued', 
@@ -158,7 +160,6 @@ class IntelligentJobQueue {
           logger.error(`[JobQueue] Job ${job.id} exceeded max retries and failed`);
         }
       } finally {
-        // Try to process the next one if capacity available
         this.processNext(type).catch(() => {});
       }
     } catch (err: any) {
@@ -177,7 +178,6 @@ class IntelligentJobQueue {
   async clearStuck(olderThanMinutes = 15): Promise<number> {
     const olderThan = new Date(Date.now() - olderThanMinutes * 60_000);
     
-    // Find stuck jobs
     const stuckJobs = await db.query.intelligentJobs.findMany({
       where: and(
         eq(intelligentJobs.status, 'processing'),
@@ -190,26 +190,63 @@ class IntelligentJobQueue {
     logger.warn(`[JobQueue] Found ${stuckJobs.length} stuck jobs, clearing them...`);
 
     let cleared = 0;
-    for (const job of stuckJobs) {
-      if (job.retryCount < job.maxRetries) {
+    let retriesScheduled = 0;
+
+    const retryableJobs = stuckJobs.filter(j => j.retryCount < j.maxRetries);
+    const failedJobs = stuckJobs.filter(j => j.retryCount >= j.maxRetries);
+
+    for (const job of failedJobs) {
+      await db.update(intelligentJobs)
+        .set({ 
+          status: 'failed', 
+          errorMessage: 'Job failed after becoming stuck multiple times',
+          completedAt: new Date()
+        })
+        .where(eq(intelligentJobs.id, job.id));
+      cleared++;
+    }
+
+    let underPressure = false;
+    try {
+      const { canRun, shouldLoadShed } = await import("../lib/resource-governor");
+      const { getRateLimitPressure } = await import("./internal-rate-limiter");
+      underPressure = shouldLoadShed();
+      const pressure = getRateLimitPressure();
+      if (pressure.highPressureEngines.length > 0) underPressure = true;
+    } catch {}
+
+    const maxRetries = underPressure
+      ? Math.min(MAX_CONCURRENT_RETRIES, 1)
+      : MAX_CONCURRENT_RETRIES;
+
+    for (let i = 0; i < retryableJobs.length; i++) {
+      const job = retryableJobs[i];
+      if (retriesScheduled >= maxRetries) {
+        const staggerDelay = RETRY_STAGGER_MS * (i - maxRetries + 1);
         await db.update(intelligentJobs)
           .set({ 
             status: 'queued', 
             retryCount: job.retryCount + 1,
-            scheduledFor: new Date(),
-            errorMessage: 'Job cleared after becoming stuck'
+            scheduledFor: new Date(Date.now() + staggerDelay + (underPressure ? 30_000 : 0)),
+            errorMessage: 'Job cleared after becoming stuck (staggered retry)'
           })
           .where(eq(intelligentJobs.id, job.id));
       } else {
         await db.update(intelligentJobs)
           .set({ 
-            status: 'failed', 
-            errorMessage: 'Job failed after becoming stuck multiple times',
-            completedAt: new Date()
+            status: 'queued', 
+            retryCount: job.retryCount + 1,
+            scheduledFor: new Date(Date.now() + (underPressure ? 15_000 : 0)),
+            errorMessage: 'Job cleared after becoming stuck'
           })
           .where(eq(intelligentJobs.id, job.id));
+        retriesScheduled++;
       }
       cleared++;
+    }
+
+    if (underPressure && retryableJobs.length > 0) {
+      logger.warn(`[JobQueue] System under pressure — staggered ${retryableJobs.length} retries (max concurrent: ${maxRetries})`);
     }
 
     return cleared;
@@ -230,11 +267,42 @@ class IntelligentJobQueue {
     });
     return stats;
   }
+
+  async getRetryHealth(): Promise<{
+    stuckJobs: number;
+    retryableStuck: number;
+    systemUnderPressure: boolean;
+    maxConcurrentRetries: number;
+    retryStaggerMs: number;
+  }> {
+    const olderThan = new Date(Date.now() - 15 * 60_000);
+    const stuckJobs = await db.query.intelligentJobs.findMany({
+      where: and(
+        eq(intelligentJobs.status, 'processing'),
+        lt(intelligentJobs.startedAt, olderThan)
+      )
+    });
+
+    const retryable = stuckJobs.filter(j => j.retryCount < j.maxRetries);
+
+    let underPressure = false;
+    try {
+      const { shouldLoadShed } = await import("../lib/resource-governor");
+      underPressure = shouldLoadShed();
+    } catch {}
+
+    return {
+      stuckJobs: stuckJobs.length,
+      retryableStuck: retryable.length,
+      systemUnderPressure: underPressure,
+      maxConcurrentRetries: underPressure ? 1 : MAX_CONCURRENT_RETRIES,
+      retryStaggerMs: RETRY_STAGGER_MS,
+    };
+  }
 }
 
 export const jobQueue = new IntelligentJobQueue();
 
-// Stuck job cleanup every 5 minutes
 setInterval(() => {
   jobQueue.clearStuck(15).catch((err) => {
     logger.error(`[JobQueue] Error in periodic clearStuck: ${err.message}`);

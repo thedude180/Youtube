@@ -5,6 +5,166 @@ import { sql } from "drizzle-orm";
 
 const INSTANCE_ID = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+interface HeartbeatConfig {
+  expectedIntervalMs: number;
+  registeredAt: number;
+}
+
+const heartbeatRegistry = new Map<string, HeartbeatConfig>();
+
+export function registerCronHeartbeat(jobName: string, expectedIntervalMs: number): void {
+  heartbeatRegistry.set(jobName, { expectedIntervalMs, registeredAt: Date.now() });
+}
+
+export function getRegisteredHeartbeats(): Map<string, HeartbeatConfig> {
+  return new Map(heartbeatRegistry);
+}
+
+export async function checkCronHeartbeats(): Promise<Array<{
+  jobName: string;
+  status: "healthy" | "missed" | "overdue" | "never_run";
+  expectedIntervalMs: number;
+  lastCompletedAt: Date | null;
+  msSinceLastRun: number | null;
+  deadlineMultiplier: number;
+}>> {
+  const results: Array<{
+    jobName: string;
+    status: "healthy" | "missed" | "overdue" | "never_run";
+    expectedIntervalMs: number;
+    lastCompletedAt: Date | null;
+    msSinceLastRun: number | null;
+    deadlineMultiplier: number;
+  }> = [];
+
+  if (heartbeatRegistry.size === 0) return results;
+
+  const locks = await db.select().from(cronLocks);
+  const lockMap = new Map(locks.map(l => [l.jobName, l]));
+  const now = Date.now();
+
+  for (const [jobName, config] of heartbeatRegistry) {
+    const lock = lockMap.get(jobName);
+    const deadline = config.expectedIntervalMs * 1.5;
+
+    if (!lock || !lock.lastCompletedAt) {
+      const timeSinceRegistration = now - config.registeredAt;
+      if (timeSinceRegistration > deadline) {
+        results.push({
+          jobName,
+          status: "never_run",
+          expectedIntervalMs: config.expectedIntervalMs,
+          lastCompletedAt: null,
+          msSinceLastRun: null,
+          deadlineMultiplier: 1.5,
+        });
+      } else {
+        results.push({
+          jobName,
+          status: "healthy",
+          expectedIntervalMs: config.expectedIntervalMs,
+          lastCompletedAt: null,
+          msSinceLastRun: null,
+          deadlineMultiplier: 1.5,
+        });
+      }
+      continue;
+    }
+
+    const msSinceLastRun = now - lock.lastCompletedAt.getTime();
+
+    if (msSinceLastRun > deadline * 2) {
+      results.push({
+        jobName,
+        status: "overdue",
+        expectedIntervalMs: config.expectedIntervalMs,
+        lastCompletedAt: lock.lastCompletedAt,
+        msSinceLastRun,
+        deadlineMultiplier: 1.5,
+      });
+    } else if (msSinceLastRun > deadline) {
+      results.push({
+        jobName,
+        status: "missed",
+        expectedIntervalMs: config.expectedIntervalMs,
+        lastCompletedAt: lock.lastCompletedAt,
+        msSinceLastRun,
+        deadlineMultiplier: 1.5,
+      });
+    } else {
+      results.push({
+        jobName,
+        status: "healthy",
+        expectedIntervalMs: config.expectedIntervalMs,
+        lastCompletedAt: lock.lastCompletedAt,
+        msSinceLastRun,
+        deadlineMultiplier: 1.5,
+      });
+    }
+  }
+
+  return results;
+}
+
+export async function runHeartbeatCheck(): Promise<{
+  checked: number;
+  healthy: number;
+  missed: number;
+  overdue: number;
+  neverRun: number;
+  exceptionsCreated: number;
+}> {
+  const heartbeats = await checkCronHeartbeats();
+  let exceptionsCreated = 0;
+
+  const unhealthy = heartbeats.filter(h => h.status === "missed" || h.status === "overdue" || h.status === "never_run");
+
+  for (const h of unhealthy) {
+    try {
+      const { createException } = await import("../services/exception-desk");
+      await createException({
+        severity: h.status === "overdue" ? "high" : "medium",
+        category: "system_health",
+        source: "cron_heartbeat_monitor",
+        sourceId: `cron:${h.jobName}`,
+        title: `Cron Heartbeat ${h.status}: ${h.jobName}`,
+        description: h.status === "never_run"
+          ? `Cron job "${h.jobName}" has never completed since registration (expected every ${Math.round(h.expectedIntervalMs / 1000)}s)`
+          : `Cron job "${h.jobName}" last ran ${Math.round((h.msSinceLastRun || 0) / 1000)}s ago (expected every ${Math.round(h.expectedIntervalMs / 1000)}s)`,
+        metadata: {
+          jobName: h.jobName,
+          status: h.status,
+          expectedIntervalMs: h.expectedIntervalMs,
+          msSinceLastRun: h.msSinceLastRun,
+          lastCompletedAt: h.lastCompletedAt?.toISOString() || null,
+        },
+      });
+      exceptionsCreated++;
+    } catch {}
+  }
+
+  return {
+    checked: heartbeats.length,
+    healthy: heartbeats.filter(h => h.status === "healthy").length,
+    missed: heartbeats.filter(h => h.status === "missed").length,
+    overdue: heartbeats.filter(h => h.status === "overdue").length,
+    neverRun: heartbeats.filter(h => h.status === "never_run").length,
+    exceptionsCreated,
+  };
+}
+
+export function getCronHealthReport(): {
+  registeredJobs: number;
+  heartbeats: Array<{ jobName: string; expectedIntervalMs: number; registeredAt: number }>;
+} {
+  const heartbeats = Array.from(heartbeatRegistry.entries()).map(([jobName, config]) => ({
+    jobName,
+    expectedIntervalMs: config.expectedIntervalMs,
+    registeredAt: config.registeredAt,
+  }));
+  return { registeredJobs: heartbeatRegistry.size, heartbeats };
+}
+
 export async function withCronLock(
   jobName: string,
   ttlMs: number,

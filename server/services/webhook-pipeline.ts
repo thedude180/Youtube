@@ -8,6 +8,148 @@ const logger = createLogger("webhook-pipeline");
 
 type WebhookHandler = (payload: any, eventType: string) => Promise<void>;
 
+interface ProviderHealthRecord {
+  successes: number;
+  failures: number;
+  lastSuccess: number | null;
+  lastFailure: number | null;
+  circuitOpen: boolean;
+  circuitOpenedAt: number | null;
+  probeIntervalMs: number;
+  failureThreshold: number;
+  successRateThreshold: number;
+  windowMs: number;
+  recentResults: Array<{ success: boolean; timestamp: number }>;
+}
+
+const DEFAULT_PROVIDER_CONFIG = {
+  failureThreshold: 5,
+  successRateThreshold: 0.3,
+  windowMs: 300_000,
+  probeIntervalMs: 60_000,
+  maxRecentResults: 50,
+};
+
+const providerHealth = new Map<string, ProviderHealthRecord>();
+
+function getProviderHealth(source: string): ProviderHealthRecord {
+  let health = providerHealth.get(source);
+  if (!health) {
+    health = {
+      successes: 0,
+      failures: 0,
+      lastSuccess: null,
+      lastFailure: null,
+      circuitOpen: false,
+      circuitOpenedAt: null,
+      probeIntervalMs: DEFAULT_PROVIDER_CONFIG.probeIntervalMs,
+      failureThreshold: DEFAULT_PROVIDER_CONFIG.failureThreshold,
+      successRateThreshold: DEFAULT_PROVIDER_CONFIG.successRateThreshold,
+      windowMs: DEFAULT_PROVIDER_CONFIG.windowMs,
+      recentResults: [],
+    };
+    providerHealth.set(source, health);
+  }
+  return health;
+}
+
+function pruneRecentResults(health: ProviderHealthRecord): void {
+  const cutoff = Date.now() - health.windowMs;
+  health.recentResults = health.recentResults.filter(r => r.timestamp > cutoff);
+  if (health.recentResults.length > DEFAULT_PROVIDER_CONFIG.maxRecentResults) {
+    health.recentResults = health.recentResults.slice(-DEFAULT_PROVIDER_CONFIG.maxRecentResults);
+  }
+}
+
+function getSuccessRate(health: ProviderHealthRecord): number {
+  pruneRecentResults(health);
+  if (health.recentResults.length === 0) return 1.0;
+  const successes = health.recentResults.filter(r => r.success).length;
+  return successes / health.recentResults.length;
+}
+
+function recordProviderSuccess(source: string): void {
+  const health = getProviderHealth(source);
+  health.successes++;
+  health.lastSuccess = Date.now();
+  health.recentResults.push({ success: true, timestamp: Date.now() });
+  pruneRecentResults(health);
+
+  if (health.circuitOpen) {
+    const successRate = getSuccessRate(health);
+    if (successRate >= 0.5) {
+      health.circuitOpen = false;
+      health.circuitOpenedAt = null;
+      logger.info(`[WebhookPipeline] Circuit closed for provider: ${source} (success rate recovered to ${Math.round(successRate * 100)}%)`);
+    }
+  }
+}
+
+function recordProviderFailure(source: string): void {
+  const health = getProviderHealth(source);
+  health.failures++;
+  health.lastFailure = Date.now();
+  health.recentResults.push({ success: false, timestamp: Date.now() });
+  pruneRecentResults(health);
+
+  if (!health.circuitOpen) {
+    const recentFailures = health.recentResults.filter(r => !r.success).length;
+    const successRate = getSuccessRate(health);
+
+    if (recentFailures >= health.failureThreshold && successRate < health.successRateThreshold) {
+      health.circuitOpen = true;
+      health.circuitOpenedAt = Date.now();
+      logger.warn(`[WebhookPipeline] Circuit OPENED for provider: ${source} (${recentFailures} failures, ${Math.round(successRate * 100)}% success rate)`);
+    }
+  }
+}
+
+function isProviderCircuitOpen(source: string): boolean {
+  const health = providerHealth.get(source);
+  if (!health || !health.circuitOpen) return false;
+
+  if (health.circuitOpenedAt && Date.now() - health.circuitOpenedAt > health.probeIntervalMs) {
+    return false;
+  }
+
+  return true;
+}
+
+export function getWebhookProviderHealth(): Record<string, {
+  successes: number;
+  failures: number;
+  successRate: number;
+  circuitOpen: boolean;
+  circuitOpenedAt: number | null;
+  lastSuccess: number | null;
+  lastFailure: number | null;
+  recentResultsCount: number;
+}> {
+  const result: Record<string, any> = {};
+  for (const [source, health] of providerHealth) {
+    pruneRecentResults(health);
+    result[source] = {
+      successes: health.successes,
+      failures: health.failures,
+      successRate: Math.round(getSuccessRate(health) * 100),
+      circuitOpen: health.circuitOpen,
+      circuitOpenedAt: health.circuitOpenedAt,
+      lastSuccess: health.lastSuccess,
+      lastFailure: health.lastFailure,
+      recentResultsCount: health.recentResults.length,
+    };
+  }
+  return result;
+}
+
+export function resetProviderHealth(source?: string): void {
+  if (source) {
+    providerHealth.delete(source);
+  } else {
+    providerHealth.clear();
+  }
+}
+
 class WebhookPipeline {
   private handlers = new Map<string, WebhookHandler>();
 
@@ -27,6 +169,11 @@ class WebhookPipeline {
     payload: any,
     userId = "system"
   ): Promise<void> {
+    if (isProviderCircuitOpen(source)) {
+      logger.warn(`[WebhookPipeline] Circuit open for provider ${source} — rejecting event ${eventId}`);
+      return;
+    }
+
     const dedupeKey = `${source}:${eventId}`;
 
     let inserted: { id: number } | undefined;
@@ -84,7 +231,13 @@ class WebhookPipeline {
       return;
     }
 
-    await handler(event.payload, event.eventType);
+    try {
+      await handler(event.payload, event.eventType);
+      recordProviderSuccess(source);
+    } catch (err: any) {
+      recordProviderFailure(source);
+      throw err;
+    }
 
     await db
       .update(webhookEvents)
@@ -113,7 +266,11 @@ class WebhookPipeline {
     for (const event of unprocessed) {
       const [source] = event.source.split(":");
       if (!source) continue;
-      const eventId = event.source.slice(source.length + 1);
+
+      if (isProviderCircuitOpen(source)) {
+        logger.info(`[WebhookPipeline] Skipping drain for ${source} — circuit open`);
+        continue;
+      }
 
       await jobQueue.enqueue({
         type: `webhook_${source}`,
