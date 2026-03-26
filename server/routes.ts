@@ -49,6 +49,7 @@ import { registerComplianceHardeningRoutes } from "./routes/compliance-hardening
 import exceptionDeskRoutes from "./routes/exception-desk";
 import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
+import { registerResilienceObservabilityRoutes, correlationIdMiddleware } from "./routes/resilience-observability";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -115,6 +116,8 @@ export async function registerRoutes(
 
   createAsyncSafeApp(app);
 
+  app.use("/api", correlationIdMiddleware());
+
   const ACTION_CLASS_MAP: Record<string, string> = {
     "/content": "content_publish",
     "/stream": "stream_config",
@@ -152,6 +155,7 @@ export async function registerRoutes(
     "/world-best": "analytics_export",
     "/upgrades": "channel_settings_change",
     "/ultimate": "content_draft",
+    "/resilience": "channel_settings_change",
   };
 
   const GOVERNANCE_EXEMPT_PATHS = ["/api/login", "/api/logout", "/api/auth", "/api/callback", "/api/test-auth"];
@@ -349,6 +353,7 @@ export async function registerRoutes(
   registerComplianceHardeningRoutes(app);
   app.use("/api/exception-desk", exceptionDeskRoutes);
   registerTrustGovernanceRoutes(app);
+  registerResilienceObservabilityRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {

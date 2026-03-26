@@ -1,0 +1,492 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { db } from "../../db";
+import {
+  signedActionReceipts,
+  featureSunsetRecords,
+  capabilityDegradationPlaybooks,
+  playbookActivationEvents,
+} from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+import crypto from "crypto";
+
+const TEST_USER = "test-phase6d-user";
+const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
+
+describe("Phase 6D: Resilience & Observability Hardening", () => {
+  describe("Safe Mode Controls", () => {
+    it("should enter and exit global safe mode", async () => {
+      const {
+        enterSafeMode,
+        exitSafeMode,
+        getSafeModeState,
+        isInSafeMode,
+      } = await import("../../services/resilience-observability");
+
+      exitSafeMode();
+      expect(isInSafeMode()).toBe(false);
+
+      const enterResult = enterSafeMode("Integration test: high error rate");
+      expect(enterResult.activated).toBe(true);
+      expect(enterResult.scope).toBe("global");
+      expect(isInSafeMode()).toBe(true);
+
+      const state = getSafeModeState();
+      expect(state.global).toBe(true);
+      expect(state.reason).toBe("Integration test: high error rate");
+
+      const exitResult = exitSafeMode();
+      expect(exitResult.deactivated).toBe(true);
+      expect(isInSafeMode()).toBe(false);
+    });
+
+    it("should enter and exit per-engine safe mode", async () => {
+      const { enterSafeMode, exitSafeMode, isInSafeMode } = await import(
+        "../../services/resilience-observability"
+      );
+
+      exitSafeMode();
+
+      enterSafeMode("Smart-edit overload", "smart-edit");
+      expect(isInSafeMode("smart-edit")).toBe(true);
+      expect(isInSafeMode("catalog")).toBe(false);
+      expect(isInSafeMode()).toBe(false);
+
+      exitSafeMode("smart-edit");
+      expect(isInSafeMode("smart-edit")).toBe(false);
+    });
+
+    it("should auto-enter safe mode on threshold breach", async () => {
+      const { checkAutoSafeModeEntry, exitSafeMode, isInSafeMode } = await import(
+        "../../services/resilience-observability"
+      );
+      exitSafeMode();
+
+      const result = checkAutoSafeModeEntry({ errorRate: 50 });
+      expect(result.triggered).toBe(true);
+      expect(result.reason).toContain("Error rate");
+      expect(isInSafeMode()).toBe(true);
+
+      exitSafeMode();
+    });
+
+    it("should auto-exit safe mode when conditions improve", async () => {
+      const { enterSafeMode, checkAutoSafeModeExit, isInSafeMode, exitSafeMode } = await import(
+        "../../services/resilience-observability"
+      );
+      exitSafeMode();
+
+      enterSafeMode("Test threshold breach");
+      expect(isInSafeMode()).toBe(true);
+
+      const result = checkAutoSafeModeExit({ errorRate: 5, failedJobsPercent: 10, memoryUsagePercent: 50 });
+      expect(result.recovered).toBe(true);
+      expect(isInSafeMode()).toBe(false);
+    });
+  });
+
+  describe("Rollback Controls", () => {
+    let testReceiptId: number;
+
+    beforeAll(async () => {
+      const execKey = `rollback-test-${Date.now()}`;
+      const payload = { test: true };
+      const result = { status: "done" };
+      const sigData = JSON.stringify({
+        userId: TEST_USER,
+        actionType: "test_rollback_action",
+        executionKey: execKey,
+        payload,
+        result,
+      });
+      const hmac = crypto.createHmac("sha256", HMAC_SECRET).update(sigData).digest("hex");
+
+      const [receipt] = await db
+        .insert(signedActionReceipts)
+        .values({
+          userId: TEST_USER,
+          actionType: "test_rollback_action",
+          executionKey: execKey,
+          payload,
+          result,
+          hmacSignature: hmac,
+          status: "completed",
+          rollbackAvailable: true,
+          rollbackMetadata: { undoAction: "delete_item" },
+        })
+        .returning({ id: signedActionReceipts.id });
+      testReceiptId = receipt.id;
+    });
+
+    it("should execute rollback on a receipt with rollback available", async () => {
+      const { executeRollback } = await import("../../services/resilience-observability");
+      const result = await executeRollback(testReceiptId, TEST_USER, "Reverting test action");
+      expect(result.success).toBe(true);
+
+      const [updated] = await db
+        .select()
+        .from(signedActionReceipts)
+        .where(eq(signedActionReceipts.id, testReceiptId))
+        .limit(1);
+      expect(updated.status).toBe("rolled_back");
+    });
+
+    it("should reject rollback on already rolled back receipt", async () => {
+      const { executeRollback } = await import("../../services/resilience-observability");
+      const result = await executeRollback(testReceiptId, TEST_USER, "Double rollback");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("already rolled back");
+    });
+
+    it("should reject rollback for wrong user", async () => {
+      const { executeRollback } = await import("../../services/resilience-observability");
+      const result = await executeRollback(testReceiptId, "wrong-user", "Unauthorized");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("not found or access denied");
+    });
+  });
+
+  describe("Blast Radius Limiter", () => {
+    it("should enforce max items limit", async () => {
+      const { BlastRadiusLimiter } = await import("../../services/resilience-observability");
+      const limiter = new BlastRadiusLimiter({ maxItems: 3, maxExecutionMs: 60000, maxApiCalls: 100 });
+      const ctx = limiter.createExecutionContext();
+
+      expect(ctx.recordItem().allowed).toBe(true);
+      expect(ctx.recordItem().allowed).toBe(true);
+      expect(ctx.recordItem().allowed).toBe(true);
+      const fourth = ctx.recordItem();
+      expect(fourth.allowed).toBe(false);
+      expect(fourth.reason).toContain("Max items exceeded");
+      expect(ctx.getStatus().aborted).toBe(true);
+    });
+
+    it("should enforce max API calls limit", async () => {
+      const { BlastRadiusLimiter } = await import("../../services/resilience-observability");
+      const limiter = new BlastRadiusLimiter({ maxItems: 100, maxExecutionMs: 60000, maxApiCalls: 2 });
+      const ctx = limiter.createExecutionContext();
+
+      expect(ctx.recordApiCall().allowed).toBe(true);
+      expect(ctx.recordApiCall().allowed).toBe(true);
+      const third = ctx.recordApiCall();
+      expect(third.allowed).toBe(false);
+      expect(third.reason).toContain("Max API calls exceeded");
+    });
+
+    it("should abort all operations after any limit breach", async () => {
+      const { BlastRadiusLimiter } = await import("../../services/resilience-observability");
+      const limiter = new BlastRadiusLimiter({ maxItems: 1, maxExecutionMs: 60000, maxApiCalls: 100 });
+      const ctx = limiter.createExecutionContext();
+
+      ctx.recordItem();
+      ctx.recordItem();
+
+      expect(ctx.recordApiCall().allowed).toBe(false);
+      expect(ctx.checkTime().allowed).toBe(false);
+    });
+  });
+
+  describe("Self-Healing Validation", () => {
+    it("should validate healing on first attempt when issue is resolved", async () => {
+      const { validateHealing } = await import("../../services/resilience-observability");
+      let callCount = 0;
+      const result = await validateHealing("test-issue-1", async () => {
+        callCount++;
+        return true;
+      }, { maxAttempts: 3, baseDelayMs: 10 });
+
+      expect(result.healed).toBe(true);
+      expect(result.attempt).toBe(1);
+      expect(result.escalated).toBe(false);
+      expect(callCount).toBe(1);
+    });
+
+    it("should retry with backoff and succeed on later attempt", async () => {
+      const { validateHealing } = await import("../../services/resilience-observability");
+      let callCount = 0;
+      const result = await validateHealing("test-issue-2", async () => {
+        callCount++;
+        return callCount >= 2;
+      }, { maxAttempts: 3, baseDelayMs: 10 });
+
+      expect(result.healed).toBe(true);
+      expect(result.attempt).toBe(2);
+      expect(callCount).toBe(2);
+    });
+
+    it("should escalate after exhausting all retry attempts", async () => {
+      const { validateHealing } = await import("../../services/resilience-observability");
+      const result = await validateHealing("test-issue-3", async () => false, {
+        maxAttempts: 2,
+        baseDelayMs: 10,
+      });
+
+      expect(result.healed).toBe(false);
+      expect(result.escalated).toBe(true);
+      expect(result.attempt).toBe(2);
+    });
+  });
+
+  describe("Degradation Playbooks (All Critical Dependencies)", () => {
+    it("should seed playbooks for all critical dependencies", async () => {
+      const { seedFullDegradationPlaybooks } = await import("../../services/resilience-observability");
+      const result = await seedFullDegradationPlaybooks();
+      expect(result.seeded + result.skipped).toBeGreaterThanOrEqual(6);
+
+      const deps = ["openai", "anthropic", "youtube_api", "stripe", "postgresql", "gmail"];
+      for (const dep of deps) {
+        const [pb] = await db
+          .select()
+          .from(capabilityDegradationPlaybooks)
+          .where(eq(capabilityDegradationPlaybooks.capabilityName, dep))
+          .limit(1);
+        expect(pb).toBeDefined();
+        expect((pb.steps as any[]).length).toBeGreaterThan(0);
+      }
+    });
+
+    it("should activate and deactivate a degradation playbook", async () => {
+      const { activatePlaybook, deactivatePlaybook, getDependencyHealth } = await import(
+        "../../services/resilience-observability"
+      );
+
+      const activation = await activatePlaybook("openai", "High latency detected", TEST_USER);
+      expect(activation.activated).toBe(true);
+      expect(activation.playbookId).toBeDefined();
+
+      let health = getDependencyHealth("openai");
+      expect(health.length).toBe(1);
+      expect(health[0].status).toBe("degraded");
+
+      const deactivation = await deactivatePlaybook("openai");
+      expect(deactivation.deactivated).toBe(true);
+
+      health = getDependencyHealth("openai");
+      expect(health[0].status).toBe("healthy");
+    });
+  });
+
+  describe("Observability: Correlation IDs & Metrics", () => {
+    it("should generate unique correlation IDs", async () => {
+      const { generateCorrelationId } = await import("../../services/resilience-observability");
+      const id1 = generateCorrelationId();
+      const id2 = generateCorrelationId();
+      expect(id1).not.toBe(id2);
+      expect(id1.startsWith("cid-")).toBe(true);
+    });
+
+    it("should track and propagate correlation context", async () => {
+      const {
+        generateCorrelationId,
+        startCorrelation,
+        getCorrelation,
+        endCorrelation,
+        getActiveCorrelationCount,
+      } = await import("../../services/resilience-observability");
+
+      const parentId = generateCorrelationId();
+      startCorrelation(parentId, { action: "publish_video" });
+
+      const childId = generateCorrelationId();
+      startCorrelation(childId, { action: "generate_thumbnail" }, parentId);
+
+      const parentCtx = getCorrelation(parentId);
+      expect(parentCtx).toBeDefined();
+      expect(parentCtx!.metadata.action).toBe("publish_video");
+
+      const childCtx = getCorrelation(childId);
+      expect(childCtx).toBeDefined();
+      expect(childCtx!.parentId).toBe(parentId);
+
+      endCorrelation(parentId);
+      endCorrelation(childId);
+      expect(getCorrelation(parentId)).toBeNull();
+    });
+
+    it("should record and summarize performance metrics", async () => {
+      const { recordMetric, getMetricsSummary, getMetrics } = await import(
+        "../../services/resilience-observability"
+      );
+
+      recordMetric("api_latency", 150, "ms", { endpoint: "/api/test" });
+      recordMetric("api_latency", 200, "ms", { endpoint: "/api/test" });
+      recordMetric("api_latency", 100, "ms", { endpoint: "/api/test" });
+
+      const summary = getMetricsSummary();
+      expect(summary["api_latency"]).toBeDefined();
+      expect(summary["api_latency"].count).toBeGreaterThanOrEqual(3);
+      expect(summary["api_latency"].avg).toBeGreaterThan(0);
+      expect(summary["api_latency"].unit).toBe("ms");
+    });
+
+    it("should track dependency health for all critical services", async () => {
+      const { getAllDependencyHealth, updateDependencyHealth } = await import(
+        "../../services/resilience-observability"
+      );
+
+      updateDependencyHealth("postgresql", "healthy", 5);
+      updateDependencyHealth("stripe", "degraded", 2000, "High latency");
+
+      const health = getAllDependencyHealth();
+      expect(health.postgresql.status).toBe("healthy");
+      expect(health.stripe.status).toBe("degraded");
+      expect(health.stripe.error).toBe("High latency");
+      expect(health.openai).toBeDefined();
+    });
+  });
+
+  describe("Signed Receipt Tamper Detection", () => {
+    let validReceiptId: number;
+
+    beforeAll(async () => {
+      const payload = { video: "test-vid" };
+      const result = { published: true };
+      const execKey = `tamper-test-${Date.now()}`;
+      const sigData = JSON.stringify({
+        userId: TEST_USER,
+        actionType: "test_receipt_integrity",
+        executionKey: execKey,
+        payload,
+        result,
+      });
+      const hmac = crypto.createHmac("sha256", HMAC_SECRET).update(sigData).digest("hex");
+
+      const [receipt] = await db
+        .insert(signedActionReceipts)
+        .values({
+          userId: TEST_USER,
+          actionType: "test_receipt_integrity",
+          executionKey: execKey,
+          payload,
+          result,
+          hmacSignature: hmac,
+          status: "completed",
+          rollbackAvailable: false,
+        })
+        .returning({ id: signedActionReceipts.id });
+      validReceiptId = receipt.id;
+    });
+
+    it("should verify a valid receipt as untampered", async () => {
+      const { verifyReceiptIntegrity } = await import("../../services/resilience-observability");
+      const [receipt] = await db
+        .select()
+        .from(signedActionReceipts)
+        .where(eq(signedActionReceipts.id, validReceiptId))
+        .limit(1);
+
+      const check = verifyReceiptIntegrity({
+        userId: receipt.userId,
+        actionType: receipt.actionType,
+        executionKey: receipt.executionKey,
+        payload: receipt.payload as Record<string, any>,
+        result: receipt.result as Record<string, any>,
+        hmacSignature: receipt.hmacSignature,
+      });
+      expect(check.valid).toBe(true);
+      expect(check.tampered).toBe(false);
+    });
+
+    it("should detect tampered receipt (modified payload)", async () => {
+      const { verifyReceiptIntegrity } = await import("../../services/resilience-observability");
+      const [receipt] = await db
+        .select()
+        .from(signedActionReceipts)
+        .where(eq(signedActionReceipts.id, validReceiptId))
+        .limit(1);
+
+      const check = verifyReceiptIntegrity({
+        userId: receipt.userId,
+        actionType: receipt.actionType,
+        executionKey: receipt.executionKey,
+        payload: { video: "TAMPERED" },
+        result: receipt.result as Record<string, any>,
+        hmacSignature: receipt.hmacSignature,
+      });
+      expect(check.valid).toBe(false);
+      expect(check.tampered).toBe(true);
+    });
+
+    it("should detect tampered receipt (forged HMAC)", async () => {
+      const { verifyReceiptIntegrity } = await import("../../services/resilience-observability");
+      const [receipt] = await db
+        .select()
+        .from(signedActionReceipts)
+        .where(eq(signedActionReceipts.id, validReceiptId))
+        .limit(1);
+
+      const check = verifyReceiptIntegrity({
+        userId: receipt.userId,
+        actionType: receipt.actionType,
+        executionKey: receipt.executionKey,
+        payload: receipt.payload as Record<string, any>,
+        result: receipt.result as Record<string, any>,
+        hmacSignature: "a".repeat(64),
+      });
+      expect(check.valid).toBe(false);
+      expect(check.tampered).toBe(true);
+    });
+
+    it("should verify receipt chain integrity across multiple receipts", async () => {
+      const { verifyReceiptChainIntegrity } = await import("../../services/resilience-observability");
+      const result = await verifyReceiptChainIntegrity(TEST_USER, 10);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.valid + result.tampered).toBe(result.total);
+      expect(result.results.length).toBe(result.total);
+    });
+  });
+
+  describe("Feature Sunset System", () => {
+    const TEST_FEATURE = `test-feature-${Date.now()}`;
+
+    it("should initiate feature sunset with announced phase", async () => {
+      const { initiateFeatureSunset, getFeatureSunsetStatus } = await import(
+        "../../services/resilience-observability"
+      );
+      const id = await initiateFeatureSunset(TEST_FEATURE, "Replaced by v2", "/docs/migrate-v2", 30);
+      expect(id).toBeGreaterThan(0);
+
+      const records = await getFeatureSunsetStatus(TEST_FEATURE);
+      expect(records.length).toBe(1);
+      expect(records[0].sunsetPhase).toBe("announced");
+      expect(records[0].migrationPath).toBe("/docs/migrate-v2");
+    });
+
+    it("should advance through sunset phases", async () => {
+      const { advanceFeatureSunset, getFeatureSunsetStatus } = await import(
+        "../../services/resilience-observability"
+      );
+
+      let result = await advanceFeatureSunset(TEST_FEATURE);
+      expect(result.success).toBe(true);
+      expect(result.newPhase).toBe("deprecated");
+
+      result = await advanceFeatureSunset(TEST_FEATURE);
+      expect(result.success).toBe(true);
+      expect(result.newPhase).toBe("disabled");
+
+      result = await advanceFeatureSunset(TEST_FEATURE);
+      expect(result.success).toBe(true);
+      expect(result.newPhase).toBe("removed");
+
+      result = await advanceFeatureSunset(TEST_FEATURE);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("final phase");
+    });
+
+    it("should track feature usage", async () => {
+      const { trackFeatureUsage, getMetrics } = await import("../../services/resilience-observability");
+      trackFeatureUsage("legacy_dashboard");
+      trackFeatureUsage("legacy_dashboard");
+
+      const metrics = getMetrics(`feature_usage.legacy_dashboard`);
+      expect(metrics.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  afterAll(async () => {
+    await db.delete(signedActionReceipts).where(eq(signedActionReceipts.userId, TEST_USER)).catch(() => {});
+    await db.delete(playbookActivationEvents).where(
+      eq(playbookActivationEvents.activatedBy, TEST_USER)
+    ).catch(() => {});
+  });
+});
