@@ -85,7 +85,7 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
     await recordFinancialAudit(
       userId, "business_learning_computed", "business_learning_report", null,
       {},
-      { signalCount: signals.length, patternCount: patterns.length, maturityStage: maturityAssessment.stage, totalRevenue: Math.round(confidence.totalRevenue), confidenceLabel: confidence.confidenceLabel },
+      { signalCount: signals.length, patternCount: (patterns.revenuePatterns?.length || 0) + (patterns.contentPatterns?.length || 0) + (patterns.growthPatterns?.length || 0), maturityStage: maturityAssessment.stage, totalRevenue: Math.round(confidence.totalRevenue), confidenceLabel: confidence.confidenceLabel },
       "business-learning",
     );
   } catch (err: unknown) {
