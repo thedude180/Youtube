@@ -206,8 +206,14 @@ const DEFAULT_RULES: Array<{
   actionClass: string; bandClass: string; defaultState: string;
   approver: string; confidenceThreshold: number | null; description: string;
 }> = [
+  { actionClass: "smart-edit", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "AI-powered smart video editing" },
   { actionClass: "content_publish", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Publish content to platforms" },
+  { actionClass: "content_schedule", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Schedule content for later publishing" },
+  { actionClass: "content_draft", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Create or update content drafts" },
   { actionClass: "title_change", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Change video/stream titles" },
+  { actionClass: "description_change", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Change video/stream descriptions" },
+  { actionClass: "thumbnail_change", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Change video thumbnails" },
+  { actionClass: "tags_change", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Update content tags and keywords" },
   { actionClass: "bulk_action", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.8, description: "Bulk operations across content" },
   { actionClass: "account_setting", bandClass: "RED", defaultState: "human-required", approver: "admin", confidenceThreshold: null, description: "Modify account-level settings" },
   { actionClass: "financial_action", bandClass: "RED", defaultState: "human-required", approver: "admin", confidenceThreshold: null, description: "Financial or monetization changes" },
@@ -216,6 +222,20 @@ const DEFAULT_RULES: Array<{
   { actionClass: "seo_optimization", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "SEO metadata optimization" },
   { actionClass: "community_moderation", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.65, description: "Community moderation actions" },
   { actionClass: "delete_content", bandClass: "RED", defaultState: "human-required", approver: "admin", confidenceThreshold: null, description: "Delete or archive content" },
+  { actionClass: "stream_config", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Configure stream settings" },
+  { actionClass: "stream_start", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Start a live stream" },
+  { actionClass: "stream_end", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "End a live stream" },
+  { actionClass: "distribution_push", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Push content to distribution channels" },
+  { actionClass: "distribution_config", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Configure distribution settings" },
+  { actionClass: "analytics_export", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Export analytics data" },
+  { actionClass: "channel_create", bandClass: "RED", defaultState: "human-required", approver: "admin", confidenceThreshold: null, description: "Create a new channel" },
+  { actionClass: "channel_delete", bandClass: "RED", defaultState: "human-required", approver: "admin", confidenceThreshold: null, description: "Delete a channel" },
+  { actionClass: "channel_config", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.75, description: "Configure channel settings" },
+  { actionClass: "api_key_management", bandClass: "RED", defaultState: "human-required", approver: "admin", confidenceThreshold: null, description: "Manage API keys and integrations" },
+  { actionClass: "webhook_config", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Configure webhooks" },
+  { actionClass: "notification_send", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Send notifications to subscribers" },
+  { actionClass: "comment_reply", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Reply to viewer comments" },
+  { actionClass: "playlist_manage", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Manage playlists and collections" },
 ];
 
 export async function seedApprovalMatrix(): Promise<number> {
@@ -880,4 +900,12 @@ export function tenantIsolationMiddleware(
     }
     next();
   };
+}
+
+export function extractTargetUserId(req: Request): string | null {
+  return (req.query.targetUserId as string)
+    || (req.body?.targetUserId as string)
+    || (req.params?.userId as string)
+    || (req.body?.userId as string)
+    || null;
 }

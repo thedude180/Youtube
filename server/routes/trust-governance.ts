@@ -10,13 +10,14 @@ import {
   simulateTrustRisk,
   generateOverrideReport, recordOverride,
   getGovernanceAuditLogs, logGovernanceAction,
-  startBudgetResetScheduler, startOverrideReportScheduler, tenantIsolationMiddleware,
+  startBudgetResetScheduler, startOverrideReportScheduler,
+  tenantIsolationMiddleware, extractTargetUserId,
 } from "../services/trust-governance";
 
 const router = Router();
 
 router.use(tenantIsolationMiddleware(
-  (req) => req.query.targetUserId as string || null,
+  extractTargetUserId,
   "trust-governance",
 ));
 
