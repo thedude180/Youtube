@@ -28,13 +28,18 @@ router.get("/exceptions", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` });
   }
 
+  const parsedLimit = limit ? parseInt(limit as string, 10) : 50;
+  const parsedOffset = offset ? parseInt(offset as string, 10) : 0;
+  const safeLimit = isNaN(parsedLimit) || parsedLimit < 1 ? 50 : Math.min(parsedLimit, 200);
+  const safeOffset = isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
+
   const items = await getExceptions({
     status: status as string | undefined,
     severity: severity as string | undefined,
     category: category as string | undefined,
     source: source as string | undefined,
-    limit: limit ? parseInt(limit as string, 10) : 50,
-    offset: offset ? parseInt(offset as string, 10) : 0,
+    limit: safeLimit,
+    offset: safeOffset,
   });
 
   res.json({ items, count: items.length });

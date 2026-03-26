@@ -143,24 +143,46 @@ export async function getExceptionStats(): Promise<{
   byCategory: Record<string, number>;
   bySource: Record<string, number>;
 }> {
-  const all = await db.select().from(exceptionDeskItems);
+  const statusCounts = await db
+    .select({ status: exceptionDeskItems.status, cnt: count() })
+    .from(exceptionDeskItems)
+    .groupBy(exceptionDeskItems.status);
 
-  const bySeverity: Record<string, number> = {};
-  const byCategory: Record<string, number> = {};
-  const bySource: Record<string, number> = {};
-  let open = 0, acknowledged = 0, resolved = 0, autoResolved = 0;
+  const severityCounts = await db
+    .select({ severity: exceptionDeskItems.severity, cnt: count() })
+    .from(exceptionDeskItems)
+    .groupBy(exceptionDeskItems.severity);
 
-  for (const item of all) {
-    bySeverity[item.severity] = (bySeverity[item.severity] || 0) + 1;
-    byCategory[item.category] = (byCategory[item.category] || 0) + 1;
-    bySource[item.source] = (bySource[item.source] || 0) + 1;
-    if (item.status === "open") open++;
-    else if (item.status === "acknowledged") acknowledged++;
-    else if (item.status === "resolved") resolved++;
-    else if (item.status === "auto-resolved") autoResolved++;
+  const categoryCounts = await db
+    .select({ category: exceptionDeskItems.category, cnt: count() })
+    .from(exceptionDeskItems)
+    .groupBy(exceptionDeskItems.category);
+
+  const sourceCounts = await db
+    .select({ source: exceptionDeskItems.source, cnt: count() })
+    .from(exceptionDeskItems)
+    .groupBy(exceptionDeskItems.source);
+
+  let open = 0, acknowledged = 0, resolved = 0, autoResolved = 0, total = 0;
+  for (const row of statusCounts) {
+    const c = Number(row.cnt);
+    total += c;
+    if (row.status === "open") open = c;
+    else if (row.status === "acknowledged") acknowledged = c;
+    else if (row.status === "resolved") resolved = c;
+    else if (row.status === "auto-resolved") autoResolved = c;
   }
 
-  return { total: all.length, open, acknowledged, resolved, autoResolved, bySeverity, byCategory, bySource };
+  const bySeverity: Record<string, number> = {};
+  for (const row of severityCounts) bySeverity[row.severity] = Number(row.cnt);
+
+  const byCategory: Record<string, number> = {};
+  for (const row of categoryCounts) byCategory[row.category] = Number(row.cnt);
+
+  const bySource: Record<string, number> = {};
+  for (const row of sourceCounts) bySource[row.source] = Number(row.cnt);
+
+  return { total, open, acknowledged, resolved, autoResolved, bySeverity, byCategory, bySource };
 }
 
 export async function bulkResolve(ids: number[], resolution: string): Promise<number> {
