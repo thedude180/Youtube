@@ -366,14 +366,43 @@ export async function registerRoutes(
   if (process.env.NODE_ENV !== "test") {
     import("./lib/cron-lock").then(({ registerCronHeartbeat, runHeartbeatCheck }) => {
       registerCronHeartbeat("clearStuck", 5 * 60_000);
+      registerCronHeartbeat("CronProcessor", 10 * 60_000);
+      registerCronHeartbeat("ChainProcessor", 60 * 60_000);
+      registerCronHeartbeat("AutoApprovals", 60 * 60_000);
+      registerCronHeartbeat("AutoPayments", 60 * 60_000);
+      registerCronHeartbeat("AutoLocalization", 60 * 60_000);
+      registerCronHeartbeat("TokenRefresh", 10 * 60_000);
+      registerCronHeartbeat("ScheduledPosts", 10 * 60_000);
+      registerCronHeartbeat("AutoFixEngine", 10 * 60_000);
+      registerCronHeartbeat("PublishVerification", 30 * 60_000);
+      registerCronHeartbeat("ContentVerification", 60 * 60_000);
+      registerCronHeartbeat("FeatureSunsetProcessing", 60 * 60_000);
+      registerCronHeartbeat("ResilienceHealthMonitor", 10 * 60_000);
+      registerCronHeartbeat("GrowthMonitoring", 120 * 60_000);
+      registerCronHeartbeat("CommentResponder", 6 * 60 * 60_000);
+      registerCronHeartbeat("ContentRecycler", 12 * 60 * 60_000);
+      registerCronHeartbeat("RevenueSync", 12 * 60 * 60_000);
+      registerCronHeartbeat("VideoSync", 120 * 60_000);
+      registerCronHeartbeat("BacklogProcessing", 6 * 60 * 60_000);
+      registerCronHeartbeat("VideoOptimizer", 60 * 60_000);
+      registerCronHeartbeat("AutoScheduler", 120 * 60_000);
+      registerCronHeartbeat("CrossPromotion", 24 * 60 * 60_000);
+      registerCronHeartbeat("AlgorithmMonitor", 6 * 60 * 60_000);
+      registerCronHeartbeat("TrendPredictor", 12 * 60 * 60_000);
+      registerCronHeartbeat("ContentCompounding", 12 * 60 * 60_000);
+      registerCronHeartbeat("ShadowBanDetector", 24 * 60 * 60_000);
+      registerCronHeartbeat("YouTubePushBacklog", 30 * 60_000);
+      registerCronHeartbeat("MarketerEngine", 12 * 60 * 60_000);
+      registerCronHeartbeat("PlaylistManager", 6 * 60 * 60_000);
+
       setInterval(() => {
-        runHeartbeatCheck().catch((err: any) => console.error("[heartbeat] Check failed:", err?.message));
+        runHeartbeatCheck().catch((err) => console.error("[heartbeat] Check failed:", (err as Error)?.message));
       }, 5 * 60_000);
     });
 
     import("./services/metric-rollups").then(({ rollupMetrics }) => {
       setInterval(() => {
-        rollupMetrics().catch((err: any) => console.error("[metric-rollup] Rollup failed:", err?.message));
+        rollupMetrics().catch((err) => console.error("[metric-rollup] Rollup failed:", (err as Error)?.message));
       }, 60 * 60_000);
     });
   }

@@ -78,8 +78,8 @@ async function triggerRecoveryPlaybook(category: string, exceptionId: number): P
         await autoResolveException(exceptionId, `Auto-resolved by recovery playbook ${result.playbookId}`);
       }
     }
-  } catch (err: any) {
-    logger.warn(`Recovery playbook execution error: ${err?.message}`);
+  } catch (err: unknown) {
+    logger.warn(`Recovery playbook execution error: ${(err as Error)?.message}`);
   }
 }
 

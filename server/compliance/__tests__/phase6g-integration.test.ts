@@ -272,13 +272,13 @@ describe("Phase 6G: Automated Recovery & Background Task Resilience", () => {
     });
 
     it("should track provider success", async () => {
-      const mod = await import("../../services/webhook-pipeline");
-      (mod as any).resetProviderHealth();
+      const { resetProviderHealth, webhookPipeline, getWebhookProviderHealth } = await import("../../services/webhook-pipeline");
+      resetProviderHealth();
 
-      const pipeline = mod.webhookPipeline;
+      const pipeline = webhookPipeline;
       pipeline.register("test_provider_success", async () => {});
 
-      const health = mod.getWebhookProviderHealth();
+      const health = getWebhookProviderHealth();
       expect(typeof health).toBe("object");
     });
 

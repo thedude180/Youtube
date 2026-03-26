@@ -6,7 +6,7 @@ import { eq, and, lt, sql, count } from "drizzle-orm";
 
 const logger = createLogger("webhook-pipeline");
 
-type WebhookHandler = (payload: any, eventType: string) => Promise<void>;
+type WebhookHandler = (payload: Record<string, unknown>, eventType: string) => Promise<void>;
 
 interface ProviderHealthRecord {
   successes: number;
@@ -81,6 +81,9 @@ function recordProviderSuccess(source: string): void {
       health.circuitOpen = false;
       health.circuitOpenedAt = null;
       logger.info(`[WebhookPipeline] Circuit closed for provider: ${source} (success rate recovered to ${Math.round(successRate * 100)}%)`);
+      replayDeferredEvents(source).catch((err) => {
+        logger.warn(`[WebhookPipeline] Failed to replay deferred events for ${source}: ${(err as Error)?.message}`);
+      });
     }
   }
 }
@@ -115,7 +118,7 @@ function isProviderCircuitOpen(source: string): boolean {
   return true;
 }
 
-export function getWebhookProviderHealth(): Record<string, {
+export interface WebhookProviderHealthSummary {
   successes: number;
   failures: number;
   successRate: number;
@@ -124,8 +127,10 @@ export function getWebhookProviderHealth(): Record<string, {
   lastSuccess: number | null;
   lastFailure: number | null;
   recentResultsCount: number;
-}> {
-  const result: Record<string, any> = {};
+}
+
+export function getWebhookProviderHealth(): Record<string, WebhookProviderHealthSummary> {
+  const result: Record<string, WebhookProviderHealthSummary> = {};
   for (const [source, health] of providerHealth) {
     pruneRecentResults(health);
     result[source] = {
@@ -150,6 +155,36 @@ export function resetProviderHealth(source?: string): void {
   }
 }
 
+async function replayDeferredEvents(source: string): Promise<void> {
+  const deferredEvents = await db
+    .select()
+    .from(webhookEvents)
+    .where(
+      and(
+        sql`${webhookEvents.source} LIKE ${source + ':%'}`,
+        eq(webhookEvents.processed, false),
+      )
+    )
+    .limit(50);
+
+  if (deferredEvents.length === 0) return;
+
+  logger.info(`[WebhookPipeline] Replaying ${deferredEvents.length} deferred events for provider: ${source}`);
+
+  for (const event of deferredEvents) {
+    try {
+      await jobQueue.enqueue({
+        type: `webhook_${source}`,
+        priority: 5,
+        payload: { webhookEventId: event.id },
+        dedupeKey: `job:replay:${event.source}`,
+      });
+    } catch (err) {
+      logger.warn(`[WebhookPipeline] Failed to enqueue deferred event ${event.id}: ${(err as Error)?.message}`);
+    }
+  }
+}
+
 class WebhookPipeline {
   private handlers = new Map<string, WebhookHandler>();
 
@@ -166,13 +201,10 @@ class WebhookPipeline {
     source: string,
     eventId: string,
     eventType: string,
-    payload: any,
+    payload: Record<string, unknown>,
     userId = "system"
   ): Promise<void> {
-    if (isProviderCircuitOpen(source)) {
-      logger.warn(`[WebhookPipeline] Circuit open for provider ${source} — rejecting event ${eventId}`);
-      return;
-    }
+    const circuitOpen = isProviderCircuitOpen(source);
 
     const dedupeKey = `${source}:${eventId}`;
 
@@ -190,12 +222,18 @@ class WebhookPipeline {
         .onConflictDoNothing()
         .returning({ id: webhookEvents.id });
       inserted = rows[0];
-    } catch (err: any) {
-      if (err.code !== "23505") throw err;
+    } catch (err: unknown) {
+      const dbErr = err as { code?: string };
+      if (dbErr.code !== "23505") throw err;
     }
 
     if (!inserted) {
       logger.info(`[WebhookPipeline] Duplicate event skipped: ${dedupeKey}`);
+      return;
+    }
+
+    if (circuitOpen) {
+      logger.warn(`[WebhookPipeline] Circuit open for provider ${source} — event ${eventId} persisted as deferred (id: ${inserted.id})`);
       return;
     }
 
@@ -234,7 +272,7 @@ class WebhookPipeline {
     try {
       await handler(event.payload, event.eventType);
       recordProviderSuccess(source);
-    } catch (err: any) {
+    } catch (err: unknown) {
       recordProviderFailure(source);
       throw err;
     }
