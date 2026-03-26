@@ -7423,3 +7423,61 @@ export const communityTrustSignals = pgTable("community_trust_signals", {
   index("cts_created_idx").on(t.createdAt),
 ]);
 export type CommunityTrustSignal = typeof communityTrustSignals.$inferSelect;
+
+export const narrativePromises = pgTable("narrative_promises", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  promiseType: text("promise_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  deadline: timestamp("deadline"),
+  status: text("status").notNull().default("active"),
+  deliveryProgress: real("delivery_progress").notNull().default(0),
+  riskLevel: text("risk_level").notNull().default("low"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("np_user_idx").on(t.userId),
+  index("np_status_idx").on(t.status),
+  index("np_deadline_idx").on(t.deadline),
+]);
+export type NarrativePromise = typeof narrativePromises.$inferSelect;
+
+export const licensingExchangeAssets = pgTable("licensing_exchange_assets", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  assetType: text("asset_type").notNull(),
+  assetId: text("asset_id").notNull(),
+  title: text("title").notNull(),
+  licensingStatus: text("licensing_status").notNull().default("unlicensed"),
+  rightsVerified: boolean("rights_verified").notNull().default(false),
+  readinessScore: real("readiness_score").notNull().default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("lea_user_idx").on(t.userId),
+  index("lea_status_idx").on(t.licensingStatus),
+  index("lea_asset_idx").on(t.assetId),
+]);
+export type LicensingExchangeAsset = typeof licensingExchangeAssets.$inferSelect;
+
+export const signalContradictions = pgTable("signal_contradictions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  domain: text("domain").notNull(),
+  signalAId: integer("signal_a_id").notNull(),
+  signalBId: integer("signal_b_id").notNull(),
+  description: text("description").notNull(),
+  severity: text("severity").notNull().default("medium"),
+  resolution: text("resolution"),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+}, (t) => [
+  index("sc_user_idx").on(t.userId),
+  index("sc_domain_idx").on(t.domain),
+  index("sc_status_idx").on(t.status),
+]);
+export type SignalContradiction = typeof signalContradictions.$inferSelect;

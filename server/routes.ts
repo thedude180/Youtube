@@ -50,6 +50,7 @@ import exceptionDeskRoutes from "./routes/exception-desk";
 import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
 import { registerResilienceObservabilityRoutes, registerCorrelationMiddleware, getRequestCorrelationId } from "./routes/resilience-observability";
+import { registerLearningGovernanceRoutes } from "./routes/learning-governance";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -354,6 +355,7 @@ export async function registerRoutes(
   app.use("/api/exception-desk", exceptionDeskRoutes);
   registerTrustGovernanceRoutes(app);
   registerResilienceObservabilityRoutes(app);
+  registerLearningGovernanceRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));
