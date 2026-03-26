@@ -67,9 +67,21 @@ export async function getOrCreateTrustBudget(userId: string, agentName: string) 
 
   if (existing) return existing;
 
+  const now = new Date();
   const [created] = await db.insert(trustBudgetRecords).values({
     userId, agentName, budgetTotal: DEFAULT_BUDGET_TOTAL, budgetRemaining: DEFAULT_BUDGET_TOTAL,
   }).returning();
+
+  await db.insert(trustBudgetPeriods).values({
+    userId, agentName,
+    periodStart: now,
+    periodEnd: new Date(now.getTime() + BUDGET_RESET_INTERVAL_HOURS * 3600_000),
+    startingBudget: DEFAULT_BUDGET_TOTAL,
+    endingBudget: DEFAULT_BUDGET_TOTAL,
+    deductionsCount: 0,
+    totalDeducted: 0,
+    metadata: { initialPeriod: true },
+  });
 
   return created;
 }
@@ -99,6 +111,20 @@ export async function deductTrustBudget(
     lastDeductionReason: reason,
     updatedAt: new Date(),
   }).where(eq(trustBudgetRecords.id, budget.id));
+
+  const now = new Date();
+  await db.update(trustBudgetPeriods).set({
+    endingBudget: newRemaining,
+    deductionsCount: sql`COALESCE(${trustBudgetPeriods.deductionsCount}, 0) + 1`,
+    totalDeducted: sql`COALESCE(${trustBudgetPeriods.totalDeducted}, 0) + ${amount}`,
+  }).where(
+    and(
+      eq(trustBudgetPeriods.userId, userId),
+      eq(trustBudgetPeriods.agentName, agentName),
+      lte(trustBudgetPeriods.periodStart, now),
+      gte(trustBudgetPeriods.periodEnd, now),
+    )
+  );
 
   if (violation) {
     await logGovernanceAction(userId, "trust_budget_violation", "trust_budget", {
@@ -791,11 +817,14 @@ export async function generatePeriodicOverrideReports(): Promise<number> {
     try {
       const report = await generateOverrideReport(userId);
       if (report.totalOverrides > 0) {
+        const severity = (report.riskAssessment === "critical" || report.riskAssessment === "high") ? "warning" : "info";
         await logGovernanceAction(userId, "periodic_override_report", "override", {
           totalOverrides: report.totalOverrides,
-          riskBreakdown: report.riskBreakdown,
+          riskAssessment: report.riskAssessment,
+          byType: report.byType,
+          patterns: report.patterns,
           reportPeriod: "24h",
-        }, report.riskBreakdown.high > 0 ? "warning" : "info", "generated");
+        }, severity, "generated");
         generated++;
       }
     } catch {
