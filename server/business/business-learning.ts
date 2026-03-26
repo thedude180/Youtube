@@ -67,7 +67,7 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
     console.warn("[business-learning] governance confidence lookup failed:", err?.message);
   }
 
-  return {
+  const report = {
     signals,
     patterns,
     maturityAssessment,
@@ -79,6 +79,20 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
     governedConfidence: governedRevenue,
     feedbackLoops,
   };
+
+  try {
+    const { recordFinancialAudit } = await import("../services/financial-audit");
+    await recordFinancialAudit(
+      userId, "business_learning_computed", "business_learning_report", null,
+      {},
+      { signalCount: signals.length, patternCount: patterns.length, maturityStage: maturityAssessment.stage, totalRevenue: Math.round(confidence.totalRevenue), confidenceLabel: confidence.confidenceLabel },
+      "business-learning",
+    );
+  } catch (err: unknown) {
+    console.warn("[business-learning] audit trail write failed:", (err as Error)?.message);
+  }
+
+  return report;
 }
 
 function extractSignals(

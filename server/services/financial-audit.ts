@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { financialAuditTrail } from "@shared/schema";
+import { financialAuditTrail, type FinancialAuditEntry } from "@shared/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 import { createHmac } from "crypto";
 
@@ -9,8 +9,16 @@ function getAuditSecret(): string {
   return secret;
 }
 
+function stableStringify(obj: unknown): string {
+  if (obj === null || obj === undefined) return JSON.stringify(obj);
+  if (typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(stableStringify).join(",") + "]";
+  const sorted = Object.keys(obj as Record<string, unknown>).sort();
+  return "{" + sorted.map(k => JSON.stringify(k) + ":" + stableStringify((obj as Record<string, unknown>)[k])).join(",") + "}";
+}
+
 function computeChecksum(userId: string, action: string, entityType: string, entityId: string | null, before: Record<string, any>, after: Record<string, any>): string {
-  const payload = JSON.stringify({ userId, action, entityType, entityId, before, after });
+  const payload = stableStringify({ action, after, before, entityId, entityType, userId });
   return createHmac("sha256", getAuditSecret()).update(payload).digest("hex");
 }
 
@@ -45,7 +53,7 @@ export async function recordFinancialAudit(
   return entry.id;
 }
 
-export async function verifyAuditIntegrity(entryId: number): Promise<{ valid: boolean; entry: Record<string, any> | null }> {
+export async function verifyAuditIntegrity(entryId: number): Promise<{ valid: boolean; entry: FinancialAuditEntry | null }> {
   const [entry] = await db.select().from(financialAuditTrail)
     .where(eq(financialAuditTrail.id, entryId));
 
@@ -69,13 +77,13 @@ export async function verifyAuditIntegrity(entryId: number): Promise<{ valid: bo
     return result === 0;
   };
 
-  return { valid: timingSafeEqual(entry.checksum, expected), entry: entry as any };
+  return { valid: timingSafeEqual(entry.checksum, expected), entry };
 }
 
 export async function getAuditTrail(
   userId: string,
   options: { entityType?: string; action?: string; limit?: number; offset?: number; startDate?: Date; endDate?: Date } = {},
-): Promise<{ entries: any[]; total: number }> {
+): Promise<{ entries: FinancialAuditEntry[]; total: number }> {
   const conditions = [eq(financialAuditTrail.userId, userId)];
   if (options.entityType) conditions.push(eq(financialAuditTrail.entityType, options.entityType));
   if (options.action) conditions.push(eq(financialAuditTrail.action, options.action));

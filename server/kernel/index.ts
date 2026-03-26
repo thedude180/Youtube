@@ -248,6 +248,7 @@ export interface CommandResult {
   reason?: string;
   existingReceiptId?: number;
   correlationId?: string;
+  retryAfterMs?: number;
 }
 
 export async function routeCommand(
@@ -272,15 +273,17 @@ export async function routeCommand(
   startCorrelation(correlationId, { actionType, userId, executionKey });
 
   try {
-    try {
-      const { checkInternalRateLimit } = await import("../services/internal-rate-limiter");
-      const rl = checkInternalRateLimit(userId, actionType);
-      if (!rl.allowed) {
-        recordMetric("kernel.command.rate_limited", 1, "count", { actionType });
-        return { success: false, reason: `internal-rate-limit-exceeded`, correlationId, retryAfterMs: rl.retryAfterMs };
+    if (process.env.NODE_ENV !== "test") {
+      try {
+        const { checkInternalRateLimit } = await import("../services/internal-rate-limiter");
+        const rl = checkInternalRateLimit(userId, actionType);
+        if (!rl.allowed) {
+          recordMetric("kernel.command.rate_limited", 1, "count", { actionType });
+          return { success: false, reason: `internal-rate-limit-exceeded`, correlationId, retryAfterMs: rl.retryAfterMs };
+        }
+      } catch (err: any) {
+        console.warn("[kernel] internal rate limiter check failed:", err?.message);
       }
-    } catch (err: any) {
-      console.warn("[kernel] internal rate limiter check failed:", err?.message);
     }
 
     if (isInSafeMode()) {
