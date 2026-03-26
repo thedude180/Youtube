@@ -430,6 +430,44 @@ export async function publishToplatform(
       };
     }
 
+    try {
+      const { runPolicyPreFlight } = await import("./services/policy-preflight");
+      const preFlightResult = await runPolicyPreFlight(userId, platform, {
+        title: metadata?.title || content.slice(0, 100),
+        description: metadata?.description || content,
+        tags: metadata?.tags,
+        hasAiContent: metadata?.hasAiContent,
+        hasSponsoredContent: metadata?.hasSponsoredContent,
+        hasAffiliateLinks: metadata?.hasAffiliateLinks,
+        originTypes: metadata?.originTypes,
+      });
+      if (!preFlightResult.passed) {
+        await recordDistributionLearning(userId, platform, "publish_preflight_blocked", {
+          allowed: false,
+          trustCost,
+          policyIssues: preFlightResult.blockers,
+          connectionStatus: connectionHealth.status,
+        }).catch(() => {});
+        return {
+          success: false,
+          platform,
+          error: `Publishing blocked by pre-flight: ${preFlightResult.blockers.join("; ")}`,
+        };
+      }
+    } catch (preFlightErr: unknown) {
+      const msg = preFlightErr instanceof Error ? preFlightErr.message : "unknown error";
+      return {
+        success: false,
+        platform,
+        error: `Publishing blocked: pre-flight gate failed (fail-closed): ${msg}`,
+      };
+    }
+
+    try {
+      const { detectComplianceDrift } = await import("./services/compliance-drift-detector");
+      await detectComplianceDrift();
+    } catch {}
+
     const startTime = Date.now();
     const result = await executePublish(userId, platform, content, metadata);
     const latencyMs = Date.now() - startTime;

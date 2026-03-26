@@ -112,6 +112,10 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
       title: req.title,
       description: req.description,
       tags: req.tags,
+      hasAiContent: req.metadata?.hasAiContent,
+      hasSponsoredContent: req.metadata?.hasSponsoredContent || req.hasDisclosure,
+      hasAffiliateLinks: req.metadata?.hasAffiliateLinks,
+      originTypes: req.metadata?.originTypes,
     });
     if (!preFlightResult.passed) {
       policyCheck.passed = false;

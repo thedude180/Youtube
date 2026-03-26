@@ -2,6 +2,7 @@ import { db } from "../db";
 import { complianceRules, channels, complianceChecks } from "@shared/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { getPolicyPack, getSupportedPlatforms as getPackPlatforms, type PolicyPack } from "./policy-packs";
 
 const logger = createLogger("platform-policy-tracker");
 
@@ -10,8 +11,9 @@ function getOpenAI() {
   return getOpenAIClient();
 }
 
-const PLATFORMS = ["youtube", "tiktok", "twitch", "kick", "discord", "rumble"] as const;
-type Platform = (typeof PLATFORMS)[number];
+const POLICY_PACK_PLATFORMS = getPackPlatforms();
+const PLATFORMS = [...new Set([...POLICY_PACK_PLATFORMS, "discord"])] as const;
+type Platform = string;
 
 interface PolicyRule {
   platform: string;
@@ -23,7 +25,7 @@ interface PolicyRule {
   sourceUrl: string;
 }
 
-const PLATFORM_POLICY_SOURCES: Record<Platform, { name: string; policyAreas: string[] }> = {
+const PLATFORM_POLICY_SOURCES: Record<string, { name: string; policyAreas: string[] }> = {
   youtube: {
     name: "YouTube",
     policyAreas: [
@@ -79,52 +81,51 @@ const PLATFORM_POLICY_SOURCES: Record<Platform, { name: string; policyAreas: str
       "Live streaming rules",
     ],
   },
+  x: {
+    name: "X (Twitter)",
+    policyAreas: [
+      "Terms of Service", "Platform manipulation rules",
+      "Advertising & disclosure policies", "AI-generated content labeling",
+      "Content moderation", "Developer agreement",
+    ],
+  },
+  instagram: {
+    name: "Instagram",
+    policyAreas: [
+      "Community Guidelines", "Branded content policies",
+      "AI content labeling", "Intellectual property",
+      "Engagement manipulation rules", "Reels & Stories policies",
+    ],
+  },
 };
 
-const PLATFORM_LIMITS: Record<Platform, Record<string, any>> = {
-  youtube: {
-    titleMaxLength: 100,
-    descriptionMaxLength: 5000,
-    tagsMaxTotal: 500,
-    shortsMaxDuration: 60,
-    thumbnailMaxSize: "2MB",
-    maxTagsCount: 30,
-    requiredDisclosures: ["paid promotion", "AI-generated"],
-  },
-  tiktok: {
-    captionMaxLength: 2200,
-    videoMaxDuration: 600,
-    videoMinDuration: 1,
-    hashtagLimit: 30,
-    requiredDisclosures: ["AI-generated", "branded content"],
-  },
-  twitch: {
-    titleMaxLength: 140,
-    tagLimit: 10,
-    requiredDisclosures: ["sponsored", "ad"],
-  },
-  kick: {
-    titleMaxLength: 200,
-    tagLimit: 10,
-  },
-  x: {
-    postMaxLength: 280,
-    longPostMaxLength: 25000,
-    mediaLimit: 4,
-    videoMaxDuration: 140,
-    requiredDisclosures: ["ad", "sponsored"],
-  },
-  discord: {
+function buildPlatformLimits(): Record<string, Record<string, unknown>> {
+  const limits: Record<string, Record<string, unknown>> = {};
+  for (const platform of POLICY_PACK_PLATFORMS) {
+    const pack = getPolicyPack(platform);
+    if (pack) {
+      limits[platform] = {
+        titleMaxLength: pack.limits.titleMaxLength,
+        descriptionMaxLength: pack.limits.descriptionMaxLength,
+        maxTagsCount: pack.limits.maxTags,
+        maxTagLength: pack.limits.maxTagLength,
+        maxVideoLength: pack.limits.maxVideoLength,
+        minVideoLength: pack.limits.minVideoLength,
+        thumbnailMaxSize: pack.limits.thumbnailMaxSize,
+        requiredDisclosures: pack.disclosures.filter(d => d.required).map(d => d.triggerType),
+        aiDisclosureRequired: pack.aiDisclosure.required,
+      };
+    }
+  }
+  limits.discord = {
     messageMaxLength: 2000,
     embedMaxLength: 6000,
     webhookRateLimit: "30/minute",
-  },
-  rumble: {
-    titleMaxLength: 100,
-    descriptionMaxLength: 5000,
-    requiredDisclosures: ["sponsored"],
-  },
-};
+  };
+  return limits;
+}
+
+const PLATFORM_LIMITS = buildPlatformLimits();
 
 export async function fetchLatestPlatformPolicies(): Promise<{
   rulesUpdated: number;
