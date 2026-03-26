@@ -7339,3 +7339,32 @@ export const policyPackBaselines = pgTable("policy_pack_baselines", {
 });
 
 export type PolicyPackBaseline = typeof policyPackBaselines.$inferSelect;
+
+// === PHASE 6B: EXCEPTION DESK ===
+export const exceptionDeskItems = pgTable("exception_desk_items", {
+  id: serial("id").primaryKey(),
+  severity: text("severity").notNull().default("medium"),
+  category: text("category").notNull(),
+  source: text("source").notNull(),
+  sourceId: text("source_id"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  suggestedResolution: text("suggested_resolution"),
+  status: text("status").notNull().default("open"),
+  assignee: text("assignee"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  userId: text("user_id"),
+  resolvedAt: timestamp("resolved_at"),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("exception_desk_severity_idx").on(table.severity),
+  index("exception_desk_status_idx").on(table.status),
+  index("exception_desk_source_idx").on(table.source),
+  index("exception_desk_category_idx").on(table.category),
+]);
+
+export type ExceptionDeskItem = typeof exceptionDeskItems.$inferSelect;
+export const insertExceptionDeskItemSchema = createInsertSchema(exceptionDeskItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertExceptionDeskItem = z.infer<typeof insertExceptionDeskItemSchema>;

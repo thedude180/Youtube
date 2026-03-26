@@ -91,24 +91,30 @@ export class SelfHealingAgent {
       memLeak: signals.memLeaking
     });
 
-    // 1. Handle Stuck Jobs
+    const feedHealth = async (issue: string, severity: "critical" | "high" | "medium" | "low", details?: Record<string, unknown>) => {
+      try {
+        const { feedSystemHealthToExceptionDesk } = await import("./exception-desk");
+        await feedSystemHealthToExceptionDesk({ source: "self_healing_agent", issue, severity, details });
+      } catch {}
+    };
+
     if (signals.stuckJobCount > 0) {
       logger.warn(`[SelfHealingAgent] Found ${signals.stuckJobCount} stuck jobs, triggering cleanup`);
       await jobQueue.clearStuck(15);
+      await feedHealth(`${signals.stuckJobCount} stuck jobs detected and cleaned`, "medium", { stuckJobCount: signals.stuckJobCount });
     }
 
-    // 2. Handle Expired Tokens — trigger connection-guardian's refresh cycle
     if (signals.expiredTokenCount > 10) {
       logger.warn(`[SelfHealingAgent] ${signals.expiredTokenCount} tokens expiring soon — queuing refresh jobs`);
       await this.refreshExpiredTokens(signals.expiredTokenCount);
+      await feedHealth(`${signals.expiredTokenCount} tokens expiring soon`, "high", { expiredTokenCount: signals.expiredTokenCount });
     }
 
-    // 3. Handle Quota Exhaustion
     if (signals.quotaExhausted.length > 0) {
       const services = signals.quotaExhausted.map(([s]) => s).join(", ");
       logger.error(`[SelfHealingAgent] CRITICAL: Quota exhausted for services: ${services}`);
+      await feedHealth(`Quota exhausted for: ${services}`, "critical", { services: signals.quotaExhausted.map(([s]) => s) });
       
-      // Notify Admin (using a generic broadcast or finding first admin)
       const adminUsers = await db.execute(sql`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
       if (adminUsers.rows.length > 0) {
         await routeNotification(adminUsers.rows[0].id as string, {
@@ -120,13 +126,12 @@ export class SelfHealingAgent {
       }
     }
 
-    // 4. Handle Webhook Failures — drain unprocessed backlog through job queue
     if (signals.failedWebhookCount > 10) {
       logger.warn(`[SelfHealingAgent] High webhook failure rate: ${signals.failedWebhookCount} — draining backlog`);
       await this.drainWebhookBacklog();
+      await feedHealth(`High webhook failure rate: ${signals.failedWebhookCount}`, "high", { failedWebhookCount: signals.failedWebhookCount });
     }
 
-    // 5. Handle Error Spikes
     if (signals.errorSpike) {
       logger.error(`[SelfHealingAgent] Error spike detected! Rate: ${signals.recentErrorCount}/5min (Baseline: ${signals.baselineErrorCount.toFixed(1)})`);
       await anomalyResponder.respond({
@@ -136,9 +141,9 @@ export class SelfHealingAgent {
       });
     }
 
-    // 6. Memory Leak (Informational, memory-guardian handles restart)
     if (signals.memLeaking) {
       logger.warn(`[SelfHealingAgent] Memory leak detected by MemoryGuardian: ${signals.memStats.slope}`);
+      await feedHealth(`Memory leak detected: slope ${signals.memStats.slope}`, "high", { memStats: signals.memStats as unknown as Record<string, unknown> });
     }
   }
 

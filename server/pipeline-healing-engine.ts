@@ -122,6 +122,16 @@ export async function detectAndHealFailure(
     retryCount: failure.retryCount,
   });
 
+  try {
+    const { feedSystemHealthToExceptionDesk } = await import("./services/exception-desk");
+    await feedSystemHealthToExceptionDesk({
+      source: "pipeline_healing",
+      issue: `Pipeline step "${stepId}" exhausted all retries (${failure.retryCount}/${failure.maxRetries})`,
+      severity: "high",
+      details: { failureId: failure.id, pipelineId, stepId, errorType, retryCount: failure.retryCount },
+    });
+  } catch {}
+
   return { failureId: failure.id, status: "exhausted" };
 }
 

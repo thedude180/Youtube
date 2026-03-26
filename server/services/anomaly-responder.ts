@@ -4,8 +4,62 @@ import { db } from "../db";
 import { securityEvents } from "@shared/schema";
 import { routeNotification } from "./notification-system";
 import { createLogger } from "../lib/logger";
+import { registerMap } from "./resilience-core";
 
 const logger = createLogger("anomaly-responder");
+
+interface AnomalyThresholds {
+  errorSpikeMultiplier: number;
+  minErrorsForSpike: number;
+  recurringWindowMs: number;
+  recurringCountThreshold: number;
+  escalationAfterOccurrences: number;
+}
+
+const DEFAULT_THRESHOLDS: AnomalyThresholds = {
+  errorSpikeMultiplier: 3,
+  minErrorsForSpike: 5,
+  recurringWindowMs: 30 * 60_000,
+  recurringCountThreshold: 3,
+  escalationAfterOccurrences: 5,
+};
+
+let activeThresholds = { ...DEFAULT_THRESHOLDS };
+
+export function configureAnomalyThresholds(overrides: Partial<AnomalyThresholds>) {
+  activeThresholds = { ...activeThresholds, ...overrides };
+}
+
+export function getAnomalyThresholds(): AnomalyThresholds {
+  return { ...activeThresholds };
+}
+
+const anomalyOccurrences = new Map<string, { count: number; firstSeen: number; lastSeen: number }>();
+registerMap("anomalyOccurrences", anomalyOccurrences, 500);
+
+function trackRecurrence(anomalyType: string): { recurring: boolean; count: number } {
+  const now = Date.now();
+  const existing = anomalyOccurrences.get(anomalyType);
+
+  if (existing && (now - existing.firstSeen) < activeThresholds.recurringWindowMs) {
+    existing.count++;
+    existing.lastSeen = now;
+    anomalyOccurrences.set(anomalyType, existing);
+    return {
+      recurring: existing.count >= activeThresholds.recurringCountThreshold,
+      count: existing.count,
+    };
+  }
+
+  anomalyOccurrences.set(anomalyType, { count: 1, firstSeen: now, lastSeen: now });
+  return { recurring: false, count: 1 };
+}
+
+export function getRecurrenceStats(): Record<string, { count: number; firstSeen: number; lastSeen: number }> {
+  const stats: Record<string, { count: number; firstSeen: number; lastSeen: number }> = {};
+  for (const [k, v] of anomalyOccurrences) stats[k] = { ...v };
+  return stats;
+}
 
 export class AnomalyResponder {
   async callHealingAI(prompt: string): Promise<any> {
@@ -66,12 +120,15 @@ Response must be in JSON format:
 
   async respond(anomaly: { type: string; description: string; userId?: string; data?: any }): Promise<void> {
     try {
+      const recurrence = trackRecurrence(anomaly.type);
+
       const healthStatus = healthBrain.getStatus();
       
       const aiResponse = await this.callHealingAI(
         `Anomaly Detected:
 Type: ${anomaly.type}
 Description: ${anomaly.description}
+Recurring: ${recurrence.recurring} (${recurrence.count} occurrences)
 Context: ${JSON.stringify({ healthStatus, anomalyData: anomaly.data })}`
       );
 
@@ -80,18 +137,32 @@ Context: ${JSON.stringify({ healthStatus, anomalyData: anomaly.data })}`
         return;
       }
 
-      logger.info(`[AnomalyResponder] AI Diagnosis: ${aiResponse.action} (${aiResponse.risk}) - ${aiResponse.reasoning}`);
+      const effectiveRisk = recurrence.count >= activeThresholds.escalationAfterOccurrences ? "high" : aiResponse.risk;
 
-      if (aiResponse.risk === "low") {
+      logger.info(`[AnomalyResponder] AI Diagnosis: ${aiResponse.action} (${effectiveRisk}) - ${aiResponse.reasoning}`);
+
+      try {
+        const { feedAnomalyToExceptionDesk } = await import("./exception-desk");
+        await feedAnomalyToExceptionDesk({
+          type: anomaly.type,
+          description: anomaly.description,
+          userId: anomaly.userId,
+          risk: effectiveRisk,
+          recurring: recurrence.recurring,
+          occurrenceCount: recurrence.count,
+        });
+      } catch {}
+
+      if (effectiveRisk === "low") {
         await this.execute(aiResponse.action, aiResponse.target);
         await this.logResolution(anomaly, aiResponse);
-      } else if (aiResponse.risk === "medium") {
+      } else if (effectiveRisk === "medium") {
         logger.info(`[AnomalyResponder] Scheduling medium-risk action '${aiResponse.action}' in 5 minutes`);
         setTimeout(async () => {
           await this.execute(aiResponse.action, aiResponse.target);
           await this.logResolution(anomaly, aiResponse);
         }, 5 * 60_000);
-      } else if (aiResponse.risk === "high") {
+      } else if (effectiveRisk === "high") {
         logger.warn(`[AnomalyResponder] High-risk anomaly detected. Notifying admin instead of auto-healing.`);
         await this.execute("notify_admin", aiResponse.reasoning);
         await this.logResolution(anomaly, aiResponse);
@@ -101,7 +172,7 @@ Context: ${JSON.stringify({ healthStatus, anomalyData: anomaly.data })}`
         await routeNotification(anomaly.userId, {
           title: "System Maintenance",
           message: aiResponse.user_message,
-          severity: aiResponse.risk === "high" ? "critical" : "info",
+          severity: effectiveRisk === "high" ? "critical" : "info",
           category: "system",
         });
       }

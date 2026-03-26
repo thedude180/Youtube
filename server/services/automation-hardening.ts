@@ -34,6 +34,19 @@ export async function addToDeadLetter(
     status: "pending",
     nextRetryAt: new Date(Date.now() + BACKOFF_MINUTES[0] * 60_000),
   }).returning();
+
+  try {
+    const { feedDlqToExceptionDesk } = await import("./exception-desk");
+    await feedDlqToExceptionDesk({
+      id: item.id,
+      jobType,
+      error,
+      userId,
+      priority,
+      payload,
+    });
+  } catch {}
+
   return item;
 }
 
