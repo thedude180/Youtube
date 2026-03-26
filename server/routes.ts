@@ -365,7 +365,6 @@ export async function registerRoutes(
 
   if (process.env.NODE_ENV !== "test") {
     import("./lib/cron-lock").then(({ registerCronHeartbeat, runHeartbeatCheck }) => {
-      registerCronHeartbeat("clearStuck", 5 * 60_000);
       registerCronHeartbeat("CronProcessor", 10 * 60_000);
       registerCronHeartbeat("ChainProcessor", 60 * 60_000);
       registerCronHeartbeat("AutoApprovals", 60 * 60_000);

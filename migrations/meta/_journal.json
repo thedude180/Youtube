@@ -71,6 +71,13 @@
       "when": 1774556168540,
       "tag": "0009_far_the_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774557929366,
+      "tag": "0010_careless_scarecrow",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, real, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, real, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -7520,6 +7520,6 @@ export const metricRollups = pgTable("metric_rollups", {
 }, (t) => [
   index("mr_metric_idx").on(t.metricName),
   index("mr_period_idx").on(t.periodStart, t.periodEnd),
-  index("mr_metric_period_idx").on(t.metricName, t.periodStart),
+  uniqueIndex("mr_metric_period_unique").on(t.metricName, t.periodStart, t.periodEnd),
 ]);
 export type MetricRollup = typeof metricRollups.$inferSelect;

@@ -56,10 +56,19 @@ export async function rollupMetrics(): Promise<{
         max: Math.max(...values),
         unit,
         tags: tagSample,
+      }).onConflictDoUpdate({
+        target: [metricRollups.metricName, metricRollups.periodStart, metricRollups.periodEnd],
+        set: {
+          count: sql`${metricRollups.count} + excluded.count`,
+          sum: sql`${metricRollups.sum} + excluded.sum`,
+          avg: sql`(${metricRollups.sum} + excluded.sum) / (${metricRollups.count} + excluded.count)`,
+          min: sql`LEAST(${metricRollups.min}, excluded.min)`,
+          max: sql`GREATEST(${metricRollups.max}, excluded.max)`,
+        },
       });
       rolledUp++;
-    } catch (err: any) {
-      logger.error(`Failed to persist rollup for ${metricName}: ${err?.message}`);
+    } catch (err: unknown) {
+      logger.error(`Failed to persist rollup for ${metricName}: ${(err as Error)?.message}`);
     }
   }
 
