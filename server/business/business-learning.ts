@@ -63,7 +63,9 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
     const { getGovernedConfidenceForDomain } = await import("../services/learning-governance");
     const gc = await getGovernedConfidenceForDomain(userId, "revenue");
     governedRevenue = { confidence: gc.confidence, maturityLevel: gc.maturityLevel };
-  } catch {}
+  } catch (err: any) {
+    console.warn("[business-learning] governance confidence lookup failed:", err?.message);
+  }
 
   return {
     signals,

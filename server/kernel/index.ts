@@ -312,7 +312,9 @@ export async function routeCommand(
         effectiveConfidence = effectiveConfidence * (1 - penalty);
         recordMetric("kernel.governance.contradiction_penalty", 1, "count", { actionType, contradictions: String(gc.contradictionCount) });
       }
-    } catch {}
+    } catch (err: any) {
+      console.warn("[kernel] governance confidence lookup failed, using base confidence:", err?.message);
+    }
 
     const approval = await checkApprovalViaGovernance(actionType, userId, effectiveConfidence);
 
