@@ -28,7 +28,7 @@ import {
   Calculator, FileText, AlertTriangle, CheckCircle2, Building2,
   CreditCard, Link2, Copy, Upload,
   Briefcase, Target, Sparkles, Handshake, ChevronDown, ChevronUp, ChevronRight, Mail, Users, Eye,
-  Loader2, Activity, Zap, TrendingDown, Layers
+  Loader2, Activity, Zap, TrendingDown, Layers, Brain
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
@@ -50,10 +50,11 @@ const LazySponsorsTab = lazy(() => import("./money/SponsorsTab"));
 const LazyTaxTab = lazy(() => import("./money/TaxTab"));
 const LazyOpportunitiesTab = lazy(() => import("./money/OpportunitiesTab"));
 const LazyMoneyAIToolSuites = lazy(() => import("./money/MoneyAIToolSuites"));
+const LazyBusinessIntelligenceTab = lazy(() => import("./money/BusinessIntelligenceTab"));
 
 type AIResponse = any;
 
-type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors" | "merch-intel" | "diversify";
+type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors" | "merch-intel" | "diversify" | "business-intel";
 
 const ventureTypes = ["All", "Merch", "Courses", "Membership", "Affiliate", "Consulting", "Podcast", "SaaS", "Events", "Licensing"] as const;
 
@@ -325,6 +326,9 @@ export default function Money() {
           </TabsTrigger>
           <TabsTrigger value="diversify" data-testid="tab-diversify">
             <Layers className="h-3.5 w-3.5 mr-1.5" />Diversify
+          </TabsTrigger>
+          <TabsTrigger value="business-intel" data-testid="tab-business-intel">
+            <Brain className="h-3.5 w-3.5 mr-1.5" />Business Intel
           </TabsTrigger>
         </TabsList>
 
@@ -761,6 +765,14 @@ export default function Money() {
                 </div>
               </div>
             )}
+          </UpgradeTabGate>
+        </TabsContent>
+
+        <TabsContent value="business-intel" className="mt-2">
+          <UpgradeTabGate requiredTier="pro" featureName="Business Intelligence" description="Advanced business analytics including valuation, risk intelligence, capital allocation, and succession planning.">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <LazyBusinessIntelligenceTab />
+            </Suspense>
           </UpgradeTabGate>
         </TabsContent>
       </Tabs>
