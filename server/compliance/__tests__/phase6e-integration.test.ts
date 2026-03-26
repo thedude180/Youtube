@@ -373,6 +373,10 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
       expect(typeof readiness.avgReadinessScore).toBe("number");
       expect(typeof readiness.exchangeReady).toBe("boolean");
       expect(readiness.byStatus).toBeDefined();
+      expect(readiness.provenanceCoverage).toBeDefined();
+      expect(typeof readiness.provenanceCoverage.total).toBe("number");
+      expect(typeof readiness.provenanceCoverage.verified).toBe("number");
+      expect(typeof readiness.provenanceCoverage.coveragePercent).toBe("number");
     });
   });
 
@@ -431,6 +435,22 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
         expect(typeof theater.governedConfidence.confidence).toBe("number");
         expect(["nascent", "developing", "mature"]).toContain(theater.governedConfidence.maturityLevel);
       }
+    });
+
+    it("should apply maturity-based confidence tightening in kernel", async () => {
+      const { exitSafeMode } = await import("../../services/resilience-observability");
+      exitSafeMode();
+
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      registerCommand("tags_change", async () => ({ changed: true }));
+
+      const result = await routeCommand("tags_change", {
+        userId: TEST_USER,
+        executionKey: `maturity-tighten-${Date.now()}`,
+        confidence: 0.95,
+      });
+
+      expect(result.success).toBe(true);
     });
 
     it("should propagate learning signals from distribution-learning to governance", async () => {

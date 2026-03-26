@@ -7,8 +7,9 @@ import {
   overrideLearningRecords,
   signalContradictions,
   domainEvents,
+  contentProvenance,
 } from "@shared/schema";
-import { eq, and, desc, lte, gte, sql } from "drizzle-orm";
+import { eq, and, desc, lte, gte, sql, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("learning-governance");
@@ -557,9 +558,19 @@ export async function getLicensingReadiness(userId: string): Promise<{
   avgReadinessScore: number;
   byStatus: Record<string, number>;
   exchangeReady: boolean;
+  provenanceCoverage: { total: number; verified: number; coveragePercent: number };
 }> {
   const assets = await db.select().from(licensingExchangeAssets)
     .where(eq(licensingExchangeAssets.userId, userId));
+
+  const provenanceRecords = await db.select().from(contentProvenance)
+    .where(eq(contentProvenance.userId, userId));
+
+  const verifiedProvenance = provenanceRecords.filter(p => p.verificationStatus === "verified");
+  const provenanceLookup = new Map<string, typeof provenanceRecords[0]>();
+  for (const p of provenanceRecords) {
+    provenanceLookup.set(p.assetName.toLowerCase(), p);
+  }
 
   const byStatus: Record<string, number> = {};
   let totalReadiness = 0;
@@ -567,11 +578,25 @@ export async function getLicensingReadiness(userId: string): Promise<{
 
   for (const a of assets) {
     byStatus[a.licensingStatus] = (byStatus[a.licensingStatus] || 0) + 1;
-    totalReadiness += a.readinessScore;
-    if (a.readinessScore >= 80) readyCount++;
+
+    let score = a.readinessScore;
+    const prov = a.assetName ? provenanceLookup.get(a.assetName.toLowerCase()) : undefined;
+    if (prov) {
+      if (prov.verificationStatus === "verified") score = Math.min(100, score + 15);
+      if (prov.licenseType && prov.licenseType !== "unknown") score = Math.min(100, score + 10);
+      if (prov.licenseExpiry && new Date(prov.licenseExpiry) < new Date()) score = Math.max(0, score - 30);
+      if ((prov.trustScore ?? 50) >= 80) score = Math.min(100, score + 5);
+    } else {
+      score = Math.max(0, score - 10);
+    }
+
+    totalReadiness += score;
+    if (score >= 80) readyCount++;
   }
 
   const avgReadinessScore = assets.length > 0 ? Math.round(totalReadiness / assets.length) : 0;
+  const coveragePercent = provenanceRecords.length > 0
+    ? Math.round((verifiedProvenance.length / provenanceRecords.length) * 100) : 0;
 
   return {
     totalAssets: assets.length,
@@ -579,6 +604,11 @@ export async function getLicensingReadiness(userId: string): Promise<{
     avgReadinessScore,
     byStatus,
     exchangeReady: assets.length > 0 && avgReadinessScore >= 70 && readyCount >= Math.ceil(assets.length * 0.5),
+    provenanceCoverage: {
+      total: provenanceRecords.length,
+      verified: verifiedProvenance.length,
+      coveragePercent,
+    },
   };
 }
 

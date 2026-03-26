@@ -294,7 +294,27 @@ export async function routeCommand(
       return { success: true, reason: "idempotent-skip", existingReceiptId: existing?.id, correlationId };
     }
 
-    const approval = await checkApprovalViaGovernance(actionType, userId, options.confidence);
+    let effectiveConfidence = options.confidence ?? 1.0;
+    try {
+      const { getGovernedConfidenceForDomain } = await import("../services/learning-governance");
+      const domain = inferDomainFromActionType(actionType);
+      const gc = await getGovernedConfidenceForDomain(userId, domain);
+
+      if (gc.maturityLevel === "nascent" && gc.signalCount < 5) {
+        effectiveConfidence = Math.min(effectiveConfidence, 0.5);
+        recordMetric("kernel.governance.maturity_tightened", 1, "count", { actionType, maturityLevel: gc.maturityLevel });
+      } else if (gc.maturityLevel === "developing") {
+        effectiveConfidence = Math.min(effectiveConfidence, effectiveConfidence * 0.85);
+      }
+
+      if (gc.contradictionCount > 0) {
+        const penalty = Math.min(0.3, gc.contradictionCount * 0.1);
+        effectiveConfidence = effectiveConfidence * (1 - penalty);
+        recordMetric("kernel.governance.contradiction_penalty", 1, "count", { actionType, contradictions: String(gc.contradictionCount) });
+      }
+    } catch {}
+
+    const approval = await checkApprovalViaGovernance(actionType, userId, effectiveConfidence);
 
     if (!approval.approved) {
       await emitDomainEvent(userId, `${actionType}.denied`, { reason: approval.reason, decision: approval.decision, executionKey }, actionType, executionKey, correlationId);
