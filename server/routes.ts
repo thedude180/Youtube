@@ -51,6 +51,11 @@ import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
+import {
+  evaluateApproval,
+  deductTrustBudget as governanceDeductBudget,
+  enforceTenantIsolation,
+} from "./services/trust-governance";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -109,6 +114,62 @@ export async function registerRoutes(
   registerAuthRoutes(app);
 
   createAsyncSafeApp(app);
+
+  const ACTION_CLASS_MAP: Record<string, string> = {
+    "/api/content": "content_publish",
+    "/api/stream": "stream_config",
+    "/api/distribution": "distribution_push",
+    "/api/ai": "content_draft",
+    "/api/money": "financial_action",
+    "/api/settings": "channel_settings_change",
+    "/api/automation": "automation_toggle",
+    "/api/clips": "content_draft",
+    "/api/marketing": "distribution_push",
+    "/api/copyright": "community_moderation",
+    "/api/pipeline": "content_publish",
+    "/api/business": "financial_action",
+    "/api/kernel": "smart_edit",
+  };
+
+  app.use("/api", async (req: any, res, next) => {
+    if (req.method === "GET" || req.method === "OPTIONS" || req.method === "HEAD") return next();
+    const userId = getUserId(req);
+    if (!userId) return next();
+
+    const targetUserId = req.body?.targetUserId || req.query?.targetUserId || req.body?.userId || req.params?.userId;
+    if (targetUserId && typeof targetUserId === "string" && targetUserId !== userId) {
+      const isolation = enforceTenantIsolation(userId, targetUserId, "api-resource");
+      if (!isolation.allowed) {
+        return res.status(403).json({ error: "Tenant isolation: access denied" });
+      }
+    }
+
+    let actionClass: string | null = null;
+    for (const [prefix, ac] of Object.entries(ACTION_CLASS_MAP)) {
+      if (req.path.startsWith(prefix.replace("/api", ""))) {
+        actionClass = ac;
+        break;
+      }
+    }
+
+    if (actionClass) {
+      try {
+        const confidence = typeof req.body?.confidence === "number" ? req.body.confidence : 1.0;
+        const approval = await evaluateApproval(userId, actionClass, confidence);
+        if (approval.decision !== "approved") {
+          return res.status(403).json({
+            error: `Action ${actionClass} requires approval: ${approval.reason}`,
+            decision: approval.decision,
+          });
+        }
+        await governanceDeductBudget(userId, actionClass, 1, `global-gate:${req.path}`);
+      } catch {
+        // allow through if governance service unavailable at global level;
+        // per-route governanceGate is fail-closed as secondary enforcement
+      }
+    }
+    next();
+  });
 
   registerEventRoutes(app);
 
