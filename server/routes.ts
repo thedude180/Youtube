@@ -116,23 +116,51 @@ export async function registerRoutes(
   createAsyncSafeApp(app);
 
   const ACTION_CLASS_MAP: Record<string, string> = {
-    "/api/content": "content_publish",
-    "/api/stream": "stream_config",
-    "/api/distribution": "distribution_push",
-    "/api/ai": "content_draft",
-    "/api/money": "financial_action",
-    "/api/settings": "channel_settings_change",
-    "/api/automation": "automation_toggle",
-    "/api/clips": "content_draft",
-    "/api/marketing": "distribution_push",
-    "/api/copyright": "community_moderation",
-    "/api/pipeline": "content_publish",
-    "/api/business": "financial_action",
-    "/api/kernel": "smart_edit",
+    "/content": "content_publish",
+    "/stream": "stream_config",
+    "/distribution": "distribution_push",
+    "/ai": "content_draft",
+    "/money": "financial_action",
+    "/settings": "channel_settings_change",
+    "/automation": "automation_toggle",
+    "/clips": "content_draft",
+    "/marketing": "distribution_push",
+    "/copyright": "community_moderation",
+    "/pipeline": "content_publish",
+    "/business": "financial_action",
+    "/kernel": "smart_edit",
+    "/nexus": "content_draft",
+    "/exceptions": "community_moderation",
+    "/toxicity": "community_moderation",
+    "/governance": "channel_settings_change",
+    "/admin": "channel_settings_change",
+    "/feedback": "community_moderation",
+    "/security": "channel_settings_change",
+    "/fortress": "channel_settings_change",
+    "/pillars": "analytics_export",
+    "/growth": "analytics_export",
+    "/sync": "distribution_config",
+    "/retention": "analytics_export",
+    "/competitive": "analytics_export",
+    "/autonomy": "channel_settings_change",
+    "/loops": "content_publish",
+    "/legal": "financial_action",
+    "/team": "channel_settings_change",
+    "/multistream": "stream_config",
+    "/live-ops": "stream_config",
+    "/compliance": "channel_settings_change",
+    "/world-best": "analytics_export",
+    "/upgrades": "channel_settings_change",
+    "/ultimate": "content_draft",
   };
+
+  const GOVERNANCE_EXEMPT_PATHS = ["/api/login", "/api/logout", "/api/auth", "/api/callback", "/api/test-auth"];
 
   app.use("/api", async (req: any, res, next) => {
     if (req.method === "GET" || req.method === "OPTIONS" || req.method === "HEAD") return next();
+
+    if (GOVERNANCE_EXEMPT_PATHS.some(p => req.originalUrl?.startsWith(p))) return next();
+
     const userId = getUserId(req);
     if (!userId) return next();
 
@@ -146,13 +174,17 @@ export async function registerRoutes(
 
     let actionClass: string | null = null;
     for (const [prefix, ac] of Object.entries(ACTION_CLASS_MAP)) {
-      if (req.path.startsWith(prefix.replace("/api", ""))) {
+      if (req.path.startsWith(prefix)) {
         actionClass = ac;
         break;
       }
     }
 
-    if (actionClass) {
+    if (!actionClass) {
+      actionClass = "content_draft";
+    }
+
+    {
       try {
         const confidence = typeof req.body?.confidence === "number" ? req.body.confidence : 1.0;
         const approval = await evaluateApproval(userId, actionClass, confidence);
@@ -162,10 +194,17 @@ export async function registerRoutes(
             decision: approval.decision,
           });
         }
-        await governanceDeductBudget(userId, actionClass, 1, `global-gate:${req.path}`);
+        const budgetResult = await governanceDeductBudget(userId, actionClass, 1, `global-gate:${req.path}`);
+        if (!budgetResult.allowed) {
+          return res.status(429).json({
+            error: "Trust budget exhausted — action blocked",
+            remaining: budgetResult.remaining,
+          });
+        }
       } catch {
-        // allow through if governance service unavailable at global level;
-        // per-route governanceGate is fail-closed as secondary enforcement
+        return res.status(500).json({
+          error: "Governance enforcement unavailable — action denied for safety",
+        });
       }
     }
     next();

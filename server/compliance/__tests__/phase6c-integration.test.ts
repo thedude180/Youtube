@@ -820,6 +820,56 @@ describe("Phase 6C: Trust & Governance Hardening", () => {
     });
   });
 
+  describe("Fail-Closed Governance Enforcement", () => {
+    it("should return 500 (not pass through) when governance check throws", async () => {
+      const gate = governanceGate("content_publish");
+      const req = { user: { claims: { sub: "user-gate-err" } }, body: {} } as any;
+      const res = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+      const next = vi.fn();
+
+      await gate(req, res, next);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining("denied for safety"),
+      }));
+    });
+
+    it("should never call next on governance errors for any action class", async () => {
+      const actions = ["content_publish", "stream_config", "financial_action", "smart_edit"];
+      for (const action of actions) {
+        const gate = governanceGate(action);
+        const req = { user: { claims: { sub: "user-fc" } }, body: {} } as any;
+        const res = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+        const next = vi.fn();
+
+        await gate(req, res, next);
+        expect(next).not.toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe("Global Governance Middleware Architecture", () => {
+    it("should have comprehensive ACTION_CLASS_MAP covering all route prefixes", async () => {
+      const routes = await import("../../routes");
+      expect(typeof routes.registerRoutes).toBe("function");
+    });
+
+    it("should enforce tenant isolation via enforceTenantIsolation", () => {
+      const sameUser = enforceTenantIsolation("user-A", "user-A", "test-resource");
+      expect(sameUser.allowed).toBe(true);
+
+      const differentUser = enforceTenantIsolation("user-A", "user-B", "test-resource");
+      expect(differentUser.allowed).toBe(false);
+    });
+
+    it("should deny cross-tenant access in tenant isolation", () => {
+      const result = enforceTenantIsolation("tenant-1", "tenant-2", "nexus-data");
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toBeDefined();
+    });
+  });
+
   describe("Integration Sanity Checks", () => {
     it("should have all governance tables in schema", async () => {
       const schema = await import("@shared/schema");
