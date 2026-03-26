@@ -49,7 +49,7 @@ import { registerComplianceHardeningRoutes } from "./routes/compliance-hardening
 import exceptionDeskRoutes from "./routes/exception-desk";
 import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
-import { registerResilienceObservabilityRoutes, correlationIdMiddleware } from "./routes/resilience-observability";
+import { registerResilienceObservabilityRoutes, registerCorrelationMiddleware, getRequestCorrelationId } from "./routes/resilience-observability";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -116,7 +116,7 @@ export async function registerRoutes(
 
   createAsyncSafeApp(app);
 
-  app.use("/api", correlationIdMiddleware());
+  registerCorrelationMiddleware(app);
 
   const ACTION_CLASS_MAP: Record<string, string> = {
     "/content": "content_publish",

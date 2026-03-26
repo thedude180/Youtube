@@ -562,6 +562,64 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
     });
   });
 
+  describe("Blast Radius Context in Handlers", () => {
+    it("should pass blast radius context to command handlers", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+
+      let receivedCtx: any = null;
+      registerCommand("comment_reply", async (_payload, ctx) => {
+        receivedCtx = ctx;
+        if (ctx?.blastRadius) {
+          ctx.blastRadius.recordApiCall();
+        }
+        return { replied: true };
+      });
+
+      const result = await routeCommand("comment_reply", {
+        userId: TEST_USER,
+        executionKey: `blast-ctx-test-${Date.now()}`,
+      });
+
+      expect(result.success).toBe(true);
+      expect(receivedCtx).not.toBeNull();
+      expect(receivedCtx.blastRadius).toBeDefined();
+      expect(receivedCtx.correlationId).toBeDefined();
+      const status = receivedCtx.blastRadius.getStatus();
+      expect(status.apiCallsMade).toBe(1);
+    });
+
+    it("should reuse inbound correlation ID when provided", async () => {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+
+      registerCommand("seo_optimization", async () => ({ optimized: true }));
+
+      const inboundCid = "cid-inbound-test-12345";
+      const result = await routeCommand(
+        "seo_optimization",
+        { userId: TEST_USER, executionKey: `inbound-cid-test-${Date.now()}` },
+        { correlationId: inboundCid }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.correlationId).toBe(inboundCid);
+    });
+  });
+
+  describe("Safe Mode Threshold Configuration", () => {
+    it("should allow reading and updating safe mode thresholds", async () => {
+      const { getSafeModeThresholds, updateSafeModeThresholds } = await import("../../services/resilience-observability");
+
+      const original = getSafeModeThresholds();
+      expect(original.errorRatePerMinute).toBe(20);
+
+      const updated = updateSafeModeThresholds({ errorRatePerMinute: 50 });
+      expect(updated.errorRatePerMinute).toBe(50);
+      expect(updated.failedJobsPercent).toBe(original.failedJobsPercent);
+
+      updateSafeModeThresholds({ errorRatePerMinute: 20 });
+    });
+  });
+
   describe("Correlation ID Propagation", () => {
     it("should include correlationId in kernel command result and domain events", async () => {
       const { registerCommand, routeCommand } = await import("../../kernel/index");

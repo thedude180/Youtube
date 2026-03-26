@@ -31,7 +31,12 @@ function getHmacSecret(): string {
   return secret;
 }
 
-type CommandHandler = (payload: Record<string, any>) => Promise<Record<string, any>>;
+export interface KernelExecutionContext {
+  blastRadius: BlastRadiusContext;
+  correlationId: string;
+}
+
+type CommandHandler = (payload: Record<string, any>, ctx?: KernelExecutionContext) => Promise<Record<string, any>>;
 const commandHandlers = new Map<string, CommandHandler>();
 
 export function registerCommand(actionType: string, handler: CommandHandler) {
@@ -229,6 +234,7 @@ export async function routeCommand(
     rollbackMetadata?: Record<string, any>;
     blastRadiusLimits?: { maxItems?: number; maxExecutionMs?: number; maxApiCalls?: number };
     healingCheck?: () => Promise<boolean>;
+    correlationId?: string;
   } = {}
 ): Promise<CommandResult> {
   const startMs = Date.now();
@@ -236,7 +242,7 @@ export async function routeCommand(
   const executionKey =
     payload.executionKey || `${actionType}:${userId}:${JSON.stringify(payload)}:${Math.floor(Date.now() / 60000)}`;
 
-  const correlationId = generateCorrelationId();
+  const correlationId = options.correlationId || generateCorrelationId();
   startCorrelation(correlationId, { actionType, userId, executionKey });
 
   try {
@@ -310,7 +316,8 @@ export async function routeCommand(
 
     await emitDomainEvent(userId, `${actionType}.started`, { executionKey }, actionType, executionKey, correlationId);
 
-    const result = await handler(payload);
+    const execCtx: KernelExecutionContext = { blastRadius: blastCtx, correlationId };
+    const result = await handler(payload, execCtx);
 
     const elapsed = Date.now() - startMs;
     recordMetric("kernel.command.latency", elapsed, "ms", { actionType });

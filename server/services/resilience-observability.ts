@@ -37,11 +37,29 @@ const safeModeState: SafeModeState = {
   autoRecoveryEnabled: true,
 };
 
-const SAFE_MODE_THRESHOLDS = {
+interface SafeModeThresholds {
+  errorRatePerMinute: number;
+  failedJobsPercent: number;
+  memoryUsagePercent: number;
+}
+
+const safeModeThresholds: SafeModeThresholds = {
   errorRatePerMinute: 20,
   failedJobsPercent: 50,
   memoryUsagePercent: 90,
 };
+
+export function getSafeModeThresholds(): SafeModeThresholds {
+  return { ...safeModeThresholds };
+}
+
+export function updateSafeModeThresholds(updates: Partial<SafeModeThresholds>): SafeModeThresholds {
+  if (updates.errorRatePerMinute !== undefined) safeModeThresholds.errorRatePerMinute = updates.errorRatePerMinute;
+  if (updates.failedJobsPercent !== undefined) safeModeThresholds.failedJobsPercent = updates.failedJobsPercent;
+  if (updates.memoryUsagePercent !== undefined) safeModeThresholds.memoryUsagePercent = updates.memoryUsagePercent;
+  logger.info(`Safe mode thresholds updated: ${JSON.stringify(safeModeThresholds)}`);
+  return { ...safeModeThresholds };
+}
 
 export function getSafeModeState(): SafeModeState {
   return { ...safeModeState, engines: { ...safeModeState.engines } };
@@ -89,18 +107,18 @@ export function checkAutoSafeModeEntry(signals: {
 }): { triggered: boolean; reason: string | null } {
   if (safeModeState.global) return { triggered: false, reason: null };
 
-  if (signals.errorRate && signals.errorRate > SAFE_MODE_THRESHOLDS.errorRatePerMinute) {
-    const reason = `Error rate ${signals.errorRate}/min exceeds threshold ${SAFE_MODE_THRESHOLDS.errorRatePerMinute}`;
+  if (signals.errorRate && signals.errorRate > safeModeThresholds.errorRatePerMinute) {
+    const reason = `Error rate ${signals.errorRate}/min exceeds threshold ${safeModeThresholds.errorRatePerMinute}`;
     enterSafeMode(reason);
     return { triggered: true, reason };
   }
-  if (signals.failedJobsPercent && signals.failedJobsPercent > SAFE_MODE_THRESHOLDS.failedJobsPercent) {
-    const reason = `Failed jobs ${signals.failedJobsPercent}% exceeds threshold ${SAFE_MODE_THRESHOLDS.failedJobsPercent}%`;
+  if (signals.failedJobsPercent && signals.failedJobsPercent > safeModeThresholds.failedJobsPercent) {
+    const reason = `Failed jobs ${signals.failedJobsPercent}% exceeds threshold ${safeModeThresholds.failedJobsPercent}%`;
     enterSafeMode(reason);
     return { triggered: true, reason };
   }
-  if (signals.memoryUsagePercent && signals.memoryUsagePercent > SAFE_MODE_THRESHOLDS.memoryUsagePercent) {
-    const reason = `Memory usage ${signals.memoryUsagePercent}% exceeds threshold ${SAFE_MODE_THRESHOLDS.memoryUsagePercent}%`;
+  if (signals.memoryUsagePercent && signals.memoryUsagePercent > safeModeThresholds.memoryUsagePercent) {
+    const reason = `Memory usage ${signals.memoryUsagePercent}% exceeds threshold ${safeModeThresholds.memoryUsagePercent}%`;
     enterSafeMode(reason);
     return { triggered: true, reason };
   }
@@ -114,9 +132,9 @@ export function checkAutoSafeModeExit(signals: {
 }): { recovered: boolean } {
   if (!safeModeState.global || !safeModeState.autoRecoveryEnabled) return { recovered: false };
 
-  const belowError = !signals.errorRate || signals.errorRate < SAFE_MODE_THRESHOLDS.errorRatePerMinute * 0.5;
-  const belowJobs = !signals.failedJobsPercent || signals.failedJobsPercent < SAFE_MODE_THRESHOLDS.failedJobsPercent * 0.5;
-  const belowMem = !signals.memoryUsagePercent || signals.memoryUsagePercent < SAFE_MODE_THRESHOLDS.memoryUsagePercent * 0.8;
+  const belowError = !signals.errorRate || signals.errorRate < safeModeThresholds.errorRatePerMinute * 0.5;
+  const belowJobs = !signals.failedJobsPercent || signals.failedJobsPercent < safeModeThresholds.failedJobsPercent * 0.5;
+  const belowMem = !signals.memoryUsagePercent || signals.memoryUsagePercent < safeModeThresholds.memoryUsagePercent * 0.8;
 
   if (belowError && belowJobs && belowMem) {
     exitSafeMode();

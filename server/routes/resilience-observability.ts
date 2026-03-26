@@ -2,6 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { getUserId, requireAdmin, requireAuth } from "./helpers";
 import {
   getSafeModeState,
+  getSafeModeThresholds,
+  updateSafeModeThresholds,
   enterSafeMode,
   exitSafeMode,
   isInSafeMode,
@@ -24,6 +26,20 @@ import {
   activatePlaybook,
   deactivatePlaybook,
 } from "../services/resilience-observability";
+
+export function registerCorrelationMiddleware(app: Express) {
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    const inbound = req.headers["x-correlation-id"] as string | undefined;
+    const cid = inbound || generateCorrelationId();
+    (req as any).correlationId = cid;
+    _res.setHeader("x-correlation-id", cid);
+    next();
+  });
+}
+
+export function getRequestCorrelationId(req: Request): string | undefined {
+  return (req as any).correlationId;
+}
 
 export function registerResilienceObservabilityRoutes(app: Express) {
   app.get("/api/resilience/safe-mode", (req, res) => {
@@ -54,6 +70,20 @@ export function registerResilienceObservabilityRoutes(app: Express) {
     if (!userId) return;
     const engine = req.query.engine as string | undefined;
     res.json({ inSafeMode: isInSafeMode(engine) });
+  });
+
+  app.get("/api/resilience/safe-mode/thresholds", (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    res.json(getSafeModeThresholds());
+  });
+
+  app.put("/api/resilience/safe-mode/thresholds", (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const { errorRatePerMinute, failedJobsPercent, memoryUsagePercent } = req.body || {};
+    const updated = updateSafeModeThresholds({ errorRatePerMinute, failedJobsPercent, memoryUsagePercent });
+    res.json(updated);
   });
 
   app.post("/api/resilience/rollback", async (req, res) => {
