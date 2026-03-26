@@ -6,8 +6,9 @@ export function registerOpsHealthRoutes(app: Express): void {
     const userId = requireAdmin(req, res);
     if (!userId) return;
 
-    const { getAuditStats } = await import("../services/financial-audit");
-    const stats = await getAuditStats(userId);
+    const { getAuditStats, getGlobalAuditStats } = await import("../services/financial-audit");
+    const global = req.query.global === "true";
+    const stats = global ? await getGlobalAuditStats() : await getAuditStats(userId);
     res.json(stats);
   }));
 
@@ -15,12 +16,15 @@ export function registerOpsHealthRoutes(app: Express): void {
     const userId = requireAdmin(req, res);
     if (!userId) return;
 
-    const { getAuditTrail } = await import("../services/financial-audit");
+    const { getAuditTrail, getGlobalAuditTrail } = await import("../services/financial-audit");
+    const global = req.query.global === "true";
     const entityType = req.query.entityType as string | undefined;
     const action = req.query.action as string | undefined;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
-    const result = await getAuditTrail(userId, { entityType, action, limit, offset });
+    const result = global
+      ? await getGlobalAuditTrail({ entityType, action, limit, offset })
+      : await getAuditTrail(userId, { entityType, action, limit, offset });
     res.json(result);
   }));
 

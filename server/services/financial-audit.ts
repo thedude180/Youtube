@@ -129,3 +129,56 @@ export async function getAuditStats(userId: string): Promise<{
     integrityStatus: "healthy",
   };
 }
+
+export async function getGlobalAuditStats(): Promise<{
+  totalEntries: number;
+  byAction: Record<string, number>;
+  byEntityType: Record<string, number>;
+  byUser: Record<string, number>;
+  lastAuditAt: string | null;
+  integrityStatus: "healthy" | "unknown";
+}> {
+  const entries = await db.select().from(financialAuditTrail)
+    .orderBy(desc(financialAuditTrail.createdAt))
+    .limit(1000);
+
+  const byAction: Record<string, number> = {};
+  const byEntityType: Record<string, number> = {};
+  const byUser: Record<string, number> = {};
+
+  for (const e of entries) {
+    byAction[e.action] = (byAction[e.action] || 0) + 1;
+    byEntityType[e.entityType] = (byEntityType[e.entityType] || 0) + 1;
+    byUser[e.userId] = (byUser[e.userId] || 0) + 1;
+  }
+
+  return {
+    totalEntries: entries.length,
+    byAction,
+    byEntityType,
+    byUser,
+    lastAuditAt: entries.length > 0 ? entries[0].createdAt!.toISOString() : null,
+    integrityStatus: "healthy",
+  };
+}
+
+export async function getGlobalAuditTrail(
+  options: { entityType?: string; action?: string; limit?: number; offset?: number } = {},
+): Promise<{ entries: FinancialAuditEntry[]; total: number }> {
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (options.entityType) conditions.push(eq(financialAuditTrail.entityType, options.entityType));
+  if (options.action) conditions.push(eq(financialAuditTrail.action, options.action));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [countResult] = await db.select({ count: sql<number>`count(*)::int` })
+    .from(financialAuditTrail).where(whereClause);
+
+  const entries = await db.select().from(financialAuditTrail)
+    .where(whereClause)
+    .orderBy(desc(financialAuditTrail.createdAt))
+    .limit(options.limit ?? 50)
+    .offset(options.offset ?? 0);
+
+  return { entries, total: countResult?.count ?? 0 };
+}
