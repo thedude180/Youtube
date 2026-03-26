@@ -197,6 +197,18 @@ export async function reconcileRevenueRecords(
       await db.update(revenueRecords)
         .set(updateFields)
         .where(eq(revenueRecords.id, record.id));
+
+      try {
+        const { recordFinancialAudit } = await import("../services/financial-audit");
+        await recordFinancialAudit(
+          userId, "reconciliation_status_change", "revenue_record", String(record.id),
+          { status: previousStatus, amount: record.amount },
+          { status: newStatus, gapAmount, notes },
+          "revenue-reconciliation", gapAmount ?? undefined,
+        );
+      } catch (err: any) {
+        console.warn("[revenue-reconciliation] audit trail write failed:", err?.message);
+      }
     }
 
     if (newStatus === "unresolved") {
@@ -259,6 +271,18 @@ export async function verifyRevenueRecord(
       reconciliationNotes: notes,
     })
     .where(eq(revenueRecords.id, recordId));
+
+  try {
+    const { recordFinancialAudit } = await import("../services/financial-audit");
+    await recordFinancialAudit(
+      userId, "revenue_verification", "revenue_record", String(recordId),
+      { status: parseStatus(record.reconciliationStatus), amount: record.amount },
+      { status: newStatus, verifiedAmount: verificationData.verifiedAmount, gapAmount, notes },
+      "revenue-verification", gapAmount !== 0 ? gapAmount : undefined,
+    );
+  } catch (err: any) {
+    console.warn("[revenue-reconciliation] audit trail write failed:", err?.message);
+  }
 
   if (newStatus === "unresolved") {
     await routeUnresolvedToActionQueue(userId, [{

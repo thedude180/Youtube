@@ -111,7 +111,7 @@ export async function computeCapitalAllocation(userId: string): Promise<CapitalA
   if (channelCount < 2) recommendations.push("Allocate marketing budget toward platform diversification");
   recommendations.push(`Current growth stage: ${growthStage} — adjust allocations as you scale`);
 
-  return {
+  const plan = {
     totalBudget,
     allocations,
     emergencyReserve: { amount: reserveAmount, monthsCovered, adequate: monthsCovered >= 3 },
@@ -124,6 +124,20 @@ export async function computeCapitalAllocation(userId: string): Promise<CapitalA
     budgetHealth,
     recommendations,
   };
+
+  try {
+    const { recordFinancialAudit } = await import("../services/financial-audit");
+    await recordFinancialAudit(
+      userId, "capital_allocation_computed", "capital_plan", null,
+      {},
+      { totalBudget, budgetHealth, growthStage, reinvestmentRate, allocationCount: allocations.length },
+      "capital-allocation",
+    );
+  } catch (err: any) {
+    console.warn("[capital-allocation] audit trail write failed:", err?.message);
+  }
+
+  return plan;
 }
 
 function getAllocationRationale(category: string, stage: string, percent: number): string {

@@ -65,7 +65,6 @@ class CircuitBreaker {
     this.successes++;
     this.lastSuccess = Date.now();
     if (this.state === "half-open") {
-      this.successes++;
       if (this.successes >= this.halfOpenMaxAttempts) {
         this.state = "closed";
         this.failures = 0;
@@ -104,6 +103,12 @@ class CircuitBreaker {
     if (this.state === "half-open") return "degraded";
     return "down";
   }
+
+  reset(): void {
+    this.state = "closed";
+    this.failures = 0;
+    this.successes = 0;
+  }
 }
 
 const breakers = new Map<string, CircuitBreaker>();
@@ -115,6 +120,11 @@ export function getBreaker(name: string, options?: CircuitBreakerOptions): Circu
     breakers.set(name, breaker);
   }
   return breaker;
+}
+
+export function getSubServiceBreaker(service: string, operation: string, options?: CircuitBreakerOptions): CircuitBreaker {
+  const key = `${service}:${operation}`;
+  return getBreaker(key, options ?? { failureThreshold: 3, resetTimeoutMs: 30000 });
 }
 
 export function getAllBreakerStats(): Record<string, BreakerStats & { name: string }> {
@@ -131,6 +141,51 @@ export function getAllBreakerStatuses(): Array<{ name: string; status: string; s
     status: breaker.getStatus(),
     state: breaker.getStats().state,
   }));
+}
+
+export function getServiceBreakerStates(service: string): Array<{ operation: string; status: string; state: CircuitState; stats: BreakerStats }> {
+  const results: Array<{ operation: string; status: string; state: CircuitState; stats: BreakerStats }> = [];
+  for (const [name, breaker] of breakers) {
+    if (name.startsWith(`${service}:`)) {
+      const operation = name.substring(service.length + 1);
+      results.push({ operation, status: breaker.getStatus(), state: breaker.getStats().state, stats: breaker.getStats() });
+    }
+  }
+  return results;
+}
+
+export function isSubServiceHealthy(service: string, operation: string): boolean {
+  const key = `${service}:${operation}`;
+  const breaker = breakers.get(key);
+  if (!breaker) return true;
+  return breaker.getStatus() !== "down";
+}
+
+export function getGranularBreakerSummary(): {
+  totalBreakers: number;
+  byStatus: Record<string, number>;
+  services: Record<string, { operations: string[]; healthyCount: number; degradedCount: number; downCount: number }>;
+} {
+  const byStatus: Record<string, number> = { healthy: 0, degraded: 0, down: 0 };
+  const services: Record<string, { operations: string[]; healthyCount: number; degradedCount: number; downCount: number }> = {};
+
+  for (const [name, breaker] of breakers) {
+    const status = breaker.getStatus();
+    byStatus[status] = (byStatus[status] || 0) + 1;
+
+    const parts = name.split(":");
+    if (parts.length >= 2) {
+      const svc = parts[0];
+      const op = parts.slice(1).join(":");
+      if (!services[svc]) services[svc] = { operations: [], healthyCount: 0, degradedCount: 0, downCount: 0 };
+      services[svc].operations.push(op);
+      if (status === "healthy") services[svc].healthyCount++;
+      else if (status === "degraded") services[svc].degradedCount++;
+      else services[svc].downCount++;
+    }
+  }
+
+  return { totalBreakers: breakers.size, byStatus, services };
 }
 
 export const youtubeBreaker = getBreaker("YouTube API", { failureThreshold: 5, resetTimeoutMs: 60000 });

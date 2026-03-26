@@ -7481,3 +7481,25 @@ export const signalContradictions = pgTable("signal_contradictions", {
   index("sc_status_idx").on(t.status),
 ]);
 export type SignalContradiction = typeof signalContradictions.$inferSelect;
+
+export const financialAuditTrail = pgTable("financial_audit_trail", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  beforeSnapshot: jsonb("before_snapshot").$type<Record<string, any>>().default({}),
+  afterSnapshot: jsonb("after_snapshot").$type<Record<string, any>>().default({}),
+  changeAmount: real("change_amount"),
+  currency: text("currency").default("USD"),
+  checksum: text("checksum").notNull(),
+  source: text("source").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("fat_user_idx").on(t.userId),
+  index("fat_entity_idx").on(t.entityType, t.entityId),
+  index("fat_action_idx").on(t.action),
+  index("fat_created_idx").on(t.createdAt),
+]);
+export type FinancialAuditEntry = typeof financialAuditTrail.$inferSelect;
