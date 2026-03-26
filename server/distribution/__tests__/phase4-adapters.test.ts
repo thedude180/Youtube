@@ -44,6 +44,14 @@ vi.mock("../../kernel/index", () => ({
   emitDomainEvent: async () => {},
 }));
 
+vi.mock("../../services/policy-preflight", () => ({
+  runPolicyPreFlight: async () => ({ passed: true, blockers: [], recommendations: [], gatesChecked: ["policy_pack_check", "ai_disclosure_check", "credibility_check", "drift_check"], policyCheck: { compliant: true, violations: [], warnings: [] }, aiDisclosure: null, mediaTrust: null, credibility: null, activeDrifts: 0 }),
+}));
+
+vi.mock("../../services/compliance-drift-detector", () => ({
+  detectComplianceDrift: async () => [],
+}));
+
 vi.mock("../../platform-publisher", () => ({
   executePublish: async (_userId: string, platform: string) => ({
     success: true,

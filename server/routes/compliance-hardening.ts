@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { requireAuth, asyncHandler } from "./helpers";
+import { requireAuth, requireAdmin, asyncHandler } from "./helpers";
 import { detectComplianceDrift, getDriftEvents, getDriftSummary, resolveDriftEvent } from "../services/compliance-drift-detector";
 import { getAllPolicyPacks, getPolicyPack, checkContentAgainstPack, getSupportedPlatforms } from "../services/policy-packs";
 import { checkAiDisclosure, scanUserContentForAiDisclosure, recordProvenance, getProvenance, verifyMediaTrust } from "../services/ai-disclosure-intelligence";
@@ -29,14 +29,14 @@ export function registerComplianceHardeningRoutes(app: Express) {
   }));
 
   app.post("/api/compliance-hardening/drift/detect", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireAdmin(req, res);
     if (!userId) return;
     const results = await detectComplianceDrift();
     res.json({ results, totalDrifts: results.reduce((sum, r) => sum + r.driftsDetected, 0) });
   }));
 
   app.post("/api/compliance-hardening/drift/resolve/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireAdmin(req, res);
     if (!userId) return;
     const eventId = parseInt(req.params.id, 10);
     if (isNaN(eventId) || eventId <= 0) return res.status(400).json({ error: "Invalid event ID" });

@@ -120,6 +120,15 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
     if (preFlightResult.recommendations.length > 0) {
       policyCheck.issues.push(...preFlightResult.recommendations.map(r => `[pre-flight] ${r}`));
     }
+  } catch (preFlightErr: unknown) {
+    policyCheck.passed = false;
+    const msg = preFlightErr instanceof Error ? preFlightErr.message : "unknown error";
+    policyCheck.issues.push(`Policy pre-flight gate failed (fail-closed): ${msg}`);
+  }
+
+  try {
+    const { detectComplianceDrift } = await import("../services/compliance-drift-detector");
+    await detectComplianceDrift();
   } catch {}
 
   let safetyGateAllowed = true;
