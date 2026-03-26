@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { revenueRecords, revenueSyncLog } from "@shared/schema";
+import { revenueRecords, revenueSyncLog, reconciliationActions, reconciliationReports } from "@shared/schema";
 import { eq, and, desc, gte, lte, lt, sql, isNull, ne } from "drizzle-orm";
 
 export const RECONCILIATION_STATUSES = [
@@ -408,7 +408,7 @@ export async function flagDelayedReconciliation(
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysThreshold);
 
-  const result = await db.update(revenueRecords)
+  const resultUnverified = await db.update(revenueRecords)
     .set({
       reconciliationStatus: "delayed",
       reconciliationNotes: `No verification received within ${daysThreshold} days of recording`,
@@ -420,7 +420,19 @@ export async function flagDelayedReconciliation(
     ))
     .returning();
 
-  return result.length;
+  const resultEstimated = await db.update(revenueRecords)
+    .set({
+      reconciliationStatus: "delayed",
+      reconciliationNotes: `Estimated revenue not verified within ${daysThreshold} days — flagged for review`,
+    })
+    .where(and(
+      eq(revenueRecords.userId, userId),
+      eq(revenueRecords.reconciliationStatus, "estimated"),
+      lte(revenueRecords.recordedAt, cutoffDate),
+    ))
+    .returning();
+
+  return resultUnverified.length + resultEstimated.length;
 }
 
 export async function getReconciliationHistory(
@@ -458,4 +470,164 @@ export async function getReconciliationHistory(
     ...r,
     status: r.status || "unverified",
   }));
+}
+
+export async function routeUnresolvedToActionQueue(
+  userId: string,
+  unresolvedGaps: Array<{ recordId: number; platform: string; source: string; amount: number; gapAmount: number }>
+): Promise<number> {
+  let created = 0;
+  for (const gap of unresolvedGaps) {
+    const existing = await db.select().from(reconciliationActions)
+      .where(and(
+        eq(reconciliationActions.userId, userId),
+        eq(reconciliationActions.revenueRecordId, gap.recordId),
+        eq(reconciliationActions.status, "pending"),
+      ))
+      .limit(1);
+
+    if (existing.length === 0) {
+      await db.insert(reconciliationActions).values({
+        userId,
+        revenueRecordId: gap.recordId,
+        actionType: "review_gap",
+        priority: Math.abs(gap.gapAmount) > 500 ? "high" : "medium",
+        status: "pending",
+        description: `Review ${gap.platform} ${gap.source} record #${gap.recordId}: gap of $${Math.abs(gap.gapAmount).toFixed(2)}`,
+        platform: gap.platform,
+        amount: gap.amount,
+        gapAmount: gap.gapAmount,
+        metadata: { source: gap.source },
+      });
+      created++;
+    }
+  }
+  return created;
+}
+
+export async function getActionQueue(
+  userId: string,
+  status?: string
+): Promise<Array<{
+  id: number;
+  actionType: string;
+  priority: string;
+  status: string;
+  description: string;
+  platform: string | null;
+  amount: number | null;
+  gapAmount: number | null;
+  createdAt: Date | null;
+}>> {
+  const conditions = [eq(reconciliationActions.userId, userId)];
+  if (status) conditions.push(eq(reconciliationActions.status, status));
+
+  return db.select().from(reconciliationActions)
+    .where(and(...conditions))
+    .orderBy(desc(reconciliationActions.createdAt))
+    .limit(50);
+}
+
+export async function resolveAction(
+  userId: string,
+  actionId: number,
+  resolution: string
+): Promise<boolean> {
+  const result = await db.update(reconciliationActions)
+    .set({
+      status: "resolved",
+      resolution,
+      resolvedAt: new Date(),
+      resolvedBy: userId,
+    })
+    .where(and(
+      eq(reconciliationActions.id, actionId),
+      eq(reconciliationActions.userId, userId),
+    ))
+    .returning();
+  return result.length > 0;
+}
+
+export async function storeReconciliationReport(
+  userId: string,
+  period: string,
+  reportData: Record<string, unknown>
+): Promise<number> {
+  const [report] = await db.insert(reconciliationReports).values({
+    userId,
+    period,
+    reportData,
+  }).returning();
+  return report.id;
+}
+
+export async function getStoredReports(
+  userId: string,
+  limit: number = 12
+): Promise<Array<{ id: number; period: string; generatedAt: Date | null; reportData: Record<string, unknown> }>> {
+  return db.select().from(reconciliationReports)
+    .where(eq(reconciliationReports.userId, userId))
+    .orderBy(desc(reconciliationReports.generatedAt))
+    .limit(limit);
+}
+
+export async function runMonthlyReconciliation(userId: string): Promise<{
+  report: ReconciliationReport;
+  reportId: number;
+  actionsCreated: number;
+}> {
+  const now = new Date();
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const period = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+
+  await reconcileRevenueRecords(userId, {
+    startDate: prevMonth,
+    endDate: new Date(now.getFullYear(), now.getMonth(), 1),
+  });
+
+  await flagDelayedReconciliation(userId, 30);
+
+  const report = await generateReconciliationReport(userId, period);
+
+  const reportPayload: Record<string, unknown> = {
+    period: report.period,
+    generatedAt: report.generatedAt,
+    totalRecords: report.totalRecords,
+    verifiedRecords: report.verifiedRecords,
+    estimatedRecords: report.estimatedRecords,
+    disputedRecords: report.disputedRecords,
+    delayedRecords: report.delayedRecords,
+    unresolvedRecords: report.unresolvedRecords,
+    totalVerifiedAmount: report.totalVerifiedAmount,
+    totalEstimatedAmount: report.totalEstimatedAmount,
+    totalGapAmount: report.totalGapAmount,
+    variancePercent: report.variancePercent,
+    unresolvedGaps: report.unresolvedGaps,
+    needsHumanAction: report.needsHumanAction,
+    humanActionItems: report.humanActionItems,
+    platformBreakdown: report.platformBreakdown,
+  };
+  const reportId = await storeReconciliationReport(userId, period, reportPayload);
+
+  let actionsCreated = 0;
+  if (report.unresolvedGaps.length > 0) {
+    actionsCreated = await routeUnresolvedToActionQueue(userId, report.unresolvedGaps);
+  }
+
+  for (const item of report.humanActionItems) {
+    const isVarianceItem = item.includes("Overall revenue variance");
+    if (isVarianceItem) {
+      await db.insert(reconciliationActions).values({
+        userId,
+        actionType: "review_variance",
+        priority: "high",
+        status: "pending",
+        description: item,
+        metadata: { source: "monthly_reconciliation", period },
+      });
+      actionsCreated++;
+    }
+  }
+
+  return { report, reportId, actionsCreated };
 }

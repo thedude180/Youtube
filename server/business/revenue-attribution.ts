@@ -42,7 +42,7 @@ export async function buildAttributionGraph(userId: string): Promise<Attribution
       .where(eq(revenueRecords.userId, userId))
       .orderBy(desc(revenueRecords.recordedAt)),
     db.select().from(videos)
-      .where(eq(videos.channelId, sql`(SELECT id FROM channels WHERE user_id = ${userId} LIMIT 1)`))
+      .where(sql`${videos.channelId} IN (SELECT id FROM channels WHERE user_id = ${userId})`)
       .orderBy(desc(videos.createdAt))
       .limit(200),
     db.select().from(streams)

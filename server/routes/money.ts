@@ -18,6 +18,8 @@ import { syncAllRevenue, syncPlatformRevenue } from "../revenue-sync-engine";
 import {
   reconcileRevenueRecords, verifyRevenueRecord, generateReconciliationReport,
   getRevenueTruthSummary, flagDelayedReconciliation, getReconciliationHistory,
+  routeUnresolvedToActionQueue, getActionQueue, resolveAction,
+  storeReconciliationReport, getStoredReports, runMonthlyReconciliation,
   RECONCILIATION_STATUSES,
 } from "../business/revenue-reconciliation";
 import {
@@ -1205,6 +1207,75 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       res.json({ flagged: count, threshold: `${days} days` });
     } catch (error: unknown) {
       console.error("Flag delayed error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/action-queue", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const status = req.query.status as string | undefined;
+      const actions = await getActionQueue(userId, status);
+      res.json(actions);
+    } catch (error: unknown) {
+      console.error("Action queue error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.post("/api/revenue/action-queue/:id/resolve", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const actionId = parseNumericId(req.params.id as string, res);
+    if (actionId === null) return;
+    try {
+      const schema = z.object({ resolution: z.string().min(1) });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+
+      const resolved = await resolveAction(userId, actionId, parsed.data.resolution);
+      if (!resolved) return res.status(404).json({ error: "Action not found" });
+      res.json({ success: true });
+    } catch (error: unknown) {
+      console.error("Resolve action error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.post("/api/revenue/monthly-reconciliation", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await runMonthlyReconciliation(userId);
+      res.json({
+        period: result.report.period,
+        reportId: result.reportId,
+        actionsCreated: result.actionsCreated,
+        summary: {
+          totalRecords: result.report.totalRecords,
+          verified: result.report.verifiedRecords,
+          estimated: result.report.estimatedRecords,
+          disputed: result.report.disputedRecords,
+          unresolved: result.report.unresolvedRecords,
+          needsHumanAction: result.report.needsHumanAction,
+        },
+      });
+    } catch (error: unknown) {
+      console.error("Monthly reconciliation error:", error);
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
+  app.get("/api/revenue/stored-reports", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const limit = parseInt(req.query.limit as string) || 12;
+      const reports = await getStoredReports(userId, limit);
+      res.json(reports);
+    } catch (error: unknown) {
+      console.error("Stored reports error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));

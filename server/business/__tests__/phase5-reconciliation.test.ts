@@ -90,13 +90,18 @@ vi.mock("../../db", () => {
       select: vi.fn().mockImplementation((..._args: unknown[]) => ({
         from: vi.fn().mockImplementation((table: any) => {
           const tableName = typeof table === "object" && table !== null
-            ? (table.userId === "user_id" && table.platform === "platform" ? "revenue" :
+            ? (table.userId === "user_id" && table.platform === "platform" && table.amount === "amount" && table.reconciliationStatus === "reconciliation_status" ? "revenue" :
                table.channelId === "channel_id" ? "videos" :
-               "streams")
+               table.actionType === "action_type" ? "actions" :
+               table.reportData === "report_data" ? "reports" :
+               table.userId === "user_id" && table.createdAt === "created_at" ? "streams" :
+               "unknown")
             : "unknown";
           tableTracker.push(tableName);
           if (tableName === "videos") return makeChain(mockVideos);
           if (tableName === "streams") return makeChain(mockStreams);
+          if (tableName === "actions") return makeChain([]);
+          if (tableName === "reports") return makeChain([]);
           return makeChain(mockRecords);
         }),
       })),
@@ -135,6 +140,16 @@ vi.mock("@shared/schema", () => ({
   revenueSyncLog: { userId: "user_id" },
   videos: { channelId: "channel_id", createdAt: "created_at" },
   streams: { userId: "user_id", createdAt: "created_at" },
+  reconciliationActions: {
+    id: "id", userId: "user_id", revenueRecordId: "revenue_record_id",
+    actionType: "action_type", priority: "priority", status: "status",
+    description: "description", platform: "platform", amount: "amount",
+    gapAmount: "gap_amount", createdAt: "created_at",
+  },
+  reconciliationReports: {
+    id: "id", userId: "user_id", period: "period",
+    reportData: "report_data", generatedAt: "generated_at",
+  },
 }));
 
 beforeEach(() => {
@@ -484,5 +499,53 @@ describe("Revenue Truth Layer — v9.0 Requirements", () => {
     if (graph.totalRevenue > 0) {
       expect(graph.attributedRevenue + graph.unattributedRevenue).toBeCloseTo(graph.totalRevenue, 1);
     }
+  });
+
+  it("routeUnresolvedToActionQueue persists human action items", async () => {
+    const { routeUnresolvedToActionQueue } = await import("../revenue-reconciliation");
+    const gaps = [
+      { recordId: 3, platform: "twitch", source: "Subs", amount: 200, gapAmount: 150 },
+    ];
+    const created = await routeUnresolvedToActionQueue(TEST_USER_ID, gaps);
+    expect(created).toBe(1);
+  });
+
+  it("getActionQueue returns pending actions", async () => {
+    const { getActionQueue } = await import("../revenue-reconciliation");
+    const actions = await getActionQueue(TEST_USER_ID, "pending");
+    expect(Array.isArray(actions)).toBe(true);
+  });
+
+  it("resolveAction marks an action as resolved", async () => {
+    const { resolveAction } = await import("../revenue-reconciliation");
+    const resolved = await resolveAction(TEST_USER_ID, 1, "Manually verified");
+    expect(typeof resolved).toBe("boolean");
+  });
+
+  it("storeReconciliationReport persists report to DB", async () => {
+    const { storeReconciliationReport } = await import("../revenue-reconciliation");
+    const reportId = await storeReconciliationReport(TEST_USER_ID, "2025-03", { total: 1000 });
+    expect(typeof reportId).toBe("number");
+  });
+
+  it("getStoredReports retrieves historical reports", async () => {
+    const { getStoredReports } = await import("../revenue-reconciliation");
+    const reports = await getStoredReports(TEST_USER_ID);
+    expect(Array.isArray(reports)).toBe(true);
+  });
+
+  it("flagDelayedReconciliation targets both unverified and estimated records", async () => {
+    const { flagDelayedReconciliation } = await import("../revenue-reconciliation");
+    const flagged = await flagDelayedReconciliation(TEST_USER_ID, 30);
+    expect(typeof flagged).toBe("number");
+  });
+
+  it("runMonthlyReconciliation generates report and routes actions", async () => {
+    const { runMonthlyReconciliation } = await import("../revenue-reconciliation");
+    const result = await runMonthlyReconciliation(TEST_USER_ID);
+    expect(result.report).toBeDefined();
+    expect(typeof result.reportId).toBe("number");
+    expect(typeof result.actionsCreated).toBe("number");
+    expect(result.report.period).toMatch(/^\d{4}-\d{2}$/);
   });
 });

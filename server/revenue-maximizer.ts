@@ -30,9 +30,18 @@ export async function analyzeRevenueStreams(userId: string) {
   const totalViews = userChannels.reduce((sum, c) => sum + (c.viewCount || 0), 0);
 
   const revenueBySource: Record<string, number> = {};
+  const verifiedBySource: Record<string, number> = {};
+  let totalVerified = 0;
+  let totalAmount = 0;
   for (const r of records) {
     revenueBySource[r.source] = (revenueBySource[r.source] || 0) + r.amount;
+    totalAmount += r.amount;
+    if (r.reconciliationStatus === "verified") {
+      verifiedBySource[r.source] = (verifiedBySource[r.source] || 0) + r.amount;
+      totalVerified += r.amount;
+    }
   }
+  const verificationRate = totalAmount > 0 ? (totalVerified / totalAmount) * 100 : 0;
 
   const response = await openai.chat.completions.create({
     model: "gpt-5-mini",
@@ -47,6 +56,12 @@ Creator stats:
 
 Revenue by source (last 100 records):
 ${JSON.stringify(revenueBySource, null, 2)}
+
+Revenue verification status:
+- Total revenue: $${totalAmount.toFixed(2)}
+- Verified revenue: $${totalVerified.toFixed(2)} (${verificationRate.toFixed(0)}% verified)
+- Estimated/unverified: $${(totalAmount - totalVerified).toFixed(2)}
+NOTE: Factor verification status into confidence of your recommendations. Unverified revenue should not be treated as certain.
 
 Existing revenue models:
 ${JSON.stringify(existingModels.map(m => ({ type: m.modelType, currentRate: m.currentRate, suggestedRate: m.suggestedRate })), null, 2)}
@@ -244,6 +259,9 @@ export async function generateRevenueReport(userId: string) {
   ]);
 
   const totalRevenue = records.reduce((sum, r) => sum + r.amount, 0);
+  const verifiedRev = records.filter(r => r.reconciliationStatus === "verified").reduce((sum, r) => sum + r.amount, 0);
+  const estimatedRev = totalRevenue - verifiedRev;
+  const verifyRate = totalRevenue > 0 ? (verifiedRev / totalRevenue) * 100 : 0;
   const revenueBySource: Record<string, number> = {};
   const revenueByPlatform: Record<string, number> = {};
   for (const r of records) {
@@ -258,6 +276,9 @@ export async function generateRevenueReport(userId: string) {
       content: `You are a creator business analyst. Generate a comprehensive revenue report for this creator.
 
 Total revenue (recent records): $${totalRevenue.toFixed(2)}
+- Verified revenue: $${verifiedRev.toFixed(2)} (${verifyRate.toFixed(0)}% verified)
+- Estimated/unverified: $${estimatedRev.toFixed(2)}
+IMPORTANT: Clearly distinguish verified vs estimated revenue in your analysis. Do not present estimates as settled facts.
 Revenue by source: ${JSON.stringify(revenueBySource, null, 2)}
 Revenue by platform: ${JSON.stringify(revenueByPlatform, null, 2)}
 

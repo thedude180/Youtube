@@ -523,6 +523,37 @@ export const revenueRecords = pgTable("revenue_records", {
   revenueRecords_userId_recordedAt_idx: index("revenueRecords_userId_recordedAt_idx").on(table.userId, table.recordedAt),
 }));
 
+export const reconciliationActions = pgTable("reconciliation_actions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  revenueRecordId: integer("revenue_record_id"),
+  actionType: text("action_type").notNull(),
+  priority: text("priority").default("medium"),
+  status: text("status").default("pending"),
+  description: text("description").notNull(),
+  platform: text("platform"),
+  amount: real("amount"),
+  gapAmount: real("gap_amount"),
+  resolution: text("resolution"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("reconciliation_actions_user_id_idx").on(table.userId),
+  statusIdx: index("reconciliation_actions_status_idx").on(table.status),
+}));
+
+export const reconciliationReports = pgTable("reconciliation_reports", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  period: text("period").notNull(),
+  reportData: jsonb("report_data").$type<Record<string, unknown>>().notNull(),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("reconciliation_reports_user_id_idx").on(table.userId),
+}));
+
 export const revenueSyncLog = pgTable("revenue_sync_log", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
